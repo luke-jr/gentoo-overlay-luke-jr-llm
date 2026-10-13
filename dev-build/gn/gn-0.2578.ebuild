@@ -44,7 +44,7 @@ src_configure() {
 	#ifndef OUT_LAST_COMMIT_POSITION_H_
 	#define OUT_LAST_COMMIT_POSITION_H_
 	#define LAST_COMMIT_POSITION_NUM ${PV##0.}
-	#define LAST_COMMIT_POSITION "${PV} (${EGIT_COMMIT:0:12})"
+	#define LAST_COMMIT_POSITION "${PV}"
 	#endif  // OUT_LAST_COMMIT_POSITION_H_
 	EOF
 }
