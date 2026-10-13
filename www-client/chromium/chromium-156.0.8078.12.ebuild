@@ -23,7 +23,7 @@ EAPI=8
 # using an external CI system that we have some control over, in case
 # issues pop up again with official tarball generation.
 
-GN_MIN_VER=0.2374
+GN_MIN_VER=0.2578
 # chromium-tools/get-chromium-toolchain-strings.py (or just use Chromicler)
 # Node for M145+ should be 24.12.0 but that's not packaged in Gentoo yet. See #969145
 TEST_FONT="9c07d19d9c5ee1ff94f717e6fb17e0c8c354e6f9"
@@ -707,7 +707,6 @@ src_prepare() {
 		third_party/anonymous_tokens
 		third_party/apple_apsl
 		third_party/axe-core
-		third_party/bidimapper
 		third_party/blink
 		third_party/boringssl
 		third_party/boringssl/src/third_party/fiat
@@ -730,6 +729,7 @@ src_prepare() {
 		third_party/catapult/tracing/third_party/oboe
 		third_party/catapult/tracing/third_party/pako
 		third_party/ced
+		third_party/chromium-bidi
 		third_party/cld_3
 		third_party/closure_compiler
 		third_party/compiler-rt # Since M137 atomic is required; we could probably unbundle this as a target of opportunity.
@@ -965,7 +965,6 @@ src_prepare() {
 		third_party/zlib/google
 		third_party/zxcvbn-cpp
 		url/third_party/mozilla
-		v8/third_party/glibc
 		v8/third_party/inspector_protocol
 		v8/third_party/rapidhash-v8
 		v8/third_party/siphash
