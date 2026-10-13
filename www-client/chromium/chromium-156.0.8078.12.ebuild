@@ -27,13 +27,12 @@ GN_MIN_VER=0.2374
 # chromium-tools/get-chromium-toolchain-strings.py (or just use Chromicler)
 # Node for M145+ should be 24.12.0 but that's not packaged in Gentoo yet. See #969145
 TEST_FONT="9c07d19d9c5ee1ff94f717e6fb17e0c8c354e6f9"
-BUNDLED_CLANG_VER="llvmorg-23-init-19482-g53d18800-1"
-BUNDLED_RUST_VER="b998449636a48e2c4a362809085b600a0174e1f2-2"
+BUNDLED_CLANG_VER="llvmorg-24-init-7747-g62397f8b-53"
+BUNDLED_RUST_VER="1edd55dcfcd573872c727fa3e086369a71661ee0-2"
 RUST_SHORT_HASH=${BUNDLED_RUST_VER:0:10}-${BUNDLED_RUST_VER##*-}
 NODE_VER="24.12.0"
 GO_MIN_VER="1.25.0"
-ESBUILD_VER="0.25.1"
-ROLLUP_VER="4.57.1" # currently manual.
+ESBUILD_VER="0.28.2"
 VIRTUALX_REQUIRED="pgo"
 
 CHROMIUM_LANGS="af am ar bg bn ca cs da de el en-GB es es-419 et fa fi fil fr gu he
@@ -43,7 +42,7 @@ CHROMIUM_LANGS="af am ar bg bn ca cs da de el en-GB es es-419 et fa fi fil fr gu
 LLVM_COMPAT=( 22 23 )
 PYTHON_COMPAT=( python3_{11..14} )
 PYTHON_REQ_USE="xml(+)"
-RUST_MIN_VER=1.91.0
+RUST_MIN_VER=1.95.0
 RUST_NEEDS_LLVM="yes please"
 RUST_OPTIONAL="yes" # Not actually optional, but we don't need system Rust (or LLVM) with USE=bundled-toolchain
 RUST_REQ_USE="rustfmt" # Upstream run rustfmt on bindgen output, so we need it to be available.
@@ -54,11 +53,8 @@ inherit python-any-r1 readme.gentoo-r1 rust systemd toolchain-funcs virtualx xdg
 DESCRIPTION="Open-source version of Google Chrome web browser"
 HOMEPAGE="https://www.chromium.org/"
 PPC64_HASH="7aae8a84e327fc2078ce1625c9c70bfda77d626f"
-PATCH_V="151-3"
-COPIUM_COMMIT="3c7e56fb4523b43b47595bb3a22f77178fc76293"
+COPIUM_COMMIT="027d15ffdcd1816b7935cee9ea4a4f6bae0bbe60"
 SRC_URI="https://github.com/chromium-linux-tarballs/chromium-tarballs/releases/download/${PV}/chromium-${PV}-linux.tar.xz
-	https://deps.gentoo.zip/www-client/chromium/rollup-wasm-node-${ROLLUP_VER}.tgz
-	https://gitlab.com/Matt.Jolly/chromium-patches/-/archive/${PATCH_V}/chromium-patches-${PATCH_V}.tar.bz2
 	!bundled-toolchain? (
 		https://codeberg.org/selfisekai/copium/archive/${COPIUM_COMMIT}.tar.gz
 			-> chromium-patches-copium-${COPIUM_COMMIT:0:10}.tar.gz
@@ -404,7 +400,6 @@ pkg_setup() {
 
 src_unpack() {
 	unpack ${P}-linux.tar.xz
-	unpack chromium-patches-${PATCH_V}.tar.bz2
 	# These should only be required when we're not using the official toolchain
 	if use !bundled-toolchain; then
 		unpack chromium-patches-copium-${COPIUM_COMMIT:0:10}.tar.gz
@@ -436,10 +431,6 @@ src_unpack() {
 	if use ppc64; then
 		unpack chromium-openpower-${PPC64_HASH:0:10}.tar.bz2
 	fi
-
-	# This is a dirty hack, but we need rollup to build successfully and it's proving to be challenging
-	# to build locally due to deps
-	unpack rollup-wasm-node-${ROLLUP_VER}.tgz
 }
 
 remove_compiler_builtins() {
@@ -503,7 +494,7 @@ src_prepare() {
 	local PATCHES=()
 
 	PATCHES+=(
-		"${WORKDIR}/chromium-patches-${PATCH_V}/common/"
+		"${FILESDIR}/chromium-patches-${PV%%.*}/common/"
 	)
 
 	# So many fontconfig magic numbers to cover
@@ -553,7 +544,14 @@ src_prepare() {
 		# Copium patches go here.
 		PATCHES+=(
 			"${WORKDIR}/copium/cr143-libsync-__BEGIN_DECLS.patch"
-			"${WORKDIR}/copium/cr149-unbundle-minizip-undo-unicode.patch"
+			"${WORKDIR}/copium/cr145-iwyu-dev_t.patch"
+			"${WORKDIR}/copium/cr147-simdutf-8.0-base-char.patch"
+			"${WORKDIR}/copium/cr148-rust-1.95-bytemuck.patch"
+			"${WORKDIR}/copium/cr152-unbundle-minizip-undo-unicode.patch"
+			"${WORKDIR}/copium/cr152-unbundle-opus-devtools.patch"
+			"${WORKDIR}/copium/cr153-unbundle-opus-iamf.patch"
+			"${WORKDIR}/copium/cr156-unbundle-icu-remoting.patch"
+			"${WORKDIR}/copium/cr156-v8-no-san-trap.patch"
 		)
 
 		# Automate conditional application of chromium-patches
@@ -571,7 +569,7 @@ src_prepare() {
 		shopt -s nullglob
 		local -A slot_map=( [llvm]="${LLVM_SLOT}" [rust]="${RUST_SLOT}" )
 
-		for category in "${WORKDIR}/chromium-patches-${PATCH_V}"/*/; do
+		for category in "${FILESDIR}/chromium-patches-${PV%%.*}"/*/; do
 			local category_name="${category%/}"
 			category_name="${category_name##*/}"
 
@@ -634,13 +632,6 @@ src_prepare() {
 			die "Failed to update rustfmt path"
 
 	fi
-
-	# Do this before we apply patches since (e.g.) ppc64 needs to patch rollup and it's easier in ${S}
-	einfo "Moving rollup wasm-node package into place ..."
-	mkdir -p third_party/devtools-frontend/src/node_modules/@rollup/wasm-node ||
-		die "Failed to create node_modules/@rollup/wasm-node"
-	mv "${WORKDIR}"/package/* third_party/devtools-frontend/src/node_modules/@rollup/wasm-node ||
-		die "Failed to move rollup package"
 
 	default
 
