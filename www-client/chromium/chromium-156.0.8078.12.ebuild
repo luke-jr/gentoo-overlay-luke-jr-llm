@@ -495,6 +495,11 @@ src_prepare() {
 
 	PATCHES+=(
 		"${FILESDIR}/chromium-patches-${PV%%.*}/common/"
+		# Chromium must not download executable code at runtime (other than
+		# what web pages themselves load): Widevine CDM, Screen AI, SODA,
+		# TranslateKit, the WASM TTS engine, component-extension JS updates
+		# and the remote DevTools front-end.
+		"${FILESDIR}/chromium-156-no-runtime-executable-downloads.patch"
 	)
 
 	# So many fontconfig magic numbers to cover
@@ -1293,8 +1298,6 @@ chromium_configure() {
 		# See dependency logic in third_party/BUILD.gn
 		"use_system_harfbuzz=$(usex system-harfbuzz true false)"
 		"use_thin_lto=${use_lto}"
-		# Only enabled for clang, but gcc has endian macros too
-		"v8_use_libm_trig_functions=true"
 		# use system go
 		"tint_use_system_go=true"
 	)

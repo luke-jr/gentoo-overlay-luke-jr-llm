@@ -1,0 +1,279 @@
+Never download executable code at runtime (Chromium 156, Linux desktop)
+
+Chromium downloads and loads several pieces of executable code at runtime
+through the component updater (update.googleapis.com) or from other
+Google-hosted locations. This patch removes every such path that is active
+in a non-Google-branded Linux build, while leaving data-only components
+(lists, configs, ML weights) and user-initiated extension installs alone:
+
+  * Widevine CDM          - libwidevinecdm.so  (component "WidevineCdm")
+                            A CDM installed on the system is still found via
+                            the bundled dir (bundle_widevine_cdm=true) or the
+                            hint file $USERDATA/WidevineCdm/latest-component-
+                            updated-widevine-cdm ({"Path": "<dir>"}).
+  * SODA                  - libsoda.so + language packs (Live Caption,
+                            on-device Web Speech, Dictation). Reported as
+                            unsupported, so the UI does not offer it.
+  * Screen AI             - libchromescreenai.so (PDF OCR, main-content
+                            extraction for Reading Mode).
+  * TranslateKit          - libtranslatekit.so (Translator / LanguageDetector
+                            web APIs). --translate-kit-binary-path still works.
+  * WASM TTS engine       - bindings_main.wasm + JS in a component extension
+                            (natural voices for Reading Mode / Read Aloud).
+  * Dictation Connector   - JS component extension (feature off by default).
+  * Indigo                - content_script.js injected into pages (off by
+                            default).
+  * AIM Eligibility       - component-updated replacement of the bundled
+                            omnibox "AI Mode" eligibility component extension.
+                            The bundled copy keeps being used, the AI Mode
+                            button is not affected.
+  * DevTools remote front-end - devtools://devtools/remote/... fetched from
+                            chrome-devtools-frontend.appspot.com and run in the
+                            privileged devtools:// origin (used when inspecting
+                            remote targets with a different version).
+
+The gates are placed in the Register*() functions of the individual
+installers (not in registration.cc) so that the on-demand registration paths
+(SODA installer, Screen AI downloader, TranslateKit installer_impl, Reading
+Mode) are covered as well and the patch does not conflict with other patches
+that edit registration.cc. All edited code is compiled identically in the
+default GN configuration and with enable_screen_ai_service=false /
+build_with_tflite_lib=false / build_with_internal_optimization_guide=false
+(files that are not built in a configuration are simply not compiled).
+Function bodies are replaced rather than preceded by an early return because
+Chromium builds with -Wunreachable-code-aggressive.
+
+diff --git a/chrome/browser/component_updater/aim_eligibility_component_installer.cc b/chrome/browser/component_updater/aim_eligibility_component_installer.cc
+index b66f1b6..fadb262 100644
+--- a/chrome/browser/component_updater/aim_eligibility_component_installer.cc
++++ b/chrome/browser/component_updater/aim_eligibility_component_installer.cc
+@@ -166,19 +166,13 @@ AimEligibilityComponentInstallerPolicy::GetInstallerAttributes() const {
+ 
+ void ManageAimEligibilityComponentRegistration(ComponentUpdateService* cus) {
+   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+-  if (base::FeatureList::IsEnabled(
+-          omnibox::kAimEligibilityComponentExtension) &&
+-      omnibox::kAimEligibilityUseComponentUpdater.Get()) {
+-    VLOG(1) << "Registering AIM Eligibility component.";
+-    base::MakeRefCounted<ComponentInstaller>(
+-        std::make_unique<AimEligibilityComponentInstallerPolicy>())
+-        ->Register(cus, base::OnceClosure());
+-  } else {
+-    VLOG(1) << "Uninstalling AIM Eligibility component.";
+-    base::MakeRefCounted<ComponentInstaller>(
+-        std::make_unique<AimEligibilityComponentInstallerPolicy>())
+-        ->Uninstall();
+-  }
++  // Runtime download of newer versions of the AIM Eligibility component
++  // extension (JavaScript run in a component extension) is disabled in this
++  // build; the copy bundled in the resources is always used.
++  VLOG(1) << "Uninstalling AIM Eligibility component.";
++  base::MakeRefCounted<ComponentInstaller>(
++      std::make_unique<AimEligibilityComponentInstallerPolicy>())
++      ->Uninstall();
+ }
+ 
+ }  // namespace component_updater
+diff --git a/chrome/browser/component_updater/dictation_connector_component_installer.cc b/chrome/browser/component_updater/dictation_connector_component_installer.cc
+index 5631859..8c7ea2d 100644
+--- a/chrome/browser/component_updater/dictation_connector_component_installer.cc
++++ b/chrome/browser/component_updater/dictation_connector_component_installer.cc
+@@ -179,14 +179,8 @@ DictationConnectorComponentInstallerPolicy::GetInstallerAttributes() const {
+ }
+ 
+ void RegisterDictationConnectorComponent(ComponentUpdateService* cus) {
+-  if (!base::FeatureList::IsEnabled(dictation::kDictation)) {
+-    return;
+-  }
+-
+-  VLOG(1) << "Registering Dictation Connector component.";
+-  auto installer = base::MakeRefCounted<ComponentInstaller>(
+-      std::make_unique<DictationConnectorComponentInstallerPolicy>());
+-  installer->Register(cus, base::OnceClosure());
++  // Runtime download of the Dictation Connector (JavaScript run in a
++  // component extension) is disabled in this build.
+ }
+ 
+ }  // namespace component_updater
+diff --git a/chrome/browser/component_updater/indigo_component_installer.cc b/chrome/browser/component_updater/indigo_component_installer.cc
+index 0e3f329..d4f8a9d 100644
+--- a/chrome/browser/component_updater/indigo_component_installer.cc
++++ b/chrome/browser/component_updater/indigo_component_installer.cc
+@@ -126,13 +126,8 @@ IndigoComponentInstallerPolicy::GetInstallerAttributes() const {
+ 
+ void RegisterIndigoComponent(ComponentUpdateService* cus) {
+   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+-  if (!base::FeatureList::IsEnabled(features::kIndigoComponent)) {
+-    return;
+-  }
+-  VLOG(1) << "Registering Indigo component.";
+-  auto installer = base::MakeRefCounted<ComponentInstaller>(
+-      std::make_unique<IndigoComponentInstallerPolicy>());
+-  installer->Register(cus, base::DoNothing());
++  // Runtime download of the Indigo content script (JavaScript injected into
++  // web pages by the browser) is disabled in this build.
+ }
+ 
+ std::optional<base::FilePath> GetIndigoComponentInstallDir() {
+diff --git a/chrome/browser/component_updater/screen_ai_component_installer.cc b/chrome/browser/component_updater/screen_ai_component_installer.cc
+index 11a0fa3..cdf81e2 100644
+--- a/chrome/browser/component_updater/screen_ai_component_installer.cc
++++ b/chrome/browser/component_updater/screen_ai_component_installer.cc
+@@ -124,12 +124,8 @@ void ScreenAIComponentInstallerPolicy::DeleteComponent() {
+ 
+ void ManageScreenAIComponentRegistration(ComponentUpdateService* cus,
+                                          PrefService* local_state) {
+-  if (screen_ai::ScreenAIInstallState::ShouldInstall(local_state)) {
+-    RegisterScreenAIComponent(cus);
+-    return;
+-  }
+-
+-  // Clean up.
++  // Runtime download of the Screen AI library (a native shared library) is
++  // disabled in this build; only clean up a previously installed copy.
+   if (base::PathExists(screen_ai::GetComponentDir())) {
+     ScreenAIComponentInstallerPolicy::DeleteComponent();
+   }
+@@ -138,17 +134,10 @@ void ManageScreenAIComponentRegistration(ComponentUpdateService* cus,
+ void RegisterScreenAIComponent(ComponentUpdateService* cus) {
+   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+ 
+-  // Only register once.
+-  if (screen_ai::ScreenAIInstallState::GetInstance()->get_state() !=
+-      screen_ai::ScreenAIInstallState::State::kNotDownloaded) {
+-    return;
+-  }
++  // Runtime download of the Screen AI library is disabled in this build.
++  // Report the download as failed so that features waiting for it give up.
+   screen_ai::ScreenAIInstallState::GetInstance()->SetState(
+-      screen_ai::ScreenAIInstallState::State::kDownloading);
+-
+-  auto installer = base::MakeRefCounted<ComponentInstaller>(
+-      std::make_unique<ScreenAIComponentInstallerPolicy>());
+-  installer->Register(cus, base::OnceClosure());
++      screen_ai::ScreenAIInstallState::State::kDownloadFailed);
+ }
+ 
+ }  // namespace component_updater
+diff --git a/chrome/browser/component_updater/translate_kit_component_installer.cc b/chrome/browser/component_updater/translate_kit_component_installer.cc
+index 3d4c0e9..a9d5baa 100644
+--- a/chrome/browser/component_updater/translate_kit_component_installer.cc
++++ b/chrome/browser/component_updater/translate_kit_component_installer.cc
+@@ -209,28 +209,9 @@ void RegisterTranslateKitComponent(ComponentUpdateService* cus,
+                                    bool force_install,
+                                    base::OnceClosure registered_callback,
+                                    base::RepeatingClosure on_ready_callback) {
+-  VLOG(1) << "Registering TranslateKit component.";
+-  if (!force_install &&
+-      !pref_service->GetBoolean(prefs::kTranslateKitPreviouslyRegistered)) {
+-    return;
+-  }
+-
+-  // If the component is already installed, do nothing.
+-  const std::vector<std::string> component_ids = cus->GetComponentIDs();
+-  if (std::find(component_ids.begin(), component_ids.end(),
+-                TranslateKitComponentInstallerPolicy::GetExtensionId()) !=
+-      component_ids.end()) {
+-    return;
+-  }
+-
+-  pref_service->SetBoolean(prefs::kTranslateKitPreviouslyRegistered, true);
+-  // Clear any previously set path in the preferences
+-  SetBinaryPathInPrefs(pref_service, base::FilePath());
+-
+-  auto installer = base::MakeRefCounted<ComponentInstaller>(
+-      std::make_unique<TranslateKitComponentInstallerPolicy>(
+-          pref_service, std::move(on_ready_callback)));
+-  installer->Register(cus, std::move(registered_callback));
++  // Runtime download of the TranslateKit library (libtranslatekit.so) is
++  // disabled in this build. A library given with --translate-kit-binary-path
++  // is still used (see chrome/browser/on_device_translation/installer_impl.cc).
+ }
+ 
+ }  // namespace component_updater
+diff --git a/chrome/browser/component_updater/wasm_tts_engine_component_installer.cc b/chrome/browser/component_updater/wasm_tts_engine_component_installer.cc
+index 289b12f..18a20ac 100644
+--- a/chrome/browser/component_updater/wasm_tts_engine_component_installer.cc
++++ b/chrome/browser/component_updater/wasm_tts_engine_component_installer.cc
+@@ -304,10 +304,9 @@ void WasmTtsEngineComponentInstallerPolicy::UpdateWasmComponentOnDemand() {
+ 
+ void RegisterWasmTtsEngineComponent(ComponentUpdateService* cus,
+                                     PrefService* prefs) {
+-  VLOG(1) << "Registering WASM TTS Engine component.";
+-  auto installer = base::MakeRefCounted<ComponentInstaller>(
+-      std::make_unique<WasmTtsEngineComponentInstallerPolicy>(prefs));
+-  installer->Register(cus, base::OnceClosure());
++  // Runtime download of the WASM TTS engine (WebAssembly + JavaScript run in
++  // a component extension) is disabled in this build. On-demand updates
++  // requested by Reading Mode fail because the component is not registered.
+ }
+ 
+ void WasmTtsEngineComponentInstallerPolicy::GetWasmTTSEngineDirectory(
+diff --git a/chrome/browser/component_updater/widevine_cdm_component_installer.cc b/chrome/browser/component_updater/widevine_cdm_component_installer.cc
+index c88a637..46f9fd8 100644
+--- a/chrome/browser/component_updater/widevine_cdm_component_installer.cc
++++ b/chrome/browser/component_updater/widevine_cdm_component_installer.cc
+@@ -436,9 +436,10 @@ void WidevineCdmComponentInstallerPolicy::UpdateCdmPath(
+ }
+ 
+ void RegisterWidevineCdmComponent(ComponentUpdateService* cus) {
+-  auto installer = base::MakeRefCounted<ComponentInstaller>(
+-      std::make_unique<WidevineCdmComponentInstallerPolicy>());
+-  installer->Register(cus, base::OnceClosure());
++  // Runtime download of the Widevine CDM (a native shared library) is
++  // disabled in this build. A CDM installed on the system is still found
++  // through the bundled directory or the hint file, see
++  // chrome/common/media/cdm_registration.cc.
+ }
+ 
+ }  // namespace component_updater
+diff --git a/chrome/browser/ui/webui/devtools/devtools_ui_data_source.cc b/chrome/browser/ui/webui/devtools/devtools_ui_data_source.cc
+index 31bea97..8c7cca1 100644
+--- a/chrome/browser/ui/webui/devtools/devtools_ui_data_source.cc
++++ b/chrome/browser/ui/webui/devtools/devtools_ui_data_source.cc
+@@ -189,17 +189,10 @@ void DevToolsDataSource::StartDataRequest(
+                                  &callback)) {
+       return;
+     }
+-    GURL remote_url(kRemoteFrontendBase +
+-                    path.substr(remote_path_prefix.length()));
+-
+-    CHECK_EQ(remote_url.GetHost(), kRemoteFrontendDomain);
+-    if (remote_url.is_valid() &&
+-        DevToolsUIBindings::IsValidRemoteFrontendURL(remote_url)) {
+-      StartRemoteDataRequest(remote_url, std::move(callback));
+-    } else {
+-      DLOG(ERROR) << "Refusing to load invalid remote front-end URL";
+-      std::move(callback).Run(CreateNotFoundResponse());
+-    }
++    // Loading the DevTools front-end (JavaScript run in the privileged
++    // devtools:// context) from the network is disabled in this build.
++    DLOG(ERROR) << "Refusing to load remote front-end URL";
++    std::move(callback).Run(CreateNotFoundResponse());
+     return;
+   }
+ 
+diff --git a/components/soda/soda_util.cc b/components/soda/soda_util.cc
+index 5d638bb..7f7585e 100644
+--- a/components/soda/soda_util.cc
++++ b/components/soda/soda_util.cc
+@@ -41,15 +41,11 @@ bool IsSupportedChromeOS() {
+ 
+ #if BUILDFLAG(IS_LINUX)
+ bool IsSupportedLinux() {
+-#if defined(ARCH_CPU_X86_FAMILY)
+-  // Check if the CPU has the required instruction set to run the Speech
+-  // On-Device API (SODA) library. SODA requires AVX support on x86.
+-  static bool has_avx = base::CPU().has_avx();
+-  return has_avx;
+-#else
+-  // Other architectures are not supported.
++  // The Speech On-Device API (SODA) library is a native shared library that
++  // is downloaded at runtime through the component updater. Such downloads
++  // are disabled in this build, so on-device speech recognition (Live
++  // Caption, on-device Web Speech, ...) is reported as unsupported.
+   return false;
+-#endif  // defined(ARCH_CPU_X86_FAMILY)
+ }
+ #endif  // BUILDFLAG(IS_LINUX)
+ 
