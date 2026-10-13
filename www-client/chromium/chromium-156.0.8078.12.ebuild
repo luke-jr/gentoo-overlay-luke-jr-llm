@@ -824,6 +824,7 @@ src_prepare() {
 		third_party/gperf # We symlink system gperf, but this will purge the symlink since we tidy up afterwards.
 		third_party/highway
 		third_party/hunspell
+		third_party/iamf_tools
 		third_party/ink/src/ink/brush
 		third_party/ink/src/ink/color
 		third_party/ink/src/ink/geometry
@@ -892,6 +893,7 @@ src_prepare() {
 		third_party/openscreen
 		third_party/openscreen/src/third_party/
 		third_party/openscreen/src/third_party/tinycbor/src/src
+		third_party/openxr
 		third_party/opus
 		third_party/ots
 		third_party/pdfium
