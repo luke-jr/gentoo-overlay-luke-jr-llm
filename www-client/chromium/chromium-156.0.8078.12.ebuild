@@ -42,7 +42,7 @@ CHROMIUM_LANGS="af am ar bg bn ca cs da de el en-GB es es-419 et fa fi fil fr gu
 LLVM_COMPAT=( 22 23 )
 PYTHON_COMPAT=( python3_{11..14} )
 PYTHON_REQ_USE="xml(+)"
-RUST_MIN_VER=1.95.0
+RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit slot (rustc driver, tied to the Rust build)
 RUST_NEEDS_LLVM="yes please"
 RUST_OPTIONAL="yes" # Not actually optional, but we don't need system Rust (or LLVM) with USE=bundled-toolchain
 RUST_REQ_USE="rustfmt" # Upstream run rustfmt on bindgen output, so we need it to be available.
@@ -214,6 +214,7 @@ BDEPEND="
 			!ppc64? ( llvm-runtimes/compiler-rt-sanitizers:${LLVM_SLOT}[cfi] )
 		) ')
 		${RUST_DEPEND}
+		dev-util/crubit
 	)
 	pgo? (
 		>=dev-python/selenium-3.141.0
@@ -337,6 +338,23 @@ pkg_setup() {
 			llvm-r1_pkg_setup
 			rust_pkg_setup
 
+			# Crubit (cc_bindings_from_rs, upstream's C++ bindings generator for Rust code;
+			# needed by e.g. Blink's font format check and the Web Bundle parser) is a
+			# rustc driver: it must be linked against the very same dev-lang/rust build
+			# whose rustc and stdlib we use. dev-util/crubit is slotted by Rust slot.
+			if [[ ${RUST_TYPE} != source ]]; then
+				eerror "dev-util/crubit is built against dev-lang/rust, but Rust ${RUST_SLOT} (${RUST_TYPE}) was selected."
+				eerror "Install dev-lang/rust:${RUST_SLOT}, or select another Rust with ERUST_SLOT_OVERRIDE/ERUST_TYPE_OVERRIDE."
+				die "Crubit requires dev-lang/rust (not rust-bin)"
+			fi
+			if ! has_version -b "dev-util/crubit:${RUST_SLOT}"; then
+				eerror "dev-util/crubit:${RUST_SLOT} is required to build with Rust ${RUST_SLOT}."
+				eerror "Install it, or select a Rust slot that has it with ERUST_SLOT_OVERRIDE."
+				die "dev-util/crubit:${RUST_SLOT} is not installed"
+			fi
+			"${BROOT}/usr/lib/crubit/${RUST_SLOT}/bin/cc_bindings_from_rs" --help >/dev/null ||
+				die "cc_bindings_from_rs does not run; rebuild dev-util/crubit:${RUST_SLOT} (dev-lang/rust:${RUST_SLOT} was probably rebuilt)"
+
 			if tc-ld-is-mold; then
 				ewarn "Mold is currently not supported, it will not be used"
 			fi
@@ -383,7 +401,8 @@ pkg_setup() {
 		fi
 
 		# I hate doing this but upstream Rust have yet to come up with a better solution for
-		# us poor packagers. Required for Split LTO units, which are required for CFI.
+		# us poor packagers. Required for Split LTO units, which are required for CFI,
+		# and for Crubit (a rustc driver) and the unstable features its support crates use.
 		export RUSTC_BOOTSTRAP=1
 
 		# Sanity checks for development convenience
@@ -633,6 +652,10 @@ src_prepare() {
 			fi
 		fi
 
+		# Use the system Crubit (dev-util/crubit) with the prebuilt system Rust stdlib
+		# (generates the stdlib's C++ bindings from its .rmeta files); see the patch header.
+		PATCHES+=( "${FILESDIR}/chromium-156-system-crubit.patch" )
+
 		remove_compiler_builtins
 
 		# We can't rely on the eselect'd Rust to actually include rustfmt, so we'll point to the selected slot specifically.
@@ -648,6 +671,12 @@ src_prepare() {
 	fi
 
 	default
+
+	if use !bundled-toolchain; then
+		# As for bindgen above; these files are added/changed by chromium-156-system-crubit.patch.
+		sed -i "s|/bin/rustfmt|/bin/rustfmt${suffix}|g" build/rust/gni_impl/cpp_api_from_rust.gni \
+			build/rust/std/prebuilt_std_bindings.gni || die "Failed to update rustfmt path for Crubit"
+	fi
 
 	# Sanity check esbuild version before we start removing files.
 	# We _could_ patch the version check out - in theory esbuild upstream are being super conservative after
@@ -1199,6 +1228,10 @@ chromium_configure() {
 			"rust_bindgen_root=\"${EPREFIX}/usr/\""
 			"rust_sysroot_absolute=\"$(get_rust_prefix)\""
 			"rustc_version=\"${RUST_SLOT}\""
+			# Crubit (cpp_api_from_rust); checked in pkg_setup. Upstream formats its
+			# generated headers with a bundled clang-format, which we remove.
+			"rust_crubit_root=\"${BROOT}/usr/lib/crubit/${RUST_SLOT}\""
+			"rust_crubit_clang_format=\"$(get_llvm_prefix)/bin/clang-format\""
 		)
 
 		# Currently disabled, runtime issues with mold
