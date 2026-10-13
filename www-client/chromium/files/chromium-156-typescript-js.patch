@@ -1,0 +1,69 @@
+# Use the JavaScript TypeScript compiler bundled in the source tree (run by
+# the system Node.js) instead of the prebuilt native tsgo binary, which is
+# removed together with all other bundled ELF binaries.
+
+diff --git a/third_party/devtools-frontend/src/scripts/build/typescript/typescript_vars.gni b/third_party/devtools-frontend/src/scripts/build/typescript/typescript_vars.gni
+index bc34d3a90c..69f878685f 100644
+--- a/third_party/devtools-frontend/src/scripts/build/typescript/typescript_vars.gni
++++ b/third_party/devtools-frontend/src/scripts/build/typescript/typescript_vars.gni
+@@ -6,7 +6,9 @@ import("//build/toolchain/rbe.gni")
+ import("../ninja/vars.gni")
+ 
+ if (host_os == "linux") {
+-  tsc_binary = "//third_party/typescript/linux-amd64/src/lib/tsc"
++  # Gentoo: use the JavaScript TypeScript compiler bundled with DevTools
++  # (run by the system Node.js) instead of the prebuilt native tsgo binary.
++  tsc_binary = devtools_location_prepend + "node_modules/typescript/bin/tsc"
+ } else if (host_os == "win") {
+   tsc_binary = "//third_party/typescript/windows-amd64/src/lib/tsc.exe"
+ } else if (host_os == "mac") {
+diff --git a/third_party/typescript/tsgo.gni b/third_party/typescript/tsgo.gni
+index 900db8e63c..32d7592396 100644
+--- a/third_party/typescript/tsgo.gni
++++ b/third_party/typescript/tsgo.gni
+@@ -23,8 +23,14 @@ assert(defined(_platform_dir), "Did not find binary for host_os='${host_os}'")
+ 
+ tsgo_inputs = [
+   "//third_party/typescript/typescript.py",
+-  "//third_party/typescript/$_platform_dir/src/lib/$_binary_name",
+ ]
++if (host_os == "linux") {
++  # Gentoo: see typescript.py; the prebuilt tsgo binary is not used.
++  tsgo_inputs += [ "//third_party/node/node_modules/typescript/bin/tsc" ]
++} else {
++  tsgo_inputs +=
++      [ "//third_party/typescript/$_platform_dir/src/lib/$_binary_name" ]
++}
+ 
+ _tsgo_lib_files = [
+   "lib.decorators.d.ts",
+@@ -137,6 +143,10 @@ _tsgo_lib_files = [
+   "lib.webworker.iterable.d.ts",
+ ]
+ 
+-foreach(file, _tsgo_lib_files) {
+-  tsgo_inputs += [ "//third_party/typescript/$_platform_dir/src/lib/$file" ]
++if (host_os == "linux") {
++  not_needed([ "_tsgo_lib_files" ])
++} else {
++  foreach(file, _tsgo_lib_files) {
++    tsgo_inputs += [ "//third_party/typescript/$_platform_dir/src/lib/$file" ]
++  }
+ }
+diff --git a/third_party/typescript/typescript.py b/third_party/typescript/typescript.py
+index 7c2db710d1..7d52176f3b 100755
+--- a/third_party/typescript/typescript.py
++++ b/third_party/typescript/typescript.py
+@@ -11,6 +11,12 @@ import os
+ 
+ 
+ def GetBinaryPath():
++  # Gentoo: the native TypeScript compiler (tsgo) is a prebuilt binary that is
++  # removed from the source tree. Use the JavaScript TypeScript compiler from
++  # //third_party/node/node_modules instead, run by the system Node.js.
++  if platform.system() == 'Linux':
++    return os_path.normpath(os_path.join(os_path.dirname(__file__), '..',
++                            'node', 'node_modules', 'typescript', 'bin', 'tsc'))
+   if platform.machine() == 'arm64':
+     darwin_path = 'mac-arm64'
+   else:

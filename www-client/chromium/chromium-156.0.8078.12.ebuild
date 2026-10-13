@@ -209,6 +209,7 @@ BDEPEND="
 		llvm-core/clang:${LLVM_SLOT}
 		llvm-core/llvm:${LLVM_SLOT}
 		llvm-core/lld:${LLVM_SLOT}
+		=dev-python/clang-${LLVM_SLOT}*
 		official? (
 			!ppc64? ( llvm-runtimes/compiler-rt-sanitizers:${LLVM_SLOT}[cfi] )
 		) ')
@@ -268,7 +269,11 @@ in /etc/chromium/default.
 "
 
 python_check_deps() {
-	python_has_version "dev-python/setuptools[${PYTHON_USEDEP}]"
+	python_has_version "dev-python/setuptools[${PYTHON_USEDEP}]" || return 1
+	# V8 metagen uses the libclang Python bindings (see src_configure)
+	if use !bundled-toolchain; then
+		python_has_version "dev-python/clang[${PYTHON_USEDEP}]" || return 1
+	fi
 }
 
 pre_build_checks() {
@@ -500,6 +505,10 @@ src_prepare() {
 		# TranslateKit, the WASM TTS engine, component-extension JS updates
 		# and the remote DevTools front-end.
 		"${FILESDIR}/chromium-156-no-runtime-executable-downloads.patch"
+		# Upstream builds TypeScript with a prebuilt native tsgo binary; use the
+		# bundled JavaScript compiler with system Node.js instead.
+		"${FILESDIR}/chromium-156-typescript-js.patch"
+		"${FILESDIR}/chromium-156-v8-metagen-resource-dir.patch"
 	)
 
 	# So many fontconfig magic numbers to cover
@@ -949,6 +958,7 @@ src_prepare() {
 		third_party/tflite/src/third_party/xla/xla/tsl/platform
 		third_party/tflite/src/third_party/xla/xla/tsl/protobuf
 		third_party/tflite/src/third_party/xla/xla/tsl/util
+		third_party/typescript
 		third_party/ukey2
 		third_party/utf
 		third_party/vulkan
@@ -1178,6 +1188,12 @@ chromium_configure() {
 			"bindgen_clang_resource_dir=\"${EPREFIX}/usr/lib/clang/${LLVM_SLOT}/include\""
 			"bindgen_extra_clang_args=[\"-I${EPREFIX}/usr/lib/clang/${LLVM_SLOT}/include\"]"
 			"clang_base_path=\"${EPREFIX}/usr/lib/clang/${LLVM_SLOT}/\""
+			"clang_version=\"${LLVM_SLOT}\""
+			# M156: V8 parses its headers with libclang at build time (metagen);
+			# upstream uses a prebuilt libclang, we use the system one.
+			"v8_metagen_libclang_so=\"$(get_llvm_prefix)/$(get_libdir)/libclang.so\""
+			"v8_metagen_libclang_bindings_dir=\"$(python_get_sitedir)\""
+			"v8_metagen_clang_resource_dir=\"${EPREFIX}/usr/lib/clang/${LLVM_SLOT}\""
 			"rust_bindgen_root=\"${EPREFIX}/usr/\""
 			"rust_sysroot_absolute=\"$(get_rust_prefix)\""
 			"rustc_version=\"${RUST_SLOT}\""
