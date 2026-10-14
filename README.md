@@ -21,7 +21,10 @@ Goals:
 | `dev-util/crubit:1.98.1` | Crubit's `cc_bindings_from_rs`, built from source against the selected `dev-lang/rust`. Since M153–156, default-on code (Blink's FontFormatCheck, the Web Bundle parser, …) is Rust that C++ reaches only through Crubit-generated bindings. |
 | `media-video/ffmpeg-chromium-156` | for `USE=ffmpeg-chromium` (`::gentoo` stops at 154) |
 
-All of these are **build-time only** (`BDEPEND`) for Chromium.
+All except `ffmpeg-chromium` are **build-time only** (`BDEPEND`) for Chromium. `ffmpeg-chromium` is a runtime
+dependency, and only with `USE=ffmpeg-chromium`; it builds and installs, but hasn't been tested in use.
+
+Everything is keyworded `~amd64 ~arm64`. Only amd64 has been built and tested.
 
 ## Build machine setup
 
@@ -33,6 +36,7 @@ All of these are **build-time only** (`BDEPEND`) for Chromium.
    `librustc_driver-<hash>.so`. Rebuilding Rust means rebuilding `dev-util/crubit:1.98.1`
    (the Chromium ebuild checks this).
 3. Accept `~amd64` for the overlay's packages and unmask `www-client/chromium::local`.
+   `LLVM_COMPAT` is 22 only: LLVM 23 means Rust 1.99, which would need a `dev-util/crubit:1.99.0`.
 4. `=dev-python/clang-22*`, pulled in automatically, used by V8's build-time
    header parser ("metagen").
 
@@ -40,21 +44,31 @@ All of these are **build-time only** (`BDEPEND`) for Chromium.
 
 - **Gentoo patchset:** forked from `chromium-patches` tag 152 into
   `files/chromium-patches-156/`.
-  - Refreshed `cr152-compiler` and `cr152-fix-rust-2-oxidize-harder`.
+  - Refreshed `cr152-compiler` and `cr152-fix-rust-2-oxidize-harder`; `cr151-dawn-system-go` only needed
+    its context updated.
   - Dropped `cr131-unbundle-icu-target` (upstreamed; applying it with fuzz would have
     defined a GN target twice) and `cr152-revert-to-rollup-wasm` (156 no longer uses
     rollup in DevTools).
 - **Copium:** updated to 027d15ff; patches selected for 156.
 - **Binary removal:** `files/chromium-binary-audit.py` replaces `bin-finder.py` (which
   only handled ELF).
-  - Deletes all compiled code: ELF, PE, Mach-O, WebAssembly, Java/DEX/JAR/APK, ar
-    archives, Python bytecode.
+  - Deletes all compiled code (ELF, PE, COFF objects, Mach-O, WebAssembly, LLVM bitcode, SPIR-V,
+    Java/DEX, ar archives, Python bytecode), WebAssembly embedded as base64 in JS/TS/JSON/HTML, and all
+    archives (zip/jar/whl/crx, 7z, gzip, xz, bzip2, zstd), whose contents could hide any of these. Among
+    them are prebuilt Clang `.tar.xz` files and a tarball copy of `node_modules`. None of the ~1,400 files
+    is an input of the targets the ebuild builds.
   - Re-checks after system tools are linked in, and **dies** on anything outside a
     short, commented allowlist.
 - **`chromium-156-no-runtime-executable-downloads.patch`:** Chromium never downloads or
   loads code via the component updater: Widevine CDM, Screen AI, SODA, TranslateKit, the
   WASM TTS engine, component-extension JavaScript, and the remote DevTools front-end.
-  - A system-installed Widevine still works.
+  - Code downloaded by an *earlier* build in the same profile isn't loaded either (Widevine
+    hint file, stored TranslateKit path; a Screen AI copy is deleted).
+  - With `USE=widevine`, a CDM installed next to the browser (`/usr/lib64/chromium-browser/WidevineCdm`,
+    e.g. from `www-plugins/chrome-binary-plugins`) is used directly. This is compile-tested, but not
+    runtime-tested.
+  - The Translator web API reports "unavailable" rather than hanging. The DevTools CSP no longer allows
+    remote scripts.
   - Data components (CRLSet, filter lists, hints, …) are unaffected.
 - **`chromium-156-system-crubit.patch`:** lets Chromium's GN use a system Crubit with the
   prebuilt system Rust stdlib.
@@ -79,6 +93,13 @@ No USE flags were removed.
   rollup when bundling WebUI resources, and by chromium-bidi. It's the only allowlisted
   prebuilt in `chromium-binary-audit.py`. Removing it needs rollup's parser built from
   source.
+- **`USE=system-icu` doesn't work, and `::gentoo` masks it** (`profiles/base/package.use.mask`, bug #943216),
+  so builds use the bundled ICU, as with 151. Unmasking it locally shows three blockers:
+  1. ICU ≥ 76's C++ API uses `std::u16string_view`, which doesn't link against Chromium's own
+     libc++ (`std::__Cr`), and the ebuild requires that libc++.
+  2. V8's Temporal code includes ICU-internal headers (`udatamem.h`) that system ICU doesn't install.
+  3. Build-time generators expect `icudtl.dat`. A GN fix for this one is shelved, since it doesn't help
+     without the other two.
 - **USE=bundled-toolchain** (Google's prebuilt clang/Rust) isn't adapted to the 156
   changes (e.g. its bundled clang-format is removed but referenced by Crubit). It's
   opt-in and by definition uses prebuilt binaries.
@@ -89,3 +110,6 @@ No USE flags were removed.
 - **Privacy:** Chromium still talks to Google about non-Google things in the
   background. See `NOTES-runtime-downloads-and-privacy.md`; not addressed yet.
 - **Crubit notes:** see `NOTES-crubit.md`.
+- **Metadata:** `dev-util/crubit` and `dev-lang/typescript-native` are new packages with no maintainer
+  in `metadata.xml`; add yourself if you like. `metadata/md5-cache` isn't tracked in git; Portage
+  regenerates it (or run `egencache`).

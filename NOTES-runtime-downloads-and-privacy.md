@@ -99,7 +99,7 @@ SODA (`chrome/services/speech/soda`), Screen AI (`services/screen_ai`) and Trans
 
 ## 2. What the patch does
 
-`www-client/chromium/files/chromium-156-no-runtime-executable-downloads.patch` – 9 files, ~80 changed lines,
+`www-client/chromium/files/chromium-156-no-runtime-executable-downloads.patch` – 12 files, ~140 changed lines,
 plain `git diff` with `a/` `b/` prefixes, free-text header on top (works with `eapply`/`git apply`/`patch -p1`).
 
 Design choices:
@@ -120,19 +120,23 @@ Design choices:
 | File | Change |
 |---|---|
 | `chrome/browser/component_updater/widevine_cdm_component_installer.cc` | `RegisterWidevineCdmComponent()` → no-op |
+| `chrome/common/media/cdm_registration.cc` | `GetHintedWidevine()` ignores the Component Update hint file (it may point at a CDM downloaded by an earlier build) and uses `<module dir>/WidevineCdm` instead, see §3 |
 | `chrome/browser/component_updater/wasm_tts_engine_component_installer.cc` | `RegisterWasmTtsEngineComponent()` → no-op |
 | `chrome/browser/component_updater/dictation_connector_component_installer.cc` | `RegisterDictationConnectorComponent()` → no-op |
 | `chrome/browser/component_updater/indigo_component_installer.cc` | `RegisterIndigoComponent()` → no-op |
 | `chrome/browser/component_updater/translate_kit_component_installer.cc` | `RegisterTranslateKitComponent()` → no-op (`--translate-kit-binary-path` still works) |
+| `chrome/browser/on_device_translation/installer_impl.cc` | `GetTranslateKitLibraryPath()` only honours `--translate-kit-binary-path`, not a path stored in local state by the installer of an earlier build |
+| `components/on_device_translation/service_controller.cc` | `CanTranslateImpl()` reports `kNoNotSupportedLanguage` while there is no library, so `Translator.availability()` is `"unavailable"` and `create()` rejects instead of waiting for a download |
 | `chrome/browser/component_updater/screen_ai_component_installer.cc` | `ManageScreenAIComponentRegistration()` only cleans up an old copy; `RegisterScreenAIComponent()` sets `kDownloadFailed` so UI waiting on it gives up |
 | `chrome/browser/component_updater/aim_eligibility_component_installer.cc` | `ManageAimEligibilityComponentRegistration()` always uninstalls the component-updated copy; bundled extension keeps loading |
 | `components/soda/soda_util.cc` | `IsSupportedLinux()` → `false` (on-device speech reported unsupported, no SODA/language-pack registration) |
-| `chrome/browser/ui/webui/devtools/devtools_ui_data_source.cc` | `devtools://devtools/remote/…` → 404 instead of fetching from appspot.com |
+| `chrome/browser/ui/webui/devtools/devtools_ui_data_source.cc` | `devtools://devtools/remote/…` → 404 instead of fetching from appspot.com; CSP `script-src 'self'` (no longer allows chrome-devtools-frontend.appspot.com) |
 
 Behavioural consequences: Live Caption / on-device Web Speech / Dictation are shown as unsupported; Reading Mode
 falls back to system TTS voices (no "natural" voices); PDF OCR / main-content extraction report failure instead
-of downloading Screen AI; `Translator.create()` for pairs that need TranslateKit stays pending/unavailable;
-`chrome://inspect` of remote targets with a different DevTools version does not get a front-end.
+of downloading Screen AI; the Translator web API reports every language pair as unavailable;
+`chrome://inspect` of remote targets with a different DevTools version does not get a front-end; DevTools UI
+languages outside DevTools' bundled locales fall back to en-US (they were fetched from `remoteBase`).
 
 Confidence that it compiles in both configs: **high**. Risky spots, in order: (1) the ScreenAI hunk relies on
 `ScreenAIInstallState::SetState(kDownloadFailed)` being legal from any state (it is: `screen_ai_install_state.cc:161-174`
@@ -144,39 +148,26 @@ warning; (3) `base/cpu.h` becomes an unused include in `soda_util.cc` – not a 
 
 ## 3. Widevine with a system-provided CDM (USE=widevine)
 
-How 156 finds a CDM on Linux (`chrome/common/media/cdm_registration.cc:62-248`, `chrome/common/chrome_paths.cc:310-332`):
+How upstream 156 finds a CDM on Linux (`chrome/common/media/cdm_registration.cc`, `chrome/common/chrome_paths.cc:310-332`):
 
-1. **Bundled**: only if built with `bundle_widevine_cdm=true` (`BUNDLE_WIDEVINE_CDM`). Looks at
-   `<chromium install dir>/WidevineCdm/` (`chrome::DIR_BUNDLED_WIDEVINE_CDM` = component dir + `WidevineCdm`),
-   expecting `manifest.json` and `_platform_specific/linux_x64/libwidevinecdm.so`
-   (`cdm_registration.cc:81-100`, `media/cdm/library_cdm/cdm_paths.gni:35-40`).
-2. **Hinted** (`ENABLE_WIDEVINE_CDM_COMPONENT`, always true for Linux x64/arm64 when `enable_widevine=true`):
-   reads `$USER_DATA_DIR/WidevineCdm/latest-component-updated-widevine-cdm`, a JSON file
-   `{"Path": "<cdm base dir>"}` (`chrome/common/media/component_widevine_cdm_hint_file_linux.cc:26,103-117`), and
-   loads `<Path>/_platform_specific/linux_x64/libwidevinecdm.so` + `<Path>/manifest.json`. The path is not
-   restricted to the user-data dir. Normally the component updater writes this file; nothing else requires it.
-3. Both present: picks the newer (`:225-247`).
+1. **Bundled**: only with `bundle_widevine_cdm=true` (`BUNDLE_WIDEVINE_CDM`, Chrome-branded builds only).
+   Looks at `<module dir>/WidevineCdm/` (`chrome::DIR_BUNDLED_WIDEVINE_CDM`).
+2. **Hinted** (`ENABLE_WIDEVINE_CDM_COMPONENT`, true on Linux x64/arm64 with `enable_widevine=true`): reads
+   `$USER_DATA_DIR/WidevineCdm/latest-component-updated-widevine-cdm` (`{"Path": "<cdm base dir>"}`). Only the
+   Widevine component installer writes it, either for a downloaded CDM or for a "preinstalled" one it found in
+   `<module dir>/WidevineCdm` – which is how `www-plugins/chrome-binary-plugins`
+   (`/usr/lib64/chromium-browser/WidevineCdm`) used to be picked up.
 
-The CDM is loaded before the zygote locks down, so a restart is needed after installing one.
-
-The patch only removes the *download*; both lookup paths stay compiled. Options for the ebuild/user:
-
-* **Zero-ebuild-change (recommended for now)**: with `www-plugins/chrome-binary-plugins` installed
-  (`/opt/google/chrome/WidevineCdm/{manifest.json,_platform_specific/linux_x64/libwidevinecdm.so}`), the user
-  creates `~/.config/chromium/WidevineCdm/latest-component-updated-widevine-cdm` containing
-  `{"Path":"/opt/google/chrome/WidevineCdm"}`. Document in `pkg_postinst`.
-* **Ebuild-level bundling**: add `bundle_widevine_cdm=true widevine_root="${WORKDIR}/widevine"` to the GN args and
-  place `${WORKDIR}/widevine/linux/x64/{libwidevinecdm.so,manifest.json}` (from chrome-binary-plugins, a build-time
-  dependency then) – GN copies them to `out/Release/WidevineCdm/` and
-  `out/Release/WidevineCdm/_platform_specific/linux_x64/` (`third_party/widevine/cdm/BUILD.gn:27-68`); install that
-  directory next to the `chrome` binary. (`enable_widevine_cdm_host_verification` is Win/Mac only, no `.sig` needed.)
-  Alternatively build with placeholder files and install a symlink `WidevineCdm -> /opt/google/chrome/WidevineCdm`.
-* Keep `enable_widevine=$(usex widevine true false)` as is. Do **not** try to turn off
-  `enable_widevine_cdm_component` from GN – it is not an argument.
+With the installer disabled, (2) would never see a system CDM again, but would still follow a hint file left by an
+earlier build – possibly to a CDM *downloaded* by that build. So the patch changes `GetHintedWidevine()` to ignore
+the hint file and use `<module dir>/WidevineCdm` (i.e. `/usr/lib64/chromium-browser/WidevineCdm`) if present.
+Result: `chrome-binary-plugins` works without any user action (after a restart: the CDM is loaded before the zygote
+locks down), and nothing downloaded at runtime is ever loaded. Compile-tested with the default `USE=widevine`;
+not runtime-tested (needs the proprietary CDM).
 
 ---
 
-## 4. Recommended ebuild changes
+## 4. Recommended ebuild changes (written before implementation; 1–2 are done)
 
 1. Add `"${FILESDIR}/chromium-156-no-runtime-executable-downloads.patch"` to `PATCHES`. Unconditional (hard rule).
 2. No new GN args are required for the hard rule. Explicitly **not** recommended: `enable_on_device_translation=false`
@@ -186,7 +177,7 @@ The patch only removes the *download*; both lookup paths stay compiled. Options 
    * `component-updates` (default on): default component updates off only with `-component-updates`, for users who
      also want to stop data components. Alternative: a `--component-updater=...` runtime flag / policy
      `ComponentUpdatesEnabled=false` already exists (`components/component_updater/pref_names.cc`).
-   * `widevine`: keep; add the `pkg_postinst` note about the hint file (or the bundling variant above).
+   * `widevine`: kept; handled in the patch (§3), no user action needed.
    * Nothing sensible for SODA/ScreenAI/TranslateKit/WASM-TTS: they cannot work without the download, so a USE flag
      would only re-enable the download.
 
@@ -224,6 +215,7 @@ point. "MSBB" = the "Make searches and browsing better" / URL-keyed anonymized d
 | Image proxy | `components/image_fetcher/core/image_fetcher_service.cc` | NTP module images via Google image service | with the features that use it |
 | Search-engine-choice / geo | `components/search_engines/search_engine_choice/search_engine_choice_service.cc` | – | – |
 | Media Router / Cast | local mDNS discovery | local network | pref `media_router.enable_media_router`; cloud services off by default |
+| DevTools `remoteBase` | `chrome/browser/devtools/devtools_window.cc:1445`, front-end `panels/elements/WebCustomData.ts`, `core/i18n/i18nImpl.ts` | when DevTools is open: CSS documentation data and non-bundled UI locales (JSON) from `chrome-devtools-frontend.appspot.com` | make `DevToolsUI::GetRemoteBaseURL()` return an empty URL; code from there is already blocked by the patch and the CSP |
 | Attribution / private aggregation reports | sites, not Google | – | privacy sandbox prefs |
 
 ---

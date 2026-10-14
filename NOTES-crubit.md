@@ -1,6 +1,10 @@
 # Crubit (`cpp_api_from_rust`) in Chromium 156 with a system Rust toolchain
 
-Status: analysis done; `dev-util/crubit` draft ebuild written (not emerged).
+Status: **implemented and tested.** `dev-util/crubit:1.98.1` is emerged in the build root, and Chromium 156 was
+built and run with it (both the user's configuration and the default USE flags). The final forms are
+`dev-util/crubit/crubit-1.98.1_p20260908.ebuild` and `www-client/chromium/files/chromium-156-system-crubit.patch`.
+Sections B3/B4 below are the analysis written *before* implementation; where they say "sketch", "draft" or
+"assumed", the patch/ebuild header is authoritative.
 Source paths are relative to `chromium-156.0.8078.12/` unless noted.
 **[V]** means verified (read in source, or tested). **[A]** means assumed.
 
@@ -140,7 +144,7 @@ every user above simply follows upstream.
   * Chromium's generated `std/rules/BUILD.gn` pins Chromium-nightly std file lists and vendored versions (e.g. addr2line-0.27.1, gimli-0.34.0, libc-0.2.189, object-0.39.1).
   * 1.98.1's library has addr2line-0.25.1, gimli-0.32.3, libc-0.2.185, object-0.37.3, …
   * It would need gnrt regeneration per Rust version plus USE=rust-src.
-* **Proposed patch (sketch, not gn-gen tested):**
+* **Proposed patch (pre-implementation sketch; implemented as chromium-156-system-crubit.patch):**
   1. **rust.gni.** Add a gn arg `rust_crubit_root = ""` and change the condition to
      `enable_cpp_api_from_rust = enable_rust && build_with_chromium && ((use_chromium_rust_toolchain && !rust_prebuilt_stdlib) || (rust_crubit_root != "" && !toolchain_for_rust_host_build_tools))`.
      This keeps host-build-tools toolchains disabled, like upstream.
@@ -169,7 +173,7 @@ every user above simply follows upstream.
   6. Drop the cbor/PVT/IFT stubs, the font/web_package reverts and the qr workaround. Everything follows upstream.
 * **Cross-machine:** crubit and rust[dist] are build-only (BDEPEND). Generated code is compiled into chrome. The runtime machine needs nothing.
 
-### B4. `dev-util/crubit` draft ebuild
+### B4. `dev-util/crubit` ebuild (pre-implementation description)
 
 `dev-util/crubit/crubit-1.98.1_p20260908.ebuild` (+ metadata.xml, Manifest with 83 DIST entries computed from the exact crates.io/GitHub files).
 
@@ -183,11 +187,12 @@ every user above simply follows upstream.
   * Verifies that the tarball's `librustc_driver-<hash>.so` exists in the installed slot, then symlinks it. The installed copy is stripped, so `cmp` is not usable; the hash is in the file name.
 * **src_compile:** `RUSTC_BOOTSTRAP=1`, `RUSTFLAGS+=--sysroot=… -Wl,-rpath,/usr/lib/rust/${SLOT}/lib`, `cargo_src_compile --locked -p cc_bindings_from_rs --bin cc_bindings_from_rs`, then a `--help` smoke test.
 * **src_install:** `/usr/lib/crubit/${SLOT}/bin/cc_bindings_from_rs` + `/usr/lib/crubit/${SLOT}/lib/third_party/crubit/{BUILD.gn,LICENSE,crubit.gni,support}`. This is the same layout as Chromium's toolchain.
-* **Assumed, not tested:**
+* **Assumed at the time (all since confirmed by the Portage build):**
   * The ebuild itself in portage.
   * Gentoo's dist tarball name/layout. It's the same `x.py dist` code, so it should match the official layout (`rustc-dev-<ver>-<triple>/rustc-dev/lib/rustlib/<triple>/lib/*`).
   * Cargo target rustflags also apply to build scripts/proc-macros when not cross-compiling.
-  * Gentoo's librustc_driver finds `libLLVM.so.22.1` via ld.so.conf. Its RUNPATH is `$ORIGIN/../lib` only [V], and the official tarball needed `-L` for its bundled libLLVM. Gentoo links system LLVM, so this should be fine.
+  * Gentoo's librustc_driver finds `libLLVM.so.22.1` via ld.so.conf at run time. (Linking needed `-L` for LLVM's
+    lib dir after all; the ebuild derives it from `rustc -vV`.)
 
 ## Recommendation, effort, risk
 
@@ -199,9 +204,9 @@ every user above simply follows upstream.
 | Item | Effort | Risk |
 |---|---|---|
 | USE=dist rebuild of rust | none to write; one rust rebuild (+dist time, several hundred MB on build host) | low (existing flag) |
-| dev-util/crubit | done (draft); per Chromium CRUBIT_REVISION bump: new PV + CRATES refresh (pycargoebuild); per Rust slot: copy ebuild | low-medium: future crubit revs may need stable-rustc backports (copium cbit152 precedent) |
+| dev-util/crubit | done; per Chromium CRUBIT_REVISION bump: new PV + CRATES refresh (pycargoebuild); per Rust slot: copy ebuild | low-medium: future crubit revs may need stable-rustc backports (copium cbit152 precedent) |
 | Chromium patch: condition/paths/clang-format | ~30 lines | low |
-| Chromium patch: prebuilt-std bindings via rmeta mode | ~150 lines GN+py, new | medium: not gn-tested; Crubit side verified |
+| Chromium patch: prebuilt-std bindings via rmeta mode | ~150 lines GN+py, new | medium; done and built |
 | Runtime ABI drift (rust rebuilt with other flags) | n/a | caught at build start (`--help` smoke test; hashed driver) |
 
 **No-Crubit alternative:**
