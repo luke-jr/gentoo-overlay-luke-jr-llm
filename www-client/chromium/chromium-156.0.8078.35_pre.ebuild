@@ -1539,6 +1539,16 @@ chromium_configure() {
 	set -- gn gen --args="${myconf_gn[*]}${EXTRA_GN:+ ${EXTRA_GN}}" out/Release
 	echo "$@"
 	"$@" || die "Failed to configure Chromium"
+
+	# If ninja already used this build directory (e.g. configure re-run after an interrupted
+	# compile), its log records older mtimes for build.ninja(.stamp); ninja >= 1.10 trusts those
+	# over the files on disk and would regenerate the build files at the start of src_compile, in
+	# src_compile's environment. gn gen only fixes that up itself (ninja -t restat) when given a
+	# ninja executable and ninja_required_version >= 1.10, which Chromium's .gn does not declare.
+	if [[ -f out/Release/.ninja_log ]]; then
+		"${NINJA}" -C out/Release -t restat build.ninja build.ninja.stamp ||
+			ewarn "Could not update ninja's log; the next build may regenerate the build files"
+	fi
 }
 
 src_configure() {
