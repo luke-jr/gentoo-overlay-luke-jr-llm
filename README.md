@@ -134,6 +134,10 @@ No USE flags were removed.
   blocker.
 - **TranslateKit** (on-device Translator web API) is closed source and only ships as a downloaded binary,
   so it stays disabled for good. "Translate this page" (server-side) works.
+- **Prebuilt JavaScript counts as a blob too** (to do after the rollup work). Chromium's tree carries
+  ~190 npm packages in `third_party/node/node_modules` (plus chromium-bidi's and DevTools' own) as
+  upstream's *built* JavaScript (bundled/transpiled from their sources), not as source. These need the
+  same treatment as binaries: build from source or replace, starting with an inventory.
 - **Crubit notes:** see `NOTES-crubit.md`.
 - **Metadata:** no package lists a maintainer: the `::gentoo` ones' Gentoo maintainers were removed, since
   they don't maintain this overlay. Add yourself if you like. The generated AppStream data uses upstream
