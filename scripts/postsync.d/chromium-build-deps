@@ -1,0 +1,10 @@
+#!/bin/sh
+# Portage postsync.d hook: regenerate the @chromium-build-deps package set
+# (/etc/portage/sets/chromium-build-deps) after `emerge --sync`, once all
+# repositories are up to date. Install with:
+#   ln -s /var/db/repos/luke-jr-llm/scripts/postsync.d/chromium-build-deps \
+#         /etc/portage/postsync.d/
+# (adjust to the repository's location). On failure the existing set is kept.
+repo=$(portageq get_repo_path "${EROOT:-/}" luke-jr-llm) || exit 0
+[ -n "${repo}" ] || exit 0
+exec python3 "${repo}/scripts/chromium-build-deps.py" --write
