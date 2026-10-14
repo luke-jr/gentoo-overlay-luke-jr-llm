@@ -203,6 +203,7 @@ BDEPEND="
 	${PYTHON_DEPS}
 	$(python_gen_any_dep '
 		dev-python/setuptools[${PYTHON_USEDEP}]
+		!bundled-toolchain? ( dev-python/clang[${PYTHON_USEDEP}] )
 	')
 	>=app-arch/gzip-1.7
 	!headless? (

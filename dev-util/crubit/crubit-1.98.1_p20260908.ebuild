@@ -110,7 +110,7 @@ RUST_MIN_VER="$(ver_cut 1-3)"
 RUST_MAX_VER="${RUST_MIN_VER}"
 RUST_REQ_USE="dist(-)"
 
-inherit cargo
+inherit cargo rust-toolchain
 
 DESCRIPTION="Crubit's cc_bindings_from_rs (C++ bindings for Rust crates), for Chromium"
 HOMEPAGE="https://github.com/google/crubit"
