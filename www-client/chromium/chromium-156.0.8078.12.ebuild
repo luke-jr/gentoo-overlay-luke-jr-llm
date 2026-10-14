@@ -33,6 +33,8 @@ RUST_SHORT_HASH=${BUNDLED_RUST_VER:0:10}-${BUNDLED_RUST_VER##*-}
 NODE_VER="24.12.0"
 GO_MIN_VER="1.25.0"
 ESBUILD_VER="0.28.2"
+# Native TypeScript compiler (tsgo); third_party/typescript/linux-amd64/src/package.json
+TSGO_VER="7.0.2"
 VIRTUALX_REQUIRED="pgo"
 
 CHROMIUM_LANGS="af am ar bg bn ca cs da de el en-GB es es-419 et fa fi fil fr gu he
@@ -227,6 +229,7 @@ BDEPEND="
 	dev-lang/perl
 	>=dev-util/gperf-3.2
 	dev-util/esbuild:${ESBUILD_VER}
+	dev-lang/typescript-native:${TSGO_VER}
 	dev-vcs/git
 	>=net-libs/nodejs-${NODE_VER}[inspector]
 	sys-apps/hwdata
@@ -524,9 +527,6 @@ src_prepare() {
 		# TranslateKit, the WASM TTS engine, component-extension JS updates
 		# and the remote DevTools front-end.
 		"${FILESDIR}/chromium-156-no-runtime-executable-downloads.patch"
-		# Upstream builds TypeScript with a prebuilt native tsgo binary; use the
-		# bundled JavaScript compiler with system Node.js instead.
-		"${FILESDIR}/chromium-156-typescript-js.patch"
 		"${FILESDIR}/chromium-156-v8-metagen-resource-dir.patch"
 	)
 
@@ -690,6 +690,15 @@ src_prepare() {
 		die "esbuild version mismatch: expected ${ESBUILD_VER}, found ${found}"
 	fi
 
+	# Likewise for the native TypeScript compiler (tsgo) used for all WebUI and
+	# DevTools TypeScript; its prebuilt binary is replaced below.
+	local tsgo_dir="${S}/third_party/typescript/linux-amd64/src/lib"
+	found=$("${EPYTHON}" -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' \
+		"${tsgo_dir}/../package.json") || die "Failed to read the bundled TypeScript version"
+	if [[ "${found}" != "${TSGO_VER}" ]]; then
+		die "TypeScript (tsgo) version mismatch: expected ${TSGO_VER}, found ${found}"
+	fi
+
 	elog "Removing bundled binaries from source tree ..."
 	# Purge bundled ELF files: These are non-portable and will cause issues if used instead of system versions.
 	# Use `--wasm` to also remove WebAssembly binaries, if desired - they're portable so shouldn't break builds.
@@ -718,6 +727,20 @@ src_prepare() {
 			die "Expected to find ${src} to restore ${dst}, but it does not exist."
 		fi
 	done
+
+	# The native TypeScript compiler must be copied, not symlinked: tsc loads
+	# lib*.d.ts from the directory of its symlink-resolved executable, and has
+	# to use the in-tree ones next to it (Chromium patches lib.dom.d.ts, see
+	# third_party/typescript/README.chromium; and tools/typescript/ts_library.py
+	# rejects .d.ts files from outside the source tree).
+	local tsgo_src="${BROOT}/usr/lib/typescript-native/${TSGO_VER}/tsc"
+	[[ -f ${tsgo_src} ]] || die "Expected to find ${tsgo_src}, but it does not exist."
+	einfo "Copying ${tsgo_src} ..."
+	cp "${tsgo_src}" "${tsgo_dir}/tsc" || die "Failed to copy ${tsgo_src}"
+	found=$("${tsgo_dir}/tsc" --version) || die "Failed to run ${tsgo_dir}/tsc"
+	if [[ "${found}" != "Version ${TSGO_VER}" ]]; then
+		die "Unexpected ${tsgo_dir}/tsc --version: ${found}"
+	fi
 
 	# adjust python interpreter version
 	sed -i -e "s|\(^script_executable = \).*|\1\"${EPYTHON}\"|g" .gn || die
@@ -1457,11 +1480,6 @@ chromium_configure() {
 	fi
 
 	# Odds and ends
-
-	# skipping typecheck is only supported on amd64, bug #876157
-	if ! use amd64; then
-		myconf_gn+=( "devtools_skip_typecheck=false" )
-	fi
 
 	# Disable external code space for V8 for ppc64. It is disabled for ppc64
 	# by default, but cross-compiling on amd64 enables it again.
