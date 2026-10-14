@@ -88,7 +88,7 @@ SLOT="stable"
 KEYWORDS="~amd64 ~arm64"
 
 IUSE_SYSTEM_LIBS="+system-harfbuzz +system-icu +system-zstd"
-IUSE="+X ${IUSE_SYSTEM_LIBS} bindist bundled-toolchain cups debug ffmpeg-chromium gtk4 +hangouts headless kerberos +official pax-kernel pgo"
+IUSE="+X ${IUSE_SYSTEM_LIBS} bindist bundled-toolchain cups debug ffmpeg-chromium gtk4 +hangouts headless kerberos +lto +official pax-kernel pgo"
 IUSE+=" +proprietary-codecs pulseaudio qt6 +rar +screencast selinux test +vaapi +wayland +widevine cpu_flags_ppc_vsx3"
 RESTRICT="
 	!bindist? ( bindist )
@@ -100,6 +100,7 @@ REQUIRED_USE="
 	pgo? ( X !wayland )
 	screencast? ( wayland )
 	ffmpeg-chromium? ( bindist proprietary-codecs )
+	test? ( lto )
 "
 
 COMMON_X_DEPEND="
@@ -292,7 +293,7 @@ pre_build_checks() {
 	local extra_disk=1 # Always include a little extra space
 	local memory=4
 	tc-is-cross-compiler && extra_disk=$((extra_disk * 2))
-	if tc-is-lto || use pgo; then
+	if use lto || use pgo; then
 		memory=$((memory * 2 + 1))
 		tc-is-cross-compiler && extra_disk=$((extra_disk * 2)) # Double the requirements
 		use pgo && extra_disk=$((extra_disk + 4))
@@ -331,9 +332,9 @@ pkg_setup() {
 		# The pre_build_checks are all about compilation resources, no need to run it for a binpkg
 		pre_build_checks
 
-		# We haven't massaged any CFLAGS yet, so we want to do this before we force CC/CXX to prevent warnings.
+		# LTO is selected with USE=lto (Chromium's ThinLTO, set up by GN), not by -flto in CFLAGS.
 		local want_lto="false"
-		tc-is-lto && want_lto="true"
+		use lto && want_lto="true"
 
 		# The linux:unbundle toolchain in GN grabs CC, CXX, CPP (etc) from the environment
 		# We'll set these to clang here then use llvm-utils functions to very explicitly set these
@@ -378,18 +379,17 @@ pkg_setup() {
 		local lto_usable="true"
 		if [[ "$want_lto" == "true" ]]; then
 			if use arm64 && [[ "${LLVM_SLOT}" -lt 22 ]]; then
-				einfo "LTO is broken with LLVM 21 on arm64, ignoring CFLAGS."
+				einfo "LTO is broken with LLVM 21 on arm64, ignoring USE=lto."
 				lto_usable="false"
 			else
 				use_lto="true"
 			fi
-			# We can rely on GN to do this for us; without this builds
-			# take significantly longer with LTO enabled.
-			filter-lto
 		fi
+		# GN sets up (Thin)LTO itself; -flto in CFLAGS would only slow the build down.
+		filter-lto
 
 		if [[ "$use_lto" == "false" ]] && use official && [[ "$lto_usable" == "true" ]]; then
-			einfo "USE=official selected and LTO not detected."
+			einfo "USE=official selected without USE=lto."
 			einfo "It is _highly_ recommended that LTO be enabled for performance reasons"
 			einfo "and to be consistent with the upstream \"official\" build optimisations."
 		fi

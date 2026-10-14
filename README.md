@@ -107,6 +107,9 @@ masked) keeps the previous set and its packages.
   `typescript`; removed `bidimapper` and `v8/third_party/glibc`.
 - **`generate-support-files.py`:** 156's new desktop/appdata template variables.
 - **Smaller changes:**
+  - **`USE=lto` (new, default on)** replaces detecting `-flto` in `CFLAGS` (`tc-is-lto`, which ran
+    before the ebuild switched to clang and so was unreliable). It enables GN's ThinLTO and, with
+    `USE=official`, CFI, like upstream's official builds. Any `-flto` in `CFLAGS` is always stripped.
   - PipeWire is no longer a build or runtime dependency without `USE=screencast`. Since M149 only
     the (never built) Chrome Remote Desktop host required it at `gn gen` time; `enable_remoting=false`
     avoids that, with identical build commands for chrome, chromedriver and chrome_sandbox.
