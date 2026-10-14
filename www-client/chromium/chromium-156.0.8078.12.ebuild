@@ -729,8 +729,8 @@ src_prepare() {
 			einfo "Symlinking ${src} ..."
 			# Make sure the parent dir exists; some tarballs don't include (e.g.) node's bindir
 			mkdir -p "$(dirname "${dst}")" || die "Failed to create directory for ${dst}"
-			# Replace whatever is left there (e.g. a stub put in place by a user patch or hook
-			# instead of the deleted prebuilt binary).
+			# Replace whatever is left there (e.g. a stub or a symlink to /dev/null/INVALID put in
+			# place by a user patch or hook instead of the deleted prebuilt binary).
 			rm -f "${dst}" || die "Failed to remove ${dst}"
 			ln -s "${src}" "${dst}" || die "Failed to symlink ${dst} from ${src}"
 			if [[ ! -L "${dst}" || "$(readlink -f "${dst}")" != "${src}" ]]; then
@@ -749,6 +749,9 @@ src_prepare() {
 	local tsgo_src="${BROOT}/usr/lib/typescript-native/${TSGO_VER}/tsc"
 	[[ -f ${tsgo_src} ]] || die "Expected to find ${tsgo_src}, but it does not exist."
 	einfo "Copying ${tsgo_src} ..."
+	# Remove what is left first: cp would follow a symlink put there instead of the
+	# deleted prebuilt binary (e.g. one pointing at /dev/null/INVALID).
+	rm -f "${tsgo_dir}/tsc" || die "Failed to remove ${tsgo_dir}/tsc"
 	cp "${tsgo_src}" "${tsgo_dir}/tsc" || die "Failed to copy ${tsgo_src}"
 	found=$("${tsgo_dir}/tsc" --version) || die "Failed to run ${tsgo_dir}/tsc"
 	if [[ "${found}" != "Version ${TSGO_VER}" ]]; then
