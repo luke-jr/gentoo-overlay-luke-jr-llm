@@ -119,6 +119,17 @@ No USE flags were removed.
   `sys-libs/zlib` dependency (bug #930365), and the size of `files/`.
 - **Privacy:** Chromium still talks to Google about non-Google things in the
   background. See `NOTES-runtime-downloads-and-privacy.md`; not addressed yet.
+- **Deferred: "Translate this page" on pages with JavaScript disabled.** Google's translate script runs
+  in an isolated world (it sees the page's DOM, but not the page's own JavaScript). Blink runs
+  isolated-world scripts, XHR and event callbacks on such pages, but its timers don't fire there:
+  `ScheduledAction::Execute` (`third_party/blink/renderer/core/scheduler/scheduled_action.cc`)
+  checks `CanExecuteScripts()` without exempting isolated worlds, unlike `IsCallbackFunctionRunnable()`.
+  So the script loads, then stalls (observed: `element.js` and the main script fetched, no
+  `translateHtml` calls). A possible fix is to exempt isolated worlds there, or only the translate
+  world (extension content scripts would otherwise get timers too). Untested whether it's the only
+  blocker.
+- **TranslateKit** (on-device Translator web API) is closed source and only ships as a downloaded binary,
+  so it stays disabled for good. "Translate this page" (server-side) works.
 - **Crubit notes:** see `NOTES-crubit.md`.
 - **Metadata:** no package lists a maintainer: the `::gentoo` ones' Gentoo maintainers were removed, since
   they don't maintain this overlay. Add yourself if you like. The generated AppStream data uses upstream
