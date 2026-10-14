@@ -35,9 +35,10 @@ GO_MIN_VER="1.25.0"
 ESBUILD_VER="0.28.2"
 # TypeScript 7 compiler (tsgo); third_party/typescript/linux-amd64/src/package.json
 TSGO_VER="7.0.2"
-# Rollup (@rollup/wasm-node) in third_party/node/node_modules (WebUI bundling) and in
-# third_party/chromium-bidi/node_modules; their parsers come from dev-util/rollup-native.
-ROLLUP_WEBUI_VER="4.21.0"
+# Rollup (@rollup/wasm-node) in third_party/node/node_modules, used for WebUI bundling. Its
+# parser comes from dev-util/rollup-native. chromium-bidi bundles its own, newer copy
+# (ROLLUP_BIDI_VER), which is replaced by this one (see src_prepare).
+ROLLUP_VER="4.21.0"
 ROLLUP_BIDI_VER="4.63.1"
 VIRTUALX_REQUIRED="pgo"
 
@@ -243,8 +244,7 @@ BDEPEND="
 	>=dev-util/gperf-3.2
 	dev-util/esbuild:${ESBUILD_VER}
 	dev-lang/typescript:${TSGO_VER}
-	dev-util/rollup-native:${ROLLUP_WEBUI_VER}
-	dev-util/rollup-native:${ROLLUP_BIDI_VER}
+	dev-util/rollup-native:${ROLLUP_VER}
 	dev-vcs/git
 	>=net-libs/nodejs-${NODE_VER}[inspector]
 	sys-apps/hwdata
@@ -725,10 +725,11 @@ src_prepare() {
 		die "TypeScript (tsgo) version mismatch: expected ${TSGO_VER}, found ${found}"
 	fi
 
-	# And for rollup, whose WebAssembly parsers are replaced below: the parser's AST
-	# format belongs to one rollup release.
+	# And for rollup, whose WebAssembly parser is replaced below (the parser's AST format
+	# belongs to one rollup release). chromium-bidi's copy is replaced with WebUI's; a
+	# different version there needs re-checking (see below).
 	local -A rollup_dirs=(
-		["${S}/third_party/node/node_modules/@rollup/wasm-node"]="${ROLLUP_WEBUI_VER}"
+		["${S}/third_party/node/node_modules/@rollup/wasm-node"]="${ROLLUP_VER}"
 		["${S}/third_party/chromium-bidi/node_modules/@rollup/wasm-node"]="${ROLLUP_BIDI_VER}"
 	)
 	local rollup_dir
@@ -794,18 +795,26 @@ src_prepare() {
 
 	# Rollup's parser: the native addon built from the same Rust source as the deleted
 	# WebAssembly module (dist/wasm-node/bindings_wasm_bg.wasm), with a loader exporting
-	# the same functions. Outputs are byte-identical.
-	for rollup_dir in "${!rollup_dirs[@]}"; do
-		local addon="${BROOT}/usr/lib/rollup-native/${rollup_dirs[${rollup_dir}]}/rollup.native.node"
-		[[ -f ${addon} ]] || die "Expected to find ${addon}, but it does not exist."
-		einfo "Symlinking ${addon} ..."
-		# Remove leftovers first (see the system tools above); cp would follow a symlink.
-		rm -f "${rollup_dir}/dist/rollup.native.node" "${rollup_dir}/dist/native.js" ||
-			die "Failed to clean up ${rollup_dir}/dist"
-		ln -s "${addon}" "${rollup_dir}/dist/rollup.native.node" || die "Failed to symlink ${addon}"
-		cp "${FILESDIR}/chromium-rollup-native.js" "${rollup_dir}/dist/native.js" ||
-			die "Failed to replace ${rollup_dir}/dist/native.js"
-	done
+	# the same functions. The WebUI bundles are byte-identical.
+	rollup_dir="${S}/third_party/node/node_modules/@rollup/wasm-node"
+	local addon="${BROOT}/usr/lib/rollup-native/${ROLLUP_VER}/rollup.native.node"
+	[[ -f ${addon} ]] || die "Expected to find ${addon}, but it does not exist."
+	einfo "Symlinking ${addon} ..."
+	# Remove leftovers first (see the system tools above); cp would follow a symlink.
+	rm -f "${rollup_dir}/dist/rollup.native.node" "${rollup_dir}/dist/native.js" ||
+		die "Failed to clean up ${rollup_dir}/dist"
+	ln -s "${addon}" "${rollup_dir}/dist/rollup.native.node" || die "Failed to symlink ${addon}"
+	cp "${FILESDIR}/chromium-rollup-native.js" "${rollup_dir}/dist/native.js" ||
+		die "Failed to replace ${rollup_dir}/dist/native.js"
+
+	# chromium-bidi bundles its BiDi mapper (used for browser automation, e.g. chromedriver)
+	# with its own copy of rollup ${ROLLUP_BIDI_VER}. Use the one above instead: the mapper
+	# then only differs by a little more retained dead code (unused enum entries, pure
+	# expressions) and number formatting (-32e3 vs -32000), so one rollup-native suffices.
+	local bidi_rollup_dir="${S}/third_party/chromium-bidi/node_modules/@rollup/wasm-node"
+	rm -r "${bidi_rollup_dir}" || die "Failed to remove ${bidi_rollup_dir}"
+	ln -s ../../../node/node_modules/@rollup/wasm-node "${bidi_rollup_dir}" ||
+		die "Failed to symlink ${bidi_rollup_dir}"
 
 	einfo "Checking that no prebuilt binaries are left in the source tree ..."
 	binary_allowlist+=(

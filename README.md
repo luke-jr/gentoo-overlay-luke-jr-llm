@@ -30,7 +30,7 @@ Goals:
 | `dev-lang/typescript:7.0.2` | TypeScript 7 (the Go compiler, `tsgo`) built from source, slotted per exact version beside `::gentoo`'s TypeScript 6. Upstream compiles all WebUI/DevTools TypeScript with a prebuilt `tsgo`. The output was verified byte-identical to upstream's binary across all ~17k TypeScript outputs. |
 | `dev-lang/rustc-dev:1.98.1` | The Rust compiler's own crates (the `rustc-dev` component, what `rustup component add rustc-dev` installs), from the tarball `dev-lang/rust` builds with `USE=dist`, installed into that Rust slot's sysroot. Crubit links against them. |
 | `dev-util/crubit:1.98.1` | Crubit's `cc_bindings_from_rs`, built from source against the selected `dev-lang/rust`. Since M153–156, default-on code (Blink's FontFormatCheck, the Web Bundle parser, …) is Rust that C++ reaches only through Crubit-generated bindings. |
-| `dev-util/rollup-native:4.21.0`, `:4.63.1` | Rollup's JavaScript parser (Rust) built from source as a native Node.js addon. It replaces the prebuilt WebAssembly parsers of the two bundled rollup copies (WebUI bundling and chromium-bidi). Outputs of all 37 rollup build steps are byte-identical to the WebAssembly build's. |
+| `dev-util/rollup-native:4.21.0` | Rollup's JavaScript parser (Rust) built from source as a native Node.js addon. It replaces the prebuilt WebAssembly parser of the rollup copy used for WebUI bundling; chromium-bidi's own (newer) copy is replaced by the same one. WebUI bundles are byte-identical to the WebAssembly build's; the BiDi mapper only keeps a little more dead code. |
 | `media-video/ffmpeg-chromium-156` | for `USE=ffmpeg-chromium` (`::gentoo` stops at 154) |
 
 All except `ffmpeg-chromium` are **build-time only** (`BDEPEND`) for Chromium. `ffmpeg-chromium` is a runtime
