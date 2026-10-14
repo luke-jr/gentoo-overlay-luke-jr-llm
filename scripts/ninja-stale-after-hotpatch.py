@@ -83,12 +83,17 @@ def main():
         elif current and os.path.normpath(line.strip()) in patched:
             stale.append(current)
             current = None  # one hit is enough
+    gone = 0
     for out in stale:
+        if not os.path.exists(out):
+            print(f"{out} (already deleted; ninja will rebuild it)")
+            gone += 1
+            continue
         print(out)
-        if args.delete and os.path.exists(out):
+        if args.delete:
             os.remove(out)
-    print(f"{len(stale)} possibly stale" + (" (deleted)" if args.delete else ""),
-          file=sys.stderr)
+            gone += 1
+    print(f"{len(stale)} possibly stale, {len(stale) - gone} still present", file=sys.stderr)
 
 
 if __name__ == "__main__":
