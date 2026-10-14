@@ -225,3 +225,29 @@ point. "MSBB" = the "Make searches and browsing better" / URL-keyed anonymized d
 | Search-engine-choice / geo | `components/search_engines/search_engine_choice/search_engine_choice_service.cc` | – | – |
 | Media Router / Cast | local mDNS discovery | local network | pref `media_router.enable_media_router`; cloud services off by default |
 | Attribution / private aggregation reports | sites, not Google | – | privacy sandbox prefs |
+
+---
+
+## Observed: first-launch traffic (2026-10-14, default USE config)
+
+These are hosts contacted within about 90 seconds of the first start, with a fresh
+profile and Google as the default search engine. The smoke test opened the NTP and
+typed into the omnibox. Data comes from `--log-net-log`.
+
+- **Google NTP / search (expected, Google features):** `www.google.com` (NTP,
+  `/complete/search` suggestions, `/async/*`), `www.gstatic.com`, `fonts.gstatic.com`,
+  `ogads-pa.clients6.google.com` (OneGoogle bar), `accounts.google.com/ListAccounts`,
+  and `play.google.com/log` (logging from the Google NTP page itself).
+- **Component updater:** `update.googleapis.com/service/update2/json`, with downloads
+  from `edgedl.me.gvt1.com`.
+  - Installed within the window: Optimization Guide Models Manifest (a list of
+    models), Optimization Hints, and Trust Token key commitments. All are data.
+  - Other downloads in flight were differential updates (subresource filter rules, …).
+  - No executable code: the profile contained no ELF/WASM/JS outside the web cache.
+- **Optimization guide:** `optimizationguide-pa.googleapis.com/v1:GetModels`
+  (model metadata).
+- **Spellcheck dictionary:** `redirector.gvt1.com/edgedl/chrome/dict/en-us-10-2.bdic`.
+- **Network time:** `clients2.google.com/time/1/current`.
+
+Candidates for the privacy work are the component-updater pings, `GetModels`, network
+time and the dictionary fetch. The NTP traffic is part of using Google's NTP and search.
