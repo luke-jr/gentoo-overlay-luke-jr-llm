@@ -58,7 +58,13 @@ DESCRIPTION="Open-source version of Google Chrome web browser"
 HOMEPAGE="https://www.chromium.org/"
 PPC64_HASH="7aae8a84e327fc2078ce1625c9c70bfda77d626f"
 COPIUM_COMMIT="027d15ffdcd1816b7935cee9ea4a4f6bae0bbe60"
-SRC_URI="https://github.com/chromium-linux-tarballs/chromium-tarballs/releases/download/${PV}/chromium-${PV}-linux.tar.xz
+# 156.0.8078.35 has no Linux release, and so no source tarball, yet (it shipped as Early Stable
+# for Windows and Mac only). It is built from the 156.0.8078.12 tarball plus the upstream
+# changes between the two tags, limited to what can affect a Linux build (see the header of
+# files/chromium-156.0.8078.12-to-35.patch). Drop this once the real 156.0.8078.35 is out.
+CHROMIUM_TARBALL_PV="156.0.8078.12"
+S="${WORKDIR}/chromium-${CHROMIUM_TARBALL_PV}"
+SRC_URI="https://github.com/chromium-linux-tarballs/chromium-tarballs/releases/download/${CHROMIUM_TARBALL_PV}/chromium-${CHROMIUM_TARBALL_PV}-linux.tar.xz
 	!bundled-toolchain? (
 		https://codeberg.org/selfisekai/copium/archive/${COPIUM_COMMIT}.tar.gz
 			-> chromium-patches-copium-${COPIUM_COMMIT:0:10}.tar.gz
@@ -287,7 +293,7 @@ pre_build_checks() {
 	# Check build requirements: bugs #471810, #541816, #914220
 	# We're going to start doing maths here on the size of an unpacked source tarball,
 	# this should make updates easier as chromium continues to balloon in size.
-	# xz -l /var/cache/distfiles/chromium-${PV}*.tar.xz
+	# xz -l /var/cache/distfiles/chromium-${CHROMIUM_TARBALL_PV}*.tar.xz
 	local base_disk=9 # Round up
 	use test && base_disk=$((base_disk + 5))
 	local extra_disk=1 # Always include a little extra space
@@ -428,7 +434,7 @@ pkg_setup() {
 }
 
 src_unpack() {
-	unpack ${P}-linux.tar.xz
+	unpack chromium-${CHROMIUM_TARBALL_PV}-linux.tar.xz
 	# These should only be required when we're not using the official toolchain
 	if use !bundled-toolchain; then
 		unpack chromium-patches-copium-${COPIUM_COMMIT:0:10}.tar.gz
@@ -438,7 +444,7 @@ src_unpack() {
 
 	if use test; then
 		# This just contains a bunch of font files that need to be unpacked (or moved) to the correct location.
-		local testfonts_dir="${WORKDIR}/${P}/third_party/test_fonts/test_fonts"
+		local testfonts_dir="${S}/third_party/test_fonts/test_fonts"
 		local testfonts_tar="${DISTDIR}/chromium-testfonts-${TEST_FONT:0:10}.tar.gz"
 		einfo "Unpacking test fonts ..."
 		tar xf "${testfonts_tar}" -C "${testfonts_dir}" || die "Failed to unpack testfonts"
@@ -516,6 +522,16 @@ remove_compiler_builtins() {
 }
 
 src_prepare() {
+	# Upgrade the ${CHROMIUM_TARBALL_PV} tarball to ${PV%_pre} first (see SRC_URI). It contains a
+	# git binary patch (ICU data), which GNU patch (eapply) cannot apply.
+	einfo "Upgrading the ${CHROMIUM_TARBALL_PV} sources to ${PV%_pre} ..."
+	git apply --whitespace=nowarn "${FILESDIR}/chromium-${CHROMIUM_TARBALL_PV}-to-${PV%_pre}.patch" ||
+		die "Failed to upgrade the sources to ${PV%_pre}"
+	local version
+	version=$(source chrome/VERSION && echo "${MAJOR}.${MINOR}.${BUILD}.${PATCH}") ||
+		die "Failed to read chrome/VERSION"
+	[[ ${version} == "${PV%_pre}" ]] || die "chrome/VERSION says ${version} after upgrading, expected ${PV%_pre}"
+
 	# Calling this here supports resumption via FEATURES=keepwork
 	python_setup
 
