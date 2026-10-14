@@ -700,11 +700,18 @@ src_prepare() {
 		die "TypeScript (tsgo) version mismatch: expected ${TSGO_VER}, found ${found}"
 	fi
 
+	# Nothing prebuilt may be used for the build: delete all compiled code (ELF, PE, Mach-O,
+	# WebAssembly, Java/Android bytecode and archives, ...; see files/chromium-binary-audit.py),
+	# then provide the few tools the build needs from the system (below), and check the result.
+	local binary_allowlist=(
+		# TODO: rollup's WebAssembly build (from npm), used by rollup to bundle WebUI resources and
+		# chromium-bidi's BiDi mapper. Needs rollup's parser built from source to get rid of it.
+		third_party/node/node_modules/@rollup/wasm-node/dist/wasm-node/bindings_wasm_bg.wasm
+		third_party/chromium-bidi/node_modules/@rollup/wasm-node/dist/wasm-node/bindings_wasm_bg.wasm
+	)
 	elog "Removing bundled binaries from source tree ..."
-	# Purge bundled ELF files: These are non-portable and will cause issues if used instead of system versions.
-	# Use `--wasm` to also remove WebAssembly binaries, if desired - they're portable so shouldn't break builds.
-	${EPYTHON} "${FILESDIR}/bin-finder.py" --elf "${S}" | awk '{print $1}' | xargs rm -f ||
-		die "Failed to remove bundled binaries"
+	"${EPYTHON}" "${FILESDIR}/chromium-binary-audit.py" --delete "${binary_allowlist[@]/#/--allow=}" \
+		"${S}" > "${T}/binary-removal.log" || die "Failed to remove bundled binaries"
 
 	# And now we restore any that we actually need, from the host system
 	local esbuild_path="${S}/third_party/devtools-frontend/src/third_party/esbuild"
@@ -742,6 +749,14 @@ src_prepare() {
 	if [[ "${found}" != "Version ${TSGO_VER}" ]]; then
 		die "Unexpected ${tsgo_dir}/tsc --version: ${found}"
 	fi
+
+	einfo "Checking that no prebuilt binaries are left in the source tree ..."
+	binary_allowlist+=(
+		# Copied from dev-lang/typescript-native above
+		third_party/typescript/linux-amd64/src/lib/tsc
+	)
+	"${EPYTHON}" "${FILESDIR}/chromium-binary-audit.py" "${binary_allowlist[@]/#/--allow=}" "${S}" ||
+		die "Prebuilt binaries found in the source tree, see above"
 
 	# adjust python interpreter version
 	sed -i -e "s|\(^script_executable = \).*|\1\"${EPYTHON}\"|g" .gn || die
