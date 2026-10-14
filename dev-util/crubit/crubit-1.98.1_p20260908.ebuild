@@ -124,7 +124,7 @@ LICENSE="Apache-2.0-with-LLVM-exceptions"
 # Dependent crate licenses (only the crates linked into cc_bindings_from_rs)
 LICENSE+=" Apache-2.0 MIT Unicode-3.0 || ( MIT Unlicense )"
 SLOT="$(ver_cut 1-3)"
-KEYWORDS="~amd64"
+KEYWORDS="~amd64 ~arm64"
 # Crubit's tests need googletest + Bazel-only fixtures; Chromium doesn't run them either.
 RESTRICT="test"
 
@@ -187,7 +187,7 @@ src_compile() {
 	local llvm_major
 	llvm_major=$("${RUSTC}" -vV | sed -n 's/^LLVM version: \([0-9]*\)\..*/\1/p')
 	[[ -n ${llvm_major} ]] || die "Could not determine the LLVM version of ${RUSTC}"
-	RUSTFLAGS+=" -L native=${EPREFIX}/usr/lib/llvm/${llvm_major}/$(get_libdir)"
+	RUSTFLAGS+=" -L native=${BROOT}/usr/lib/llvm/${llvm_major}/$(get_libdir)"
 
 	# Same selection as build_crubit.py: --locked, only the one binary.
 	cargo_src_compile --locked -p cc_bindings_from_rs --bin cc_bindings_from_rs
