@@ -28,6 +28,7 @@ Goals:
 | `dev-util/esbuild-0.28.2` | DevTools needs exactly this version. `::gentoo` stops at 0.27.3, and deps.gentoo.zip has no vendor tarball, so this uses `EGO_SUM`. |
 | `dev-build/gn-0.2578` | 156's `.gn` needs gn ≥ 1b0f22ec. Pinned to the commit Chromium's `DEPS` uses, via git-r3, because there is no tarball and gitiles archives aren't reproducible. |
 | `dev-lang/typescript-native-7.0.2` | TypeScript 7 (`tsgo`) built from source. Upstream compiles all WebUI/DevTools TypeScript with a prebuilt `tsgo`. The output was verified byte-identical to upstream's binary across all ~17k TypeScript outputs. |
+| `dev-lang/rustc-dev:1.98.1` | The Rust compiler's own crates (the `rustc-dev` component, what `rustup component add rustc-dev` installs), from the tarball `dev-lang/rust` builds with `USE=dist`, installed into that Rust slot's sysroot. Crubit links against them. |
 | `dev-util/crubit:1.98.1` | Crubit's `cc_bindings_from_rs`, built from source against the selected `dev-lang/rust`. Since M153–156, default-on code (Blink's FontFormatCheck, the Web Bundle parser, …) is Rust that C++ reaches only through Crubit-generated bindings. |
 | `media-video/ffmpeg-chromium-156` | for `USE=ffmpeg-chromium` (`::gentoo` stops at 154) |
 
@@ -41,10 +42,10 @@ Everything is keyworded `~amd64 ~arm64`. Only amd64 has been built and tested.
 1. LLVM 22: `llvm-core/{llvm,clang,lld}:22` and `llvm-runtimes/compiler-rt-sanitizers:22[cfi]` (for
    `USE=official`). Set `www-client/chromium LLVM_SLOT: -* 22`.
 2. `dev-lang/rust:1.98.1` with `USE="dist rustfmt"` (rustfmt is on by default). `dist`
-   installs the `rustc-dev` component under `/usr/lib/rust/1.98.1/dist/`, which Crubit
-   builds against. It must be *this* Rust build: Crubit links its exact
-   `librustc_driver-<hash>.so`. Rebuilding Rust means rebuilding `dev-util/crubit:1.98.1`
-   (the Chromium ebuild checks this).
+   builds the `rustc-dev` component, which `dev-lang/rustc-dev:1.98.1` installs and Crubit
+   builds against. Both must match *this* Rust build: they use its exact
+   `librustc_driver-<hash>.so`. Rebuilding Rust means rebuilding `dev-lang/rustc-dev:1.98.1`
+   and `dev-util/crubit:1.98.1` (the Chromium ebuild checks the latter).
 3. Accept `~amd64` for the overlay's packages and unmask `www-client/chromium::luke-jr-llm`.
    `LLVM_COMPAT` is 22 only: LLVM 23 means Rust 1.99, which would need a `dev-util/crubit:1.99.0`.
 4. `=dev-python/clang-22*`, pulled in automatically, used by V8's build-time
