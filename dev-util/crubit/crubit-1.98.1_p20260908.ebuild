@@ -179,7 +179,11 @@ src_compile() {
 	local -x RUSTC_BOOTSTRAP=1
 	# --sysroot: see src_prepare. rpath: like build_crubit.py's
 	# GetRustcDriverRpathFlags(), but pointing at the system Rust slot.
-	local -x RUSTFLAGS="${RUSTFLAGS} --sysroot=${WORKDIR}/sysroot"
+	# Not "local": cargo_env unsets RUSTFLAGS in a subshell after moving it into
+	# CARGO_TARGET_*_RUSTFLAGS, and unsetting a caller's local re-exposes the
+	# global value (e.g. RUSTFLAGS from make.conf), which cargo would then use
+	# instead, without these flags. Phase functions don't leak variables anyway.
+	RUSTFLAGS+=" --sysroot=${WORKDIR}/sysroot"
 	RUSTFLAGS+=" -C link-arg=-Wl,-rpath,${EPREFIX}/usr/lib/rust/${SLOT}/lib"
 	# librustc_driver links libLLVM-<major>.so of the system LLVM that
 	# dev-lang/rust was built against; it is found at runtime via LLVM's LDPATH,
