@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 # Copyright 2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
-"""Find (and optionally delete) compiled code in a Chromium source tree.
+"""Find (and optionally delete) compiled code and opaque archives in a
+Chromium source tree.
 
-Detects files by content, not by name: ELF, PE, Mach-O, WebAssembly, Java
-class files, DEX, ar archives (static libraries / object bundles), Python
-bytecode, plus zip-based Java/Android archives (.jar/.aar/.apk) and Node.js
-native addons (.node, when they are binaries).
+Detects files by content, not by name:
+- compiled code: ELF, PE, COFF objects, Mach-O, WebAssembly, LLVM bitcode,
+  SPIR-V, Java class files, DEX, ar archives (static libraries / object
+  bundles), Python bytecode;
+- archives, whose contents could hide any of the above: zip (incl. .jar,
+  .apk, .whl, .crx), 7z, gzip, xz, bzip2 and zstd streams. None of these are
+  inputs of the Linux build (the tree ships unpacked copies where needed);
+- WebAssembly embedded as base64 in JavaScript/TypeScript/JSON/HTML.
 
 Paths given with --allow (relative to the tree) are reported but never
 deleted and do not count as failures.  Symlinks are skipped (the ebuild links
@@ -30,9 +35,29 @@ MAGIC = (
     (b"\xca\xfe\xba\xbe", "Mach-O universal / Java class"),
     (b"dex\n", "DEX"),
     (b"!<arch>\n", "ar archive"),
+    (b"BC\xc0\xde", "LLVM bitcode"),
+    (b"\xde\xc0\x17\x0b", "LLVM bitcode"),  # wrapper header
+    (b"\x03\x02\x23\x07", "SPIR-V"),
+    (b"\x07\x23\x02\x03", "SPIR-V"),
+    (b"PK\x03\x04", "zip archive"),
+    (b"PK\x05\x06", "zip archive"),  # empty zip
+    (b"Cr24", "CRX archive"),
+    (b"7z\xbc\xaf\x27\x1c", "7z archive"),
+    (b"\x1f\x8b", "gzip archive"),
+    (b"\xfd7zXZ\x00", "xz archive"),
+    (b"BZh", "bzip2 archive"),
+    (b"\x28\xb5\x2f\xfd", "zstd archive"),
 )
 
-ZIP_CODE_EXTENSIONS = (".jar", ".aar", ".apk")
+# COFF object files have only a 2-byte machine type as magic, far too weak on
+# its own; only consider files named like objects/import libraries.
+COFF_MACHINES = (b"\x4c\x01", b"\x64\x86", b"\x64\xaa", b"\xc4\x01")
+COFF_EXTENSIONS = (".obj", ".o", ".lib")
+
+# The WebAssembly header ("\0asm", version 1) in base64, at each of the three
+# possible byte alignments (only the characters it fully determines).
+BASE64_WASM = (b"AGFzbQEAAA", b"Bhc20BAAAA", b"AYXNtAQAAA")
+TEXT_EXTENSIONS = (".js", ".mjs", ".cjs", ".ts", ".mts", ".cts", ".json", ".html", ".htm")
 
 
 def is_pe(path, head):
@@ -51,21 +76,29 @@ def is_pyc(path, head):
     return path.endswith(".pyc") and head[2:4] == b"\r\n"
 
 
+def has_base64_wasm(path):
+    with open(path, "rb") as f:
+        data = f.read()
+    return any(m in data for m in BASE64_WASM)
+
+
 def classify(path):
     try:
         with open(path, "rb") as f:
             head = f.read(8)
+        for magic, kind in MAGIC:
+            if head.startswith(magic):
+                return kind
+        if is_pe(path, head):
+            return "PE"
+        if is_pyc(path, head):
+            return "Python bytecode"
+        if path.endswith(COFF_EXTENSIONS) and head[:2] in COFF_MACHINES:
+            return "COFF object"
+        if path.endswith(TEXT_EXTENSIONS) and has_base64_wasm(path):
+            return "base64 WebAssembly"
     except OSError:
         return None
-    for magic, kind in MAGIC:
-        if head.startswith(magic):
-            return kind
-    if is_pe(path, head):
-        return "PE"
-    if is_pyc(path, head):
-        return "Python bytecode"
-    if path.endswith(ZIP_CODE_EXTENSIONS) and head.startswith(b"PK\x03\x04"):
-        return "Java/Android archive"
     return None
 
 

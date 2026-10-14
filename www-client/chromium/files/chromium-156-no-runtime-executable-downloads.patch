@@ -7,17 +7,22 @@ in a non-Google-branded Linux build, while leaving data-only components
 (lists, configs, ML weights) and user-initiated extension installs alone:
 
   * Widevine CDM          - libwidevinecdm.so  (component "WidevineCdm")
-                            A CDM installed on the system is still found via
-                            the bundled dir (bundle_widevine_cdm=true) or the
-                            hint file $USERDATA/WidevineCdm/latest-component-
-                            updated-widevine-cdm ({"Path": "<dir>"}).
+                            The Component Update hint file is ignored (it may
+                            point at a CDM downloaded by an earlier build); a
+                            CDM installed next to the browser
+                            (<module dir>/WidevineCdm, e.g. by
+                            www-plugins/chrome-binary-plugins) is used instead.
   * SODA                  - libsoda.so + language packs (Live Caption,
                             on-device Web Speech, Dictation). Reported as
                             unsupported, so the UI does not offer it.
   * Screen AI             - libchromescreenai.so (PDF OCR, main-content
                             extraction for Reading Mode).
-  * TranslateKit          - libtranslatekit.so (Translator / LanguageDetector
-                            web APIs). --translate-kit-binary-path still works.
+  * TranslateKit          - libtranslatekit.so (Translator web API). Without
+                            a library given with --translate-kit-binary-path
+                            (still honoured; a path stored by the component
+                            installer is not), Translator.availability() is
+                            "unavailable" so create() rejects instead of
+                            waiting for a download.
   * WASM TTS engine       - bindings_main.wasm + JS in a component extension
                             (natural voices for Reading Mode / Read Aloud).
   * Dictation Connector   - JS component extension (feature off by default).
@@ -30,7 +35,8 @@ in a non-Google-branded Linux build, while leaving data-only components
   * DevTools remote front-end - devtools://devtools/remote/... fetched from
                             chrome-devtools-frontend.appspot.com and run in the
                             privileged devtools:// origin (used when inspecting
-                            remote targets with a different version).
+                            remote targets with a different version). The
+                            DevTools CSP no longer allows scripts from there.
 
 The gates are placed in the Register*() functions of the individual
 installers (not in registration.cc) so that the on-demand registration paths
@@ -44,7 +50,7 @@ Function bodies are replaced rather than preceded by an early return because
 Chromium builds with -Wunreachable-code-aggressive.
 
 diff --git a/chrome/browser/component_updater/aim_eligibility_component_installer.cc b/chrome/browser/component_updater/aim_eligibility_component_installer.cc
-index b66f1b6..fadb262 100644
+index b66f1b6d4b..fadb26226e 100644
 --- a/chrome/browser/component_updater/aim_eligibility_component_installer.cc
 +++ b/chrome/browser/component_updater/aim_eligibility_component_installer.cc
 @@ -166,19 +166,13 @@ AimEligibilityComponentInstallerPolicy::GetInstallerAttributes() const {
@@ -75,7 +81,7 @@ index b66f1b6..fadb262 100644
  
  }  // namespace component_updater
 diff --git a/chrome/browser/component_updater/dictation_connector_component_installer.cc b/chrome/browser/component_updater/dictation_connector_component_installer.cc
-index 5631859..8c7ea2d 100644
+index 5631859e7b..8c7ea2dd47 100644
 --- a/chrome/browser/component_updater/dictation_connector_component_installer.cc
 +++ b/chrome/browser/component_updater/dictation_connector_component_installer.cc
 @@ -179,14 +179,8 @@ DictationConnectorComponentInstallerPolicy::GetInstallerAttributes() const {
@@ -96,7 +102,7 @@ index 5631859..8c7ea2d 100644
  
  }  // namespace component_updater
 diff --git a/chrome/browser/component_updater/indigo_component_installer.cc b/chrome/browser/component_updater/indigo_component_installer.cc
-index 0e3f329..d4f8a9d 100644
+index 0e3f329ae2..d4f8a9d7be 100644
 --- a/chrome/browser/component_updater/indigo_component_installer.cc
 +++ b/chrome/browser/component_updater/indigo_component_installer.cc
 @@ -126,13 +126,8 @@ IndigoComponentInstallerPolicy::GetInstallerAttributes() const {
@@ -116,7 +122,7 @@ index 0e3f329..d4f8a9d 100644
  
  std::optional<base::FilePath> GetIndigoComponentInstallDir() {
 diff --git a/chrome/browser/component_updater/screen_ai_component_installer.cc b/chrome/browser/component_updater/screen_ai_component_installer.cc
-index 11a0fa3..cdf81e2 100644
+index 11a0fa3343..cdf81e2f3d 100644
 --- a/chrome/browser/component_updater/screen_ai_component_installer.cc
 +++ b/chrome/browser/component_updater/screen_ai_component_installer.cc
 @@ -124,12 +124,8 @@ void ScreenAIComponentInstallerPolicy::DeleteComponent() {
@@ -156,7 +162,7 @@ index 11a0fa3..cdf81e2 100644
  
  }  // namespace component_updater
 diff --git a/chrome/browser/component_updater/translate_kit_component_installer.cc b/chrome/browser/component_updater/translate_kit_component_installer.cc
-index 3d4c0e9..a9d5baa 100644
+index 3d4c0e996f..a9d5baa1ab 100644
 --- a/chrome/browser/component_updater/translate_kit_component_installer.cc
 +++ b/chrome/browser/component_updater/translate_kit_component_installer.cc
 @@ -209,28 +209,9 @@ void RegisterTranslateKitComponent(ComponentUpdateService* cus,
@@ -192,7 +198,7 @@ index 3d4c0e9..a9d5baa 100644
  
  }  // namespace component_updater
 diff --git a/chrome/browser/component_updater/wasm_tts_engine_component_installer.cc b/chrome/browser/component_updater/wasm_tts_engine_component_installer.cc
-index 289b12f..18a20ac 100644
+index 289b12f2d8..18a20ac332 100644
 --- a/chrome/browser/component_updater/wasm_tts_engine_component_installer.cc
 +++ b/chrome/browser/component_updater/wasm_tts_engine_component_installer.cc
 @@ -304,10 +304,9 @@ void WasmTtsEngineComponentInstallerPolicy::UpdateWasmComponentOnDemand() {
@@ -210,7 +216,7 @@ index 289b12f..18a20ac 100644
  
  void WasmTtsEngineComponentInstallerPolicy::GetWasmTTSEngineDirectory(
 diff --git a/chrome/browser/component_updater/widevine_cdm_component_installer.cc b/chrome/browser/component_updater/widevine_cdm_component_installer.cc
-index c88a637..46f9fd8 100644
+index c88a637e72..f07c5cae84 100644
 --- a/chrome/browser/component_updater/widevine_cdm_component_installer.cc
 +++ b/chrome/browser/component_updater/widevine_cdm_component_installer.cc
 @@ -436,9 +436,10 @@ void WidevineCdmComponentInstallerPolicy::UpdateCdmPath(
@@ -221,14 +227,30 @@ index c88a637..46f9fd8 100644
 -      std::make_unique<WidevineCdmComponentInstallerPolicy>());
 -  installer->Register(cus, base::OnceClosure());
 +  // Runtime download of the Widevine CDM (a native shared library) is
-+  // disabled in this build. A CDM installed on the system is still found
-+  // through the bundled directory or the hint file, see
++  // disabled in this build. A CDM installed on the system next to the browser
++  // is used instead, see GetHintedWidevine() in
 +  // chrome/common/media/cdm_registration.cc.
  }
  
  }  // namespace component_updater
+diff --git a/chrome/browser/on_device_translation/installer_impl.cc b/chrome/browser/on_device_translation/installer_impl.cc
+index 59d6c13c7b..ba3452695b 100644
+--- a/chrome/browser/on_device_translation/installer_impl.cc
++++ b/chrome/browser/on_device_translation/installer_impl.cc
+@@ -52,7 +52,10 @@ base::FilePath GetTranslateKitLibraryPath(PrefService* prefs) {
+   if (command_line->HasSwitch(kTranslateKitBinaryPath)) {
+     return command_line->GetSwitchValuePath(kTranslateKitBinaryPath);
+   }
+-  return GetFilePathFromGlobalPrefs(prefs, prefs::kTranslateKitBinaryPath);
++  // Ignore a library path stored by the (disabled) component installer, e.g.
++  // by an earlier Chromium build using the same user data directory: nothing
++  // downloaded at runtime is loaded as code in this build.
++  return base::FilePath();
+ }
+ 
+ const char kTranslateKitPackagePaths[] = "translate-kit-packages";
 diff --git a/chrome/browser/ui/webui/devtools/devtools_ui_data_source.cc b/chrome/browser/ui/webui/devtools/devtools_ui_data_source.cc
-index 31bea97..8c7cca1 100644
+index 31bea976c8..6c21caea90 100644
 --- a/chrome/browser/ui/webui/devtools/devtools_ui_data_source.cc
 +++ b/chrome/browser/ui/webui/devtools/devtools_ui_data_source.cc
 @@ -189,17 +189,10 @@ void DevToolsDataSource::StartDataRequest(
@@ -253,8 +275,61 @@ index 31bea97..8c7cca1 100644
      return;
    }
  
+@@ -231,7 +224,8 @@ std::string DevToolsDataSource::GetContentSecurityPolicy(
+     case network::mojom::CSPDirectiveName::ObjectSrc:
+       return "object-src 'none';";
+     case network::mojom::CSPDirectiveName::ScriptSrc:
+-      return "script-src 'self' https://chrome-devtools-frontend.appspot.com;";
++      // No remote front-end scripts (see StartDataRequest above).
++      return "script-src 'self';";
+     default:
+       return std::string();
+   }
+diff --git a/chrome/common/media/cdm_registration.cc b/chrome/common/media/cdm_registration.cc
+index 60a79ace42..22416a72c0 100644
+--- a/chrome/common/media/cdm_registration.cc
++++ b/chrome/common/media/cdm_registration.cc
+@@ -147,9 +147,16 @@ std::unique_ptr<content::CdmInfo> GetHintedWidevine() {
+   // pretends Component Update returns.)
+   // TODO(crbug.com/324117290): Investigate if the pre-zygote data can be used
+   // by the browser process so that RegisterCdmInfo() is only called once.
+-  auto install_dir = GetHintedWidevineCdmDirectory();
+-  if (install_dir.empty()) {
+-    DVLOG(1) << __func__ << ": no version available";
++  //
++  // This build never downloads the Widevine CDM (Component Update for it is
++  // disabled), so the hint file is not used: it could still point at a CDM
++  // downloaded by an earlier build. Use a CDM installed on the system next to
++  // the browser instead (<module dir>/WidevineCdm, e.g. installed by
++  // www-plugins/chrome-binary-plugins), if there is one.
++  base::FilePath install_dir;
++  if (!base::PathService::Get(chrome::DIR_BUNDLED_WIDEVINE_CDM, &install_dir) ||
++      !base::DirectoryExists(install_dir)) {
++    DVLOG(1) << __func__ << ": no system Widevine CDM";
+     return nullptr;
+   }
+ 
+diff --git a/components/on_device_translation/service_controller.cc b/components/on_device_translation/service_controller.cc
+index e4354d4ab4..eebcb52bee 100644
+--- a/components/on_device_translation/service_controller.cc
++++ b/components/on_device_translation/service_controller.cc
+@@ -346,6 +346,14 @@ OnDeviceTranslationServiceController::CanTranslateImpl(
+     return CanTranslateResult::kNoNotSupportedLanguage;
+   }
+ 
++  if (!installer_->IsInit()) {
++    // The TranslateKit library (executable code) is never downloaded in this
++    // build, so without one given with --translate-kit-binary-path no language
++    // pair is supported. Report that rather than "after download", which would
++    // leave Translator.create() pending forever.
++    return CanTranslateResult::kNoNotSupportedLanguage;
++  }
++
+   if (language_pack_requirements.required_not_installed_packs.empty()) {
+     // All required language packages are installed.
+     if (!installer_->IsInit()) {
 diff --git a/components/soda/soda_util.cc b/components/soda/soda_util.cc
-index 5d638bb..7f7585e 100644
+index 5d638bb606..7f7585e1ed 100644
 --- a/components/soda/soda_util.cc
 +++ b/components/soda/soda_util.cc
 @@ -41,15 +41,11 @@ bool IsSupportedChromeOS() {

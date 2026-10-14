@@ -41,7 +41,9 @@ CHROMIUM_LANGS="af am ar bg bn ca cs da de el en-GB es es-419 et fa fi fil fr gu
 	hi hr hu id it ja kn ko lt lv ml mr ms nb nl pl pt-BR pt-PT ro ru sk sl sr
 	sv sw ta te th tr uk ur vi zh-CN zh-TW"
 
-LLVM_COMPAT=( 22 23 )
+# LLVM 23 means dev-lang/rust:1.99.0, which also needs a dev-util/crubit:1.99.0
+# (Crubit is tied to one Rust build); add 23 together with that.
+LLVM_COMPAT=( 22 )
 PYTHON_COMPAT=( python3_{11..14} )
 PYTHON_REQ_USE="xml(+)"
 RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit slot (rustc driver, tied to the Rust build)
@@ -83,7 +85,7 @@ LICENSE+=" Unicode-DFS-2015 Unlicense UoI-NCSA ZLIB libtiff openssl"
 LICENSE+=" rar? ( unRAR )"
 
 SLOT="stable"
-KEYWORDS="amd64 arm64"
+KEYWORDS="~amd64 ~arm64"
 
 IUSE_SYSTEM_LIBS="+system-harfbuzz +system-icu +system-zstd"
 IUSE="+X ${IUSE_SYSTEM_LIBS} bindist bundled-toolchain cups debug ffmpeg-chromium gtk4 +hangouts headless kerberos +official pax-kernel pgo"
@@ -702,8 +704,9 @@ src_prepare() {
 	fi
 
 	# Nothing prebuilt may be used for the build: delete all compiled code (ELF, PE, Mach-O,
-	# WebAssembly, Java/Android bytecode and archives, ...; see files/chromium-binary-audit.py),
-	# then provide the few tools the build needs from the system (below), and check the result.
+	# WebAssembly, LLVM bitcode, SPIR-V, Java/Android bytecode, ...) and all archives, which could
+	# hide it (none are build inputs; see files/chromium-binary-audit.py), then provide the few
+	# tools the build needs from the system (below), and check the result.
 	local binary_allowlist=(
 		# TODO: rollup's WebAssembly build (from npm), used by rollup to bundle WebUI resources and
 		# chromium-bidi's BiDi mapper. Needs rollup's parser built from source to get rid of it.
@@ -1262,16 +1265,16 @@ chromium_configure() {
 			"clang_version=\"${LLVM_SLOT}\""
 			# M156: V8 parses its headers with libclang at build time (metagen);
 			# upstream uses a prebuilt libclang, we use the system one.
-			"v8_metagen_libclang_so=\"$(get_llvm_prefix)/$(get_libdir)/libclang.so\""
+			"v8_metagen_libclang_so=\"$(get_llvm_prefix -b)/$(get_libdir)/libclang.so\""
 			"v8_metagen_libclang_bindings_dir=\"$(python_get_sitedir)\""
-			"v8_metagen_clang_resource_dir=\"${EPREFIX}/usr/lib/clang/${LLVM_SLOT}\""
+			"v8_metagen_clang_resource_dir=\"${BROOT}/usr/lib/clang/${LLVM_SLOT}\""
 			"rust_bindgen_root=\"${EPREFIX}/usr/\""
 			"rust_sysroot_absolute=\"$(get_rust_prefix)\""
 			"rustc_version=\"${RUST_SLOT}\""
 			# Crubit (cpp_api_from_rust); checked in pkg_setup. Upstream formats its
 			# generated headers with a bundled clang-format, which we remove.
 			"rust_crubit_root=\"${BROOT}/usr/lib/crubit/${RUST_SLOT}\""
-			"rust_crubit_clang_format=\"$(get_llvm_prefix)/bin/clang-format\""
+			"rust_crubit_clang_format=\"$(get_llvm_prefix -b)/bin/clang-format\""
 		)
 
 		# Currently disabled, runtime issues with mold
