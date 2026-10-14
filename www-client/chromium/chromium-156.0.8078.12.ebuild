@@ -33,7 +33,7 @@ RUST_SHORT_HASH=${BUNDLED_RUST_VER:0:10}-${BUNDLED_RUST_VER##*-}
 NODE_VER="24.12.0"
 GO_MIN_VER="1.25.0"
 ESBUILD_VER="0.28.2"
-# Native TypeScript compiler (tsgo); third_party/typescript/linux-amd64/src/package.json
+# TypeScript 7 compiler (tsgo); third_party/typescript/linux-amd64/src/package.json
 TSGO_VER="7.0.2"
 VIRTUALX_REQUIRED="pgo"
 
@@ -231,7 +231,7 @@ BDEPEND="
 	dev-lang/perl
 	>=dev-util/gperf-3.2
 	dev-util/esbuild:${ESBUILD_VER}
-	dev-lang/typescript-native:${TSGO_VER}
+	dev-lang/typescript:${TSGO_VER}
 	dev-vcs/git
 	>=net-libs/nodejs-${NODE_VER}[inspector]
 	sys-apps/hwdata
@@ -692,7 +692,7 @@ src_prepare() {
 		die "esbuild version mismatch: expected ${ESBUILD_VER}, found ${found}"
 	fi
 
-	# Likewise for the native TypeScript compiler (tsgo) used for all WebUI and
+	# Likewise for the TypeScript 7 compiler (tsgo) used for all WebUI and
 	# DevTools TypeScript; its prebuilt binary is replaced below.
 	local tsgo_dir="${S}/third_party/typescript/linux-amd64/src/lib"
 	found=$("${EPYTHON}" -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' \
@@ -746,7 +746,7 @@ src_prepare() {
 	# to use the in-tree ones next to it (Chromium patches lib.dom.d.ts, see
 	# third_party/typescript/README.chromium; and tools/typescript/ts_library.py
 	# rejects .d.ts files from outside the source tree).
-	local tsgo_src="${BROOT}/usr/lib/typescript-native/${TSGO_VER}/tsc"
+	local tsgo_src="${BROOT}/usr/lib/typescript/${TSGO_VER}/tsc"
 	[[ -f ${tsgo_src} ]] || die "Expected to find ${tsgo_src}, but it does not exist."
 	einfo "Copying ${tsgo_src} ..."
 	# Remove what is left first: cp would follow a symlink put there instead of the
@@ -760,7 +760,7 @@ src_prepare() {
 
 	einfo "Checking that no prebuilt binaries are left in the source tree ..."
 	binary_allowlist+=(
-		# Copied from dev-lang/typescript-native above
+		# Copied from dev-lang/typescript above
 		third_party/typescript/linux-amd64/src/lib/tsc
 	)
 	"${EPYTHON}" "${FILESDIR}/chromium-binary-audit.py" "${binary_allowlist[@]/#/--allow=}" "${S}" ||

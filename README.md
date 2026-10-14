@@ -27,7 +27,7 @@ Goals:
 | `www-client/chromium-156.0.8078.12` | the browser |
 | `dev-util/esbuild-0.28.2` | DevTools needs exactly this version. `::gentoo` stops at 0.27.3, and deps.gentoo.zip has no vendor tarball, so this uses `EGO_SUM`. |
 | `dev-build/gn-0.2578` | 156's `.gn` needs gn ≥ 1b0f22ec. Pinned to the commit Chromium's `DEPS` uses, via git-r3, because there is no tarball and gitiles archives aren't reproducible. |
-| `dev-lang/typescript-native-7.0.2` | TypeScript 7 (`tsgo`) built from source. Upstream compiles all WebUI/DevTools TypeScript with a prebuilt `tsgo`. The output was verified byte-identical to upstream's binary across all ~17k TypeScript outputs. |
+| `dev-lang/typescript:7.0.2` | TypeScript 7 (the Go compiler, `tsgo`) built from source, slotted per exact version beside `::gentoo`'s TypeScript 6. Upstream compiles all WebUI/DevTools TypeScript with a prebuilt `tsgo`. The output was verified byte-identical to upstream's binary across all ~17k TypeScript outputs. |
 | `dev-lang/rustc-dev:1.98.1` | The Rust compiler's own crates (the `rustc-dev` component, what `rustup component add rustc-dev` installs), from the tarball `dev-lang/rust` builds with `USE=dist`, installed into that Rust slot's sysroot. Crubit links against them. |
 | `dev-util/crubit:1.98.1` | Crubit's `cc_bindings_from_rs`, built from source against the selected `dev-lang/rust`. Since M153–156, default-on code (Blink's FontFormatCheck, the Web Bundle parser, …) is Rust that C++ reaches only through Crubit-generated bindings. |
 | `media-video/ffmpeg-chromium-156` | for `USE=ffmpeg-chromium` (`::gentoo` stops at 154) |
@@ -118,7 +118,7 @@ No USE flags were removed.
   changes (e.g. its bundled clang-format is removed but referenced by Crubit). It's
   opt-in and by definition uses prebuilt binaries.
 - **gn ebuild:** uses git-r3 (pinned commit). A distfile tarball would need hosting.
-- **esbuild / typescript-native:** use the deprecated `EGO_SUM` for the same reason.
+- **esbuild / typescript:** use the deprecated `EGO_SUM` for the same reason.
 - **pkgcheck** reports a few inherited warnings: `llvm-r1` → `llvm-r2`, the deliberate
   `sys-libs/zlib` dependency (bug #930365), and the size of `files/`.
 - **Privacy:** Chromium still talks to Google about non-Google things in the

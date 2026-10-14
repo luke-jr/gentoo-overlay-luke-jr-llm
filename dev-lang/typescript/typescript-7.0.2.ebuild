@@ -3,10 +3,15 @@
 
 EAPI=8
 
-# Chromium 156 builds all of its TypeScript (WebUI and DevTools) with this
-# exact version of the native (Go) TypeScript compiler. Upstream Chromium uses
-# the prebuilt npm package @typescript/typescript-linux-x64; this builds the
-# same commit (tag typescript/v7.0.2 == npm gitHead 2bd066d8) the same way.
+# TypeScript 7, the compiler implemented in Go. It is developed in tsc/ of the
+# TypeScript repository (formerly microsoft/typescript-go, now archived; its tag
+# typescript/v7.0.2 == npm gitHead 2bd066d8 is byte-identical to tsc/ at v7.0.2).
+#
+# Slotted per exact version, beside ::gentoo's TypeScript 6 (slot 0, the npm
+# JavaScript package with /usr/bin/tsc and the JS API, which TypeScript 7 does
+# not provide). Chromium 156 builds all of its TypeScript (WebUI and DevTools)
+# with exactly this version and its lib*.d.ts files (patched in Chromium's tree);
+# upstream Chromium uses the prebuilt npm package @typescript/typescript-linux-x64.
 #
 # No vendor tarball is available, so dependencies use EGO_SUM. Only the
 # modules whose packages are compiled into cmd/tsgo are listed (cf.
@@ -37,23 +42,23 @@ EGO_SUM=(
 inherit go-module
 go-module_set_globals
 
-DESCRIPTION="Native (Go) port of the TypeScript compiler (TypeScript 7, tsgo)"
+DESCRIPTION="Superset of JavaScript with optional static typing (TypeScript 7, written in Go)"
 HOMEPAGE="
-	https://github.com/microsoft/typescript-go
 	https://www.typescriptlang.org/
+	https://github.com/microsoft/TypeScript/
 "
 SRC_URI="
-	https://github.com/microsoft/typescript-go/archive/refs/tags/typescript/v${PV}.tar.gz
-		-> ${P}.tar.gz
+	https://github.com/microsoft/TypeScript/archive/refs/tags/v${PV}.tar.gz
+		-> ${P}.gh.tar.gz
 	${EGO_SUM_SRC_URI}
 "
-S="${WORKDIR}/typescript-go-typescript-v${PV}"
+S="${WORKDIR}/TypeScript-${PV}/tsc"
 
-# typescript-go and the bundled lib*.d.ts: Apache-2.0; Go modules:
+# TypeScript and the bundled lib*.d.ts: Apache-2.0; Go modules:
 # go-json-experiment/json, golang.org/x/*: BSD; zeebo/xxh3: BSD-2;
 # klauspost/cpuid: MIT; mackerelio/go-osstat: Apache-2.0
 LICENSE="Apache-2.0 BSD BSD-2 MIT"
-# Slotted by version: consumers such as Chromium pin an exact release.
+# Slotted by exact version: Chromium pins one release (see above).
 SLOT="${PV}"
 KEYWORDS="~amd64 ~arm64"
 
@@ -98,8 +103,9 @@ src_install() {
 	insinto "${dir}"
 	doins internal/bundled/libs/*.d.ts
 
-	# tsc resolves the symlink before looking for its lib*.d.ts.
-	dosym -r "${dir}/tsc" "/usr/bin/tsgo-${PV}"
+	# tsc resolves the symlink before looking for its lib*.d.ts. Versioned name:
+	# ::gentoo's TypeScript 6 owns /usr/bin/tsc.
+	dosym -r "${dir}/tsc" "/usr/bin/tsc-${PV}"
 
 	dodoc README.md NOTICE.txt
 }
