@@ -1,4 +1,14 @@
-# Chromium 156 overlay
+# luke-jr-llm: Chromium 156 overlay
+
+Gentoo overlay (repository name `luke-jr-llm`), maintained with an LLM; not an official Gentoo
+repository and not maintained by Gentoo developers. Example `/etc/portage/repos.conf/luke-jr-llm.conf`:
+
+```ini
+[luke-jr-llm]
+location = /var/db/repos/luke-jr-llm
+masters = gentoo
+auto-sync = no
+```
 
 `www-client/chromium-156.0.8078.12`, based on `::gentoo`'s `chromium-151.0.7922.169-r1`
 (`::gentoo` has masked Chromium for removal on 2026-10-24, bug #982204).
@@ -35,7 +45,7 @@ Everything is keyworded `~amd64 ~arm64`. Only amd64 has been built and tested.
    builds against. It must be *this* Rust build: Crubit links its exact
    `librustc_driver-<hash>.so`. Rebuilding Rust means rebuilding `dev-util/crubit:1.98.1`
    (the Chromium ebuild checks this).
-3. Accept `~amd64` for the overlay's packages and unmask `www-client/chromium::local`.
+3. Accept `~amd64` for the overlay's packages and unmask `www-client/chromium::luke-jr-llm`.
    `LLVM_COMPAT` is 22 only: LLVM 23 means Rust 1.99, which would need a `dev-util/crubit:1.99.0`.
 4. `=dev-python/clang-22*`, pulled in automatically, used by V8's build-time
    header parser ("metagen").
@@ -110,6 +120,7 @@ No USE flags were removed.
 - **Privacy:** Chromium still talks to Google about non-Google things in the
   background. See `NOTES-runtime-downloads-and-privacy.md`; not addressed yet.
 - **Crubit notes:** see `NOTES-crubit.md`.
-- **Metadata:** `dev-util/crubit` and `dev-lang/typescript-native` are new packages with no maintainer
-  in `metadata.xml`; add yourself if you like. `metadata/md5-cache` isn't tracked in git; Portage
+- **Metadata:** no package lists a maintainer: the `::gentoo` ones' Gentoo maintainers were removed, since
+  they don't maintain this overlay. Add yourself if you like. The generated AppStream data uses upstream
+  Chromium's contact and bug-report URL instead of Gentoo's. `metadata/md5-cache` isn't tracked in git; Portage
   regenerates it (or run `egencache`).

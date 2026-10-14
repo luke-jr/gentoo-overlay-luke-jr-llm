@@ -47,7 +47,7 @@ def main():
     # Configure contexts strictly for file generation
     # Common variables used across templates
     context = {
-        "BUGTRACKERURL": "https://bugs.gentoo.org/enter_bug.cgi?product=Gentoo Linux&amp;component=Current packages",
+        "BUGTRACKERURL": "https://www.chromium.org/for-testers/bug-reporting-guidelines",  # as upstream (chromium-browser.info)
         # M156+: as set by chrome/installer/linux/common/installer.py for
         # non-Flatpak installs (and its default screenshot for appdata)
         "APPSTREAM_SCREENSHOT_URL": "https://www.gstatic.com/chrome/appstream/chrome-2.png",
@@ -58,7 +58,7 @@ def main():
         "FULLDESC": "An open-source browser project that aims to build a safer, faster, and more stable way to experience the web.",
         "HELPURL": "https://wiki.gentoo.org/wiki/Chromium",
         "INSTALLDIR": args.installdir,  # Note: We've patched the installer scripts to automatically append the channel suffix, but we'll use the arg since we bypass all that.
-        "MAINTMAIL": "chromium@gentoo.org", # Must be a bare email address for appstream metadata
+        "MAINTMAIL": "chromium-packagers@chromium.org",  # as upstream; must be a bare email address for appstream metadata
         "MENUNAME": f"Chromium{menu_suffix}",
         "PACKAGE": f"chromium-browser{channel_suffix}",
         "PRODUCTURL": "https://www.chromium.org/",
