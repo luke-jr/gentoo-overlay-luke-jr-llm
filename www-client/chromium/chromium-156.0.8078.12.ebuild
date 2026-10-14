@@ -729,6 +729,9 @@ src_prepare() {
 			einfo "Symlinking ${src} ..."
 			# Make sure the parent dir exists; some tarballs don't include (e.g.) node's bindir
 			mkdir -p "$(dirname "${dst}")" || die "Failed to create directory for ${dst}"
+			# Replace whatever is left there (e.g. a stub put in place by a user patch or hook
+			# instead of the deleted prebuilt binary).
+			rm -f "${dst}" || die "Failed to remove ${dst}"
 			ln -s "${src}" "${dst}" || die "Failed to symlink ${dst} from ${src}"
 			if [[ ! -L "${dst}" || "$(readlink -f "${dst}")" != "${src}" ]]; then
 				die "Symlink verification failed for ${dst} -> ${src}"
