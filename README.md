@@ -91,6 +91,9 @@ Everything is keyworded `~amd64 ~arm64`. Only amd64 has been built and tested.
   `typescript`; removed `bidimapper` and `v8/third_party/glibc`.
 - **`generate-support-files.py`:** 156's new desktop/appdata template variables.
 - **Smaller changes:**
+  - PipeWire is no longer a build or runtime dependency without `USE=screencast`. Since M149 only
+    the (never built) Chrome Remote Desktop host required it at `gn gen` time; `enable_remoting=false`
+    avoids that, with identical build commands for chrome, chromedriver and chrome_sandbox.
   - AppStream data now goes to `/usr/share/metainfo`.
   - `LICENSE` is updated from M155 licence data.
   - Dead GN args removed (`v8_use_libm_trig_functions`, `devtools_skip_typecheck`).

@@ -134,7 +134,6 @@ COMMON_SNAPSHOT_DEPEND="
 	!headless? (
 		dev-libs/glib:2
 		>=media-libs/alsa-lib-1.0.19:=
-		media-video/pipewire:=
 		pulseaudio? ( media-libs/libpulse:= )
 		sys-apps/pciutils:=
 		kerberos? ( virtual/krb5 )
@@ -191,10 +190,9 @@ RDEPEND="${COMMON_DEPEND}
 		ffmpeg-chromium? ( media-video/ffmpeg-chromium:${PV%%\.*} )
 	)
 "
-# For M149+ pipewire is a mandatory build-time dependency, but it's optional at runtime for most configurations.
+# PipeWire is only needed with USE=screencast (see COMMON_DEPEND), thanks to enable_remoting=false.
 DEPEND="${COMMON_DEPEND}
 	!headless? (
-		media-video/pipewire
 		gtk4? ( gui-libs/gtk:4[X?,wayland?] )
 		!gtk4? ( x11-libs/gtk+:3[X?,wayland?] )
 	)
@@ -1360,6 +1358,10 @@ chromium_configure() {
 		"enable_nocompile_tests=false"
 		# pseudolocales are only used for testing
 		"enable_pseudolocales=false"
+		# Chrome Remote Desktop host (never built or installed here). Only stops GN from loading
+		# remoting/, whose pkg-config probe made PipeWire a mandatory build dependency since M149;
+		# chrome/chromedriver/chrome_sandbox are unchanged (identical ninja commands and inputs).
+		"enable_remoting=false"
 		"enable_widevine=$(usex widevine true false)"
 		# Disable fatal linker warnings, bug 506268.
 		"fatal_linker_warnings=false"
