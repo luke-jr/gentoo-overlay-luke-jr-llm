@@ -48,6 +48,11 @@ def main():
     # Common variables used across templates
     context = {
         "BUGTRACKERURL": "https://bugs.gentoo.org/enter_bug.cgi?product=Gentoo Linux&amp;component=Current packages",
+        # M156+: as set by chrome/installer/linux/common/installer.py for
+        # non-Flatpak installs (and its default screenshot for appdata)
+        "APPSTREAM_SCREENSHOT_URL": "https://www.gstatic.com/chrome/appstream/chrome-2.png",
+        "DESKTOP_EXEC": f"/usr/bin/chromium-browser{channel_suffix}",
+        "DESKTOP_ICON": f"chromium-browser{channel_suffix}",
         "DEVELOPER_NAME": "The Chromium Authors",
         "EXTRA_DESKTOP_ENTRIES": "",
         "FULLDESC": "An open-source browser project that aims to build a safer, faster, and more stable way to experience the web.",
