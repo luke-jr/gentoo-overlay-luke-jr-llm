@@ -3,9 +3,6 @@
 
 EAPI=8
 
-# DRAFT - not built in an ebuild environment yet; see NOTES-crubit.md in the
-# overlay root for what is verified and what is assumed.
-#
 # Only `cc_bindings_from_rs` (Chromium's `cpp_api_from_rust`) is built, exactly
 # like Chromium's tools/rust/build_crubit.py does for M156.
 #
@@ -184,6 +181,13 @@ src_compile() {
 	# GetRustcDriverRpathFlags(), but pointing at the system Rust slot.
 	local -x RUSTFLAGS="${RUSTFLAGS} --sysroot=${WORKDIR}/sysroot"
 	RUSTFLAGS+=" -C link-arg=-Wl,-rpath,${EPREFIX}/usr/lib/rust/${SLOT}/lib"
+	# librustc_driver links libLLVM-<major>.so of the system LLVM that
+	# dev-lang/rust was built against; it is found at runtime via LLVM's LDPATH,
+	# but the linker needs its directory.
+	local llvm_major
+	llvm_major=$("${RUSTC}" -vV | sed -n 's/^LLVM version: \([0-9]*\)\..*/\1/p')
+	[[ -n ${llvm_major} ]] || die "Could not determine the LLVM version of ${RUSTC}"
+	RUSTFLAGS+=" -L native=${EPREFIX}/usr/lib/llvm/${llvm_major}/$(get_libdir)"
 
 	# Same selection as build_crubit.py: --locked, only the one binary.
 	cargo_src_compile --locked -p cc_bindings_from_rs --bin cc_bindings_from_rs
