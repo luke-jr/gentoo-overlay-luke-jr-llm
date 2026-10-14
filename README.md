@@ -30,6 +30,7 @@ Goals:
 | `dev-lang/typescript:7.0.2` | TypeScript 7 (the Go compiler, `tsgo`) built from source, slotted per exact version beside `::gentoo`'s TypeScript 6. Upstream compiles all WebUI/DevTools TypeScript with a prebuilt `tsgo`. The output was verified byte-identical to upstream's binary across all ~17k TypeScript outputs. |
 | `dev-lang/rustc-dev:1.98.1` | The Rust compiler's own crates (the `rustc-dev` component, what `rustup component add rustc-dev` installs), from the tarball `dev-lang/rust` builds with `USE=dist`, installed into that Rust slot's sysroot. Crubit links against them. |
 | `dev-util/crubit:1.98.1` | Crubit's `cc_bindings_from_rs`, built from source against the selected `dev-lang/rust`. Since M153–156, default-on code (Blink's FontFormatCheck, the Web Bundle parser, …) is Rust that C++ reaches only through Crubit-generated bindings. |
+| `dev-util/rollup-native:4.21.0`, `:4.63.1` | Rollup's JavaScript parser (Rust) built from source as a native Node.js addon. It replaces the prebuilt WebAssembly parsers of the two bundled rollup copies (WebUI bundling and chromium-bidi). Outputs of all 37 rollup build steps are byte-identical to the WebAssembly build's. |
 | `media-video/ffmpeg-chromium-156` | for `USE=ffmpeg-chromium` (`::gentoo` stops at 154) |
 
 All except `ffmpeg-chromium` are **build-time only** (`BDEPEND`) for Chromium. `ffmpeg-chromium` is a runtime
@@ -83,8 +84,9 @@ masked) keeps the previous set and its packages.
     archives (zip/jar/whl/crx, 7z, gzip, xz, bzip2, zstd), whose contents could hide any of these. Among
     them are prebuilt Clang `.tar.xz` files and a tarball copy of `node_modules`. None of the ~1,400 files
     is an input of the targets the ebuild builds.
-  - Re-checks after system tools are linked in, and **dies** on anything outside a
-    short, commented allowlist.
+  - Re-checks after system tools are linked in, and **dies** on anything left over. The
+    only exception is our own `tsc` from `dev-lang/typescript-native`; nothing prebuilt
+    is allowed.
 - **`chromium-156-no-runtime-executable-downloads.patch`:** Chromium never downloads or
   loads code via the component updater: Widevine CDM, Screen AI, SODA, TranslateKit, the
   WASM TTS engine, component-extension JavaScript, and the remote DevTools front-end.
@@ -121,10 +123,6 @@ No USE flags were removed.
 
 ## Known issues / TODO
 
-- **rollup's WebAssembly build** (`@rollup/wasm-node`, from npm) is still used: by
-  rollup when bundling WebUI resources, and by chromium-bidi. It's the only allowlisted
-  prebuilt in `chromium-binary-audit.py`. Removing it needs rollup's parser built from
-  source.
 - **`USE=system-icu` doesn't work, and `::gentoo` masks it** (`profiles/base/package.use.mask`, bug #943216),
   so builds use the bundled ICU, as with 151. Unmasking it locally shows three blockers:
   1. ICU ≥ 76's C++ API uses `std::u16string_view`, which doesn't link against Chromium's own
