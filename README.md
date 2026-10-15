@@ -165,8 +165,8 @@ No USE flags were removed.
   144 remain. All generated files that build tools use are now built from source (`dev-util/rollup`,
   `dev-util/chromium-node-modules`); of the rest, most are hand-written source identical to their git
   tags, type declarations only, or data (caniuse, MDN, SPDX lists). Still generated: what ships in the
-  browser (WebUI's lit, `@bufbuild/protobuf`'s ES modules, for chrome://traces-internals, and
-  Polymer's `polymer_bundled.min.js` are now built from source, byte-identical):
+  browser (WebUI's and DevTools' lit, `@bufbuild/protobuf`'s ES modules, for
+  chrome://traces-internals, and Polymer's `polymer_bundled.min.js` are now built from source):
   - zod and mitt (BiDi mapper);
   - DevTools' vendored `front_end/third_party` (~7 MB, mostly checked-in build output: Lighthouse,
     CodeMirror, Puppeteer, ...), and `third_party/lottie/lottie_worker.js`.

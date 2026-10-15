@@ -851,6 +851,7 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	# are deleted above (files/chromium-${PV%%.*}-node-modules.txt).
 	local cnm_dir="${BROOT}/usr/lib/chromium-node-modules/${PV%%.*}" cnm_pkg cnm_ver cnm_file
 	[[ -f ${cnm_dir}/VERSIONS ]] || die "Expected to find ${cnm_dir}/VERSIONS, but it does not exist."
+	local cnm_tree="${cnm_dir}/tree"
 	while read -r cnm_pkg cnm_ver; do
 		found=$("${EPYTHON}" -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' \
 			"${S}/${cnm_pkg}/package.json") || die "Failed to read the version of ${cnm_pkg}"
@@ -859,14 +860,13 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	done < "${cnm_dir}/VERSIONS" || die
 	einfo "Replacing generated npm package files with dev-util/chromium-node-modules' ..."
 	while IFS= read -r -d '' cnm_file; do
-		[[ ${cnm_file} == VERSIONS ]] && continue
 		# Every file replaces one, except new chunks of code-split builds.
 		[[ -f ${S}/${cnm_file} || ${cnm_file##*/} == chunk-* ]] ||
 			die "${cnm_file} not found in the source tree"
 		# Remove first: cp would follow a symlink left in its place.
 		rm -f "${S}/${cnm_file}" || die
-		cp "${cnm_dir}/${cnm_file}" "${S}/${cnm_file}" || die "Failed to copy ${cnm_file}"
-	done < <(cd "${cnm_dir}" && find . -type f -printf '%P\0' || die)
+		cp "${cnm_tree}/${cnm_file}" "${S}/${cnm_file}" || die "Failed to copy ${cnm_file}"
+	done < <(cd "${cnm_tree}" && find . -type f -printf '%P\0' || die)
 	# Chromium patches some npm packages (third_party/node/patches; the tree has them applied).
 	# Of the files replaced above, that is only lit-html.js: apply its patch again.
 	pushd "${S}/third_party/node" >/dev/null || die
@@ -919,6 +919,48 @@ sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polym
 	popd >/dev/null || die
 	cp "${polymer_build}/polymer_bundled.min.js" "${polymer_dir}/components-chromium/polymer/" ||
 		die "Failed to copy polymer_bundled.min.js"
+
+	# DevTools' lit (front_end/third_party/lit/lib/*.js): what its rebuild.sh does (tsc of
+	# src/*.ts, then its rollup.config.mjs, whose .d.ts outputs are kept as they are), with the
+	# lit packages dev-util/chromium-node-modules built and the rollup, @rollup/plugin-node-resolve
+	# and terser above.
+	local devtools_lit="${S}/third_party/devtools-frontend/src/front_end/third_party/lit"
+	local cnm_lit="${cnm_dir}/build/devtools-lit/node_modules"
+	found=$("${EPYTHON}" -c 'import json, sys; print(json.load(open(sys.argv[1]))["dependencies"]["lit"])' \
+		"${devtools_lit}/package.json") || die "Failed to read DevTools' lit version"
+	local cnm_lit_ver
+	cnm_lit_ver=$("${EPYTHON}" -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' \
+		"${cnm_lit}/lit/package.json") || die
+	[[ ${found} == "${cnm_lit_ver}" ]] ||
+		die "DevTools' lit is ${found}, dev-util/chromium-node-modules has ${cnm_lit_ver}"
+	local lit_build="${WORKDIR}/devtools-lit"
+	mkdir -p "${lit_build}/node_modules/@rollup/plugin-terser" "${lit_build}/node_modules/rollup-plugin-dts" || die
+	cp -r "${devtools_lit}/src" "${devtools_lit}/rollup.config.mjs" "${lit_build}/" || die
+	cp -r "${cnm_lit}/." "${lit_build}/node_modules/" || die
+	ln -s "${S}/third_party/chromium-bidi/node_modules/@rollup/plugin-node-resolve" \
+		"${lit_build}/node_modules/@rollup/plugin-node-resolve" || die
+	ln -s "${S}/third_party/node/node_modules/terser" "${lit_build}/node_modules/terser" || die
+	cp "${FILESDIR}/chromium-rollup-plugin-terser.mjs" "${lit_build}/node_modules/@rollup/plugin-terser/index.mjs" || die
+	echo '{"name": "@rollup/plugin-terser", "exports": "./index.mjs"}' \
+		> "${lit_build}/node_modules/@rollup/plugin-terser/package.json" || die
+	echo 'export default () => ({ name: "dts" });' > "${lit_build}/node_modules/rollup-plugin-dts/index.mjs" || die
+	echo '{"name": "rollup-plugin-dts", "exports": "./index.mjs"}' \
+		> "${lit_build}/node_modules/rollup-plugin-dts/package.json" || die
+	echo 'import c from "./rollup.config.mjs"; export default c.filter(e => !e.input.endsWith(".d.ts"));' \
+		> "${lit_build}/js.config.mjs" || die
+	pushd "${lit_build}" >/dev/null || die
+	einfo "Building DevTools' lit bundle from source ..."
+	# (--noCheck: the lit packages above come without type declarations)
+	"${tsgo_dir}/tsc" --ignoreConfig --skipLibCheck --noCheck -d -t esnext -m esnext --moduleResolution bundler \
+		src/*.ts ||
+		die "tsc failed"
+	node "${S}/third_party/node/node_modules/@rollup/wasm-node/dist/bin/rollup" -c js.config.mjs --silent ||
+		die "rollup failed"
+	popd >/dev/null || die
+	for f in "${lit_build}"/lib/*.js; do
+		[[ -f ${devtools_lit}/lib/${f##*/} ]] || die "Unexpected DevTools lit output ${f##*/}"
+		cp "${f}" "${f}.map" "${devtools_lit}/lib/" || die
+	done
 
 	# chromium-bidi bundles its BiDi mapper (used for browser automation, e.g. chromedriver)
 	# with its own copy of rollup ${ROLLUP_BIDI_VER}. Use the one above instead: the mapper

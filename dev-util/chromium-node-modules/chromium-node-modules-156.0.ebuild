@@ -111,6 +111,9 @@ JS_SOURCES=(
 	# one commit), built with its rollup-common.js: rollup-plugin-terser's terser and
 	# the rollup plugins that change the output
 	"lit lit/lit eb71041517fe054b736823bd8cec5f0c8835e54c"
+	# DevTools' lit (lit and lit-html; lit-element and @lit/reactive-element)
+	"lit-3.3.3 lit/lit 20afabd3c5bfd49fdcdf1b8518e05c7f99a46db6"
+	"lit-4.2.2 lit/lit 0fc671bc390cac3b9900fc3616347eeeecd91d5a"
 	"terser-5.34 terser/terser v5.34.1"
 	"plugin-replace rollup/plugins replace-v5.0.7"
 	"plugin-virtual rollup/plugins virtual-v3.0.2"
@@ -218,7 +221,7 @@ _dir() {
 # _bundle <format> <output> <entry> [<npm package>=<source id>[:<path>]]...
 # Bundles <entry> (<source id>:<path>) with esbuild, resolving the given npm
 # packages to source paths (or an absolute path; "external" leaves the import
-# as it is), into ${WORKDIR}/image/<output> (or <output>, if absolute).
+# as it is), into ${WORKDIR}/image/tree/<output> (or <output>, if absolute).
 # Arguments starting with "--" are passed to esbuild. Formats: esm, cjs,
 # and cjs-default (module.exports is the entry's default export, as with
 # rollup's "exports: default").
@@ -226,7 +229,7 @@ _bundle() {
 	local format=${1} output=${2} entry=${3}
 	shift 3
 	entry="$(_dir "${entry%%:*}")/${entry#*:}"
-	[[ ${output} == /* ]] || output="${WORKDIR}/image/${output}"
+	[[ ${output} == /* ]] || output="${WORKDIR}/image/tree/${output}"
 	local args=(
 		--bundle --platform=node --target=node18 --log-level=warning
 		--outfile="${output}" --define:DEBUG=false
@@ -267,7 +270,7 @@ _bundle() {
 
 # _split <output dir> <source id>:<base dir> <entry>... [-- <esbuild arg>...]
 # Bundles the entries (relative to the base directory) as ES modules sharing
-# chunks, into ${WORKDIR}/image/<output dir> (paths below the base kept). All
+# chunks, into ${WORKDIR}/image/tree/<output dir> (paths below the base kept). All
 # npm imports stay external: they resolve in Chromium's tree as before.
 _split() {
 	local out=${1} base="$(_dir "${2%%:*}")/${2#*:}"
@@ -279,7 +282,7 @@ _split() {
 	done
 	[[ ${1} == -- ]] && shift
 	edo "${ESBUILD}" "${entries[@]}" --bundle --splitting --format=esm --platform=node --target=node18 \
-		--packages=external --log-level=warning --outbase="${base}" --outdir="${WORKDIR}/image/${out}" "${@}"
+		--packages=external --log-level=warning --outbase="${base}" --outdir="${WORKDIR}/image/tree/${out}" "${@}"
 }
 
 src_compile() {
@@ -409,7 +412,7 @@ src_compile() {
 	_ts_proto_descriptors "${T}/stage1" "${T}/descriptors1"
 	_ts_proto ${webui}/ts-proto/build/src/plugin.js "${T}/descriptors1/index.ts"
 	mkdir -p "${T}/stage2/build/src" || die
-	cp "${WORKDIR}/image/${webui}/ts-proto/build/src/plugin.js" "${T}/stage2/build/src/" || die
+	cp "${WORKDIR}/image/tree/${webui}/ts-proto/build/src/plugin.js" "${T}/stage2/build/src/" || die
 	_ts_proto_descriptors "${T}/stage2" "${T}/descriptors2"
 	diff -r "${T}/descriptors1" "${T}/descriptors2" ||
 		die "ts-proto doesn't regenerate its descriptors identically"
@@ -420,35 +423,31 @@ src_compile() {
 	pushd "$(_dir bufbuild-protobuf)/packages/protobuf" >/dev/null || die
 	edo "${BROOT}/usr/bin/tsc-6.0.2" --project tsconfig.json --rootDir src \
 		--ignoreDeprecations 6.0 --noCheck \
-		--outDir "${WORKDIR}/image/${webui}/@bufbuild/protobuf/dist/esm"
+		--outDir "${WORKDIR}/image/tree/${webui}/@bufbuild/protobuf/dist/esm"
 	popd >/dev/null || die
 
-	# WebUI's lit: compile each package (tsc --build: development/), then run its
+	# lit: compile each package (tsc --build: development/), then run its
 	# rollup.config.js (../../rollup-common.js: minified files with a shared terser
 	# name cache). The rollup plugins it imports: rollup-plugin-terser (in process,
 	# files/), @rollup/plugin-replace and -virtual from source; the others (size
 	# summary, test copies, source maps, the Node build's DOM shim and its bundled
-	# polyfill-support) don't change the files Chromium uses, and are no-ops. The
-	# result is byte-identical to npm's (Chromium's lit_html.patch is applied by
-	# the Chromium ebuild).
-	local lit
-	lit=$(_dir lit) || die
-	local nm="${lit}/node_modules"
-	mkdir -p "${nm}"/terser "${nm}"/rollup-plugin-terser "${nm}"/@rollup || die
-	_bundle cjs "${nm}/terser/index.js" terser-5.34:main.js acorn=external \
+	# polyfill-support) don't change the files Chromium uses, and are no-ops.
+	local lit_tools="${T}/lit-tools/node_modules"
+	mkdir -p "${lit_tools}"/terser "${lit_tools}"/rollup-plugin-terser "${lit_tools}"/@rollup || die
+	_bundle cjs "${lit_tools}/terser/index.js" terser-5.34:main.js acorn=external \
 		@jridgewell/source-map=source-map:src/source-map.ts \
 		@jridgewell/gen-mapping=gen-mapping:src/gen-mapping.ts \
 		@jridgewell/trace-mapping=trace-mapping:src/trace-mapping.ts \
 		@jridgewell/set-array=set-array:src/set-array.ts \
 		@jridgewell/resolve-uri=resolve-uri:src/resolve-uri.ts \
 		@jridgewell/sourcemap-codec=sourcemap-codec-1.4.15:src/sourcemap-codec.ts
-	cp "${FILESDIR}"/rollup-plugin-terser-7.0.2.js "${nm}"/rollup-plugin-terser/index.js || die
-	_bundle esm "${nm}/@rollup/plugin-replace/index.js" plugin-replace:packages/replace/src/index.js \
+	cp "${FILESDIR}"/rollup-plugin-terser-7.0.2.js "${lit_tools}"/rollup-plugin-terser/index.js || die
+	_bundle esm "${lit_tools}/@rollup/plugin-replace/index.js" plugin-replace:packages/replace/src/index.js \
 		@rollup/pluginutils=pluginutils-5.1:packages/pluginutils/src/index.ts \
 		estree-walker=estree-walker-2:src/index.js picomatch=picomatch-2.3 \
 		magic-string=magic-string-0.30.7:src/index.js \
 		@jridgewell/sourcemap-codec=sourcemap-codec-1.4.15:src/sourcemap-codec.ts
-	_bundle esm "${nm}/@rollup/plugin-virtual/index.js" plugin-virtual:packages/virtual/src/index.ts
+	_bundle esm "${lit_tools}/@rollup/plugin-virtual/index.js" plugin-virtual:packages/virtual/src/index.ts
 	local stub
 	for stub in \
 		"rollup-plugin-summary:export function summary() { return { name: 'summary' }; }" \
@@ -457,16 +456,44 @@ src_compile() {
 		"@rollup/plugin-node-resolve:export default function nodeResolve() { return { name: 'node-resolve' }; }" \
 		"@rollup/plugin-inject:export default function inject() { return { name: 'inject' }; }"
 	do
-		mkdir -p "${nm}/${stub%%:*}" || die
-		echo "${stub#*:}" > "${nm}/${stub%%:*}/index.js" || die
+		mkdir -p "${lit_tools}/${stub%%:*}" || die
+		echo "${stub#*:}" > "${lit_tools}/${stub%%:*}/index.js" || die
 	done
 	local d
 	for d in rollup-plugin-terser rollup-plugin-summary rollup-plugin-copy rollup-plugin-sourcemaps \
 		@rollup/plugin-replace @rollup/plugin-virtual @rollup/plugin-node-resolve @rollup/plugin-inject; do
-		echo '{"type": "module", "main": "index.js"}' > "${nm}/${d}/package.json" || die
+		echo '{"type": "module", "main": "index.js"}' > "${lit_tools}/${d}/package.json" || die
 	done
-	echo '{"main": "index.js"}' > "${nm}/terser/package.json" || die
-	local p f
+	echo '{"main": "index.js"}' > "${lit_tools}/terser/package.json" || die
+
+	# _lit <source id> <package>...: builds a lit commit's packages (all four are
+	# compiled, for their TypeScript project references)
+	_lit() {
+		local lit p
+		lit=$(_dir "${1}") || die
+		shift
+		cp -r "${lit_tools}" "${lit}/node_modules" || die
+		for p in reactive-element lit-html lit-element lit; do
+			pushd "${lit}/packages/${p}" >/dev/null || die
+			# (types: test-only type packages; --noCheck: TypeScript 6 for its TypeScript 5 config)
+			echo '{"extends": "./tsconfig.json", "compilerOptions": {"types": []}}' > tsconfig.gentoo.json || die
+			edo "${BROOT}/usr/bin/tsc-6.0.2" -p tsconfig.gentoo.json --noCheck --ignoreDeprecations 6.0
+			if [[ -f tsconfig.polyfill-support.json ]]; then
+				echo '{"extends": "./tsconfig.polyfill-support.json", "compilerOptions": {"types": []}}' \
+					> tsconfig.ps-gentoo.json || die
+				edo "${BROOT}/usr/bin/tsc-6.0.2" -p tsconfig.ps-gentoo.json --noCheck --ignoreDeprecations 6.0
+			fi
+			if has "${p}" "$@"; then
+				edo node "${BROOT}/usr/lib/rollup/4.21.0/rollup" -c rollup.config.js --silent
+			fi
+			popd >/dev/null || die
+		done
+	}
+
+	# WebUI's lit (byte-identical to npm's; Chromium's lit_html.patch is applied by
+	# the Chromium ebuild): the files in Chromium's tree
+	_lit lit reactive-element lit-html lit-element lit
+	local p f dest
 	local -A lit_files=(
 		[reactive-element]="@lit/reactive-element:css-tag.js reactive-element.js"
 		[lit-html]="lit-html:async-directive.js directive-helpers.js directive.js directives/repeat.js is-server.js lit-html.js"
@@ -474,22 +501,32 @@ src_compile() {
 		[lit]="lit:directives/repeat.js index.js"
 	)
 	for p in reactive-element lit-html lit-element lit; do
-		pushd "${lit}/packages/${p}" >/dev/null || die
-		# (types: test-only type packages; --noCheck: TypeScript 6 for its TypeScript 5 config)
-		echo '{"extends": "./tsconfig.json", "compilerOptions": {"types": []}}' > tsconfig.gentoo.json || die
-		edo "${BROOT}/usr/bin/tsc-6.0.2" -p tsconfig.gentoo.json --noCheck --ignoreDeprecations 6.0
-		if [[ -f tsconfig.polyfill-support.json ]]; then
-			echo '{"extends": "./tsconfig.polyfill-support.json", "compilerOptions": {"types": []}}' \
-				> tsconfig.ps-gentoo.json || die
-			edo "${BROOT}/usr/bin/tsc-6.0.2" -p tsconfig.ps-gentoo.json --noCheck --ignoreDeprecations 6.0
-		fi
-		edo node "${BROOT}/usr/lib/rollup/4.21.0/rollup" -c rollup.config.js --silent
-		local dest
 		for f in ${lit_files[${p}]#*:}; do
-			dest="${WORKDIR}/image/${webui}/${lit_files[${p}]%%:*}/${f}"
+			dest="${WORKDIR}/image/tree/${webui}/${lit_files[${p}]%%:*}/${f}"
 			mkdir -p "${dest%/*}" || die
-			cp "${f}" "${dest}" || die
+			cp "$(_dir lit)/packages/${p}/${f}" "${dest}" || die
 		done
+	done
+
+	# The lit DevTools' front_end/third_party/lit is built from (its package.json:
+	# lit 3.3.3, which got lit-html 3.3.3, lit-element 4.2.2, @lit/reactive-element
+	# 2.1.2): the npm packages' production files, for the Chromium ebuild to bundle
+	# (build/devtools-lit/node_modules).
+	_lit lit-3.3.3 lit-html lit
+	_lit lit-4.2.2 reactive-element lit-element
+	local -A devtools_lit=(
+		[lit]="lit-3.3.3 lit" [lit-html]="lit-3.3.3 lit-html"
+		[lit-element]="lit-4.2.2 lit-element" [@lit/reactive-element]="lit-4.2.2 reactive-element"
+	)
+	local name src
+	for name in "${!devtools_lit[@]}"; do
+		read -r src p <<< "${devtools_lit[${name}]}"
+		dest="${WORKDIR}/image/build/devtools-lit/node_modules/${name}"
+		mkdir -p "${dest}" || die
+		pushd "$(_dir "${src}")/packages/${p}" >/dev/null || die
+		cp package.json "${dest}/" || die
+		find . -name '*.js' ! -path './development/*' ! -path './node/*' ! -path './test/*' \
+			! -path './node_modules/*' -exec cp --parents {} "${dest}/" \; || die
 		popd >/dev/null || die
 	done
 
@@ -525,7 +562,7 @@ src_compile() {
 		cssesc="${T}/cssesc.js" \
 		util-deprecate=util-deprecate:node.js
 	# postcss-minify-selectors uses cssesc itself
-	_copy_file() { mkdir -p "${WORKDIR}/image/${2%/*}" && cp "${1}" "${WORKDIR}/image/${2}" || die; }
+	_copy_file() { mkdir -p "${WORKDIR}/image/tree/${2%/*}" && cp "${1}" "${WORKDIR}/image/tree/${2}" || die; }
 	_copy_file "${T}/cssesc.js" ${dt}/cssesc/cssesc.js
 	# npm's copy is git's hand-written file with its comments stripped
 	_copy_file "$(_dir nanoid)/non-secure/index.cjs" ${dt}/nanoid/non-secure/index.cjs
@@ -541,7 +578,7 @@ src_compile() {
 	_split ${dt}/yargs/node_modules/yargs-parser/build/lib yargs-parser-22:lib index.ts
 	_bundle esm ${dt}/escalade/sync/index.mjs escalade:src/sync.js --packages=external
 	edo "${ESBUILD}" "$(_dir get-caller-file)/index.ts" --format=cjs --platform=node --target=node18 \
-		--log-level=warning --outfile="${WORKDIR}/image/${dt}/get-caller-file/index.js"
+		--log-level=warning --outfile="${WORKDIR}/image/tree/${dt}/get-caller-file/index.js"
 	_bundle esm ${dt}/js-yaml/dist/js-yaml.mjs js-yaml:src/index.ts --packages=external --target=es2015
 	# uuid's Node.js build (src/ without the *-browser files)
 	_bundle esm ${dt}/uuid/dist-node/index.js uuid:src/index.ts
@@ -558,7 +595,7 @@ src_compile() {
 src_test() {
 	# Upstream's test suites need their dev dependencies; check that every
 	# bundle loads and does something.
-	local i=${WORKDIR}/image bidi=third_party/chromium-bidi/node_modules webui=third_party/node/node_modules
+	local i=${WORKDIR}/image/tree bidi=third_party/chromium-bidi/node_modules webui=third_party/node/node_modules
 	local dt=third_party/devtools-frontend/src/node_modules
 	cp "${i}/${dt}/uuid/dist-node/index.js" "${T}/uuid.mjs" || die
 	# In Chromium's tree, a package.json next to it makes this one ESM.
