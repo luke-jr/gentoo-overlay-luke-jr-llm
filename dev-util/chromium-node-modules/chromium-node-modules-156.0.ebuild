@@ -114,6 +114,27 @@ JS_SOURCES=(
 	# DevTools' lit (lit and lit-html; lit-element and @lit/reactive-element)
 	"lit-3.3.3 lit/lit 20afabd3c5bfd49fdcdf1b8518e05c7f99a46db6"
 	"lit-4.2.2 lit/lit 0fc671bc390cac3b9900fc3616347eeeecd91d5a"
+	# DevTools' vendored libraries (front_end/third_party); untagged ones by npm's gitHead
+	# or README.chromium's revision
+	"acorn acornjs/acorn 610d62d8f9cf44ca0e70c516b40c92452235c81b"
+	"codemirror5 codemirror/codemirror5 eac70bb1a31a08201e5705c788cd72e6283958f0"
+	"diff-match-patch google/diff-match-patch 0ae308daa77aeddb089cd6b7b0a443fca026266e"
+	"formatjs formatjs/formatjs 51a665ca0a7c6129c0c93b6b7837603a8e31caa4"
+	"json5 json5/json5 v2.2.3"
+	"marked markedjs/marked 0a2cd54cbe91911890e4460ae4fd7b9966e05654"
+	"wasmparser wasdk/wasmparser e0a3281fdd678e6e3d5624b6d939bdf7c3d215ad"
+	# chromium-bidi's BiDi mapper bundles these
+	"zod colinhacks/zod 50606616c0d291caf3210a7521da51271b918333"
+	"mitt developit/mitt b240473b5707857ba2c6a8e6d707c28d1e39da49"
+	# DevTools' puppeteer-core 25.12.0 and @puppeteer/replay 4.0.2, and the packages
+	# puppeteer bundles (versions from its package-lock.json; by npm's gitHead).
+	# urlpattern-polyfill 10.1.0's commit was never published: its latest public
+	# commit is the change 10.1.0's build shows.
+	"puppeteer puppeteer/puppeteer 15684eb7f1adf98c1c0c4a5d23a154b7995e947e"
+	"replay puppeteer/replay 23ab6bc760bc6982d0dcbf3f832a2a7d54571f72"
+	"parsel LeaVerou/parsel e10f9c11667ee18cd1ab0bf5002becb2fd4d1b6e"
+	"rxjs ReactiveX/rxjs e5351d02e225e275ac0e497c7b66eaa5f0c88791"
+	"urlpattern-polyfill kenchris/urlpattern-polyfill f147a0f42a94a29ec1dcd229b218f3a700377f91"
 	"terser-5.34 terser/terser v5.34.1"
 	"plugin-replace rollup/plugins replace-v5.0.7"
 	"plugin-virtual rollup/plugins virtual-v3.0.2"
@@ -147,6 +168,12 @@ for _spec in "${JS_SOURCES[@]}"; do
 	fi
 done
 unset _spec src_id src_repo src_ref src_distfile src_dir
+# webdriver-bidi-protocol's type declarations (puppeteer's TypeScript inlines its const
+# enums; the package has no JavaScript, and its sources are generated from the WebDriver
+# BiDi specification)
+SRC_URI+="
+	https://registry.npmjs.org/webdriver-bidi-protocol/-/webdriver-bidi-protocol-0.4.3.tgz
+"
 S="${WORKDIR}"
 
 LICENSE="Apache-2.0 BSD-2 ISC MIT"
@@ -202,6 +229,15 @@ REPLACED_PACKAGES=(
 	"third_party/devtools-frontend/src/node_modules/js-yaml 5.4.1"
 	"third_party/devtools-frontend/src/node_modules/uuid 14.0.0"
 	"third_party/devtools-frontend/src/node_modules/esbuild 0.28.2"
+	"third_party/devtools-frontend/src/front_end/third_party/acorn/package 8.16.0"
+	"third_party/devtools-frontend/src/front_end/third_party/codemirror/package 5.61.0"
+	"third_party/devtools-frontend/src/front_end/third_party/intl-messageformat/package 9.8.0"
+	"third_party/devtools-frontend/src/front_end/third_party/marked/package 18.0.4"
+	"third_party/devtools-frontend/src/front_end/third_party/wasmparser/package 5.4.0"
+	"third_party/chromium-bidi/node_modules/zod 3.25.76"
+	"third_party/chromium-bidi/node_modules/mitt 3.0.1"
+	"third_party/devtools-frontend/src/front_end/third_party/puppeteer/package 25.12.0"
+	"third_party/devtools-frontend/src/front_end/third_party/puppeteer-replay/package 4.0.2"
 )
 
 # _dir <id>: the unpacked directory of a source
@@ -585,6 +621,139 @@ src_compile() {
 	# esbuild's JavaScript API, as its scripts/esbuild.js builds lib/main.js
 	_bundle cjs ${dt}/esbuild/lib/main.js esbuild:lib/npm/node.ts --target=node10 \
 		--define:WASM=false --define:ESBUILD_VERSION=\"0.28.2\" esbuild=external
+
+	# DevTools' vendored libraries, shipped in DevTools (front_end/third_party), as
+	# their own builds make them (without the ES5 down-levelling some of them did).
+	local fe=third_party/devtools-frontend/src/front_end/third_party image="${WORKDIR}/image/tree"
+	mkdir -p "${image}/${fe}"/{acorn/package/dist,codemirror/package/addon/runmode,diff,json5/lib} \
+		"${image}/${fe}"/{intl-messageformat/package,marked/package/lib,wasmparser/package/dist/esm} || die
+	# acorn and CodeMirror 5's runmode-standalone: their rollup.config.mjs/js
+	pushd "$(_dir acorn)" >/dev/null || die
+	edo node "${BROOT}/usr/lib/rollup/4.21.0/rollup" acorn/src/index.js --format es --silent \
+		--file "${image}/${fe}/acorn/package/dist/acorn.mjs"
+	popd >/dev/null || die
+	pushd "$(_dir codemirror5)" >/dev/null || die
+	edo node "${BROOT}/usr/lib/rollup/4.21.0/rollup" src/addon/runmode/runmode-standalone.js --format iife \
+		--name CodeMirror --no-freeze --silent --file "${image}/${fe}/codemirror/package/addon/runmode/runmode-standalone.mjs"
+	popd >/dev/null || die
+	# diff-match-patch: DevTools' wrapper around (upstream's Closure-compiled build of)
+	# its source, here around the source itself
+	{
+		cat <<-EOF
+			// Note: the globals that this code exposes are relied on not only by
+			// front_end/diff but also by front_endthird_party/codemirror
+
+			// @ts-nocheck this is a legacy function that's beyond type-checking.
+			(function(){
+		EOF
+		sed "s/^this\['\(diff_match_patch\|DIFF_DELETE\|DIFF_INSERT\|DIFF_EQUAL\)'\] = /globalThis['\1'] = /" \
+			"$(_dir diff-match-patch)"/javascript/diff_match_patch_uncompressed.js
+		echo '})()'
+	} > "${image}/${fe}/diff/diff_match_patch.js" || die
+	# intl-messageformat: its ESM bundle (with the formatjs packages it uses)
+	local formatjs
+	formatjs=$(_dir formatjs)/packages || die
+	edo "${ESBUILD}" "${formatjs}/intl-messageformat/index.ts" --bundle --format=esm --platform=browser \
+		--log-level=warning --outfile="${image}/${fe}/intl-messageformat/package/intl-messageformat.esm.js" \
+		--alias:@formatjs/icu-messageformat-parser="${formatjs}/icu-messageformat-parser" \
+		--alias:@formatjs/icu-skeleton-parser="${formatjs}/icu-skeleton-parser" \
+		--alias:@formatjs/fast-memoize="${formatjs}/fast-memoize"
+	# json5: DevTools' rebuild.sh (an ESM bundle of lib/index.js)
+	edo "${ESBUILD}" "$(_dir json5)/lib/index.js" --bundle --format=esm --platform=browser --log-level=warning \
+		--outfile="${image}/${fe}/json5/lib/index.js"
+	# marked: its esbuild.config.js (ESM)
+	edo "${ESBUILD}" "$(_dir marked)/src/marked.ts" --bundle --format=esm --platform=browser --minify \
+		--log-level=warning --outfile="${image}/${fe}/marked/package/lib/marked.esm.js"
+	# wasmparser: its build:esm (tsc)
+	pushd "$(_dir wasmparser)" >/dev/null || die
+	edo "${BROOT}/usr/bin/tsc-6.0.2" --ignoreConfig --preserveConstEnums --module es2015 --moduleResolution node \
+		--target es2015 --noCheck --ignoreDeprecations 6.0 --outDir "${T}/wasmparser" \
+		src/index.ts src/WasmParser.ts src/WasmDis.ts
+	popd >/dev/null || die
+	cp "${T}"/wasmparser/{WasmParser,WasmDis}.js "${image}/${fe}/wasmparser/package/dist/esm/" || die
+
+	# chromium-bidi's BiDi mapper bundles zod's and mitt's ES modules. zod: its
+	# build (zshy) is tsc of what its exports reach; mitt: dist/mitt.mjs.
+	pushd "$(_dir zod)/packages/zod" >/dev/null || die
+	edo "${BROOT}/usr/bin/tsc-6.0.2" --ignoreConfig --rootDir src --module esnext --moduleResolution bundler \
+		--target es2020 --noCheck --ignoreDeprecations 6.0 --skipLibCheck \
+		--outDir "${image}/${bidi}/zod" \
+		src/index.ts src/v3/index.ts src/v4/index.ts src/v4-mini/index.ts src/v4/mini/index.ts \
+		src/v4/core/index.ts src/v4/locales/index.ts src/v4/locales/*.ts
+	popd >/dev/null || die
+	edo "${ESBUILD}" "$(_dir mitt)/src/index.ts" --format=esm --platform=browser --log-level=warning \
+		--outfile="${image}/${bidi}/mitt/dist/mitt.mjs"
+
+	# DevTools' Puppeteer: what puppeteer-core's Herebyfile.mjs (generate:injected,
+	# build:tsc, build) and rollup.config.mjs (build:es5) and @puppeteer/replay's
+	# rollup.config.js do. The ES5 build is without @rollup/plugin-babel (which only
+	# lowers newer syntax for old engines; DevTools doesn't load it). Puppeteer's lib/ is
+	# installed in build/, for the Chromium ebuild to take the files DevTools has.
+	local urlpattern puppeteer
+	urlpattern=$(_dir urlpattern-polyfill) || die
+	puppeteer=$(_dir puppeteer)/packages/puppeteer-core || die
+	edo "${ESBUILD}" "${urlpattern}/src/url-pattern.ts" --bundle --format=esm --minify --keep-names \
+		--target=es2022 --log-level=warning --outfile="${urlpattern}/dist/urlpattern.js"
+	pushd "${puppeteer}" >/dev/null || die
+	edo "${ESBUILD}" src/injected/injected.ts --bundle --format=cjs --target=chrome125,firefox125 --minify \
+		--legal-comments=none --log-level=warning --outfile="${T}/injected.js"
+	mkdir -p src/generated node_modules/webdriver-bidi-protocol || die
+	edo node -e '
+		const fs = require("fs");
+		const tmpl = fs.readFileSync("src/templates/injected.ts.tmpl", "utf8");
+		fs.writeFileSync("src/generated/injected.ts",
+			tmpl.replace("SOURCE_CODE", JSON.stringify(fs.readFileSync(process.argv[1], "utf8"))));
+	' "${T}/injected.js"
+	cp "${WORKDIR}"/package/package.json node_modules/webdriver-bidi-protocol/ || die
+	cp -r "${WORKDIR}"/package/out node_modules/webdriver-bidi-protocol/ || die
+	find node_modules/webdriver-bidi-protocol -name '*.js' -delete || die
+	local proj
+	for proj in third_party .; do
+		# (types: Node.js and Chrome extension types, for type-checking only)
+		echo '{"extends": "./tsconfig.json", "compilerOptions": {"types": [], "typeRoots": []}}' \
+			> "${proj}"/tsconfig.gentoo.json || die
+		pushd "${proj}" >/dev/null || die
+		edo "${BROOT}/usr/bin/tsc-6.0.2" -p tsconfig.gentoo.json --noCheck --ignoreDeprecations 6.0
+		popd >/dev/null || die
+	done
+	local -A puppeteer_third_party=(
+		[mitt]="$(_dir mitt)/src/index.ts:$(_dir mitt)/LICENSE"
+		[parsel-js]="$(_dir parsel)/parsel.ts:$(_dir parsel)/LICENSE"
+		[rxjs]="$(_dir rxjs)/src/index.ts:$(_dir rxjs)/LICENSE.txt"
+		[urlpattern-polyfill]="${urlpattern}:${urlpattern}/LICENSE"
+	)
+	local name f
+	for name in "${!puppeteer_third_party[@]}"; do
+		f=lib/third_party/${name}/${name}.js
+		edo "${ESBUILD}" "${f}" --outfile="${f}" --allow-overwrite --bundle --format=esm --target=node22 \
+			--legal-comments=inline --log-level=warning --alias:"${name}=${puppeteer_third_party[${name}]%%:*}"
+		{ printf '/**\n'; cat "${puppeteer_third_party[${name}]#*:}"; printf '\n*/\n'; cat "${f}"; } > "${f}.tmp" || die
+		mv "${f}.tmp" "${f}" || die
+	done
+	mkdir -p "${T}"/puppeteer-rollup/node_modules/@rollup/plugin-node-resolve || die
+	cp "${WORKDIR}/image/tree/${bidi}/@rollup/plugin-node-resolve/dist/es/index.js" \
+		"${T}"/puppeteer-rollup/node_modules/@rollup/plugin-node-resolve/index.mjs || die
+	echo '{"name": "@rollup/plugin-node-resolve", "exports": "./index.mjs"}' \
+		> "${T}"/puppeteer-rollup/node_modules/@rollup/plugin-node-resolve/package.json || die
+	sed -e '/plugin-babel/d' -e '/getBabelOutputPlugin(/,/^    }),$/d' rollup.config.mjs \
+		> "${T}"/puppeteer-rollup/rollup.config.mjs || die
+	grep -q babel "${T}"/puppeteer-rollup/rollup.config.mjs && die "rollup.config.mjs: Babel left"
+	edo node "${BROOT}/usr/lib/rollup/4.21.0/rollup" -c "${T}"/puppeteer-rollup/rollup.config.mjs --silent
+	# tools/patch.mjs, its JavaScript part (the rest is for api-extractor's type declarations)
+	sed -n '1,/^fs.writeFileSync(genJs, file);$/p' ../../tools/patch.mjs > "${T}"/patch-js.mjs || die
+	edo node "${T}"/patch-js.mjs lib/es5-iife/puppeteer-core-browser.js
+	mkdir -p "${WORKDIR}/image/build/devtools-puppeteer" || die
+	cp -r lib "${WORKDIR}/image/build/devtools-puppeteer/" || die
+	popd >/dev/null || die
+	pushd "$(_dir replay)" >/dev/null || die
+	echo '{"extends": "./tsconfig.json", "compilerOptions": {"outDir": "tsc-out", "declaration": false, "declarationMap": false, "sourceMap": false, "types": []}}' \
+		> tsconfig.gentoo.json || die
+	edo "${BROOT}/usr/bin/tsc-6.0.2" -p tsconfig.gentoo.json --noCheck --ignoreDeprecations 6.0 \
+		--module NodeNext --moduleResolution NodeNext
+	mkdir -p "${image}/${fe}/puppeteer-replay/package/lib" || die
+	edo node "${BROOT}/usr/lib/rollup/4.21.0/rollup" tsc-out/main.js --format es --external lighthouse,puppeteer \
+		--silent --file "${image}/${fe}/puppeteer-replay/package/lib/main.js"
+	popd >/dev/null || die
 
 	local pkg
 	for pkg in "${REPLACED_PACKAGES[@]}"; do
