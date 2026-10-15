@@ -1538,6 +1538,13 @@ chromium_configure() {
 
 	einfo "Configuring Chromium ..."
 	# add a `-v` here if gn `hangs` to see which file it's getting stuck on.
+	# GN's toolchain (build/toolchain/linux/unbundle) takes the compilers and flags from the
+	# environment, also when ninja regenerates the build files during src_compile (after a
+	# BUILD.gn changed). Save what is set up here for chromium_compile, so a regeneration
+	# produces the same commands even if the src_compile environment differs.
+	export -p | grep -E '^declare -x (AR|CC|CXX|CPP|NM|READELF|CFLAGS|CXXFLAGS|CPPFLAGS|LDFLAGS|BUILD_[A-Z_]+)=' \
+		> "${WORKDIR}/gn-toolchain-environment" || die "Failed to save the toolchain environment"
+
 	set -- gn gen --args="${myconf_gn[*]}${EXTRA_GN:+ ${EXTRA_GN}}" out/Release
 	echo "$@"
 	"$@" || die "Failed to configure Chromium"
@@ -1558,6 +1565,8 @@ src_configure() {
 }
 
 chromium_compile() {
+	# The toolchain environment GN saw in src_configure, for regenerations (see chromium_configure).
+	source "${WORKDIR}/gn-toolchain-environment" || die "Failed to restore the toolchain environment"
 
 	# Final link uses lots of file descriptors.
 	ulimit -n 2048
