@@ -1,47 +1,18 @@
 # npm packages that Chromium 156's build uses; files/chromium-prune-node-modules.py
 # deletes all others from the tarball's node_modules directories (1329 packages
 # there, 372 MiB). Generated with scripts/chromium-node-modules-used.py
-# (chrome, chromedriver and chrome_sandbox, enable_webui_lint=false), plus:
+# (chrome, chromedriver and chrome_sandbox, enable_webui_lint=false), minus the
+# packages that dev-util/chromium-node-modules' bundles include (run the script
+# on a tree with its files in place to see what remains), plus:
 #
 # Replaced with a symlink to WebUI's rollup by the ebuild:
 third_party/chromium-bidi/node_modules/@rollup/wasm-node
 
-third_party/chromium-bidi/node_modules/@jridgewell/sourcemap-codec
 third_party/chromium-bidi/node_modules/@rollup/plugin-node-resolve
-third_party/chromium-bidi/node_modules/@rollup/pluginutils
-third_party/chromium-bidi/node_modules/array-find-index
-third_party/chromium-bidi/node_modules/commenting
-third_party/chromium-bidi/node_modules/deepmerge
 third_party/chromium-bidi/node_modules/devtools-protocol
-third_party/chromium-bidi/node_modules/estree-walker
-third_party/chromium-bidi/node_modules/fdir
-third_party/chromium-bidi/node_modules/function-bind
-third_party/chromium-bidi/node_modules/hasown
-third_party/chromium-bidi/node_modules/is-core-module
-third_party/chromium-bidi/node_modules/is-module
-third_party/chromium-bidi/node_modules/js-cleanup
-third_party/chromium-bidi/node_modules/lodash
-third_party/chromium-bidi/node_modules/magic-string
 third_party/chromium-bidi/node_modules/mitt
-third_party/chromium-bidi/node_modules/moment
-third_party/chromium-bidi/node_modules/package-name-regex
-third_party/chromium-bidi/node_modules/perf-regexes
-third_party/chromium-bidi/node_modules/picomatch
-third_party/chromium-bidi/node_modules/resolve
 third_party/chromium-bidi/node_modules/rollup-plugin-cleanup
 third_party/chromium-bidi/node_modules/rollup-plugin-license
-third_party/chromium-bidi/node_modules/rollup-plugin-license/node_modules/magic-string
-third_party/chromium-bidi/node_modules/rollup-pluginutils
-third_party/chromium-bidi/node_modules/rollup-pluginutils/node_modules/estree-walker
-third_party/chromium-bidi/node_modules/skip-regex
-third_party/chromium-bidi/node_modules/sourcemap-codec
-third_party/chromium-bidi/node_modules/spdx-compare
-third_party/chromium-bidi/node_modules/spdx-exceptions
-third_party/chromium-bidi/node_modules/spdx-expression-parse
-third_party/chromium-bidi/node_modules/spdx-expression-validate
-third_party/chromium-bidi/node_modules/spdx-license-ids
-third_party/chromium-bidi/node_modules/spdx-ranges
-third_party/chromium-bidi/node_modules/spdx-satisfies
 third_party/chromium-bidi/node_modules/zod
 third_party/devtools-frontend/src/node_modules/@colordx/core
 third_party/devtools-frontend/src/node_modules/@csstools/css-tokenizer
@@ -126,7 +97,6 @@ third_party/devtools-frontend/src/node_modules/svgo
 third_party/devtools-frontend/src/node_modules/typed-query-selector
 third_party/devtools-frontend/src/node_modules/typescript
 third_party/devtools-frontend/src/node_modules/undici-types
-third_party/devtools-frontend/src/node_modules/util-deprecate
 third_party/devtools-frontend/src/node_modules/uuid
 third_party/devtools-frontend/src/node_modules/webdriver-bidi-protocol
 third_party/devtools-frontend/src/node_modules/y18n
@@ -142,7 +112,6 @@ third_party/devtools-frontend/src/node_modules/yargs/node_modules/yargs-parser
 third_party/node/node_modules/@azure/msal-browser
 third_party/node/node_modules/@azure/msal-common
 third_party/node/node_modules/@bufbuild/protobuf
-third_party/node/node_modules/@jridgewell/source-map
 third_party/node/node_modules/@lit/reactive-element
 third_party/node/node_modules/@rollup/wasm-node
 third_party/node/node_modules/@types/d3
@@ -165,9 +134,7 @@ third_party/node/node_modules/@types/dom-speech-recognition
 third_party/node/node_modules/@types/node
 third_party/node/node_modules/@types/trusted-types
 third_party/node/node_modules/buffer-from
-third_party/node/node_modules/case-anything
 third_party/node/node_modules/commander
-third_party/node/node_modules/cssesc
 third_party/node/node_modules/lit
 third_party/node/node_modules/lit-element
 third_party/node/node_modules/lit-html
@@ -182,8 +149,5 @@ third_party/node/node_modules/source-map-js
 third_party/node/node_modules/source-map-support
 third_party/node/node_modules/source-map-support/node_modules/source-map
 third_party/node/node_modules/terser
-third_party/node/node_modules/ts-poet
 third_party/node/node_modules/ts-proto
-third_party/node/node_modules/ts-proto-descriptors
 third_party/node/node_modules/undici-types
-third_party/node/node_modules/util-deprecate

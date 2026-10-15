@@ -35,9 +35,12 @@ GO_MIN_VER="1.25.0"
 ESBUILD_VER="0.28.2"
 # TypeScript 7 compiler (tsgo); third_party/typescript/linux-amd64/src/package.json
 TSGO_VER="7.0.2"
-# Rollup (@rollup/wasm-node) in third_party/node/node_modules, used for WebUI bundling. Its
-# parser comes from dev-util/rollup-native. chromium-bidi bundles its own, newer copy
-# (ROLLUP_BIDI_VER), which is replaced by this one (see src_prepare).
+# DevTools' build (front_end/core/i18n/collect-ui-strings.js) uses TypeScript's JavaScript API,
+# from its own copy of TypeScript 6; its prebuilt lib/typescript.js is replaced by dev-lang/typescript's.
+DEVTOOLS_TS_VER="6.0.2"
+# Rollup (@rollup/wasm-node) in third_party/node/node_modules, used for WebUI bundling, is
+# replaced by dev-util/rollup (built from source). chromium-bidi bundles its own, newer copy
+# (ROLLUP_BIDI_VER), which is replaced by the same one (see src_prepare).
 ROLLUP_VER="4.21.0"
 ROLLUP_BIDI_VER="4.63.1"
 VIRTUALX_REQUIRED="pgo"
@@ -244,7 +247,9 @@ BDEPEND="
 	>=dev-util/gperf-3.2
 	dev-util/esbuild:${ESBUILD_VER}
 	dev-lang/typescript:${TSGO_VER}
-	dev-util/rollup-native:${ROLLUP_VER}
+	dev-lang/typescript:${DEVTOOLS_TS_VER}
+	dev-util/rollup:${ROLLUP_VER}
+	dev-util/chromium-node-modules:${PV%%.*}
 	dev-vcs/git
 	>=net-libs/nodejs-${NODE_VER}[inspector]
 	sys-apps/hwdata
@@ -556,6 +561,8 @@ src_prepare() {
 		"${FILESDIR}/chromium-156-openxr-vulkan-headers.patch"
 		# GN arg enable_webui_lint, to skip the ESLint/Stylelint checks (see below).
 		"${FILESDIR}/chromium-156-webui-lint-arg.patch"
+		# ts-proto's protoc plugin comes from dev-util/chromium-node-modules (see below).
+		"${FILESDIR}/chromium-156-ts-proto-from-source.patch"
 	)
 
 	# So many fontconfig magic numbers to cover
@@ -733,13 +740,15 @@ src_prepare() {
 	local -A rollup_dirs=(
 		["${S}/third_party/node/node_modules/@rollup/wasm-node"]="${ROLLUP_VER}"
 		["${S}/third_party/chromium-bidi/node_modules/@rollup/wasm-node"]="${ROLLUP_BIDI_VER}"
+		# not rollup, but checked the same way
+		["${S}/third_party/devtools-frontend/src/node_modules/typescript"]="${DEVTOOLS_TS_VER}"
 	)
 	local rollup_dir
 	for rollup_dir in "${!rollup_dirs[@]}"; do
 		found=$("${EPYTHON}" -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' \
-			"${rollup_dir}/package.json") || die "Failed to read the rollup version in ${rollup_dir}"
+			"${rollup_dir}/package.json") || die "Failed to read the version in ${rollup_dir}"
 		if [[ "${found}" != "${rollup_dirs[${rollup_dir}]}" ]]; then
-			die "rollup version mismatch in ${rollup_dir}: expected ${rollup_dirs[${rollup_dir}]}, found ${found}"
+			die "Version mismatch in ${rollup_dir}: expected ${rollup_dirs[${rollup_dir}]}, found ${found}"
 		fi
 	done
 
@@ -802,24 +811,53 @@ src_prepare() {
 		die "Unexpected ${tsgo_dir}/tsc --version: ${found}"
 	fi
 
-	# Rollup's parser: the native addon built from the same Rust source as the deleted
-	# WebAssembly module (dist/wasm-node/bindings_wasm_bg.wasm), with a loader exporting
-	# the same functions. The WebUI bundles are byte-identical.
+	# Rollup: everything in @rollup/wasm-node's dist/ is generated (the CLI and library
+	# bundles, and the WebAssembly parser deleted above). The build only runs dist/bin/rollup;
+	# use dev-util/rollup's, built from the same sources (TypeScript, the npm packages its
+	# build bundles in, and the parser's Rust). The WebUI bundles are byte-identical.
 	rollup_dir="${S}/third_party/node/node_modules/@rollup/wasm-node"
-	local addon="${BROOT}/usr/lib/rollup-native/${ROLLUP_VER}/rollup.native.node"
-	[[ -f ${addon} ]] || die "Expected to find ${addon}, but it does not exist."
-	einfo "Symlinking ${addon} ..."
-	# Remove leftovers first (see the system tools above); cp would follow a symlink.
-	rm -f "${rollup_dir}/dist/rollup.native.node" "${rollup_dir}/dist/native.js" ||
-		die "Failed to clean up ${rollup_dir}/dist"
-	ln -s "${addon}" "${rollup_dir}/dist/rollup.native.node" || die "Failed to symlink ${addon}"
-	cp "${FILESDIR}/chromium-rollup-native.js" "${rollup_dir}/dist/native.js" ||
-		die "Failed to replace ${rollup_dir}/dist/native.js"
+	local rollup_cli="${BROOT}/usr/lib/rollup/${ROLLUP_VER}/rollup"
+	[[ -f ${rollup_cli} ]] || die "Expected to find ${rollup_cli}, but it does not exist."
+	einfo "Symlinking ${rollup_cli} ..."
+	rm -r "${rollup_dir}/dist" || die "Failed to remove ${rollup_dir}/dist"
+	mkdir -p "${rollup_dir}/dist/bin" || die
+	ln -s "${rollup_cli}" "${rollup_dir}/dist/bin/rollup" || die "Failed to symlink ${rollup_cli}"
+
+	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
+	local devtools_ts="${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}/lib/typescript.js"
+	[[ -f ${devtools_ts} ]] || die "Expected to find ${devtools_ts}, but it does not exist."
+	einfo "Symlinking ${devtools_ts} ..."
+	rm -f "${S}/third_party/devtools-frontend/src/node_modules/typescript/lib/typescript.js" || die
+	ln -s "${devtools_ts}" "${S}/third_party/devtools-frontend/src/node_modules/typescript/lib/typescript.js" ||
+		die "Failed to symlink ${devtools_ts}"
+
+	# Other generated files of npm packages (terser's library bundle, chromium-bidi's rollup
+	# plugins, ...): dev-util/chromium-node-modules builds them from their sources, as
+	# self-contained bundles, at the paths of the files they replace. The packages they include
+	# are deleted above (files/chromium-${PV%%.*}-node-modules.txt).
+	local cnm_dir="${BROOT}/usr/lib/chromium-node-modules/${PV%%.*}" cnm_pkg cnm_ver cnm_file
+	[[ -f ${cnm_dir}/VERSIONS ]] || die "Expected to find ${cnm_dir}/VERSIONS, but it does not exist."
+	while read -r cnm_pkg cnm_ver; do
+		found=$("${EPYTHON}" -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' \
+			"${S}/${cnm_pkg}/package.json") || die "Failed to read the version of ${cnm_pkg}"
+		[[ ${found} == "${cnm_ver}" ]] ||
+			die "Version mismatch in ${cnm_pkg}: dev-util/chromium-node-modules has ${cnm_ver}, found ${found}"
+	done < "${cnm_dir}/VERSIONS" || die
+	einfo "Replacing generated npm package files with dev-util/chromium-node-modules' ..."
+	while IFS= read -r -d '' cnm_file; do
+		[[ ${cnm_file} == VERSIONS ]] && continue
+		# Every file replaces one, except new chunks of code-split builds.
+		[[ -f ${S}/${cnm_file} || ${cnm_file##*/} == chunk-* ]] ||
+			die "${cnm_file} not found in the source tree"
+		# Remove first: cp would follow a symlink left in its place.
+		rm -f "${S}/${cnm_file}" || die
+		cp "${cnm_dir}/${cnm_file}" "${S}/${cnm_file}" || die "Failed to copy ${cnm_file}"
+	done < <(cd "${cnm_dir}" && find . -type f -printf '%P\0' || die)
 
 	# chromium-bidi bundles its BiDi mapper (used for browser automation, e.g. chromedriver)
 	# with its own copy of rollup ${ROLLUP_BIDI_VER}. Use the one above instead: the mapper
 	# then only differs by a little more retained dead code (unused enum entries, pure
-	# expressions) and number formatting (-32e3 vs -32000), so one rollup-native suffices.
+	# expressions) and number formatting (-32e3 vs -32000), so one dev-util/rollup suffices.
 	local bidi_rollup_dir="${S}/third_party/chromium-bidi/node_modules/@rollup/wasm-node"
 	rm -r "${bidi_rollup_dir}" || die "Failed to remove ${bidi_rollup_dir}"
 	ln -s ../../../node/node_modules/@rollup/wasm-node "${bidi_rollup_dir}" ||
