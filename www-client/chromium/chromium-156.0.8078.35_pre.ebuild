@@ -854,8 +854,17 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	[[ -f ${cnm_dir}/VERSIONS ]] || die "Expected to find ${cnm_dir}/VERSIONS, but it does not exist."
 	local cnm_tree="${cnm_dir}/tree"
 	while read -r cnm_pkg cnm_ver; do
-		found=$("${EPYTHON}" -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' \
-			"${S}/${cnm_pkg}/package.json") || die "Failed to read the version of ${cnm_pkg}"
+		# package.json's version, or for a vendored directory without one, README.chromium's
+		found=$("${EPYTHON}" -c '
+import json, os, re, sys
+d = sys.argv[1]
+version = None
+if os.path.exists(d + "/package.json"):
+    version = json.load(open(d + "/package.json")).get("version")
+if version is None:
+    version = re.search(r"^Version: (\S+)$", open(d + "/README.chromium").read(), re.M).group(1)
+print(version)
+' "${S}/${cnm_pkg}") || die "Failed to read the version of ${cnm_pkg}"
 		[[ ${found} == "${cnm_ver}" ]] ||
 			die "Version mismatch in ${cnm_pkg}: dev-util/chromium-node-modules has ${cnm_ver}, found ${found}"
 	done < "${cnm_dir}/VERSIONS" || die

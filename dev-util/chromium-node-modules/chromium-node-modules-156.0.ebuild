@@ -186,6 +186,76 @@ JS_SOURCES=(
 	"pluginutils-5.1 rollup/plugins pluginutils-v5.1.0"
 	"magic-string-0.30.7 Rich-Harris/magic-string v0.30.7"
 	"picomatch-2.3 micromatch/picomatch 2.3.1"
+	# DevTools' Lighthouse 13.5.0 (lighthouse-dt-bundle.js, the report renderer and
+	# generator) and legacy-javascript, and the npm packages Lighthouse's build bundles
+	# (versions from its yarn.lock; untagged ones by npm's gitHead). acorn, hasown,
+	# function-bind, is-core-module, path-parse, supports-preserve-symlinks-flag and
+	# sourcemap-codec 1.4.8 are the ones above.
+	"lighthouse GoogleChrome/lighthouse cb853a38a6410617518b363590c967b3fe211949"
+	"debug debug-js/debug 7e3814cc603bf64fdd69e714e0cf5611ec31f43b"
+	"ms vercel/ms 1c6264b795492e8fdecbc82cb8802fcfbfc08d26"
+	"jpeg-js eugeneware/jpeg-js 9ccd35fb5f55a6c4f1902ac5b0f270f675750c27"
+	"image-ssim darosh/image-ssim-js 13aa263ad13f69cdfaa31c5ff00e1d8eac9dc15b"
+	"lighthouse-stack-packs GoogleChrome/lighthouse-stack-packs 0dd6b19c23b2b4de3946bc183f31eb040014c1f0"
+	"format-message format-message/format-message v6.2.0"
+	"robots-parser samclarke/robots-parser dd032ec3da65e49bf2ba8d7224bd20883ef8ff34"
+	"soft-navigation adamraine/lighthouse-plugin-soft-navigation b924172990ad3688da41b8f4cce22ede3c39dce6"
+	"resolve-1.22.10 browserify/resolve d1e73275da515a3bc5d0064f15ebf09b3947199b"
+	"magic-string-0.27 Rich-Harris/magic-string 69336fccbb46e721d58faa5c7a0d0b7ed6ee09d2"
+	"builtin-modules sindresorhus/builtin-modules 0d234f3ad3965c57d8cc5b9ca198c505fe032452"
+	"escape-string-regexp sindresorhus/escape-string-regexp 71083e89129bcf72a10656508de5442d3f97966d"
+	"lh-fast-memoize formatjs/formatjs @formatjs/fast-memoize@2.2.0"
+	"lh-icu-messageformat-parser formatjs/formatjs @formatjs/icu-messageformat-parser@2.6.2"
+	"lh-icu-skeleton-parser formatjs/formatjs @formatjs/icu-skeleton-parser@1.6.2"
+	"lh-intl-messageformat formatjs/formatjs intl-messageformat@10.5.3"
+	"ajv-formats ajv-validator/ajv-formats 1fb3fa7d967f919ff924bb34aef73a2f39ab0de3"
+	"ajv ajv-validator/ajv 0fba0b8e649909613cfce0999b149cd08f4a4987"
+	"fast-deep-equal epoberezkin/fast-deep-equal d807ffc5013e710deb1c63d463a03f729bcd144d"
+	"json-schema-traverse epoberezkin/json-schema-traverse 6b45983cd76270042cc79527da5c8972f13599ec"
+	"fast-uri fastify/fast-uri 6f970b2951fd896aa0f3a7ff28eeb6640c137d33"
+	"require-from-string floatdrop/require-from-string d1575a49065eb7a49b86b4de963f04f1a14dfd60"
+	"csp-evaluator google/csp-evaluator 9189d07a58c40490fd21190541a9fbfd8fc3ad4b"
+	"marky nolanlawson/marky 2fb66b09e6b19451fded98754a8a8f0215e15880"
+	"speedline paulirish/speedline v1.4.3"
+	"tldts remusao/tldts 200a338cf46f31c27ec2ab16914d683041f8e053"
+	"third-party-web patrickhulce/third-party-web d60863a2ea913ed26ae0446296a0cb1cc6c71291"
+	"lodash-4.17 lodash/lodash 4.17.21"
+	"polyfill-node FredKSchott/rollup-plugin-polyfill-node eb507a21ad82236255988548dea6120d7a277de2"
+	"buffer-es6 calvinmetcalf/buffer-es6 3173686b2010f64a0f6286b4e1d5c6056d230fd9"
+	"process-es6 calvinmetcalf/node-process-es6 6c218e5f68b918226380abec10c08587f240503e"
+	"parse5-5 inikulin/parse5 v5.1.0"
+	"dot olado/doT 6adbd819970d9093aa2ea24fcf56c7e370d9a468"
+	"js-library-detector johnmichel/Library-Detector-for-Chrome e56bea2d4e0bf483a7255e5c51f4407923618f43"
+	# axe-core 4.13.0 (Lighthouse inlines axe.min.js), its build tools and the packages it
+	# bundles (versions from its pnpm-lock.yaml); emoji-regex's pattern is generated from
+	# Unicode's emoji-test.txt
+	"axe-core dequelabs/axe-core v4.13.0"
+	"clone pvorb/clone 765941803d27761a6008cb1aa32b199f0c42deb2"
+	"deque-dot dequelabs/doT 6e4822b49c7f6355225e0d515749b9ab5789bf6f"
+	"uglify-js mishoo/UglifyJS 3ea33afc72462a470466473208a33379b7204765"
+	"html-entities mdevils/html-entities 58d1635d40d858efd5b6540f7b62c3a382a35bf1"
+	"colorjs color-js/color.js 4a13fd3e970b59ca6d7776a586eaeac5a1b10faa"
+	"css-selector-parser mdevils/css-selector-parser 5c9657644e340224a646a23eb42848d725d00a7e"
+	"emoji-regex mathiasbynens/emoji-regex 70451eae5f7bbb7c211fec0887f88c444cd562a5"
+	"emoji-test-regex-pattern mathiasbynens/emoji-test-regex-pattern 05a4771881f9673b7b0b5ded8ca7ecc03244c82a"
+	"memoizee medikoo/memoizee 6aa37460d9c996e737cad3f127a7ed1b7af9d168"
+	"d medikoo/d b11fe68c318dbb51b817a22a562175b29adf2e1f"
+	"es5-ext medikoo/es5-ext f76b03d8c49ce4871f37f428c0e1d3ee6637fcc4"
+	"es6-iterator medikoo/es6-iterator ae56bb258cf47c62f9b9a1b4bec29bee0e676fb1"
+	"es6-symbol medikoo/es6-symbol c57f8d88070cec913ff4e3e0ed5192b2330373b2"
+	"es6-weak-map medikoo/es6-weak-map ac5868ab3b511552dca5fca178b1d118fed93653"
+	"esniff medikoo/esniff 8498674e0894acc27e606d6f55e732e628107596"
+	"event-emitter medikoo/event-emitter b951397b8f0d55fc7ae8aea7fa7699e48132a53d"
+	"ext medikoo/es5-ext 68c26d9918d0d970ca06a0d3912485d73d67e411"
+	"is-promise then/is-promise 68d3d6871806162772b33e9629908ded6c8bf0b1"
+	"lru-queue medikoo/lru-queue v0.1.0"
+	"next-tick medikoo/next-tick ce6c733a67f82ea84ba8f30fc853217da80154e3"
+	"timers-ext medikoo/timers-ext 5feea55d9820970daf5cd9c4a874053047940ac3"
+	"type medikoo/type 253bf69b979e0f9bfcb2632db61ce7caa853da5f"
+	"typedarray es-shims/typedarray bfa163321b8ccab9c5351ff7fa71826a9355614d"
+	"weakmap-polyfill polygonplanet/weakmap-polyfill 2f2258b58ca3c73a884cf3b5c9101ad5a66f936d"
+	"es6-promise stefanpenner/es6-promise 1e68dce6f674e5613f4a1797aedd55dc70ac1dcb"
+	"core-js zloirock/core-js 80adfc415fa74e5e4f6ba2de6425aa577e3ad439"
 )
 
 inherit edo
@@ -228,9 +298,32 @@ unset _spec src_id src_repo src_ref src_uri src_distfile src_dir
 SRC_URI+="
 	https://registry.npmjs.org/webdriver-bidi-protocol/-/webdriver-bidi-protocol-0.4.3.tgz
 "
+# Lighthouse: http-link-header 1.1.1 (its repository is gone; the package is its one
+# hand-written file); @paulirish/trace_engine 0.0.65 (DevTools' models/trace, published
+# compiled, without a repository: its TypeScript is in its source maps); the DevTools
+# sources its build-cdt-lib.js and build-cdt-strings.js generate files from, at the
+# revisions the committed outputs were generated from
+_DT_RAW="https://raw.githubusercontent.com/ChromeDevTools/devtools-frontend"
+SRC_URI+="
+	https://registry.npmjs.org/http-link-header/-/http-link-header-1.1.1.tgz
+	https://registry.npmjs.org/@paulirish/trace_engine/-/trace_engine-0.0.65.tgz
+		-> paulirish-trace_engine-0.0.65.tgz
+	${_DT_RAW}/3f890ceb7ad70b5831621393574401b6e474fc73/front_end/core/sdk/SourceMap.ts
+		-> devtools-frontend-3f890ceb-SourceMap.ts
+	${_DT_RAW}/3f890ceb7ad70b5831621393574401b6e474fc73/front_end/core/common/ParsedURL.ts
+		-> devtools-frontend-3f890ceb-ParsedURL.ts
+	${_DT_RAW}/ced63b5ae0c00cd5e0d86ab47daeaa2072016ab6/front_end/generated/Deprecation.ts
+		-> devtools-frontend-ced63b5a-Deprecation.ts
+	${_DT_RAW}/ced63b5ae0c00cd5e0d86ab47daeaa2072016ab6/front_end/panels/application/components/BackForwardCacheStrings.ts
+		-> devtools-frontend-ced63b5a-BackForwardCacheStrings.ts
+	https://www.unicode.org/Public/17.0.0/emoji/emoji-test.txt -> unicode-17.0.0-emoji-test.txt
+"
+unset _DT_RAW
 S="${WORKDIR}"
 
 LICENSE="Apache-2.0 BSD-2 ISC MIT"
+# axe-core; jpeg-js; Unicode's emoji data
+LICENSE+=" MPL-2.0 BSD Unicode-3.0"
 # spdx-license-ids, spdx-exceptions (data)
 LICENSE+=" CC-BY-3.0 CC0-1.0"
 SLOT="${PV%%.*}"
@@ -246,7 +339,8 @@ BDEPEND="
 	net-libs/nodejs
 "
 
-# npm packages whose files are replaced, as installed in VERSIONS.
+# npm packages whose files are replaced, as installed in VERSIONS (the Chromium ebuild
+# checks their package.json's version, or if it has none, README.chromium's).
 REPLACED_PACKAGES=(
 	"third_party/node/node_modules/terser 5.37.0"
 	"third_party/node/node_modules/postcss-selector-parser 6.1.2"
@@ -292,7 +386,25 @@ REPLACED_PACKAGES=(
 	"third_party/chromium-bidi/node_modules/mitt 3.0.1"
 	"third_party/devtools-frontend/src/front_end/third_party/puppeteer/package 25.12.0"
 	"third_party/devtools-frontend/src/front_end/third_party/puppeteer-replay/package 4.0.2"
+	"third_party/devtools-frontend/src/front_end/third_party/lighthouse 13.5.0"
+	"third_party/devtools-frontend/src/front_end/third_party/legacy-javascript 0.0.1"
 )
+
+src_unpack() {
+	# npm's tarballs all have a package/ directory: unpack each to npm-<distfile name>.
+	# Single files are used from DISTDIR.
+	local a
+	for a in ${A}; do
+		case ${a} in
+			*.tgz)
+				mkdir "${WORKDIR}/npm-${a%.tgz}" || die
+				tar -xzf "${DISTDIR}/${a}" --strip-components=1 -C "${WORKDIR}/npm-${a%.tgz}" ||
+					die "Failed to unpack ${a}"
+				;;
+			*.tar.gz) unpack "${a}" ;;
+		esac
+	done
+}
 
 # _dir <id>: the unpacked directory of a source
 _dir() {
@@ -758,8 +870,8 @@ src_compile() {
 		fs.writeFileSync("src/generated/injected.ts",
 			tmpl.replace("SOURCE_CODE", JSON.stringify(fs.readFileSync(process.argv[1], "utf8"))));
 	' "${T}/injected.js"
-	cp "${WORKDIR}"/package/package.json node_modules/webdriver-bidi-protocol/ || die
-	cp -r "${WORKDIR}"/package/out node_modules/webdriver-bidi-protocol/ || die
+	cp "${WORKDIR}"/npm-webdriver-bidi-protocol-0.4.3/package.json node_modules/webdriver-bidi-protocol/ || die
+	cp -r "${WORKDIR}"/npm-webdriver-bidi-protocol-0.4.3/out node_modules/webdriver-bidi-protocol/ || die
 	find node_modules/webdriver-bidi-protocol -name '*.js' -delete || die
 	local proj
 	for proj in third_party .; do
@@ -885,6 +997,374 @@ src_compile() {
 	done
 	# @codemirror/legacy-modes, style-mod, w3c-keyname, @marijn/find-cluster-break and crelt
 	# are ES modules as they are.
+	popd >/dev/null || die
+
+	# axe-core 4.13.0's axe.min.js, which Lighthouse inlines: its build/run-build.mjs
+	# steps for axe.js and axe.min.js (rule metadata, esbuild of lib/core, the rules
+	# compiled with doT, concatenation, uglify-js), with the packages it bundles from
+	# their sources. Babel (@babel/preset-env, lowering to ES5) is left out: Chromium runs
+	# it. Its polyfills only apply where a feature is missing.
+	# (esbuild's JavaScript API runs dev-util/esbuild)
+	local -x ESBUILD_BINARY_PATH=${ESBUILD}
+	local axe axe_nm
+	axe=$(_dir axe-core) || die
+	axe_nm=${axe}/node_modules
+	mkdir -p "${axe_nm}"/{@deque,esbuild/lib,glob} || die
+	_axe_pkg() { # <source dir> <name>
+		cp -r "${1}" "${axe_nm}/${2}" || die
+	}
+	# Build tools: esbuild's JavaScript API (built above), glob as Node.js' fs.globSync
+	cp "${WORKDIR}/image/tree/${dt}/esbuild/lib/main.js" "${axe_nm}/esbuild/lib/" || die
+	echo '{"name": "esbuild", "version": "0.28.2", "main": "lib/main.js"}' > "${axe_nm}/esbuild/package.json" || die
+	cat > "${axe_nm}/glob/index.mjs" <<-'JS' || die
+		import fs from 'node:fs';
+		import path from 'node:path';
+		export function globSync(patterns, { cwd = process.cwd(), nodir = false } = {}) {
+		  const out = new Set();
+		  for (const p of [].concat(patterns)) {
+		    for (const f of fs.globSync(p, { cwd })) {
+		      if (!nodir || !fs.statSync(path.resolve(cwd, f)).isDirectory()) out.add(f.split(path.sep).join('/'));
+		    }
+		  }
+		  return [...out];
+		}
+	JS
+	echo '{"name": "glob", "type": "module", "exports": "./index.mjs"}' > "${axe_nm}/glob/package.json" || die
+	_axe_pkg "$(_dir clone)" clone
+	_axe_pkg "$(_dir deque-dot)" @deque/dot
+	_axe_pkg "$(_dir uglify-js)" uglify-js
+	_axe_pkg "$(_dir html-entities)" html-entities
+	local f
+	for f in commonjs:cjs esm:esm; do
+		edo "${ESBUILD}" "${axe_nm}/html-entities/src/index.ts" --bundle --platform=node --format=${f#*:} \
+			--log-level=warning --outfile="${axe_nm}/html-entities/dist/${f%%:*}/index.js"
+	done
+	# The packages axe.js bundles. colorjs.io: its sources, with axe-core's
+	# patches/colorjs.io@0.4.3.patch (made for dist/color.js)
+	_axe_pkg "$(_dir colorjs)" colorjs.io
+	f=${axe_nm}/colorjs.io/src/display.js
+	sed -i -e 's/^if (typeof CSS !== "undefined" && CSS\.supports) {$/if (typeof CSS !== "undefined" \&\& CSS?.supports) {/' \
+		-e 's/if (typeof CSS === "undefined" || CSS\.supports("color", ret)/if (typeof CSS === "undefined" || CSS?.supports("color", ret)/' \
+		"${f}" || die
+	[[ $(grep -c 'CSS?\.supports' "${f}") == 2 ]] || die "colorjs.io's patch didn't apply"
+	edo node -e '
+		const f = process.argv[1], p = require(f);
+		p.exports["."] = { import: "./src/index.js" };
+		p.module = "./src/index.js";
+		require("fs").writeFileSync(f, JSON.stringify(p));
+	' "${axe_nm}/colorjs.io/package.json"
+	_axe_pkg "$(_dir css-selector-parser)" css-selector-parser
+	pushd "${axe_nm}/css-selector-parser" >/dev/null || die
+	edo "${BROOT}/usr/bin/tsc-6.0.2" -p tsconfig.json --rootDir src --ignoreDeprecations 6.0
+	popd >/dev/null || die
+	# emoji-regex: its script/build.js fills in emoji-test-regex-pattern's pattern, which
+	# that package makes with a PHP tool; files/ makes the same pattern from the same
+	# sequences (Unicode's emoji-test.txt and the package's extra ones)
+	_axe_pkg "$(_dir emoji-regex)" emoji-regex
+	mkdir -p "${axe_nm}/emoji-regex/node_modules/emoji-test-regex-pattern/dist/latest" || die
+	edo node "${FILESDIR}/emoji-test-regex-pattern.mjs" "${DISTDIR}/unicode-17.0.0-emoji-test.txt" \
+		"$(_dir emoji-test-regex-pattern)/script/get-sequences.js" \
+		> "${axe_nm}/emoji-regex/node_modules/emoji-test-regex-pattern/dist/latest/javascript.txt"
+	pushd "${axe_nm}/emoji-regex" >/dev/null || die
+	rm index.js index.mjs || die
+	edo node script/build.js
+	popd >/dev/null || die
+	local p
+	for p in memoizee d es5-ext es6-iterator es6-symbol es6-weak-map esniff event-emitter ext is-promise \
+		lru-queue next-tick timers-ext type typedarray weakmap-polyfill es6-promise; do
+		_axe_pkg "$(_dir "${p}")" "${p}"
+	done
+	# es6-promise: its ES module sources (main is its rollup build)
+	edo node -e '
+		const f = process.argv[1], p = require(f);
+		p.main = "lib/es6-promise.js";
+		delete p.browser;
+		require("fs").writeFileSync(f, JSON.stringify(p));
+	' "${axe_nm}/es6-promise/package.json"
+	# core-js-pure: core-js' modules with core-js-pure's overrides (scripts/clean-and-copy.mjs)
+	local corejs
+	corejs=$(_dir core-js)/packages || die
+	cp -r "${corejs}/core-js-pure" "${axe_nm}/core-js-pure" || die
+	cp -rn "${corejs}/core-js/." "${axe_nm}/core-js-pure/" || die
+	cp -r "${corejs}/core-js-pure/override/." "${axe_nm}/core-js-pure/" || die
+	pushd "${axe}" >/dev/null || die
+	# Without Babel, lib/core/index.js's "const axe = axe || {}" has to be the var Babel makes it.
+	grep -q '^const axe = axe || {};$' lib/core/index.js || die "axe-core's lib/core/index.js changed"
+	sed -i 's/^const axe = axe || {};$/var axe = axe || {};/' lib/core/index.js || die
+	cat > build-gentoo.mjs <<-'JS' || die
+		import fs from 'node:fs';
+		import { createBuildContext } from './build/build-context.mjs';
+		import { runMetadataFunctionMap } from './build/run-build/metadata-function-map.mjs';
+		import { runEsbuildCore } from './build/run-build/esbuild-core.mjs';
+		import { runConcatEngine, runUglify } from './build/run-build/concat-uglify.mjs';
+		import buildRules from './build/configure.mjs';
+		const ctx = createBuildContext(process.cwd());
+		const pkg = ctx.readJSON('package.json');
+		runMetadataFunctionMap(ctx);
+		await runEsbuildCore(ctx);
+		await new Promise((resolve, reject) => buildRules(ctx, {
+		  rules: ['lib/rules/**/*.json'], checks: ['lib/checks/**/*.json'], misc: ['lib/misc/**/*.json'],
+		  blacklist: ['metadata'], tags: ''
+		}, (result) => {
+		  try { ctx.writeFile('tmp/rules.js', `axe._load(${result.auto});`); resolve(); } catch (e) { reject(e); }
+		}));
+		fs.copyFileSync('lib/core/index.js', 'tmp/core/index.js');
+		// the year of the 4.13.0 release, for its copyright line
+		runConcatEngine(ctx, [''], pkg, 2026);
+		runUglify(ctx, ['']);
+	JS
+	edo node build-gentoo.mjs
+	popd >/dev/null || die
+
+	# Lighthouse: what its build/ scripts do for DevTools (build-bundle.js,
+	# build-report.js, build-dt-report-resources.js; readme.md, "Building for DevTools"),
+	# after regenerating its committed generated files, with the npm packages they
+	# bundle built from their sources, in its node_modules.
+	local lh lh_nm
+	lh=$(_dir lighthouse) || die
+	lh_nm=${lh}/node_modules
+	mkdir -p "${lh_nm}" || die
+	_lh_pkg() { # <source dir> <name>: a package that is its sources
+		[[ ${2} == */* ]] && { mkdir -p "${lh_nm}/${2%/*}" || die; }
+		cp -r "${1}" "${lh_nm}/${2}" || die
+	}
+	# _lh_tsc cjs|esm <target> <output dir> <file>...: tsc's emitter, in the current directory
+	_lh_tsc() {
+		local module=commonjs
+		[[ ${1} == esm ]] && module=esnext
+		edo node "${FILESDIR}/lighthouse-ts-transpile.cjs" "${BROOT}/usr/lib/typescript/6.0.2/lib/typescript.js" \
+			"${module}" "${@:2}"
+	}
+	# TypeScript sources, without tests, scripts and declarations
+	_lh_ts_sources() {
+		find "$@" -name '*.ts' ! -name '*.d.ts' ! -name '*.test.ts' ! -name '*_test.ts' \
+			! -path '*/tests/*' ! -path '*/test/*' ! -path '*/scripts/*' ! -path '*/node_modules/*' | sort
+		assert
+	}
+	for p in debug ms jpeg-js lighthouse-stack-packs robots-parser resolve-1.22.10:resolve is-core-module \
+		function-bind hasown path-parse supports-preserve-symlinks-flag builtin-modules escape-string-regexp \
+		json-schema-traverse fast-uri require-from-string lodash-4.17:lodash dot js-library-detector \
+		soft-navigation:lighthouse-plugin-soft-navigation; do
+		_lh_pkg "$(_dir "${p%%:*}")" "${p#*:}"
+	done
+	_lh_pkg "${WORKDIR}/npm-http-link-header-1.1.1" http-link-header
+	_lh_pkg "$(_dir format-message)/packages/lookup-closest-locale" lookup-closest-locale
+	_lh_pkg "$(_dir speedline)/core" speedline-core
+	ln -s ../lighthouse-logger "${lh_nm}/lighthouse-logger" || die
+	# the soft-navigation plugin imports "lighthouse"
+	ln -s .. "${lh_nm}/lighthouse" || die
+	mkdir "${lh_nm}/axe-core" || die
+	cp "${axe}"/{package.json,axe.js,axe.min.js,LICENSE} "${lh_nm}/axe-core/" || die
+	# lodash-es is generated from lodash.js; Lighthouse imports three functions (files/)
+	mkdir "${lh_nm}/lodash-es" || die
+	cp "${FILESDIR}/lighthouse-lodash-es.js" "${lh_nm}/lodash-es/lodash.js" || die
+	echo '{"name": "lodash-es", "version": "4.17.21", "type": "module", "main": "lodash.js", "sideEffects": false}' \
+		> "${lh_nm}/lodash-es/package.json" || die
+	# image-ssim: index.js is compiled from index.ts
+	_lh_pkg "$(_dir image-ssim)" image-ssim
+	pushd "${lh_nm}/image-ssim" >/dev/null || die
+	rm index.js || die
+	_lh_tsc cjs ES2017 . index.ts
+	popd >/dev/null || die
+	# formatjs: CommonJS next to package.json (main), ES modules in lib/ (module); compiled
+	# where installed, for tsc to find the other packages' types
+	local name files
+	for p in fast-memoize icu-skeleton-parser icu-messageformat-parser intl-messageformat; do
+		f=$(_dir "lh-${p}")/packages/${p} || die
+		name=$(node -p "require('${f}/package.json').name") || die
+		_lh_pkg "${f}" "${name}"
+		pushd "${lh_nm}/${name}" >/dev/null || die
+		files=$(_lh_ts_sources .) || die
+		ES_MODULE_INTEROP=1 DECLARATION=1 _lh_tsc cjs ES2017 . ${files}
+		_lh_tsc esm ES2017 lib ${files}
+		popd >/dev/null || die
+	done
+	for p in tldts-core tldts-icann; do
+		_lh_pkg "$(_dir tldts)/packages/${p}" "${p}"
+		pushd "${lh_nm}/${p}" >/dev/null || die
+		files=$(_lh_ts_sources index.ts src) || die
+		DECLARATION=1 DECLARATION_DIR="${lh_nm}/${p}/dist/types" _lh_tsc cjs ES2017 dist/cjs ${files}
+		_lh_tsc esm ES2017 dist/es6 ${files}
+		popd >/dev/null || die
+	done
+	_lh_pkg "$(_dir csp-evaluator)" csp_evaluator
+	pushd "$(_dir csp-evaluator)" >/dev/null || die
+	files=$(_lh_ts_sources .) || die
+	ES_MODULE_INTEROP=1 _lh_tsc cjs ES2020 "${lh_nm}/csp_evaluator/dist" ${files}
+	popd >/dev/null || die
+	_lh_pkg "$(_dir ajv)" ajv
+	pushd "$(_dir ajv)/lib" >/dev/null || die
+	files=$(_lh_ts_sources .) || die
+	_lh_tsc cjs ES2018 "${lh_nm}/ajv/dist" ${files}
+	find refs -name '*.json' -exec cp --parents {} "${lh_nm}/ajv/dist" \; || die
+	popd >/dev/null || die
+	_lh_pkg "$(_dir ajv-formats)" ajv-formats
+	pushd "$(_dir ajv-formats)/src" >/dev/null || die
+	files=$(_lh_ts_sources .) || die
+	_lh_tsc cjs ES2018 "${lh_nm}/ajv-formats/dist" ${files}
+	popd >/dev/null || die
+	# fast-deep-equal: index.js etc. from src/index.jst, with doT
+	_lh_pkg "$(_dir fast-deep-equal)" fast-deep-equal
+	pushd "${lh_nm}/fast-deep-equal" >/dev/null || die
+	edo node build.js
+	popd >/dev/null || die
+	_lh_pkg "$(_dir marky)" marky
+	local v
+	for v in cjs:cjs:false es:esm:false browser.cjs:cjs:true browser.es:esm:true; do
+		IFS=: read -r name f p <<< "${v}"
+		edo "${ESBUILD}" --log-level=warning --bundle --format="${f}" --define:process.browser="${p}" \
+			"$(_dir marky)/src/index.js" --outfile="${lh_nm}/marky/lib/marky.${name}.js"
+	done
+	# Build-time only: magic-string (its rollup.config.js, without buble's ES5
+	# transpiling), sourcemap-codec, acorn
+	_lh_pkg "$(_dir sourcemap-codec-1.4.8)" sourcemap-codec
+	for v in cjs:umd esm:es; do
+		edo "${ESBUILD}" --log-level=warning --format=${v%%:*} "$(_dir sourcemap-codec-1.4.8)/src/sourcemap-codec.ts" \
+			--outfile="${lh_nm}/sourcemap-codec/dist/sourcemap-codec.${v#*:}.js"
+	done
+	_lh_pkg "$(_dir magic-string-0.27)" magic-string
+	pushd "$(_dir magic-string-0.27)" >/dev/null || die
+	edo node "${BROOT}/usr/lib/rollup/4.21.0/rollup" -i src/index.js -f es -e sourcemap-codec \
+		--intro 'var DEBUG = false;' -o "${lh_nm}/magic-string/dist/magic-string.es.js" --silent
+	edo node "${BROOT}/usr/lib/rollup/4.21.0/rollup" -i src/index-legacy.js -f cjs --exports default \
+		-e sourcemap-codec --intro 'var DEBUG = false;' -o "${lh_nm}/magic-string/dist/magic-string.cjs.js" --silent
+	popd >/dev/null || die
+	_lh_pkg "$(_dir acorn)/acorn" acorn
+	edo "${ESBUILD}" --log-level=warning --bundle --format=esm "$(_dir acorn)/acorn/src/index.js" \
+		--outfile="${lh_nm}/acorn/dist/acorn.mjs"
+	edo "${ESBUILD}" --log-level=warning --bundle --format=cjs "$(_dir acorn)/acorn/src/index.js" \
+		--outfile="${lh_nm}/acorn/dist/acorn.js"
+	# rollup-plugin-polyfill-node supplies the Node.js polyfills: polyfills/{buffer,
+	# process}-es6.js are rollup bundles of buffer-es6 and process-es6
+	# (scripts/build-polyfills.js), embedded in src/polyfills.ts (scripts/collect-polyfills.js)
+	local pn=${lh_nm}/rollup-plugin-polyfill-node
+	_lh_pkg "$(_dir polyfill-node)" rollup-plugin-polyfill-node
+	edo node "${BROOT}/usr/lib/rollup/4.21.0/rollup" -i "$(_dir buffer-es6)/index.js" -f es \
+		-e crypto,vm,events,path,stream,util,buffer -o "${pn}/polyfills/buffer-es6.js" --silent
+	edo node "${BROOT}/usr/lib/rollup/4.21.0/rollup" -i "$(_dir process-es6)/browser.js" -f es \
+		-e crypto,vm,events,path,stream,util,buffer -o "${pn}/polyfills/process-es6.js" --silent
+	edo node -e '
+		const fs = require("fs"), path = require("path");
+		const dir = process.argv[1] + "/polyfills", out = {};
+		for (const f of fs.readdirSync(dir, { recursive: true }).sort()) {
+			if (fs.statSync(path.join(dir, f)).isFile()) out[f] = fs.readFileSync(path.join(dir, f), "utf8");
+		}
+		fs.writeFileSync(process.argv[1] + "/src/polyfills.ts", "export default " + JSON.stringify(out));
+	' "${pn}"
+	pushd "${pn}" >/dev/null || die
+	edo node "${BROOT}/usr/lib/rollup/4.21.0/rollup" -i src/polyfills.ts -f cjs --exports default \
+		-o dist/polyfills.js --silent
+	ES_MODULE_INTEROP=1 _lh_tsc cjs ES2019 dist/tmp src/modules.ts
+	mv dist/tmp/src/modules.js dist/modules.js || die
+	popd >/dev/null || die
+	# third-party-web: dist/*.json from data/
+	_lh_pkg "$(_dir third-party-web)" third-party-web
+	pushd "${lh_nm}/third-party-web" >/dev/null || die
+	edo node bin/convert-entities-db.js
+	edo node bin/build-entity-json-files.js
+	edo node -e '
+		const fs = require("fs"), aliases = require("./package.json").config.exportAliases;
+		for (const [name, target] of Object.entries(aliases)) {
+			fs.writeFileSync(name + ".js", `module.exports = require("${target}")\n`);
+		}
+	'
+	popd >/dev/null || die
+	# @paulirish/trace_engine: its TypeScript (from its source maps), with the edits
+	# DevTools' packaging script makes, compiled as one program (for const enums, as in
+	# DevTools' build). Modules outside the package are missing, so tsc reports type
+	# errors; the JavaScript it emits doesn't depend on them.
+	local te_src="${T}/trace_engine" te="${lh_nm}/@paulirish/trace_engine"
+	edo node "${FILESDIR}/lighthouse-trace-engine-sources.mjs" "${WORKDIR}/npm-paulirish-trace_engine-0.0.65" "${te_src}"
+	edo node "${FILESDIR}/lighthouse-trace-engine-edits.mjs" "${te_src}"
+	mkdir -p "${te}" || die
+	cat > "${te_src}/tsconfig.build.json" <<-EOF || die
+		{
+		  "compilerOptions": {
+		    "module": "esnext", "target": "esnext", "moduleResolution": "bundler",
+		    "experimentalDecorators": true, "lib": ["esnext", "dom"], "types": [],
+		    "skipLibCheck": true, "noEmitOnError": false, "rootDir": ".", "outDir": "${te}"
+		  },
+		  "include": ["**/*.ts"]
+		}
+	EOF
+	pushd "${te_src}" >/dev/null || die
+	"${BROOT}/usr/bin/tsc-6.0.2" -p tsconfig.build.json > "${T}/trace_engine-tsc.log"
+	find . -type f ! -name '*.ts' ! -name tsconfig.build.json -exec cp --parents {} "${te}" \; || die
+	while IFS= read -r -d '' f; do
+		[[ -f ${te}/${f%.ts}.js ]] || die "tsc didn't compile trace_engine's ${f}"
+	done < <(find . -name '*.ts' ! -name '*.d.ts' -print0)
+	popd >/dev/null || die
+	# legacy-javascript (DevTools has 0.0.1, published from these sources); trace_engine imports it
+	mkdir "${lh_nm}/legacy-javascript" || die
+	pushd "${lh}" >/dev/null || die
+	edo "${ESBUILD}" --log-level=warning --bundle --format=esm core/lib/legacy-javascript/legacy-javascript.js \
+		--outfile="${lh_nm}/legacy-javascript/legacy-javascript.js"
+	cp core/lib/legacy-javascript/package.json "${lh_nm}/legacy-javascript/" || die
+	popd >/dev/null || die
+	# Build tools: esbuild's JavaScript API and terser (built above), TypeScript, parse5
+	# with a stand-in for jsdom (files/: what build-report-components.js uses),
+	# placeholders for the modules build-bundle.js replaces with empty ones, and the
+	# DevTools sources of build-cdt-lib.js and build-cdt-strings.js
+	mkdir -p "${lh_nm}"/{esbuild/lib,terser,typescript,jsdom} || die
+	cp "${WORKDIR}/image/tree/${dt}/esbuild/lib/main.js" "${lh_nm}/esbuild/lib/" || die
+	echo '{"name": "esbuild", "version": "0.28.2", "main": "lib/main.js"}' > "${lh_nm}/esbuild/package.json" || die
+	cp "${WORKDIR}/image/tree/${webui}/terser/dist/bundle.min.js" "${lh_nm}/terser/terser.js" || die
+	echo '{"name": "terser", "version": "5.37.0", "main": "terser.js"}' > "${lh_nm}/terser/package.json" || die
+	ln -s "${BROOT}/usr/lib/typescript/6.0.2/lib" "${lh_nm}/typescript/lib" || die
+	echo '{"name": "typescript", "version": "6.0.2", "main": "lib/typescript.js"}' > "${lh_nm}/typescript/package.json" || die
+	_lh_pkg "$(_dir parse5-5)/packages/parse5" parse5
+	cp "${FILESDIR}/lighthouse-jsdom-shim.js" "${lh_nm}/jsdom/index.js" || die
+	echo '{"name": "jsdom", "version": "12.2.0", "main": "index.js"}' > "${lh_nm}/jsdom/package.json" || die
+	for p in puppeteer-core @sentry/node; do
+		mkdir -p "${lh_nm}/${p}" || die
+		echo "{\"name\": \"${p}\", \"main\": \"index.js\"}" > "${lh_nm}/${p}/package.json" || die
+		echo '// Placeholder: build-bundle.js replaces this module.' > "${lh_nm}/${p}/index.js" || die
+	done
+	local cdt=${lh_nm}/chrome-devtools-frontend/front_end
+	mkdir -p "${cdt}"/{core/sdk,core/common,generated,panels/application/components} || die
+	cp "${DISTDIR}/devtools-frontend-3f890ceb-SourceMap.ts" "${cdt}/core/sdk/SourceMap.ts" || die
+	cp "${DISTDIR}/devtools-frontend-3f890ceb-ParsedURL.ts" "${cdt}/core/common/ParsedURL.ts" || die
+	cp "${DISTDIR}/devtools-frontend-ced63b5a-Deprecation.ts" "${cdt}/generated/Deprecation.ts" || die
+	cp "${DISTDIR}/devtools-frontend-ced63b5a-BackForwardCacheStrings.ts" \
+		"${cdt}/panels/application/components/BackForwardCacheStrings.ts" || die
+	pushd "${lh}" >/dev/null || die
+	# build-bundle.js reads the version from git, and a test helper
+	eapply "${FILESDIR}/lighthouse-13.5.0-build-bundle.patch"
+	# Lighthouse's committed generated files, regenerated by its scripts
+	local regen
+	for regen in \
+		"build/build-report-components.js report/renderer/components.js" \
+		"build/build-ard-schema.js third-party/ard/schema-validator.js" \
+		"build/build-cdt-lib.js core/lib/cdt/generated/SourceMap.js core/lib/cdt/generated/ParsedURL.js" \
+		"build/build-cdt-strings.js core/lib/deprecations-strings.js core/lib/bf-cache-strings.js"
+	do
+		set -- ${regen}
+		rm "${@:2}" || die
+		edo node "${1}" >/dev/null
+		for f in "${@:2}"; do
+			[[ -s ${f} ]] || die "${1} didn't regenerate ${f}"
+		done
+	done
+	edo node build/build-report.js --standalone --esm
+	# DevTools doesn't have the flow report; build-dt-report-resources.js only needs the
+	# file to exist.
+	echo '/* flow report not built */' > dist/report/flow.js || die
+	mkdir -p dist/devtools || die
+	LH_GIT_REF=v13.5.0 edo node build/build-bundle.js \
+		clients/devtools/devtools-entry.js dist/devtools/lighthouse-dt-bundle.js
+	# build-bundle.js inlines files read with fs.readFileSync, and silently keeps the
+	# call when it can't resolve one: check the two from node_modules.
+	grep -q 'd41d8cd98f00b204e9800998ecf8427e_LibraryDetectorTests' dist/devtools/lighthouse-dt-bundle.js ||
+		die "js-library-detector isn't in lighthouse-dt-bundle.js"
+	grep -q 'axe v4\.13\.0' dist/devtools/lighthouse-dt-bundle.js || die "axe-core isn't in lighthouse-dt-bundle.js"
+	edo node build/build-dt-report-resources.js
+	local lh_out="${image}/${fe}/lighthouse"
+	mkdir -p "${lh_out}"/{report,report-assets,locales} "${image}/${fe}/legacy-javascript/lib" || die
+	cp dist/devtools/lighthouse-dt-bundle.js "${lh_out}/" || die
+	cp dist/report/bundle.esm.js "${lh_out}/report/bundle.js" || die
+	cp dist/dt-report-resources/report-generator.mjs "${lh_out}/report-assets/" || die
+	cp shared/localization/locales/*.json "${lh_out}/locales/" || die
+	cp "${lh_nm}/legacy-javascript/legacy-javascript.js" "${image}/${fe}/legacy-javascript/lib/" || die
 	popd >/dev/null || die
 
 	local pkg

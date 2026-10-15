@@ -1,0 +1,32 @@
+--- a/build/build-bundle.js
++++ b/build/build-bundle.js
+@@ -9,6 +9,7 @@
+  * in the browser (as long as they have access to a debugger protocol Connection).
+  */
+ 
++import fs from 'fs';
+ import path from 'path';
+ import {execSync} from 'child_process';
+ import {createRequire} from 'module';
+@@ -20,17 +21,19 @@
+ import * as plugins from './esbuild-plugins.js';
+ import {Runner} from '../core/runner.js';
+ import {LH_ROOT} from '../shared/root.js';
+-import {readJson} from '../core/test/test-utils.js';
+ import {nodeModulesPolyfillPlugin} from '../third-party/esbuild-plugins-polyfills/esbuild-polyfills.js';
+ 
+ const require = createRequire(import.meta.url);
+ 
++/** @param {string} filePath */
++const readJson = (filePath) => JSON.parse(fs.readFileSync(filePath, 'utf8'));
++
+ /**
+  * The git tag for the current HEAD (if HEAD is itself a tag),
+  * otherwise a combination of latest tag + #commits since + sha.
+  * Note: can't do this in CI because it is a shallow checkout.
+  */
+-const GIT_READABLE_REF =
++const GIT_READABLE_REF = process.env.LH_GIT_REF ||
+   execSync(process.env.CI ? 'git rev-parse HEAD' : 'git describe').toString().trim();
+ 
+ // HACK: manually include plugin audits.
