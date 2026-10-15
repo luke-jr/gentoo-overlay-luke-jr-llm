@@ -97,7 +97,7 @@ JS_SOURCES=(
 	"postcss-selector-parser-7 postcss/postcss-selector-parser 7.1.6"
 	"nanoid ai/nanoid 3.3.18"
 	"colordx dkryaklin/colordx @colordx/core@6.4.0"
-	# DevTools: build scripts (yargs, ...), esbuild's JavaScript API, TypeScript
+	# DevTools: build scripts (yargs, ...), esbuild's JavaScript API
 	"yargs yargs/yargs v18.1.0"
 	"y18n yargs/y18n v5.0.5"
 	"cliui yargs/cliui v9.0.1"
@@ -107,7 +107,6 @@ JS_SOURCES=(
 	"js-yaml nodeca/js-yaml 5.4.1"
 	"uuid uuidjs/uuid v14.0.0"
 	"esbuild evanw/esbuild v0.28.2"
-	"typescript microsoft/TypeScript v6.0.2"
 )
 
 inherit edo
@@ -183,7 +182,6 @@ REPLACED_PACKAGES=(
 	"third_party/devtools-frontend/src/node_modules/js-yaml 5.4.1"
 	"third_party/devtools-frontend/src/node_modules/uuid 14.0.0"
 	"third_party/devtools-frontend/src/node_modules/esbuild 0.28.2"
-	"third_party/devtools-frontend/src/node_modules/typescript 6.0.2"
 )
 
 # _dir <id>: the unpacked directory of a source
@@ -455,29 +453,6 @@ src_compile() {
 	_bundle cjs ${dt}/esbuild/lib/main.js esbuild:lib/npm/node.ts --target=node10 \
 		--define:WASM=false --define:ESBUILD_VERSION=\"0.28.2\" esbuild=external
 
-	# TypeScript (lib/typescript.js), as its Herebyfile.mjs builds it: generate the
-	# diagnostic messages, bundle src/typescript/typescript.ts wrapped in "var ts",
-	# then undo the "require" rename and drop __esModule from __toCommonJS.
-	local ts
-	ts=$(_dir typescript) || die
-	pushd "${ts}" >/dev/null || die
-	edo node scripts/processDiagnosticMessages.mjs src/compiler/diagnosticMessages.json
-	local ts_out="${WORKDIR}/image/${dt}/typescript/lib/typescript.js"
-	edo "${ESBUILD}" src/typescript/typescript.ts --bundle --outfile="${ts_out}" --platform=node \
-		--target=es2020,node14.17 --format=cjs --packages=external --log-level=warning \
-		--banner:js="$(<scripts/CopyrightNotice.txt)"$'\n'"var ts = {}; ((module) => {" \
-		--footer:js='})({ get exports() { return ts; }, set exports(v) { ts = v; if (typeof module !== "undefined" && module.exports) { module.exports = v; } } })' \
-		--define:require=QQQQQQQ
-	popd >/dev/null || die
-	edo node -e '
-		const fs = require("fs");
-		let s = fs.readFileSync(process.argv[1], "utf8").replace(/QQQQQQQ/g, "require");
-		let n = 0;
-		s = s.replace(/var __toCommonJS .*/, () => (n++, "var __toCommonJS = (mod) => (__copyProps, mod); // Modified helper to skip setting __esModule."));
-		if (n !== 1) throw new Error("expected one __toCommonJS, found " + n);
-		fs.writeFileSync(process.argv[1], s);
-	' "${ts_out}"
-
 	local pkg
 	for pkg in "${REPLACED_PACKAGES[@]}"; do
 		echo "${pkg}" >> "${WORKDIR}/image/VERSIONS" || die
@@ -508,15 +483,12 @@ src_test() {
 			assert.equal(typeof nodeResolve.nodeResolve().resolveId.handler, "function");
 			assert.equal(typeof require(cleanup)().transform, "function");
 			assert.equal(typeof require(license)().renderChunk, "function");
-			const ts = require(process.argv[6]);
-			assert.equal(ts.version, "6.0.2");
-			assert.equal(ts.createSourceFile("a.ts", "const a: number = 1;", ts.ScriptTarget.Latest).statements.length, 1);
-			assert.equal((await import(process.argv[7])).load("a: [1, 2]").a[1], 2);
-			assert.match((await import(process.argv[8])).v4(), /^[0-9a-f-]{36}$/);
+			assert.equal((await import(process.argv[6])).load("a: [1, 2]").a[1], 2);
+			assert.match((await import(process.argv[7])).v4(), /^[0-9a-f-]{36}$/);
 		})().catch((e) => { console.error(e); process.exit(1); });
 	' "${i}/${webui}/terser/dist/bundle.min.js" "${i}/${webui}/postcss-selector-parser/dist/index.js" \
 		"${T}/node-resolve.mjs" "${i}/${bidi}/rollup-plugin-cleanup/dist/rollup-plugin-cleanup.js" \
-		"${i}/${bidi}/rollup-plugin-license/dist/index.js" "${i}/${dt}/typescript/lib/typescript.js" \
+		"${i}/${bidi}/rollup-plugin-license/dist/index.js" \
 		"${i}/${dt}/js-yaml/dist/js-yaml.mjs" "${T}/uuid.mjs"
 }
 

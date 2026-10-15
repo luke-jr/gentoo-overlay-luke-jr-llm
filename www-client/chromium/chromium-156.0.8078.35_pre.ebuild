@@ -35,6 +35,9 @@ GO_MIN_VER="1.25.0"
 ESBUILD_VER="0.28.2"
 # TypeScript 7 compiler (tsgo); third_party/typescript/linux-amd64/src/package.json
 TSGO_VER="7.0.2"
+# DevTools' build (front_end/core/i18n/collect-ui-strings.js) uses TypeScript's JavaScript API,
+# from its own copy of TypeScript 6; its prebuilt lib/typescript.js is replaced by dev-lang/typescript's.
+DEVTOOLS_TS_VER="6.0.2"
 # Rollup (@rollup/wasm-node) in third_party/node/node_modules, used for WebUI bundling, is
 # replaced by dev-util/rollup (built from source). chromium-bidi bundles its own, newer copy
 # (ROLLUP_BIDI_VER), which is replaced by the same one (see src_prepare).
@@ -244,6 +247,7 @@ BDEPEND="
 	>=dev-util/gperf-3.2
 	dev-util/esbuild:${ESBUILD_VER}
 	dev-lang/typescript:${TSGO_VER}
+	dev-lang/typescript:${DEVTOOLS_TS_VER}
 	dev-util/rollup:${ROLLUP_VER}
 	dev-util/chromium-node-modules:${PV%%.*}
 	dev-vcs/git
@@ -736,13 +740,15 @@ src_prepare() {
 	local -A rollup_dirs=(
 		["${S}/third_party/node/node_modules/@rollup/wasm-node"]="${ROLLUP_VER}"
 		["${S}/third_party/chromium-bidi/node_modules/@rollup/wasm-node"]="${ROLLUP_BIDI_VER}"
+		# not rollup, but checked the same way
+		["${S}/third_party/devtools-frontend/src/node_modules/typescript"]="${DEVTOOLS_TS_VER}"
 	)
 	local rollup_dir
 	for rollup_dir in "${!rollup_dirs[@]}"; do
 		found=$("${EPYTHON}" -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' \
-			"${rollup_dir}/package.json") || die "Failed to read the rollup version in ${rollup_dir}"
+			"${rollup_dir}/package.json") || die "Failed to read the version in ${rollup_dir}"
 		if [[ "${found}" != "${rollup_dirs[${rollup_dir}]}" ]]; then
-			die "rollup version mismatch in ${rollup_dir}: expected ${rollup_dirs[${rollup_dir}]}, found ${found}"
+			die "Version mismatch in ${rollup_dir}: expected ${rollup_dirs[${rollup_dir}]}, found ${found}"
 		fi
 	done
 
@@ -816,6 +822,14 @@ src_prepare() {
 	rm -r "${rollup_dir}/dist" || die "Failed to remove ${rollup_dir}/dist"
 	mkdir -p "${rollup_dir}/dist/bin" || die
 	ln -s "${rollup_cli}" "${rollup_dir}/dist/bin/rollup" || die "Failed to symlink ${rollup_cli}"
+
+	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
+	local devtools_ts="${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}/lib/typescript.js"
+	[[ -f ${devtools_ts} ]] || die "Expected to find ${devtools_ts}, but it does not exist."
+	einfo "Symlinking ${devtools_ts} ..."
+	rm -f "${S}/third_party/devtools-frontend/src/node_modules/typescript/lib/typescript.js" || die
+	ln -s "${devtools_ts}" "${S}/third_party/devtools-frontend/src/node_modules/typescript/lib/typescript.js" ||
+		die "Failed to symlink ${devtools_ts}"
 
 	# Other generated files of npm packages (terser's library bundle, chromium-bidi's rollup
 	# plugins, ...): dev-util/chromium-node-modules builds them from their sources, as

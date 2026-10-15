@@ -7,9 +7,9 @@ EAPI=8
 # TypeScript repository (formerly microsoft/typescript-go, now archived; its tag
 # typescript/v7.0.2 == npm gitHead 2bd066d8 is byte-identical to tsc/ at v7.0.2).
 #
-# Slotted per exact version, beside ::gentoo's TypeScript 6 (slot 0, the npm
-# JavaScript package with /usr/bin/tsc and the JS API, which TypeScript 7 does
-# not provide). Chromium 156 builds all of its TypeScript (WebUI and DevTools)
+# Slotted per exact version, beside TypeScript 6 (6.x here; ::gentoo's slot 0 is
+# the npm package, with /usr/bin/tsc), which also has the JS API that TypeScript 7
+# does not provide. Chromium 156 builds all of its TypeScript (WebUI and DevTools)
 # with exactly this version and its lib*.d.ts files (patched in Chromium's tree);
 # upstream Chromium uses the prebuilt npm package @typescript/typescript-linux-x64.
 #
