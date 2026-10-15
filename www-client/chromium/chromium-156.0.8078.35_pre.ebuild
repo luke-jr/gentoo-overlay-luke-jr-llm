@@ -40,9 +40,6 @@ TSGO_VER="7.0.2"
 # (ROLLUP_BIDI_VER), which is replaced by the same one (see src_prepare).
 ROLLUP_VER="4.21.0"
 ROLLUP_BIDI_VER="4.63.1"
-# Terser in third_party/node/node_modules, for minifying WebUI and Mojo JavaScript; its
-# prebuilt library bundle is replaced by dev-util/terser (built from source).
-TERSER_VER="5.37.0"
 VIRTUALX_REQUIRED="pgo"
 
 CHROMIUM_LANGS="af am ar bg bn ca cs da de el en-GB es es-419 et fa fi fil fr gu he
@@ -248,7 +245,7 @@ BDEPEND="
 	dev-util/esbuild:${ESBUILD_VER}
 	dev-lang/typescript:${TSGO_VER}
 	dev-util/rollup:${ROLLUP_VER}
-	dev-util/terser:${TERSER_VER}
+	dev-util/chromium-node-modules:${PV%%.*}
 	dev-vcs/git
 	>=net-libs/nodejs-${NODE_VER}[inspector]
 	sys-apps/hwdata
@@ -734,18 +731,16 @@ src_prepare() {
 	# And for rollup, whose WebAssembly parser is replaced below (the parser's AST format
 	# belongs to one rollup release). chromium-bidi's copy is replaced with WebUI's; a
 	# different version there needs re-checking (see below).
-	# And for terser, whose prebuilt bundle is replaced below.
-	local -A js_tool_dirs=(
+	local -A rollup_dirs=(
 		["${S}/third_party/node/node_modules/@rollup/wasm-node"]="${ROLLUP_VER}"
 		["${S}/third_party/chromium-bidi/node_modules/@rollup/wasm-node"]="${ROLLUP_BIDI_VER}"
-		["${S}/third_party/node/node_modules/terser"]="${TERSER_VER}"
 	)
-	local js_tool_dir
-	for js_tool_dir in "${!js_tool_dirs[@]}"; do
+	local rollup_dir
+	for rollup_dir in "${!rollup_dirs[@]}"; do
 		found=$("${EPYTHON}" -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' \
-			"${js_tool_dir}/package.json") || die "Failed to read the version in ${js_tool_dir}"
-		if [[ "${found}" != "${js_tool_dirs[${js_tool_dir}]}" ]]; then
-			die "Version mismatch in ${js_tool_dir}: expected ${js_tool_dirs[${js_tool_dir}]}, found ${found}"
+			"${rollup_dir}/package.json") || die "Failed to read the rollup version in ${rollup_dir}"
+		if [[ "${found}" != "${rollup_dirs[${rollup_dir}]}" ]]; then
+			die "rollup version mismatch in ${rollup_dir}: expected ${rollup_dirs[${rollup_dir}]}, found ${found}"
 		fi
 	done
 
@@ -812,7 +807,7 @@ src_prepare() {
 	# bundles, and the WebAssembly parser deleted above). The build only runs dist/bin/rollup;
 	# use dev-util/rollup's, built from the same sources (TypeScript, the npm packages its
 	# build bundles in, and the parser's Rust). The WebUI bundles are byte-identical.
-	local rollup_dir="${S}/third_party/node/node_modules/@rollup/wasm-node"
+	rollup_dir="${S}/third_party/node/node_modules/@rollup/wasm-node"
 	local rollup_cli="${BROOT}/usr/lib/rollup/${ROLLUP_VER}/rollup"
 	[[ -f ${rollup_cli} ]] || die "Expected to find ${rollup_cli}, but it does not exist."
 	einfo "Symlinking ${rollup_cli} ..."
@@ -820,15 +815,26 @@ src_prepare() {
 	mkdir -p "${rollup_dir}/dist/bin" || die
 	ln -s "${rollup_cli}" "${rollup_dir}/dist/bin/rollup" || die "Failed to symlink ${rollup_cli}"
 
-	# Terser: dist/bundle.min.js is generated from main.js and lib/, with @jridgewell/source-map
-	# (itself generated from TypeScript); use dev-util/terser's, built from those sources. The
-	# rest of the package (bin/terser, lib/, ...) is the hand-written source, as in git.
-	local terser_bundle="${BROOT}/usr/lib/terser/${TERSER_VER}/terser.js"
-	[[ -f ${terser_bundle} ]] || die "Expected to find ${terser_bundle}, but it does not exist."
-	einfo "Symlinking ${terser_bundle} ..."
-	local terser_dist="${S}/third_party/node/node_modules/terser/dist"
-	rm -f "${terser_dist}/bundle.min.js" || die "Failed to remove ${terser_dist}/bundle.min.js"
-	ln -s "${terser_bundle}" "${terser_dist}/bundle.min.js" || die "Failed to symlink ${terser_bundle}"
+	# Other generated files of npm packages (terser's library bundle, chromium-bidi's rollup
+	# plugins, ...): dev-util/chromium-node-modules builds them from their sources, as
+	# self-contained bundles, at the paths of the files they replace. The packages they include
+	# are deleted above (files/chromium-${PV%%.*}-node-modules.txt).
+	local cnm_dir="${BROOT}/usr/lib/chromium-node-modules/${PV%%.*}" cnm_pkg cnm_ver cnm_file
+	[[ -f ${cnm_dir}/VERSIONS ]] || die "Expected to find ${cnm_dir}/VERSIONS, but it does not exist."
+	while read -r cnm_pkg cnm_ver; do
+		found=$("${EPYTHON}" -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' \
+			"${S}/${cnm_pkg}/package.json") || die "Failed to read the version of ${cnm_pkg}"
+		[[ ${found} == "${cnm_ver}" ]] ||
+			die "Version mismatch in ${cnm_pkg}: dev-util/chromium-node-modules has ${cnm_ver}, found ${found}"
+	done < "${cnm_dir}/VERSIONS" || die
+	einfo "Replacing generated npm package files with dev-util/chromium-node-modules' ..."
+	while IFS= read -r -d '' cnm_file; do
+		[[ ${cnm_file} == VERSIONS ]] && continue
+		[[ -f ${S}/${cnm_file} ]] || die "${cnm_file} not found in the source tree"
+		# Remove first: cp would follow a symlink left in its place.
+		rm -f "${S}/${cnm_file}" || die
+		cp "${cnm_dir}/${cnm_file}" "${S}/${cnm_file}" || die "Failed to copy ${cnm_file}"
+	done < <(cd "${cnm_dir}" && find . -type f -printf '%P\0' || die)
 
 	# chromium-bidi bundles its BiDi mapper (used for browser automation, e.g. chromedriver)
 	# with its own copy of rollup ${ROLLUP_BIDI_VER}. Use the one above instead: the mapper
