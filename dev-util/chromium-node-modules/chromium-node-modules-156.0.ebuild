@@ -145,6 +145,7 @@ IUSE="test"
 RESTRICT="!test? ( test )"
 
 BDEPEND="
+	dev-lang/typescript:6.0.2
 	dev-libs/protobuf
 	dev-util/esbuild
 	net-libs/nodejs
@@ -158,6 +159,7 @@ REPLACED_PACKAGES=(
 	"third_party/chromium-bidi/node_modules/rollup-plugin-cleanup 3.2.1"
 	"third_party/chromium-bidi/node_modules/rollup-plugin-license 3.7.1"
 	"third_party/node/node_modules/ts-proto 2.7.7"
+	"third_party/node/node_modules/@bufbuild/protobuf 2.2.5"
 	"third_party/devtools-frontend/src/node_modules/entities 4.5.0"
 	"third_party/devtools-frontend/src/node_modules/domelementtype 2.3.0"
 	"third_party/devtools-frontend/src/node_modules/domhandler 5.0.3"
@@ -396,6 +398,15 @@ src_compile() {
 	_ts_proto_descriptors "${T}/stage2" "${T}/descriptors2"
 	diff -r "${T}/descriptors1" "${T}/descriptors2" ||
 		die "ts-proto doesn't regenerate its descriptors identically"
+
+	# @bufbuild/protobuf's ES modules, which chrome://traces-internals bundles: its
+	# build:esm is plain tsc. TypeScript 6 needs these flags for its TypeScript 5
+	# configuration; type-checking (against newer lib*.d.ts) doesn't affect the output.
+	pushd "$(_dir bufbuild-protobuf)/packages/protobuf" >/dev/null || die
+	edo "${BROOT}/usr/bin/tsc-6.0.2" --project tsconfig.json --rootDir src \
+		--ignoreDeprecations 6.0 --noCheck \
+		--outDir "${WORKDIR}/image/${webui}/@bufbuild/protobuf/dist/esm"
+	popd >/dev/null || die
 
 	# DevTools: the generated npm packages its CSS minification (cssnano) and SVG
 	# optimization (svgo) use, each replaced in place, its npm imports resolving

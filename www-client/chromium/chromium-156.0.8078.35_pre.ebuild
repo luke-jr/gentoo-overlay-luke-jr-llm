@@ -38,6 +38,10 @@ TSGO_VER="7.0.2"
 # DevTools' build (front_end/core/i18n/collect-ui-strings.js) uses TypeScript's JavaScript API,
 # from its own copy of TypeScript 6; its prebuilt lib/typescript.js is replaced by dev-lang/typescript's.
 DEVTOOLS_TS_VER="6.0.2"
+# Polymer (third_party/polymer/v3_0): its bundle, polymer_bundled.min.js, is rebuilt from source.
+POLYMER_VER="3.5.0"
+SHADYCSS_VER="1.9.1"
+SHADYCSS_COMMIT="4e6ebea7f179d131a1a6c98e38b7d038d0543699" # npm's gitHead for 1.9.1 (untagged)
 # Rollup (@rollup/wasm-node) in third_party/node/node_modules, used for WebUI bundling, is
 # replaced by dev-util/rollup (built from source). chromium-bidi bundles its own, newer copy
 # (ROLLUP_BIDI_VER), which is replaced by the same one (see src_prepare).
@@ -73,6 +77,10 @@ COPIUM_COMMIT="027d15ffdcd1816b7935cee9ea4a4f6bae0bbe60"
 CHROMIUM_TARBALL_PV="156.0.8078.12"
 S="${WORKDIR}/chromium-${CHROMIUM_TARBALL_PV}"
 SRC_URI="https://github.com/chromium-linux-tarballs/chromium-tarballs/releases/download/${CHROMIUM_TARBALL_PV}/chromium-${CHROMIUM_TARBALL_PV}-linux.tar.xz
+	https://github.com/Polymer/polymer/archive/refs/tags/v${POLYMER_VER}.tar.gz
+		-> polymer-${POLYMER_VER}.gh.tar.gz
+	https://github.com/webcomponents/shadycss/archive/${SHADYCSS_COMMIT}.tar.gz
+		-> shadycss-${SHADYCSS_COMMIT}.gh.tar.gz
 	!bundled-toolchain? (
 		https://codeberg.org/selfisekai/copium/archive/${COPIUM_COMMIT}.tar.gz
 			-> chromium-patches-copium-${COPIUM_COMMIT:0:10}.tar.gz
@@ -446,6 +454,7 @@ pkg_setup() {
 
 src_unpack() {
 	unpack chromium-${CHROMIUM_TARBALL_PV}-linux.tar.xz
+	unpack polymer-${POLYMER_VER}.gh.tar.gz shadycss-${SHADYCSS_COMMIT}.gh.tar.gz
 	# These should only be required when we're not using the official toolchain
 	if use !bundled-toolchain; then
 		unpack chromium-patches-copium-${COPIUM_COMMIT:0:10}.tar.gz
@@ -743,6 +752,11 @@ src_prepare() {
 		# not rollup, but checked the same way
 		["${S}/third_party/devtools-frontend/src/node_modules/typescript"]="${DEVTOOLS_TS_VER}"
 	)
+	found=$("${EPYTHON}" -c 'import json, sys; d = json.load(open(sys.argv[1]))["dependencies"]
+print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/polymer/v3_0/package.json") ||
+		die "Failed to read the Polymer version"
+	[[ ${found} == "${POLYMER_VER} ${SHADYCSS_VER}" ]] ||
+		die "Polymer/ShadyCSS version mismatch: expected ${POLYMER_VER} ${SHADYCSS_VER}, found ${found}"
 	local rollup_dir
 	for rollup_dir in "${!rollup_dirs[@]}"; do
 		found=$("${EPYTHON}" -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' \
@@ -853,6 +867,53 @@ src_prepare() {
 		rm -f "${S}/${cnm_file}" || die
 		cp "${cnm_dir}/${cnm_file}" "${S}/${cnm_file}" || die "Failed to copy ${cnm_file}"
 	done < <(cd "${cnm_dir}" && find . -type f -printf '%P\0' || die)
+
+	# Polymer: third_party/polymer/v3_0's reproduce.sh and minify_polymer.sh generate
+	# polymer_bundled.min.js from @polymer/polymer and @webcomponents/shadycss (npm's files are
+	# their git sources). Do their steps for Polymer, from the git sources, with the rollup and
+	# terser above; the result is byte-identical. (The iron-* elements in components-chromium
+	# are their git sources, with the same import rewrites and patches.)
+	local polymer_dir="${S}/third_party/polymer/v3_0"
+	local polymer_build="${WORKDIR}/polymer-build"
+	mkdir -p "${polymer_build}/components-chromium" || die
+	cp -a "${WORKDIR}/polymer-${POLYMER_VER}" "${polymer_build}/components-chromium/polymer" || die
+	cp -a "${WORKDIR}/shadycss-${SHADYCSS_COMMIT}" "${polymer_build}/components-chromium/shadycss" || die
+	pushd "${polymer_build}" >/dev/null || die
+	# reproduce.sh
+	find components-chromium/ -mindepth 2 -maxdepth 2 -name '*.js' -exec sed -i 's/@polymer\//..\//g' {} + || die
+	find components-chromium/ -mindepth 3 -maxdepth 3 -name '*.js' -exec sed -i 's/@polymer\//..\/..\//g' {} + || die
+	find components-chromium/polymer/ -mindepth 3 -maxdepth 3 -name '*.js' \
+		-exec sed -i 's/@webcomponents\//..\/..\/..\//g' {} + || die
+	# (chromium.patch also patches an element, which isn't here: only its Polymer part)
+	"${EPYTHON}" -c '
+import sys
+out, cur, keep = [], [], False
+for line in open(sys.argv[1]):
+    if line.startswith("diff ") or (line.startswith("--- ") and not (cur and cur[-1].startswith("diff "))):
+        if keep: out += cur
+        cur, keep = [], False
+    cur.append(line)
+    keep = keep or (line.startswith("+++ ") and "components-chromium/polymer/" in line)
+if keep: out += cur
+sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polymer.patch || die
+	eapply chromium-polymer.patch
+	# minify_polymer.sh and minify_polymer.py
+	eapply "${polymer_dir}/polymer.patch"
+	local f
+	for f in $(grep -rl "window\['Shady\(DOM\|CSS\)'\]" components-chromium/polymer components-chromium/shadycss); do
+		sed -i "s/window\['ShadyDOM'\]/window.ShadyDOM/g; s/window\['ShadyCSS'\]/window.ShadyCSS/g" "${f}" || die
+	done
+	cp "${polymer_dir}/polymer.js" components-chromium/polymer/ || die
+	einfo "Building Polymer's bundle from source ..."
+	node "${S}/third_party/node/node_modules/@rollup/wasm-node/dist/bin/rollup" --silent --format esm \
+		--input components-chromium/polymer/polymer.js --file polymer_bundled.js || die "rollup failed"
+	node "${S}/third_party/node/node_modules/terser/bin/terser" polymer_bundled.js --compress --mangle \
+		--module --comments false --define window.HTMLImports=false --define window.ShadyCSS=false \
+		--define window.ShadyDOM=false --define window.Polymer.legacyOptimizations=false \
+		--output polymer_bundled.min.js || die "terser failed"
+	popd >/dev/null || die
+	cp "${polymer_build}/polymer_bundled.min.js" "${polymer_dir}/components-chromium/polymer/" ||
+		die "Failed to copy polymer_bundled.min.js"
 
 	# chromium-bidi bundles its BiDi mapper (used for browser automation, e.g. chromedriver)
 	# with its own copy of rollup ${ROLLUP_BIDI_VER}. Use the one above instead: the mapper
