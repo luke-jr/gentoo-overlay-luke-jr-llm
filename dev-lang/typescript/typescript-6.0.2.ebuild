@@ -15,7 +15,7 @@ EAPI=8
 # Slotted per exact version, like TypeScript 7 (7.x). Chromium's DevTools build
 # uses this version's JavaScript API (front_end/core/i18n/collect-ui-strings.js).
 
-inherit edo
+inherit edo git-archive
 
 DESCRIPTION="Superset of JavaScript with optional static typing (TypeScript 6, in JavaScript)"
 HOMEPAGE="
@@ -25,6 +25,12 @@ HOMEPAGE="
 # Build-time only: the scripts' dependencies (from git), and type declarations
 # the sources are checked against (.d.ts files only; versions from
 # package-lock.json).
+# The commits the tags below point to (peeled, for annotated tags), checked
+# against the tarballs in src_unpack.
+TS_COMMIT=607a22a90d1a5a1b507ce01bb8cd7ec020f954e7 # v6.0.2
+MINIMIST_COMMIT=6901ee286bc4c16da6830b48b46ce1574703cea1 # v1.2.8
+FXP_COMMIT_PARSER=4e7ca80e788a23b07531ac2ff8906e5e9f4bf892 # v5.4.1
+SOURCE_MAP_COMMIT=ac518d2f21818146f3310557bd51c13d8cff2ba8 # 0.6.1
 FXP_COMMIT_STRNUM=b2c24d6d9cc245e69f58ecac46657acbf8895539
 FXP_COMMIT_BUILDER=0107b0f5c7226b2ea358ab87eca4b3d15434e666
 SRC_URI="
@@ -59,6 +65,17 @@ BDEPEND="
 	dev-util/esbuild
 	net-libs/nodejs
 "
+
+src_unpack() {
+	git-archive_verify \
+		${P}.gh.tar.gz ${TS_COMMIT} \
+		minimistjs-minimist-v1.2.8.gh.tar.gz ${MINIMIST_COMMIT} \
+		NaturalIntelligence-fast-xml-parser-v5.4.1.gh.tar.gz ${FXP_COMMIT_PARSER} \
+		NaturalIntelligence-strnum-${FXP_COMMIT_STRNUM}.gh.tar.gz ${FXP_COMMIT_STRNUM} \
+		NaturalIntelligence-fast-xml-builder-${FXP_COMMIT_BUILDER}.gh.tar.gz ${FXP_COMMIT_BUILDER} \
+		mozilla-source-map-0.6.1.gh.tar.gz ${SOURCE_MAP_COMMIT}
+	default
+}
 
 src_prepare() {
 	default

@@ -40,8 +40,9 @@ TSGO_VER="7.0.2"
 DEVTOOLS_TS_VER="6.0.2"
 # Polymer (third_party/polymer/v3_0): its bundle, polymer_bundled.min.js, is rebuilt from source.
 POLYMER_VER="3.5.0"
+POLYMER_COMMIT="78f75e3108f43744fc135e06c2e50ab0384c6f39" # tag v3.5.0 (peeled; checked in src_unpack)
 SHADYCSS_VER="1.9.1"
-SHADYCSS_COMMIT="4e6ebea7f179d131a1a6c98e38b7d038d0543699" # npm's gitHead for 1.9.1 (untagged)
+SHADYCSS_COMMIT="4e6ebea7f179d131a1a6c98e38b7d038d0543699" # tag v1.9.1 (peeled), npm's gitHead for 1.9.1
 # Rollup (@rollup/wasm-node) in third_party/node/node_modules, used for WebUI bundling, is
 # replaced by dev-util/rollup (built from source). chromium-bidi bundles its own, newer copy
 # (ROLLUP_BIDI_VER), which is replaced by the same one (see src_prepare).
@@ -63,7 +64,7 @@ RUST_NEEDS_LLVM="yes please"
 RUST_OPTIONAL="yes" # Not actually optional, but we don't need system Rust (or LLVM) with USE=bundled-toolchain
 RUST_REQ_USE="rustfmt" # Upstream run rustfmt on bindgen output, so we need it to be available.
 
-inherit check-reqs chromium-2 desktop flag-o-matic llvm-r1 multiprocessing ninja-utils pax-utils
+inherit check-reqs chromium-2 desktop flag-o-matic git-archive llvm-r1 multiprocessing ninja-utils pax-utils
 inherit python-any-r1 readme.gentoo-r1 rust systemd toolchain-funcs virtualx xdg-utils
 
 DESCRIPTION="Open-source version of Google Chrome web browser"
@@ -454,6 +455,14 @@ pkg_setup() {
 }
 
 src_unpack() {
+	# The commits the forge tarballs were made from
+	git-archive_verify \
+		polymer-${POLYMER_VER}.gh.tar.gz ${POLYMER_COMMIT} \
+		shadycss-${SHADYCSS_COMMIT}.gh.tar.gz ${SHADYCSS_COMMIT}
+	use bundled-toolchain ||
+		git-archive_verify chromium-patches-copium-${COPIUM_COMMIT:0:10}.tar.gz ${COPIUM_COMMIT}
+	use ppc64 && git-archive_verify chromium-openpower-${PPC64_HASH:0:10}.tar.bz2 ${PPC64_HASH}
+
 	unpack chromium-${CHROMIUM_TARBALL_PV}-linux.tar.xz
 	unpack polymer-${POLYMER_VER}.gh.tar.gz shadycss-${SHADYCSS_COMMIT}.gh.tar.gz
 	# These should only be required when we're not using the official toolchain

@@ -39,7 +39,7 @@ EGO_SUM=(
 	"golang.org/x/text v0.38.0/go.mod"
 )
 
-inherit go-module
+inherit git-archive go-module
 go-module_set_globals
 
 DESCRIPTION="Superset of JavaScript with optional static typing (TypeScript 7, written in Go)"
@@ -47,6 +47,8 @@ HOMEPAGE="
 	https://www.typescriptlang.org/
 	https://github.com/microsoft/TypeScript/
 "
+# The commit tag v7.0.2 points to, checked against the tarball in src_unpack.
+TS_COMMIT=1e4744d68260a7cb91b62b12edc3f6a2187faaf1
 SRC_URI="
 	https://github.com/microsoft/TypeScript/archive/refs/tags/v${PV}.tar.gz
 		-> ${P}.gh.tar.gz
@@ -64,6 +66,11 @@ KEYWORDS="~amd64 ~arm64"
 
 # go.mod: "go 1.26"
 BDEPEND=">=dev-lang/go-1.26:="
+
+src_unpack() {
+	git-archive_verify ${P}.gh.tar.gz ${TS_COMMIT}
+	go-module_src_unpack
+}
 
 src_compile() {
 	# Same as upstream's release build (Herebyfile.mjs, buildTsgo() with

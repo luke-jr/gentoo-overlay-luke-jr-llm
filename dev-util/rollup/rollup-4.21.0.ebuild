@@ -19,26 +19,27 @@ EAPI=8
 # slotted by version and consumers pin it exactly.
 
 # npm packages that rollup's own build bundles into its CLI (versions from its
-# package-lock.json): name, version, GitHub repository, tag, and the source file
-# that is the package's entry point.
+# package-lock.json): name, version, GitHub repository, tag, the commit the tag
+# points to (peeled, for annotated tags; checked against the tarball in
+# src_unpack), and the source file that is the package's entry point.
 ROLLUP_JS_DEPS=(
-	"@jridgewell/sourcemap-codec 1.5.0 jridgewell/sourcemap-codec v1.5.0 src/sourcemap-codec.ts"
-	"@rollup/pluginutils 5.1.0 rollup/plugins pluginutils-v5.1.0 packages/pluginutils/src/index.ts"
-	"builtin-modules 4.0.0 sindresorhus/builtin-modules v4.0.0 index.js"
-	"colorette 2.0.20 jorgebucaran/colorette 2.0.20 index.js"
-	"date-time 4.0.0 sindresorhus/date-time v4.0.0 index.js"
-	"estree-walker 2.0.2 Rich-Harris/estree-walker v2.0.2 src/index.js"
-	"flru 1.0.2 lukeed/flru v1.0.2 src/index.js"
-	"is-reference 3.0.2 Rich-Harris/is-reference v3.0.2 src/index.js"
-	"locate-character 3.0.0 Rich-Harris/locate-character v3.0.0 src/index.js"
-	"magic-string 0.30.11 Rich-Harris/magic-string v0.30.11 src/index.js"
-	"parse-ms 4.0.0 sindresorhus/parse-ms v4.0.0 index.js"
-	"picomatch 2.3.1 micromatch/picomatch 2.3.1 index.js"
-	"pretty-bytes 6.1.1 sindresorhus/pretty-bytes v6.1.1 index.js"
-	"pretty-ms 9.1.0 sindresorhus/pretty-ms v9.1.0 index.js"
-	"signal-exit 4.1.0 tapjs/signal-exit v4.1.0 src/index.ts"
-	"time-zone 2.0.0 sindresorhus/time-zone v2.0.0 index.js"
-	"yargs-parser 21.1.1 yargs/yargs-parser yargs-parser-v21.1.1 lib/index.ts"
+	"@jridgewell/sourcemap-codec 1.5.0 jridgewell/sourcemap-codec v1.5.0 d8dc7fc3f7602043f56f3efa801569f983d756ec src/sourcemap-codec.ts"
+	"@rollup/pluginutils 5.1.0 rollup/plugins pluginutils-v5.1.0 02f9724ed74da05410dd500fc336cfb497b4563f packages/pluginutils/src/index.ts"
+	"builtin-modules 4.0.0 sindresorhus/builtin-modules v4.0.0 e3a9abb7b2c3140836918be83fa449e29f9f826e index.js"
+	"colorette 2.0.20 jorgebucaran/colorette 2.0.20 811fd2f255ed6b3d56b5977353d32dae13088b65 index.js"
+	"date-time 4.0.0 sindresorhus/date-time v4.0.0 5fe030412a33ce4ccf912a8192fc20158a93f619 index.js"
+	"estree-walker 2.0.2 Rich-Harris/estree-walker v2.0.2 3ac96d685ddedb1701009945d9911fa41d60b0ce src/index.js"
+	"flru 1.0.2 lukeed/flru v1.0.2 35d9a9aa9d29a6c6a2fb7948be04c1f6dddc3baf src/index.js"
+	"is-reference 3.0.2 Rich-Harris/is-reference v3.0.2 e684311831e05a4609b6f67e9875665ef7d4af2e src/index.js"
+	"locate-character 3.0.0 Rich-Harris/locate-character v3.0.0 4f08a59ec248121f7002abd02ee7b94e8eda06bc src/index.js"
+	"magic-string 0.30.11 Rich-Harris/magic-string v0.30.11 bde9d7e35da4663ead63a9c81130e7a0752c7a9f src/index.js"
+	"parse-ms 4.0.0 sindresorhus/parse-ms v4.0.0 265f81cac937a9720a04bb754b6e739d8c6a5130 index.js"
+	"picomatch 2.3.1 micromatch/picomatch 2.3.1 5467a5a9638472610de4f30709991b9a56bb5613 index.js"
+	"pretty-bytes 6.1.1 sindresorhus/pretty-bytes v6.1.1 71d686a4cefb314c13b57107de5add5789753900 index.js"
+	"pretty-ms 9.1.0 sindresorhus/pretty-ms v9.1.0 d00183f8a040315005452f6f6dec30c581b258a2 index.js"
+	"signal-exit 4.1.0 tapjs/signal-exit v4.1.0 458776d9cf8be89712aa1f7b45bb2163ce15ef4a src/index.ts"
+	"time-zone 2.0.0 sindresorhus/time-zone v2.0.0 11e694a30b1d4a66477513133448ba5b70a60716 index.js"
+	"yargs-parser 21.1.1 yargs/yargs-parser yargs-parser-v21.1.1 3aba24ceaa1a06ceb982c63a06002526d781e826 lib/index.ts"
 )
 
 CRATES="
@@ -212,16 +213,18 @@ CRATES="
 	zerocopy-derive@0.7.35
 "
 
-inherit cargo edo flag-o-matic
+inherit cargo edo flag-o-matic git-archive
 
 DESCRIPTION="The Rollup JavaScript bundler, built from source (CLI and native parser)"
 HOMEPAGE="https://rollupjs.org/ https://github.com/rollup/rollup"
+# The commit tag v4.21.0 points to, checked against the tarball in src_unpack.
+ROLLUP_COMMIT=c4bb050938778bcbe7b3b3ea3419f7fa70d60f5b
 SRC_URI="
 	https://github.com/rollup/rollup/archive/refs/tags/v${PV}.tar.gz -> rollup-${PV}.gh.tar.gz
 	${CARGO_CRATE_URIS}
 "
 _rollup_js_dep() {
-	read -r dep_name dep_ver dep_repo dep_tag dep_entry <<< "${1}"
+	read -r dep_name dep_ver dep_repo dep_tag dep_commit dep_entry <<< "${1}"
 	# @scope/name -> scope-name, for the distfile
 	dep_distfile="${dep_name#@}"
 	dep_distfile="${dep_distfile//\//-}-${dep_ver}.gh.tar.gz"
@@ -232,7 +235,7 @@ for _dep in "${ROLLUP_JS_DEPS[@]}"; do
 	_rollup_js_dep "${_dep}"
 	SRC_URI+=" https://github.com/${dep_repo}/archive/refs/tags/${dep_tag}.tar.gz -> ${dep_distfile}"
 done
-unset _dep dep_name dep_ver dep_repo dep_tag dep_entry dep_distfile dep_dir
+unset _dep dep_name dep_ver dep_repo dep_tag dep_commit dep_entry dep_distfile dep_dir
 S="${WORKDIR}/rollup-${PV}/rust"
 
 LICENSE="MIT"
@@ -252,6 +255,16 @@ BDEPEND="
 "
 
 QA_FLAGS_IGNORED="usr/lib/${PN}/${PV}/rollup.native.node"
+
+src_unpack() {
+	git-archive_verify rollup-${PV}.gh.tar.gz ${ROLLUP_COMMIT}
+	local _dep dep_name dep_ver dep_repo dep_tag dep_commit dep_entry dep_distfile dep_dir
+	for _dep in "${ROLLUP_JS_DEPS[@]}"; do
+		_rollup_js_dep "${_dep}"
+		git-archive_verify "${dep_distfile}" "${dep_commit}"
+	done
+	cargo_src_unpack
+}
 
 src_configure() {
 	# mimalloc 1.7.9 (via mimalloc-rust-sys) uses ATOMIC_VAR_INIT, which C23 removed.
@@ -283,7 +296,7 @@ src_compile() {
 		--alias:package.json=./package.json --alias:help.md=./cli/help.md
 		--alias:chokidar="${T}/chokidar.js"
 	)
-	local _dep dep_name dep_ver dep_repo dep_tag dep_entry dep_distfile dep_dir
+	local _dep dep_name dep_ver dep_repo dep_tag dep_commit dep_entry dep_distfile dep_dir
 	for _dep in "${ROLLUP_JS_DEPS[@]}"; do
 		_rollup_js_dep "${_dep}"
 		[[ -f ${WORKDIR}/${dep_dir}/${dep_entry} ]] || die "${dep_name}: ${dep_entry} not found"
