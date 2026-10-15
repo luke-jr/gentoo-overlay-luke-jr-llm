@@ -135,6 +135,51 @@ JS_SOURCES=(
 	"parsel LeaVerou/parsel e10f9c11667ee18cd1ab0bf5002becb2fd4d1b6e"
 	"rxjs ReactiveX/rxjs e5351d02e225e275ac0e497c7b66eaa5f0c88791"
 	"urlpattern-polyfill kenchris/urlpattern-polyfill f147a0f42a94a29ec1dcd229b218f3a700377f91"
+	# DevTools' codemirror.next: the packages it bundles (versions from its source maps;
+	# npm's gitHead; "haverbeke:" repositories moved from GitHub to code.haverbeke.berlin),
+	# and @lezer/generator 1.8.0 to make their parsers from the grammars
+	"cm:@codemirror/autocomplete codemirror/autocomplete d0c97d3e8e37cb83c3c854d63f20902d71aac9a1"
+	"cm:@codemirror/commands codemirror/commands b6d5695a3bcaf803aa1b077ecf91b2c3269e3596"
+	"cm:@codemirror/lang-angular codemirror/lang-angular 9cdc0cdd47229c19c5df1b110270d060c31fbd28"
+	"cm:@codemirror/lang-cpp codemirror/lang-cpp 972934ed5620a1d174dda48139c94afed3969dcf"
+	"cm:@codemirror/lang-css codemirror/lang-css 8bad51270d44d030f6ca45700ad827839358f518"
+	"cm:@codemirror/lang-html codemirror/lang-html c303dc95431a74ae1217730e4161fbb04d5d3973"
+	"cm:@codemirror/lang-java codemirror/lang-java c2a19162a37b4155197d192b646a448e0ba1287f"
+	"cm:@codemirror/lang-javascript codemirror/lang-javascript 61e1a8af1417f4cfebc9a0a3ab435ad1ffe18b44"
+	"cm:@codemirror/lang-less codemirror/lang-less a07c8335e6094ec8ebf297c37d27f1fdbfacfc9c"
+	"cm:@codemirror/lang-markdown codemirror/lang-markdown 90283323da269dcbc34a40b4dcab7fa1ab22d777"
+	"cm:@codemirror/lang-php codemirror/lang-php 8edb24c525431ff5083bc25ffe4d7a0d0f19ae41"
+	"cm:@codemirror/lang-python codemirror/lang-python d87154ec7014063e6c7e0dfe16c2a7be93471114"
+	"cm:@codemirror/lang-sass codemirror/lang-sass ecf8367100b898a2ee8b0ba9fdeda787d0acced6"
+	"cm:@codemirror/lang-vue codemirror/lang-vue 50efb40d5a538b9397953b4eb51d94d984ab9efa"
+	"cm:@codemirror/lang-wast codemirror/lang-wast 3739cffcc59c4c0a443ef78329a2b281fe71ab7c"
+	"cm:@codemirror/lang-xml codemirror/lang-xml ec7eeb6dadbf4840c0ecacee09d7377ec4bbd10d"
+	"cm:@codemirror/language codemirror/language 241b1de4653131a73d357c45b6b51712176235d4"
+	"cm:@codemirror/legacy-modes codemirror/legacy-modes ac35c73bd17e28c0c2515a189ace5139a18e987b"
+	"cm:@codemirror/search codemirror/search 7a4a57e52b4af5807d195296c9933c4c7df947f5"
+	"cm:@codemirror/state haverbeke:codemirror/state 651084c8a322b3a19b2bb3e00eee7d4a61d641af"
+	"cm:@codemirror/view codemirror/view 4ac4cdbf900df11855f269f82a89273380ad25ca"
+	"cm:@lezer/common lezer-parser/common 57c12197e2be3736ced20fa05ce6c53af8371324"
+	"cm:@lezer/cpp haverbeke:lezer/cpp c6585ded0c374a238e5deb822df848ee145548f6"
+	"cm:@lezer/css haverbeke:lezer/css 0cc0383ec2702695dd59026912918925fc917ae5"
+	"cm:@lezer/highlight lezer-parser/highlight 95aa69ecd22bfc8b3e1c793610e0d5cda1174e61"
+	"cm:@lezer/html lezer-parser/html 2ffc7dd12a206364a9fc549dc65a9f190cb61e29"
+	"cm:@lezer/java haverbeke:lezer/java f8302ee35f5c4c7a1a3b63e70c802d977871e9bc"
+	"cm:@lezer/javascript lezer-parser/javascript 371ae0e0659c18414a8e079c1eaa4586d400d9f0"
+	"cm:@lezer/lr lezer-parser/lr a6c2d2efa31ca5d1cf43fb522e4cfc11bf120838"
+	"cm:@lezer/markdown haverbeke:lezer/markdown f847886185e9262235ed3cf35b32bbb31bbe2f6d"
+	"cm:@lezer/php haverbeke:lezer/php 5222344cf05e15c86d5bd480e2d523e611a30be5"
+	"cm:@lezer/python haverbeke:lezer/python 618b4614b865777a012de28944bae6655383c393"
+	"cm:@lezer/sass lezer-parser/sass 40ea285acf39d2db4b29c0ddff9f0e7bdeceb471"
+	"cm:@lezer/xml lezer-parser/xml 99f043a01c6a034573cafd47f9cf3338744fea5e"
+	"cm:@marijn/find-cluster-break haverbeke:marijn/find-cluster-break 098961685c964055851434a40cbffb815057cc06"
+	"cm:@replit/codemirror-indentation-markers replit/codemirror-indentation-markers fee70fd4a6a2d80fbea9f2d6652e685fc215db82"
+	"cm:@replit/codemirror-lang-svelte replit/codemirror-lang-svelte 2ebdf38e85eff50caf4e7f852a847210f9237f18"
+	"cm:style-mod marijnh/style-mod 1325363c1fbc8490a351425cb0918951a30e7707"
+	"cm:w3c-keyname marijnh/w3c-keyname 5ea93b04bb62230c7de4165e3a9b5c840f05cd44"
+	"cm:crelt marijnh/crelt 25eabb104d50e160cd4e4acd9eed2eacb32b332b"
+	"cm:@lezer/markdown+@lezer/common lezer-parser/common de5f96276a2954c249de1475e8b03f79c20d9ce4"
+	"cm:@lezer/generator lezer-parser/generator 5ebf7e208f3c77f05f11ba6719ad819ab78f241c"
 	"terser-5.34 terser/terser v5.34.1"
 	"plugin-replace rollup/plugins replace-v5.0.7"
 	"plugin-virtual rollup/plugins virtual-v3.0.2"
@@ -148,12 +193,25 @@ inherit edo
 DESCRIPTION="Generated files of Chromium's npm packages, built from source"
 HOMEPAGE="https://www.chromium.org/"
 
-# _js_source <spec>: sets src_id, src_repo, src_ref, src_distfile and src_dir
-# (GitHub's archive directory: repository name, then the tag without a leading
-# "v" and with "/" and "@" as "-", or the commit).
+# _js_source <spec>: sets src_id, src_repo, src_ref, src_uri, src_distfile and
+# src_dir (GitHub's archive directory: repository name, then the tag without a
+# leading "v" and with "/" and "@" as "-", or the commit; Forgejo's: the
+# repository name).
 _js_source() {
 	read -r src_id src_repo src_ref <<< "${1}"
 	local ref=${src_ref//[\/@]/-}
+	if [[ ${src_repo} == haverbeke:* ]]; then
+		src_repo=${src_repo#haverbeke:}
+		src_uri="https://code.haverbeke.berlin/${src_repo}/archive/${src_ref}.tar.gz"
+		src_distfile="${src_repo//\//-}-${ref}.tar.gz"
+		src_dir="${src_repo##*/}"
+		return
+	fi
+	if [[ ${src_ref} =~ ^[0-9a-f]{40}$ ]]; then
+		src_uri="https://github.com/${src_repo}/archive/${src_ref}.tar.gz"
+	else
+		src_uri="https://github.com/${src_repo}/archive/refs/tags/${src_ref}.tar.gz"
+	fi
 	src_distfile="${src_repo//\//-}-${ref}.gh.tar.gz"
 	[[ ${ref} =~ ^v[0-9] ]] && ref=${ref#v}
 	src_dir="${src_repo##*/}-${ref}"
@@ -161,13 +219,9 @@ _js_source() {
 SRC_URI=""
 for _spec in "${JS_SOURCES[@]}"; do
 	_js_source "${_spec}"
-	if [[ ${src_ref} =~ ^[0-9a-f]{40}$ ]]; then
-		SRC_URI+=" https://github.com/${src_repo}/archive/${src_ref}.tar.gz -> ${src_distfile}"
-	else
-		SRC_URI+=" https://github.com/${src_repo}/archive/refs/tags/${src_ref}.tar.gz -> ${src_distfile}"
-	fi
+	SRC_URI+=" ${src_uri} -> ${src_distfile}"
 done
-unset _spec src_id src_repo src_ref src_distfile src_dir
+unset _spec src_id src_repo src_ref src_uri src_distfile src_dir
 # webdriver-bidi-protocol's type declarations (puppeteer's TypeScript inlines its const
 # enums; the package has no JavaScript, and its sources are generated from the WebDriver
 # BiDi specification)
@@ -242,7 +296,7 @@ REPLACED_PACKAGES=(
 
 # _dir <id>: the unpacked directory of a source
 _dir() {
-	local spec src_id src_repo src_ref src_distfile src_dir
+	local spec src_id src_repo src_ref src_uri src_distfile src_dir
 	for spec in "${JS_SOURCES[@]}"; do
 		_js_source "${spec}"
 		if [[ ${src_id} == "${1}" ]]; then
@@ -753,6 +807,84 @@ src_compile() {
 	mkdir -p "${image}/${fe}/puppeteer-replay/package/lib" || die
 	edo node "${BROOT}/usr/lib/rollup/4.21.0/rollup" tsc-out/main.js --format es --external lighthouse,puppeteer \
 		--silent --file "${image}/${fe}/puppeteer-replay/package/lib/main.js"
+	popd >/dev/null || die
+
+	# DevTools' codemirror.next: the npm packages it bundles, from their sources, as
+	# their builds make them (one ES module per package, dist/index.js; Lezer parsers
+	# generated from their grammars), into build/devtools-codemirror/node_modules for the
+	# Chromium ebuild to bundle with DevTools' bundle.ts. TypeScript packages also get a
+	# dist/index.d.ts re-exporting their sources, so that tsc knows which of bundle.ts's
+	# re-exports are types.
+	local cm="${WORKDIR}/image/build/devtools-codemirror/node_modules" cm_tools="${T}/cm-tools"
+	mkdir -p "${cm}" "${cm_tools}/lr" || die
+	# @lezer/generator (its grammar parser is hand-written), with @lezer/lr's constants
+	ln -s "$(_dir cm:@lezer/lr)/src" "${cm_tools}/lr/src" || die
+	ln -s src "${cm_tools}/lr/dist" || die
+	echo '{"name": "@lezer/lr", "main": "src/index.ts"}' > "${cm_tools}/lr/package.json" || die
+	edo "${ESBUILD}" "$(_dir cm:@lezer/generator)/src/index.ts" --bundle --format=esm --platform=node \
+		--target=node18 --log-level=warning --outfile="${cm_tools}/lezer-generator.mjs" \
+		--alias:@lezer/lr="${cm_tools}/lr" --alias:@lezer/common="$(_dir cm:@lezer/common)/src/index.ts"
+	cat > "${cm_tools}/gen.mjs" <<-'EOF' || die
+		// lezer-generator <grammar> -o <parser>: writes the parser and its .terms module
+		import { buildParserFile } from './lezer-generator.mjs';
+		import { readFileSync, writeFileSync } from 'fs';
+		const [file, parserOut, termsOut] = process.argv.slice(2);
+		const { parser, terms } = buildParserFile(readFileSync(file, 'utf8'), { fileName: file, moduleStyle: 'es' });
+		writeFileSync(parserOut, parser);
+		writeFileSync(termsOut, terms);
+	EOF
+	_cm_build() { # <package> <entry> [types entry]
+		edo "${ESBUILD}" "${cm}/${1}/${2}" --bundle --format=esm --platform=neutral --target=es2020 \
+			--packages=external --log-level=warning \
+			--tsconfig-raw='{"compilerOptions":{"useDefineForClassFields":false}}' --outfile="${cm}/${1}/dist/index.js"
+		if [[ -n ${3} ]]; then
+			echo "export * from \"../${3%.ts}\";" > "${cm}/${1}/dist/index.d.ts" || die
+		fi
+	}
+	local spec_cm id
+	for spec_cm in "${JS_SOURCES[@]}"; do
+		read -r id _ <<< "${spec_cm}"
+		[[ ${id} == cm:* && ${id} != cm:@lezer/generator ]] || continue
+		name=${id#cm:}
+		name=${name//+//node_modules/}
+		[[ ${name} == */* ]] && { mkdir -p "${cm}/${name%/*}" || die; }
+		cp -r "$(_dir "${id}")" "${cm}/${name}" || die
+		rm -rf "${cm}/${name}"/test "${cm}/${name}"/.github || die
+	done
+	pushd "${cm}" >/dev/null || die
+	for p in cpp css html java javascript php python sass xml; do
+		edo node "${cm_tools}/gen.mjs" @lezer/${p}/src/${p}.grammar @lezer/${p}/src/parser.js \
+			@lezer/${p}/src/parser.terms.js
+		f=src/parser.js
+		[[ ${p} == html ]] && f=src/index.js
+		_cm_build @lezer/${p} ${f}
+	done
+	local g b entry
+	for spec_cm in @codemirror/autocomplete:src/index.ts @codemirror/commands:src/commands.ts \
+		@codemirror/lang-angular:src/angular.ts @codemirror/lang-cpp:src/cpp.ts @codemirror/lang-css:src/css.ts \
+		@codemirror/lang-html:src/html.ts @codemirror/lang-java:src/java.ts @codemirror/lang-javascript:src/index.ts \
+		@codemirror/lang-less:src/less.ts @codemirror/lang-markdown:src/index.ts @codemirror/lang-php:src/php.ts \
+		@codemirror/lang-python:src/python.ts @codemirror/lang-sass:src/sass.ts @codemirror/lang-vue:src/vue.ts \
+		@codemirror/lang-wast:src/wast.ts @codemirror/lang-xml:src/xml.ts @codemirror/language:src/index.ts \
+		@codemirror/search:src/search.ts @codemirror/state:src/index.ts @codemirror/view:src/index.ts \
+		@lezer/common:src/index.ts @lezer/highlight:src/highlight.ts @lezer/lr:src/index.ts \
+		@lezer/markdown:src/index.ts @lezer/markdown/node_modules/@lezer/common:src/index.ts \
+		@replit/codemirror-indentation-markers:src/index.ts @replit/codemirror-lang-svelte:src/index.ts; do
+		p=${spec_cm%%:*}
+		entry=${spec_cm#*:}
+		# cm-buildhelper's rollup plugin: "./X.grammar" (and ".terms") imports get the parser
+		for g in "${p}"/src/*.grammar; do
+			[[ -f ${g} ]] || continue
+			b=${g##*/}
+			edo node "${cm_tools}/gen.mjs" "${g}" "${g}.gen.js" "${g}.terms.gen.js"
+			sed -i -e "s|\"\./${b}\"|\"./${b}.gen.js\"|g; s|\"\./${b}\.terms\"|\"./${b}.terms.gen.js\"|g" \
+				-e "s|'\./${b}'|'./${b}.gen.js'|g; s|'\./${b}\.terms'|'./${b}.terms.gen.js'|g" \
+				$(find "${p}/src" -maxdepth 1 -name '*.ts' -o -maxdepth 1 -name '*.js') || die
+		done
+		_cm_build "${p}" "${entry}" "${entry}"
+	done
+	# @codemirror/legacy-modes, style-mod, w3c-keyname, @marijn/find-cluster-break and crelt
+	# are ES modules as they are.
 	popd >/dev/null || die
 
 	local pkg

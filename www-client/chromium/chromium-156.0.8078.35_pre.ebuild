@@ -970,6 +970,44 @@ sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polym
 		cp "${f}" "${f}.map" "${devtools_lit}/lib/" || die
 	done
 
+	# DevTools' codemirror.next (codemirror.next.js, chunk/*.js): what its rebuild.sh does (tsc of
+	# bundle.ts, then its rollup.config.mjs; the .d.ts output is kept), with the packages
+	# dev-util/chromium-node-modules built from source and the tools above. (Of chunk/, css.js,
+	# html.js and javascript.js are stale: nothing uses them.)
+	local devtools_cm="${S}/third_party/devtools-frontend/src/front_end/third_party/codemirror.next"
+	local cm_build="${WORKDIR}/devtools-codemirror"
+	mkdir -p "${cm_build}/node_modules/@rollup/plugin-terser" "${cm_build}/node_modules/rollup-plugin-dts" || die
+	cp "${devtools_cm}/bundle.ts" "${devtools_cm}/rollup.config.mjs" "${cm_build}/" || die
+	cp -r "${cnm_dir}/build/devtools-codemirror/node_modules/." "${cm_build}/node_modules/" || die
+	ln -s "${S}/third_party/chromium-bidi/node_modules/@rollup/plugin-node-resolve" \
+		"${cm_build}/node_modules/@rollup/plugin-node-resolve" || die
+	ln -s "${S}/third_party/node/node_modules/terser" "${cm_build}/node_modules/terser" || die
+	cp "${FILESDIR}/chromium-rollup-plugin-terser.mjs" "${cm_build}/node_modules/@rollup/plugin-terser/index.mjs" || die
+	echo '{"name": "@rollup/plugin-terser", "exports": "./index.mjs"}' \
+		> "${cm_build}/node_modules/@rollup/plugin-terser/package.json" || die
+	echo 'export default () => ({ name: "dts" });' > "${cm_build}/node_modules/rollup-plugin-dts/index.mjs" || die
+	echo '{"name": "rollup-plugin-dts", "exports": "./index.mjs"}' \
+		> "${cm_build}/node_modules/rollup-plugin-dts/package.json" || die
+	echo 'import c from "./rollup.config.mjs"; export default c.filter(e => !e.input.endsWith(".d.ts"));' \
+		> "${cm_build}/js.config.mjs" || die
+	pushd "${cm_build}" >/dev/null || die
+	einfo "Building DevTools' codemirror.next bundle from source ..."
+	# (--noCheck: TypeScript 6 is stricter than the packages' own compiler)
+	"${BROOT}/usr/bin/tsc-${DEVTOOLS_TS_VER}" -t esnext -m esnext --moduleResolution bundler --ignoreConfig \
+		--skipLibCheck --noCheck bundle.ts || die "tsc failed for codemirror.next"
+	node "${S}/third_party/node/node_modules/@rollup/wasm-node/dist/bin/rollup" -c js.config.mjs \
+		> rollup.log 2>&1 || die "rollup failed for codemirror.next: $(<rollup.log)"
+	# every import must be bundled
+	grep -q 'Unresolved dependencies' rollup.log && die "codemirror.next: $(<rollup.log)"
+	popd >/dev/null || die
+	local cm_rel
+	for f in "${cm_build}"/codemirror.next.js "${cm_build}"/chunk/*.js; do
+		cm_rel=${f#"${cm_build}"/}
+		[[ -f ${devtools_cm}/${cm_rel} ]] || die "Unexpected codemirror.next output ${cm_rel}"
+		cp "${f}" "${devtools_cm}/${cm_rel}" || die
+		cp "${f}.map" "${devtools_cm}/${cm_rel}.map" || die
+	done
+
 	# DevTools' web-vitals (front_end/third_party/web-vitals): package/src is web-vitals' source
 	# with DevTools' patches; compile it as its rebuild.sh does.
 	local web_vitals="${S}/third_party/devtools-frontend/src/front_end/third_party/web-vitals/package"
