@@ -867,6 +867,11 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 		rm -f "${S}/${cnm_file}" || die
 		cp "${cnm_dir}/${cnm_file}" "${S}/${cnm_file}" || die "Failed to copy ${cnm_file}"
 	done < <(cd "${cnm_dir}" && find . -type f -printf '%P\0' || die)
+	# Chromium patches some npm packages (third_party/node/patches; the tree has them applied).
+	# Of the files replaced above, that is only lit-html.js: apply its patch again.
+	pushd "${S}/third_party/node" >/dev/null || die
+	eapply "${S}/third_party/node/patches/lit_html.patch"
+	popd >/dev/null || die
 
 	# Polymer: third_party/polymer/v3_0's reproduce.sh and minify_polymer.sh generate
 	# polymer_bundled.min.js from @polymer/polymer and @webcomponents/shadycss (npm's files are

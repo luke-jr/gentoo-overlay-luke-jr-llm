@@ -107,6 +107,16 @@ JS_SOURCES=(
 	"js-yaml nodeca/js-yaml 5.4.1"
 	"uuid uuidjs/uuid v14.0.0"
 	"esbuild evanw/esbuild v0.28.2"
+	# WebUI's lit (3.3.0, lit-html 3.3.0, lit-element 4.2.0, @lit/reactive-element 2.1.0,
+	# one commit), built with its rollup-common.js: rollup-plugin-terser's terser and
+	# the rollup plugins that change the output
+	"lit lit/lit eb71041517fe054b736823bd8cec5f0c8835e54c"
+	"terser-5.34 terser/terser v5.34.1"
+	"plugin-replace rollup/plugins replace-v5.0.7"
+	"plugin-virtual rollup/plugins virtual-v3.0.2"
+	"pluginutils-5.1 rollup/plugins pluginutils-v5.1.0"
+	"magic-string-0.30.7 Rich-Harris/magic-string v0.30.7"
+	"picomatch-2.3 micromatch/picomatch 2.3.1"
 )
 
 inherit edo
@@ -146,6 +156,7 @@ RESTRICT="!test? ( test )"
 
 BDEPEND="
 	dev-lang/typescript:6.0.2
+	dev-util/rollup:4.21.0
 	dev-libs/protobuf
 	dev-util/esbuild
 	net-libs/nodejs
@@ -160,6 +171,10 @@ REPLACED_PACKAGES=(
 	"third_party/chromium-bidi/node_modules/rollup-plugin-license 3.7.1"
 	"third_party/node/node_modules/ts-proto 2.7.7"
 	"third_party/node/node_modules/@bufbuild/protobuf 2.2.5"
+	"third_party/node/node_modules/lit 3.3.0"
+	"third_party/node/node_modules/lit-html 3.3.0"
+	"third_party/node/node_modules/lit-element 4.2.0"
+	"third_party/node/node_modules/@lit/reactive-element 2.1.0"
 	"third_party/devtools-frontend/src/node_modules/entities 4.5.0"
 	"third_party/devtools-frontend/src/node_modules/domelementtype 2.3.0"
 	"third_party/devtools-frontend/src/node_modules/domhandler 5.0.3"
@@ -407,6 +422,76 @@ src_compile() {
 		--ignoreDeprecations 6.0 --noCheck \
 		--outDir "${WORKDIR}/image/${webui}/@bufbuild/protobuf/dist/esm"
 	popd >/dev/null || die
+
+	# WebUI's lit: compile each package (tsc --build: development/), then run its
+	# rollup.config.js (../../rollup-common.js: minified files with a shared terser
+	# name cache). The rollup plugins it imports: rollup-plugin-terser (in process,
+	# files/), @rollup/plugin-replace and -virtual from source; the others (size
+	# summary, test copies, source maps, the Node build's DOM shim and its bundled
+	# polyfill-support) don't change the files Chromium uses, and are no-ops. The
+	# result is byte-identical to npm's (Chromium's lit_html.patch is applied by
+	# the Chromium ebuild).
+	local lit
+	lit=$(_dir lit) || die
+	local nm="${lit}/node_modules"
+	mkdir -p "${nm}"/terser "${nm}"/rollup-plugin-terser "${nm}"/@rollup || die
+	_bundle cjs "${nm}/terser/index.js" terser-5.34:main.js acorn=external \
+		@jridgewell/source-map=source-map:src/source-map.ts \
+		@jridgewell/gen-mapping=gen-mapping:src/gen-mapping.ts \
+		@jridgewell/trace-mapping=trace-mapping:src/trace-mapping.ts \
+		@jridgewell/set-array=set-array:src/set-array.ts \
+		@jridgewell/resolve-uri=resolve-uri:src/resolve-uri.ts \
+		@jridgewell/sourcemap-codec=sourcemap-codec-1.4.15:src/sourcemap-codec.ts
+	cp "${FILESDIR}"/rollup-plugin-terser-7.0.2.js "${nm}"/rollup-plugin-terser/index.js || die
+	_bundle esm "${nm}/@rollup/plugin-replace/index.js" plugin-replace:packages/replace/src/index.js \
+		@rollup/pluginutils=pluginutils-5.1:packages/pluginutils/src/index.ts \
+		estree-walker=estree-walker-2:src/index.js picomatch=picomatch-2.3 \
+		magic-string=magic-string-0.30.7:src/index.js \
+		@jridgewell/sourcemap-codec=sourcemap-codec-1.4.15:src/sourcemap-codec.ts
+	_bundle esm "${nm}/@rollup/plugin-virtual/index.js" plugin-virtual:packages/virtual/src/index.ts
+	local stub
+	for stub in \
+		"rollup-plugin-summary:export function summary() { return { name: 'summary' }; }" \
+		"rollup-plugin-copy:export default function copy() { return { name: 'copy' }; }" \
+		"rollup-plugin-sourcemaps:export default function sourcemaps() { return { name: 'sourcemaps' }; }" \
+		"@rollup/plugin-node-resolve:export default function nodeResolve() { return { name: 'node-resolve' }; }" \
+		"@rollup/plugin-inject:export default function inject() { return { name: 'inject' }; }"
+	do
+		mkdir -p "${nm}/${stub%%:*}" || die
+		echo "${stub#*:}" > "${nm}/${stub%%:*}/index.js" || die
+	done
+	local d
+	for d in rollup-plugin-terser rollup-plugin-summary rollup-plugin-copy rollup-plugin-sourcemaps \
+		@rollup/plugin-replace @rollup/plugin-virtual @rollup/plugin-node-resolve @rollup/plugin-inject; do
+		echo '{"type": "module", "main": "index.js"}' > "${nm}/${d}/package.json" || die
+	done
+	echo '{"main": "index.js"}' > "${nm}/terser/package.json" || die
+	local p f
+	local -A lit_files=(
+		[reactive-element]="@lit/reactive-element:css-tag.js reactive-element.js"
+		[lit-html]="lit-html:async-directive.js directive-helpers.js directive.js directives/repeat.js is-server.js lit-html.js"
+		[lit-element]="lit-element:lit-element.js"
+		[lit]="lit:directives/repeat.js index.js"
+	)
+	for p in reactive-element lit-html lit-element lit; do
+		pushd "${lit}/packages/${p}" >/dev/null || die
+		# (types: test-only type packages; --noCheck: TypeScript 6 for its TypeScript 5 config)
+		echo '{"extends": "./tsconfig.json", "compilerOptions": {"types": []}}' > tsconfig.gentoo.json || die
+		edo "${BROOT}/usr/bin/tsc-6.0.2" -p tsconfig.gentoo.json --noCheck --ignoreDeprecations 6.0
+		if [[ -f tsconfig.polyfill-support.json ]]; then
+			echo '{"extends": "./tsconfig.polyfill-support.json", "compilerOptions": {"types": []}}' \
+				> tsconfig.ps-gentoo.json || die
+			edo "${BROOT}/usr/bin/tsc-6.0.2" -p tsconfig.ps-gentoo.json --noCheck --ignoreDeprecations 6.0
+		fi
+		edo node "${BROOT}/usr/lib/rollup/4.21.0/rollup" -c rollup.config.js --silent
+		local dest
+		for f in ${lit_files[${p}]#*:}; do
+			dest="${WORKDIR}/image/${webui}/${lit_files[${p}]%%:*}/${f}"
+			mkdir -p "${dest%/*}" || die
+			cp "${f}" "${dest}" || die
+		done
+		popd >/dev/null || die
+	done
 
 	# DevTools: the generated npm packages its CSS minification (cssnano) and SVG
 	# optimization (svgo) use, each replaced in place, its npm imports resolving
