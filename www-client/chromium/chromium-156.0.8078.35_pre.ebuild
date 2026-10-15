@@ -557,6 +557,8 @@ src_prepare() {
 		"${FILESDIR}/chromium-156-openxr-vulkan-headers.patch"
 		# GN arg enable_webui_lint, to skip the ESLint/Stylelint checks (see below).
 		"${FILESDIR}/chromium-156-webui-lint-arg.patch"
+		# ts-proto's protoc plugin comes from dev-util/chromium-node-modules (see below).
+		"${FILESDIR}/chromium-156-ts-proto-from-source.patch"
 	)
 
 	# So many fontconfig magic numbers to cover
