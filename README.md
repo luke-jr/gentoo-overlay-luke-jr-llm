@@ -178,6 +178,21 @@ No USE flags were removed.
     in, but only apply where a feature is missing.
   - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
     by this build.
+
+  Sources are git revisions, checked against the commit they're pinned to:
+  - Forge tarballs fetched by tag list the tag's commit (from `git ls-remote`), and
+    `eclass/git-archive.eclass` checks the commit ID that `git archive` records in each tarball.
+  - Single files taken from DevTools' repository are checked against their git blob IDs.
+  - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
+    comes from DevTools' commit 845cad7, 25 minutes before its release. Its source maps hold those
+    files, except for the edits of an unpublished packaging script. Those edits are
+    `files/lighthouse-trace-engine-0.0.65-packaging.patch`, and the build checks the patched sources
+    against the source maps.
+  - `http-link-header` 1.1.1 comes from a fork that still has its commit, since the original repository
+    is gone.
+  - emoji-regex's pattern is generated with `files/emoji-test-regex-pattern.mjs`, not upstream's
+    downloaded PHP tool. It is 13.8 KB vs upstream's 14.1 KB, and matches the same on 210,452 test
+    strings.
 - **Crubit notes:** see `NOTES-crubit.md`.
 - **Metadata:** no package lists a maintainer: the `::gentoo` ones' Gentoo maintainers were removed, since
   they don't maintain this overlay. Add yourself if you like. The generated AppStream data uses upstream
