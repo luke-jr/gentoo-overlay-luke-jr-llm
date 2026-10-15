@@ -85,7 +85,7 @@ masked) keeps the previous set and its packages.
     them are prebuilt Clang `.tar.xz` files and a tarball copy of `node_modules`. None of the ~1,400 files
     is an input of the targets the ebuild builds.
   - Re-checks after system tools are linked in, and **dies** on anything left over. The
-    only exception is our own `tsc` from `dev-lang/typescript-native`; nothing prebuilt
+    only exception is our own `tsc` from `dev-lang/typescript`; nothing prebuilt
     is allowed.
 - **`chromium-156-no-runtime-executable-downloads.patch`:** Chromium never downloads or
   loads code via the component updater: Widevine CDM, Screen AI, SODA, TranslateKit, the
