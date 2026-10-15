@@ -14,100 +14,99 @@ EAPI=8
 #
 # Slotted by Chromium's major version, whose npm package versions this follows.
 
-# Sources: id, GitHub repository, then a commit, or a tag and the commit it points
-# to (src_unpack checks that each archive was made from that commit).
+# Sources: id, GitHub repository, tag (or commit).
 JS_SOURCES=(
 	# terser/dist/bundle.min.js
-	"terser terser/terser v5.37.0 58ba5c163fa1684f2a63c7bc19b7ebcf85b74f73"
-	"gen-mapping jridgewell/gen-mapping v0.3.3 7626d310002df682012dc29bdfa4d674027f1538"
-	"resolve-uri jridgewell/resolve-uri v3.1.1 8189d8d3a10bccc7c7b425ca07aeb86999e90bcb"
-	"set-array jridgewell/set-array v1.1.2 f1d9855dd0d7e34bcc02307249783589ed715661"
-	"source-map jridgewell/source-map v0.3.5 25673db757fd740449d5f45d96648f30448662be"
-	"sourcemap-codec-1.4.15 jridgewell/sourcemap-codec v1.4.15 f3d95b857d24fc3f1692dec4d1ed724fe12488a3"
-	"trace-mapping jridgewell/trace-mapping v0.3.19 5ccfcfeeee9dfa3b13567bb0f95260ea32f2c269"
+	"terser terser/terser v5.37.0"
+	"gen-mapping jridgewell/gen-mapping v0.3.3"
+	"resolve-uri jridgewell/resolve-uri v3.1.1"
+	"set-array jridgewell/set-array v1.1.2"
+	"source-map jridgewell/source-map v0.3.5"
+	"sourcemap-codec-1.4.15 jridgewell/sourcemap-codec v1.4.15"
+	"trace-mapping jridgewell/trace-mapping v0.3.19"
 	# chromium-bidi: @rollup/plugin-node-resolve
-	"node-resolve rollup/plugins node-resolve-v16.0.3 764910a09d57e3b55cb4d027765b717a50341253"
-	"pluginutils rollup/plugins pluginutils-v5.3.0 ca4780995433fb55b709c91f28d5c13066ebf026"
-	"deepmerge TehShrike/deepmerge v4.3.1 5b87756a5671635679001cbac72aa42f23472c81"
-	"is-mergeable-object TehShrike/is-mergeable-object v1.1.0 0d3d3c837e74b03191850544abd1abf23e94ae89"
-	"is-module component/is-module 1.0.0 b2179523cda03bb6d5aff525bfd6cabf2d22b13c"
-	"resolve browserify/resolve v1.22.11 f24742ccc61eb20fadd50c3481321dfcdf95d77a"
-	"is-core-module inspect-js/is-core-module v2.16.1 7c4284853357b2fcd49d42010d5a2b8a8420905f"
-	"hasown inspect-js/hasOwn v2.0.2 d00d35005baf16a33d691a13f8ad627f35040742"
-	"function-bind Raynos/function-bind v1.1.2 40197beb5f4cf89dd005f0b268256c1e4716ea81"
-	"path-parse jbgutierrez/path-parse v1.0.7 9f1db2802ffbc572e6b447f66126697e33b0055e"
-	"supports-preserve-symlinks-flag inspect-js/node-supports-preserve-symlinks-flag v1.0.0 1f7cac19c0c298cf40b3f2f3c735477ad579ac61"
-	"estree-walker-2 Rich-Harris/estree-walker v2.0.2 3ac96d685ddedb1701009945d9911fa41d60b0ce"
-	"picomatch-4 micromatch/picomatch 4.0.4 e5474fc1a4d7991870058170407dda8a42be5334"
+	"node-resolve rollup/plugins node-resolve-v16.0.3"
+	"pluginutils rollup/plugins pluginutils-v5.3.0"
+	"deepmerge TehShrike/deepmerge v4.3.1"
+	"is-mergeable-object TehShrike/is-mergeable-object v1.1.0"
+	"is-module component/is-module 1.0.0"
+	"resolve browserify/resolve v1.22.11"
+	"is-core-module inspect-js/is-core-module v2.16.1"
+	"hasown inspect-js/hasOwn v2.0.2"
+	"function-bind Raynos/function-bind v1.1.2"
+	"path-parse jbgutierrez/path-parse v1.0.7"
+	"supports-preserve-symlinks-flag inspect-js/node-supports-preserve-symlinks-flag v1.0.0"
+	"estree-walker-2 Rich-Harris/estree-walker v2.0.2"
+	"picomatch-4 micromatch/picomatch 4.0.4"
 	# chromium-bidi: rollup-plugin-cleanup
-	"rollup-plugin-cleanup aMarCruz/rollup-plugin-cleanup 3.2.1 4988f5428afd7ed313f1e5c5fcd3634df12eb6c7"
-	"js-cleanup aMarCruz/js-cleanup 1.2.0 8bff91d919147b8f26bb0d98d4581cb6eb0faa56"
-	"rollup-pluginutils rollup/rollup-pluginutils 2.8.2 3038972a1295c9e8a251a6bd859aef7fd5906594"
-	"estree-walker-0 Rich-Harris/estree-walker v0.6.1 090224a0273d85fb74a1006dd1171bde734f1ed7"
-	"micromatch micromatch/micromatch 4.0.2 bdd32f41e07f401b12ae7c8b04d22b275c88c84b"
-	"braces micromatch/braces 3.0.2 25791512d219b284bd62bb068cae85d8e68bd05b"
+	"rollup-plugin-cleanup aMarCruz/rollup-plugin-cleanup 3.2.1"
+	"js-cleanup aMarCruz/js-cleanup 1.2.0"
+	"rollup-pluginutils rollup/rollup-pluginutils 2.8.2"
+	"estree-walker-0 Rich-Harris/estree-walker v0.6.1"
+	"micromatch micromatch/micromatch 4.0.2"
+	"braces micromatch/braces 3.0.2"
 	# 7.0.1 isn't tagged; npm's gitHead for it
 	"fill-range jonschlinkert/fill-range 39f421b499d5c97b62e955c179fa34c062aab2a5"
-	"to-regex-range micromatch/to-regex-range 5.0.1 1191a52afa82f52983e684ceeb8f8d3a150fa881"
-	"is-number jonschlinkert/is-number 7.0.0 98e8ff1da1a89f93d1397a24d7413ed15421c139"
-	"picomatch-2 micromatch/picomatch 2.0.7 9eb9a71780035c5c3e2c1e67eafa3d967f2289b2"
-	"magic-string-0.25 Rich-Harris/magic-string v0.25.9 69336fccbb46e721d58faa5c7a0d0b7ed6ee09d2"
-	"sourcemap-codec-1.4.8 Rich-Harris/sourcemap-codec v1.4.8 b549c1ee22f79bdf777d7bfe6471fe4293cd6391"
-	"perf-regexes aMarCruz/perf-regexes 1.0.1 1fa787b085ddd4c58514c455472f37eb421eb924"
-	"skip-regex aMarCruz/skip-regex 1.0.2 1ce5518d347a519388edc965dc2537f80c1deae3"
+	"to-regex-range micromatch/to-regex-range 5.0.1"
+	"is-number jonschlinkert/is-number 7.0.0"
+	"picomatch-2 micromatch/picomatch 2.0.7"
+	"magic-string-0.25 Rich-Harris/magic-string v0.25.9"
+	"sourcemap-codec-1.4.8 Rich-Harris/sourcemap-codec v1.4.8"
+	"perf-regexes aMarCruz/perf-regexes 1.0.1"
+	"skip-regex aMarCruz/skip-regex 1.0.2"
 	# chromium-bidi: rollup-plugin-license
-	"rollup-plugin-license mjeanroy/rollup-plugin-license v3.7.1 6faf8f51c7e5f48f1a8dc0be313b038c054a84af"
-	"commenting 3rd-Eden/commenting 1.1.0 b63e05164d3a63018ad6ec2f2ee914b43c02d32f"
-	"fdir thecodrr/fdir v6.5.0 14c678e70e714f32e511cdf24c8d2392ac25ba0f"
-	"lodash lodash/lodash 4.18.1 cb0b9b9212521c08e3eafe7c8cb0af1b42b6649e"
-	"magic-string-0.30 Rich-Harris/magic-string v0.30.21 410fd4d080d8bf0b5be900c16c8ba11276fd8749"
-	"sourcemap-codec-1.5.5 jridgewell/sourcemaps sourcemap-codec/1.5.5 e53a6dfb18f404a0cc77d1c92aa4bcc11dac16a6"
-	"moment moment/moment 2.30.1 485d9a7d709bd5f3869a7ad24630cf0746d072dc"
-	"package-name-regex dword-design/package-name-regex v2.0.6 9deb185730a583405231ece789b688f3d2312de6"
-	"spdx-expression-validate kemitchell/spdx-expression-validate.js v2.0.0 a7c4716bba138dcfdde306be2ad2c99e95877784"
-	"spdx-satisfies kemitchell/spdx-satisfies.js v5.0.1 77bab7cf13401bce9773ada2c39137fc21a33444"
-	"spdx-compare kemitchell/spdx-compare.js v1.0.0 cb7853325dc0aafdeeec932590781c1dd4b40ff7"
-	"spdx-expression-parse jslicense/spdx-expression-parse.js v3.0.1 d7daff468ce455f636838a8375d8699cf36be64d"
-	"spdx-ranges kemitchell/spdx-ranges.js v2.1.1 e943260950eecbb8c96d05cd2a3fffc0c0d73604"
-	"spdx-license-ids jslicense/spdx-license-ids v3.0.22 f369a267a02ecd01efd24e97dde27dd167706bc6"
-	"spdx-exceptions kemitchell/spdx-exceptions.json v2.5.0 3aa64bec339abc6a3eca00c3436aaa7e154b8799"
-	"array-find-index sindresorhus/array-find-index v1.0.2 983f4c827ad22fa0353182b1ddcbfaecd4412859"
+	"rollup-plugin-license mjeanroy/rollup-plugin-license v3.7.1"
+	"commenting 3rd-Eden/commenting 1.1.0"
+	"fdir thecodrr/fdir v6.5.0"
+	"lodash lodash/lodash 4.18.1"
+	"magic-string-0.30 Rich-Harris/magic-string v0.30.21"
+	"sourcemap-codec-1.5.5 jridgewell/sourcemaps sourcemap-codec/1.5.5"
+	"moment moment/moment 2.30.1"
+	"package-name-regex dword-design/package-name-regex v2.0.6"
+	"spdx-expression-validate kemitchell/spdx-expression-validate.js v2.0.0"
+	"spdx-satisfies kemitchell/spdx-satisfies.js v5.0.1"
+	"spdx-compare kemitchell/spdx-compare.js v1.0.0"
+	"spdx-expression-parse jslicense/spdx-expression-parse.js v3.0.1"
+	"spdx-ranges kemitchell/spdx-ranges.js v2.1.1"
+	"spdx-license-ids jslicense/spdx-license-ids v3.0.22"
+	"spdx-exceptions kemitchell/spdx-exceptions.json v2.5.0"
+	"array-find-index sindresorhus/array-find-index v1.0.2"
 	# WebUI's CSS minifier: postcss-selector-parser
-	"postcss-selector-parser postcss/postcss-selector-parser v6.1.2 1b1e9c3bc10ccc3bc5f07a987caa7f2684c0b52f"
-	"cssesc mathiasbynens/cssesc v3.0.0 cb894eb42f27c8d3cd793f16afe35b3ab38000a1"
-	"regenerate mathiasbynens/regenerate v1.4.2 11567339f40fd262435934d544885bc047cb4220"
-	"util-deprecate TooTallNate/util-deprecate 1.0.2 475fb6857cd23fafff20c1be846c1350abf8e6d4"
+	"postcss-selector-parser postcss/postcss-selector-parser v6.1.2"
+	"cssesc mathiasbynens/cssesc v3.0.0"
+	"regenerate mathiasbynens/regenerate v1.4.2"
+	"util-deprecate TooTallNate/util-deprecate 1.0.2"
 	# ts-proto (protoc plugin generating TypeScript); untagged ones by npm's gitHead
-	"ts-proto stephenh/ts-proto v2.7.7 65dc52fdc390c4a6a373fa3212bac58aaa480713"
+	"ts-proto stephenh/ts-proto v2.7.7"
 	"ts-proto-descriptors stephenh/ts-proto f828a779495538cdd5719d23d28d6697d86bdeb3"
 	"ts-poet stephenh/ts-poet bda410a132645d243090bdd01cdb6559e4964ab2"
 	"case-anything mesqueeb/case-anything 4ff82505a22d1f71fc2528ed8f9a5691ca1d0511"
-	"bufbuild-protobuf bufbuild/protobuf-es v2.2.5 6a81dc6f398f44ba1c6f7fb7c48a0856ed07566d"
+	"bufbuild-protobuf bufbuild/protobuf-es v2.2.5"
 	# DevTools: CSS minification (cssnano) and SVG optimization (svgo)
-	"entities fb55/entities v4.5.0 61afd4701eaa736978b13c7351cd3de9a96b04bc"
-	"domelementtype fb55/domelementtype v2.3.0 687e8625885a3656d44c41e7640c86925417d91f"
-	"domhandler fb55/domhandler v5.0.3 767c031b7db3ed79cde865dc368b2de930ae1934"
-	"dom-serializer cheeriojs/dom-serializer v2.0.0 add044a9615207b80a389b44619e2ad4cc4b8cae"
-	"domutils fb55/domutils v3.2.2 0ab8bcf1ecfc70dfc93291a4cb2496578ac25e9c"
-	"nth-check fb55/nth-check v2.1.1 639fd2a4000b69f82350aad8c34cb43f77e483ba"
-	"css-what fb55/css-what v7.0.0 47ba76df188c15e7c4e2ec314ecd9fe5337a6141"
-	"css-select fb55/css-select v6.0.0 7bb0cda6593c9a69f4c9a5d2b076f26b0fe508c2"
+	"entities fb55/entities v4.5.0"
+	"domelementtype fb55/domelementtype v2.3.0"
+	"domhandler fb55/domhandler v5.0.3"
+	"dom-serializer cheeriojs/dom-serializer v2.0.0"
+	"domutils fb55/domutils v3.2.2"
+	"nth-check fb55/nth-check v2.1.1"
+	"css-what fb55/css-what v7.0.0"
+	"css-select fb55/css-select v6.0.0"
 	"css-tokenizer csstools/postcss-plugins 9256e22798ff1360e178912af9b57d59d0601c99"
-	"baseline-browser-mapping web-platform-dx/baseline-browser-mapping v2.11.21 0e5ed80e21dda23cac3dc1f6ec37e6b5fc4ea734"
-	"caniuse-api MoOx/caniuse-api 4.0.0 9a2a431214f5a5da3265afe31901bf664b3f3d05"
-	"postcss-selector-parser-7 postcss/postcss-selector-parser 7.1.6 4eb3468e754f9f94d2092d103767bae98aa41438"
-	"nanoid ai/nanoid 3.3.18 9ad98052b316c5e707f8098ace509d2ae165e54d"
-	"colordx dkryaklin/colordx @colordx/core@6.4.0 2adb9dc85cecff9506629ebb7d0a9d576ccfcb25"
+	"baseline-browser-mapping web-platform-dx/baseline-browser-mapping v2.11.21"
+	"caniuse-api MoOx/caniuse-api 4.0.0"
+	"postcss-selector-parser-7 postcss/postcss-selector-parser 7.1.6"
+	"nanoid ai/nanoid 3.3.18"
+	"colordx dkryaklin/colordx @colordx/core@6.4.0"
 	# DevTools: build scripts (yargs, ...), esbuild's JavaScript API
-	"yargs yargs/yargs v18.1.0 8878a894111e3fe7c98d84af546c0f34fa017492"
-	"y18n yargs/y18n v5.0.5 b64ae70b3cf3d6fd95206f5913a2b3f2b3524f9c"
-	"cliui yargs/cliui v9.0.1 2737977df41e728bd8c7d3ca0658498273cecce5"
-	"yargs-parser-22 yargs/yargs-parser yargs-parser-v22.0.0 553c808cb0a8730980cacd23b8b8e3038ab7c61f"
-	"escalade lukeed/escalade v3.2.0 fa5be167391581849cff04dbc75dc2978744b642"
-	"get-caller-file stefanpenner/get-caller-file v2.0.5 2383bf9e98ed3c568ff69d7586cf59c0f1dcb9d3"
-	"js-yaml nodeca/js-yaml 5.4.1 e5a3ba0efee53629b979f784cd53736f89ea61b6"
-	"uuid uuidjs/uuid v14.0.0 7c1ea087a8149b57380fc8bb7f68c3a215cb6e4b"
-	"esbuild evanw/esbuild v0.28.2 609683d892977362a0f99026cb74b96263d728a9"
+	"yargs yargs/yargs v18.1.0"
+	"y18n yargs/y18n v5.0.5"
+	"cliui yargs/cliui v9.0.1"
+	"yargs-parser-22 yargs/yargs-parser yargs-parser-v22.0.0"
+	"escalade lukeed/escalade v3.2.0"
+	"get-caller-file stefanpenner/get-caller-file v2.0.5"
+	"js-yaml nodeca/js-yaml 5.4.1"
+	"uuid uuidjs/uuid v14.0.0"
+	"esbuild evanw/esbuild v0.28.2"
 	# WebUI's lit (3.3.0, lit-html 3.3.0, lit-element 4.2.0, @lit/reactive-element 2.1.0,
 	# one commit), built with its rollup-common.js: rollup-plugin-terser's terser and
 	# the rollup plugins that change the output
@@ -121,7 +120,7 @@ JS_SOURCES=(
 	"codemirror5 codemirror/codemirror5 eac70bb1a31a08201e5705c788cd72e6283958f0"
 	"diff-match-patch google/diff-match-patch 0ae308daa77aeddb089cd6b7b0a443fca026266e"
 	"formatjs formatjs/formatjs 51a665ca0a7c6129c0c93b6b7837603a8e31caa4"
-	"json5 json5/json5 v2.2.3 c3a75242772a5026a49c4017a16d9b3543b62776"
+	"json5 json5/json5 v2.2.3"
 	"marked markedjs/marked 0a2cd54cbe91911890e4460ae4fd7b9966e05654"
 	"wasmparser wasdk/wasmparser e0a3281fdd678e6e3d5624b6d939bdf7c3d215ad"
 	# chromium-bidi's BiDi mapper bundles these
@@ -181,12 +180,12 @@ JS_SOURCES=(
 	"cm:crelt marijnh/crelt 25eabb104d50e160cd4e4acd9eed2eacb32b332b"
 	"cm:@lezer/markdown+@lezer/common lezer-parser/common de5f96276a2954c249de1475e8b03f79c20d9ce4"
 	"cm:@lezer/generator lezer-parser/generator 5ebf7e208f3c77f05f11ba6719ad819ab78f241c"
-	"terser-5.34 terser/terser v5.34.1 d3eac90c7573c80431109b8c1cc15de5b7cca6aa"
-	"plugin-replace rollup/plugins replace-v5.0.7 7278248d5a87295df368116b4effe0d23f17964e"
-	"plugin-virtual rollup/plugins virtual-v3.0.2 cdf9113a14c116520ef9f937a1151797666bbfa2"
-	"pluginutils-5.1 rollup/plugins pluginutils-v5.1.0 02f9724ed74da05410dd500fc336cfb497b4563f"
-	"magic-string-0.30.7 Rich-Harris/magic-string v0.30.7 44b0407a6a0812f50bcaf2e0ab86081cd1015775"
-	"picomatch-2.3 micromatch/picomatch 2.3.1 5467a5a9638472610de4f30709991b9a56bb5613"
+	"terser-5.34 terser/terser v5.34.1"
+	"plugin-replace rollup/plugins replace-v5.0.7"
+	"plugin-virtual rollup/plugins virtual-v3.0.2"
+	"pluginutils-5.1 rollup/plugins pluginutils-v5.1.0"
+	"magic-string-0.30.7 Rich-Harris/magic-string v0.30.7"
+	"picomatch-2.3 micromatch/picomatch 2.3.1"
 	# DevTools' Lighthouse 13.5.0 (lighthouse-dt-bundle.js, the report renderer and
 	# generator) and legacy-javascript, and the npm packages Lighthouse's build bundles
 	# (versions from its yarn.lock; untagged ones by npm's gitHead). acorn, hasown,
@@ -198,17 +197,17 @@ JS_SOURCES=(
 	"jpeg-js eugeneware/jpeg-js 9ccd35fb5f55a6c4f1902ac5b0f270f675750c27"
 	"image-ssim darosh/image-ssim-js 13aa263ad13f69cdfaa31c5ff00e1d8eac9dc15b"
 	"lighthouse-stack-packs GoogleChrome/lighthouse-stack-packs 0dd6b19c23b2b4de3946bc183f31eb040014c1f0"
-	"format-message format-message/format-message v6.2.0 ef02f024d2f3c5c0f0cd21a618f78c7d12d03fb3"
+	"format-message format-message/format-message v6.2.0"
 	"robots-parser samclarke/robots-parser dd032ec3da65e49bf2ba8d7224bd20883ef8ff34"
 	"soft-navigation adamraine/lighthouse-plugin-soft-navigation b924172990ad3688da41b8f4cce22ede3c39dce6"
 	"resolve-1.22.10 browserify/resolve d1e73275da515a3bc5d0064f15ebf09b3947199b"
 	"magic-string-0.27 Rich-Harris/magic-string 69336fccbb46e721d58faa5c7a0d0b7ed6ee09d2"
 	"builtin-modules sindresorhus/builtin-modules 0d234f3ad3965c57d8cc5b9ca198c505fe032452"
 	"escape-string-regexp sindresorhus/escape-string-regexp 71083e89129bcf72a10656508de5442d3f97966d"
-	"lh-fast-memoize formatjs/formatjs @formatjs/fast-memoize@2.2.0 61bb35ed3a3cfc0e225077b2f5697aca85a2cee3"
-	"lh-icu-messageformat-parser formatjs/formatjs @formatjs/icu-messageformat-parser@2.6.2 6fa9d110465d334cae9a61edc1d90481c6bd9367"
-	"lh-icu-skeleton-parser formatjs/formatjs @formatjs/icu-skeleton-parser@1.6.2 6fa9d110465d334cae9a61edc1d90481c6bd9367"
-	"lh-intl-messageformat formatjs/formatjs intl-messageformat@10.5.3 5ee5777cf920767229cd02bd3cf2184a1b109766"
+	"lh-fast-memoize formatjs/formatjs @formatjs/fast-memoize@2.2.0"
+	"lh-icu-messageformat-parser formatjs/formatjs @formatjs/icu-messageformat-parser@2.6.2"
+	"lh-icu-skeleton-parser formatjs/formatjs @formatjs/icu-skeleton-parser@1.6.2"
+	"lh-intl-messageformat formatjs/formatjs intl-messageformat@10.5.3"
 	"ajv-formats ajv-validator/ajv-formats 1fb3fa7d967f919ff924bb34aef73a2f39ab0de3"
 	"ajv ajv-validator/ajv 0fba0b8e649909613cfce0999b149cd08f4a4987"
 	"fast-deep-equal epoberezkin/fast-deep-equal d807ffc5013e710deb1c63d463a03f729bcd144d"
@@ -217,20 +216,20 @@ JS_SOURCES=(
 	"require-from-string floatdrop/require-from-string d1575a49065eb7a49b86b4de963f04f1a14dfd60"
 	"csp-evaluator google/csp-evaluator 9189d07a58c40490fd21190541a9fbfd8fc3ad4b"
 	"marky nolanlawson/marky 2fb66b09e6b19451fded98754a8a8f0215e15880"
-	"speedline paulirish/speedline v1.4.3 1ad15e067d906d04aa35481c2a40e10db01aca58"
+	"speedline paulirish/speedline v1.4.3"
 	"tldts remusao/tldts 200a338cf46f31c27ec2ab16914d683041f8e053"
 	"third-party-web patrickhulce/third-party-web d60863a2ea913ed26ae0446296a0cb1cc6c71291"
-	"lodash-4.17 lodash/lodash 4.17.21 f299b52f39486275a9e6483b60a410e06520c538"
+	"lodash-4.17 lodash/lodash 4.17.21"
 	"polyfill-node FredKSchott/rollup-plugin-polyfill-node eb507a21ad82236255988548dea6120d7a277de2"
 	"buffer-es6 calvinmetcalf/buffer-es6 3173686b2010f64a0f6286b4e1d5c6056d230fd9"
 	"process-es6 calvinmetcalf/node-process-es6 6c218e5f68b918226380abec10c08587f240503e"
-	"parse5-5 inikulin/parse5 v5.1.0 ac0c1b2882a25e43e8cbb9099bb3e3f6fdea6718"
+	"parse5-5 inikulin/parse5 v5.1.0"
 	"dot olado/doT 6adbd819970d9093aa2ea24fcf56c7e370d9a468"
 	"js-library-detector johnmichel/Library-Detector-for-Chrome e56bea2d4e0bf483a7255e5c51f4407923618f43"
 	# axe-core 4.13.0 (Lighthouse inlines axe.min.js), its build tools and the packages it
 	# bundles (versions from its pnpm-lock.yaml); emoji-regex's pattern is generated from
 	# Unicode's emoji-test.txt
-	"axe-core dequelabs/axe-core v4.13.0 1cc54b900413660610180d631feb73c9e74f4dc9"
+	"axe-core dequelabs/axe-core v4.13.0"
 	"clone pvorb/clone 765941803d27761a6008cb1aa32b199f0c42deb2"
 	"deque-dot dequelabs/doT 6e4822b49c7f6355225e0d515749b9ab5789bf6f"
 	"uglify-js mishoo/UglifyJS 3ea33afc72462a470466473208a33379b7204765"
@@ -249,7 +248,7 @@ JS_SOURCES=(
 	"event-emitter medikoo/event-emitter b951397b8f0d55fc7ae8aea7fa7699e48132a53d"
 	"ext medikoo/es5-ext 68c26d9918d0d970ca06a0d3912485d73d67e411"
 	"is-promise then/is-promise 68d3d6871806162772b33e9629908ded6c8bf0b1"
-	"lru-queue medikoo/lru-queue v0.1.0 08dde64384699438cc82150e2e779fc0ce770f6c"
+	"lru-queue medikoo/lru-queue v0.1.0"
 	"next-tick medikoo/next-tick ce6c733a67f82ea84ba8f30fc853217da80154e3"
 	"timers-ext medikoo/timers-ext 5feea55d9820970daf5cd9c4a874053047940ac3"
 	"type medikoo/type 253bf69b979e0f9bfcb2632db61ce7caa853da5f"
@@ -261,18 +260,17 @@ JS_SOURCES=(
 	"http-link-header xadhoom/node-http-link-header e5a4865982febd8c58307d51920adb15e2227719"
 )
 
-inherit edo git-archive
+inherit edo
 
 DESCRIPTION="Generated files of Chromium's npm packages, built from source"
 HOMEPAGE="https://www.chromium.org/"
 
-# _js_source <spec>: sets src_id, src_repo, src_ref, src_commit, src_uri, src_distfile
-# and src_dir (GitHub's archive directory: repository name, then the tag without a
+# _js_source <spec>: sets src_id, src_repo, src_ref, src_uri, src_distfile and
+# src_dir (GitHub's archive directory: repository name, then the tag without a
 # leading "v" and with "/" and "@" as "-", or the commit; Forgejo's: the
 # repository name).
 _js_source() {
-	read -r src_id src_repo src_ref src_commit <<< "${1}"
-	[[ ${src_ref} =~ ^[0-9a-f]{40}$ ]] && src_commit=${src_ref}
+	read -r src_id src_repo src_ref <<< "${1}"
 	local ref=${src_ref//[\/@]/-}
 	if [[ ${src_repo} == haverbeke:* ]]; then
 		src_repo=${src_repo#haverbeke:}
@@ -295,190 +293,189 @@ for _spec in "${JS_SOURCES[@]}"; do
 	_js_source "${_spec}"
 	SRC_URI+=" ${src_uri} -> ${src_distfile}"
 done
-unset _spec src_id src_repo src_ref src_commit src_uri src_distfile src_dir
+unset _spec src_id src_repo src_ref src_uri src_distfile src_dir
 # webdriver-bidi-protocol's type declarations (puppeteer's TypeScript inlines its const
 # enums; the package has no JavaScript, and its sources are generated from the WebDriver
 # BiDi specification)
 SRC_URI+="
 	https://registry.npmjs.org/webdriver-bidi-protocol/-/webdriver-bidi-protocol-0.4.3.tgz
 "
-# DevTools sources, as files from its git repository: "@<commit>", then "<path in
-# front_end/> <git blob ID>" for files at that commit (src_unpack checks the blob IDs
-# and puts the files in devtools-frontend-<commit>/front_end/)
+# DevTools sources, as files from its git repository: "@<commit>", then the paths in
+# front_end/ of files at that commit (src_unpack puts them in
+# devtools-frontend-<commit>/front_end/)
 DEVTOOLS_FILES=(
 	# what Lighthouse's build-cdt-lib.js and build-cdt-strings.js generate files from,
 	# at the revisions its committed outputs were generated from
 	@3f890ceb7ad70b5831621393574401b6e474fc73
-	"core/sdk/SourceMap.ts fe0eaf38b1e71c1df81f48635f10cc490ea7b20b"
-	"core/common/ParsedURL.ts 100d9ec45f0cc74590aa5fd86422447eeb55d4b9"
+	core/sdk/SourceMap.ts
+	core/common/ParsedURL.ts
 	@ced63b5ae0c00cd5e0d86ab47daeaa2072016ab6
-	"generated/Deprecation.ts 6184d2330e845cb15cf1b6b6da68612a2cd73abb"
-	"panels/application/components/BackForwardCacheStrings.ts e4bc353e2ac11dfbfab80944e778226e57fc5678"
+	generated/Deprecation.ts
+	panels/application/components/BackForwardCacheStrings.ts
 	# @paulirish/trace_engine 0.0.65 (Lighthouse's copy of DevTools' models/trace and
 	# what it imports) was published compiled from this commit, 25 minutes before it:
 	# its source maps hold these files, with files/lighthouse-trace-engine-0.0.65-packaging.patch
 	@845cad7f273101ef8ae5a8e741dccd78f6f14724
-	"core/platform/api/api.ts 9fe7671866667d653970ff9d90b14f63a28a5bdc"
-	"core/platform/api/HostRuntime.ts d51c587c9c0130c3f675e97f306ccfe582712495"
-	"core/platform/ArrayUtilities.ts 93e8aacf752f2edafcb1c91573cbda11a685a345"
-	"core/platform/Brand.ts 705164700e28c788a598127ee4decac71b19161f"
-	"core/platform/browser/browser.ts 9fe7671866667d653970ff9d90b14f63a28a5bdc"
-	"core/platform/browser/HostRuntime.ts 25c2bfe2e8d9d90a56f30b3444c3f8faa150ed01"
-	"core/platform/Constructor.ts 88c77f0432cf2bcc153aa9218384b0a52efe8a8d"
-	"core/platform/DateUtilities.ts 56dd6747085cff884e1a45aed9967bf4b0871713"
-	"core/platform/DevToolsPath.ts ec6ff0d7301968f288658cc9ef084d66163e496d"
-	"core/platform/HostRuntime.ts 989b3c0b9dff07311e3a2d420a6aa22952c08e98"
-	"core/platform/KeyboardUtilities.ts b72042193118a49f5ebb4605a5c981b8d2b2e905"
-	"core/platform/MapUtilities.ts cc7e3345344935fda67b04ac1323bc2701c95d36"
-	"core/platform/MimeType.ts 776e937188757adb385605cb1e2b8066af71a6c2"
-	"core/platform/node/HostRuntime.ts 09d3df9c508d5b95de109b7c376ef00ed052d44a"
-	"core/platform/node/node.ts 9fe7671866667d653970ff9d90b14f63a28a5bdc"
-	"core/platform/NumberUtilities.ts 5343c9f55d0252d1f3ac29a1cacd9019c2e01fb9"
-	"core/platform/platform.ts 590e05987f83e5782db4da96bc7c01182080ff11"
-	"core/platform/StringUtilities.ts d02659d8a7d2dd21833b982f5cf22ba7ca86d8c4"
-	"core/platform/Timing.ts 079816ac479af039efd2928bf74025d190f4858c"
-	"core/platform/TypedArrayUtilities.ts 136a8bde5bf4ef676c01f5fc6418b7c0d6974b2e"
-	"core/platform/TypescriptUtilities.ts 0012118a98a320dd38116e28d7726639ba25a2f9"
-	"core/platform/UIString.ts 64f760f091d36fc8a2d39ca5cda1742a3e3f08e4"
-	"core/platform/UserVisibleError.ts 877ef6e414a1ed342c81ac3436a2a02249f60abe"
-	"generated/protocol.ts ad313cb8150bedd3ee358b5386094db33db11048"
-	"models/cpu_profile/CPUProfileDataModel.ts 3f64e414161a2b3f4d3973301fe4da77269935c6"
-	"models/cpu_profile/cpu_profile.ts 6282177cb2acb2614a737856bf37fce6d59224e6"
-	"models/cpu_profile/ProfileTreeModel.ts 669e0724cf2374c8be49202847a957d7fa6cf775"
-	"models/trace/EntityMapper.ts 376b0bfb157c25c4ea4ba8927b3d52fd60eb84cd"
-	"models/trace/EventsSerializer.ts ae3c619328ca9befa02bd6d54c99013fb2c361eb"
-	"models/trace/extras/extras.ts 488f507b0e663597b9cb5d8ed7cbc204be8c40fa"
-	"models/trace/extras/FilmStrip.ts d5c5df1bea2403a73c3ff82d4e713a7b0a038ee0"
-	"models/trace/extras/Initiators.ts 26908361e3a3c11b88efb2981b7528d2d06c1cf6"
-	"models/trace/extras/MainThreadActivity.ts 555bb5a57bcccce69209cbb8d81a0bb1a485dfdb"
-	"models/trace/extras/ScriptDuplication.ts e59844e202f66894ecec1712bbabb54dc692dbd4"
-	"models/trace/extras/StackTraceForEvent.ts 3448dbc6963e9fb8dbfa6fa232d6646ca0f7518a"
-	"models/trace/extras/ThirdParties.ts 3496403551a63e964e38e62f3a79b66febcc31be"
-	"models/trace/extras/TraceFilter.ts ca13f7a91d6b08307389d1183ea7e9a397bec62b"
-	"models/trace/extras/TraceTree.ts 691f0dc1e03d1dece1596ea2b324b76a434cb303"
-	"models/trace/handlers/AnimationFramesHandler.ts eee68e6b30cb814ad7e7dd1ee012fa9975fc0683"
-	"models/trace/handlers/AnimationHandler.ts 8afd104ad15864161281f5157ec273eaa4ff4d68"
-	"models/trace/handlers/AsyncJSCallsHandler.ts 8c533b01761e2a892563ac20698dc8c7e79dbd01"
-	"models/trace/handlers/AuctionWorkletsHandler.ts 9069c3ce051e3007b2c637e0be98f91b85e49156"
-	"models/trace/handlers/DOMStatsHandler.ts 56249aef636a965a8cb888d7696adbd69e4d056b"
-	"models/trace/handlers/ExtensionTraceDataHandler.ts bbc726d3bd18c38ed6e37c9c79b028c188d536fc"
-	"models/trace/handlers/FlowsHandler.ts e71f7ebaebf1eac979ff24d3248a4fecfa5709a3"
-	"models/trace/handlers/FramesHandler.ts 181b4ed08c0fb4a84f7fd0a86610f761554a05ab"
-	"models/trace/handlers/GPUHandler.ts b3b4b1dad6417c48abb7499f60b201215f21881d"
-	"models/trace/handlers/handlers.ts dec4f2e5b117897391b8b2b6e7e9a091d4cfc86d"
-	"models/trace/handlers/helpers.ts 62c5773f9abf1613d20cd8d2cf04fe7791f3d209"
-	"models/trace/handlers/ImagePaintingHandler.ts 33e72884cc6215c4a82581167d913e15215749ca"
-	"models/trace/handlers/InitiatorsHandler.ts 0f2c0afd1ac22b30a332dca488bb8dc77f9c4981"
-	"models/trace/handlers/InvalidationsHandler.ts 31cb7ba4fc3f2e6d3ea09ed1b25645643c21fe44"
-	"models/trace/handlers/LargestImagePaintHandler.ts b620283a0b9ed8f8386b45002c542bbfd4eb6b46"
-	"models/trace/handlers/LargestTextPaintHandler.ts a93352baedf4ef210c3d68b02d160f01fb09a2ea"
-	"models/trace/handlers/LayerTreeHandler.ts 86fa625e71c1007880f8849181c398dec0fcdd46"
-	"models/trace/handlers/LayoutShiftsHandler.ts 98a2bb0eb8c522e6659fbd986442fd0d26eea280"
-	"models/trace/handlers/MemoryHandler.ts 53c25ca0b064b8d52c267344c40833bb85d96f1e"
-	"models/trace/handlers/MetaHandler.ts d87064d7020deff673ac344d2417d4373389e80a"
-	"models/trace/handlers/ModelHandlers.ts c7a538426fde43282b7e9ced5fe8d6a16587d14f"
-	"models/trace/handlers/NetworkRequestsHandler.ts 30ed3c3ba4b57cf0a83fd8ad242dff66ecd2d76e"
-	"models/trace/handlers/PageFramesHandler.ts 3d80e1f267feffbb30ad00e571db9451e5a59a2d"
-	"models/trace/handlers/PageLoadMetricsHandler.ts 0784a51c54c627264f1e566f5ddfcda3fdea4281"
-	"models/trace/handlers/RendererHandler.ts 1e4b3d5399261bd1cf43aa5fd07bbbfbff1ba91d"
-	"models/trace/handlers/SamplesHandler.ts 880ba4a6a16c57dfd057d1a4a13cd42814cc3bf3"
-	"models/trace/handlers/ScreenshotsHandler.ts 4965b595926733f139f85ca27758d592133b686c"
-	"models/trace/handlers/ScriptsHandler.ts 5449471dcae747d74356568e6f57afdf057a0008"
-	"models/trace/handlers/SelectorStatsHandler.ts 01e451020d236ac6d7a2680ff35ddcaf28a03b82"
-	"models/trace/handlers/Threads.ts 563309d082c7481ce54a5756dd6fa6e09cb37ffa"
-	"models/trace/handlers/types.ts 68f064a215865ac8446324a6c51d3c2c5d82c733"
-	"models/trace/handlers/UserInteractionsHandler.ts fadf26dc46129fd81b6a8cf83c0f82cecddd3594"
-	"models/trace/handlers/UserTimingsHandler.ts a57a5e3e8f18181c2b55576b2dce78d56187f82d"
-	"models/trace/handlers/WarningsHandler.ts 24751dfa3378432e2a1c566001f730ad5ece2ce9"
-	"models/trace/handlers/WorkersHandler.ts c296397819e91bd04492160c51ee1014ae12d3fb"
-	"models/trace/helpers/Extensions.ts a559898966707065fff5159bac53cb55bcf9b245"
-	"models/trace/helpers/helpers.ts 78ede7f105a87abf4ef530b11b77c44e0e3661b5"
-	"models/trace/helpers/Network.ts 6b713d45427f095934035de6a391ca87d26bf625"
-	"models/trace/helpers/SamplesIntegrator.ts a3b1cfcd98c3d35b07fd68665d0a947727815d78"
-	"models/trace/helpers/SyntheticEvents.ts a3e21be8a50cd4bca74336e2cc827697a0cd50e6"
-	"models/trace/helpers/Timing.ts c6e3d033752ac4623be08d319ea9a77ddd22c965"
-	"models/trace/helpers/Trace.ts b3b7c8c4ad3237ef37d9be7e43747b7d62e039a0"
-	"models/trace/helpers/TreeHelpers.ts 0cfcf65e7dbab57f813f19d88b3b12e3d0e69a3e"
-	"models/trace/insights/Cache.ts c6997a959336756eb38a015753537bb65975a7f2"
-	"models/trace/insights/CharacterSet.ts 80055d1984b9e21a8c8e85a65d1bf677ca060146"
-	"models/trace/insights/CLSCulprits.ts dab3653dedcb4f4e3375edee5392e90d27ad2657"
-	"models/trace/insights/Common.ts 6c89370d7eca24ce2f27eaec80d04c7c28305f18"
-	"models/trace/insights/DocumentLatency.ts 5bd36268f79a5656c4b9c62bf916a491bff74bd0"
-	"models/trace/insights/DOMSize.ts 661be72e1c8151678be3a8cc484456e29a027093"
-	"models/trace/insights/DuplicatedJavaScript.ts d6568dcc4e55bf8b30cef5b1981cf1b2a3686228"
-	"models/trace/insights/FontDisplay.ts f6a01985b05f1d6076648835bf856ebe08fb2de2"
-	"models/trace/insights/ForcedReflow.ts 6e3df635a301639b05e9a3a9de2aef82609e7507"
-	"models/trace/insights/ImageDelivery.ts 95bf474c88f52b177be00cc2ff4accd9b6e00eaf"
-	"models/trace/insights/INPBreakdown.ts 1cc48128e732ea6c8d96d4e6d6b0e9c50d8ebd36"
-	"models/trace/insights/insights.ts 9576d05aed1839fc33655e8ec3c195fddf21b0f6"
-	"models/trace/insights/LCPBreakdown.ts 31a368d28c52a1e83356e12cf3402df04861a88e"
-	"models/trace/insights/LCPDiscovery.ts 9508640a9c83b7963711c2f9f5f5912ada28a4d0"
-	"models/trace/insights/LegacyJavaScript.ts 2823128e768420f132bbb59196387a2b6ed6d0b6"
-	"models/trace/insights/Models.ts dd287e4065e68ae7e2e340426f75223145a44178"
-	"models/trace/insights/ModernHTTP.ts a948a43455a806296ef027fcb21d3dc2f97dd433"
-	"models/trace/insights/NetworkDependencyTree.ts d4cb4c2eff5cacceafd0a0d8be09585809ca087a"
-	"models/trace/insights/RenderBlocking.ts c5e47f383f709e13b47eba443a6d68acf0e96221"
-	"models/trace/insights/SlowCSSSelector.ts a196cb6b0ac9efcece1e7bdee2b50a8b0e5c49a5"
-	"models/trace/insights/Statistics.ts d078bd5ba5799157efb7a689b95127352e27d4a0"
-	"models/trace/insights/ThirdParties.ts 56b350203b82d30304edfab874c7352fa1176d82"
-	"models/trace/insights/types.ts 07ce5d8c5e18ccbbad2ebf0d3da773abdd33074c"
-	"models/trace/insights/Viewport.ts 4de60b563a9687f3f82b49cf1b7268e4a6c7050c"
-	"models/trace/LanternComputationData.ts 9ae47dc232e035191af184757b935baa9fc765d0"
-	"models/trace/lantern/core/core.ts ef8666acfb1812d94123086b955ae1d63441037c"
-	"models/trace/lantern/core/LanternError.ts 3148a7b0d96a8a48efd2a1486f5953f697431e91"
-	"models/trace/lantern/core/NetworkAnalyzer.ts b6a3d96c9bd193150dba002c3b40b261fac2b9a0"
-	"models/trace/lantern/graph/BaseNode.ts 00b718b46932c296e1ebd0eb18e732e044bae9ba"
-	"models/trace/lantern/graph/CPUNode.ts 9c5ff34a5b78c82f2de75ebe6a0eeba5bdf7fbe5"
-	"models/trace/lantern/graph/graph.ts 88a12fe89d681c205904296c9dab321807a3b04b"
-	"models/trace/lantern/graph/NetworkNode.ts 1ee5b41a1a14a2f5c543ccba14c530c7932891b2"
-	"models/trace/lantern/graph/PageDependencyGraph.ts cb75fd2bf406316d0bc5b8d55f67e87931814945"
-	"models/trace/lantern/lantern.ts 0f031a504cd4d391185bab8fb01b68565d876863"
-	"models/trace/lantern/metrics/FirstContentfulPaint.ts 92cfa096ef5d7b98422da377f0f19efa16396e34"
-	"models/trace/lantern/metrics/Interactive.ts 1d384a75a7afe44df8b70e4f0383821407c8600d"
-	"models/trace/lantern/metrics/LargestContentfulPaint.ts f7b93dd087629a4444110ef359a366caa38adc47"
-	"models/trace/lantern/metrics/MaxPotentialFID.ts 50df995c80fec5a3e2079feb7e62e343ec98d6da"
-	"models/trace/lantern/metrics/metrics.ts 63d0d3537fbcd3497347d496579d69410c597faa"
-	"models/trace/lantern/metrics/Metric.ts 65008ab295062e540ac923fe8853aaf9fccf8cfa"
-	"models/trace/lantern/metrics/SpeedIndex.ts c7edd004d6da6fd556a3e860471db278e2dc8367"
-	"models/trace/lantern/metrics/TBTUtils.ts 931e2a4d1d25f6f0c5e6deba7b9caaa766196504"
-	"models/trace/lantern/metrics/TotalBlockingTime.ts eec05dbc194b7ca88144356d271624ca6b99c989"
-	"models/trace/lantern/simulation/ConnectionPool.ts 543538ff551ec58d69327b2616bc734a46f14526"
-	"models/trace/lantern/simulation/Constants.ts d96a1b699e7249a10c2b2d89fd31f9751f6438a1"
-	"models/trace/lantern/simulation/DNSCache.ts 9d08567c5fd55f88efd3a274bde862bcebbe6643"
-	"models/trace/lantern/simulation/SimulationTimingMap.ts d7099a9d3cf0c3c61a229474d4fb1317ed133964"
-	"models/trace/lantern/simulation/simulation.ts b15201d730fc6ca93b13274c3f75f37256f52a72"
-	"models/trace/lantern/simulation/Simulator.ts 60dc5fd39ad7ea941f9cd3f1c0a6d2d550ccfa98"
-	"models/trace/lantern/simulation/TCPConnection.ts db4daea24b11385f35020f6e470323892b484077"
-	"models/trace/lantern/types/Lantern.ts 1d7640732b8d7357ded4739f68c19a3535dfb8db"
-	"models/trace/lantern/types/types.ts 57325ab899a824705dd9b636b9634d803abea7fe"
-	"models/trace/ModelImpl.ts a4735754995d0596dcd29d964f43ac38bf699ff6"
-	"models/trace/Name.ts be2f3961af68a2f5bb698abc6e5a16e8769d7025"
-	"models/trace/Processor.ts a57685278ab797fc92f488452ea2574fe1dc4160"
-	"models/trace/Styles.ts 0ebc659691c825cc71f6b09169a13ac884a6b65b"
-	"models/trace/trace.ts 353d7e2f32f9645e4c8fc5ba1685273167e391c2"
-	"models/trace/types/Configuration.ts 4008475d5e62b0428645abd34568b30d2d5da8a8"
-	"models/trace/types/Extensions.ts efca7c2be2216e58e380f34755443f7133fce8cb"
-	"models/trace/types/File.ts 2928aa9780112e5411bf3241e68dcc94263808c4"
-	"models/trace/types/Overlays.ts 32f4b728d425b48408ae52a4a93fc14a5cb0fcaa"
-	"models/trace/types/Timing.ts cd4f49a763170f697cc5c46364eac444fdd42488"
-	"models/trace/types/TraceEvents.ts 46bb3bb5e36595582fa7f94d153690f2063e08b6"
-	"models/trace/types/types.ts 9babd35e04d109633539f6572d919211479eb30d"
+	core/platform/api/api.ts
+	core/platform/api/HostRuntime.ts
+	core/platform/ArrayUtilities.ts
+	core/platform/Brand.ts
+	core/platform/browser/browser.ts
+	core/platform/browser/HostRuntime.ts
+	core/platform/Constructor.ts
+	core/platform/DateUtilities.ts
+	core/platform/DevToolsPath.ts
+	core/platform/HostRuntime.ts
+	core/platform/KeyboardUtilities.ts
+	core/platform/MapUtilities.ts
+	core/platform/MimeType.ts
+	core/platform/node/HostRuntime.ts
+	core/platform/node/node.ts
+	core/platform/NumberUtilities.ts
+	core/platform/platform.ts
+	core/platform/StringUtilities.ts
+	core/platform/Timing.ts
+	core/platform/TypedArrayUtilities.ts
+	core/platform/TypescriptUtilities.ts
+	core/platform/UIString.ts
+	core/platform/UserVisibleError.ts
+	generated/protocol.ts
+	models/cpu_profile/CPUProfileDataModel.ts
+	models/cpu_profile/cpu_profile.ts
+	models/cpu_profile/ProfileTreeModel.ts
+	models/trace/EntityMapper.ts
+	models/trace/EventsSerializer.ts
+	models/trace/extras/extras.ts
+	models/trace/extras/FilmStrip.ts
+	models/trace/extras/Initiators.ts
+	models/trace/extras/MainThreadActivity.ts
+	models/trace/extras/ScriptDuplication.ts
+	models/trace/extras/StackTraceForEvent.ts
+	models/trace/extras/ThirdParties.ts
+	models/trace/extras/TraceFilter.ts
+	models/trace/extras/TraceTree.ts
+	models/trace/handlers/AnimationFramesHandler.ts
+	models/trace/handlers/AnimationHandler.ts
+	models/trace/handlers/AsyncJSCallsHandler.ts
+	models/trace/handlers/AuctionWorkletsHandler.ts
+	models/trace/handlers/DOMStatsHandler.ts
+	models/trace/handlers/ExtensionTraceDataHandler.ts
+	models/trace/handlers/FlowsHandler.ts
+	models/trace/handlers/FramesHandler.ts
+	models/trace/handlers/GPUHandler.ts
+	models/trace/handlers/handlers.ts
+	models/trace/handlers/helpers.ts
+	models/trace/handlers/ImagePaintingHandler.ts
+	models/trace/handlers/InitiatorsHandler.ts
+	models/trace/handlers/InvalidationsHandler.ts
+	models/trace/handlers/LargestImagePaintHandler.ts
+	models/trace/handlers/LargestTextPaintHandler.ts
+	models/trace/handlers/LayerTreeHandler.ts
+	models/trace/handlers/LayoutShiftsHandler.ts
+	models/trace/handlers/MemoryHandler.ts
+	models/trace/handlers/MetaHandler.ts
+	models/trace/handlers/ModelHandlers.ts
+	models/trace/handlers/NetworkRequestsHandler.ts
+	models/trace/handlers/PageFramesHandler.ts
+	models/trace/handlers/PageLoadMetricsHandler.ts
+	models/trace/handlers/RendererHandler.ts
+	models/trace/handlers/SamplesHandler.ts
+	models/trace/handlers/ScreenshotsHandler.ts
+	models/trace/handlers/ScriptsHandler.ts
+	models/trace/handlers/SelectorStatsHandler.ts
+	models/trace/handlers/Threads.ts
+	models/trace/handlers/types.ts
+	models/trace/handlers/UserInteractionsHandler.ts
+	models/trace/handlers/UserTimingsHandler.ts
+	models/trace/handlers/WarningsHandler.ts
+	models/trace/handlers/WorkersHandler.ts
+	models/trace/helpers/Extensions.ts
+	models/trace/helpers/helpers.ts
+	models/trace/helpers/Network.ts
+	models/trace/helpers/SamplesIntegrator.ts
+	models/trace/helpers/SyntheticEvents.ts
+	models/trace/helpers/Timing.ts
+	models/trace/helpers/Trace.ts
+	models/trace/helpers/TreeHelpers.ts
+	models/trace/insights/Cache.ts
+	models/trace/insights/CharacterSet.ts
+	models/trace/insights/CLSCulprits.ts
+	models/trace/insights/Common.ts
+	models/trace/insights/DocumentLatency.ts
+	models/trace/insights/DOMSize.ts
+	models/trace/insights/DuplicatedJavaScript.ts
+	models/trace/insights/FontDisplay.ts
+	models/trace/insights/ForcedReflow.ts
+	models/trace/insights/ImageDelivery.ts
+	models/trace/insights/INPBreakdown.ts
+	models/trace/insights/insights.ts
+	models/trace/insights/LCPBreakdown.ts
+	models/trace/insights/LCPDiscovery.ts
+	models/trace/insights/LegacyJavaScript.ts
+	models/trace/insights/Models.ts
+	models/trace/insights/ModernHTTP.ts
+	models/trace/insights/NetworkDependencyTree.ts
+	models/trace/insights/RenderBlocking.ts
+	models/trace/insights/SlowCSSSelector.ts
+	models/trace/insights/Statistics.ts
+	models/trace/insights/ThirdParties.ts
+	models/trace/insights/types.ts
+	models/trace/insights/Viewport.ts
+	models/trace/LanternComputationData.ts
+	models/trace/lantern/core/core.ts
+	models/trace/lantern/core/LanternError.ts
+	models/trace/lantern/core/NetworkAnalyzer.ts
+	models/trace/lantern/graph/BaseNode.ts
+	models/trace/lantern/graph/CPUNode.ts
+	models/trace/lantern/graph/graph.ts
+	models/trace/lantern/graph/NetworkNode.ts
+	models/trace/lantern/graph/PageDependencyGraph.ts
+	models/trace/lantern/lantern.ts
+	models/trace/lantern/metrics/FirstContentfulPaint.ts
+	models/trace/lantern/metrics/Interactive.ts
+	models/trace/lantern/metrics/LargestContentfulPaint.ts
+	models/trace/lantern/metrics/MaxPotentialFID.ts
+	models/trace/lantern/metrics/metrics.ts
+	models/trace/lantern/metrics/Metric.ts
+	models/trace/lantern/metrics/SpeedIndex.ts
+	models/trace/lantern/metrics/TBTUtils.ts
+	models/trace/lantern/metrics/TotalBlockingTime.ts
+	models/trace/lantern/simulation/ConnectionPool.ts
+	models/trace/lantern/simulation/Constants.ts
+	models/trace/lantern/simulation/DNSCache.ts
+	models/trace/lantern/simulation/SimulationTimingMap.ts
+	models/trace/lantern/simulation/simulation.ts
+	models/trace/lantern/simulation/Simulator.ts
+	models/trace/lantern/simulation/TCPConnection.ts
+	models/trace/lantern/types/Lantern.ts
+	models/trace/lantern/types/types.ts
+	models/trace/ModelImpl.ts
+	models/trace/Name.ts
+	models/trace/Processor.ts
+	models/trace/Styles.ts
+	models/trace/trace.ts
+	models/trace/types/Configuration.ts
+	models/trace/types/Extensions.ts
+	models/trace/types/File.ts
+	models/trace/types/Overlays.ts
+	models/trace/types/Timing.ts
+	models/trace/types/TraceEvents.ts
+	models/trace/types/types.ts
 )
-# _devtools_files <function>: calls <function> <commit> <path> <blob ID> <distfile> for
-# each of DEVTOOLS_FILES
+# _devtools_files <function>: calls <function> <commit> <path> <distfile> for each of
+# DEVTOOLS_FILES
 _devtools_files() {
-	local f commit path blob
+	local f commit
 	for f in "${DEVTOOLS_FILES[@]}"; do
 		if [[ ${f} == @* ]]; then
 			commit=${f#@}
 			continue
 		fi
-		read -r path blob <<< "${f}"
-		"${1}" "${commit}" "${path}" "${blob}" "devtools-frontend-${commit:0:8}-${path//\//-}"
+		"${1}" "${commit}" "${f}" "devtools-frontend-${commit:0:8}-${f//\//-}"
 	done
 }
 _devtools_uri() {
-	SRC_URI+=" https://raw.githubusercontent.com/ChromeDevTools/devtools-frontend/${1}/front_end/${2} -> ${4}"
+	SRC_URI+=" https://raw.githubusercontent.com/ChromeDevTools/devtools-frontend/${1}/front_end/${2} -> ${3}"
 }
 _devtools_files _devtools_uri
 unset -f _devtools_uri
@@ -560,22 +557,14 @@ REPLACED_PACKAGES=(
 	"third_party/devtools-frontend/src/front_end/third_party/legacy-javascript 0.0.1"
 )
 
-# _devtools_unpack <commit> <path> <blob ID> <distfile>
+# _devtools_unpack <commit> <path> <distfile>
 _devtools_unpack() {
-	local id dest=${WORKDIR}/devtools-frontend-${1}/front_end/${2}
-	id=$({ printf 'blob %d\0' "$(stat -L -c %s "${DISTDIR}/${4}")" && cat "${DISTDIR}/${4}"; } | sha1sum) || die
-	[[ ${id%% *} == "${3}" ]] || die "${4}: git blob ${id%% *}, expected ${3} (${2} at ${1})"
+	local dest=${WORKDIR}/devtools-frontend-${1}/front_end/${2}
 	mkdir -p "${dest%/*}" || die
-	cp "${DISTDIR}/${4}" "${dest}" || die
+	cp "${DISTDIR}/${3}" "${dest}" || die
 }
 
 src_unpack() {
-	local spec src_id src_repo src_ref src_commit src_uri src_distfile src_dir
-	for spec in "${JS_SOURCES[@]}"; do
-		_js_source "${spec}"
-		[[ -n ${src_commit} ]] || die "${src_id}: no commit for ${src_ref}"
-		git-archive_verify "${src_distfile}" "${src_commit}"
-	done
 	_devtools_files _devtools_unpack
 	# npm's tarballs all have a package/ directory: unpack each to npm-<distfile name>.
 	# Single files are used from DISTDIR.
@@ -594,7 +583,7 @@ src_unpack() {
 
 # _dir <id>: the unpacked directory of a source
 _dir() {
-	local spec src_id src_repo src_ref src_commit src_uri src_distfile src_dir
+	local spec src_id src_repo src_ref src_uri src_distfile src_dir
 	for spec in "${JS_SOURCES[@]}"; do
 		_js_source "${spec}"
 		if [[ ${src_id} == "${1}" ]]; then

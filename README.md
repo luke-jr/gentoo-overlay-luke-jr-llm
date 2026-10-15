@@ -179,10 +179,7 @@ No USE flags were removed.
   - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
     by this build.
 
-  Sources are git revisions, checked against the commit they're pinned to:
-  - Forge tarballs fetched by tag list the tag's commit (from `git ls-remote`), and
-    `eclass/git-archive.eclass` checks the commit ID that `git archive` records in each tarball.
-  - Single files taken from DevTools' repository are checked against their git blob IDs.
+  Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
     comes from DevTools' commit 845cad7, 25 minutes before its release. Its source maps hold those
     files, except for the edits of an unpublished packaging script. Those edits are

@@ -111,7 +111,7 @@ RUST_MIN_VER="$(ver_cut 1-3)"
 RUST_MAX_VER="${RUST_MIN_VER}"
 RUST_REQ_USE="dist(-)"
 
-inherit cargo git-archive rust-toolchain
+inherit cargo rust-toolchain
 
 DESCRIPTION="Crubit's cc_bindings_from_rs (C++ bindings for Rust crates), for Chromium"
 HOMEPAGE="https://github.com/google/crubit"
@@ -135,11 +135,6 @@ RDEPEND="dev-lang/rust:${SLOT}"
 BDEPEND+=" dev-lang/rustc-dev:${SLOT}"
 
 QA_FLAGS_IGNORED="usr/lib/crubit/${SLOT}/bin/cc_bindings_from_rs"
-
-src_unpack() {
-	git-archive_verify ${PN}-${CRUBIT_COMMIT}.gh.tar.gz ${CRUBIT_COMMIT}
-	cargo_src_unpack
-}
 
 src_prepare() {
 	default

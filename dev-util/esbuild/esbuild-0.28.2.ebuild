@@ -12,13 +12,11 @@ EGO_SUM=(
 	"golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8/go.mod"
 )
 
-inherit git-archive go-module
+inherit go-module
 go-module_set_globals
 
 DESCRIPTION="A modern, extremely fast, JavaScript and CSS bundler and minifier"
 HOMEPAGE="https://esbuild.github.io/"
-# The commit tag v0.28.2 points to, checked against the tarball in src_unpack.
-ESBUILD_COMMIT=609683d892977362a0f99026cb74b96263d728a9
 SRC_URI="https://github.com/evanw/esbuild/archive/v${PV}.tar.gz -> ${P}.tar.gz
 	${EGO_SUM_SRC_URI}"
 
@@ -27,11 +25,6 @@ SLOT="${PV}"
 KEYWORDS="~amd64 ~arm64"
 
 RESTRICT="test" # tests require more work, but chromium needs esbuild already.
-
-src_unpack() {
-	git-archive_verify ${P}.tar.gz ${ESBUILD_COMMIT}
-	go-module_src_unpack
-}
 
 src_compile() {
 	ego build -v -ldflags="-s -w" ./cmd/esbuild
