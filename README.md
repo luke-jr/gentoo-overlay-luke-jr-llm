@@ -96,7 +96,8 @@ masked) keeps the previous set and its packages.
     is allowed.
 - **`chromium-156-no-runtime-executable-downloads.patch`:** Chromium never downloads or
   loads code via the component updater: Widevine CDM, Screen AI, SODA, TranslateKit, the
-  WASM TTS engine, component-extension JavaScript, and the remote DevTools front-end.
+  WASM TTS engine, component-extension JavaScript, the Commerce Heuristics component (its
+  archive carries a JavaScript file), and the remote DevTools front-end.
   - Code downloaded by an *earlier* build in the same profile isn't loaded either (Widevine
     hint file, stored TranslateKit path; a Screen AI copy is deleted).
   - With `USE=widevine`, a CDM installed next to the browser (`/usr/lib64/chromium-browser/WidevineCdm`,

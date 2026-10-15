@@ -32,6 +32,18 @@ in a non-Google-branded Linux build, while leaving data-only components
                             omnibox "AI Mode" eligibility component extension.
                             The bundled copy keeps being used, the AI Mode
                             button is not affected.
+  * Commerce Heuristics   - CRX with cart_product_extraction.js plus
+                            heuristics JSON (component "Commerce Heuristics").
+                            Upstream only registers it when the NTP cart
+                            module is on; on Linux that needs
+                            chrome://flags or --enable-features, since
+                            IsOsSupportedForCart() is false and unbranded
+                            builds fetch no Finch seed. Nothing in 156 runs
+                            the JS, but the CRX can't be fetched without it.
+                            A copy installed by an earlier build is
+                            uninstalled. The JSON only feeds the cart module's
+                            cart/checkout/discount heuristics, which fall back
+                            to built-in defaults.
   * DevTools remote front-end - devtools://devtools/remote/... fetched from
                             chrome-devtools-frontend.appspot.com and run in the
                             privileged devtools:// origin (used when inspecting
@@ -76,6 +88,33 @@ index b66f1b6d4b..fadb26226e 100644
 +  VLOG(1) << "Uninstalling AIM Eligibility component.";
 +  base::MakeRefCounted<ComponentInstaller>(
 +      std::make_unique<AimEligibilityComponentInstallerPolicy>())
++      ->Uninstall();
+ }
+ 
+ }  // namespace component_updater
+diff --git a/chrome/browser/component_updater/commerce_heuristics_component_installer.cc b/chrome/browser/component_updater/commerce_heuristics_component_installer.cc
+index f2c615c..9aa07dd 100644
+--- a/chrome/browser/component_updater/commerce_heuristics_component_installer.cc
++++ b/chrome/browser/component_updater/commerce_heuristics_component_installer.cc
+@@ -188,16 +188,12 @@ CommerceHeuristicsInstallerPolicy::GetInstallerAttributes() const {
+ 
+ void RegisterCommerceHeuristicsComponent(
+     component_updater::ComponentUpdateService* cus) {
+-  bool is_cart_module_enabled = true;
+-#if !BUILDFLAG(IS_ANDROID)
+-  is_cart_module_enabled = IsCartModuleEnabled();
+-#endif
+-  if (is_cart_module_enabled) {
+-    VLOG(1) << "Registering Commerce Heuristics component.";
+-    auto installer = base::MakeRefCounted<ComponentInstaller>(
+-        std::make_unique<CommerceHeuristicsInstallerPolicy>());
+-    installer->Register(cus, base::OnceClosure());
+-  }
++  // Runtime download of the Commerce Heuristics component is disabled in this
++  // build: its CRX carries cart_product_extraction.js (JavaScript) next to the
++  // heuristics JSON. A copy installed by an earlier build is removed.
++  base::MakeRefCounted<ComponentInstaller>(
++      std::make_unique<CommerceHeuristicsInstallerPolicy>())
 +      ->Uninstall();
  }
  
