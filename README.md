@@ -40,6 +40,11 @@ dependency, and only with `USE=ffmpeg-chromium`; it builds and installs, but has
 
 Everything is keyworded `~amd64 ~arm64`. Only amd64 has been built and tested.
 
+`eclass/cargo-stubs.eclass` keeps the Rust packages (`crubit`, `rollup`) from fetching crates
+that Linux never builds (winapi, windows-sys, wasi, …): it writes a stub with the same
+name, version, checksum, dependencies and features in their place, which `compile_error!`s if
+anything does build it. `scripts/cargo-unused-crates.py` lists the candidates from a `Cargo.lock`.
+
 ## Build machine setup
 
 `@chromium-build-deps` is everything needed to build Chromium, but not Chromium itself: its
@@ -91,7 +96,8 @@ masked) keeps the previous set and its packages.
     is allowed.
 - **`chromium-156-no-runtime-executable-downloads.patch`:** Chromium never downloads or
   loads code via the component updater: Widevine CDM, Screen AI, SODA, TranslateKit, the
-  WASM TTS engine, component-extension JavaScript, and the remote DevTools front-end.
+  WASM TTS engine, component-extension JavaScript, the Commerce Heuristics component (its
+  archive carries a JavaScript file), and the remote DevTools front-end.
   - Code downloaded by an *earlier* build in the same profile isn't loaded either (Widevine
     hint file, stored TranslateKit path; a Screen AI copy is deleted).
   - With `USE=widevine`, a CDM installed next to the browser (`/usr/lib64/chromium-browser/WidevineCdm`,

@@ -17,14 +17,14 @@ EAPI=8
 CRUBIT_COMMIT="a355b02da81bc9f350925c73ec0322ce4d5140f1"
 
 # Generated from Crubit's Cargo.lock (all registry packages; cargo resolves the
-# whole workspace offline even though only 42 of these are compiled).
+# whole workspace offline even though only 42 of these are compiled), minus
+# CARGO_STUB_CRATES.
 CRATES="
 	aho-corasick@1.1.5
 	anstream@1.0.0
 	anstyle@1.0.14
 	anstyle-parse@1.0.0
 	anstyle-query@1.1.5
-	anstyle-wincon@3.0.11
 	anyhow@1.0.104
 	autocfg@1.5.1
 	base64@0.22.1
@@ -62,7 +62,6 @@ CRATES="
 	memchr@2.8.3
 	num-traits@0.2.19
 	once_cell@1.21.4
-	once_cell_polyfill@1.70.2
 	paste-complete@1.0.15
 	phf@0.11.3
 	phf_generator@0.11.3
@@ -73,7 +72,6 @@ CRATES="
 	protobuf-codegen@4.36.1-release
 	protobuf-macros@0.36.1-release
 	quote@1.0.47
-	r-efi@6.0.0
 	rand@0.8.8
 	rand_core@0.6.4
 	regex@1.13.1
@@ -98,9 +96,16 @@ CRATES="
 	thiserror-impl@2.0.20
 	unicode-ident@1.0.24
 	utf8parse@0.2.2
+	zmij@1.0.23
+"
+
+# Never built on Linux (see cargo-stubs.eclass).
+CARGO_STUB_CRATES="
+	anstyle-wincon@3.0.11
+	once_cell_polyfill@1.70.2
+	r-efi@6.0.0
 	windows-link@0.2.1
 	windows-sys@0.61.2
-	zmij@1.0.23
 "
 
 # Pin to exactly the Rust slot encoded in PV. The rustc-dev component
@@ -111,7 +116,9 @@ RUST_MIN_VER="$(ver_cut 1-3)"
 RUST_MAX_VER="${RUST_MIN_VER}"
 RUST_REQ_USE="dist(-)"
 
-inherit cargo rust-toolchain
+PYTHON_COMPAT=( python3_{12..15} )
+
+inherit cargo cargo-stubs rust-toolchain
 
 DESCRIPTION="Crubit's cc_bindings_from_rs (C++ bindings for Rust crates), for Chromium"
 HOMEPAGE="https://github.com/google/crubit"
