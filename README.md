@@ -32,7 +32,7 @@ Goals:
 | `dev-lang/rustc-dev:1.98.1` | The Rust compiler's own crates (the `rustc-dev` component, what `rustup component add rustc-dev` installs), from the tarball `dev-lang/rust` builds with `USE=dist`, installed into that Rust slot's sysroot. Crubit links against them. |
 | `dev-util/crubit:1.98.1` | Crubit's `cc_bindings_from_rs`, built from source against the selected `dev-lang/rust`. Since M153–156, default-on code (Blink's FontFormatCheck, the Web Bundle parser, …) is Rust that C++ reaches only through Crubit-generated bindings. |
 | `dev-util/rollup:4.21.0` | The Rollup bundler built from source: its CLI (rollup's TypeScript plus the 17 npm packages its own build bundles in, each from its source, bundled with esbuild) and its JavaScript parser (Rust) as a native Node.js addon. Replaces `@rollup/wasm-node` (generated JavaScript and a prebuilt WebAssembly parser), used for WebUI bundling; chromium-bidi's own (newer) copy is replaced by the same one. WebUI bundles are byte-identical to the npm package's; the BiDi mapper only keeps a little more dead code. Replaces `dev-util/rollup-native` (parser only). |
-| `dev-util/chromium-node-modules:156` | Generated files of the npm packages in Chromium's tarball, built from the packages' git sources as self-contained esbuild bundles, installed at the paths of the files they replace (Chromium copies them over, after checking versions). So far: terser's library bundle (WebUI/Mojo minification), chromium-bidi's three rollup plugins (node-resolve, cleanup, license; 31 packages from source, incl. moment and lodash), WebUI's `postcss-selector-parser`, ts-proto's protoc plugin (bootstrapped: its committed, self-generated descriptors are regenerated and must reach a fixpoint), and DevTools' build tools: the generated packages behind cssnano and svgo, yargs and its family, js-yaml, uuid and esbuild's JavaScript API. Built once per Chromium major version. Build outputs are byte-identical. |
+| `dev-util/chromium-node-modules:156` | Generated files of the npm packages in Chromium's tarball and of the JavaScript libraries DevTools vendors, built from the packages' git sources, installed at the paths of the files they replace (`tree/`; Chromium copies them over, after checking versions in `VERSIONS`) or as inputs for Chromium's own rebuild steps (`build/`). Built once per Chromium major version. Build tools: terser (WebUI/Mojo minification), chromium-bidi's three rollup plugins (31 packages, incl. moment and lodash), WebUI's `postcss-selector-parser`, ts-proto's protoc plugin (bootstrapped: its committed, self-generated descriptors are regenerated and must reach a fixpoint), DevTools' build tools (cssnano's and svgo's generated packages, yargs and its family, js-yaml, uuid, esbuild's JavaScript API). Shipped code: zod and mitt (BiDi mapper), `@bufbuild/protobuf`'s ES modules, WebUI's lit and DevTools' lit (with lit's own rollup configs), and DevTools' acorn, CodeMirror 5 runmode, `diff_match_patch`, intl-messageformat, json5, marked, wasmparser, Puppeteer and Puppeteer Replay (with mitt, parsel, rxjs, urlpattern-polyfill), the 41 packages of `codemirror.next` (Lezer parsers regenerated from their grammars), and Lighthouse 13.5.0 (`lighthouse-dt-bundle.js`, the report renderer and generator, legacy-javascript) with the ~40 npm packages its build bundles and axe-core 4.13.0 (Lighthouse's accessibility engine, with the ~25 packages it bundles; emoji-regex's pattern made from Unicode's `emoji-test.txt`). |
 | `media-video/ffmpeg-chromium-156` | for `USE=ffmpeg-chromium` (`::gentoo` stops at 154) |
 
 All except `ffmpeg-chromium` are **build-time only** (`BDEPEND`) for Chromium. `ffmpeg-chromium` is a runtime
@@ -162,14 +162,34 @@ No USE flags were removed.
 - **TranslateKit** (on-device Translator web API) is closed source and only ships as a downloaded binary,
   so it stays disabled for good. "Translate this page" (server-side) works.
 - **Prebuilt JavaScript counts as a blob too.** Unused npm packages are deleted (see above), but
-  144 remain. All generated files that build tools use are now built from source (`dev-util/rollup`,
-  `dev-util/chromium-node-modules`); of the rest, most are hand-written source identical to their git
-  tags, type declarations only, or data (caniuse, MDN, SPDX lists). Still generated: what ships in the
-  browser:
-  - `lit`/`lit-html`/`lit-element`/`@lit/reactive-element` (WebUI; Chromium patches lit-html's
-    minified files), `@bufbuild/protobuf` (chrome://traces-internals), zod and mitt (BiDi mapper);
-  - DevTools' vendored `front_end/third_party` (~7 MB, mostly checked-in build output: Lighthouse,
-    CodeMirror, Puppeteer, ...), and `third_party/lottie/lottie_worker.js`.
+  144 remain. Every generated file of theirs that the build uses or ships is now built from source
+  (`dev-util/rollup`, `dev-util/chromium-node-modules`, and in the Chromium ebuild the steps that need
+  Chromium's tree); the rest are hand-written sources identical to their git tags, type declarations, or
+  data (caniuse, MDN, SPDX lists, Lighthouse's locales). Shipped code built from source: WebUI's and
+  DevTools' lit, `@bufbuild/protobuf` (chrome://traces-internals), Polymer's `polymer_bundled.min.js`,
+  the BiDi mapper's zod and mitt, and DevTools' vendored `front_end/third_party` libraries (Lighthouse
+  and axe-core, CodeMirror 5 and 6, Puppeteer, acorn, marked, …). DevTools' `ClientVariations.js` is
+  regenerated with the system `protoc` and its `update_client_variations.py`. What is left, deliberately:
+  - `third_party/lottie/lottie_worker.js`: Chromium's own readable copy of lottie-web 5.5.2's player,
+    modified to run in a worker, reformatted, and maintained in place (minified at build time by
+    Chromium's script): source, with no upstream build to redo.
+  - The Babel passes that lower code for old browsers are left out (axe-core, and Puppeteer's
+    `es5-iife` bundle, which nothing loads); Chromium runs the modern code. axe-core's polyfills stay
+    in, but only apply where a feature is missing.
+  - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
+    by this build.
+
+  Where sources come from:
+  - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
+    comes from DevTools' commit 845cad7, 25 minutes before its release. Its source maps hold those
+    files, except for the edits of an unpublished packaging script. Those edits are
+    `files/lighthouse-trace-engine-0.0.65-packaging.patch`, and the build checks the patched sources
+    against the source maps.
+  - `http-link-header` 1.1.1 comes from a fork that still has its commit, since the original repository
+    is gone.
+  - emoji-regex's pattern is generated with `files/emoji-test-regex-pattern.mjs`, not upstream's
+    downloaded PHP tool. It is 13.8 KB vs upstream's 14.1 KB, and matches the same on 210,452 test
+    strings.
 - **Crubit notes:** see `NOTES-crubit.md`.
 - **Metadata:** no package lists a maintainer: the `::gentoo` ones' Gentoo maintainers were removed, since
   they don't maintain this overlay. Add yourself if you like. The generated AppStream data uses upstream

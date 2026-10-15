@@ -38,6 +38,10 @@ TSGO_VER="7.0.2"
 # DevTools' build (front_end/core/i18n/collect-ui-strings.js) uses TypeScript's JavaScript API,
 # from its own copy of TypeScript 6; its prebuilt lib/typescript.js is replaced by dev-lang/typescript's.
 DEVTOOLS_TS_VER="6.0.2"
+# Polymer (third_party/polymer/v3_0): its bundle, polymer_bundled.min.js, is rebuilt from source.
+POLYMER_VER="3.5.0"
+SHADYCSS_VER="1.9.1"
+SHADYCSS_COMMIT="4e6ebea7f179d131a1a6c98e38b7d038d0543699" # tag v1.9.1, npm's gitHead for 1.9.1
 # Rollup (@rollup/wasm-node) in third_party/node/node_modules, used for WebUI bundling, is
 # replaced by dev-util/rollup (built from source). chromium-bidi bundles its own, newer copy
 # (ROLLUP_BIDI_VER), which is replaced by the same one (see src_prepare).
@@ -73,6 +77,10 @@ COPIUM_COMMIT="027d15ffdcd1816b7935cee9ea4a4f6bae0bbe60"
 CHROMIUM_TARBALL_PV="156.0.8078.12"
 S="${WORKDIR}/chromium-${CHROMIUM_TARBALL_PV}"
 SRC_URI="https://github.com/chromium-linux-tarballs/chromium-tarballs/releases/download/${CHROMIUM_TARBALL_PV}/chromium-${CHROMIUM_TARBALL_PV}-linux.tar.xz
+	https://github.com/Polymer/polymer/archive/refs/tags/v${POLYMER_VER}.tar.gz
+		-> polymer-${POLYMER_VER}.gh.tar.gz
+	https://github.com/webcomponents/shadycss/archive/${SHADYCSS_COMMIT}.tar.gz
+		-> shadycss-${SHADYCSS_COMMIT}.gh.tar.gz
 	!bundled-toolchain? (
 		https://codeberg.org/selfisekai/copium/archive/${COPIUM_COMMIT}.tar.gz
 			-> chromium-patches-copium-${COPIUM_COMMIT:0:10}.tar.gz
@@ -250,6 +258,7 @@ BDEPEND="
 	dev-lang/typescript:${DEVTOOLS_TS_VER}
 	dev-util/rollup:${ROLLUP_VER}
 	dev-util/chromium-node-modules:${PV%%.*}
+	dev-libs/protobuf
 	dev-vcs/git
 	>=net-libs/nodejs-${NODE_VER}[inspector]
 	sys-apps/hwdata
@@ -446,6 +455,7 @@ pkg_setup() {
 
 src_unpack() {
 	unpack chromium-${CHROMIUM_TARBALL_PV}-linux.tar.xz
+	unpack polymer-${POLYMER_VER}.gh.tar.gz shadycss-${SHADYCSS_COMMIT}.gh.tar.gz
 	# These should only be required when we're not using the official toolchain
 	if use !bundled-toolchain; then
 		unpack chromium-patches-copium-${COPIUM_COMMIT:0:10}.tar.gz
@@ -743,6 +753,11 @@ src_prepare() {
 		# not rollup, but checked the same way
 		["${S}/third_party/devtools-frontend/src/node_modules/typescript"]="${DEVTOOLS_TS_VER}"
 	)
+	found=$("${EPYTHON}" -c 'import json, sys; d = json.load(open(sys.argv[1]))["dependencies"]
+print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/polymer/v3_0/package.json") ||
+		die "Failed to read the Polymer version"
+	[[ ${found} == "${POLYMER_VER} ${SHADYCSS_VER}" ]] ||
+		die "Polymer/ShadyCSS version mismatch: expected ${POLYMER_VER} ${SHADYCSS_VER}, found ${found}"
 	local rollup_dir
 	for rollup_dir in "${!rollup_dirs[@]}"; do
 		found=$("${EPYTHON}" -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' \
@@ -837,22 +852,215 @@ src_prepare() {
 	# are deleted above (files/chromium-${PV%%.*}-node-modules.txt).
 	local cnm_dir="${BROOT}/usr/lib/chromium-node-modules/${PV%%.*}" cnm_pkg cnm_ver cnm_file
 	[[ -f ${cnm_dir}/VERSIONS ]] || die "Expected to find ${cnm_dir}/VERSIONS, but it does not exist."
+	local cnm_tree="${cnm_dir}/tree"
 	while read -r cnm_pkg cnm_ver; do
-		found=$("${EPYTHON}" -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' \
-			"${S}/${cnm_pkg}/package.json") || die "Failed to read the version of ${cnm_pkg}"
+		# package.json's version, or for a vendored directory without one, README.chromium's
+		found=$("${EPYTHON}" -c '
+import json, os, re, sys
+d = sys.argv[1]
+version = None
+if os.path.exists(d + "/package.json"):
+    version = json.load(open(d + "/package.json")).get("version")
+if version is None:
+    version = re.search(r"^Version: (\S+)$", open(d + "/README.chromium").read(), re.M).group(1)
+print(version)
+' "${S}/${cnm_pkg}") || die "Failed to read the version of ${cnm_pkg}"
 		[[ ${found} == "${cnm_ver}" ]] ||
 			die "Version mismatch in ${cnm_pkg}: dev-util/chromium-node-modules has ${cnm_ver}, found ${found}"
 	done < "${cnm_dir}/VERSIONS" || die
 	einfo "Replacing generated npm package files with dev-util/chromium-node-modules' ..."
 	while IFS= read -r -d '' cnm_file; do
-		[[ ${cnm_file} == VERSIONS ]] && continue
 		# Every file replaces one, except new chunks of code-split builds.
 		[[ -f ${S}/${cnm_file} || ${cnm_file##*/} == chunk-* ]] ||
 			die "${cnm_file} not found in the source tree"
 		# Remove first: cp would follow a symlink left in its place.
 		rm -f "${S}/${cnm_file}" || die
-		cp "${cnm_dir}/${cnm_file}" "${S}/${cnm_file}" || die "Failed to copy ${cnm_file}"
-	done < <(cd "${cnm_dir}" && find . -type f -printf '%P\0' || die)
+		cp "${cnm_tree}/${cnm_file}" "${S}/${cnm_file}" || die "Failed to copy ${cnm_file}"
+	done < <(cd "${cnm_tree}" && find . -type f -printf '%P\0' || die)
+	# DevTools' puppeteer-core (package/lib: the modules DevTools uses, of puppeteer's lib/)
+	local devtools_puppeteer="${S}/third_party/devtools-frontend/src/front_end/third_party/puppeteer/package/lib"
+	while IFS= read -r -d '' cnm_file; do
+		[[ -f ${cnm_dir}/build/devtools-puppeteer/lib/${cnm_file} ]] ||
+			die "puppeteer's ${cnm_file} not built by dev-util/chromium-node-modules"
+		cp "${cnm_dir}/build/devtools-puppeteer/lib/${cnm_file}" "${devtools_puppeteer}/${cnm_file}" || die
+	done < <(cd "${devtools_puppeteer}" && find . -name '*.js' -printf '%P\0' || die)
+	# Chromium patches some npm packages (third_party/node/patches; the tree has them applied).
+	# Of the files replaced above, that is only lit-html.js: apply its patch again.
+	pushd "${S}/third_party/node" >/dev/null || die
+	eapply "${S}/third_party/node/patches/lit_html.patch"
+	popd >/dev/null || die
+
+	# Polymer: third_party/polymer/v3_0's reproduce.sh and minify_polymer.sh generate
+	# polymer_bundled.min.js from @polymer/polymer and @webcomponents/shadycss (npm's files are
+	# their git sources). Do their steps for Polymer, from the git sources, with the rollup and
+	# terser above; the result is byte-identical. (The iron-* elements in components-chromium
+	# are their git sources, with the same import rewrites and patches.)
+	local polymer_dir="${S}/third_party/polymer/v3_0"
+	local polymer_build="${WORKDIR}/polymer-build"
+	mkdir -p "${polymer_build}/components-chromium" || die
+	cp -a "${WORKDIR}/polymer-${POLYMER_VER}" "${polymer_build}/components-chromium/polymer" || die
+	cp -a "${WORKDIR}/shadycss-${SHADYCSS_COMMIT}" "${polymer_build}/components-chromium/shadycss" || die
+	pushd "${polymer_build}" >/dev/null || die
+	# reproduce.sh
+	find components-chromium/ -mindepth 2 -maxdepth 2 -name '*.js' -exec sed -i 's/@polymer\//..\//g' {} + || die
+	find components-chromium/ -mindepth 3 -maxdepth 3 -name '*.js' -exec sed -i 's/@polymer\//..\/..\//g' {} + || die
+	find components-chromium/polymer/ -mindepth 3 -maxdepth 3 -name '*.js' \
+		-exec sed -i 's/@webcomponents\//..\/..\/..\//g' {} + || die
+	# (chromium.patch also patches an element, which isn't here: only its Polymer part)
+	"${EPYTHON}" -c '
+import sys
+out, cur, keep = [], [], False
+for line in open(sys.argv[1]):
+    if line.startswith("diff ") or (line.startswith("--- ") and not (cur and cur[-1].startswith("diff "))):
+        if keep: out += cur
+        cur, keep = [], False
+    cur.append(line)
+    keep = keep or (line.startswith("+++ ") and "components-chromium/polymer/" in line)
+if keep: out += cur
+sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polymer.patch || die
+	eapply chromium-polymer.patch
+	# minify_polymer.sh and minify_polymer.py
+	eapply "${polymer_dir}/polymer.patch"
+	local f
+	for f in $(grep -rl "window\['Shady\(DOM\|CSS\)'\]" components-chromium/polymer components-chromium/shadycss); do
+		sed -i "s/window\['ShadyDOM'\]/window.ShadyDOM/g; s/window\['ShadyCSS'\]/window.ShadyCSS/g" "${f}" || die
+	done
+	cp "${polymer_dir}/polymer.js" components-chromium/polymer/ || die
+	einfo "Building Polymer's bundle from source ..."
+	node "${S}/third_party/node/node_modules/@rollup/wasm-node/dist/bin/rollup" --silent --format esm \
+		--input components-chromium/polymer/polymer.js --file polymer_bundled.js || die "rollup failed"
+	node "${S}/third_party/node/node_modules/terser/bin/terser" polymer_bundled.js --compress --mangle \
+		--module --comments false --define window.HTMLImports=false --define window.ShadyCSS=false \
+		--define window.ShadyDOM=false --define window.Polymer.legacyOptimizations=false \
+		--output polymer_bundled.min.js || die "terser failed"
+	popd >/dev/null || die
+	cp "${polymer_build}/polymer_bundled.min.js" "${polymer_dir}/components-chromium/polymer/" ||
+		die "Failed to copy polymer_bundled.min.js"
+
+	# DevTools' lit (front_end/third_party/lit/lib/*.js): what its rebuild.sh does (tsc of
+	# src/*.ts, then its rollup.config.mjs, whose .d.ts outputs are kept as they are), with the
+	# lit packages dev-util/chromium-node-modules built and the rollup, @rollup/plugin-node-resolve
+	# and terser above.
+	local devtools_lit="${S}/third_party/devtools-frontend/src/front_end/third_party/lit"
+	local cnm_lit="${cnm_dir}/build/devtools-lit/node_modules"
+	found=$("${EPYTHON}" -c 'import json, sys; print(json.load(open(sys.argv[1]))["dependencies"]["lit"])' \
+		"${devtools_lit}/package.json") || die "Failed to read DevTools' lit version"
+	local cnm_lit_ver
+	cnm_lit_ver=$("${EPYTHON}" -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' \
+		"${cnm_lit}/lit/package.json") || die
+	[[ ${found} == "${cnm_lit_ver}" ]] ||
+		die "DevTools' lit is ${found}, dev-util/chromium-node-modules has ${cnm_lit_ver}"
+	local lit_build="${WORKDIR}/devtools-lit"
+	mkdir -p "${lit_build}/node_modules/@rollup/plugin-terser" "${lit_build}/node_modules/rollup-plugin-dts" || die
+	cp -r "${devtools_lit}/src" "${devtools_lit}/rollup.config.mjs" "${lit_build}/" || die
+	cp -r "${cnm_lit}/." "${lit_build}/node_modules/" || die
+	ln -s "${S}/third_party/chromium-bidi/node_modules/@rollup/plugin-node-resolve" \
+		"${lit_build}/node_modules/@rollup/plugin-node-resolve" || die
+	ln -s "${S}/third_party/node/node_modules/terser" "${lit_build}/node_modules/terser" || die
+	cp "${FILESDIR}/chromium-rollup-plugin-terser.mjs" "${lit_build}/node_modules/@rollup/plugin-terser/index.mjs" || die
+	echo '{"name": "@rollup/plugin-terser", "exports": "./index.mjs"}' \
+		> "${lit_build}/node_modules/@rollup/plugin-terser/package.json" || die
+	echo 'export default () => ({ name: "dts" });' > "${lit_build}/node_modules/rollup-plugin-dts/index.mjs" || die
+	echo '{"name": "rollup-plugin-dts", "exports": "./index.mjs"}' \
+		> "${lit_build}/node_modules/rollup-plugin-dts/package.json" || die
+	echo 'import c from "./rollup.config.mjs"; export default c.filter(e => !e.input.endsWith(".d.ts"));' \
+		> "${lit_build}/js.config.mjs" || die
+	pushd "${lit_build}" >/dev/null || die
+	einfo "Building DevTools' lit bundle from source ..."
+	# (--noCheck: the lit packages above come without type declarations)
+	"${tsgo_dir}/tsc" --ignoreConfig --skipLibCheck --noCheck -d -t esnext -m esnext --moduleResolution bundler \
+		src/*.ts ||
+		die "tsc failed"
+	node "${S}/third_party/node/node_modules/@rollup/wasm-node/dist/bin/rollup" -c js.config.mjs --silent ||
+		die "rollup failed"
+	popd >/dev/null || die
+	for f in "${lit_build}"/lib/*.js; do
+		[[ -f ${devtools_lit}/lib/${f##*/} ]] || die "Unexpected DevTools lit output ${f##*/}"
+		cp "${f}" "${f}.map" "${devtools_lit}/lib/" || die
+	done
+
+	# DevTools' codemirror.next (codemirror.next.js, chunk/*.js): what its rebuild.sh does (tsc of
+	# bundle.ts, then its rollup.config.mjs; the .d.ts output is kept), with the packages
+	# dev-util/chromium-node-modules built from source and the tools above. (Of chunk/, css.js,
+	# html.js and javascript.js are stale: nothing uses them.)
+	local devtools_cm="${S}/third_party/devtools-frontend/src/front_end/third_party/codemirror.next"
+	local cm_build="${WORKDIR}/devtools-codemirror"
+	mkdir -p "${cm_build}/node_modules/@rollup/plugin-terser" "${cm_build}/node_modules/rollup-plugin-dts" || die
+	cp "${devtools_cm}/bundle.ts" "${devtools_cm}/rollup.config.mjs" "${cm_build}/" || die
+	cp -r "${cnm_dir}/build/devtools-codemirror/node_modules/." "${cm_build}/node_modules/" || die
+	ln -s "${S}/third_party/chromium-bidi/node_modules/@rollup/plugin-node-resolve" \
+		"${cm_build}/node_modules/@rollup/plugin-node-resolve" || die
+	ln -s "${S}/third_party/node/node_modules/terser" "${cm_build}/node_modules/terser" || die
+	cp "${FILESDIR}/chromium-rollup-plugin-terser.mjs" "${cm_build}/node_modules/@rollup/plugin-terser/index.mjs" || die
+	echo '{"name": "@rollup/plugin-terser", "exports": "./index.mjs"}' \
+		> "${cm_build}/node_modules/@rollup/plugin-terser/package.json" || die
+	echo 'export default () => ({ name: "dts" });' > "${cm_build}/node_modules/rollup-plugin-dts/index.mjs" || die
+	echo '{"name": "rollup-plugin-dts", "exports": "./index.mjs"}' \
+		> "${cm_build}/node_modules/rollup-plugin-dts/package.json" || die
+	echo 'import c from "./rollup.config.mjs"; export default c.filter(e => !e.input.endsWith(".d.ts"));' \
+		> "${cm_build}/js.config.mjs" || die
+	pushd "${cm_build}" >/dev/null || die
+	einfo "Building DevTools' codemirror.next bundle from source ..."
+	# (--noCheck: TypeScript 6 is stricter than the packages' own compiler)
+	"${BROOT}/usr/bin/tsc-${DEVTOOLS_TS_VER}" -t esnext -m esnext --moduleResolution bundler --ignoreConfig \
+		--skipLibCheck --noCheck bundle.ts || die "tsc failed for codemirror.next"
+	node "${S}/third_party/node/node_modules/@rollup/wasm-node/dist/bin/rollup" -c js.config.mjs \
+		> rollup.log 2>&1 || die "rollup failed for codemirror.next: $(<rollup.log)"
+	# every import must be bundled
+	grep -q 'Unresolved dependencies' rollup.log && die "codemirror.next: $(<rollup.log)"
+	popd >/dev/null || die
+	local cm_rel
+	for f in "${cm_build}"/codemirror.next.js "${cm_build}"/chunk/*.js; do
+		cm_rel=${f#"${cm_build}"/}
+		[[ -f ${devtools_cm}/${cm_rel} ]] || die "Unexpected codemirror.next output ${cm_rel}"
+		cp "${f}" "${devtools_cm}/${cm_rel}" || die
+		cp "${f}.map" "${devtools_cm}/${cm_rel}.map" || die
+	done
+
+	# DevTools' web-vitals (front_end/third_party/web-vitals): package/src is web-vitals' source
+	# with DevTools' patches; compile it as its rebuild.sh does.
+	local web_vitals="${S}/third_party/devtools-frontend/src/front_end/third_party/web-vitals/package"
+	rm -r "${web_vitals}/dist/modules" || die
+	"${tsgo_dir}/tsc" --ignoreConfig --skipLibCheck -d -t esnext -m esnext --moduleResolution bundler --strict \
+		--outDir "${web_vitals}/dist/modules/" "${web_vitals}"/src/*/*.ts "${web_vitals}/src/index.ts" ||
+		die "tsc failed for web-vitals"
+
+	# DevTools' third-party-web: its rebuild.sh's bundle of the package (hand-written lib/, data)
+	pushd "${S}/third_party/devtools-frontend/src/front_end/third_party/third-party-web" >/dev/null || die
+	"${BROOT}/usr/bin/esbuild-${ESBUILD_VER}" --bundle package/nostats-subset.js --format=esm --outdir=lib \
+		--log-level=warning || die "esbuild failed for third-party-web"
+	popd >/dev/null || die
+
+	# ClientVariations.js (DevTools' copy of components/variations/proto/devtools/client_variations.js,
+	# Chromium's X-Client-Data header parser): generated by update_client_variations.py from the
+	# TypeScript ts-proto makes of client_variations.proto. Generate it the same way, with the
+	# protoc wrapper (with the system protoc), the tools above, and (for its tsc step) the native
+	# TypeScript compiler.
+	local cv_tmp="${S}/.gentoo-client-variations"
+	mkdir -p "${cv_tmp}" || die
+	"${EPYTHON}" "${S}/tools/protoc_wrapper/protoc_wrapper.py" client_variations.proto \
+		--protoc "${BROOT}/usr/bin/protoc" --proto-in-dir "${S}/components/variations/proto" \
+		--ts-out-dir "${cv_tmp}" --protoc-gen-ts "${S}/tools/protoc_wrapper/protoc-gen-ts_proto.py" \
+		--import-dir="${S}/third_party/protobuf/src" || die "protoc failed for client_variations.proto"
+	"${EPYTHON}" - "${S}" "${tsgo_dir}/tsc" "${cv_tmp}/client_variations.ts" <<-'EOF' || die "Failed to generate ClientVariations.js"
+		import os, subprocess, sys
+		src, tsc, proto_ts = sys.argv[1:]
+		devtools = os.path.join(src, "components/variations/proto/devtools")
+		sys.path.insert(0, devtools)
+		import update_client_variations as ucv
+		run_node = ucv.node.RunNode
+		def run(cmd, *args, **kwargs):
+		    if cmd[0] == "TSC":
+		        return subprocess.run([tsc, "--noCheck"] + cmd[1:], check=True)
+		    return run_node(cmd, *args, **kwargs)
+		ucv.node.RunNode = run
+		ucv.node_modules.PathToTypescript = lambda: "TSC"
+		out = os.path.join(devtools, "client_variations.js")
+		ucv.generate_bundle(os.path.join(devtools, "client_variations_uncompiled.ts"), proto_ts, out)
+	EOF
+	cp "${S}/components/variations/proto/devtools/client_variations.js" \
+		"${S}/third_party/devtools-frontend/src/front_end/third_party/chromium/client-variations/ClientVariations.js" || die
+	rm -r "${cv_tmp}" || die
 
 	# chromium-bidi bundles its BiDi mapper (used for browser automation, e.g. chromedriver)
 	# with its own copy of rollup ${ROLLUP_BIDI_VER}. Use the one above instead: the mapper
