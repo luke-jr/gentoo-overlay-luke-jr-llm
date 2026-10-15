@@ -546,6 +546,8 @@ src_prepare() {
 		# and the remote DevTools front-end.
 		"${FILESDIR}/chromium-156-no-runtime-executable-downloads.patch"
 		"${FILESDIR}/chromium-156-v8-metagen-resource-dir.patch"
+		# OpenXR includes <vulkan/vulkan.h> without depending on Chromium's Vulkan headers.
+		"${FILESDIR}/chromium-156-openxr-vulkan-headers.patch"
 	)
 
 	# So many fontconfig magic numbers to cover

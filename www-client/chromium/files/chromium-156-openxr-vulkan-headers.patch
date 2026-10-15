@@ -1,0 +1,23 @@
+OpenXR's Linux config defines XR_USE_GRAPHICS_API_VULKAN, so its headers include
+<vulkan/vulkan.h>, but nothing gave OpenXR Chromium's bundled Vulkan headers: upstream
+builds find them in its Debian sysroot. With use_sysroot=false the build needs
+dev-util/vulkan-headers installed. Depend on //third_party/vulkan-headers instead.
+
+diff --git a/third_party/openxr/BUILD.gn b/third_party/openxr/BUILD.gn
+index 25ab880444..cf4411aa2c 100644
+--- a/third_party/openxr/BUILD.gn
++++ b/third_party/openxr/BUILD.gn
+@@ -157,6 +157,13 @@ if (enable_openxr) {
+ 
+     deps = [ "//third_party/jsoncpp" ]
+ 
++    if (is_linux) {
++      # The Linux config below defines XR_USE_GRAPHICS_API_VULKAN, so the OpenXR
++      # headers include <vulkan/vulkan.h>. Use Chromium's copy instead of relying
++      # on one in the sysroot or the system (/usr/include).
++      public_deps = [ "//third_party/vulkan-headers/src:vulkan_headers" ]
++    }
++
+     public_configs = [ ":config" ]
+ 
+     defines = [
