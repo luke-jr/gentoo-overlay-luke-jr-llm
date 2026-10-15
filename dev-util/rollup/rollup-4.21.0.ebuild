@@ -41,6 +41,7 @@ ROLLUP_JS_DEPS=(
 	"yargs-parser 21.1.1 yargs/yargs-parser yargs-parser-v21.1.1 lib/index.ts"
 )
 
+# The parser's Cargo.lock, minus CARGO_STUB_CRATES
 CRATES="
 	ahash@0.8.11
 	aho-corasick@1.1.3
@@ -72,7 +73,6 @@ CRATES="
 	funty@2.0.0
 	getrandom@0.2.15
 	hashbrown@0.14.5
-	hermit-abi@0.3.9
 	hstr@0.2.12
 	idna@0.5.0
 	if_chain@1.0.2
@@ -82,7 +82,6 @@ CRATES="
 	itoa@1.0.11
 	js-sys@0.3.70
 	libc@0.2.156
-	libloading@0.8.5
 	lock_api@0.4.12
 	log@0.4.22
 	memchr@2.7.4
@@ -119,7 +118,6 @@ CRATES="
 	radix_fmt@1.0.0
 	rand@0.8.5
 	rand_core@0.6.4
-	redox_syscall@0.5.3
 	regex@1.10.6
 	regex-automata@0.4.7
 	regex-syntax@0.8.4
@@ -188,12 +186,22 @@ CRATES="
 	url@2.5.2
 	uuid@1.10.0
 	version_check@0.9.5
-	wasi@0.11.0+wasi-snapshot-preview1
 	wasm-bindgen@0.2.93
 	wasm-bindgen-backend@0.2.93
 	wasm-bindgen-macro@0.2.93
 	wasm-bindgen-macro-support@0.2.93
 	wasm-bindgen-shared@0.2.93
+	wyz@0.5.1
+	xxhash-rust@0.8.12
+	zerocopy@0.7.35
+"
+
+# Never built on Linux (see cargo-stubs.eclass).
+CARGO_STUB_CRATES="
+	hermit-abi@0.3.9
+	libloading@0.8.5
+	redox_syscall@0.5.3
+	wasi@0.11.0+wasi-snapshot-preview1
 	winapi@0.3.9
 	winapi-i686-pc-windows-gnu@0.4.0
 	winapi-x86_64-pc-windows-gnu@0.4.0
@@ -206,13 +214,12 @@ CRATES="
 	windows_x86_64_gnu@0.52.6
 	windows_x86_64_gnullvm@0.52.6
 	windows_x86_64_msvc@0.52.6
-	wyz@0.5.1
-	xxhash-rust@0.8.12
-	zerocopy@0.7.35
 	zerocopy-derive@0.7.35
 "
 
-inherit cargo edo flag-o-matic
+PYTHON_COMPAT=( python3_{12..15} )
+
+inherit cargo cargo-stubs edo flag-o-matic
 
 DESCRIPTION="The Rollup JavaScript bundler, built from source (CLI and native parser)"
 HOMEPAGE="https://rollupjs.org/ https://github.com/rollup/rollup"

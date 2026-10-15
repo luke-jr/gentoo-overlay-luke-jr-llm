@@ -40,6 +40,11 @@ dependency, and only with `USE=ffmpeg-chromium`; it builds and installs, but has
 
 Everything is keyworded `~amd64 ~arm64`. Only amd64 has been built and tested.
 
+`eclass/cargo-stubs.eclass` keeps the Rust packages (`crubit`, `rollup`) from fetching crates
+that Linux never builds (winapi, windows-sys, wasi, …): it writes a stub with the same
+name, version, checksum, dependencies and features in their place, which `compile_error!`s if
+anything does build it. `scripts/cargo-unused-crates.py` lists the candidates from a `Cargo.lock`.
+
 ## Build machine setup
 
 `@chromium-build-deps` is everything needed to build Chromium, but not Chromium itself: its
