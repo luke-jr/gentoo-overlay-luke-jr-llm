@@ -105,6 +105,15 @@ masked) keeps the previous set and its packages.
   - Nothing changes if the args aren't set.
 - **`chromium-156-v8-metagen-resource-dir.patch`** plus GN args: V8 metagen uses the
   system libclang instead of a prebuilt one.
+- **Unused npm packages are deleted** (`files/chromium-prune-node-modules.py`, keep list
+  `files/chromium-156-node-modules.txt`): 182 of the tarball's 1329 packages (372 MiB, mostly
+  generated JavaScript) are used. `scripts/chromium-node-modules-used.py` regenerates the list
+  for a new version: in a built tree, it rebuilds every Node/tsc step under strace.
+  - **`chromium-156-webui-lint-arg.patch`** adds the GN arg `enable_webui_lint`, which the
+    ebuild sets to false. WebUI's ESLint/Stylelint checks only write stamp files, and they
+    need 170 packages, including the 8.9 MB compiled TypeScript (`typescript.js`).
+  - Tested on 156.0.8078.12: all 20192 outputs of the 1964 Node/tsc build steps are
+    byte-identical with and without the deleted packages.
 - **`keeplibs`:** new bundled *sources* `iamf_tools`, `openxr`, `chromium-bidi`,
   `typescript`; removed `bidimapper` and `v8/third_party/glibc`.
 - **`generate-support-files.py`:** 156's new desktop/appdata template variables.
@@ -150,10 +159,16 @@ No USE flags were removed.
   blocker.
 - **TranslateKit** (on-device Translator web API) is closed source and only ships as a downloaded binary,
   so it stays disabled for good. "Translate this page" (server-side) works.
-- **Prebuilt JavaScript counts as a blob too** (to do after the rollup work). Chromium's tree carries
-  ~190 npm packages in `third_party/node/node_modules` (plus chromium-bidi's and DevTools' own) as
-  upstream's *built* JavaScript (bundled/transpiled from their sources), not as source. These need the
-  same treatment as binaries: build from source or replace, starting with an inventory.
+- **Prebuilt JavaScript counts as a blob too.** Unused npm packages are deleted (see above), but
+  182 remain, as upstream's *built* JavaScript (bundled/transpiled from their sources), not as
+  source. Next steps, roughly in order of effort:
+  - rollup, terser and the WebUI CSS minifier: `optimize_webui=false`, and esbuild (built from
+    source) for the lit bundle and the BiDi mapper;
+  - DevTools' postcss/cssnano/svgo (CSS minification, SVG optimization);
+  - `lit`/`lit-html`/`lit-element`, which ship in WebUI: build from their TypeScript sources;
+  - the `typescript` package that DevTools' `collect-ui-strings` uses, ts-proto, small DevTools helpers;
+  - DevTools' vendored `front_end/third_party` (~7 MB, mostly checked-in build output: Lighthouse,
+    CodeMirror, Puppeteer, ...), which ships in the browser.
 - **Crubit notes:** see `NOTES-crubit.md`.
 - **Metadata:** no package lists a maintainer: the `::gentoo` ones' Gentoo maintainers were removed, since
   they don't maintain this overlay. Add yourself if you like. The generated AppStream data uses upstream

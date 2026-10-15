@@ -554,6 +554,8 @@ src_prepare() {
 		"${FILESDIR}/chromium-156-v8-metagen-resource-dir.patch"
 		# OpenXR includes <vulkan/vulkan.h> without depending on Chromium's Vulkan headers.
 		"${FILESDIR}/chromium-156-openxr-vulkan-headers.patch"
+		# GN arg enable_webui_lint, to skip the ESLint/Stylelint checks (see below).
+		"${FILESDIR}/chromium-156-webui-lint-arg.patch"
 	)
 
 	# So many fontconfig magic numbers to cover
@@ -740,6 +742,13 @@ src_prepare() {
 			die "rollup version mismatch in ${rollup_dir}: expected ${rollup_dirs[${rollup_dir}]}, found ${found}"
 		fi
 	done
+
+	# The tarball's node_modules directories (WebUI, chromium-bidi, DevTools) hold 1329 npm
+	# packages, as npm publishes them: mostly generated JavaScript. Delete those the build
+	# doesn't use (most of the rest are the ESLint/Stylelint checks, disabled below).
+	einfo "Removing unused npm packages ..."
+	"${EPYTHON}" "${FILESDIR}/chromium-prune-node-modules.py" "${S}" \
+		"${FILESDIR}/chromium-${PV%%.*}-node-modules.txt" || die "Failed to remove unused npm packages"
 
 	# Nothing prebuilt may be used for the build: delete all compiled code (ELF, PE, Mach-O,
 	# WebAssembly, LLVM bitcode, SPIR-V, Java/Android bytecode, ...) and all archives, which could
@@ -1426,6 +1435,9 @@ chromium_configure() {
 		# remoting/, whose pkg-config probe made PipeWire a mandatory build dependency since M149;
 		# chrome/chromedriver/chrome_sandbox are unchanged (identical ninja commands and inputs).
 		"enable_remoting=false"
+		# ESLint/Stylelint checks of WebUI sources (chromium-156-webui-lint-arg.patch): they don't
+		# change the build output, and their npm packages are deleted in src_prepare.
+		"enable_webui_lint=false"
 		"enable_widevine=$(usex widevine true false)"
 		# Disable fatal linker warnings, bug 506268.
 		"fatal_linker_warnings=false"
