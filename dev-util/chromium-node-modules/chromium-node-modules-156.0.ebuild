@@ -82,6 +82,32 @@ JS_SOURCES=(
 	"ts-poet stephenh/ts-poet bda410a132645d243090bdd01cdb6559e4964ab2"
 	"case-anything mesqueeb/case-anything 4ff82505a22d1f71fc2528ed8f9a5691ca1d0511"
 	"bufbuild-protobuf bufbuild/protobuf-es v2.2.5"
+	# DevTools: CSS minification (cssnano) and SVG optimization (svgo)
+	"entities fb55/entities v4.5.0"
+	"domelementtype fb55/domelementtype v2.3.0"
+	"domhandler fb55/domhandler v5.0.3"
+	"dom-serializer cheeriojs/dom-serializer v2.0.0"
+	"domutils fb55/domutils v3.2.2"
+	"nth-check fb55/nth-check v2.1.1"
+	"css-what fb55/css-what v7.0.0"
+	"css-select fb55/css-select v6.0.0"
+	"css-tokenizer csstools/postcss-plugins 9256e22798ff1360e178912af9b57d59d0601c99"
+	"baseline-browser-mapping web-platform-dx/baseline-browser-mapping v2.11.21"
+	"caniuse-api MoOx/caniuse-api 4.0.0"
+	"postcss-selector-parser-7 postcss/postcss-selector-parser 7.1.6"
+	"nanoid ai/nanoid 3.3.18"
+	"colordx dkryaklin/colordx @colordx/core@6.4.0"
+	# DevTools: build scripts (yargs, ...), esbuild's JavaScript API, TypeScript
+	"yargs yargs/yargs v18.1.0"
+	"y18n yargs/y18n v5.0.5"
+	"cliui yargs/cliui v9.0.1"
+	"yargs-parser-22 yargs/yargs-parser yargs-parser-v22.0.0"
+	"escalade lukeed/escalade v3.2.0"
+	"get-caller-file stefanpenner/get-caller-file v2.0.5"
+	"js-yaml nodeca/js-yaml 5.4.1"
+	"uuid uuidjs/uuid v14.0.0"
+	"esbuild evanw/esbuild v0.28.2"
+	"typescript microsoft/TypeScript v6.0.2"
 )
 
 inherit edo
@@ -91,11 +117,11 @@ HOMEPAGE="https://www.chromium.org/"
 
 # _js_source <spec>: sets src_id, src_repo, src_ref, src_distfile and src_dir
 # (GitHub's archive directory: repository name, then the tag without a leading
-# "v" and with "/" as "-", or the commit).
+# "v" and with "/" and "@" as "-", or the commit).
 _js_source() {
 	read -r src_id src_repo src_ref <<< "${1}"
-	src_distfile="${src_repo//\//-}-${src_ref//\//-}.gh.tar.gz"
-	local ref=${src_ref//\//-}
+	local ref=${src_ref//[\/@]/-}
+	src_distfile="${src_repo//\//-}-${ref}.gh.tar.gz"
 	[[ ${ref} =~ ^v[0-9] ]] && ref=${ref#v}
 	src_dir="${src_repo##*/}-${ref}"
 }
@@ -111,7 +137,7 @@ done
 unset _spec src_id src_repo src_ref src_distfile src_dir
 S="${WORKDIR}"
 
-LICENSE="BSD-2 ISC MIT"
+LICENSE="Apache-2.0 BSD-2 ISC MIT"
 # spdx-license-ids, spdx-exceptions (data)
 LICENSE+=" CC-BY-3.0 CC0-1.0"
 SLOT="${PV%%.*}"
@@ -133,6 +159,31 @@ REPLACED_PACKAGES=(
 	"third_party/chromium-bidi/node_modules/rollup-plugin-cleanup 3.2.1"
 	"third_party/chromium-bidi/node_modules/rollup-plugin-license 3.7.1"
 	"third_party/node/node_modules/ts-proto 2.7.7"
+	"third_party/devtools-frontend/src/node_modules/entities 4.5.0"
+	"third_party/devtools-frontend/src/node_modules/domelementtype 2.3.0"
+	"third_party/devtools-frontend/src/node_modules/domhandler 5.0.3"
+	"third_party/devtools-frontend/src/node_modules/dom-serializer 2.0.0"
+	"third_party/devtools-frontend/src/node_modules/domutils 3.2.2"
+	"third_party/devtools-frontend/src/node_modules/nth-check 2.1.1"
+	"third_party/devtools-frontend/src/node_modules/css-what 7.0.0"
+	"third_party/devtools-frontend/src/node_modules/css-select 6.0.0"
+	"third_party/devtools-frontend/src/node_modules/@csstools/css-tokenizer 4.0.0"
+	"third_party/devtools-frontend/src/node_modules/baseline-browser-mapping 2.11.21"
+	"third_party/devtools-frontend/src/node_modules/caniuse-api 4.0.0"
+	"third_party/devtools-frontend/src/node_modules/postcss-selector-parser 7.1.6"
+	"third_party/devtools-frontend/src/node_modules/nanoid 3.3.18"
+	"third_party/devtools-frontend/src/node_modules/@colordx/core 6.4.0"
+	"third_party/devtools-frontend/src/node_modules/cssesc 3.0.0"
+	"third_party/devtools-frontend/src/node_modules/yargs 18.1.0"
+	"third_party/devtools-frontend/src/node_modules/y18n 5.0.5"
+	"third_party/devtools-frontend/src/node_modules/yargs/node_modules/cliui 9.0.1"
+	"third_party/devtools-frontend/src/node_modules/yargs/node_modules/yargs-parser 22.0.0"
+	"third_party/devtools-frontend/src/node_modules/escalade 3.2.0"
+	"third_party/devtools-frontend/src/node_modules/get-caller-file 2.0.5"
+	"third_party/devtools-frontend/src/node_modules/js-yaml 5.4.1"
+	"third_party/devtools-frontend/src/node_modules/uuid 14.0.0"
+	"third_party/devtools-frontend/src/node_modules/esbuild 0.28.2"
+	"third_party/devtools-frontend/src/node_modules/typescript 6.0.2"
 )
 
 # _dir <id>: the unpacked directory of a source
@@ -197,6 +248,23 @@ _bundle() {
 		fi
 	done
 	edo "${ESBUILD}" "${entry}" "${args[@]}"
+}
+
+# _split <output dir> <source id>:<base dir> <entry>... [-- <esbuild arg>...]
+# Bundles the entries (relative to the base directory) as ES modules sharing
+# chunks, into ${WORKDIR}/image/<output dir> (paths below the base kept). All
+# npm imports stay external: they resolve in Chromium's tree as before.
+_split() {
+	local out=${1} base="$(_dir "${2%%:*}")/${2#*:}"
+	shift 2
+	local entries=()
+	while [[ ${#} -gt 0 && ${1} != -- ]]; do
+		entries+=( "${base}/${1}" )
+		shift
+	done
+	[[ ${1} == -- ]] && shift
+	edo "${ESBUILD}" "${entries[@]}" --bundle --splitting --format=esm --platform=node --target=node18 \
+		--packages=external --log-level=warning --outbase="${base}" --outdir="${WORKDIR}/image/${out}" "${@}"
 }
 
 src_compile() {
@@ -331,6 +399,85 @@ src_compile() {
 	diff -r "${T}/descriptors1" "${T}/descriptors2" ||
 		die "ts-proto doesn't regenerate its descriptors identically"
 
+	# DevTools: the generated npm packages its CSS minification (cssnano) and SVG
+	# optimization (svgo) use, each replaced in place, its npm imports resolving
+	# in the tree as before.
+	local dt=third_party/devtools-frontend/src/node_modules
+	# entities' decoding tables are generated by its scripts; regenerate them and
+	# check them against the committed ones.
+	local entities
+	entities=$(_dir entities) || die
+	cp -r "${entities}"/src/generated "${T}"/entities-generated || die
+	local script
+	for script in write-decode-map write-encode-map; do
+		edo "${ESBUILD}" "${entities}/scripts/${script}.ts" --bundle --platform=node --format=cjs \
+			--log-level=warning --outfile="${entities}/scripts/${script}.cjs"
+		edo node "${entities}/scripts/${script}.cjs"
+	done
+	diff -r "${T}"/entities-generated "${entities}"/src/generated ||
+		die "entities' scripts don't regenerate its tables identically"
+	_bundle esm ${dt}/entities/lib/esm/index.js entities:src/index.ts
+	_bundle esm ${dt}/domelementtype/lib/esm/index.js domelementtype:src/index.ts
+	_bundle esm ${dt}/domhandler/lib/esm/index.js domhandler:src/index.ts --packages=external
+	_bundle esm ${dt}/dom-serializer/lib/esm/index.js dom-serializer:src/index.ts --packages=external
+	_bundle esm ${dt}/domutils/lib/esm/index.js domutils:src/index.ts --packages=external
+	_bundle esm ${dt}/nth-check/lib/esm/index.js nth-check:src/index.ts --packages=external
+	_bundle esm ${dt}/css-what/dist/esm/index.js css-what:src/index.ts
+	_bundle esm ${dt}/css-select/dist/esm/index.js css-select:src/index.ts --packages=external
+	_bundle esm ${dt}/@csstools/css-tokenizer/dist/index.mjs css-tokenizer:packages/css-tokenizer/src/index.ts
+	_bundle cjs ${dt}/baseline-browser-mapping/dist/index.cjs baseline-browser-mapping:src/index.ts
+	_bundle cjs ${dt}/caniuse-api/dist/index.js caniuse-api:src/index.ts --packages=external
+	_bundle cjs-default ${dt}/postcss-selector-parser/dist/index.js postcss-selector-parser-7:src/index.js \
+		cssesc="${T}/cssesc.js" \
+		util-deprecate=util-deprecate:node.js
+	# postcss-minify-selectors uses cssesc itself
+	_copy_file() { mkdir -p "${WORKDIR}/image/${2%/*}" && cp "${1}" "${WORKDIR}/image/${2}" || die; }
+	_copy_file "${T}/cssesc.js" ${dt}/cssesc/cssesc.js
+	# npm's copy is git's hand-written file with its comments stripped
+	_copy_file "$(_dir nanoid)/non-secure/index.cjs" ${dt}/nanoid/non-secure/index.cjs
+	# Entry points sharing chunks, like its tsup build
+	_split ${dt}/@colordx/core/dist colordx:src index.ts plugins/hwb.ts plugins/minify.ts plugins/names.ts -- \
+		--platform=neutral --target=es2022 --out-extension:.js=.mjs
+
+	# DevTools' build scripts. yargs, y18n and cliui are hand-written module
+	# wrappers (kept) around their compiled TypeScript in build/lib.
+	_split ${dt}/yargs/build/lib yargs:lib yargs-factory.ts utils/apply-extends.ts utils/process-argv.ts
+	_split ${dt}/y18n/build/lib y18n:lib index.ts platform-shims/node.ts
+	_split ${dt}/yargs/node_modules/cliui/build/lib cliui:lib index.ts
+	_split ${dt}/yargs/node_modules/yargs-parser/build/lib yargs-parser-22:lib index.ts
+	_bundle esm ${dt}/escalade/sync/index.mjs escalade:src/sync.js --packages=external
+	edo "${ESBUILD}" "$(_dir get-caller-file)/index.ts" --format=cjs --platform=node --target=node18 \
+		--log-level=warning --outfile="${WORKDIR}/image/${dt}/get-caller-file/index.js"
+	_bundle esm ${dt}/js-yaml/dist/js-yaml.mjs js-yaml:src/index.ts --packages=external --target=es2015
+	# uuid's Node.js build (src/ without the *-browser files)
+	_bundle esm ${dt}/uuid/dist-node/index.js uuid:src/index.ts
+	# esbuild's JavaScript API, as its scripts/esbuild.js builds lib/main.js
+	_bundle cjs ${dt}/esbuild/lib/main.js esbuild:lib/npm/node.ts --target=node10 \
+		--define:WASM=false --define:ESBUILD_VERSION=\"0.28.2\" esbuild=external
+
+	# TypeScript (lib/typescript.js), as its Herebyfile.mjs builds it: generate the
+	# diagnostic messages, bundle src/typescript/typescript.ts wrapped in "var ts",
+	# then undo the "require" rename and drop __esModule from __toCommonJS.
+	local ts
+	ts=$(_dir typescript) || die
+	pushd "${ts}" >/dev/null || die
+	edo node scripts/processDiagnosticMessages.mjs src/compiler/diagnosticMessages.json
+	local ts_out="${WORKDIR}/image/${dt}/typescript/lib/typescript.js"
+	edo "${ESBUILD}" src/typescript/typescript.ts --bundle --outfile="${ts_out}" --platform=node \
+		--target=es2020,node14.17 --format=cjs --packages=external --log-level=warning \
+		--banner:js="$(<scripts/CopyrightNotice.txt)"$'\n'"var ts = {}; ((module) => {" \
+		--footer:js='})({ get exports() { return ts; }, set exports(v) { ts = v; if (typeof module !== "undefined" && module.exports) { module.exports = v; } } })' \
+		--define:require=QQQQQQQ
+	popd >/dev/null || die
+	edo node -e '
+		const fs = require("fs");
+		let s = fs.readFileSync(process.argv[1], "utf8").replace(/QQQQQQQ/g, "require");
+		let n = 0;
+		s = s.replace(/var __toCommonJS .*/, () => (n++, "var __toCommonJS = (mod) => (__copyProps, mod); // Modified helper to skip setting __esModule."));
+		if (n !== 1) throw new Error("expected one __toCommonJS, found " + n);
+		fs.writeFileSync(process.argv[1], s);
+	' "${ts_out}"
+
 	local pkg
 	for pkg in "${REPLACED_PACKAGES[@]}"; do
 		echo "${pkg}" >> "${WORKDIR}/image/VERSIONS" || die
@@ -341,6 +488,8 @@ src_test() {
 	# Upstream's test suites need their dev dependencies; check that every
 	# bundle loads and does something.
 	local i=${WORKDIR}/image bidi=third_party/chromium-bidi/node_modules webui=third_party/node/node_modules
+	local dt=third_party/devtools-frontend/src/node_modules
+	cp "${i}/${dt}/uuid/dist-node/index.js" "${T}/uuid.mjs" || die
 	# In Chromium's tree, a package.json next to it makes this one ESM.
 	cp "${i}/${bidi}/@rollup/plugin-node-resolve/dist/es/index.js" "${T}/node-resolve.mjs" || die
 	# rollup-plugin-license reads the package.json of the current directory.
@@ -359,10 +508,16 @@ src_test() {
 			assert.equal(typeof nodeResolve.nodeResolve().resolveId.handler, "function");
 			assert.equal(typeof require(cleanup)().transform, "function");
 			assert.equal(typeof require(license)().renderChunk, "function");
+			const ts = require(process.argv[6]);
+			assert.equal(ts.version, "6.0.2");
+			assert.equal(ts.createSourceFile("a.ts", "const a: number = 1;", ts.ScriptTarget.Latest).statements.length, 1);
+			assert.equal((await import(process.argv[7])).load("a: [1, 2]").a[1], 2);
+			assert.match((await import(process.argv[8])).v4(), /^[0-9a-f-]{36}$/);
 		})().catch((e) => { console.error(e); process.exit(1); });
 	' "${i}/${webui}/terser/dist/bundle.min.js" "${i}/${webui}/postcss-selector-parser/dist/index.js" \
 		"${T}/node-resolve.mjs" "${i}/${bidi}/rollup-plugin-cleanup/dist/rollup-plugin-cleanup.js" \
-		"${i}/${bidi}/rollup-plugin-license/dist/index.js"
+		"${i}/${bidi}/rollup-plugin-license/dist/index.js" "${i}/${dt}/typescript/lib/typescript.js" \
+		"${i}/${dt}/js-yaml/dist/js-yaml.mjs" "${T}/uuid.mjs"
 }
 
 src_install() {

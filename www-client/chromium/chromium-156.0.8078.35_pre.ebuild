@@ -832,7 +832,9 @@ src_prepare() {
 	einfo "Replacing generated npm package files with dev-util/chromium-node-modules' ..."
 	while IFS= read -r -d '' cnm_file; do
 		[[ ${cnm_file} == VERSIONS ]] && continue
-		[[ -f ${S}/${cnm_file} ]] || die "${cnm_file} not found in the source tree"
+		# Every file replaces one, except new chunks of code-split builds.
+		[[ -f ${S}/${cnm_file} || ${cnm_file##*/} == chunk-* ]] ||
+			die "${cnm_file} not found in the source tree"
 		# Remove first: cp would follow a symlink left in its place.
 		rm -f "${S}/${cnm_file}" || die
 		cp "${cnm_dir}/${cnm_file}" "${S}/${cnm_file}" || die "Failed to copy ${cnm_file}"

@@ -31,7 +31,7 @@ Goals:
 | `dev-lang/rustc-dev:1.98.1` | The Rust compiler's own crates (the `rustc-dev` component, what `rustup component add rustc-dev` installs), from the tarball `dev-lang/rust` builds with `USE=dist`, installed into that Rust slot's sysroot. Crubit links against them. |
 | `dev-util/crubit:1.98.1` | Crubit's `cc_bindings_from_rs`, built from source against the selected `dev-lang/rust`. Since M153–156, default-on code (Blink's FontFormatCheck, the Web Bundle parser, …) is Rust that C++ reaches only through Crubit-generated bindings. |
 | `dev-util/rollup:4.21.0` | The Rollup bundler built from source: its CLI (rollup's TypeScript plus the 17 npm packages its own build bundles in, each from its source, bundled with esbuild) and its JavaScript parser (Rust) as a native Node.js addon. Replaces `@rollup/wasm-node` (generated JavaScript and a prebuilt WebAssembly parser), used for WebUI bundling; chromium-bidi's own (newer) copy is replaced by the same one. WebUI bundles are byte-identical to the npm package's; the BiDi mapper only keeps a little more dead code. Replaces `dev-util/rollup-native` (parser only). |
-| `dev-util/chromium-node-modules:156` | Generated files of the npm packages in Chromium's tarball, built from the packages' git sources as self-contained esbuild bundles, installed at the paths of the files they replace (Chromium copies them over, after checking versions). So far: terser's library bundle (WebUI/Mojo minification), chromium-bidi's three rollup plugins (node-resolve, cleanup, license; 31 packages from source, incl. moment and lodash), WebUI's `postcss-selector-parser`, and ts-proto's protoc plugin (bootstrapped: its committed, self-generated descriptors are regenerated and must reach a fixpoint). Build outputs are byte-identical. |
+| `dev-util/chromium-node-modules:156` | Generated files of the npm packages in Chromium's tarball, built from the packages' git sources as self-contained esbuild bundles, installed at the paths of the files they replace (Chromium copies them over, after checking versions). So far: terser's library bundle (WebUI/Mojo minification), chromium-bidi's three rollup plugins (node-resolve, cleanup, license; 31 packages from source, incl. moment and lodash), WebUI's `postcss-selector-parser`, ts-proto's protoc plugin (bootstrapped: its committed, self-generated descriptors are regenerated and must reach a fixpoint), and DevTools' build tools: the generated packages behind cssnano and svgo, yargs and its family, js-yaml, uuid, esbuild's JavaScript API, and TypeScript 6's `typescript.js` (its JavaScript API, which `collect-ui-strings` uses; `dev-lang/typescript` is TypeScript 7, which has none). Build outputs are byte-identical. |
 | `media-video/ffmpeg-chromium-156` | for `USE=ffmpeg-chromium` (`::gentoo` stops at 154) |
 
 All except `ffmpeg-chromium` are **build-time only** (`BDEPEND`) for Chromium. `ffmpeg-chromium` is a runtime
@@ -107,7 +107,7 @@ masked) keeps the previous set and its packages.
 - **`chromium-156-v8-metagen-resource-dir.patch`** plus GN args: V8 metagen uses the
   system libclang instead of a prebuilt one.
 - **Unused npm packages are deleted** (`files/chromium-prune-node-modules.py`, keep list
-  `files/chromium-156-node-modules.txt`): 145 of the tarball's 1329 packages (372 MiB, mostly
+  `files/chromium-156-node-modules.txt`): 144 of the tarball's 1329 packages (372 MiB, mostly
   generated JavaScript) are used. `scripts/chromium-node-modules-used.py` regenerates the list
   for a new version: in a built tree, it rebuilds every Node/tsc step under strace.
   - **`chromium-156-webui-lint-arg.patch`** adds the GN arg `enable_webui_lint`, which the
@@ -161,15 +161,14 @@ No USE flags were removed.
 - **TranslateKit** (on-device Translator web API) is closed source and only ships as a downloaded binary,
   so it stays disabled for good. "Translate this page" (server-side) works.
 - **Prebuilt JavaScript counts as a blob too.** Unused npm packages are deleted (see above), but
-  145 remain. Rollup, terser, chromium-bidi's rollup plugins, WebUI's CSS minifier and ts-proto now
-  use files built from source (`dev-util/rollup`, `dev-util/chromium-node-modules`). Of the rest, 64
-  are hand-written source identical to their git tags, 36 only provide type declarations, and
-  some are data (caniuse, MDN, SPDX lists). Still generated, roughly in order of effort:
-  - DevTools' postcss/cssnano/svgo (CSS minification, SVG optimization);
-  - `lit`/`lit-html`/`lit-element`, which ship in WebUI: build from their TypeScript sources;
-  - the `typescript` package that DevTools' `collect-ui-strings` uses, ts-proto, small DevTools helpers;
+  144 remain. All generated files that build tools use are now built from source (`dev-util/rollup`,
+  `dev-util/chromium-node-modules`); of the rest, most are hand-written source identical to their git
+  tags, type declarations only, or data (caniuse, MDN, SPDX lists). Still generated: what ships in the
+  browser:
+  - `lit`/`lit-html`/`lit-element`/`@lit/reactive-element` (WebUI; Chromium patches lit-html's
+    minified files), `@bufbuild/protobuf` (chrome://traces-internals), zod and mitt (BiDi mapper);
   - DevTools' vendored `front_end/third_party` (~7 MB, mostly checked-in build output: Lighthouse,
-    CodeMirror, Puppeteer, ...), which ships in the browser.
+    CodeMirror, Puppeteer, ...), and `third_party/lottie/lottie_worker.js`.
 - **Crubit notes:** see `NOTES-crubit.md`.
 - **Metadata:** no package lists a maintainer: the `::gentoo` ones' Gentoo maintainers were removed, since
   they don't maintain this overlay. Add yourself if you like. The generated AppStream data uses upstream
