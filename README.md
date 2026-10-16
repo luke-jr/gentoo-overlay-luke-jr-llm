@@ -207,6 +207,10 @@ built-in terms dialog Linux builds show on a new profile's first run.
   the BiDi mapper's zod and mitt, and DevTools' vendored `front_end/third_party` libraries (Lighthouse
   and axe-core, CodeMirror 5 and 6, Puppeteer, acorn, marked, …). DevTools' `ClientVariations.js` is
   regenerated with the system `protoc` and its `update_client_variations.py`. What is left, deliberately:
+  - Khronos' Vulkan validation layer (for Dawn's `--enable-dawn-backend-validation`) and mock driver
+    (for ANGLE's `--use-angle=vulkan-null`), mostly generated sources, are only built with
+    `USE=debug` (`chromium-156-angle-mock-icd-arg.patch` adds the GN arg for the latter); upstream
+    always builds and ships them, but only loads them on these debugging switches.
   - DevTools' checked-in generated TypeScript is regenerated in `src_prepare` with DevTools' own
     scripts from the tarball's inputs: `front_end/generated/` (protocol, ARIA, CSS and deprecation
     data, from the `.pdl` and `.json5` definitions; byte-identical) and
