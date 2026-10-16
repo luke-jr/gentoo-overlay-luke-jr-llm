@@ -207,6 +207,10 @@ built-in terms dialog Linux builds show on a new profile's first run.
   the BiDi mapper's zod and mitt, and DevTools' vendored `front_end/third_party` libraries (Lighthouse
   and axe-core, CodeMirror 5 and 6, Puppeteer, acorn, marked, …). DevTools' `ClientVariations.js` is
   regenerated with the system `protoc` and its `update_client_variations.py`. What is left, deliberately:
+  - XNNPACK's ~9,400 checked-in micro-kernels (`src/*/gen/`, C and assembly) are deleted and made
+    again from its templates by its own `tools/xngen` and `gemm_compiler`, plus its
+    `build_identifier.c` (`files/chromium-xnnpack-regen.py`); byte-identical. The 4 that nothing
+    generates (RISC-V and Hexagon kernels, not built for Linux) are left out.
   - DevTools' checked-in generated TypeScript is regenerated in `src_prepare` with DevTools' own
     scripts from the tarball's inputs: `front_end/generated/` (protocol, ARIA, CSS and deprecation
     data, from the `.pdl` and `.json5` definitions; byte-identical) and
