@@ -1,0 +1,109 @@
+Build gnrt without its crate downloader (`gnrt vendor` fetching crates from
+crates.io), and so without reqwest, flate2 and tar and their ~140 dependencies
+(HTTP, TLS, ...). Only `gnrt gen` is used.
+
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -16,7 +16,6 @@
+ anyhow = "1"
+ cargo-platform = "0.2"
+ clap = { version = "4", features = ["derive"] }
+-flate2 = "1"
+ glob = "0.3.3"
+ guppy = "0.19.0"
+ handlebars = "6.3.2"
+@@ -25,7 +24,6 @@
+ once_cell = "1"
+ proc-macro2 = "1.0.103"
+ rayon = "1.12.0"
+-reqwest = { version = "0.12", features = ["blocking"] }
+ semver = "1"
+ serde = { version = "1", features = ["derive"] }
+ serde_json = "1"
+@@ -33,7 +31,6 @@
+ strum = "0.27.1"
+ strum_macros = "0.27.1"
+ syn = { version = "2.0.110", features = ["full", "visit"] }
+-tar = "0.4"
+ target-spec = "3.4.2"
+ tempfile = "3"
+ toml = "0.8"
+--- a/vendor.rs
++++ b/vendor.rs
+@@ -406,74 +406,9 @@
+ fn download_crate(
+     name: &str,
+     version: &semver::Version,
+-    paths: &paths::ChromiumPaths,
++    _paths: &paths::ChromiumPaths,
+ ) -> Result<()> {
+-    let mut response = {
+-        // https://crates.io/data-access#api asks to provide a user agent as a courtesy:
+-        static USER_AGENT: &str = "gnrt by rust-dev@chromium.org";
+-        let client = reqwest::blocking::Client::builder().user_agent(USER_AGENT).build()?;
+-
+-        let download_url = format!("https://crates.io/api/v1/crates/{name}/{version}/download");
+-        client.get(download_url).send()?
+-    };
+-    if response.status() != 200 {
+-        return Err(format_err!("Failed to download crate {}: {}", name, response.status()));
+-    }
+-    let num_bytes = {
+-        let header = response.headers().get(reqwest::header::CONTENT_LENGTH);
+-        if let Some(value) = header {
+-            value.to_str()?.parse::<usize>()?
+-        } else {
+-            0
+-        }
+-    };
+-    let mut bytes = Vec::with_capacity(num_bytes);
+-    {
+-        use std::io::Read;
+-        response
+-            .read_to_end(&mut bytes)
+-            .with_context(|| format!("reading http response for crate {name}"))?;
+-    }
+-    let unzipped = flate2::read::GzDecoder::new(bytes.as_slice());
+-    let mut archive = tar::Archive::new(unzipped);
+-
+-    // Using `TempDir::with_prefix_in` to ensure that `std::fs::rename` below
+-    // doesn't need to work across mount points / across filesystems.
+-    let tempdir =
+-        tempfile::TempDir::with_prefix_in("tmp-gnrt-vendor", paths.third_party_cargo_root)?;
+-    archive
+-        .unpack(tempdir.path())
+-        .with_context(|| format!("unpacking http response for crate {name}"))?;
+-
+-    // Remove old vendored dir (most likely an old version of the crate).
+-    let crate_dir = get_vendor_dir_for_package(paths, name, version);
+-    std::fs::remove_dir_all(&crate_dir)
+-        .or_else(|err| {
+-            if err.kind() == std::io::ErrorKind::NotFound {
+-                // Ignore errors if the directory already didn't exist.
+-                Ok(())
+-            } else {
+-                Err(err)
+-            }
+-        })
+-        .with_context(|| format!("Removing old vendored sources at {}", crate_dir.display()))?;
+-
+-    // Expecting that the archive will contain a directory with a predictable
+-    // path based on crate name and version.  Move this directory to the final
+-    // destination (to `crate_dir`).
+-    let archived_dir = tempdir.path().join(format!("{name}-{version}"));
+-    std::fs::rename(&archived_dir, &crate_dir).with_context(|| {
+-        format!(
+-            "Moving unpacked crate contents from {} to {}",
+-            archived_dir.display(),
+-            crate_dir.display(),
+-        )
+-    })?;
+-
+-    std::fs::write(crate_dir.join(".cargo-checksum.json"), "{\"files\":{}}\n")
+-        .with_context(|| format!("writing .cargo-checksum.json for crate {name}"))?;
+-
+-    Ok(())
++    Err(format_err!("gnrt was built without downloading support; get {name} {version} elsewhere"))
+ }
+ 
+ fn remove_vendored_files(
