@@ -227,7 +227,7 @@ built-in terms dialog Linux builds show on a new profile's first run.
   - `http-link-header` 1.1.1 comes from a fork that still has its commit, since the original repository
     is gone.
   - emoji-regex's pattern is generated with `files/emoji-test-regex-pattern.mjs`, not upstream's
-    downloaded PHP tool. It is 13.8 KB vs upstream's 14.1 KB, and matches the same on 210,452 test
+    downloaded PHP tool, from Unicode's `emoji-test.txt` as `app-i18n/unicode-emoji` installs it. It is 13.8 KB vs upstream's 14.1 KB, and matches the same on 210,452 test
     strings.
 - **Crubit notes:** see `NOTES-crubit.md`.
 - **Metadata:** no package lists a maintainer: the `::gentoo` ones' Gentoo maintainers were removed, since

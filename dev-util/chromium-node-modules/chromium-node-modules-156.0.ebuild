@@ -228,7 +228,7 @@ JS_SOURCES=(
 	"js-library-detector johnmichel/Library-Detector-for-Chrome e56bea2d4e0bf483a7255e5c51f4407923618f43"
 	# axe-core 4.13.0 (Lighthouse inlines axe.min.js), its build tools and the packages it
 	# bundles (versions from its pnpm-lock.yaml); emoji-regex's pattern is generated from
-	# Unicode's emoji-test.txt
+	# Unicode's emoji-test.txt (app-i18n/unicode-emoji)
 	"axe-core dequelabs/axe-core v4.13.0"
 	"clone pvorb/clone 765941803d27761a6008cb1aa32b199f0c42deb2"
 	"deque-dot dequelabs/doT 6e4822b49c7f6355225e0d515749b9ab5789bf6f"
@@ -344,12 +344,10 @@ _devtools_uri() {
 _devtools_files _devtools_uri
 unset -f _devtools_uri
 # @paulirish/trace_engine: the sources in its source maps, and its package files that
-# aren't compiled output (package.json, tsconfig files, locales, small shims); Unicode's
-# emoji data
+# aren't compiled output (package.json, tsconfig files, locales, small shims)
 SRC_URI+="
 	https://registry.npmjs.org/@paulirish/trace_engine/-/trace_engine-0.0.65.tgz
 		-> paulirish-trace_engine-0.0.65.tgz
-	https://www.unicode.org/Public/17.0.0/emoji/emoji-test.txt -> unicode-17.0.0-emoji-test.txt
 "
 S="${WORKDIR}"
 
@@ -364,6 +362,7 @@ IUSE="test"
 RESTRICT="!test? ( test )"
 
 BDEPEND="
+	>=app-i18n/unicode-emoji-17.0.0
 	dev-lang/typescript:6.0.2
 	dev-util/rollup:4.21.0
 	dev-libs/protobuf
@@ -1102,7 +1101,7 @@ src_compile() {
 	# sequences (Unicode's emoji-test.txt and the package's extra ones)
 	_axe_pkg "$(_dir emoji-regex)" emoji-regex
 	mkdir -p "${axe_nm}/emoji-regex/node_modules/emoji-test-regex-pattern/dist/latest" || die
-	edo node "${FILESDIR}/emoji-test-regex-pattern.mjs" "${DISTDIR}/unicode-17.0.0-emoji-test.txt" \
+	edo node "${FILESDIR}/emoji-test-regex-pattern.mjs" "${BROOT}/usr/share/unicode/emoji/emoji-test.txt" \
 		"$(_dir emoji-test-regex-pattern)/script/get-sequences.js" \
 		> "${axe_nm}/emoji-regex/node_modules/emoji-test-regex-pattern/dist/latest/javascript.txt"
 	pushd "${axe_nm}/emoji-regex" >/dev/null || die
