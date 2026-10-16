@@ -262,6 +262,7 @@ BDEPEND="
 	${PYTHON_DEPS}
 	$(python_gen_any_dep '
 		dev-python/setuptools[${PYTHON_USEDEP}]
+		dev-python/pyparsing[${PYTHON_USEDEP}]
 		!bundled-toolchain? ( dev-python/clang[${PYTHON_USEDEP}] )
 	')
 	>=app-arch/gzip-1.7
@@ -985,6 +986,31 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 		"$(type -P flex)" "$(type -P bison)" \
 		"$(usex bundled-toolchain '' "$(get_llvm_prefix -b)/bin/clang-format")" "$(type -P gn)" ||
 		die "Failed to regenerate ANGLE's generated code"
+
+	# Chromium's own checked-in generated GPU code: the command buffer's GLES2/raster/WebGPU
+	# client and service code, the GL and Vulkan function bindings (Vulkan's from vk.xml, put
+	# in place above) and Vulkan's mojo types. The generators insist on a checkout named src/
+	# or chromium/, and format their output with third_party/depot_tools/clang-format (a wrapper
+	# that runs a prebuilt one; replaced while they run, and they ignore its failures).
+	einfo "Regenerating Chromium's generated GPU code ..."
+	mv third_party/depot_tools/clang-format{,.orig} || die
+	if use bundled-toolchain; then
+		# No system clang-format: leave the output unformatted (only the layout differs).
+		printf '#!/bin/sh\nexit 0\n' > third_party/depot_tools/clang-format || die
+		chmod +x third_party/depot_tools/clang-format || die
+	else
+		ln -s "$(get_llvm_prefix -b)/bin/clang-format" third_party/depot_tools/clang-format || die
+	fi
+	ln -s "${S}" "${WORKDIR}/src" || die
+	local gpu_gen
+	for gpu_gen in gpu/command_buffer/build_{gles2,raster,webgpu}_cmd_buffer.py ui/gl/generate_bindings.py \
+		gpu/vulkan/generate_bindings.py gpu/ipc/common/generate_vulkan_types.py; do
+		( cd "${WORKDIR}/src" && PATH="${S}/third_party/depot_tools:${PATH}" \
+			"${EPYTHON}" -B "${WORKDIR}/src/${gpu_gen}" ) > "${T}/$(basename ${gpu_gen} .py).log" 2>&1 ||
+			die "${gpu_gen} failed (see ${T}/$(basename ${gpu_gen} .py).log)"
+	done
+	rm "${WORKDIR}/src" third_party/depot_tools/clang-format || die
+	mv third_party/depot_tools/clang-format{.orig,} || die
 
 	# Other generated files of npm packages (terser's library bundle, chromium-bidi's rollup
 	# plugins, ...): dev-util/chromium-node-modules builds them from their sources, as
@@ -1817,6 +1843,9 @@ chromium_configure() {
 		"dcheck_is_configurable=$(usex debug true false)"
 		# Chromium builds provided by Linux distros should disable the testing config
 		"disable_fieldtrial_testing_config=true"
+		# Generate the X11 protocol bindings from xcbproto's XML at build time, instead of
+		# using the checked-in copies (ui/gfx/x/generated_protos/).
+		"regenerate_x11_protos=true"
 		# Custom patch: Enable building Chromium as individual channels (e.g. stable, beta, dev) that
 		# use different profile directories, desktop entries, etc. This enables slotting the ebuild.
 		"enable_channel_branding=true"
