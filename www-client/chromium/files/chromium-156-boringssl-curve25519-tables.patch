@@ -1,0 +1,52 @@
+BoringSSL's crypto/curve25519/curve25519_tables.h was edited by hand when BoringSSL moved
+into the bssl namespace (and its comments to `code` style), but the script that generates
+it wasn't updated. Update the script, so it outputs the checked-in file again.
+
+--- a/third_party/boringssl/src/crypto/curve25519/make_curve25519_tables.py
++++ b/third_party/boringssl/src/crypto/curve25519/make_curve25519_tables.py
+@@ -157,15 +157,15 @@
+ //    ./make_curve25519_tables.py > curve25519_tables.h
+ 
+ 
+-static const fe d = """)
++static const bssl::fe d = """)
+     buf.write(to_literal(d))
+     buf.write(""";
+ 
+-static const fe sqrtm1 = """)
++static const bssl::fe sqrtm1 = """)
+     buf.write(to_literal(modp_sqrt_m1))
+     buf.write(""";
+ 
+-static const fe d2 = """)
++static const bssl::fe d2 = """)
+     buf.write(to_literal(d2))
+     buf.write(""";
+ 
+@@ -175,7 +175,7 @@
+ // one. The standard table is 30,720 bytes while this one is just 960.
+ //
+ // This table contains 15 pairs of group elements, (x, y), where each field
+-// element is serialised with |fe_tobytes|. If |i| is the index of the group
++// element is serialised with `fe_tobytes`. If `i` is the index of the group
+ // element then consider i+1 as a four-bit number: (i₀, i₁, i₂, i₃) (where i₀
+ // is the most significant bit). The value of the group element is then:
+ // (i₀×2^192 + i₁×2^128 + i₂×2^64 + i₃)G, where G is the generator.
+@@ -188,7 +188,7 @@
+ #else
+ 
+ // k25519Precomp[i][j] = (j+1)*256^i*B
+-static const uint8_t k25519Precomp[32][8][3][32] = {
++const uint8_t bssl::k25519Precomp[32][8][3][32] = {
+ """)
+     for child in large_precomp:
+         buf.write("{\n")
+@@ -203,7 +203,7 @@
+ #endif  // OPENSSL_SMALL
+ 
+ // Bi[i] = (2*i+1)*B
+-static const ge_precomp Bi[8] = {
++static const bssl::ge_precomp Bi[8] = {
+ """)
+     for val in bi_precomp:
+         buf.write("{\n")

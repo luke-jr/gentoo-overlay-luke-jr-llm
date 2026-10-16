@@ -214,6 +214,15 @@ built-in terms dialog Linux builds show on a new profile's first run.
     copy, with its lists in a deterministic order, `chromium-156-devtools-natives-sorted.patch`).
     `panels/timeline/components/MetricCompareStrings.ts` says it is generated, but its generator is
     stale (the file has been edited by hand since), so it is kept as source.
+  - BoringSSL's checked-in generated files are regenerated with its own generators, offline:
+    `util/pregenerate` (`gen/`: the assembly from its perlasm scripts with the system Perl, the
+    error-string table, the source lists; `chromium-156-boringssl-pregenerate-offline.patch`),
+    `make_tables.go` and `objects.go` (EC and OID tables), and `make_curve25519_tables.py`, which
+    `chromium-156-boringssl-curve25519-tables.patch` brings in line with the hand edits made to its
+    output when BoringSSL moved into the `bssl` namespace. All byte-identical (`gen/sources.*` lacks
+    the test files the tarball leaves out). `crypto/hrss/asm/poly_rq_mul.S` is kept as source: it is
+    the output of the HRSS authors' `poly_rq_mul.py` (in the NTRU repository), but BoringSSL has
+    edited it by hand since 2018 (its own scratch-space handling, CET, bug fixes).
   - `third_party/lottie/lottie_worker.js`: Chromium's own readable copy of lottie-web 5.5.2's player,
     modified to run in a worker, reformatted, and maintained in place (minified at build time by
     Chromium's script): source, with no upstream build to redo.
