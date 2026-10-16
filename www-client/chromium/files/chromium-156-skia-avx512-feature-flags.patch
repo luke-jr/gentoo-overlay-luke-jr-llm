@@ -1,0 +1,59 @@
+Skia's AVX-512 kernels (SkOpts_ml4, skcms TransformSkx) get their ISA only from
+-march=x86-64-v4. The user's CFLAGS come after it on the command line, so with
+USE=custom-cflags any -march there (e.g. -march=haswell) replaces it. The
+sources pick their code path from __AVX512F__ and friends, so they then build
+fine but as AVX2 code, and CPUs with AVX-512 never get the AVX-512 path.
+
+Also list the x86-64-v4 features as -m flags, which clang keeps on whatever
+-march comes later. Both entry points only run after a runtime CPUID/XGETBV check
+for AVX-512 (SkOpts.cpp, skcms.cc), and the objects define no shared symbols
+outside the ml4/skx namespaces other than SkOpts::Init_ml4.
+
+A -mtune in CFLAGS (likely aimed at a CPU without AVX-512) still applies to
+them. The new GN arg avx512_tune_cpu (default empty: no change) tunes them for
+another CPU instead, e.g. avx512_tune_cpu="znver4".
+
+--- a/build/config/avx512.gni
++++ b/build/config/avx512.gni
+@@ -6,4 +6,8 @@
+   # The popular debugging tool pernosco (pernos.co) can't handle avx512
+   # instructions. Overriding this flag to `false` will suppress them.
+   allow_avx512 = true
++
++  # CPU to tune Skia's AVX-512 kernels for (e.g. "znver4"), overriding any
++  # -mtune in CFLAGS for them only. Empty: no override.
++  avx512_tune_cpu = ""
+ }
+--- a/skia/BUILD.gn
++++ b/skia/BUILD.gn
+@@ -998,10 +998,30 @@
+   if (is_win) {
+     cflags = [ "/arch:AVX512" ]
+   } else {
++    # The x86-64-v4 features are also listed one by one: a later -march
++    # (e.g. from the user's CFLAGS, which come last) replaces -march=x86-64-v4
++    # and would silently compile these files for that baseline instead, but
++    # explicit -m<feature> flags stay on regardless of order. The code built
++    # with this config only runs after a runtime check for AVX-512.
+     cflags = [
+       "-march=x86-64-v4",
++      "-mavx512f",
++      "-mavx512bw",
++      "-mavx512cd",
++      "-mavx512dq",
++      "-mavx512vl",
+       "-mprefer-vector-width=512",
+     ]
++    if (avx512_tune_cpu != "") {
++      # A -mtune in CFLAGS would come later and win; clang's internal
++      # -tune-cpu option is applied after it whatever the order.
++      cflags += [
++        "-Xclang",
++        "-tune-cpu",
++        "-Xclang",
++        avx512_tune_cpu,
++      ]
++    }
+   }
+ }
+ 

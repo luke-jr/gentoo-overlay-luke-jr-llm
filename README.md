@@ -111,6 +111,14 @@ masked) keeps the previous set and its packages.
   - New args `rust_crubit_root` and `rust_crubit_clang_format`.
   - The stdlib's C++ bindings are generated from its `.rmeta` files.
   - Nothing changes if the args aren't set.
+- **`chromium-156-skia-avx512-feature-flags.patch`:** Skia's AVX-512 kernels (raster pipeline,
+  skcms colour transforms) get their ISA only from `-march=x86-64-v4`. With `USE=custom-cflags`,
+  a `-march` in CFLAGS comes later on the command line and replaces it, so they quietly compile
+  as code for that baseline (e.g. AVX2), and AVX-512 CPUs lose the AVX-512 path. The patch also
+  passes the x86-64-v4 features as `-mavx512*` flags, which a later `-march` doesn't undo. The
+  code still runs only after Skia's runtime CPU check, as upstream.
+  - A `-mtune` in CFLAGS still applies to them. The new GN arg `avx512_tune_cpu` (default empty)
+    tunes just these kernels for another CPU, e.g. `avx512_tune_cpu="znver4"` in `EXTRA_GN`.
 - **`chromium-156-v8-metagen-resource-dir.patch`** plus GN args: V8 metagen uses the
   system libclang instead of a prebuilt one.
 - **Unused npm packages are deleted** (`files/chromium-prune-node-modules.py`, keep list

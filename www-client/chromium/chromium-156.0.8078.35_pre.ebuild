@@ -574,6 +574,8 @@ src_prepare() {
 		"${FILESDIR}/chromium-156-webui-lint-arg.patch"
 		# ts-proto's protoc plugin comes from dev-util/chromium-node-modules (see below).
 		"${FILESDIR}/chromium-156-ts-proto-from-source.patch"
+		# Skia's AVX-512 kernels stay AVX-512 when CFLAGS contain -march.
+		"${FILESDIR}/chromium-156-skia-avx512-feature-flags.patch"
 	)
 
 	# So many fontconfig magic numbers to cover
