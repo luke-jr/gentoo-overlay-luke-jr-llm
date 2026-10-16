@@ -52,7 +52,12 @@ src_install() {
 	# its hash is in the file name. Use the installed (stripped) copy of exactly
 	# that file instead of a second copy, and refuse a mismatching tarball.
 	local drv=( "${src}"/librustc_driver-*.so )
-	[[ ${#drv[@]} -eq 1 && -f ${drv[0]} ]] || die "rustc-dev contains no single librustc_driver"
+	if [[ ${#drv[@]} -ne 1 || ! -f ${drv[0]} ]]; then
+		eerror "librustc_driver-*.so in rustc-dev's lib/rustlib/${triple}/lib:"
+		eerror "  $(cd "${src}" && echo librustc_driver-*.so)"
+		eerror "shared objects there: $(cd "${src}" && echo *.so)"
+		die "rustc-dev contains no single librustc_driver"
+	fi
 	local drv_name=${drv[0]##*/}
 	[[ -f ${ESYSROOT}${rustroot}/lib/${drv_name} ]] ||
 		die "rustc-dev does not match the installed rustc (${rustroot}/lib/${drv_name} missing); re-emerge dev-lang/rust:${SLOT}"
