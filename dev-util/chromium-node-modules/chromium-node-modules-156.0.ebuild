@@ -260,7 +260,9 @@ JS_SOURCES=(
 	"http-link-header xadhoom/node-http-link-header e5a4865982febd8c58307d51920adb15e2227719"
 )
 
-inherit edo
+PYTHON_COMPAT=( python3_{12..15} )
+
+inherit edo python-any-r1
 
 DESCRIPTION="Generated files of Chromium's npm packages, built from source"
 HOMEPAGE="https://www.chromium.org/"
@@ -306,25 +308,27 @@ unset _spec src_id src_repo src_ref src_uri src_distfile src_dir
 SRC_URI+="
 	https://registry.npmjs.org/webdriver-bidi-protocol/-/webdriver-bidi-protocol-0.4.3.tgz
 "
-# DevTools sources, as files from its git repository: "@<commit>", then the paths in
-# front_end/ of files at that commit (src_unpack puts them in
-# devtools-frontend-<commit>/front_end/)
+# DevTools sources, as files from its git repository: "@<commit>", then the paths of
+# files at that commit (src_unpack puts them in devtools-frontend-<commit>/)
 DEVTOOLS_FILES=(
 	# what Lighthouse's build-cdt-lib.js and build-cdt-strings.js generate files from,
-	# at the revisions its committed outputs were generated from
+	# at the revisions its committed outputs were generated from; front_end/generated/
+	# Deprecation.ts is generated from Blink's deprecation.json5 (src_prepare)
 	@3f890ceb7ad70b5831621393574401b6e474fc73
-	core/sdk/SourceMap.ts
-	core/common/ParsedURL.ts
+	front_end/core/sdk/SourceMap.ts
+	front_end/core/common/ParsedURL.ts
 	@ced63b5ae0c00cd5e0d86ab47daeaa2072016ab6
-	generated/Deprecation.ts
-	panels/application/components/BackForwardCacheStrings.ts
+	front_end/panels/application/components/BackForwardCacheStrings.ts
+	scripts/build/generate_deprecations.py
+	third_party/blink/renderer/core/frame/deprecation/deprecation.json5
 	# @paulirish/trace_engine 0.0.65 (Lighthouse's copy of DevTools' models/trace and
 	# what it imports) was published compiled from this commit, 25 minutes before it.
 	# Its sources come from the package's own source maps (files/lighthouse-trace-engine-
-	# sources.mjs); this one has no map (it compiles to nothing): the protocol's types,
-	# whose const enum values the compiled code inlines.
+	# sources.mjs), except front_end/generated/protocol.ts, which has no map (it compiles
+	# to nothing, but the compiled code inlines its const enum values): it is generated
+	# from the protocol's definitions with this generator (src_prepare)
 	@845cad7f273101ef8ae5a8e741dccd78f6f14724
-	generated/protocol.ts
+	scripts/protocol_typescript/protocol_dts_generator.ts
 )
 # _devtools_files <function>: calls <function> <commit> <path> <distfile> for each of
 # DEVTOOLS_FILES
@@ -335,14 +339,31 @@ _devtools_files() {
 			commit=${f#@}
 			continue
 		fi
-		"${1}" "${commit}" "${f}" "devtools-frontend-${commit:0:8}-${f//\//-}"
+		local name=${f#front_end/}
+		"${1}" "${commit}" "${f}" "devtools-frontend-${commit:0:8}-${name//\//-}"
 	done
 }
 _devtools_uri() {
-	SRC_URI+=" https://raw.githubusercontent.com/ChromeDevTools/devtools-frontend/${1}/front_end/${2} -> ${3}"
+	SRC_URI+=" https://raw.githubusercontent.com/ChromeDevTools/devtools-frontend/${1}/${2} -> ${3}"
 }
 _devtools_files _devtools_uri
 unset -f _devtools_uri
+# The DevTools protocol's definitions (.pdl), which front_end/generated/protocol.ts is
+# generated from: DevTools' copy at 845cad7 is Chromium's from main@{#1638082}; the
+# closest devtools-protocol release (the definitions as Chromium has them, published
+# for each change) is #1638241, which only differs in the Accessibility, CSS and Page
+# domains. And inspector_protocol at DevTools' DEPS revision, whose
+# concatenate_protocols.py turns them into the JSON that DevTools' generator reads (no
+# GitHub mirror: Gitiles' base64 of the files).
+DEVTOOLS_PROTOCOL_VER=0.0.1638241
+INSPECTOR_PROTOCOL_COMMIT=c0045057ce801744c5e88596a2f1bab1802e39f0
+SRC_URI+="
+	https://registry.npmjs.org/devtools-protocol/-/devtools-protocol-${DEVTOOLS_PROTOCOL_VER}.tgz
+"
+for _f in concatenate_protocols.py pdl.py; do
+	SRC_URI+=" https://chromium.googlesource.com/deps/inspector_protocol/+/${INSPECTOR_PROTOCOL_COMMIT}/${_f}?format=TEXT -> inspector_protocol-${INSPECTOR_PROTOCOL_COMMIT:0:8}-${_f}.b64"
+done
+unset _f
 # @paulirish/trace_engine: the sources in its source maps, and its package files that
 # aren't compiled output (package.json, tsconfig files, locales, small shims)
 SRC_URI+="
@@ -362,6 +383,8 @@ IUSE="test"
 RESTRICT="!test? ( test )"
 
 BDEPEND="
+	${PYTHON_DEPS}
+	$(python_gen_any_dep 'dev-python/json5[${PYTHON_USEDEP}]')
 	>=app-i18n/unicode-emoji-17.0.0
 	dev-lang/typescript:6.0.2
 	dev-util/rollup:4.21.0
@@ -423,9 +446,13 @@ REPLACED_PACKAGES=(
 
 # _devtools_unpack <commit> <path> <distfile>
 _devtools_unpack() {
-	local dest=${WORKDIR}/devtools-frontend-${1}/front_end/${2}
+	local dest=${WORKDIR}/devtools-frontend-${1}/${2}
 	mkdir -p "${dest%/*}" || die
 	cp "${DISTDIR}/${3}" "${dest}" || die
+}
+
+python_check_deps() {
+	python_has_version "dev-python/json5[${PYTHON_USEDEP}]"
 }
 
 src_unpack() {
@@ -441,6 +468,12 @@ src_unpack() {
 					die "Failed to unpack ${a}"
 				;;
 			*.tar.gz) unpack "${a}" ;;
+			inspector_protocol-*.b64)
+				local ip_file=${a#inspector_protocol-*-}
+				mkdir -p "${WORKDIR}/inspector_protocol" || die
+				base64 -d "${DISTDIR}/${a}" > "${WORKDIR}/inspector_protocol/${ip_file%.b64}" ||
+					die "Failed to decode ${a}"
+				;;
 		esac
 	done
 }
@@ -524,6 +557,25 @@ _split() {
 	[[ ${1} == -- ]] && shift
 	edo "${ESBUILD}" "${entries[@]}" --bundle --splitting --format=esm --platform=node --target=node18 \
 		--packages=external --log-level=warning --outbase="${base}" --outdir="${WORKDIR}/image/tree/${out}" "${@}"
+}
+
+src_prepare() {
+	default
+
+	# DevTools' generated files that the builds below use, made from their sources with
+	# DevTools' own generators: front_end/generated/protocol.ts (for trace_engine) from the
+	# protocol's .pdl definitions, via browser_protocol.json; Deprecation.ts (for
+	# Lighthouse's deprecation strings) from Blink's deprecation.json5
+	local dt="${WORKDIR}/devtools-frontend-845cad7f273101ef8ae5a8e741dccd78f6f14724"
+	local pdl="${WORKDIR}/npm-devtools-protocol-${DEVTOOLS_PROTOCOL_VER}/pdl"
+	mkdir -p "${dt}/third_party/blink/public/devtools_protocol" "${dt}/front_end/generated" || die
+	edo "${EPYTHON}" "${WORKDIR}/inspector_protocol/concatenate_protocols.py" \
+		"${pdl}/browser_protocol.pdl" "${pdl}/js_protocol.pdl" \
+		"${dt}/third_party/blink/public/devtools_protocol/browser_protocol.json"
+	edo node "${dt}/scripts/protocol_typescript/protocol_dts_generator.ts"
+	local dtc="${WORKDIR}/devtools-frontend-ced63b5ae0c00cd5e0d86ab47daeaa2072016ab6"
+	mkdir -p "${dtc}/front_end/generated" || die
+	edo "${EPYTHON}" "${dtc}/scripts/build/generate_deprecations.py"
 }
 
 src_compile() {

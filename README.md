@@ -229,8 +229,12 @@ built-in terms dialog Linux builds show on a new profile's first run.
     in the npm package), so its ~144 sources aren't downloaded separately. That text is DevTools'
     commit 845cad7, 25 minutes before the release, plus the edits of an unpublished packaging script
     (`files/lighthouse-trace-engine-0.0.65-packaging.patch`): checked byte-identical for all 144 with
-    `files/lighthouse-trace-engine-sources.mjs verify`. Only `generated/protocol.ts` is fetched from
-    that commit: it has no map (it compiles to nothing), but its const enum values are inlined.
+    `files/lighthouse-trace-engine-sources.mjs verify`. `generated/protocol.ts` has no map (it compiles
+    to nothing, but its const enum values are inlined): it is generated with DevTools' generator at
+    that commit from the protocol's `.pdl` definitions (the `devtools-protocol` npm package, which
+    publishes them per Chromium revision) via inspector_protocol's `concatenate_protocols.py`.
+  - Lighthouse's deprecation strings come from DevTools' `generated/Deprecation.ts`, generated here
+    with DevTools' `generate_deprecations.py` from Blink's `deprecation.json5` (`dev-python/json5`).
   - `http-link-header` 1.1.1 comes from a fork that still has its commit, since the original repository
     is gone.
   - emoji-regex's pattern is generated with `files/emoji-test-regex-pattern.mjs`, not upstream's
