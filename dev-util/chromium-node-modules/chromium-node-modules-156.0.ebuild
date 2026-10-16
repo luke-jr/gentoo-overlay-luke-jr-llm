@@ -270,7 +270,13 @@ HOMEPAGE="https://www.chromium.org/"
 # leading "v" and with "/" and "@" as "-", or the commit; Forgejo's: the
 # repository name).
 _js_source() {
-	read -r src_id src_repo src_ref <<< "${1}"
+	# Called at global scope (SRC_URI), so no here-string: bash may need a
+	# temporary file for it, which the metadata sandbox denies. Fields are
+	# separated by single spaces.
+	src_id=${1%% *}
+	local rest=${1#* }
+	src_repo=${rest%% *}
+	src_ref=${rest#* }
 	local ref=${src_ref//[\/@]/-}
 	if [[ ${src_repo} == haverbeke:* ]]; then
 		src_repo=${src_repo#haverbeke:}

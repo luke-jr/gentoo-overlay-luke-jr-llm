@@ -228,7 +228,15 @@ SRC_URI="
 	${CARGO_CRATE_URIS}
 "
 _rollup_js_dep() {
-	read -r dep_name dep_ver dep_repo dep_tag dep_entry <<< "${1}"
+	# Called at global scope (SRC_URI), so no here-string: bash may need a
+	# temporary file for it, which the metadata sandbox denies. Fields are
+	# separated by single spaces.
+	local rest=${1}
+	dep_name=${rest%% *}; rest=${rest#* }
+	dep_ver=${rest%% *}; rest=${rest#* }
+	dep_repo=${rest%% *}; rest=${rest#* }
+	dep_tag=${rest%% *}
+	dep_entry=${rest#* }
 	# @scope/name -> scope-name, for the distfile
 	dep_distfile="${dep_name#@}"
 	dep_distfile="${dep_distfile//\//-}-${dep_ver}.gh.tar.gz"
