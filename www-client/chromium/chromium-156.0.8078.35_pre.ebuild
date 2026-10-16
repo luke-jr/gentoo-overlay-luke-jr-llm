@@ -747,8 +747,11 @@ src_prepare() {
 			"${FILESDIR}/chromium-156-hardened-vanadium-0244-certificate-transparency.patch"
 			"${FILESDIR}/chromium-156-hardened-vanadium-0245-local-network-access-checks.patch"
 			"${FILESDIR}/chromium-156-hardened-vanadium-0250-origin-keyed-processes.patch"
-			# Enabling CT would also enable SCT auditing (reports to Google).
-			"${FILESDIR}/chromium-156-hardened-no-sct-auditing.patch"
+			# From Vanadium, unchanged: Safe Browsing off by default (it can be turned
+			# on in settings; SCT auditing for CT follows it), and no opt-in offer
+			# for Safe Browsing extended reporting.
+			"${FILESDIR}/chromium-156-hardened-vanadium-0086-no-safe-browsing-reporting-opt-in.patch"
+			"${FILESDIR}/chromium-156-hardened-vanadium-0087-safe-browsing-off-by-default.patch"
 		)
 	fi
 

@@ -159,9 +159,11 @@ No USE flags were removed. New ones:
   - From Vanadium (unchanged): Certificate Transparency enforcement (0244), component
     updates only over HTTPS (0120), strict origin isolation (0127) and origin-keyed processes (0250),
     Local Network Access checks for WebRTC (0245).
-  - `chromium-156-hardened-no-sct-auditing.patch`: in Chromium, enabling CT also turns on SCT auditing on
-    desktop, which (with Safe Browsing on) checks samples of visited sites' certificates with Google.
-    Vanadium doesn't get that (Android has no SCT auditing); this keeps it off.
+  - Also from Vanadium: Safe Browsing off by default (0087; still available in settings) and no offer to
+    opt in to its extended reporting (0086). ungoogled-chromium removes Safe Browsing at build time
+    instead. In Chromium, enabling CT also enables SCT auditing on desktop, which only runs with Safe
+    Browsing on: it checks a sample (1 in 10,000) of visited sites' certificates with Google, so it now
+    follows the Safe Browsing setting, as in Chrome.
   - With `USE=lto` and `USE=official`: CFI cast checks (`use_cfi_cast`), which upstream only uses on
     ChromeOS and Android.
 
