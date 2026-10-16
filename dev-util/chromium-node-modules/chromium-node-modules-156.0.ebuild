@@ -319,154 +319,12 @@ DEVTOOLS_FILES=(
 	generated/Deprecation.ts
 	panels/application/components/BackForwardCacheStrings.ts
 	# @paulirish/trace_engine 0.0.65 (Lighthouse's copy of DevTools' models/trace and
-	# what it imports) was published compiled from this commit, 25 minutes before it:
-	# its source maps hold these files, with files/lighthouse-trace-engine-0.0.65-packaging.patch
+	# what it imports) was published compiled from this commit, 25 minutes before it.
+	# Its sources come from the package's own source maps (files/lighthouse-trace-engine-
+	# sources.mjs); this one has no map (it compiles to nothing): the protocol's types,
+	# whose const enum values the compiled code inlines.
 	@845cad7f273101ef8ae5a8e741dccd78f6f14724
-	core/platform/api/api.ts
-	core/platform/api/HostRuntime.ts
-	core/platform/ArrayUtilities.ts
-	core/platform/Brand.ts
-	core/platform/browser/browser.ts
-	core/platform/browser/HostRuntime.ts
-	core/platform/Constructor.ts
-	core/platform/DateUtilities.ts
-	core/platform/DevToolsPath.ts
-	core/platform/HostRuntime.ts
-	core/platform/KeyboardUtilities.ts
-	core/platform/MapUtilities.ts
-	core/platform/MimeType.ts
-	core/platform/node/HostRuntime.ts
-	core/platform/node/node.ts
-	core/platform/NumberUtilities.ts
-	core/platform/platform.ts
-	core/platform/StringUtilities.ts
-	core/platform/Timing.ts
-	core/platform/TypedArrayUtilities.ts
-	core/platform/TypescriptUtilities.ts
-	core/platform/UIString.ts
-	core/platform/UserVisibleError.ts
 	generated/protocol.ts
-	models/cpu_profile/CPUProfileDataModel.ts
-	models/cpu_profile/cpu_profile.ts
-	models/cpu_profile/ProfileTreeModel.ts
-	models/trace/EntityMapper.ts
-	models/trace/EventsSerializer.ts
-	models/trace/extras/extras.ts
-	models/trace/extras/FilmStrip.ts
-	models/trace/extras/Initiators.ts
-	models/trace/extras/MainThreadActivity.ts
-	models/trace/extras/ScriptDuplication.ts
-	models/trace/extras/StackTraceForEvent.ts
-	models/trace/extras/ThirdParties.ts
-	models/trace/extras/TraceFilter.ts
-	models/trace/extras/TraceTree.ts
-	models/trace/handlers/AnimationFramesHandler.ts
-	models/trace/handlers/AnimationHandler.ts
-	models/trace/handlers/AsyncJSCallsHandler.ts
-	models/trace/handlers/AuctionWorkletsHandler.ts
-	models/trace/handlers/DOMStatsHandler.ts
-	models/trace/handlers/ExtensionTraceDataHandler.ts
-	models/trace/handlers/FlowsHandler.ts
-	models/trace/handlers/FramesHandler.ts
-	models/trace/handlers/GPUHandler.ts
-	models/trace/handlers/handlers.ts
-	models/trace/handlers/helpers.ts
-	models/trace/handlers/ImagePaintingHandler.ts
-	models/trace/handlers/InitiatorsHandler.ts
-	models/trace/handlers/InvalidationsHandler.ts
-	models/trace/handlers/LargestImagePaintHandler.ts
-	models/trace/handlers/LargestTextPaintHandler.ts
-	models/trace/handlers/LayerTreeHandler.ts
-	models/trace/handlers/LayoutShiftsHandler.ts
-	models/trace/handlers/MemoryHandler.ts
-	models/trace/handlers/MetaHandler.ts
-	models/trace/handlers/ModelHandlers.ts
-	models/trace/handlers/NetworkRequestsHandler.ts
-	models/trace/handlers/PageFramesHandler.ts
-	models/trace/handlers/PageLoadMetricsHandler.ts
-	models/trace/handlers/RendererHandler.ts
-	models/trace/handlers/SamplesHandler.ts
-	models/trace/handlers/ScreenshotsHandler.ts
-	models/trace/handlers/ScriptsHandler.ts
-	models/trace/handlers/SelectorStatsHandler.ts
-	models/trace/handlers/Threads.ts
-	models/trace/handlers/types.ts
-	models/trace/handlers/UserInteractionsHandler.ts
-	models/trace/handlers/UserTimingsHandler.ts
-	models/trace/handlers/WarningsHandler.ts
-	models/trace/handlers/WorkersHandler.ts
-	models/trace/helpers/Extensions.ts
-	models/trace/helpers/helpers.ts
-	models/trace/helpers/Network.ts
-	models/trace/helpers/SamplesIntegrator.ts
-	models/trace/helpers/SyntheticEvents.ts
-	models/trace/helpers/Timing.ts
-	models/trace/helpers/Trace.ts
-	models/trace/helpers/TreeHelpers.ts
-	models/trace/insights/Cache.ts
-	models/trace/insights/CharacterSet.ts
-	models/trace/insights/CLSCulprits.ts
-	models/trace/insights/Common.ts
-	models/trace/insights/DocumentLatency.ts
-	models/trace/insights/DOMSize.ts
-	models/trace/insights/DuplicatedJavaScript.ts
-	models/trace/insights/FontDisplay.ts
-	models/trace/insights/ForcedReflow.ts
-	models/trace/insights/ImageDelivery.ts
-	models/trace/insights/INPBreakdown.ts
-	models/trace/insights/insights.ts
-	models/trace/insights/LCPBreakdown.ts
-	models/trace/insights/LCPDiscovery.ts
-	models/trace/insights/LegacyJavaScript.ts
-	models/trace/insights/Models.ts
-	models/trace/insights/ModernHTTP.ts
-	models/trace/insights/NetworkDependencyTree.ts
-	models/trace/insights/RenderBlocking.ts
-	models/trace/insights/SlowCSSSelector.ts
-	models/trace/insights/Statistics.ts
-	models/trace/insights/ThirdParties.ts
-	models/trace/insights/types.ts
-	models/trace/insights/Viewport.ts
-	models/trace/LanternComputationData.ts
-	models/trace/lantern/core/core.ts
-	models/trace/lantern/core/LanternError.ts
-	models/trace/lantern/core/NetworkAnalyzer.ts
-	models/trace/lantern/graph/BaseNode.ts
-	models/trace/lantern/graph/CPUNode.ts
-	models/trace/lantern/graph/graph.ts
-	models/trace/lantern/graph/NetworkNode.ts
-	models/trace/lantern/graph/PageDependencyGraph.ts
-	models/trace/lantern/lantern.ts
-	models/trace/lantern/metrics/FirstContentfulPaint.ts
-	models/trace/lantern/metrics/Interactive.ts
-	models/trace/lantern/metrics/LargestContentfulPaint.ts
-	models/trace/lantern/metrics/MaxPotentialFID.ts
-	models/trace/lantern/metrics/metrics.ts
-	models/trace/lantern/metrics/Metric.ts
-	models/trace/lantern/metrics/SpeedIndex.ts
-	models/trace/lantern/metrics/TBTUtils.ts
-	models/trace/lantern/metrics/TotalBlockingTime.ts
-	models/trace/lantern/simulation/ConnectionPool.ts
-	models/trace/lantern/simulation/Constants.ts
-	models/trace/lantern/simulation/DNSCache.ts
-	models/trace/lantern/simulation/SimulationTimingMap.ts
-	models/trace/lantern/simulation/simulation.ts
-	models/trace/lantern/simulation/Simulator.ts
-	models/trace/lantern/simulation/TCPConnection.ts
-	models/trace/lantern/types/Lantern.ts
-	models/trace/lantern/types/types.ts
-	models/trace/ModelImpl.ts
-	models/trace/Name.ts
-	models/trace/Processor.ts
-	models/trace/Styles.ts
-	models/trace/trace.ts
-	models/trace/types/Configuration.ts
-	models/trace/types/Extensions.ts
-	models/trace/types/File.ts
-	models/trace/types/Overlays.ts
-	models/trace/types/Timing.ts
-	models/trace/types/TraceEvents.ts
-	models/trace/types/types.ts
 )
 # _devtools_files <function>: calls <function> <commit> <path> <distfile> for each of
 # DEVTOOLS_FILES
@@ -485,8 +343,9 @@ _devtools_uri() {
 }
 _devtools_files _devtools_uri
 unset -f _devtools_uri
-# @paulirish/trace_engine's package files that aren't compiled output (package.json,
-# tsconfig files, locales, small shims); Unicode's emoji data
+# @paulirish/trace_engine: the sources in its source maps, and its package files that
+# aren't compiled output (package.json, tsconfig files, locales, small shims); Unicode's
+# emoji data
 SRC_URI+="
 	https://registry.npmjs.org/@paulirish/trace_engine/-/trace_engine-0.0.65.tgz
 		-> paulirish-trace_engine-0.0.65.tgz
@@ -1450,20 +1309,19 @@ src_compile() {
 		}
 	'
 	popd >/dev/null || die
-	# @paulirish/trace_engine: DevTools' TypeScript it was compiled from (the files its
-	# source maps name), with the edits DevTools' unpublished packaging script makes
-	# (the patch: to the sources; the edits script: to the compiled package), compiled
-	# as one program (for const enums, as in DevTools' build). Modules outside the
+	# @paulirish/trace_engine: the TypeScript it was compiled from, i.e. the text its
+	# source maps hold, compiled as one program (for const enums, as in DevTools' build),
+	# plus the edits DevTools' unpublished packaging script makes to the compiled package
+	# (the edits script). That TypeScript is DevTools' files at the commit in
+	# DEVTOOLS_FILES with files/lighthouse-trace-engine-0.0.65-packaging.patch applied,
+	# the packaging script's edits to the sources (when updating, check with the
+	# script's verify mode against such a checkout). Modules outside the
 	# package are missing, so tsc reports type errors; the JavaScript it emits doesn't
 	# depend on them.
 	local te_src="${T}/trace_engine" te="${lh_nm}/@paulirish/trace_engine"
 	local te_dt="${WORKDIR}/devtools-frontend-845cad7f273101ef8ae5a8e741dccd78f6f14724/front_end"
 	local te_npm="${WORKDIR}/npm-paulirish-trace_engine-0.0.65"
-	edo node "${FILESDIR}/lighthouse-trace-engine-sources.mjs" copy "${te_npm}" "${te_dt}" "${te_src}"
-	pushd "${te_src}" >/dev/null || die
-	eapply "${FILESDIR}/lighthouse-trace-engine-0.0.65-packaging.patch"
-	popd >/dev/null || die
-	edo node "${FILESDIR}/lighthouse-trace-engine-sources.mjs" check "${te_npm}" "${te_src}"
+	edo node "${FILESDIR}/lighthouse-trace-engine-sources.mjs" copy "${te_npm}" "${te_src}"
 	# DevTools' protocol types (const enums the sources use), as a declaration file
 	edo "${BROOT}/usr/bin/tsc-6.0.2" --ignoreConfig --declaration --emitDeclarationOnly --target esnext \
 		--module esnext --outDir "${te_src}/generated" "${te_dt}/generated/protocol.ts"
