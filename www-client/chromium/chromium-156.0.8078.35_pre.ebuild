@@ -260,6 +260,7 @@ BDEPEND="
 	dev-lang/typescript:${DEVTOOLS_TS_VER}
 	dev-util/rollup:${ROLLUP_VER}
 	dev-util/chromium-node-modules:${PV%%.*}
+	dev-util/gnrt:${PV%%.*}
 	dev-libs/protobuf
 	dev-vcs/git
 	>=net-libs/nodejs-${NODE_VER}[inspector]
@@ -774,6 +775,14 @@ src_prepare() {
 		sed -i "s|/bin/rustfmt|/bin/rustfmt${suffix}|g" build/rust/gni_impl/cpp_api_from_rust.gni \
 			build/rust/std/prebuilt_std_bindings.gni || die "Failed to update rustfmt path for Crubit"
 	fi
+
+	# The BUILD.gn files of the vendored Rust crates (third_party/rust/<crate>/<epoch>/) are
+	# gnrt's output, from the crates' Cargo metadata and gnrt_config.toml: regenerate them with
+	# dev-util/gnrt. It runs `cargo metadata` offline on the vendored crates, with a nightly
+	# flag (Chromium's cargo is a beta), and `gn format`.
+	einfo "Regenerating the vendored Rust crates' BUILD.gn files ..."
+	RUSTC_BOOTSTRAP=1 CARGO_HOME="${T}/gnrt-cargo-home" "${BROOT}/usr/lib/gnrt/${PV%%.*}/gnrt" gen \
+		> "${T}/gnrt.log" 2>&1 || die "gnrt gen failed (see ${T}/gnrt.log)"
 
 	# Sanity check esbuild version before we start removing files.
 	# We _could_ patch the version check out - in theory esbuild upstream are being super conservative after
