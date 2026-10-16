@@ -1,0 +1,17 @@
+DevTools' scripts/javascript_natives/index.js (which generates
+front_end/models/javascript_metadata/NativeFunctions.ts) passes TypeScript's lib*.d.ts
+files to the compiler in directory order, which differs between filesystems and
+changes the order of the generated receiver lists. Sort them, so the output only
+depends on the inputs.
+
+--- a/third_party/devtools-frontend/src/scripts/javascript_natives/index.js
++++ b/third_party/devtools-frontend/src/scripts/javascript_natives/index.js
+@@ -15,7 +15,7 @@
+ const chromiumSource = process.argv[2];
+ const REL_TS_LIB_PATH = '/node_modules/typescript/lib/';
+ const typescriptSources =
+-    fs.readdirSync(process.argv[3] + REL_TS_LIB_PATH).map(name => process.argv[3] + REL_TS_LIB_PATH + name);
++    fs.readdirSync(process.argv[3] + REL_TS_LIB_PATH).sort().map(name => process.argv[3] + REL_TS_LIB_PATH + name);
+ 
+ const program = ts.createProgram({
+   rootNames: typescriptSources,

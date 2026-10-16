@@ -207,6 +207,13 @@ built-in terms dialog Linux builds show on a new profile's first run.
   the BiDi mapper's zod and mitt, and DevTools' vendored `front_end/third_party` libraries (Lighthouse
   and axe-core, CodeMirror 5 and 6, Puppeteer, acorn, marked, …). DevTools' `ClientVariations.js` is
   regenerated with the system `protoc` and its `update_client_variations.py`. What is left, deliberately:
+  - DevTools' checked-in generated TypeScript is regenerated in `src_prepare` with DevTools' own
+    scripts from the tarball's inputs: `front_end/generated/` (protocol, ARIA, CSS and deprecation
+    data, from the `.pdl` and `.json5` definitions; byte-identical) and
+    `models/javascript_metadata/NativeFunctions.ts` (from Blink's Web IDL; newer than DevTools'
+    copy, with its lists in a deterministic order, `chromium-156-devtools-natives-sorted.patch`).
+    `panels/timeline/components/MetricCompareStrings.ts` says it is generated, but its generator is
+    stale (the file has been edited by hand since), so it is kept as source.
   - `third_party/lottie/lottie_worker.js`: Chromium's own readable copy of lottie-web 5.5.2's player,
     modified to run in a worker, reformatted, and maintained in place (minified at build time by
     Chromium's script): source, with no upstream build to redo.
@@ -222,8 +229,12 @@ built-in terms dialog Linux builds show on a new profile's first run.
     in the npm package), so its ~144 sources aren't downloaded separately. That text is DevTools'
     commit 845cad7, 25 minutes before the release, plus the edits of an unpublished packaging script
     (`files/lighthouse-trace-engine-0.0.65-packaging.patch`): checked byte-identical for all 144 with
-    `files/lighthouse-trace-engine-sources.mjs verify`. Only `generated/protocol.ts` is fetched from
-    that commit: it has no map (it compiles to nothing), but its const enum values are inlined.
+    `files/lighthouse-trace-engine-sources.mjs verify`. `generated/protocol.ts` has no map (it compiles
+    to nothing, but its const enum values are inlined): it is generated with DevTools' generator at
+    that commit from the protocol's `.pdl` definitions (the `devtools-protocol` npm package, which
+    publishes them per Chromium revision) via inspector_protocol's `concatenate_protocols.py`.
+  - Lighthouse's deprecation strings come from DevTools' `generated/Deprecation.ts`, generated here
+    with DevTools' `generate_deprecations.py` from Blink's `deprecation.json5` (`dev-python/json5`).
   - `http-link-header` 1.1.1 comes from a fork that still has its commit, since the original repository
     is gone.
   - emoji-regex's pattern is generated with `files/emoji-test-regex-pattern.mjs`, not upstream's
