@@ -111,6 +111,14 @@ masked) keeps the previous set and its packages.
   - New args `rust_crubit_root` and `rust_crubit_clang_format`.
   - The stdlib's C++ bindings are generated from its `.rmeta` files.
   - Nothing changes if the args aren't set.
+- **`chromium-156-skia-avx512-feature-flags.patch`:** Skia's AVX-512 kernels (raster pipeline,
+  skcms colour transforms) get their ISA only from `-march=x86-64-v4`. With `USE=custom-cflags`,
+  a `-march` in CFLAGS comes later on the command line and replaces it, so they quietly compile
+  as code for that baseline (e.g. AVX2), and AVX-512 CPUs lose the AVX-512 path. The patch also
+  passes the x86-64-v4 features as `-mavx512*` flags, which a later `-march` doesn't undo. The
+  code still runs only after Skia's runtime CPU check, as upstream.
+  - A `-mtune` in CFLAGS still applies to them. The new GN arg `avx512_tune_cpu` (default empty)
+    tunes just these kernels for another CPU, e.g. `avx512_tune_cpu="znver4"` in `EXTRA_GN`.
 - **`chromium-156-v8-metagen-resource-dir.patch`** plus GN args: V8 metagen uses the
   system libclang instead of a prebuilt one.
 - **Unused npm packages are deleted** (`files/chromium-prune-node-modules.py`, keep list
@@ -136,7 +144,31 @@ masked) keeps the previous set and its packages.
   - `LICENSE` is updated from M155 licence data.
   - Dead GN args removed (`v8_use_libm_trig_functions`, `devtools_skip_typecheck`).
 
-No USE flags were removed.
+No USE flags were removed. New ones:
+- **`USE=hardened`** adds:
+  - Vanadium's seccomp W^X restriction (0178, 0183) and the wasm-interpreter-without-JIT fix (0212).
+  - `v8_enable_drumbrake=true`: V8's WebAssembly interpreter. 0212 only passes `--wasm-jitless`, which
+    needs it; before, sites with JIT disabled had no WebAssembly at all (`WebAssembly is not defined`).
+    DrumBrake doesn't build in 156 as is: `chromium-156-hardened-v8-drumbrake-declares-locals.patch`
+    adds a method V8's debugger interface gained but the interpreter's scope iterator lacks.
+  - `-fstack-protector-strong`.
+  - Zero-initialised stack variables, via GN's `init_stack_vars_zero`. Official builds already have this.
+  - Page info bubble toggles for the JavaScript JIT and
+    optimizer site settings. Turning JIT off for a site is what makes the W^X restriction and the
+    WebAssembly interpreter apply to it; otherwise only enterprise policy can.
+  - From Vanadium (unchanged): Certificate Transparency enforcement (0244), component
+    updates only over HTTPS (0120), strict origin isolation (0127) and origin-keyed processes (0250),
+    Local Network Access checks for WebRTC (0245).
+  - Also from Vanadium: Safe Browsing off by default (0087; still available in settings) and no offer to
+    opt in to its extended reporting (0086). ungoogled-chromium removes Safe Browsing at build time
+    instead. In Chromium, enabling CT also enables SCT auditing on desktop, which only runs with Safe
+    Browsing on: it checks a sample (1 in 10,000) of visited sites' certificates with Google, so it now
+    follows the Safe Browsing setting, as in Chrome.
+  - With `USE=lto` and `USE=official`: CFI cast checks (`use_cfi_cast`), which upstream only uses on
+    ChromeOS and Android.
+
+Also new, for all builds: `chromium-156-disable-tos-dialog.patch` (from ungoogled-chromium) skips the
+built-in terms dialog Linux builds show on a new profile's first run.
 
 ## Known issues / TODO
 

@@ -1,0 +1,75 @@
+Also show upstream's milder JavaScript optimizer site setting (turns off only
+V8's optimizing compilers) in the page info bubble. Written on top of the
+JavaScript JIT patch, which it extends.
+
+diff --git a/chrome/browser/ui/views/page_info/page_info_view_factory.cc b/chrome/browser/ui/views/page_info/page_info_view_factory.cc
+index a9ef96dfc7..adafbfa05a 100644
+--- a/chrome/browser/ui/views/page_info/page_info_view_factory.cc
++++ b/chrome/browser/ui/views/page_info/page_info_view_factory.cc
+@@ -339,6 +339,7 @@ const ui::ImageModel PageInfoViewFactory::GetPermissionIcon(
+       break;
+     case ContentSettingsType::JAVASCRIPT:
+     case ContentSettingsType::JAVASCRIPT_JIT:
++    case ContentSettingsType::JAVASCRIPT_OPTIMIZER:
+       icon = show_blocked_badge
+                  ? &(features::IsRoundedIconsEnabled()
+                          ? vector_icons::kCodeOffIcon
+@@ -671,6 +672,7 @@ const ui::ImageModel PageInfoViewFactory::GetPermissionIcon(
+       break;
+     case ContentSettingsType::JAVASCRIPT:
+     case ContentSettingsType::JAVASCRIPT_JIT:
++    case ContentSettingsType::JAVASCRIPT_OPTIMIZER:
+       icon = &(features::IsRoundedIconsEnabled() ? vector_icons::kCodeIcon
+                                                  : vector_icons::kCodeOldIcon);
+       break;
+diff --git a/components/page_info/page_info.cc b/components/page_info/page_info.cc
+index 96e3627b5f..c75018e24a 100644
+--- a/components/page_info/page_info.cc
++++ b/components/page_info/page_info.cc
+@@ -122,6 +122,7 @@ ContentSettingsType kPermissionType[] = {
+     ContentSettingsType::NOTIFICATIONS,
+     ContentSettingsType::JAVASCRIPT,
+     ContentSettingsType::JAVASCRIPT_JIT,
++    ContentSettingsType::JAVASCRIPT_OPTIMIZER,
+ #if !BUILDFLAG(IS_ANDROID)
+     ContentSettingsType::IMAGES,
+ #endif
+@@ -1492,7 +1493,7 @@ bool PageInfo::ShouldShowPermission(
+   }
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+ 
+-  if (info.type == ContentSettingsType::JAVASCRIPT_JIT) {
++  if (info.type == ContentSettingsType::JAVASCRIPT_JIT || info.type == ContentSettingsType::JAVASCRIPT_OPTIMIZER) {
+     return true;
+   }
+ 
+diff --git a/components/page_info/page_info_ui.cc b/components/page_info/page_info_ui.cc
+index 93744ba490..ac96d4da88 100644
+--- a/components/page_info/page_info_ui.cc
++++ b/components/page_info/page_info_ui.cc
+@@ -67,6 +67,8 @@ base::span<const PageInfoUI::PermissionUIInfo> GetContentSettingsUIInfo() {
+        IDS_SITE_SETTINGS_TYPE_JAVASCRIPT_MID_SENTENCE},
+       {ContentSettingsType::JAVASCRIPT_JIT, IDS_SITE_SETTINGS_TYPE_JAVASCRIPT_JIT,
+        IDS_SITE_SETTINGS_TYPE_JAVASCRIPT_JIT},
++      {ContentSettingsType::JAVASCRIPT_OPTIMIZER, IDS_SITE_SETTINGS_TYPE_JAVASCRIPT_OPTIMIZER,
++       IDS_SITE_SETTINGS_TYPE_JAVASCRIPT_OPTIMIZER},
+       {ContentSettingsType::POPUPS, IDS_SITE_SETTINGS_TYPE_POPUPS_REDIRECTS,
+        IDS_SITE_SETTINGS_TYPE_POPUPS_REDIRECTS_MID_SENTENCE},
+       {ContentSettingsType::GEOLOCATION, IDS_SITE_SETTINGS_TYPE_LOCATION,
+diff --git a/components/site_settings_strings.grdp b/components/site_settings_strings.grdp
+index 487555d71f..991432f660 100644
+--- a/components/site_settings_strings.grdp
++++ b/components/site_settings_strings.grdp
+@@ -121,6 +121,12 @@
+   <message name="IDS_SITE_SETTINGS_TYPE_JAVASCRIPT_MID_SENTENCE" desc="The label used for JavaScript site settings controls when used mid-sentence.">
+     javascript
+   </message>
++  <message name="IDS_SITE_SETTINGS_TYPE_JAVASCRIPT_JIT" desc="The label used for JavaScript JIT site settings controls.">
++    JavaScript JIT
++  </message>
++  <message name="IDS_SITE_SETTINGS_TYPE_JAVASCRIPT_JIT_MID_SENTENCE" desc="The label used for JavaScript JIT site settings controls when used mid-sentence.">
++    javascript JIT
++  </message>
+   <message name="IDS_SITE_SETTINGS_TYPE_JAVASCRIPT_OPTIMIZER" desc="The label for the JavaScript optimizer site settings controls.">
+     JavaScript optimization &amp; security
+   </message>
