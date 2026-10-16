@@ -576,6 +576,8 @@ src_prepare() {
 		"${FILESDIR}/chromium-156-ts-proto-from-source.patch"
 		# Skia's AVX-512 kernels stay AVX-512 when CFLAGS contain -march.
 		"${FILESDIR}/chromium-156-skia-avx512-feature-flags.patch"
+		# Deterministic output for DevTools' NativeFunctions.ts generator (see below).
+		"${FILESDIR}/chromium-156-devtools-natives-sorted.patch"
 		# No terms dialog on a new profile's first run (from ungoogled-chromium).
 		"${FILESDIR}/chromium-156-disable-tos-dialog.patch"
 	)
@@ -885,6 +887,28 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	rm -f "${S}/third_party/devtools-frontend/src/node_modules/typescript/lib/typescript.js" || die
 	ln -s "${devtools_ts}" "${S}/third_party/devtools-frontend/src/node_modules/typescript/lib/typescript.js" ||
 		die "Failed to symlink ${devtools_ts}"
+
+	# DevTools checks in files generated from Blink's and V8's definitions: front_end/generated/
+	# (the protocol, ARIA, CSS and deprecation data) and models/javascript_metadata/
+	# NativeFunctions.ts (from Blink's Web IDL). Regenerate them with DevTools' own scripts (the
+	# first gives byte-identical files; NativeFunctions.ts differs: 156's IDL, which DevTools'
+	# copy lags behind, and the order of its lists, made deterministic by
+	# chromium-156-devtools-natives-sorted.patch). Not regenerated: panels/timeline/components/MetricCompareStrings.ts, "auto-
+	# generated" by scripts/generate_metric_compare_strings.js, which is stale (the file has been
+	# edited by hand since).
+	einfo "Regenerating DevTools' generated files ..."
+	pushd third_party/devtools-frontend/src >/dev/null || die
+	"${EPYTHON}" scripts/deps/generate_protocol_resources.py --node-path "$(type -P node)" ||
+		die "Failed to regenerate DevTools' protocol resources"
+	# NativeFunctions.ts also needs TypeScript's lib*.d.ts (dev-lang/typescript's) and webidl2's
+	# sources (lib/; its dist/ bundle isn't used)
+	rm -r node_modules/webidl2/dist || die
+	local natives_ts="${T}/javascript-natives"
+	mkdir -p "${natives_ts}/node_modules" || die
+	ln -s "${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}" "${natives_ts}/node_modules/typescript" || die
+	node scripts/javascript_natives/index.js "${S}" "${natives_ts}" ||
+		die "Failed to regenerate NativeFunctions.ts"
+	popd >/dev/null || die
 
 	# Other generated files of npm packages (terser's library bundle, chromium-bidi's rollup
 	# plugins, ...): dev-util/chromium-node-modules builds them from their sources, as

@@ -207,6 +207,13 @@ built-in terms dialog Linux builds show on a new profile's first run.
   the BiDi mapper's zod and mitt, and DevTools' vendored `front_end/third_party` libraries (Lighthouse
   and axe-core, CodeMirror 5 and 6, Puppeteer, acorn, marked, …). DevTools' `ClientVariations.js` is
   regenerated with the system `protoc` and its `update_client_variations.py`. What is left, deliberately:
+  - DevTools' checked-in generated TypeScript is regenerated in `src_prepare` with DevTools' own
+    scripts from the tarball's inputs: `front_end/generated/` (protocol, ARIA, CSS and deprecation
+    data, from the `.pdl` and `.json5` definitions; byte-identical) and
+    `models/javascript_metadata/NativeFunctions.ts` (from Blink's Web IDL; newer than DevTools'
+    copy, with its lists in a deterministic order, `chromium-156-devtools-natives-sorted.patch`).
+    `panels/timeline/components/MetricCompareStrings.ts` says it is generated, but its generator is
+    stale (the file has been edited by hand since), so it is kept as source.
   - `third_party/lottie/lottie_worker.js`: Chromium's own readable copy of lottie-web 5.5.2's player,
     modified to run in a worker, reformatted, and maintained in place (minified at build time by
     Chromium's script): source, with no upstream build to redo.
