@@ -218,14 +218,16 @@ built-in terms dialog Linux builds show on a new profile's first run.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
-    comes from DevTools' commit 845cad7, 25 minutes before its release. Its source maps hold those
-    files, except for the edits of an unpublished packaging script. Those edits are
-    `files/lighthouse-trace-engine-0.0.65-packaging.patch`, and the build checks the patched sources
-    against the source maps.
+    is recompiled from the TypeScript its source maps hold (the original text of each file, shipped
+    in the npm package), so its ~144 sources aren't downloaded separately. That text is DevTools'
+    commit 845cad7, 25 minutes before the release, plus the edits of an unpublished packaging script
+    (`files/lighthouse-trace-engine-0.0.65-packaging.patch`): checked byte-identical for all 144 with
+    `files/lighthouse-trace-engine-sources.mjs verify`. Only `generated/protocol.ts` is fetched from
+    that commit: it has no map (it compiles to nothing), but its const enum values are inlined.
   - `http-link-header` 1.1.1 comes from a fork that still has its commit, since the original repository
     is gone.
   - emoji-regex's pattern is generated with `files/emoji-test-regex-pattern.mjs`, not upstream's
-    downloaded PHP tool. It is 13.8 KB vs upstream's 14.1 KB, and matches the same on 210,452 test
+    downloaded PHP tool, from Unicode's `emoji-test.txt` as `app-i18n/unicode-emoji` installs it. It is 13.8 KB vs upstream's 14.1 KB, and matches the same on 210,452 test
     strings.
 - **Crubit notes:** see `NOTES-crubit.md`.
 - **Metadata:** no package lists a maintainer: the `::gentoo` ones' Gentoo maintainers were removed, since
