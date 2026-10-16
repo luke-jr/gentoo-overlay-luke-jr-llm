@@ -74,6 +74,7 @@ COPIUM_COMMIT="027d15ffdcd1816b7935cee9ea4a4f6bae0bbe60"
 # for Windows and Mac only). It is built from the 156.0.8078.12 tarball plus the upstream
 # changes between the two tags, limited to what can affect a Linux build (see the header of
 # files/chromium-156.0.8078.12-to-35.patch). Drop this once the real 156.0.8078.35 is out.
+# Fixes that came later are applied on top (src_prepare).
 CHROMIUM_TARBALL_PV="156.0.8078.12"
 S="${WORKDIR}/chromium-${CHROMIUM_TARBALL_PV}"
 SRC_URI="https://github.com/chromium-linux-tarballs/chromium-tarballs/releases/download/${CHROMIUM_TARBALL_PV}/chromium-${CHROMIUM_TARBALL_PV}-linux.tar.xz
@@ -553,6 +554,15 @@ src_prepare() {
 	version=$(source chrome/VERSION && echo "${MAJOR}.${MINOR}.${BUILD}.${PATCH}") ||
 		die "Failed to read chrome/VERSION"
 	[[ ${version} == "${PV%_pre}" ]] || die "chrome/VERSION says ${version} after upgrading, expected ${PV%_pre}"
+
+	# Security fixes newer than ${PV%_pre}: the later changes of its release branch (which
+	# include CVE-2026-110913, -110918 and -110922 from Stable 155.0.8059.84), and the
+	# CVE-2026-110914 fix 156 hasn't got yet. See the patch headers. Keep chrome/VERSION as is.
+	einfo "Applying the 156 branch's fixes after ${PV%_pre} ..."
+	local p
+	for p in chromium-${PV%_pre}-branch-fixes.patch chromium-156-cve-2026-110914.patch; do
+		git apply --whitespace=nowarn "${FILESDIR}/${p}" || die "Failed to apply ${p}"
+	done
 
 	# Calling this here supports resumption via FEATURES=keepwork
 	python_setup
