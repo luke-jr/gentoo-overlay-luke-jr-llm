@@ -1,0 +1,24 @@
+Build only unicode-ident's table generator, as a workspace of its own (the
+crate's test dependencies include a git dependency).
+
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -26,7 +26,8 @@
+ harness = false
+ 
+ [workspace]
+-members = ["diagram", "generate"]
++members = ["diagram"]
++exclude = ["generate"]
+ 
+ [package.metadata.docs.rs]
+ targets = ["x86_64-unknown-linux-gnu"]
+--- a/generate/Cargo.toml
++++ b/generate/Cargo.toml
+@@ -7,3 +7,6 @@
+ 
+ [dependencies]
+ regex = "1.9"
++
++# Built on its own, without the crate's test dependencies.
++[workspace]

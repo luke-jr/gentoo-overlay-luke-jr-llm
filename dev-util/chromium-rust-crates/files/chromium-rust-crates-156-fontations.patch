@@ -1,0 +1,36 @@
+Build only fontations' codegen (font-codegen and its font-types), and make the
+autohint styles script write `pub(super)` like the checked-in output (edited by
+hand after it was generated).
+
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -2,18 +2,8 @@
+ resolver = "2"
+ 
+ members = [
+-    "read-fonts",
+     "font-types",
+     "font-codegen",
+-    "font-test-data",
+-    "write-fonts",
+-    "otexplorer",
+-    "skrifa",
+-    "fauntlet",
+-    "skera",
+-    "fuzz",
+-    "shared-brotli-patch-decoder",
+-    "incremental-font-transfer",
+ ]
+ 
+ [workspace.package]
+--- a/skrifa/scripts/gen_autohint_styles.py
++++ b/skrifa/scripts/gen_autohint_styles.py
+@@ -1474,7 +1474,7 @@
+ 
+     # and finally output the ranges
+     buf += "#[rustfmt::skip]\n"
+-    buf += "pub const STYLE_RANGES: &[StyleRange] = &[\n"
++    buf += "pub(super) const STYLE_RANGES: &[StyleRange] = &[\n"
+     for char_range in ranges:
+         first = char_range[0]
+         last = char_range[1]
