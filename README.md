@@ -222,7 +222,8 @@ built-in terms dialog Linux builds show on a new profile's first run.
     output when BoringSSL moved into the `bssl` namespace. All byte-identical (`gen/sources.*` lacks
     the test files the tarball leaves out). `crypto/hrss/asm/poly_rq_mul.S` is kept as source: it is
     the output of the HRSS authors' `poly_rq_mul.py` (in the NTRU repository), but BoringSSL has
-    edited it by hand since 2018 (its own scratch-space handling, CET, bug fixes).
+    edited it by hand since 2018 (its own scratch-space handling, CET, bug fixes). For the Fiat files
+    see the exceptions below.
   - `third_party/lottie/lottie_worker.js`: Chromium's own readable copy of lottie-web 5.5.2's player,
     modified to run in a worker, reformatted, and maintained in place (minified at build time by
     Chromium's script): source, with no upstream build to redo.
@@ -249,6 +250,12 @@ built-in terms dialog Linux builds show on a new profile's first run.
   - emoji-regex's pattern is generated with `files/emoji-test-regex-pattern.mjs`, not upstream's
     downloaded PHP tool, from Unicode's `emoji-test.txt` as `app-i18n/unicode-emoji` installs it. It is 13.8 KB vs upstream's 14.1 KB, and matches the same on 210,452 test
     strings.
+- **Generated files used as is (exceptions).** Generated files are otherwise regenerated from their
+  inputs, or replaced; these are not:
+  - BoringSSL's Fiat Cryptography code (`third_party/boringssl/src/third_party/fiat/`:
+    `curve25519_64.h`, `p256_64.h`, `p256_field_64.br.c.inc`, `p256_point.br.c.inc`). It is
+    extracted from Coq proofs, so regenerating it means building Fiat Cryptography with Coq. Treated
+    as source for now.
 - **Crubit notes:** see `NOTES-crubit.md`.
 - **Metadata:** no package lists a maintainer: the `::gentoo` ones' Gentoo maintainers were removed, since
   they don't maintain this overlay. Add yourself if you like. The generated AppStream data uses upstream
