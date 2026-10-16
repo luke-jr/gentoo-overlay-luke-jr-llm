@@ -71,8 +71,9 @@ src_install() {
 			[[ -z $(ls -A "${f}") ]] && continue
 			die "Unexpected directory in rustc-dev: ${f##*/}"
 		fi
-		# dev-lang/rust owns the rust-std files in the same directory.
-		[[ -e ${ESYSROOT}${libdir}/${f##*/} ]] && die "${f##*/} would overwrite a file of dev-lang/rust"
+		# dev-lang/rust owns the rust-std files in the same directory; the names
+		# don't overlap, and Portage's collision protection would catch it if
+		# they did. (Checking for existing files here broke reinstalls.)
 		doins "${f}"
 	done
 	dosym -r "${rustroot}/lib/${drv_name}" "${libdir}/${drv_name}"
