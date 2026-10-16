@@ -576,6 +576,8 @@ src_prepare() {
 		"${FILESDIR}/chromium-156-ts-proto-from-source.patch"
 		# Skia's AVX-512 kernels stay AVX-512 when CFLAGS contain -march.
 		"${FILESDIR}/chromium-156-skia-avx512-feature-flags.patch"
+		# No terms dialog on a new profile's first run (from ungoogled-chromium).
+		"${FILESDIR}/chromium-156-disable-tos-dialog.patch"
 	)
 
 	# So many fontconfig magic numbers to cover
@@ -730,8 +732,23 @@ src_prepare() {
 			"${FILESDIR}/chromium-156-hardened-0212-wasm-interpreter-without-jit.patch"
 			# DrumBrake (v8_enable_drumbrake, below) doesn't build in 156 without this.
 			"${FILESDIR}/chromium-156-hardened-v8-drumbrake-declares-locals.patch"
+			# Page info bubble toggles for the JavaScript JIT and optimizer site
+			# settings (JIT off makes the above apply to that site).
+			"${FILESDIR}/chromium-156-hardened-page-info-jsjit.patch"
+			"${FILESDIR}/chromium-156-hardened-page-info-jsopti.patch"
 			# -fstack-protector-strong instead of -fstack-protector
 			"${FILESDIR}/chromium-156-hardened-stack-protector-strong.patch"
+			# From Vanadium, unchanged: component updates only over HTTPS; strict
+			# origin isolation and origin-keyed processes; Local Network Access
+			# checks for WebRTC; Certificate Transparency enforcement, using the
+			# log list from the PKI Metadata component.
+			"${FILESDIR}/chromium-156-hardened-vanadium-0120-require-https-component-updates.patch"
+			"${FILESDIR}/chromium-156-hardened-vanadium-0127-strict-origin-isolation.patch"
+			"${FILESDIR}/chromium-156-hardened-vanadium-0244-certificate-transparency.patch"
+			"${FILESDIR}/chromium-156-hardened-vanadium-0245-local-network-access-checks.patch"
+			"${FILESDIR}/chromium-156-hardened-vanadium-0250-origin-keyed-processes.patch"
+			# Enabling CT would also enable SCT auditing (reports to Google).
+			"${FILESDIR}/chromium-156-hardened-no-sct-auditing.patch"
 		)
 	fi
 
@@ -1839,6 +1856,9 @@ chromium_configure() {
 			tools/generate_shim_headers/generate_shim_headers.py || die
 		if use !ppc64; then
 			myconf_gn+=( "is_cfi=${use_lto}" )
+			# CFI also checks C++ casts (bad-cast); upstream only does this on
+			# ChromeOS and Android.
+			use hardened && myconf_gn+=( "use_cfi_cast=${use_lto}" )
 		else
 			myconf_gn+=( "is_cfi=false" ) # requires llvm-runtimes/compiler-rt-sanitizers[cfi]
 		fi

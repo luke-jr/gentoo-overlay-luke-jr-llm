@@ -153,6 +153,20 @@ No USE flags were removed. New ones:
     adds a method V8's debugger interface gained but the interpreter's scope iterator lacks.
   - `-fstack-protector-strong`.
   - Zero-initialised stack variables, via GN's `init_stack_vars_zero`. Official builds already have this.
+  - Page info bubble toggles for the JavaScript JIT and
+    optimizer site settings. Turning JIT off for a site is what makes the W^X restriction and the
+    WebAssembly interpreter apply to it; otherwise only enterprise policy can.
+  - From Vanadium (unchanged): Certificate Transparency enforcement (0244), component
+    updates only over HTTPS (0120), strict origin isolation (0127) and origin-keyed processes (0250),
+    Local Network Access checks for WebRTC (0245).
+  - `chromium-156-hardened-no-sct-auditing.patch`: in Chromium, enabling CT also turns on SCT auditing on
+    desktop, which (with Safe Browsing on) checks samples of visited sites' certificates with Google.
+    Vanadium doesn't get that (Android has no SCT auditing); this keeps it off.
+  - With `USE=lto` and `USE=official`: CFI cast checks (`use_cfi_cast`), which upstream only uses on
+    ChromeOS and Android.
+
+Also new, for all builds: `chromium-156-disable-tos-dialog.patch` (from ungoogled-chromium) skips the
+built-in terms dialog Linux builds show on a new profile's first run.
 
 ## Known issues / TODO
 
