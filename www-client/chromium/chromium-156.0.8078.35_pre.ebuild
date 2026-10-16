@@ -112,6 +112,7 @@ KEYWORDS="~amd64 ~arm64"
 IUSE_SYSTEM_LIBS="+system-harfbuzz +system-icu +system-zstd"
 IUSE="+X ${IUSE_SYSTEM_LIBS} bindist bundled-toolchain cups debug ffmpeg-chromium gtk4 +hangouts headless kerberos +lto +official pax-kernel pgo"
 IUSE+=" +proprietary-codecs pulseaudio qt6 +rar +screencast selinux test +vaapi +wayland +widevine cpu_flags_ppc_vsx3"
+IUSE+=" hardened"
 RESTRICT="
 	!bindist? ( bindist )
 	!test? ( test )
@@ -713,6 +714,23 @@ src_prepare() {
 		sed -i "s|/bin/rustfmt|/bin/rustfmt${suffix}|g" build/rust/rust_bindgen_generator.gni ||
 			die "Failed to update rustfmt path"
 
+	fi
+
+	if use hardened; then
+		PATCHES+=(
+			# Seccomp-BPF: no writable+executable memory in sandboxed processes that
+			# don't need a JIT; renderers and V8-running service processes keep it
+			# unless V8 runs jitless (JavaScript JIT disabled for the site) (from
+			# Hexavalent / Vanadium; see the patch headers). Plus V8's WebAssembly
+			# interpreter for sites with JIT disabled.
+			"${FILESDIR}/chromium-156-hardened-0178-seccomp-restrict-dynamic-code.patch"
+			"${FILESDIR}/chromium-156-hardened-0183-seccomp-restrict-dynamic-code-support.patch"
+			"${FILESDIR}/chromium-156-hardened-0212-wasm-interpreter-without-jit.patch"
+			# DrumBrake (v8_enable_drumbrake, below) doesn't build in 156 without this.
+			"${FILESDIR}/chromium-156-hardened-v8-drumbrake-declares-locals.patch"
+			# -fstack-protector-strong instead of -fstack-protector
+			"${FILESDIR}/chromium-156-hardened-stack-protector-strong.patch"
+		)
 	fi
 
 	default
@@ -1655,6 +1673,18 @@ chromium_configure() {
 	esac
 
 	# Common options
+
+	if use hardened; then
+		myconf_gn+=(
+			# Zero-initialise stack variables (official builds already do)
+			"init_stack_vars=true"
+			"init_stack_vars_zero=true"
+			# V8's WebAssembly interpreter (DrumBrake), which the 0212 patch's
+			# --wasm-jitless needs; without it, sites with JIT disabled get no
+			# WebAssembly at all.
+			"v8_enable_drumbrake=true"
+		)
+	fi
 
 	myconf_gn+=(
 		# Disable code formating of generated files

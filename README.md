@@ -136,7 +136,15 @@ masked) keeps the previous set and its packages.
   - `LICENSE` is updated from M155 licence data.
   - Dead GN args removed (`v8_use_libm_trig_functions`, `devtools_skip_typecheck`).
 
-No USE flags were removed.
+No USE flags were removed. New ones:
+- **`USE=hardened`** adds:
+  - Vanadium's seccomp W^X restriction (0178, 0183) and the wasm-interpreter-without-JIT fix (0212).
+  - `v8_enable_drumbrake=true`: V8's WebAssembly interpreter. 0212 only passes `--wasm-jitless`, which
+    needs it; before, sites with JIT disabled had no WebAssembly at all (`WebAssembly is not defined`).
+    DrumBrake doesn't build in 156 as is: `chromium-156-hardened-v8-drumbrake-declares-locals.patch`
+    adds a method V8's debugger interface gained but the interpreter's scope iterator lacks.
+  - `-fstack-protector-strong`.
+  - Zero-initialised stack variables, via GN's `init_stack_vars_zero`. Official builds already have this.
 
 ## Known issues / TODO
 

@@ -1,0 +1,17 @@
+V8's debug::ScopeIterator gained the pure virtual DeclaresLocals(), but the
+DrumBrake (WebAssembly interpreter) scope iterator wasn't updated, so
+v8_enable_drumbrake=true fails to build ("allocating an object of abstract class
+type 'DebugWasmInterpreterScopeIterator'"). It only reports the module scope;
+return true like the compiled-Wasm iterator (DebugWasmScopeIterator) does.
+
+--- a/v8/src/debug/debug-wasm-objects.cc
++++ b/v8/src/debug/debug-wasm-objects.cc
+@@ -853,6 +853,8 @@
+ 
+   debug::Location GetEndLocation() override { return {}; }
+ 
++  bool DeclaresLocals() override { return true; }
++
+   bool SetVariableValue(v8::Local<v8::String> name,
+                         v8::Local<v8::Value> value) override {
+     return false;
