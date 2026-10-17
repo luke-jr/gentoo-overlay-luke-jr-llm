@@ -878,6 +878,14 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 		die "Unexpected ${tsgo_dir}/tsc --version: ${found}"
 	fi
 
+	# abseil's BUILD.gn files are generated from its BUILD.bazel files by Chromium's
+	# convert_bazel_to_gn.py (no Bazel needed: it parses them as Python). Its main() insists on a
+	# checkout named src/, so call convert_all() itself. Existing files keep their copyright year.
+	einfo "Regenerating abseil's generated BUILD.gn files ..."
+	"${EPYTHON}" -B -c 'import sys; sys.path.insert(0, sys.argv[1]); import convert_bazel_to_gn as c; c.convert_all(sys.argv[1])' \
+		"${S}/third_party/abseil-cpp" > "${T}/abseil-gn.log" 2>&1 ||
+		die "Failed to regenerate abseil's BUILD.gn files (see ${T}/abseil-gn.log)"
+
 	# Rollup: everything in @rollup/wasm-node's dist/ is generated (the CLI and library
 	# bundles, and the WebAssembly parser deleted above). The build only runs dist/bin/rollup;
 	# use dev-util/rollup's, built from the same sources (TypeScript, the npm packages its
