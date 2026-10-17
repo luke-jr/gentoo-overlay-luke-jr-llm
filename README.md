@@ -227,7 +227,11 @@ built-in terms dialog Linux builds show on a new profile's first run.
     headers with Vulkan-Hpp v1.4.355's generator (byte-identical to Vulkan-Hpp's own output).
     SwiftShader's copies differ only in whitespace (partly reformatted by hand) and, for the C++
     headers (copied from Vulkan-Headers, made from another Vulkan-Hpp commit), in spelling (hex and
-    literal suffix case, a qualified name) and a macOS-only include.
+    literal suffix case, a qualified name) and a macOS-only include. On amd64, Subzero's minimized
+    LLVM (`third_party/llvm-subzero`, a 2016 trunk snapshot) gets its `Attributes.gen`,
+    `Intrinsics.gen` and `DataTypes.h` from that revision's `llvm-tblgen` and configure, built here
+    (LLVM r290449, byte-identical); its `Config/*.h` were edited by hand since (glibc `mallinfo2`,
+    ABI checks) and are kept as source.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)

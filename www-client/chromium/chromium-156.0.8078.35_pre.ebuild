@@ -109,7 +109,14 @@ SWS_VIDEO_HEADERS_COMMIT="f69f0433bae0b30598380ef0420b9d2d02dbac4d" # v1.4.322
 SWS_VIDEO_DOCS_COMMIT="6ecb205ac29c6c07186c500460c1d9b837993ec2" # v1.4.322
 SWS_VULKAN_HPP_COMMIT="f6fa5c494ebd729129a4d674d9b08e5a14bb54a4" # v1.4.355
 SWS_TINYXML2_COMMIT="ff61650517cc32d524689366f977716e73d4f924"
+# SwiftShader's minimized LLVM for Subzero (third_party/llvm-subzero), on amd64: its TableGen'd
+# files come from LLVM trunk r290449 (llvm-mirror's 759dd39, per SwiftShader's history).
+SWS_LLVM_COMMIT="759dd39154f0bbf1adc87bf613c95f9564f64aa8"
 SRC_URI+="
+	amd64? (
+		https://github.com/llvm-mirror/llvm/archive/${SWS_LLVM_COMMIT}.tar.gz
+			-> llvm-mirror-${SWS_LLVM_COMMIT}.gh.tar.gz
+	)
 	https://github.com/KhronosGroup/Vulkan-Headers/archive/${SWS_VULKAN_HEADERS_COMMIT}.tar.gz
 		-> Vulkan-Headers-${SWS_VULKAN_HEADERS_COMMIT}.gh.tar.gz
 	https://github.com/KhronosGroup/Vulkan-Headers/archive/${SWS_VIDEO_HEADERS_COMMIT}.tar.gz
@@ -488,6 +495,7 @@ src_unpack() {
 	unpack polymer-${POLYMER_VER}.gh.tar.gz shadycss-${SHADYCSS_COMMIT}.gh.tar.gz
 	unpack Vulkan-Headers-${SWS_VULKAN_HEADERS_COMMIT}.gh.tar.gz Vulkan-Headers-${SWS_VIDEO_HEADERS_COMMIT}.gh.tar.gz \
 		Vulkan-Hpp-${SWS_VULKAN_HPP_COMMIT}.gh.tar.gz tinyxml2-${SWS_TINYXML2_COMMIT}.gh.tar.gz
+	use amd64 && unpack llvm-mirror-${SWS_LLVM_COMMIT}.gh.tar.gz
 	# These should only be required when we're not using the official toolchain
 	if use !bundled-toolchain; then
 		unpack chromium-patches-copium-${COPIUM_COMMIT:0:10}.tar.gz
@@ -963,6 +971,36 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 		[[ ${sws_f##*/} == vulkan_profiles.hpp ]] && continue
 		cp "${sws_hpp}/vulkan/${sws_f##*/}" "${sws_f}" || die "Vulkan-Hpp doesn't generate ${sws_f##*/}"
 	done
+
+	# Subzero's LLVM (amd64; other arches use SwiftShader's full LLVM): Attributes.gen and
+	# Intrinsics.gen, made by llvm-tblgen of the LLVM revision it was taken from, built here
+	# (with fixes for today's CMake and libstdc++ that don't affect its output), and DataTypes.h
+	# from its configure. Its Config/*.h were configured with other options and edited by hand
+	# since (SwiftShader's mallinfo2 and ABI-check changes): kept as source.
+	if use amd64; then
+		einfo "Regenerating the TableGen'd files of SwiftShader's Subzero LLVM ..."
+		local sws_llvm="${WORKDIR}/llvm-${SWS_LLVM_COMMIT}" sws_sz="${S}/third_party/swiftshader/third_party/llvm-subzero"
+		sed -i '/cmake_policy(SET CMP0051 OLD)/d' "${sws_llvm}/CMakeLists.txt" || die
+		sed -i '/^struct AliasPriorityComparator/,/bool operator()/s/const ValueType &RHS) {/const ValueType \&RHS) const {/' \
+			"${sws_llvm}/utils/TableGen/AsmWriterEmitter.cpp" || die
+		grep -q 'const ValueType &RHS) const {' "${sws_llvm}/utils/TableGen/AsmWriterEmitter.cpp" ||
+			die "Failed to fix AliasPriorityComparator"
+		cmake -S "${sws_llvm}" -B "${WORKDIR}/llvm-subzero-build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+			-DCMAKE_C_COMPILER="$(tc-getBUILD_CC)" -DCMAKE_CXX_COMPILER="$(tc-getBUILD_CXX)" \
+			-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DLLVM_TARGETS_TO_BUILD=X86 -DLLVM_INCLUDE_TESTS=OFF \
+			-DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_INCLUDE_DOCS=OFF -DLLVM_ENABLE_TERMINFO=OFF \
+			-DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_LIBXML2=OFF \
+			"-DCMAKE_CXX_FLAGS=-include cstdint -include limits" > "${T}/llvm-subzero-cmake.log" 2>&1 ||
+			die "Failed to configure LLVM r290449 (see ${T}/llvm-subzero-cmake.log)"
+		eninja -C "${WORKDIR}/llvm-subzero-build" llvm-tblgen
+		local sws_tg="${WORKDIR}/llvm-subzero-build/bin/llvm-tblgen" sws_td="${sws_llvm}/include/llvm/IR"
+		"${sws_tg}" -gen-attrs -I "${sws_td}" -I "${sws_llvm}/include" "${sws_td}/Attributes.td" \
+			-o "${sws_sz}/build/Linux/include/llvm/IR/Attributes.gen" || die "Failed to generate Attributes.gen"
+		"${sws_tg}" -gen-intrinsic -I "${sws_td}" -I "${sws_llvm}/include" "${sws_td}/Intrinsics.td" \
+			-o "${sws_sz}/build/Linux/include/llvm/IR/Intrinsics.gen" || die "Failed to generate Intrinsics.gen"
+		cp "${WORKDIR}/llvm-subzero-build/include/llvm/Support/DataTypes.h" \
+			"${sws_sz}/build/Linux/include/llvm/Support/DataTypes.h" || die
+	fi
 
 	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
 	local devtools_ts="${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}/lib/typescript.js"
