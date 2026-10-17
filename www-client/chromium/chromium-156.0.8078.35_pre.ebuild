@@ -265,6 +265,8 @@ BDEPEND="
 	>=net-libs/nodejs-${NODE_VER}[inspector]
 	sys-apps/hwdata
 	>=sys-devel/bison-2.4.3
+	dev-build/meson
+	amd64? ( dev-lang/nasm )
 	sys-devel/flex
 	virtual/pkgconfig
 	x11-misc/xdg-utils
@@ -1508,6 +1510,27 @@ sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polym
 		cp libavcodec/ppc/h264dsp.c libavcodec/ppc/h264dsp_ppc.c || die
 		cp libavcodec/ppc/h264qpel.c libavcodec/ppc/h264qpel_ppc.c || die
 		popd >/dev/null || die
+	fi
+
+	# dav1d's configuration (config/linux/<arch>/config.{h,asm}) is the output of its Meson setup,
+	# as Chromium's generate_configs.py runs it: regenerate the one for this arch with that
+	# script's own GenerateConfig(). version/vcs_version.h is a version stamp, kept.
+	local dav1d_args
+	case ${ARCH} in
+		amd64) dav1d_args='"config/linux/x64", env' ;;
+		arm64) dav1d_args='"config/linux/arm64", env, ["--cross-file", "../crossfiles/arm64.crossfile"]' ;;
+	esac
+	if [[ -n ${dav1d_args} ]]; then
+		einfo "Regenerating dav1d's configuration ..."
+		local dav1d_llvm
+		if use bundled-toolchain; then
+			dav1d_llvm="${S}/third_party/llvm-build/Release+Asserts/bin"
+		else
+			dav1d_llvm="$(get_llvm_prefix -b)/bin"
+		fi
+		( cd third_party/dav1d && PATH="${dav1d_llvm}:${PATH}" "${EPYTHON}" -B -c \
+			"import os, generate_configs as g; env = dict(os.environ); env['CC'] = 'clang'; g.GenerateConfig(${dav1d_args})" ) \
+			> "${T}/dav1d-config.log" 2>&1 || die "Failed to regenerate dav1d's configuration (see ${T}/dav1d-config.log)"
 	fi
 
 	# Sanity check keeplibs, on major version bumps it is often necessary to update this list
