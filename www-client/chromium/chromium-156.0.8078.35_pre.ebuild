@@ -265,6 +265,8 @@ BDEPEND="
 	>=net-libs/nodejs-${NODE_VER}[inspector]
 	sys-apps/hwdata
 	>=sys-devel/bison-2.4.3
+	dev-build/autoconf
+	dev-build/automake
 	sys-devel/flex
 	virtual/pkgconfig
 	x11-misc/xdg-utils
@@ -889,6 +891,26 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	rm -r "${rollup_dir}/dist" || die "Failed to remove ${rollup_dir}/dist"
 	mkdir -p "${rollup_dir}/dist/bin" || die
 	ln -s "${rollup_cli}" "${rollup_dir}/dist/bin/rollup" || die "Failed to symlink ${rollup_cli}"
+
+	# nasm (built from third_party/nasm, as the build's assembler) checks in what its configure
+	# and its Perl scripts generate: config/config-linux.h (configure, then Chromium's
+	# generate_nasm_configs.py; the checked-in one is from an older configure.ac) and the
+	# instruction, register, token, directive and macro tables (make perlreq). Regenerate them;
+	# config/config.h is Chromium's own (it includes config-linux.h). Perl's hash order, which
+	# only shows in comments of the tables, is fixed.
+	einfo "Regenerating nasm's generated files ..."
+	pushd third_party/nasm >/dev/null || die
+	cp config/config.h "${T}/nasm-config.h" || die
+	printf 'print-perlreq:\n\t@echo $(PERLREQ_CLEANABLE)\n' > "${T}/nasm-print.mk" || die
+	(
+		export PERL_HASH_SEED=0 PERL_PERTURB_KEYS=0
+		sh autogen.sh && CC="$(tc-getBUILD_CC)" ./configure &&
+			mv config/config.h config/config-linux.h && cp "${T}/nasm-config.h" config/config.h &&
+			"${EPYTHON}" -B generate_nasm_configs.py &&
+			rm -f $(make -s -f Makefile -f "${T}/nasm-print.mk" print-perlreq) && make perlreq &&
+			cp "${T}/nasm-config.h" config/config.h
+	) > "${T}/nasm-regen.log" 2>&1 || die "Failed to regenerate nasm's generated files (see ${T}/nasm-regen.log)"
+	popd >/dev/null || die
 
 	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
 	local devtools_ts="${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}/lib/typescript.js"

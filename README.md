@@ -222,6 +222,11 @@ built-in terms dialog Linux builds show on a new profile's first run.
     in, but only apply where a feature is missing.
   - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
     by this build.
+  - nasm's generated files are regenerated: `config/config-linux.h` with its `configure` and
+    Chromium's `generate_nasm_configs.py` (the checked-in one came from an older `configure.ac`;
+    the new one also finds glibc's `iscntrl` and `stdbool.h`), and the instruction, register,
+    token and macro tables with its Perl scripts (`make perlreq`; identical but for the order of
+    flags in comments, which follows Perl's hash order).
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
