@@ -1964,6 +1964,39 @@ chromium_compile() {
 	# Don't inherit PYTHONPATH from environment, bug #789021, #812689
 	local -x PYTHONPATH=
 
+	# protobuf's bootstrap files are checked in as protoc output: the C++ code of protoc's own
+	# protos (descriptor, plugin and the feature protos: src/google/protobuf/*.pb.{h,cc}) and the
+	# Python modules the build's scripts use (descriptor_pb2.py, plugin_pb2.py,
+	# python_edition_defaults.py). Regenerate them with the protoc built from them, as Chromium's
+	# third_party/protobuf/gen_extra_chromium_files.py does for most of them (the feature protos
+	# the same way; the checked-in ones are from upstream's unpatched protoc, so they differ in
+	# [[nodiscard]] and the inlining of Swap()). Then ninja rebuilds what changed.
+	if [[ ! -e ${WORKDIR}/.protobuf-regenerated ]]; then
+		local pb=third_party/protobuf pb_protoc=out/Release/protoc pb_java="${WORKDIR}/protobuf-java"
+		if tc-is-cross-compiler; then
+			pb_protoc=out/Release/host/protoc
+		fi
+		eninja -C out/Release "${pb_protoc#out/Release/}"
+		einfo "Regenerating protobuf's bootstrap files ..."
+		"${pb_protoc}" --proto_path="${pb}/src" --cpp_out=dllexport_decl=PROTOBUF_EXPORT:"${pb}/src" \
+			"${pb}"/src/google/protobuf/{descriptor,cpp_features,cpp_file_options,json_enumvalue_options}.proto ||
+			die "Failed to regenerate protobuf's descriptor protos"
+		"${pb_protoc}" --proto_path="${pb}/src" --cpp_out=dllexport_decl=PROTOC_EXPORT:"${pb}/src" \
+			"${pb}/src/google/protobuf/compiler/plugin.proto" || die "Failed to regenerate plugin.pb"
+		# Compiled as google/protobuf/compiler/java/java_features.proto (upstream's Bazel rules).
+		mkdir -p "${pb_java}/google/protobuf/compiler/java" || die
+		cp "${pb}/java/core/src/main/resources/google/protobuf/java_features.proto" \
+			"${pb_java}/google/protobuf/compiler/java/" || die
+		"${pb_protoc}" --proto_path="${pb_java}" --proto_path="${pb}/src" \
+			--cpp_out=dllexport_decl=PROTOC_EXPORT:"${pb}/src" \
+			"${pb_java}/google/protobuf/compiler/java/java_features.proto" || die "Failed to regenerate java_features.pb"
+		"${pb_protoc}" --proto_path="${pb}/src" --python_out="${pb}/python" \
+			"${pb}"/src/google/protobuf/{descriptor,compiler/plugin}.proto || die "Failed to regenerate the _pb2 modules"
+		"${EPYTHON}" -B -c 'import sys; sys.path.insert(0, sys.argv[1]); import gen_extra_chromium_files as g; g.generate_python_edition_defaults(sys.argv[2])' \
+			"${pb}" "${pb_protoc}" || die "Failed to regenerate python_edition_defaults.py"
+		touch "${WORKDIR}/.protobuf-regenerated" || die
+	fi
+
 	# Build mksnapshot and pax-mark it.
 	if use pax-kernel; then
 		local x
