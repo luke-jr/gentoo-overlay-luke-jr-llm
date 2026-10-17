@@ -222,6 +222,9 @@ built-in terms dialog Linux builds show on a new profile's first run.
     in, but only apply where a feature is missing.
   - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
     by this build.
+  - The SPIR-V headers (Chromium's `third_party/spirv-headers` and SwiftShader's copy) are
+    regenerated from the SPIR-V grammars with SPIRV-Headers' own tools (`makeExtinstHeaders.py`,
+    `buildHeaders`). Byte-identical.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)

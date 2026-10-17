@@ -890,6 +890,28 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	mkdir -p "${rollup_dir}/dist/bin" || die
 	ln -s "${rollup_cli}" "${rollup_dir}/dist/bin/rollup" || die "Failed to symlink ${rollup_cli}"
 
+	# The SPIR-V headers (Chromium's third_party/spirv-headers and SwiftShader's copy) are made
+	# from the SPIR-V grammars next to them by SPIRV-Headers' own tools: makeExtinstHeaders.py
+	# (the extended instruction set headers) and buildHeaders (spirv.h, spirv.hpp, ...), as its
+	# tools/buildHeaders/bin/makeHeaders does. Regenerate them.
+	einfo "Regenerating the SPIR-V headers ..."
+	local spv spv_bin="${WORKDIR}/spirv-headers-bin"
+	mkdir -p "${spv_bin}" || die
+	# makeExtinstHeaders.py runs dos2unix on its output.
+	printf '#!/bin/sh\nfor f; do sed -i "s/\\r\\$//" "$f"; done\n' > "${spv_bin}/dos2unix" || die
+	chmod +x "${spv_bin}/dos2unix" || die
+	for spv in third_party/spirv-headers/src third_party/swiftshader/third_party/SPIRV-Headers; do
+		local spv_tool="${spv}/tools/buildHeaders"
+		$(tc-getBUILD_CXX) ${BUILD_CXXFLAGS} -std=c++17 -I"${spv_tool}/jsoncpp/dist" -I"${spv_tool}" \
+			-o "${spv_bin}/buildSpvHeaders" "${spv_tool}"/{main,header,jsonToSpirv}.cpp \
+			"${spv_tool}/jsoncpp/dist/jsoncpp.cpp" ${BUILD_LDFLAGS} || die "Failed to build ${spv}'s buildHeaders"
+		( cd "${spv_tool}" && PATH="${spv_bin}:${PATH}" "${EPYTHON}" -B bin/makeExtinstHeaders.py ) \
+			>> "${T}/spirv-headers.log" 2>&1 || die "makeExtinstHeaders.py failed for ${spv}"
+		( cd "${spv}/include/spirv/unified1" && "${spv_bin}/buildSpvHeaders" -H spirv.core.grammar.json &&
+			"${spv_bin}/dos2unix" spirv.* spv.* ) >> "${T}/spirv-headers.log" 2>&1 ||
+			die "buildHeaders failed for ${spv}"
+	done
+
 	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
 	local devtools_ts="${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}/lib/typescript.js"
 	[[ -f ${devtools_ts} ]] || die "Expected to find ${devtools_ts}, but it does not exist."
