@@ -222,6 +222,10 @@ built-in terms dialog Linux builds show on a new profile's first run.
     in, but only apply where a feature is missing.
   - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
     by this build.
+  - libvpx's configuration (`source/config/`, all platforms) is regenerated with Chromium's
+    `generate_gni.sh` (libvpx's `configure` and `rtcd.pl`), as the ebuild already did for ppc64.
+    Byte-identical; `vpx_version.h` (a `git describe` version stamp) is kept. libvpx's VP8
+    probability tables are constants computed long ago (no generator exists), kept as source.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
