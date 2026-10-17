@@ -99,6 +99,14 @@ SRC_URI="https://github.com/chromium-linux-tarballs/chromium-tarballs/releases/d
 		https://gitlab.raptorengineering.com/raptor-engineering-public/chromium/openpower-patches/-/archive/${PPC64_HASH}/openpower-patches-${PPC64_HASH}.tar.bz2 -> chromium-openpower-${PPC64_HASH:0:10}.tar.bz2
 	)
 	pgo? ( https://github.com/elkablo/chromium-profiler/releases/download/v0.2/chromium-profiler-0.2.tar )"
+# Vulkan-Docs' header generator script, which Vulkan-Headers (third_party/vulkan-headers) doesn't
+# ship (its registry has the rest), at the tag of the headers' version (v1.4.364).
+VULKAN_DOCS_COMMIT="01aaacd99480487bf63830959513c5ca8ceb996d"
+for _f in genvk.py reflib.py extdependency.py; do
+	SRC_URI+=" https://raw.githubusercontent.com/KhronosGroup/Vulkan-Docs/${VULKAN_DOCS_COMMIT}/scripts/${_f}
+		-> vulkan-docs-${VULKAN_DOCS_COMMIT:0:10}-${_f}"
+done
+unset _f
 
 # https://gitweb.gentoo.org/proj/chromium-tools.git/tree/get-chromium-licences.py @ 155.0.8059.40
 # (newest SPDX data available for M156 at the time), merged with the previous list.
@@ -859,6 +867,26 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 		else
 			die "Expected to find ${src} to restore ${dst}, but it does not exist."
 		fi
+	done
+
+	# The Vulkan headers (third_party/vulkan-headers/src/include: vulkan/vulkan_*.h, vk_video/)
+	# are generated from the registry next to them (vk.xml, video.xml) by Vulkan-Docs' genvk.py
+	# (SRC_URI). The others there are written by hand (vulkan.h, vk_platform.h, ...) or only used
+	# by C++ users (vulkan*.hpp, made by Vulkan-Hpp's generator; none here).
+	einfo "Regenerating the Vulkan headers ..."
+	local vkh="${S}/third_party/vulkan-headers/src" vkh_gen="${WORKDIR}/vulkan-headers-gen" vkh_f
+	mkdir -p "${vkh_gen}" || die
+	cp -r "${vkh}/registry/." "${vkh_gen}/" || die
+	for vkh_f in genvk.py reflib.py extdependency.py; do
+		cp "${DISTDIR}/vulkan-docs-${VULKAN_DOCS_COMMIT:0:10}-${vkh_f}" "${vkh_gen}/${vkh_f}" || die
+	done
+	for vkh_f in "${vkh}"/include/vulkan/vulkan_*.h; do
+		"${EPYTHON}" -B "${vkh_gen}/genvk.py" -registry "${vkh_gen}/vk.xml" -o "${vkh}/include/vulkan" \
+			"${vkh_f##*/}" >> "${T}/vulkan-headers.log" 2>&1 || die "genvk.py ${vkh_f##*/} failed"
+	done
+	for vkh_f in "${vkh}"/include/vk_video/*.h; do
+		"${EPYTHON}" -B "${vkh_gen}/genvk.py" -registry "${vkh_gen}/video.xml" -o "${vkh}/include/vk_video" \
+			"${vkh_f##*/}" >> "${T}/vulkan-headers.log" 2>&1 || die "genvk.py ${vkh_f##*/} failed"
 	done
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
