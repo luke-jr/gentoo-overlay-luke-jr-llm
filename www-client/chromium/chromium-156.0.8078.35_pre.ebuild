@@ -265,6 +265,7 @@ BDEPEND="
 	>=net-libs/nodejs-${NODE_VER}[inspector]
 	sys-apps/hwdata
 	>=sys-devel/bison-2.4.3
+	amd64? ( dev-lang/nasm )
 	sys-devel/flex
 	virtual/pkgconfig
 	x11-misc/xdg-utils
@@ -1508,6 +1509,35 @@ sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polym
 		cp libavcodec/ppc/h264dsp.c libavcodec/ppc/h264dsp_ppc.c || die
 		cp libavcodec/ppc/h264qpel.c libavcodec/ppc/h264qpel_ppc.c || die
 		popd >/dev/null || die
+	fi
+
+	# FFmpeg's configuration (config.h, config.asm, the codec/format lists, ...) is the output of
+	# its configure script, as Chromium's media/ffmpeg/scripts/build_ffmpeg.py runs it, checked
+	# in per branding and architecture. Regenerate the one this build uses
+	# (files/chromium-ffmpeg-config.py). ppc64 builds use the openpower patches' configuration.
+	local ffmpeg_arch
+	case ${ARCH} in
+		amd64) ffmpeg_arch=x64 ;;
+		arm64) ffmpeg_arch=arm64 ;;
+	esac
+	if [[ -n ${ffmpeg_arch} ]]; then
+		local ffmpeg_branding=$( (use bindist || use proprietary-codecs) && echo Chrome || echo Chromium)
+		einfo "Regenerating FFmpeg's ${ffmpeg_branding} configuration for ${ffmpeg_arch} ..."
+		local ffmpeg_bin="${T}/ffmpeg-bin"
+		mkdir -p "${ffmpeg_bin}" || die
+		# Like Chromium's scripts (robo_lib's EnsureNoMakeInfo): without makeinfo.
+		printf '#!/bin/sh\nexit 1\n' > "${ffmpeg_bin}/makeinfo" || die
+		chmod +x "${ffmpeg_bin}/makeinfo" || die
+		# build_ffmpeg.py runs configure with clang, clang++ and ld.lld from PATH.
+		local ffmpeg_llvm
+		if use bundled-toolchain; then
+			ffmpeg_llvm="${S}/third_party/llvm-build/Release+Asserts/bin"
+		else
+			ffmpeg_llvm="$(get_llvm_prefix -b)/bin"
+		fi
+		PATH="${ffmpeg_bin}:${ffmpeg_llvm}:${PATH}" "${EPYTHON}" -B "${FILESDIR}/chromium-ffmpeg-config.py" \
+			"${S}" "${WORKDIR}/ffmpeg-config" "${ffmpeg_branding}" "${ffmpeg_arch}" \
+			> "${T}/ffmpeg-config.log" 2>&1 || die "Failed to regenerate FFmpeg's configuration (see ${T}/ffmpeg-config.log)"
 	fi
 
 	# Sanity check keeplibs, on major version bumps it is often necessary to update this list

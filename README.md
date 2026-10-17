@@ -222,6 +222,12 @@ built-in terms dialog Linux builds show on a new profile's first run.
     in, but only apply where a feature is missing.
   - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
     by this build.
+  - FFmpeg's checked-in configuration (`chromium/config/<branding>/linux/<arch>/`: `config.h`,
+    `config.asm`, the codec and format lists, ...) is the output of its `configure` as Chromium's
+    `build_ffmpeg.py` runs it: the one this build uses is regenerated
+    (`files/chromium-ffmpeg-config.py`, with system nasm on amd64). Identical but for the compiler
+    named in `CC_IDENT` and a path in a comment. The `autorename_*.c` wrappers (one `#include`
+    each) and `ffmpeg_generated.gni` are file lists, so they are left as they are.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
