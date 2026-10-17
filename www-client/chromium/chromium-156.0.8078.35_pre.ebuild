@@ -99,6 +99,33 @@ SRC_URI="https://github.com/chromium-linux-tarballs/chromium-tarballs/releases/d
 		https://gitlab.raptorengineering.com/raptor-engineering-public/chromium/openpower-patches/-/archive/${PPC64_HASH}/openpower-patches-${PPC64_HASH}.tar.bz2 -> chromium-openpower-${PPC64_HASH:0:10}.tar.bz2
 	)
 	pgo? ( https://github.com/elkablo/chromium-profiler/releases/download/v0.2/chromium-profiler-0.2.tar )"
+# SwiftShader's Vulkan headers (third_party/swiftshader/include): its C headers come from the
+# registry of Vulkan-Headers v1.4.355 (the video headers: v1.4.322's), made with Vulkan-Docs'
+# genvk.py at the same tags, its C++ headers from Vulkan-Hpp v1.4.355's generator (with the
+# tinyxml2 it pins).
+SWS_VULKAN_HEADERS_COMMIT="6433e5c70bb9ec995f72d767934acaff8ef11ae3" # v1.4.355
+SWS_VULKAN_DOCS_COMMIT="8bd7db8d668381b529b3a2065e65aacdcd244ee2" # v1.4.355
+SWS_VIDEO_HEADERS_COMMIT="f69f0433bae0b30598380ef0420b9d2d02dbac4d" # v1.4.322
+SWS_VIDEO_DOCS_COMMIT="6ecb205ac29c6c07186c500460c1d9b837993ec2" # v1.4.322
+SWS_VULKAN_HPP_COMMIT="f6fa5c494ebd729129a4d674d9b08e5a14bb54a4" # v1.4.355
+SWS_TINYXML2_COMMIT="ff61650517cc32d524689366f977716e73d4f924"
+SRC_URI+="
+	https://github.com/KhronosGroup/Vulkan-Headers/archive/${SWS_VULKAN_HEADERS_COMMIT}.tar.gz
+		-> Vulkan-Headers-${SWS_VULKAN_HEADERS_COMMIT}.gh.tar.gz
+	https://github.com/KhronosGroup/Vulkan-Headers/archive/${SWS_VIDEO_HEADERS_COMMIT}.tar.gz
+		-> Vulkan-Headers-${SWS_VIDEO_HEADERS_COMMIT}.gh.tar.gz
+	https://github.com/KhronosGroup/Vulkan-Hpp/archive/${SWS_VULKAN_HPP_COMMIT}.tar.gz
+		-> Vulkan-Hpp-${SWS_VULKAN_HPP_COMMIT}.gh.tar.gz
+	https://github.com/leethomason/tinyxml2/archive/${SWS_TINYXML2_COMMIT}.tar.gz
+		-> tinyxml2-${SWS_TINYXML2_COMMIT}.gh.tar.gz
+"
+for _c in ${SWS_VULKAN_DOCS_COMMIT} ${SWS_VIDEO_DOCS_COMMIT}; do
+	for _f in genvk.py reflib.py extdependency.py; do
+		SRC_URI+=" https://raw.githubusercontent.com/KhronosGroup/Vulkan-Docs/${_c}/scripts/${_f}
+			-> vulkan-docs-${_c:0:10}-${_f}"
+	done
+done
+unset _c _f
 
 # https://gitweb.gentoo.org/proj/chromium-tools.git/tree/get-chromium-licences.py @ 155.0.8059.40
 # (newest SPDX data available for M156 at the time), merged with the previous list.
@@ -265,6 +292,7 @@ BDEPEND="
 	>=net-libs/nodejs-${NODE_VER}[inspector]
 	sys-apps/hwdata
 	>=sys-devel/bison-2.4.3
+	dev-build/cmake
 	sys-devel/flex
 	virtual/pkgconfig
 	x11-misc/xdg-utils
@@ -458,6 +486,8 @@ pkg_setup() {
 src_unpack() {
 	unpack chromium-${CHROMIUM_TARBALL_PV}-linux.tar.xz
 	unpack polymer-${POLYMER_VER}.gh.tar.gz shadycss-${SHADYCSS_COMMIT}.gh.tar.gz
+	unpack Vulkan-Headers-${SWS_VULKAN_HEADERS_COMMIT}.gh.tar.gz Vulkan-Headers-${SWS_VIDEO_HEADERS_COMMIT}.gh.tar.gz \
+		Vulkan-Hpp-${SWS_VULKAN_HPP_COMMIT}.gh.tar.gz tinyxml2-${SWS_TINYXML2_COMMIT}.gh.tar.gz
 	# These should only be required when we're not using the official toolchain
 	if use !bundled-toolchain; then
 		unpack chromium-patches-copium-${COPIUM_COMMIT:0:10}.tar.gz
@@ -889,6 +919,50 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	rm -r "${rollup_dir}/dist" || die "Failed to remove ${rollup_dir}/dist"
 	mkdir -p "${rollup_dir}/dist/bin" || die
 	ln -s "${rollup_cli}" "${rollup_dir}/dist/bin/rollup" || die "Failed to symlink ${rollup_cli}"
+
+	# SwiftShader's Vulkan headers (third_party/swiftshader/include). The C headers (vulkan_*.h,
+	# vk_video/) are made from the registry of their Vulkan-Headers release by Vulkan-Docs'
+	# genvk.py; the checked-in core headers were partly reformatted by hand since, which only
+	# changes whitespace. The C++ headers (vulkan*.hpp, *.cppm) are made by Vulkan-Hpp's generator;
+	# SwiftShader's are Vulkan-Headers' copies, from another Vulkan-Hpp commit and clang-format,
+	# with two edits for macOS: they differ in formatting and spelling only.
+	# vulkan_profiles.hpp is Vulkan-Profiles' and not used.
+	einfo "Regenerating SwiftShader's Vulkan headers ..."
+	local sws_inc="${S}/third_party/swiftshader/include" sws_gen="${WORKDIR}/swiftshader-genvk" sws_f sws_v
+	for sws_v in core video; do
+		local sws_vh=${SWS_VULKAN_HEADERS_COMMIT} sws_docs=${SWS_VULKAN_DOCS_COMMIT}
+		[[ ${sws_v} == video ]] && sws_vh=${SWS_VIDEO_HEADERS_COMMIT} sws_docs=${SWS_VIDEO_DOCS_COMMIT}
+		mkdir -p "${sws_gen}/${sws_v}" || die
+		cp -r "${WORKDIR}/Vulkan-Headers-${sws_vh}/registry/." "${sws_gen}/${sws_v}/" || die
+		for sws_f in genvk.py reflib.py extdependency.py; do
+			cp "${DISTDIR}/vulkan-docs-${sws_docs:0:10}-${sws_f}" "${sws_gen}/${sws_v}/${sws_f}" || die
+		done
+	done
+	for sws_f in "${sws_inc}"/vulkan/vulkan_*.h; do
+		"${EPYTHON}" -B "${sws_gen}/core/genvk.py" -registry "${sws_gen}/core/vk.xml" -o "${sws_inc}/vulkan" \
+			"${sws_f##*/}" >> "${T}/swiftshader-vulkan.log" 2>&1 || die "genvk.py ${sws_f##*/} failed"
+	done
+	for sws_f in "${sws_inc}"/vk_video/*.h; do
+		"${EPYTHON}" -B "${sws_gen}/video/genvk.py" -registry "${sws_gen}/video/video.xml" -o "${sws_inc}/vk_video" \
+			"${sws_f##*/}" >> "${T}/swiftshader-vulkan.log" 2>&1 || die "genvk.py ${sws_f##*/} failed"
+	done
+	local sws_hpp="${WORKDIR}/Vulkan-Hpp-${SWS_VULKAN_HPP_COMMIT}"
+	rmdir "${sws_hpp}"/{Vulkan-Headers,tinyxml2} || die
+	ln -s "${WORKDIR}/Vulkan-Headers-${SWS_VULKAN_HEADERS_COMMIT}" "${sws_hpp}/Vulkan-Headers" || die
+	ln -s "${WORKDIR}/tinyxml2-${SWS_TINYXML2_COMMIT}" "${sws_hpp}/tinyxml2" || die
+	local sws_cf=()
+	use bundled-toolchain || sws_cf=( -DVULKAN_HPP_CLANG_FORMAT_PATH_HINT="$(get_llvm_prefix -b)/bin" )
+	cmake -S "${sws_hpp}" -B "${WORKDIR}/vulkan-hpp-build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+		-DVULKAN_HPP_GENERATOR_BUILD=ON -DVULKAN_HPP_PRECOMPILE=OFF "${sws_cf[@]}" \
+		> "${T}/vulkan-hpp-cmake.log" 2>&1 || die "Failed to configure Vulkan-Hpp (see ${T}/vulkan-hpp-cmake.log)"
+	eninja -C "${WORKDIR}/vulkan-hpp-build" VulkanHppGenerator VideoHppGenerator
+	( cd "${sws_hpp}" && "${WORKDIR}/vulkan-hpp-build/VulkanHppGenerator" &&
+		"${WORKDIR}/vulkan-hpp-build/VideoHppGenerator" ) > "${T}/vulkan-hpp.log" 2>&1 ||
+		die "Vulkan-Hpp's generators failed (see ${T}/vulkan-hpp.log)"
+	for sws_f in "${sws_inc}"/vulkan/*.{hpp,cppm}; do
+		[[ ${sws_f##*/} == vulkan_profiles.hpp ]] && continue
+		cp "${sws_hpp}/vulkan/${sws_f##*/}" "${sws_f}" || die "Vulkan-Hpp doesn't generate ${sws_f##*/}"
+	done
 
 	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
 	local devtools_ts="${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}/lib/typescript.js"
