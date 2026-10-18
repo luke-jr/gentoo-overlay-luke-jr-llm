@@ -769,6 +769,12 @@ src_prepare() {
 
 	default
 
+	# third_party/.clang-format-ignore ("**") makes clang-format silently skip every file under
+	# third_party (no output, success), so the generators below that format their output with it
+	# would leave it unformatted. It's only for Chromium's own presubmit tooling, and the unbundling
+	# at the end of src_prepare deletes it anyway.
+	rm third_party/.clang-format-ignore || die
+
 	if use !bundled-toolchain; then
 		# As for bindgen above; these files are added/changed by chromium-156-system-crubit.patch.
 		sed -i "s|/bin/rustfmt|/bin/rustfmt${suffix}|g" build/rust/gni_impl/cpp_api_from_rust.gni \
