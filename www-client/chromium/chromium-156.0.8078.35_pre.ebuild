@@ -928,6 +928,11 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	mkdir -p "${rollup_dir}/dist/bin" || die
 	ln -s "${rollup_cli}" "${rollup_dir}/dist/bin/rollup" || die "Failed to symlink ${rollup_cli}"
 
+	# SwiftShader's copies of libxcb's headers (include/xcb: xcb.h, and xproto.h and shm.h, which
+	# libxcb's c_client.py generates from xcbproto) are only used by its X11 surface code (USE=X),
+	# which loads libxcb at run time: use the system's, which libxcb's build generates.
+	rm -r third_party/swiftshader/include/xcb || die
+
 	# SwiftShader's Vulkan headers (third_party/swiftshader/include). The C headers (vulkan_*.h,
 	# vk_video/) are made from the registry of their Vulkan-Headers release by Vulkan-Docs'
 	# genvk.py; the checked-in core headers were partly reformatted by hand since, which only
