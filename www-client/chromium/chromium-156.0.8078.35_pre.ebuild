@@ -861,6 +861,12 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 		fi
 	done
 
+	# The IME character composer's table (ui/base/ime/character_composer_data.h) is made from
+	# character_composer_sequences.txt by generate_character_composer_data.py: regenerate it.
+	einfo "Regenerating the character composer's table ..."
+	( cd ui/base/ime && "${EPYTHON}" -B generate_character_composer_data.py character_composer_sequences.txt ) ||
+		die "Failed to regenerate character_composer_data.h"
+
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has
 	# to use the in-tree ones next to it (Chromium patches lib.dom.d.ts, see
