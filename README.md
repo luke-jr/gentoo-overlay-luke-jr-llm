@@ -222,6 +222,10 @@ built-in terms dialog Linux builds show on a new profile's first run.
     in, but only apply where a feature is missing.
   - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
     by this build.
+  - SQLite's amalgamation (`sqlite3.c`, `sqlite3.h`, the shell and `rename_exports.h`) is
+    regenerated from SQLite's sources with Chromium's `generate_amalgamation.py`
+    (`files/chromium-sqlite-amalgamation.py`). Byte-identical, once `SQLITE_SOURCE_ID` (a version
+    stamp, which SQLite marks as modified because the tarball lacks its tests) is kept.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)

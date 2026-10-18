@@ -861,6 +861,14 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 		fi
 	done
 
+	# SQLite's amalgamation (third_party/sqlite/src/amalgamation) is made from its sources by
+	# scripts/generate_amalgamation.py (SQLite's configure and make, with its bootstrap Jim Tcl):
+	# regenerate it (files/chromium-sqlite-amalgamation.py), keeping SQLITE_SOURCE_ID.
+	einfo "Regenerating SQLite's amalgamation ..."
+	CC="$(tc-getBUILD_CC)" "${EPYTHON}" -B "${FILESDIR}/chromium-sqlite-amalgamation.py" third_party/sqlite \
+		> "${T}/sqlite-amalgamation.log" 2>&1 ||
+		die "Failed to regenerate SQLite's amalgamation (see ${T}/sqlite-amalgamation.log)"
+
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has
 	# to use the in-tree ones next to it (Chromium patches lib.dom.d.ts, see
