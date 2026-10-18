@@ -890,6 +890,13 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	mkdir -p "${rollup_dir}/dist/bin" || die
 	ln -s "${rollup_cli}" "${rollup_dir}/dist/bin/rollup" || die "Failed to symlink ${rollup_cli}"
 
+	# The setup_modules.py shims of tools/metrics (imported by its scripts, which the build runs
+	# for histograms and other metrics) are written by its python_support/generate_setup_modules.py:
+	# regenerate them (the checked-in ones were reformatted by a Python formatter since).
+	einfo "Regenerating tools/metrics' setup_modules.py ..."
+	"${EPYTHON}" -B tools/metrics/python_support/generate_setup_modules.py > "${T}/setup_modules.log" ||
+		die "Failed to regenerate tools/metrics' setup_modules.py"
+
 	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
 	local devtools_ts="${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}/lib/typescript.js"
 	[[ -f ${devtools_ts} ]] || die "Expected to find ${devtools_ts}, but it does not exist."
