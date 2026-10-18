@@ -222,6 +222,11 @@ built-in terms dialog Linux builds show on a new profile's first run.
     in, but only apply where a feature is missing.
   - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
     by this build.
+  - chromium-bidi's protocol types and Zod schemas (`src/protocol{,-parser}/generated`) are
+    regenerated with its `tools/update_bidi_types.py` and `dev-util/cddlconv` from the CDDL in the
+    WebDriver BiDi specs, extracted with the spec's `generate.js` and parse5 (6, not compiled), at
+    the spec commits current when the checked-in types were made. Upstream's prettier/eslint
+    formatting pass is left out; with it, the output is byte-identical.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
