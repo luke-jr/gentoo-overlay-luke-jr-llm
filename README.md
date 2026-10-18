@@ -222,6 +222,8 @@ built-in terms dialog Linux builds show on a new profile's first run.
     in, but only apply where a feature is missing.
   - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
     by this build.
+  - libzip's error strings (`zip_err_str.c`) are regenerated with its CMake script. Byte-identical.
+    Its `zipconf.h` and `config.h` are configure output edited by hand since, kept as source.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
