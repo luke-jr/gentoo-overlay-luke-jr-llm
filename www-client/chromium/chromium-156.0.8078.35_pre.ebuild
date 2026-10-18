@@ -896,6 +896,25 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	mkdir -p "${rollup_dir}/dist/bin" || die
 	ln -s "${rollup_cli}" "${rollup_dir}/dist/bin/rollup" || die "Failed to symlink ${rollup_cli}"
 
+	# The Vulkan loader's and Vulkan-Utility-Libraries' generated sources (dispatch tables,
+	# extension and safe-struct code, enum strings) are made from the Vulkan registry by their
+	# scripts/generate_source.py, which formats them with clang-format: regenerate them, from
+	# third_party/vulkan-headers' registry (the version both are pinned to).
+	einfo "Regenerating the Vulkan loader's and utility libraries' generated sources ..."
+	local vkl_bin="${WORKDIR}/vulkan-libs-bin" vkl
+	mkdir -p "${vkl_bin}" || die
+	if use bundled-toolchain; then
+		printf '#!/bin/sh\nexit 0\n' > "${vkl_bin}/clang-format" || die
+		chmod +x "${vkl_bin}/clang-format" || die
+	else
+		ln -s "$(get_llvm_prefix -b)/bin/clang-format" "${vkl_bin}/clang-format" || die
+	fi
+	for vkl in vulkan-loader vulkan-utility-libraries; do
+		( cd "third_party/${vkl}/src" && PATH="${vkl_bin}:${PATH}" "${EPYTHON}" -B scripts/generate_source.py \
+			"${S}/third_party/vulkan-headers/src/registry" ) >> "${T}/vulkan-libs.log" 2>&1 ||
+			die "Failed to regenerate ${vkl}'s sources (see ${T}/vulkan-libs.log)"
+	done
+
 	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
 	local devtools_ts="${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}/lib/typescript.js"
 	[[ -f ${devtools_ts} ]] || die "Expected to find ${devtools_ts}, but it does not exist."
