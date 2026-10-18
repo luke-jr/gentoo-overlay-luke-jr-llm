@@ -100,6 +100,21 @@ SRC_URI="https://github.com/chromium-linux-tarballs/chromium-tarballs/releases/d
 	)
 	pgo? ( https://github.com/elkablo/chromium-profiler/releases/download/v0.2/chromium-profiler-0.2.tar )"
 
+# The inputs of bundled HarfBuzz's table generators (src/gen-*.py; used without
+# USE=system-harfbuzz): Unicode's data at the version they name, and packTab, which they use.
+HB_UNICODE_VER="17.0.0"
+HB_PACKTAB_VER="1.9.0"
+SRC_URI+="
+	!system-harfbuzz? (
+		https://unicode.org/Public/zipped/${HB_UNICODE_VER}/UCD.zip -> unicode-data-${HB_UNICODE_VER}-UCD.zip
+		https://www.unicode.org/Public/${HB_UNICODE_VER}/ucdxml/ucd.nounihan.grouped.zip
+			-> unicode-${HB_UNICODE_VER}-ucd.nounihan.grouped.zip
+		https://www.unicode.org/Public/${HB_UNICODE_VER}/emoji/emoji-test.txt
+			-> unicode-emoji-test-${HB_UNICODE_VER}.txt
+		https://files.pythonhosted.org/packages/source/p/packtab/packtab-${HB_PACKTAB_VER}.tar.gz
+	)
+"
+
 # https://gitweb.gentoo.org/proj/chromium-tools.git/tree/get-chromium-licences.py @ 155.0.8059.40
 # (newest SPDX data available for M156 at the time), merged with the previous list.
 LICENSE="Apache-2.0 Apache-2.0-with-LLVM-exceptions BSD BSD-2 Base64 Boost-1.0 CC-BY-3.0 CC-BY-4.0 Clear-BSD FFT2D FTL"
@@ -458,6 +473,7 @@ pkg_setup() {
 src_unpack() {
 	unpack chromium-${CHROMIUM_TARBALL_PV}-linux.tar.xz
 	unpack polymer-${POLYMER_VER}.gh.tar.gz shadycss-${SHADYCSS_COMMIT}.gh.tar.gz
+	use system-harfbuzz || unpack packtab-${HB_PACKTAB_VER}.tar.gz
 	# These should only be required when we're not using the official toolchain
 	if use !bundled-toolchain; then
 		unpack chromium-patches-copium-${COPIUM_COMMIT:0:10}.tar.gz
@@ -860,6 +876,36 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 			die "Expected to find ${src} to restore ${dst}, but it does not exist."
 		fi
 	done
+
+	if use !system-harfbuzz; then
+		# Bundled HarfBuzz's Unicode tables (shaper, UCD and emoji tables) are made from Unicode's
+		# data by its src/gen-*.py (with packTab), with the commands their headers name: regenerate
+		# them. Kept as source: hb-ot-tag-table.hh (made from Microsoft's and IANA's language tag
+		# registries, whose old versions aren't published) and hb-ot-os2-unicode-ranges.hh (from a
+		# table copied from the OpenType spec, not in the repository).
+		einfo "Regenerating HarfBuzz's Unicode tables ..."
+		local hb_ucd="${WORKDIR}/harfbuzz-ucd" hb_out f
+		"${EPYTHON}" -c 'import sys, zipfile; [zipfile.ZipFile(z).extractall(sys.argv[1]) for z in sys.argv[2:]]' \
+			"${hb_ucd}" "${DISTDIR}/unicode-data-${HB_UNICODE_VER}-UCD.zip" \
+			"${DISTDIR}/unicode-${HB_UNICODE_VER}-ucd.nounihan.grouped.zip" || die
+		cp "${DISTDIR}/unicode-emoji-test-${HB_UNICODE_VER}.txt" "${hb_ucd}/emoji/emoji-test.txt" || die
+		pushd third_party/harfbuzz/src/src >/dev/null || die
+		while read -r hb_out f; do
+			# shellcheck disable=SC2086
+			PYTHONPATH="${WORKDIR}/packtab-${HB_PACKTAB_VER}" "${EPYTHON}" -B ${f//@/${hb_ucd}/} > "${T}/${hb_out}" &&
+				mv "${T}/${hb_out}" "${hb_out}" || die "Failed to regenerate HarfBuzz's ${hb_out}"
+		done <<-EOF
+			hb-ot-shaper-arabic-joining-list.hh gen-arabic-joining-list.py @ArabicShaping.txt @Scripts.txt
+			hb-ot-shaper-arabic-pua.hh gen-arabic-pua.py ArabicPUASimplified.txt ArabicPUATraditional.txt
+			hb-ot-shaper-arabic-table.hh gen-arabic-table.py @ArabicShaping.txt @UnicodeData.txt @Blocks.txt
+			hb-ot-shaper-use-table.hh gen-use-table.py @IndicSyllabicCategory.txt @IndicPositionalCategory.txt @ArabicShaping.txt @DerivedCoreProperties.txt @UnicodeData.txt @Blocks.txt @Scripts.txt ms-use/IndicSyllabicCategory-Additional.txt ms-use/IndicPositionalCategory-Additional.txt
+			hb-ucd-table.hh gen-ucd-table.py @ucd.nounihan.grouped.xml hb-script-list.h
+			hb-unicode-emoji-table.hh gen-emoji-table.py @emoji/emoji-data.txt @emoji/emoji-test.txt
+			hb-ot-shaper-indic-table.cc gen-indic-table.py @IndicSyllabicCategory.txt @IndicPositionalCategory.txt @Blocks.txt
+			hb-ot-shaper-vowel-constraints.cc gen-vowel-constraints.py ms-use/IndicShapingInvalidCluster.txt @Scripts.txt
+		EOF
+		popd >/dev/null || die
+	fi
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has

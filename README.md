@@ -222,6 +222,10 @@ built-in terms dialog Linux builds show on a new profile's first run.
     in, but only apply where a feature is missing.
   - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
     by this build.
+  - Bundled HarfBuzz's Unicode tables (`USE=-system-harfbuzz`) are regenerated from Unicode 17.0.0's
+    data with its `gen-*.py` and packTab 1.9.0. Byte-identical. Kept as source: its OpenType language
+    tag table (from Microsoft's and IANA's registries, whose old versions aren't published) and its
+    OS/2 Unicode ranges (from a table copied from the OpenType spec).
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
