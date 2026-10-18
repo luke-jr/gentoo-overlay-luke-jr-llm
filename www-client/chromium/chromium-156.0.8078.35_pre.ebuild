@@ -890,6 +890,21 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	mkdir -p "${rollup_dir}/dist/bin" || die
 	ln -s "${rollup_cli}" "${rollup_dir}/dist/bin/rollup" || die "Failed to symlink ${rollup_cli}"
 
+	# net/cert/root_cert_list_generated.h is made from net/data/ssl/root_stores/root_stores.json
+	# by update_root_stores.py (which formats it with clang-format): regenerate it.
+	einfo "Regenerating net's root certificate list ..."
+	local net_bin="${WORKDIR}/net-bin"
+	mkdir -p "${net_bin}" || die
+	if use bundled-toolchain; then
+		# No system clang-format: leave the output unformatted (only the layout differs).
+		printf '#!/bin/sh\nexit 0\n' > "${net_bin}/clang-format" || die
+		chmod +x "${net_bin}/clang-format" || die
+	else
+		ln -s "$(get_llvm_prefix -b)/bin/clang-format" "${net_bin}/clang-format" || die
+	fi
+	PATH="${net_bin}:${PATH}" "${EPYTHON}" -B net/data/ssl/root_stores/update_root_stores.py \
+		> "${T}/update_root_stores.log" 2>&1 || die "update_root_stores.py failed (see ${T}/update_root_stores.log)"
+
 	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
 	local devtools_ts="${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}/lib/typescript.js"
 	[[ -f ${devtools_ts} ]] || die "Expected to find ${devtools_ts}, but it does not exist."
@@ -1963,6 +1978,19 @@ chromium_compile() {
 
 	# Don't inherit PYTHONPATH from environment, bug #789021, #812689
 	local -x PYTHONPATH=
+
+	# net's effective_tld_names.gperf is made from effective_tld_names.dat (the Public Suffix
+	# List) by net/tools/tld_cleanup, which is built from the tree: build and run it first, ninja
+	# then rebuilds what depends on it.
+	if [[ ! -e ${WORKDIR}/.tld-regenerated ]]; then
+		local net_tld=tld_cleanup
+		tc-is-cross-compiler && net_tld=host/tld_cleanup
+		eninja -C out/Release "${net_tld}"
+		einfo "Regenerating net's effective_tld_names.gperf ..."
+		CR_SOURCE_ROOT="${S}" "out/Release/${net_tld}" > "${T}/tld_cleanup.log" 2>&1 ||
+			die "tld_cleanup failed (see ${T}/tld_cleanup.log)"
+		touch "${WORKDIR}/.tld-regenerated" || die
+	fi
 
 	# Build mksnapshot and pax-mark it.
 	if use pax-kernel; then
