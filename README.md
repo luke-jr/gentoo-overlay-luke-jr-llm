@@ -222,6 +222,10 @@ built-in terms dialog Linux builds show on a new profile's first run.
     in, but only apply where a feature is missing.
   - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
     by this build.
+  - FreeType's `pstables.h` (and pdfium's copy of it) is regenerated with FreeType's `glnames.py`,
+    pdfium's OpenJPEG `t1_luts.h`/`t1_ht_luts.h` and libtiff `tif_fax3sm.c` with OpenJPEG's
+    `t1_generate_luts` and libtiff's `mkg3states`, fetched at the revisions pdfium bundles; libtiff's
+    `tiffconf.h` is a configure output edited by hand since and is kept as source.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)

@@ -100,6 +100,16 @@ SRC_URI="https://github.com/chromium-linux-tarballs/chromium-tarballs/releases/d
 	)
 	pgo? ( https://github.com/elkablo/chromium-profiler/releases/download/v0.2/chromium-profiler-0.2.tar )"
 
+# The generators of pdfium's OpenJPEG and libtiff tables, which pdfium doesn't bundle, at the
+# revisions in their README.pdfium (see src_prepare).
+PDFIUM_OPENJPEG_COMMIT="6c4a29b00211eb0430fa0e5e890f1ce5c80f409f"
+PDFIUM_LIBTIFF_COMMIT="d01a94be176f5f6a87f7ee1c0b32e65416aa2b4d"
+SRC_URI+="
+	https://raw.githubusercontent.com/uclouvain/openjpeg/${PDFIUM_OPENJPEG_COMMIT}/src/lib/openjp2/t1_ht_generate_luts.c
+		-> openjpeg-${PDFIUM_OPENJPEG_COMMIT:0:10}-t1_ht_generate_luts.c
+	https://gitlab.com/libtiff/libtiff/-/raw/${PDFIUM_LIBTIFF_COMMIT}/tools/mkg3states.c
+		-> libtiff-${PDFIUM_LIBTIFF_COMMIT:0:10}-mkg3states.c"
+
 # https://gitweb.gentoo.org/proj/chromium-tools.git/tree/get-chromium-licences.py @ 155.0.8059.40
 # (newest SPDX data available for M156 at the time), merged with the previous list.
 LICENSE="Apache-2.0 Apache-2.0-with-LLVM-exceptions BSD BSD-2 Base64 Boost-1.0 CC-BY-3.0 CC-BY-4.0 Clear-BSD FFT2D FTL"
@@ -860,6 +870,38 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 			die "Expected to find ${src} to restore ${dst}, but it does not exist."
 		fi
 	done
+
+	# Generated tables of FreeType and of pdfium's OpenJPEG and libtiff: regenerate them with their
+	# generators. FreeType's psnames/pstables.h comes from its src/tools/glnames.py, and pdfium's
+	# copy is the same file (third_party/pdfium/third_party/freetype/roll-freetype.sh). OpenJPEG's
+	# t1_luts.h and t1_ht_luts.h are the output of its t1_generate_luts.c and t1_ht_generate_luts.c
+	# (CMake's t1_generate_luts), libtiff's tif_fax3sm.c that of its tools/mkg3states.c (CMake's
+	# "-b -c const"), built with pdfium's tif_fax3.h. libtiff's tiffconf.h is a configure output
+	# edited by hand since (it uses Chromium's build_config.h), so it is kept as source.
+	einfo "Regenerating FreeType's, OpenJPEG's and libtiff's tables ..."
+	local pdfium_tp=third_party/pdfium/third_party pdfium_gen="${T}/pdfium-gen"
+	mkdir -p "${pdfium_gen}/include" || die
+	"${EPYTHON}" -B third_party/freetype/src/src/tools/glnames.py \
+		third_party/freetype/src/src/psnames/pstables.h || die "Failed to regenerate pstables.h"
+	cp third_party/freetype/src/src/psnames/pstables.h "${pdfium_tp}/freetype/include/pstables.h" || die
+	$(tc-getBUILD_CC) ${BUILD_CFLAGS} ${BUILD_CPPFLAGS} -I"${pdfium_tp}/libopenjpeg" ${BUILD_LDFLAGS} \
+		-o "${pdfium_gen}/t1_generate_luts" "${pdfium_tp}/libopenjpeg/t1_generate_luts.c" \
+		"${DISTDIR}/openjpeg-${PDFIUM_OPENJPEG_COMMIT:0:10}-t1_ht_generate_luts.c" -lm ||
+		die "Failed to build OpenJPEG's t1_generate_luts"
+	"${pdfium_gen}/t1_generate_luts" > "${pdfium_gen}/luts.h" || die "Failed to run t1_generate_luts"
+	# Its output is t1_luts.h followed by t1_ht_luts.h, which starts with vlc_tbl0.
+	sed '/^static const OPJ_UINT16 vlc_tbl0\[/,$d' "${pdfium_gen}/luts.h" > "${pdfium_tp}/libopenjpeg/t1_luts.h" &&
+		sed -n '/^static const OPJ_UINT16 vlc_tbl0\[/,$p' "${pdfium_gen}/luts.h" \
+		> "${pdfium_tp}/libopenjpeg/t1_ht_luts.h" || die
+	[[ -s ${pdfium_tp}/libopenjpeg/t1_ht_luts.h ]] || die "No vlc_tbl0 in the output of t1_generate_luts"
+	# mkg3states.c includes libtiff's libport.h (unused here) and tif_config.h for HAVE_UNISTD_H.
+	: > "${pdfium_gen}/include/libport.h" || die
+	echo "#define HAVE_UNISTD_H 1" > "${pdfium_gen}/include/tif_config.h" || die
+	$(tc-getBUILD_CC) ${BUILD_CFLAGS} ${BUILD_CPPFLAGS} -I"${pdfium_gen}/include" -I"${pdfium_tp}/libtiff" -I. \
+		${BUILD_LDFLAGS} -o "${pdfium_gen}/mkg3states" "${DISTDIR}/libtiff-${PDFIUM_LIBTIFF_COMMIT:0:10}-mkg3states.c" ||
+		die "Failed to build libtiff's mkg3states"
+	rm "${pdfium_tp}/libtiff/tif_fax3sm.c" || die
+	"${pdfium_gen}/mkg3states" -b -c const "${pdfium_tp}/libtiff/tif_fax3sm.c" || die "Failed to run mkg3states"
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has
