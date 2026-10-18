@@ -222,6 +222,9 @@ built-in terms dialog Linux builds show on a new profile's first run.
     in, but only apply where a feature is missing.
   - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
     by this build.
+  - Jinja's identifier pattern (`third_party/jinja2/_identifier.py`) is regenerated with its
+    `generate_identifier_pattern.py`, from the build's Python's Unicode data (newer than the checked-in
+    one's; only non-ASCII template identifiers are affected).
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
