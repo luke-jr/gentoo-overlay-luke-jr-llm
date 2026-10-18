@@ -265,6 +265,7 @@ BDEPEND="
 	>=net-libs/nodejs-${NODE_VER}[inspector]
 	sys-apps/hwdata
 	>=sys-devel/bison-2.4.3
+	wayland? ( dev-build/meson )
 	sys-devel/flex
 	virtual/pkgconfig
 	x11-misc/xdg-utils
@@ -860,6 +861,16 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 			die "Expected to find ${src} to restore ${dst}, but it does not exist."
 		fi
 	done
+
+	if use wayland; then
+		# libwayland's include/config.h is the output of its Meson configure: regenerate it.
+		# Unlike the checked-in one, it finds glibc's gettid().
+		einfo "Regenerating libwayland's config.h ..."
+		meson setup "${WORKDIR}/wayland-config" third_party/wayland/src -Dlibraries=true -Dscanner=false \
+			-Ddocumentation=false -Dtests=false -Ddtd_validation=false > "${T}/wayland-meson.log" 2>&1 ||
+			die "libwayland's Meson configure failed (see ${T}/wayland-meson.log)"
+		cp "${WORKDIR}/wayland-config/config.h" third_party/wayland/include/config.h || die
+	fi
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has
