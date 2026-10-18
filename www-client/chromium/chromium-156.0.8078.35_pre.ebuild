@@ -861,6 +861,17 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 		fi
 	done
 
+	# ipcz's message definitions (src/ipcz/node_messages.{cc,h}, test_messages.{cc,h}) are made
+	# from its *_messages_generator.h by node_messages.py (jinja2 templates): regenerate them. The
+	# script only writes files whose content differs, so empty them first.
+	einfo "Regenerating ipcz's message definitions ..."
+	local f
+	for f in node_messages test_messages; do
+		: > "third_party/ipcz/src/ipcz/${f}.cc" && : > "third_party/ipcz/src/ipcz/${f}.h" || die
+	done
+	( cd third_party/ipcz/src/ipcz && PYTHONPATH="${S}/third_party" "${EPYTHON}" -B node_messages.py --dir=. ) \
+		> "${T}/ipcz-messages.log" 2>&1 || die "Failed to regenerate ipcz's messages (see ${T}/ipcz-messages.log)"
+
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has
 	# to use the in-tree ones next to it (Chromium patches lib.dom.d.ts, see
