@@ -222,6 +222,9 @@ built-in terms dialog Linux builds show on a new profile's first run.
     in, but only apply where a feature is missing.
   - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
     by this build.
+  - RE2's Unicode tables are regenerated from Unicode 15.1.0's data files (RE2's version) with its
+    `make_unicode_groups.py` and `make_unicode_casefold.py`, and its Perl classes with
+    `make_perl_groups.pl`. Byte-identical.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
