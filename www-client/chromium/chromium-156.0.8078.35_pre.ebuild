@@ -100,6 +100,12 @@ SRC_URI="https://github.com/chromium-linux-tarballs/chromium-tarballs/releases/d
 	)
 	pgo? ( https://github.com/elkablo/chromium-profiler/releases/download/v0.2/chromium-profiler-0.2.tar )"
 
+# Wuffs' sources at the commit that generated the release/c/wuffs-v0.3.c Chromium vendors
+# ("wuffs gen -version=0.3.5", v0.3 branch; third_party/wuffs/src/sync.txt), for its generator.
+WUFFS_COMMIT="d1a6f2c3de7e52b8775782028e5a49946a7f9184"
+WUFFS_RELEASE_VER="0.3.5"
+SRC_URI+=" https://github.com/google/wuffs/archive/${WUFFS_COMMIT}.tar.gz -> wuffs-${WUFFS_COMMIT}.gh.tar.gz"
+
 # https://gitweb.gentoo.org/proj/chromium-tools.git/tree/get-chromium-licences.py @ 155.0.8059.40
 # (newest SPDX data available for M156 at the time), merged with the previous list.
 LICENSE="Apache-2.0 Apache-2.0-with-LLVM-exceptions BSD BSD-2 Base64 Boost-1.0 CC-BY-3.0 CC-BY-4.0 Clear-BSD FFT2D FTL"
@@ -458,6 +464,7 @@ pkg_setup() {
 src_unpack() {
 	unpack chromium-${CHROMIUM_TARBALL_PV}-linux.tar.xz
 	unpack polymer-${POLYMER_VER}.gh.tar.gz shadycss-${SHADYCSS_COMMIT}.gh.tar.gz
+	unpack wuffs-${WUFFS_COMMIT}.gh.tar.gz
 	# These should only be required when we're not using the official toolchain
 	if use !bundled-toolchain; then
 		unpack chromium-patches-copium-${COPIUM_COMMIT:0:10}.tar.gz
@@ -860,6 +867,35 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 			die "Expected to find ${src} to restore ${dst}, but it does not exist."
 		fi
 	done
+
+	# Wuffs' C library (third_party/wuffs/src/release/c/wuffs-v0.3.c, which Skia uses to decode
+	# GIF) is generated from Wuffs' sources (std/*.wuffs) by its own compiler: regenerate it with
+	# "wuffs gen" built from WUFFS_COMMIT (Go, offline, standard library only). Its version
+	# metadata, which "wuffs gen" takes from git, is kept (version stamp).
+	einfo "Regenerating Wuffs' C library ..."
+	local wuffs_src="${WORKDIR}/wuffs-${WUFFS_COMMIT}" wuffs_go="${WORKDIR}/wuffs-go"
+	local wuffs_c=third_party/wuffs/src/release/c/wuffs-v${WUFFS_RELEASE_VER%.*}.c
+	mkdir -p "${wuffs_go}/bin" || die
+	printf 'module github.com/google/wuffs\n\ngo 1.16\n' > "${wuffs_go}/go.mod" || die
+	pushd "${wuffs_src}" >/dev/null || die
+	local f
+	for f in wuffs wuffs-c; do
+		GOFLAGS="-mod=mod -modcacherw" GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local CGO_ENABLED=0 \
+			GOCACHE="${wuffs_go}/cache" GOPATH="${wuffs_go}/path" \
+			go build -modfile="${wuffs_go}/go.mod" -o "${wuffs_go}/bin/${f}" "./cmd/${f}" ||
+			die "Failed to build Wuffs' ${f}"
+	done
+	PATH="${wuffs_go}/bin:${PATH}" wuffs gen -version="${WUFFS_RELEASE_VER}" > "${T}/wuffs-gen.log" 2>&1 ||
+		die "wuffs gen failed (see ${T}/wuffs-gen.log)"
+	popd >/dev/null || die
+	"${EPYTHON}" -c '
+import re, sys
+old, new = (open(f, encoding="utf-8").read() for f in sys.argv[1:3])
+block = re.compile(r"^// WUFFS_VERSION was overridden.*?^#define WUFFS_VERSION_STRING [^\n]*$", re.M | re.S)
+if len(block.findall(old)) != 1 or len(block.findall(new)) != 1:
+    sys.exit("WUFFS_VERSION block not found")
+open(sys.argv[1], "w", encoding="utf-8").write(block.sub(lambda m: block.search(old)[0], new))
+' "${wuffs_c}" "${wuffs_src}/release/c/${wuffs_c##*/}" || die "Failed to install Wuffs' C library"
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has
