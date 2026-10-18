@@ -226,7 +226,10 @@ built-in terms dialog Linux builds show on a new profile's first run.
     are regenerated with the `genheaders.py` and registry XML of the Khronos commits they came from
     (generation date and commit stamps kept). `gl3.h` and `egl.h` are byte-identical; `gl31.h` and
     `gl32.h` differ in comments (copyright years, URL) the 2017 generator writes differently from the
-    2016 one. Chromium's modified ones (`gl2.h`, `gl2ext.h`, `eglext.h`) are kept as source.
+    2016 one. Chromium's modified ones (`gl2.h`, `gl2ext.h`, `eglext.h`) are kept as source. ANGLE's
+    copies (`include/`: GLES2, GLES3, EGL, GLX, WGL) are regenerated the same way, keeping ANGLE's
+    includes of its own extension headers (`files/chromium-khronos-merge.py`); byte-identical. Its
+    GLES1 headers, which ANGLE edited, are kept as source.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
