@@ -222,6 +222,8 @@ built-in terms dialog Linux builds show on a new profile's first run.
     in, but only apply where a feature is missing.
   - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
     by this build.
+  - zxcvbn's keyboard adjacency graphs are regenerated with its
+    `build_keyboard_adjacency_graphs.py`. Byte-identical.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
