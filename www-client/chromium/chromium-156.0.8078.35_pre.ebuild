@@ -267,6 +267,7 @@ BDEPEND="
 	>=sys-devel/bison-2.4.3
 	dev-build/autoconf
 	dev-build/automake
+	sys-libs/zlib
 	sys-devel/flex
 	virtual/pkgconfig
 	x11-misc/xdg-utils
@@ -911,6 +912,22 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 			cp "${T}/nasm-config.h" config/config.h
 	) > "${T}/nasm-regen.log" 2>&1 || die "Failed to regenerate nasm's generated files (see ${T}/nasm-regen.log)"
 	popd >/dev/null || die
+	# nasm's copy of zlib checks in zlib's tables, which zlib writes itself: crc32.h (crc32.c
+	# with MAKECRCH) and inffixed.h (inflate.c's makefixed() with MAKEFIXED). Built from a copy
+	# with the system's zconf.h: nasm's uses nasm's compiler.h, but the tables don't depend on it.
+	local nasm_z="${WORKDIR}/nasm-zlib"
+	mkdir -p "${nasm_z}/src" || die
+	cp third_party/nasm/zlib/*.[ch] "${nasm_z}/src/" && cp "${BROOT}/usr/include/zconf.h" "${nasm_z}/src/" || die
+	printf 'void makefixed(void);\nint main(void) { makefixed(); return 0; }\n' > "${nasm_z}/makefixed.c" || die
+	(
+		cd "${nasm_z}" &&
+			$(tc-getBUILD_CC) ${BUILD_CFLAGS} ${BUILD_CPPFLAGS} -DMAKECRCH ${BUILD_LDFLAGS} -o mkcrch src/crc32.c &&
+			./mkcrch &&
+			$(tc-getBUILD_CC) ${BUILD_CFLAGS} ${BUILD_CPPFLAGS} -DMAKEFIXED -Isrc ${BUILD_LDFLAGS} -o makefixed \
+				makefixed.c src/{inflate,inftrees,inffast,adler32,crc32,zutil}.c &&
+			./makefixed > inffixed.h
+	) > "${T}/nasm-zlib.log" 2>&1 || die "Failed to regenerate nasm's zlib tables (see ${T}/nasm-zlib.log)"
+	cp "${nasm_z}"/{crc32.h,inffixed.h} third_party/nasm/zlib/ || die
 
 	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
 	local devtools_ts="${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}/lib/typescript.js"

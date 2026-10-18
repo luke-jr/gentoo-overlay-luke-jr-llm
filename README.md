@@ -226,7 +226,8 @@ built-in terms dialog Linux builds show on a new profile's first run.
     Chromium's `generate_nasm_configs.py` (the checked-in one came from an older `configure.ac`;
     the new one also finds glibc's `iscntrl` and `stdbool.h`), and the instruction, register,
     token and macro tables with its Perl scripts (`make perlreq`; identical but for the order of
-    flags in comments, which follows Perl's hash order).
+    flags in comments, which follows Perl's hash order). Its copy of zlib's `crc32.h` and `inffixed.h` are
+    regenerated with zlib's own table writers (byte-identical).
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
