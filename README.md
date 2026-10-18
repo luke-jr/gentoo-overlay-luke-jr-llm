@@ -222,6 +222,11 @@ built-in terms dialog Linux builds show on a new profile's first run.
     in, but only apply where a feature is missing.
   - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
     by this build.
+  - Skia's generated files are regenerated with its generators: the GL interface code
+    (`*Autogen.cpp`) with `tools/ganesh/gl/interface` (Go, offline), the SkSL lexer with `sksllex`,
+    and the minified SkSL modules with `sksl-minify`, built with Skia's standalone GN build (only
+    the SkSL compiler). All byte-identical. `src/sksl/spirv.h` is Khronos' SPIR-V 1.0 revision 4
+    header, published before its generator and grammar were: kept as source.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)

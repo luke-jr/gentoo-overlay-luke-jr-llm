@@ -100,6 +100,16 @@ SRC_URI="https://github.com/chromium-linux-tarballs/chromium-tarballs/releases/d
 	)
 	pgo? ( https://github.com/elkablo/chromium-profiler/releases/download/v0.2/chromium-profiler-0.2.tar )"
 
+# The Go module Skia's GL interface generator (tools/ganesh/gl/interface) imports, at the version in
+# its go.mod; served to Go from a local module proxy, checked against Skia's go.sum.
+SKIA_GO_MODULES="github.com/flynn/json5@v0.0.0-20160717195620-7620272ed633"
+for _m in ${SKIA_GO_MODULES}; do
+	for _e in mod zip; do
+		SRC_URI+=" https://proxy.golang.org/${_m%@*}/@v/${_m#*@}.${_e} -> gomod-${_m//\//-}.${_e}"
+	done
+done
+unset _m _e
+
 # https://gitweb.gentoo.org/proj/chromium-tools.git/tree/get-chromium-licences.py @ 155.0.8059.40
 # (newest SPDX data available for M156 at the time), merged with the previous list.
 LICENSE="Apache-2.0 Apache-2.0-with-LLVM-exceptions BSD BSD-2 Base64 Boost-1.0 CC-BY-3.0 CC-BY-4.0 Clear-BSD FFT2D FTL"
@@ -866,6 +876,71 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 			die "Expected to find ${src} to restore ${dst}, but it does not exist."
 		fi
 	done
+
+	# Skia's generated files: regenerate them with its generators. Its GL interface assembly and
+	# validation code (src/gpu/ganesh/gl/*Autogen.cpp) with tools/ganesh/gl/interface (Go, offline:
+	# a go.mod with just the module it imports, from SRC_URI); the SkSL lexer (SkSLLexer.{h,cpp})
+	# with its sksllex, through gn/run_sksllex.py; and its SkSL modules in minified and unoptimized
+	# form (src/sksl/generated) with its sksl-minify, through gn/minify_sksl.py. sksl-minify is
+	# built with Skia's standalone GN build (skia_compile_modules), which Chromium's skia/BUILD.gn
+	# lacks, from the regenerated lexer. src/sksl/spirv.h is Khronos' SPIR-V 1.0 revision 4 header
+	# (as published in SPIRV-Headers' first commit, which has no generator or grammar): kept.
+	einfo "Regenerating Skia's generated files ..."
+	local skia=third_party/skia skia_gen="${WORKDIR}/skia-gen" skia_m skia_mod skia_ver f
+	mkdir -p "${skia_gen}/proxy" || die
+	printf 'module go.skia.org/skia\n\ngo 1.25\n\nrequire (\n' > "${skia_gen}/go.mod" || die
+	for skia_m in ${SKIA_GO_MODULES}; do
+		skia_mod=${skia_m%@*} skia_ver=${skia_m#*@}
+		mkdir -p "${skia_gen}/proxy/${skia_mod}/@v" || die
+		for f in mod zip; do
+			cp "${DISTDIR}/gomod-${skia_mod//\//-}@${skia_ver}.${f}" \
+				"${skia_gen}/proxy/${skia_mod}/@v/${skia_ver}.${f}" || die
+		done
+		printf '{"Version":"%s"}\n' "${skia_ver}" > "${skia_gen}/proxy/${skia_mod}/@v/${skia_ver}.info" || die
+		echo "${skia_ver}" > "${skia_gen}/proxy/${skia_mod}/@v/list" || die
+		printf '\t%s %s\n' "${skia_mod}" "${skia_ver}" >> "${skia_gen}/go.mod" || die
+		grep "^${skia_mod} ${skia_ver}[ /]" "${skia}/go.sum" >> "${skia_gen}/go.sum" ||
+			die "${skia_m} is not in Skia's go.sum"
+	done
+	echo ')' >> "${skia_gen}/go.mod" || die
+	pushd "${skia}" >/dev/null || die
+	GOFLAGS="-mod=mod -modcacherw" GOPROXY="file://${skia_gen}/proxy" GOSUMDB=off GOTOOLCHAIN=local \
+		GOCACHE="${skia_gen}/cache" GOPATH="${skia_gen}/path" CGO_ENABLED=0 \
+		go run -modfile="${skia_gen}/go.mod" ./tools/ganesh/gl/interface \
+		--in_table tools/ganesh/gl/interface/interface.json5 --out_dir src/gpu/ganesh/gl \
+		> "${T}/skia-gl-interface.log" 2>&1 || die "Skia's GL interface generator failed (see ${T}/skia-gl-interface.log)"
+	popd >/dev/null || die
+	# sksllex is a standalone program; run_sksllex.py formats its output with clang-format (Skia's
+	# .clang-format). Without a system clang-format (USE=bundled-toolchain), only the layout differs.
+	$(tc-getBUILD_CXX) ${BUILD_CXXFLAGS} ${BUILD_CPPFLAGS} -std=c++17 -I"${skia}" ${BUILD_LDFLAGS} \
+		-o "${skia_gen}/sksllex" "${skia}"/src/sksl/lex/{Main,NFA,RegexNode,RegexParser,TransitionTable}.cpp ||
+		die "Failed to build sksllex"
+	if use bundled-toolchain; then
+		printf '#!/bin/sh\nexit 0\n' > "${skia_gen}/clang-format" || die
+		chmod +x "${skia_gen}/clang-format" || die
+	else
+		ln -s "$(get_llvm_prefix -b)/bin/clang-format" "${skia_gen}/clang-format" || die
+	fi
+	"${EPYTHON}" -B "${skia}/gn/run_sksllex.py" "${skia_gen}/sksllex" "${skia_gen}/clang-format" \
+		"${skia}/bin/fetch-clang-format" "${skia}/src" || die "Failed to regenerate Skia's SkSL lexer"
+	# Only what sksl-minify needs; the host compiler, Skia's no-op raw_ptr.
+	local skia_args=(
+		is_official_build=true is_debug=false cc=\"$(tc-getBUILD_CC)\" cxx=\"$(tc-getBUILD_CXX)\"
+		skia_compile_modules=true skia_lex=false skia_use_partition_alloc=false
+		skia_use_gl=false skia_use_vulkan=false skia_use_dawn=false skia_enable_ganesh=false
+		skia_enable_graphite=false skia_use_icu=false skia_use_harfbuzz=false skia_use_expat=false
+		skia_use_freetype=false skia_use_fontconfig=false skia_enable_fontmgr_empty=true
+		skia_use_libpng_decode=false skia_use_libpng_encode=false skia_use_libjpeg_turbo_decode=false
+		skia_use_libjpeg_turbo_encode=false skia_use_libwebp_decode=false skia_use_libwebp_encode=false
+		skia_use_libavif=false skia_use_libjxl_decode=false skia_use_zlib=false skia_use_wuffs=false
+		skia_use_dng_sdk=false skia_use_piex=false skia_use_xps=false skia_use_perfetto=false
+		skia_enable_pdf=false skia_enable_skottie=false skia_enable_svg=false skia_enable_tools=false
+	)
+	gn gen --root="${skia}" "${skia_gen}/out" --args="${skia_args[*]}" > "${T}/skia-gn.log" 2>&1 ||
+		die "gn gen for sksl-minify failed (see ${T}/skia-gn.log)"
+	eninja -C "${skia_gen}/out" sksl-minify
+	"${EPYTHON}" -B "${skia}/gn/minify_sksl.py" "${skia_gen}/out/sksl-minify" "${skia}/src/sksl/generated" \
+		"${skia}"/src/sksl/sksl_*.sksl || die "Failed to regenerate Skia's minified SkSL modules"
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has
