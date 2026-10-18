@@ -890,6 +890,16 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	mkdir -p "${rollup_dir}/dist/bin" || die
 	ln -s "${rollup_cli}" "${rollup_dir}/dist/bin/rollup" || die "Failed to symlink ${rollup_cli}"
 
+	# libutf's rune type tables (third_party/utf/src/runetype/is*rune.c) are generated from the
+	# UnicodeData.txt it ships by its bin/mkrunetype.awk (its Makefile's rule): regenerate them.
+	# isalpharune.c was edited by hand since (CJK and Hangul ranges, crbug.com/1184370), so it is
+	# kept as source.
+	einfo "Regenerating libutf's rune type tables ..."
+	cp third_party/utf/src/runetype/isalpharune.c "${T}/isalpharune.c" || die
+	( cd third_party/utf/src && LC_ALL=C awk -f bin/mkrunetype.awk share/UnicodeData-9.0.0.txt ) ||
+		die "Failed to regenerate libutf's rune type tables"
+	cp "${T}/isalpharune.c" third_party/utf/src/runetype/isalpharune.c || die
+
 	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
 	local devtools_ts="${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}/lib/typescript.js"
 	[[ -f ${devtools_ts} ]] || die "Expected to find ${devtools_ts}, but it does not exist."

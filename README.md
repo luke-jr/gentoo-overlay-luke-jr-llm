@@ -222,6 +222,9 @@ built-in terms dialog Linux builds show on a new profile's first run.
     in, but only apply where a feature is missing.
   - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
     by this build.
+  - libutf's rune type tables are regenerated from the `UnicodeData.txt` it ships with its
+    `mkrunetype.awk` (byte-identical); `isalpharune.c` was edited by hand since (crbug.com/1184370)
+    and is kept as source.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
