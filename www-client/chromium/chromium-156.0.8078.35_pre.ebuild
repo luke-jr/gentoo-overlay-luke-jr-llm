@@ -99,6 +99,21 @@ SRC_URI="https://github.com/chromium-linux-tarballs/chromium-tarballs/releases/d
 		https://gitlab.raptorengineering.com/raptor-engineering-public/chromium/openpower-patches/-/archive/${PPC64_HASH}/openpower-patches-${PPC64_HASH}.tar.bz2 -> chromium-openpower-${PPC64_HASH:0:10}.tar.bz2
 	)
 	pgo? ( https://github.com/elkablo/chromium-profiler/releases/download/v0.2/chromium-profiler-0.2.tar )"
+# The Khronos registries the unmodified headers of third_party/khronos were generated from:
+# "repository:commit:directory:registry:headers", headers as genheaders.py names them.
+KHRONOS_HEADERS="
+	OpenGL-Registry:f37a01b810c6b02dd22979352df995555b51ae50:xml:gl.xml:../api/GLES3/gl31.h,../api/GLES3/gl32.h
+	OpenGL-Registry:accf5ad3cd89ddb5cd6e09b6823bf28bce444c3d:xml:gl.xml:../api/GLES3/gl3.h
+	EGL-Registry:992aa3914f8fea801b1034c992db389911d9f3c3:api:egl.xml:EGL/egl.h
+"
+for _k in ${KHRONOS_HEADERS}; do
+	_p=( ${_k//:/ } ) # repository commit directory registry headers
+	for _f in genheaders.py reg.py "${_p[3]}"; do
+		SRC_URI+=" https://raw.githubusercontent.com/KhronosGroup/${_p[0]}/${_p[1]}/${_p[2]}/${_f}
+			-> ${_p[0]}-${_p[1]:0:10}-${_f}"
+	done
+done
+unset _k _p _f
 
 # https://gitweb.gentoo.org/proj/chromium-tools.git/tree/get-chromium-licences.py @ 155.0.8059.40
 # (newest SPDX data available for M156 at the time), merged with the previous list.
@@ -889,6 +904,41 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	rm -r "${rollup_dir}/dist" || die "Failed to remove ${rollup_dir}/dist"
 	mkdir -p "${rollup_dir}/dist/bin" || die
 	ln -s "${rollup_cli}" "${rollup_dir}/dist/bin/rollup" || die "Failed to symlink ${rollup_cli}"
+
+	# The Khronos headers in third_party/khronos are copies of Khronos' generated headers. Those
+	# Chromium didn't modify (README.chromium: GLES3/gl3*.h, EGL/egl.h) are regenerated from the
+	# registry they were made from, with its genheaders.py (KHRONOS_HEADERS); the generation date
+	# and registry commit stamps are kept (version stamps), the rest only differs in old comments.
+	einfo "Regenerating the Khronos GLES3 and EGL headers ..."
+	local khr khr_p khr_h khr_w khr_f
+	for khr in ${KHRONOS_HEADERS}; do
+		khr_p=( ${khr//:/ } )
+		khr_w="${WORKDIR}/khronos-${khr_p[0]}-${khr_p[1]:0:10}"
+		mkdir -p "${khr_w}/${khr_p[2]}" || die
+		for khr_f in genheaders.py reg.py "${khr_p[3]}"; do
+			cp "${DISTDIR}/${khr_p[0]}-${khr_p[1]:0:10}-${khr_f}" "${khr_w}/${khr_p[2]}/${khr_f}" || die
+		done
+		for khr_h in ${khr_p[4]//,/ }; do
+			local khr_out="${khr_w}/${khr_p[2]}/${khr_h}" khr_dest="third_party/khronos/${khr_h#../api/}"
+			mkdir -p "${khr_out%/*}" || die
+			( cd "${khr_w}/${khr_p[2]}" && "${EPYTHON}" -B "${FILESDIR}/chromium-khronos-genheaders.py" \
+				genheaders.py -registry "${khr_p[3]}" "${khr_h}" ) >> "${T}/khronos-headers.log" 2>&1 ||
+				die "genheaders.py ${khr_h} failed"
+			[[ -f ${khr_out} ]] || die "genheaders.py did not write ${khr_h} (see ${T}/khronos-headers.log)"
+			"${EPYTHON}" - "${khr_out}" "${khr_dest}" <<-'PYEOF' || die "Failed to install ${khr_dest}"
+			import re, sys
+			new, dest = sys.argv[1:]
+			stamps = re.compile(r"^(/\* Generated on date |\*\* Khronos \$Git commit )")
+			old = [l for l in open(dest) if stamps.match(l)]
+			out = []
+			for line in open(new):
+			    if stamps.match(line):
+			        line = next(o for o in old if o[:12] == line[:12])
+			    out.append(line)
+			open(dest, "w").write("".join(out))
+			PYEOF
+		done
+	done
 
 	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
 	local devtools_ts="${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}/lib/typescript.js"
