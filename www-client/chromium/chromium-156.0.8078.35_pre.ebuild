@@ -985,6 +985,15 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 		"$(type -P flex)" "$(type -P bison)" \
 		"$(usex bundled-toolchain '' "$(get_llvm_prefix -b)/bin/clang-format")" "$(type -P gn)" ||
 		die "Failed to regenerate ANGLE's generated code"
+	# src/common/Float16ToFloat32.cpp is the output of the Float16ToFloat32.py next to it (not one
+	# of run_code_generation.py's generators), formatted with ANGLE's clang-format style.
+	( cd third_party/angle/src/common && "${EPYTHON}" -B Float16ToFloat32.py ) > "${T}/Float16ToFloat32.cpp" ||
+		die "Failed to regenerate ANGLE's Float16ToFloat32.cpp"
+	if use !bundled-toolchain; then
+		"$(get_llvm_prefix -b)/bin/clang-format" -i --style=file:third_party/angle/.clang-format \
+			"${T}/Float16ToFloat32.cpp" || die
+	fi
+	mv "${T}/Float16ToFloat32.cpp" third_party/angle/src/common/Float16ToFloat32.cpp || die
 
 	# Other generated files of npm packages (terser's library bundle, chromium-bidi's rollup
 	# plugins, ...): dev-util/chromium-node-modules builds them from their sources, as

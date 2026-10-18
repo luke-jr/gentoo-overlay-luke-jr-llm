@@ -214,6 +214,7 @@ built-in terms dialog Linux builds show on a new profile's first run.
     uses), and a glslang validator built from source at the revision ANGLE's prebuilt one comes from
     (2020's), so the SPIR-V is the same as upstream's. Everything a Linux build uses comes out
     byte-identical, except the two flex lexers, whose generated comments differ with Gentoo's flex.
+    `src/common/Float16ToFloat32.cpp` is regenerated with the script next to it (byte-identical).
   - DevTools' checked-in generated TypeScript is regenerated in `src_prepare` with DevTools' own
     scripts from the tarball's inputs: `front_end/generated/` (protocol, ARIA, CSS and deprecation
     data, from the `.pdl` and `.json5` definitions; byte-identical) and
