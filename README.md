@@ -222,6 +222,13 @@ built-in terms dialog Linux builds show on a new profile's first run.
     in, but only apply where a feature is missing.
   - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
     by this build.
+  - FlatBuffers' `reflection_generated.h` and the FlatBuffers headers of TensorFlow Lite and LiteRT
+    (`schema_generated.h`, `conversion_metadata_generated.h`, `configuration_generated.h`, the
+    latter's schema made from its `.proto`) are regenerated in `src_compile` with the build's
+    `flatc`, with the options of upstream's rules; the builtin op lists (`builtin_ops.h`,
+    `builtin_ops_list.inc`) with TensorFlow Lite's generators, also for LiteRT, which only copies
+    them. The checked-in headers were made by an older `flatc` (and `conversion_metadata` from an
+    older schema, without `PYTORCH` and `model_hash`), so those differ.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
