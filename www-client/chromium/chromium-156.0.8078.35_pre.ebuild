@@ -578,6 +578,8 @@ src_prepare() {
 		# and the remote DevTools front-end.
 		"${FILESDIR}/chromium-156-no-runtime-executable-downloads.patch"
 		"${FILESDIR}/chromium-156-v8-metagen-resource-dir.patch"
+		# V8's keyword table generator, for the system gperf (see src_prepare).
+		"${FILESDIR}/chromium-156-v8-keywords-gperf.patch"
 		# OpenXR includes <vulkan/vulkan.h> without depending on Chromium's Vulkan headers.
 		"${FILESDIR}/chromium-156-openxr-vulkan-headers.patch"
 		# GN arg enable_webui_lint, to skip the ESLint/Stylelint checks (see below).
@@ -860,6 +862,23 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 			die "Expected to find ${src} to restore ${dst}, but it does not exist."
 		fi
 	done
+
+	# V8's keyword lookup table (src/parsing/keywords-gen.h) is gperf's output for keywords.txt,
+	# rewritten by tools/gen-keywords-gen-h.py and formatted with clang-format (which it runs from
+	# v8/third_party/depot_tools): regenerate it with the system gperf. Only the gperf version in a
+	# comment differs (the checked-in file is from gperf 3.1).
+	einfo "Regenerating V8's keyword table ..."
+	mkdir v8/third_party/depot_tools || die
+	if use bundled-toolchain; then
+		# No system clang-format: leave the output unformatted (only the layout differs).
+		printf '#!/bin/sh\nexec cat\n' > v8/third_party/depot_tools/clang-format || die
+		chmod +x v8/third_party/depot_tools/clang-format || die
+	else
+		ln -s "$(get_llvm_prefix -b)/bin/clang-format" v8/third_party/depot_tools/clang-format || die
+	fi
+	# From v8/, so that clang-format (reading stdin) uses V8's .clang-format.
+	( cd v8 && "${EPYTHON}" -B tools/gen-keywords-gen-h.py ) || die "Failed to regenerate V8's keywords-gen.h"
+	rm -r v8/third_party/depot_tools || die
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has
@@ -1963,6 +1982,27 @@ chromium_compile() {
 
 	# Don't inherit PYTHONPATH from environment, bug #789021, #812689
 	local -x PYTHONPATH=
+
+	# V8's static roots (src/roots/static-roots-intl-wasm.h, and the values include/v8-internal.h
+	# takes from them) are the read-only heap layout that a mksnapshot built with
+	# v8_enable_static_roots_generation writes: build one in a second build directory with this
+	# build's arguments plus that (V8's tools/dev/gen-static-roots.py), regenerate them with it
+	# (files/chromium-v8-static-roots.py), then remove it. Only a comment's indentation differs.
+	if [[ ! -e ${WORKDIR}/.v8-static-roots-regenerated ]]; then
+		local v8_sr=out/StaticRoots v8_mksnapshot=mksnapshot
+		tc-is-cross-compiler && v8_mksnapshot=host/mksnapshot
+		mkdir -p "${v8_sr}" || die
+		{ cat out/Release/args.gn && echo "v8_enable_static_roots = false" &&
+			echo "v8_enable_static_roots_generation = true"; } > "${v8_sr}/args.gn" || die
+		gn gen "${v8_sr}" > "${T}/v8-static-roots-gn.log" 2>&1 ||
+			die "gn gen for V8's static roots failed (see ${T}/v8-static-roots-gn.log)"
+		eninja -C "${v8_sr}" "${v8_mksnapshot}"
+		einfo "Regenerating V8's static roots ..."
+		"${EPYTHON}" -B "${FILESDIR}/chromium-v8-static-roots.py" v8 "${v8_sr}/${v8_mksnapshot}" ||
+			die "Failed to regenerate V8's static roots"
+		rm -r "${v8_sr}" || die
+		touch "${WORKDIR}/.v8-static-roots-regenerated" || die
+	fi
 
 	# Build mksnapshot and pax-mark it.
 	if use pax-kernel; then
