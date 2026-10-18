@@ -222,6 +222,8 @@ built-in terms dialog Linux builds show on a new profile's first run.
     in, but only apply where a feature is missing.
   - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
     by this build.
+  - simdutf's amalgamation (`simdutf.h`, `simdutf.cpp`) is regenerated from simdutf 7.7.0's sources
+    with its `amalgamate.py`. Byte-identical but for the generation timestamp, which is kept.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
