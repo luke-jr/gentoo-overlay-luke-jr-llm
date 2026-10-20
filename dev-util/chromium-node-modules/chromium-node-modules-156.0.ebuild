@@ -360,8 +360,19 @@ INSPECTOR_PROTOCOL_COMMIT=c0045057ce801744c5e88596a2f1bab1802e39f0
 SRC_URI+="
 	https://registry.npmjs.org/devtools-protocol/-/devtools-protocol-${DEVTOOLS_PROTOCOL_VER}.tgz
 "
-for _f in concatenate_protocols.py pdl.py; do
+for _f in concatenate_protocols.py convert_protocol_to_json.py pdl.py; do
 	SRC_URI+=" https://chromium.googlesource.com/deps/inspector_protocol/+/${INSPECTOR_PROTOCOL_COMMIT}/${_f}?format=TEXT -> inspector_protocol-${INSPECTOR_PROTOCOL_COMMIT:0:8}-${_f}.b64"
+done
+# Puppeteer's devtools-protocol (the version its package.json names): the type declarations
+# its TypeScript imports, made from that release's .pdl definitions as devtools-protocol's
+# update-to-latest.sh does (inspector_protocol's convert_protocol_to_json.py, then its
+# scripts/protocol-dts-generator.ts at the release's tag).
+PUPPETEER_DEVTOOLS_PROTOCOL_VER=0.0.1687809
+PUPPETEER_DEVTOOLS_PROTOCOL_COMMIT=ea39a11d80de9a08ce2af03f52125ed2e462cf84
+SRC_URI+=" https://registry.npmjs.org/devtools-protocol/-/devtools-protocol-${PUPPETEER_DEVTOOLS_PROTOCOL_VER}.tgz"
+for _f in protocol-dts-generator.ts protocol-schema.d.ts; do
+	SRC_URI+=" https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/${PUPPETEER_DEVTOOLS_PROTOCOL_COMMIT}/scripts/${_f}
+		-> devtools-protocol-${PUPPETEER_DEVTOOLS_PROTOCOL_COMMIT:0:10}-${_f}"
 done
 unset _f
 # @paulirish/trace_engine: the sources in its source maps, and its package files that
@@ -964,6 +975,20 @@ src_compile() {
 	cp "${WORKDIR}"/npm-webdriver-bidi-protocol-0.4.3/package.json node_modules/webdriver-bidi-protocol/ || die
 	cp -r "${WORKDIR}"/npm-webdriver-bidi-protocol-0.4.3/out node_modules/webdriver-bidi-protocol/ || die
 	find node_modules/webdriver-bidi-protocol -name '*.js' -delete || die
+	# devtools-protocol's type declarations (see SRC_URI). Without them, tsc's declarations
+	# widen the protocol's string literal types to string.
+	local dp="${WORKDIR}/npm-devtools-protocol-${PUPPETEER_DEVTOOLS_PROTOCOL_VER}" dpg="${T}/devtools-protocol" p
+	mkdir -p "${dpg}"/{scripts,json,types} node_modules/devtools-protocol || die
+	for p in browser js; do
+		edo "${EPYTHON}" "${WORKDIR}/inspector_protocol/convert_protocol_to_json.py" --map_binary_to_string=true \
+			"${dp}/pdl/${p}_protocol.pdl" "${dpg}/json/${p}_protocol.json"
+	done
+	for p in protocol-dts-generator.ts protocol-schema.d.ts; do
+		cp "${DISTDIR}/devtools-protocol-${PUPPETEER_DEVTOOLS_PROTOCOL_COMMIT:0:10}-${p}" "${dpg}/scripts/${p}" || die
+	done
+	echo '{"type": "module"}' > "${dpg}/scripts/package.json" || die
+	( cd "${dpg}/scripts" && edo node protocol-dts-generator.ts )
+	cp "${dp}/package.json" node_modules/devtools-protocol/ && cp -r "${dpg}/types" node_modules/devtools-protocol/ || die
 	local proj
 	for proj in third_party .; do
 		# (types: Node.js and Chrome extension types, for type-checking only)
