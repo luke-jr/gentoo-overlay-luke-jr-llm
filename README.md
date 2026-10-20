@@ -388,6 +388,9 @@ built-in terms dialog Linux builds show on a new profile's first run.
     regenerated from SQLite's sources with Chromium's `generate_amalgamation.py`
     (`files/chromium-sqlite-amalgamation.py`). Byte-identical, once `SQLITE_SOURCE_ID` (a version
     stamp, which SQLite marks as modified because the tarball lacks its tests) is kept.
+  - Wuffs' C library (`release/c/wuffs-v0.3.c`, Skia's GIF decoder) is regenerated from Wuffs'
+    sources with its own `wuffs gen`, built from the commit that made it (Wuffs' v0.3 branch).
+    Byte-identical once its version metadata, which comes from git, is kept.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
