@@ -1,0 +1,17 @@
+DevTools' copy of Puppeteer includes api-extractor's rollups of its type declarations
+(lib/types.d.ts, and lib/es5-iife/puppeteer-core-browser.d.ts made from it), which nothing
+imports: DevTools uses the per-module declarations. They are generated, and api-extractor
+isn't available from source, so leave them out (the ebuild deletes them).
+
+--- a/third_party/devtools-frontend/src/front_end/third_party/puppeteer/BUILD.gn
++++ b/third_party/devtools-frontend/src/front_end/third_party/puppeteer/BUILD.gn
+@@ -7,6 +7,9 @@
+ import("../visibility.gni")
+ 
+ EXCLUDED_SOURCES = [
++  # api-extractor's rollups of the type declarations, which nothing imports.
++  "package/lib/es5-iife/puppeteer-core-browser.d.ts",
++  "package/lib/types.d.ts",
+   "package/lib/puppeteer/common/EventEmitter.test.d.ts",
+   "package/lib/puppeteer/common/EventEmitter.test.d.ts.map",
+   "package/lib/puppeteer/common/EventEmitter.test.js.map",

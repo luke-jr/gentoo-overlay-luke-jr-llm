@@ -843,6 +843,8 @@ src_prepare() {
 		"${FILESDIR}/chromium-156-openxr-vulkan-headers.patch"
 		# GN arg enable_webui_lint, to skip the ESLint/Stylelint checks (see below).
 		"${FILESDIR}/chromium-156-webui-lint-arg.patch"
+		# DevTools' Puppeteer without api-extractor's type declaration rollups (see below).
+		"${FILESDIR}/chromium-156-devtools-puppeteer-no-type-rollups.patch"
 		# ts-proto's protoc plugin comes from dev-util/chromium-node-modules (see below).
 		"${FILESDIR}/chromium-156-ts-proto-from-source.patch"
 		# Skia's AVX-512 kernels stay AVX-512 when CFLAGS contain -march.
@@ -2089,13 +2091,16 @@ print(version)
 		rm -f "${S}/${cnm_file}" || die
 		cp "${cnm_tree}/${cnm_file}" "${S}/${cnm_file}" || die "Failed to copy ${cnm_file}"
 	done < <(cd "${cnm_tree}" && find . -type f -printf '%P\0' || die)
-	# DevTools' puppeteer-core (package/lib: the modules DevTools uses, of puppeteer's lib/)
+	# DevTools' puppeteer-core (package/lib: the modules DevTools uses, of puppeteer's lib/, and
+	# their type declarations). Not api-extractor's rollups of the declarations, which nothing
+	# imports (chromium-156-devtools-puppeteer-no-type-rollups.patch).
 	local devtools_puppeteer="${S}/third_party/devtools-frontend/src/front_end/third_party/puppeteer/package/lib"
+	rm "${devtools_puppeteer}"/{types.d.ts,es5-iife/puppeteer-core-browser.d.ts} || die
 	while IFS= read -r -d '' cnm_file; do
 		[[ -f ${cnm_dir}/build/devtools-puppeteer/lib/${cnm_file} ]] ||
 			die "puppeteer's ${cnm_file} not built by dev-util/chromium-node-modules"
 		cp "${cnm_dir}/build/devtools-puppeteer/lib/${cnm_file}" "${devtools_puppeteer}/${cnm_file}" || die
-	done < <(cd "${devtools_puppeteer}" && find . -name '*.js' -printf '%P\0' || die)
+	done < <(cd "${devtools_puppeteer}" && find . \( -name '*.js' -o -name '*.d.ts' \) -printf '%P\0' || die)
 	# Chromium patches some npm packages (third_party/node/patches; the tree has them applied).
 	# Of the files replaced above, that is only lit-html.js: apply its patch again.
 	pushd "${S}/third_party/node" >/dev/null || die

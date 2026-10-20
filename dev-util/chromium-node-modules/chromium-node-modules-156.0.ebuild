@@ -24,6 +24,8 @@ JS_SOURCES=(
 	"source-map jridgewell/source-map v0.3.5"
 	"sourcemap-codec-1.4.15 jridgewell/sourcemap-codec v1.4.15"
 	"trace-mapping jridgewell/trace-mapping v0.3.19"
+	# webdriver-bidi-protocol: the WebDriver BiDi spec's CDDL extraction (scripts/cddl/generate.js)
+	"parse5 inikulin/parse5 37227a3429584903cbd1799dade995266fc2dbe6"
 	# chromium-bidi: @rollup/plugin-node-resolve
 	"node-resolve rollup/plugins node-resolve-v16.0.3"
 	"pluginutils rollup/plugins pluginutils-v5.3.0"
@@ -303,11 +305,30 @@ for _spec in "${JS_SOURCES[@]}"; do
 done
 unset _spec src_id src_repo src_ref src_uri src_distfile src_dir
 # webdriver-bidi-protocol's type declarations (puppeteer's TypeScript inlines its const
-# enums; the package has no JavaScript, and its sources are generated from the WebDriver
-# BiDi specification)
+# enums; the package has no JavaScript). Its src/gen/ is cddlconv's output for the CDDL of
+# the WebDriver BiDi specs (tools/build.sh), at the commits of its specs/ submodules
+# ("name:repository:commit:files", the spec's source first): regenerated, with the
+# package's index.ts and the tsconfig.json of its release commit.
+WEBDRIVER_BIDI_PROTOCOL_COMMIT=49faa301f39af8abe85b352c7263c8a6fa8b2bd8
+WEBDRIVER_BIDI_SPECS="
+	main:w3c/webdriver-bidi:1e5e36c43adbe24f2a4052c2ec091635c006c352:index.bs,scripts/cddl/generate.js,scripts/cddl/utils.js
+	permissions:w3c/permissions:0051a836a92c4f8e37d016f261bbbed5b6312b96:index.html
+	web-bluetooth:WebBluetoothCG/web-bluetooth:2e451c162f6a3f2277f86104223de4630710506e:index.bs
+	ua-client-hints:WICG/ua-client-hints:6cf1025597fe4ee96063f32e94442613a7fa77f9:index.bs
+"
 SRC_URI+="
 	https://registry.npmjs.org/webdriver-bidi-protocol/-/webdriver-bidi-protocol-0.4.3.tgz
+	https://raw.githubusercontent.com/GoogleChromeLabs/webdriver-bidi-protocol/${WEBDRIVER_BIDI_PROTOCOL_COMMIT}/tsconfig.json
+		-> webdriver-bidi-protocol-${WEBDRIVER_BIDI_PROTOCOL_COMMIT:0:10}-tsconfig.json
 "
+for _s in ${WEBDRIVER_BIDI_SPECS}; do
+	_p=( ${_s//:/ } ) # name repository commit files
+	for _f in ${_p[3]//,/ }; do
+		SRC_URI+=" https://raw.githubusercontent.com/${_p[1]}/${_p[2]}/${_f}
+			-> webdriver-bidi-spec-${_p[1]#*/}-${_p[2]:0:10}-${_f//\//-}"
+	done
+done
+unset _s _p _f
 # DevTools sources, as files from its git repository: "@<commit>", then the paths of
 # files at that commit (src_unpack puts them in devtools-frontend-<commit>/)
 DEVTOOLS_FILES=(
@@ -360,8 +381,19 @@ INSPECTOR_PROTOCOL_COMMIT=c0045057ce801744c5e88596a2f1bab1802e39f0
 SRC_URI+="
 	https://registry.npmjs.org/devtools-protocol/-/devtools-protocol-${DEVTOOLS_PROTOCOL_VER}.tgz
 "
-for _f in concatenate_protocols.py pdl.py; do
+for _f in concatenate_protocols.py convert_protocol_to_json.py pdl.py; do
 	SRC_URI+=" https://chromium.googlesource.com/deps/inspector_protocol/+/${INSPECTOR_PROTOCOL_COMMIT}/${_f}?format=TEXT -> inspector_protocol-${INSPECTOR_PROTOCOL_COMMIT:0:8}-${_f}.b64"
+done
+# Puppeteer's devtools-protocol (the version its package.json names): the type declarations
+# its TypeScript imports, made from that release's .pdl definitions as devtools-protocol's
+# update-to-latest.sh does (inspector_protocol's convert_protocol_to_json.py, then its
+# scripts/protocol-dts-generator.ts at the release's tag).
+PUPPETEER_DEVTOOLS_PROTOCOL_VER=0.0.1687809
+PUPPETEER_DEVTOOLS_PROTOCOL_COMMIT=ea39a11d80de9a08ce2af03f52125ed2e462cf84
+SRC_URI+=" https://registry.npmjs.org/devtools-protocol/-/devtools-protocol-${PUPPETEER_DEVTOOLS_PROTOCOL_VER}.tgz"
+for _f in protocol-dts-generator.ts protocol-schema.d.ts; do
+	SRC_URI+=" https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/${PUPPETEER_DEVTOOLS_PROTOCOL_COMMIT}/scripts/${_f}
+		-> devtools-protocol-${PUPPETEER_DEVTOOLS_PROTOCOL_COMMIT:0:10}-${_f}"
 done
 unset _f
 # @paulirish/trace_engine: the sources in its source maps, and its package files that
@@ -388,6 +420,7 @@ BDEPEND="
 	>=app-i18n/unicode-emoji-17.0.0
 	dev-lang/typescript:6.0.2
 	dev-util/rollup:4.21.0
+	dev-util/cddlconv:0.1.7
 	dev-libs/protobuf
 	dev-util/esbuild
 	net-libs/nodejs
@@ -961,9 +994,43 @@ src_compile() {
 		fs.writeFileSync("src/generated/injected.ts",
 			tmpl.replace("SOURCE_CODE", JSON.stringify(fs.readFileSync(process.argv[1], "utf8"))));
 	' "${T}/injected.js"
+	# webdriver-bidi-protocol's declarations (see SRC_URI). Its src/gen/mapping.ts (the Commands
+	# type map, made with ts-morph, which nothing here needs) is left empty.
+	local wbp="${WORKDIR}/npm-webdriver-bidi-protocol-0.4.3" wbs="${T}/webdriver-bidi-specs" spec sp
+	mkdir -p "${wbs}/node_path" "${wbs}/generate" || die
+	ln -s "$(_dir parse5)/packages/parse5" "${wbs}/node_path/parse5" || die
+	for sp in generate.js utils.js; do
+		cp "${DISTDIR}/webdriver-bidi-spec-webdriver-bidi-1e5e36c43a-scripts-cddl-${sp}" "${wbs}/generate/${sp}" || die
+	done
+	rm -r "${wbp}/out" "${wbp}/src/gen" && mkdir "${wbp}/src/gen" || die
+	for spec in ${WEBDRIVER_BIDI_SPECS}; do
+		sp=( ${spec//:/ } )
+		mkdir "${wbs}/${sp[0]}" || die
+		( cd "${wbs}/${sp[0]}" && NODE_PATH="${wbs}/node_path" edo node "${wbs}/generate/generate.js" \
+			"${DISTDIR}/webdriver-bidi-spec-${sp[1]#*/}-${sp[2]:0:10}-${sp[3]%%,*}" )
+		"${BROOT}/usr/bin/cddlconv-0.1.7" "${wbs}/${sp[0]}/all.cddl" > "${wbp}/src/gen/${sp[0]}.ts" ||
+			die "cddlconv failed for ${sp[1]}"
+	done
+	echo 'export {};' > "${wbp}/src/gen/mapping.ts" || die
+	cp "${DISTDIR}/webdriver-bidi-protocol-${WEBDRIVER_BIDI_PROTOCOL_COMMIT:0:10}-tsconfig.json" "${wbp}/tsconfig.json" || die
+	( cd "${wbp}" && edo "${BROOT}/usr/bin/tsc-6.0.2" -p tsconfig.json --emitDeclarationOnly --ignoreDeprecations 6.0 )
 	cp "${WORKDIR}"/npm-webdriver-bidi-protocol-0.4.3/package.json node_modules/webdriver-bidi-protocol/ || die
 	cp -r "${WORKDIR}"/npm-webdriver-bidi-protocol-0.4.3/out node_modules/webdriver-bidi-protocol/ || die
 	find node_modules/webdriver-bidi-protocol -name '*.js' -delete || die
+	# devtools-protocol's type declarations (see SRC_URI). Without them, tsc's declarations
+	# widen the protocol's string literal types to string.
+	local dp="${WORKDIR}/npm-devtools-protocol-${PUPPETEER_DEVTOOLS_PROTOCOL_VER}" dpg="${T}/devtools-protocol" p
+	mkdir -p "${dpg}"/{scripts,json,types} node_modules/devtools-protocol || die
+	for p in browser js; do
+		edo "${EPYTHON}" "${WORKDIR}/inspector_protocol/convert_protocol_to_json.py" --map_binary_to_string=true \
+			"${dp}/pdl/${p}_protocol.pdl" "${dpg}/json/${p}_protocol.json"
+	done
+	for p in protocol-dts-generator.ts protocol-schema.d.ts; do
+		cp "${DISTDIR}/devtools-protocol-${PUPPETEER_DEVTOOLS_PROTOCOL_COMMIT:0:10}-${p}" "${dpg}/scripts/${p}" || die
+	done
+	echo '{"type": "module"}' > "${dpg}/scripts/package.json" || die
+	( cd "${dpg}/scripts" && edo node protocol-dts-generator.ts )
+	cp "${dp}/package.json" node_modules/devtools-protocol/ && cp -r "${dpg}/types" node_modules/devtools-protocol/ || die
 	local proj
 	for proj in third_party .; do
 		# (types: Node.js and Chrome extension types, for type-checking only)

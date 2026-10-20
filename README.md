@@ -433,6 +433,10 @@ built-in terms dialog Linux builds show on a new profile's first run.
     needs, uncompiled, in dependency order, minified with esbuild, run in a scope of their own. They
     give the same results, but are about 25 times larger, so element commands (find element, get
     text, ...) take about four times as long. `USE=prebuilt-chromedriver-atoms` keeps upstream's.
+  - DevTools' Puppeteer type declarations come from `dev-util/chromium-node-modules`' Puppeteer build
+    (with `devtools-protocol`'s declarations made from its `.pdl` definitions), byte-identical;
+    api-extractor's rollups of them (`types.d.ts`, `es5-iife/puppeteer-core-browser.d.ts`), which
+    nothing imports, are left out.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
