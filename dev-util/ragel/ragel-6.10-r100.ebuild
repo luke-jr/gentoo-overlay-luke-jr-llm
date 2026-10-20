@@ -13,7 +13,7 @@ LICENSE="GPL-2"
 # Ragel 6, installed as ragel-6 next to ::gentoo's dev-util/ragel:0 (which may be Ragel 7):
 # HarfBuzz needs exactly 6.10 to regenerate its state machines.
 SLOT="6"
-KEYWORDS="~amd64 ~arm64 ~ppc64 ~x86"
+KEYWORDS="~amd64 ~arm64"
 
 # We need to get the txl language in Portage to have the tests :(
 RESTRICT="test"
