@@ -393,6 +393,9 @@ built-in terms dialog Linux builds show on a new profile's first run.
     Byte-identical once its version metadata, which comes from git, is kept.
   - simdutf's amalgamation (`simdutf.h`, `simdutf.cpp`) is regenerated from simdutf 7.7.0's sources
     with its `amalgamate.py`. Byte-identical but for the generation timestamp, which is kept.
+  - RE2's Unicode tables are regenerated from Unicode 15.1.0's data files (RE2's version) with its
+    `make_unicode_groups.py` and `make_unicode_casefold.py`, and its Perl classes with
+    `make_perl_groups.pl`. Byte-identical.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)

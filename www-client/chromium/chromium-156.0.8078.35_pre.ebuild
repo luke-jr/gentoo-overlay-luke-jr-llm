@@ -295,6 +295,13 @@ SRC_URI+=" https://github.com/google/wuffs/archive/${WUFFS_COMMIT}.tar.gz -> wuf
 SIMDUTF_COMMIT="94fb52ea0219cb37092d8ae294b4702bacf5d8df"
 SRC_URI+=" https://github.com/simdutf/simdutf/archive/${SIMDUTF_COMMIT}.tar.gz -> simdutf-${SIMDUTF_COMMIT}.gh.tar.gz"
 
+# The Unicode data RE2's table generators read (re2/unicode.py: _UNICODE_DIR), at its version.
+RE2_UNICODE_VER="15.1.0"
+for _f in CaseFolding Scripts UnicodeData; do
+	SRC_URI+=" https://www.unicode.org/Public/${RE2_UNICODE_VER}/ucd/${_f}.txt -> unicode-${RE2_UNICODE_VER}-${_f}.txt"
+done
+unset _f
+
 # https://gitweb.gentoo.org/proj/chromium-tools.git/tree/get-chromium-licences.py @ 155.0.8059.40
 # (newest SPDX data available for M156 at the time), merged with the previous list.
 LICENSE="Apache-2.0 Apache-2.0-with-LLVM-exceptions BSD BSD-2 Base64 Boost-1.0 CC-BY-3.0 CC-BY-4.0 Clear-BSD FFT2D FTL"
@@ -1420,6 +1427,33 @@ open(sys.argv[1], "w", encoding="utf-8").write(block.sub(lambda m: block.search(
 		{ head -n 1 "third_party/simdutf/${f}" && tail -n +2 "${simdutf_out}/${f}"; } > "${T}/${f}" &&
 			mv "${T}/${f}" "third_party/simdutf/${f}" || die
 	done
+	# RE2's Unicode tables (unicode_groups.cc, unicode_casefold.cc) are made from Unicode's data
+	# files by its make_unicode_{groups,casefold}.py, and its POSIX/Perl classes (perl_groups.cc)
+	# by make_perl_groups.pl: regenerate them, from local copies of the data files.
+	einfo "Regenerating RE2's Unicode and Perl class tables ..."
+	local re2_ucd="${T}/re2-ucd" f
+	mkdir -p "${re2_ucd}" || die
+	for f in CaseFolding Scripts UnicodeData; do
+		cp "${DISTDIR}/unicode-${RE2_UNICODE_VER}-${f}.txt" "${re2_ucd}/${f}.txt" || die
+	done
+	grep -q "^_UNICODE_DIR = \"https://www.unicode.org/Public/${RE2_UNICODE_VER}/ucd\"$" \
+		third_party/re2/src/re2/unicode.py || die "RE2's Unicode version is not ${RE2_UNICODE_VER}"
+	pushd third_party/re2/src/re2 >/dev/null || die
+	for f in groups casefold; do
+		"${EPYTHON}" -B -c '
+import sys
+sys.path.insert(0, ".")
+import unicode
+for f in (unicode.CaseGroups, unicode.Scripts, unicode.Categories):
+    f.__defaults__ = (sys.argv[1],)
+sys.argv = sys.argv[2:]
+exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__main__"})
+' "${re2_ucd}" "make_unicode_${f}.py" > "${T}/unicode_${f}.cc" && mv "${T}/unicode_${f}.cc" "unicode_${f}.cc" ||
+			die "Failed to regenerate RE2's unicode_${f}.cc"
+	done
+	LC_ALL=C perl make_perl_groups.pl > "${T}/perl_groups.cc" && mv "${T}/perl_groups.cc" perl_groups.cc ||
+		die "Failed to regenerate RE2's perl_groups.cc"
+	popd >/dev/null || die
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has
