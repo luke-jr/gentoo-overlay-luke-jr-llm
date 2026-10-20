@@ -300,6 +300,8 @@ built-in terms dialog Linux builds show on a new profile's first run.
     token and macro tables with its Perl scripts (`make perlreq`; identical but for the order of
     flags in comments, which follows Perl's hash order). Its copy of zlib's `crc32.h` and `inffixed.h` are
     regenerated with zlib's own table writers (byte-identical).
+  - libc++'s generated headers (`<format>`'s four Unicode tables, from the UCD files libc++ keeps,
+    and `<version>`) are regenerated with libc++'s scripts. Byte-identical.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)

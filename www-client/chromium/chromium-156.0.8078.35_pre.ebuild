@@ -1033,6 +1033,34 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	"${EPYTHON}" "${FILESDIR}/chromium-binary-audit.py" --delete "${binary_allowlist[@]/#/--allow=}" \
 		"${S}" > "${T}/binary-removal.log" || die "Failed to remove bundled binaries"
 
+	# libc++'s generated headers: the Unicode tables of <format> (from the UCD files libc++ keeps
+	# in utils/data/unicode) and <version> (from its feature-test macro list). Regenerate them with
+	# libc++'s own scripts. The latter also writes tests and docs, and checks that the test
+	# directory exists, which the tarball leaves out: only its header part is run.
+	einfo "Regenerating libc++'s generated headers ..."
+	local libcxx="${S}/third_party/libc++/src" libcxx_t
+	for libcxx_t in escaped_output extended_grapheme_cluster indic_conjunct_break width_estimation; do
+		"${EPYTHON}" -B "${libcxx}/utils/generate_${libcxx_t}_table.py" \
+			"${libcxx}/include/__format/${libcxx_t}_table.h" || die "Failed to regenerate ${libcxx_t}_table.h"
+	done
+	# Placeholders for what it checks, removed again (only what was created here).
+	local libcxx_d="${libcxx}/test/std" libcxx_made=() libcxx_p
+	for libcxx_p in language.support support.limits support.limits.general; do
+		libcxx_d+="/${libcxx_p}"
+		if [[ ! -d ${libcxx_d} ]]; then
+			mkdir "${libcxx_d}" || die
+			libcxx_made=( "${libcxx_d}" "${libcxx_made[@]}" )
+		fi
+	done
+	local libcxx_test="${libcxx_d}/version.version.compile.pass.cpp"
+	[[ -e ${libcxx_test} ]] || { touch "${libcxx_test}" && libcxx_made=( "${libcxx_test}" "${libcxx_made[@]}" ) ; } || die
+	( cd "${libcxx}/utils" && "${EPYTHON}" -B -c \
+		'import generate_feature_test_macro_components as g; g.produce_version_header()' ) ||
+		die "Failed to regenerate libc++'s <version>"
+	for libcxx_p in "${libcxx_made[@]}"; do
+		if [[ -d ${libcxx_p} ]]; then rmdir "${libcxx_p}" || die; else rm "${libcxx_p}" || die; fi
+	done
+
 	# And now we restore any that we actually need, from the host system
 	local esbuild_path="${S}/third_party/devtools-frontend/src/third_party/esbuild"
 	local -A restore_list=(
