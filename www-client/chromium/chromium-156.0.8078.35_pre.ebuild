@@ -302,6 +302,11 @@ for _f in CaseFolding Scripts UnicodeData; do
 done
 unset _f
 
+# The script that generates Jinja's _identifier.py, at the release Chromium bundles (3.1.2).
+JINJA_COMMIT="b08cd4bc64bb980df86ed2876978ae5735572280"
+SRC_URI+=" https://raw.githubusercontent.com/pallets/jinja/${JINJA_COMMIT}/scripts/generate_identifier_pattern.py
+	-> jinja-${JINJA_COMMIT:0:10}-generate_identifier_pattern.py"
+
 # https://gitweb.gentoo.org/proj/chromium-tools.git/tree/get-chromium-licences.py @ 155.0.8059.40
 # (newest SPDX data available for M156 at the time), merged with the previous list.
 LICENSE="Apache-2.0 Apache-2.0-with-LLVM-exceptions BSD BSD-2 Base64 Boost-1.0 CC-BY-3.0 CC-BY-4.0 Clear-BSD FFT2D FTL"
@@ -1554,6 +1559,18 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 	rm third_party/node/node_modules/typescript || die
 	rm -f "${glic_cf}" || die
 	mv "${T}/clang_format.py" "${glic_cf}" || die
+	# Jinja's identifier pattern (third_party/jinja2/_identifier.py, the characters Python accepts in
+	# identifiers beyond \w) is written by its scripts/generate_identifier_pattern.py: regenerate
+	# it. It follows the Unicode version of the Python running it, so it is newer than the
+	# checked-in one (only non-ASCII template identifiers, which Chromium's templates don't use,
+	# are affected).
+	einfo "Regenerating Jinja's identifier pattern ..."
+	mkdir -p "${WORKDIR}/jinja/scripts" "${WORKDIR}/jinja/src/jinja2" || die
+	cp "${DISTDIR}/jinja-${JINJA_COMMIT:0:10}-generate_identifier_pattern.py" \
+		"${WORKDIR}/jinja/scripts/generate_identifier_pattern.py" || die
+	"${EPYTHON}" -B "${WORKDIR}/jinja/scripts/generate_identifier_pattern.py" &&
+		cp "${WORKDIR}/jinja/src/jinja2/_identifier.py" third_party/jinja2/_identifier.py ||
+		die "Failed to regenerate Jinja's _identifier.py"
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has

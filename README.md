@@ -420,6 +420,9 @@ built-in terms dialog Linux builds show on a new profile's first run.
     schema, and the partially generated ones were edited by hand: kept as source.
   - Glic's generated TypeScript API enums (`glic_api_generated.ts` and a block of `glic_api.ts`) are
     regenerated from its mojom definitions with its `generate.py`. Byte-identical.
+  - Jinja's identifier pattern (`third_party/jinja2/_identifier.py`) is regenerated with its
+    `generate_identifier_pattern.py`, from the build's Python's Unicode data (newer than the checked-in
+    one's; only non-ASCII template identifiers are affected).
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
