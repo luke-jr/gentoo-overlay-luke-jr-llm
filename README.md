@@ -308,6 +308,9 @@ built-in terms dialog Linux builds show on a new profile's first run.
     rebuilds what changed. Regenerating again with the rebuilt protoc gives the same files. The
     feature protos differ from the checked-in ones, made by upstream's unpatched protoc, only in
     `[[nodiscard]]` and `Swap()` inlining (as Chromium's own regenerated `descriptor.pb.h`).
+  - The SPIR-V headers (Chromium's `third_party/spirv-headers` and SwiftShader's copy) are
+    regenerated from the SPIR-V grammars with SPIRV-Headers' own tools (`makeExtinstHeaders.py`,
+    `buildHeaders`). Byte-identical.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
