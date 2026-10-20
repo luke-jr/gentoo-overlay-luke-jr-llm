@@ -338,6 +338,9 @@ built-in terms dialog Linux builds show on a new profile's first run.
     Public Suffix List with `tld_cleanup`, built first in `src_compile`. Both byte-identical. (base's
     `utf8_validator_tables.cc` is kept as source: its generator's data comes out the same, but the
     file has been edited by hand since.)
+  - libutf's rune type tables are regenerated from the `UnicodeData.txt` it ships with its
+    `mkrunetype.awk` (byte-identical); `isalpharune.c` was edited by hand since (crbug.com/1184370)
+    and is kept as source.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)

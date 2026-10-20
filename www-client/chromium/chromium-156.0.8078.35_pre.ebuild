@@ -1332,6 +1332,15 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	fi
 	PATH="${net_bin}:${PATH}" "${EPYTHON}" -B net/data/ssl/root_stores/update_root_stores.py \
 		> "${T}/update_root_stores.log" 2>&1 || die "update_root_stores.py failed (see ${T}/update_root_stores.log)"
+	# libutf's rune type tables (third_party/utf/src/runetype/is*rune.c) are generated from the
+	# UnicodeData.txt it ships by its bin/mkrunetype.awk (its Makefile's rule): regenerate them.
+	# isalpharune.c was edited by hand since (CJK and Hangul ranges, crbug.com/1184370), so it is
+	# kept as source.
+	einfo "Regenerating libutf's rune type tables ..."
+	cp third_party/utf/src/runetype/isalpharune.c "${T}/isalpharune.c" || die
+	( cd third_party/utf/src && LC_ALL=C awk -f bin/mkrunetype.awk share/UnicodeData-9.0.0.txt ) ||
+		die "Failed to regenerate libutf's rune type tables"
+	cp "${T}/isalpharune.c" third_party/utf/src/runetype/isalpharune.c || die
 
 	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
 	local devtools_ts="${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}/lib/typescript.js"
