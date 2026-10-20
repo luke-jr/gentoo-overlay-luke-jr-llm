@@ -1487,6 +1487,15 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 	einfo "Regenerating the character composer's table ..."
 	( cd ui/base/ime && "${EPYTHON}" -B generate_character_composer_data.py character_composer_sequences.txt ) ||
 		die "Failed to regenerate character_composer_data.h"
+	# zxcvbn's keyboard adjacency graphs (native-src/zxcvbn/adjacency_graphs.{cpp,hpp}) are written
+	# by its data-scripts/build_keyboard_adjacency_graphs.py: regenerate them.
+	einfo "Regenerating zxcvbn's keyboard adjacency graphs ..."
+	local f
+	for f in cpp hpp; do
+		"${EPYTHON}" -B third_party/zxcvbn-cpp/data-scripts/build_keyboard_adjacency_graphs.py \
+			"third_party/zxcvbn-cpp/native-src/zxcvbn/adjacency_graphs.${f}" ||
+			die "Failed to regenerate zxcvbn's adjacency_graphs.${f}"
+	done
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has

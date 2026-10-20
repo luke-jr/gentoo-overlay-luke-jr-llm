@@ -407,6 +407,8 @@ built-in terms dialog Linux builds show on a new profile's first run.
   - The top domains' skeletons for the lookalike-URL check (`components/url_formatter/spoof_checks/
     top_domains/*.skeletons`) are regenerated in `src_compile` with `make_top_domain_skeletons`,
     built from the tree. Byte-identical. (Their input, `domains.list`, is Chrome UX Report data.)
+  - zxcvbn's keyboard adjacency graphs are regenerated with its
+    `build_keyboard_adjacency_graphs.py`. Byte-identical.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
