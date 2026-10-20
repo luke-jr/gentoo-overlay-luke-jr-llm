@@ -1482,6 +1482,11 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 	done
 	( cd third_party/ipcz/src/ipcz && PYTHONPATH="${S}/third_party" "${EPYTHON}" -B node_messages.py --dir=. ) \
 		> "${T}/ipcz-messages.log" 2>&1 || die "Failed to regenerate ipcz's messages (see ${T}/ipcz-messages.log)"
+	# The IME character composer's table (ui/base/ime/character_composer_data.h) is made from
+	# character_composer_sequences.txt by generate_character_composer_data.py: regenerate it.
+	einfo "Regenerating the character composer's table ..."
+	( cd ui/base/ime && "${EPYTHON}" -B generate_character_composer_data.py character_composer_sequences.txt ) ||
+		die "Failed to regenerate character_composer_data.h"
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has

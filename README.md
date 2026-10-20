@@ -402,6 +402,8 @@ built-in terms dialog Linux builds show on a new profile's first run.
     exists.
   - ipcz's message definitions (`node_messages.{cc,h}`) are regenerated from their
     `*_messages_generator.h` with its `node_messages.py`. Byte-identical.
+  - The IME character composer's table (`ui/base/ime/character_composer_data.h`) is regenerated
+    with `generate_character_composer_data.py`. Byte-identical.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
