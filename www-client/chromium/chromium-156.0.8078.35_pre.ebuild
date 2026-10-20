@@ -100,10 +100,16 @@ SRC_URI="https://github.com/chromium-linux-tarballs/chromium-tarballs/releases/d
 	)
 	pgo? ( https://github.com/elkablo/chromium-profiler/releases/download/v0.2/chromium-profiler-0.2.tar )"
 
+# Unicode's plain-text data files come from unicode-org/unicodetools (byte-identical to
+# unicode.org's): unicode.org's CDN gives a wrong total size for a range request (that of its
+# compressed copy), so that a downloader using ranges (axel) saves a truncated file.
+UNICODETOOLS_COMMIT="578f6c0516f5f268292ebda50b51848407a06478"
+UNICODETOOLS_DATA="https://raw.githubusercontent.com/unicode-org/unicodetools/${UNICODETOOLS_COMMIT}/unicodetools/data"
+
 # The Unicode data RE2's table generators read (re2/unicode.py: _UNICODE_DIR), at its version.
 RE2_UNICODE_VER="15.1.0"
 for _f in CaseFolding Scripts UnicodeData; do
-	SRC_URI+=" https://www.unicode.org/Public/${RE2_UNICODE_VER}/ucd/${_f}.txt -> unicode-${RE2_UNICODE_VER}-${_f}.txt"
+	SRC_URI+=" ${UNICODETOOLS_DATA}/ucd/${RE2_UNICODE_VER}/${_f}.txt -> unicode-${RE2_UNICODE_VER}-${_f}.txt"
 done
 unset _f
 
