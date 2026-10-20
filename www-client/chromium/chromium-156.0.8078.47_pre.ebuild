@@ -507,7 +507,7 @@ BDEPEND="
 	sys-libs/zlib
 	dev-lang/yasm
 	dev-build/meson
-	=dev-util/ragel-6*
+	dev-util/ragel:6
 	sys-devel/flex
 	virtual/pkgconfig
 	x11-misc/xdg-utils
@@ -1507,12 +1507,12 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 	PYTHONPATH="third_party/blink/tools:third_party/blink/renderer/build/scripts" "${EPYTHON}" -B \
 		third_party/blink/renderer/build/scripts/rule_bison.py third_party/blink/renderer/core/xml/xpath_grammar.y \
 		third_party/blink/renderer/core/xml "$(type -P bison)" || die "Failed to regenerate Blink's XPath parser"
-	( cd third_party/emoji-segmenter/src && ragel -F1 emoji_presentation_scanner.rl ) ||
+	( cd third_party/emoji-segmenter/src && ragel-6 -F1 emoji_presentation_scanner.rl ) ||
 		die "Failed to regenerate the emoji presentation scanner"
 	pushd third_party/harfbuzz/src/src >/dev/null || die
 	local rl
 	for rl in *.rl; do
-		ragel -e -F1 -o "${rl%.rl}.hh" "${rl}" || die "Failed to regenerate HarfBuzz's ${rl%.rl}.hh"
+		ragel-6 -e -F1 -o "${rl%.rl}.hh" "${rl}" || die "Failed to regenerate HarfBuzz's ${rl%.rl}.hh"
 	done
 	popd >/dev/null || die
 	# ipcz's message definitions (src/ipcz/node_messages.{cc,h}, test_messages.{cc,h}) are made
