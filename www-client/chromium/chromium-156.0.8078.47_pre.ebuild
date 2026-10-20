@@ -146,14 +146,20 @@ ICU_TOOLS_FILES="
 	c/genprops/layoutpropsbuilder.cpp c/genprops/namespropsbuilder.cpp c/genprops/pnamesbuilder.cpp
 	c/genuca/collationbasedatabuilder.cpp c/genuca/collationbasedatabuilder.h c/genuca/genuca.cpp
 "
+# Unicode's plain-text data files come from unicode-org/unicodetools (byte-identical to
+# unicode.org's): unicode.org's CDN gives a wrong total size for a range request (that of its
+# compressed copy), so that a downloader using ranges (axel) saves a truncated file.
+UNICODETOOLS_COMMIT="578f6c0516f5f268292ebda50b51848407a06478"
+UNICODETOOLS_DATA="https://raw.githubusercontent.com/unicode-org/unicodetools/${UNICODETOOLS_COMMIT}/unicodetools/data"
+
 SRC_URI+="
 	https://unicode.org/Public/zipped/${ICU_UNICODE_VER}/UCD.zip -> unicode-data-${ICU_UNICODE_VER}-UCD.zip
-	https://unicode.org/Public/${ICU_UNICODE_VER}/idna/IdnaMappingTable.txt
+	${UNICODETOOLS_DATA}/idna/${ICU_UNICODE_VER}/IdnaMappingTable.txt
 		-> unicode-${ICU_UNICODE_VER}-IdnaMappingTable.txt
 	https://unicode.org/Public/${ICU_UNICODE_VER}/security/uts39-data-${ICU_UNICODE_VER}.zip
-	https://unicode.org/Public/${ICU_UNICODE_VER}/emoji/emoji-sequences.txt
+	${UNICODETOOLS_DATA}/emoji/${ICU_UNICODE_VER%.0}/emoji-sequences.txt
 		-> unicode-emoji-sequences-${ICU_UNICODE_VER}.txt
-	https://unicode.org/Public/${ICU_UNICODE_VER}/emoji/emoji-zwj-sequences.txt
+	${UNICODETOOLS_DATA}/emoji/${ICU_UNICODE_VER%.0}/emoji-zwj-sequences.txt
 		-> unicode-emoji-zwj-sequences-${ICU_UNICODE_VER}.txt
 "
 for _f in ${ICU_TOOLS_FILES}; do
