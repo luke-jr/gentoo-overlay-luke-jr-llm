@@ -455,12 +455,56 @@ built-in terms dialog Linux builds show on a new profile's first run.
   - emoji-regex's pattern is generated with `files/emoji-test-regex-pattern.mjs`, not upstream's
     downloaded PHP tool, from Unicode's `emoji-test.txt` as `app-i18n/unicode-emoji` installs it. It is 13.8 KB vs upstream's 14.1 KB, and matches the same on 210,452 test
     strings.
-- **Generated files used as is (exceptions).** Generated files are otherwise regenerated from their
-  inputs, or replaced; these are not:
-  - BoringSSL's Fiat Cryptography code (`third_party/boringssl/src/third_party/fiat/`:
-    `curve25519_64.h`, `p256_64.h`, `p256_field_64.br.c.inc`, `p256_point.br.c.inc`). It is
-    extracted from Coq proofs, so regenerating it means building Fiat Cryptography with Coq. Treated
-    as source for now.
+- **Generated files used as is (exceptions).** Every other generated file the build uses is
+  regenerated from its inputs, or replaced (see above). These are not, by kind:
+  - *Proofs and math constants.* BoringSSL's Fiat Cryptography code (`third_party/fiat/`:
+    `curve25519_64.h`, `p256_64.h`, `p256_field_64.br.c.inc`, `p256_point.br.c.inc`; extracted from
+    Coq proofs, so regenerating it means building Fiat Cryptography with Coq). Numeric tables computed
+    once with math software or by hand: pxfm's and llvm-libc's polynomial coefficients
+    (SageMath, Sollya, Mathematica), libc++'s Ryu tables, WebRTC's numpy/MATLAB tables, V8's CRC32
+    table, abseil's Randen round keys, libvpx's VP8 probability tables, and Opus' static CELT modes
+    (`celt/static_modes_float.h`: window and twiddle constants, which Opus keeps fixed; regenerating
+    them changes the codec's arithmetic in the last digit).
+  - *Published data, used as input.* Unicode's release data (UCD, CLDR's JSON, ICU's
+    `icuexportdata`, ICU4C's locale data `.txt`; their converters are Java tools needing ICU4J), the
+    Public Suffix List, Chrome UX Report's top domain list, Chromium's root store definitions, and
+    `.proto` files (including copies exported from Google's internal repository).
+  - *No public generator.* abseil's Gaussian distribution tables (its generator was never
+    published), libaddressinput's region metadata (from Google's address data service), CLD3's and
+    CED's script/encoding tables, `components/google/core/common/google_tld_list.h`,
+    `services/tracing/perfetto/privacy_filtered_fields-inl.h`, the QUICHE feature flag list and
+    Autofill's i18n model (Google-internal exports), the Linux syscall tables in
+    `sandbox/linux/system_headers`, Crubit's support `BUILD.gn` files (Google-internal
+    `bazel_to_builds`), Skia's `src/sksl/spirv.h` (SPIR-V 1.0 revision 4, published before its
+    generator and grammar were), HarfBuzz's OpenType language tag table (from Microsoft's and IANA's
+    registries, whose old versions aren't published) and OS/2 Unicode ranges (from a table copied from
+    the OpenType spec), and Blink's `css_group_config.json5` (its generator, from CSS usage
+    statistics, is gone).
+  - *Edited by hand since they were generated* (their generators would undo the edits): DevTools'
+    `MetricCompareStrings.ts`, BoringSSL's `crypto/hrss/asm/poly_rq_mul.S`, llvm-subzero's
+    `Config/*.h`, libutf's `isalpharune.c`, the Khronos headers Chromium modified (`GLES2/gl2.h`,
+    `gl2ext.h`, `EGL/eglext.h`) and ANGLE's GLES1 headers, base's `utf8_validator_tables.cc`, V8's
+    `unicode.cc`, chromedriver's `network_list.cc`, the configure output edited for Chromium
+    (libtiff's `tiffconf.h`, libzip's `zipconf.h` and `config.h`, snappy's
+    `snappy-stubs-public.h`), the TypeScript declarations of the `storage`, `extension_types`,
+    `metrics_private` and `web_request` extension APIs (and the partially generated ones), and
+    Polymer's and the iron/paper elements' typings (hand-maintained upstream since 2020, or frozen
+    2018–2019 output, then patched by Chromium's `chromium_dts.patch`).
+  - *Version stamps* in otherwise regenerated files are kept: libvpx's `vpx_version.h`, libaom's
+    `aom_version.h`, dav1d's `vcs_version.h`, Dawn's commit hash, `gpu_lists_version.h`, the Khronos
+    headers' date and commit lines, SQLite's `SQLITE_SOURCE_ID`, Wuffs' version metadata, simdutf's
+    generation timestamp.
+  - *Lists of files*, which count as source: Skia's `gn/*.gni`, `.pydeps`/`.gritdeps`, FFmpeg's
+    `ffmpeg_generated.gni` and `autorename_*` wrappers, XNNPACK's `BUILD.gn` (exported from Bazel:
+    its micro-kernel lists and their flags).
+  - *Not built or not used by default:* Khronos' Vulkan validation layer and mock driver (only with
+    `USE=debug`), catapult's telemetry `BUILD.gn` (test targets), perfetto's syntaqlite parser,
+    `third_party/material_web_components` (ChromeOS only).
+  - *Binary assets* (images, icons, sounds; also the dino game's encrypted alternate images,
+    `components/error_page/common/alt_game_image_data.cc`) and *ML models* (Blink's dark mode
+    classifier, Opus' `mlp_data.c`) are out of scope.
+  - With `USE=prebuilt-chromedriver-atoms`, chromedriver uses upstream's Closure-compiled Selenium
+    atoms instead of the ones built from source.
 - **Crubit notes:** see `NOTES-crubit.md`.
 - **Metadata:** no package lists a maintainer: the `::gentoo` ones' Gentoo maintainers were removed, since
   they don't maintain this overlay. Add yourself if you like. The generated AppStream data uses upstream

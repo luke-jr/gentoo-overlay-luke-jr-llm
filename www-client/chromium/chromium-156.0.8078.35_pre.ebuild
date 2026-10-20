@@ -507,7 +507,6 @@ BDEPEND="
 	dev-lang/yasm
 	dev-build/meson
 	=dev-util/ragel-6*
-	wayland? ( dev-build/meson )
 	sys-devel/flex
 	virtual/pkgconfig
 	x11-misc/xdg-utils
