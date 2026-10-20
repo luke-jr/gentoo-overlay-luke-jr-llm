@@ -427,6 +427,12 @@ built-in terms dialog Linux builds show on a new profile's first run.
     data with its `gen-*.py` and packTab 1.9.0. Byte-identical. Kept as source: its OpenType language
     tag table (from Microsoft's and IANA's registries, whose old versions aren't published) and its
     OS/2 Unicode ranges (from a table copied from the OpenType spec).
+  - chromedriver's Selenium atoms (`third_party/selenium-atoms`, minified JavaScript compiled by
+    Selenium's Bazel build with Closure Compiler, which isn't available from source) are built from
+    Selenium's sources without it (`files/chromium-selenium-atoms.py`): the Closure files each atom
+    needs, uncompiled, in dependency order, minified with esbuild, run in a scope of their own. They
+    give the same results, but are about 25 times larger, so element commands (find element, get
+    text, ...) take about four times as long. `USE=prebuilt-chromedriver-atoms` keeps upstream's.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
