@@ -354,6 +354,8 @@ built-in terms dialog Linux builds show on a new profile's first run.
   - The Vulkan loader's and Vulkan-Utility-Libraries' generated sources are regenerated from
     `third_party/vulkan-headers`' registry with their `generate_source.py`, which formats them with
     clang-format. Byte-identical.
+  - OpenXR's generated headers and loader dispatch code are regenerated from its registry with
+    OpenXR-SDK-Source's generators (at the SDK's release). Byte-identical.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)

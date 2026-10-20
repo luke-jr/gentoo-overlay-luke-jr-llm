@@ -235,6 +235,13 @@ for _k in ${KHRONOS_HEADERS}; do
 	done
 done
 unset _k _p _f
+# OpenXR's code generators, which the OpenXR SDK in third_party/openxr leaves out (they are in
+# OpenXR-SDK-Source), at the SDK's release.
+OPENXR_VER="1.1.53"
+SRC_URI+="
+	https://github.com/KhronosGroup/OpenXR-SDK-Source/archive/refs/tags/release-${OPENXR_VER}.tar.gz
+		-> OpenXR-SDK-Source-${OPENXR_VER}.tar.gz
+"
 
 # https://gitweb.gentoo.org/proj/chromium-tools.git/tree/get-chromium-licences.py @ 155.0.8059.40
 # (newest SPDX data available for M156 at the time), merged with the previous list.
@@ -611,6 +618,7 @@ src_unpack() {
 	unpack Vulkan-Headers-${SWS_VULKAN_HEADERS_COMMIT}.gh.tar.gz Vulkan-Headers-${SWS_VIDEO_HEADERS_COMMIT}.gh.tar.gz \
 		Vulkan-Hpp-${SWS_VULKAN_HPP_COMMIT}.gh.tar.gz tinyxml2-${SWS_TINYXML2_COMMIT}.gh.tar.gz
 	use amd64 && unpack llvm-mirror-${SWS_LLVM_COMMIT}.gh.tar.gz
+	unpack OpenXR-SDK-Source-${OPENXR_VER}.tar.gz
 	# These should only be required when we're not using the official toolchain
 	if use !bundled-toolchain; then
 		unpack chromium-patches-copium-${COPIUM_COMMIT:0:10}.tar.gz
@@ -1414,6 +1422,21 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 		( cd "third_party/${vkl}/src" && PATH="${vkl_bin}:${PATH}" "${EPYTHON}" -B scripts/generate_source.py \
 			"${S}/third_party/vulkan-headers/src/registry" ) >> "${T}/vulkan-libs.log" 2>&1 ||
 			die "Failed to regenerate ${vkl}'s sources (see ${T}/vulkan-libs.log)"
+	# OpenXR's headers and loader dispatch code (third_party/openxr) are generated from its registry
+	# (xr.xml, which the SDK ships) by OpenXR-SDK-Source's genxr.py and src_genxr.py (SRC_URI):
+	# regenerate them. Their reflection templates use jinja2 (Chromium's).
+	einfo "Regenerating OpenXR's generated headers and sources ..."
+	local oxr_src="${WORKDIR}/OpenXR-SDK-Source-release-${OPENXR_VER}" oxr="${S}/third_party/openxr/src" oxr_f
+	local -a oxr_env=( PYTHONPATH="${oxr_src}/specification/scripts:${oxr_src}/src/scripts:${S}/third_party" )
+	for oxr_f in "${oxr}"/include/openxr/openxr{,_platform,_loader_negotiation,_reflection,_reflection_structs,_reflection_parent_structs}.h; do
+		env "${oxr_env[@]}" "${EPYTHON}" -B "${oxr_src}/specification/scripts/genxr.py" \
+			-registry "${oxr}/specification/registry/xr.xml" -o "${oxr}/include/openxr" -quiet "${oxr_f##*/}" \
+			>> "${T}/openxr.log" 2>&1 || die "genxr.py ${oxr_f##*/} failed"
+	done
+	for oxr_f in "${oxr}"/src/xr_generated_dispatch_table{,_core}.{c,h} "${oxr}"/src/loader/xr_generated_loader.{cpp,hpp}; do
+		( cd "${oxr_f%/*}" && env "${oxr_env[@]}" "${EPYTHON}" -B "${oxr_src}/src/scripts/src_genxr.py" \
+			-registry "${oxr}/specification/registry/xr.xml" -quiet "${oxr_f##*/}" ) \
+			>> "${T}/openxr.log" 2>&1 || die "src_genxr.py ${oxr_f##*/} failed"
 	done
 
 	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
