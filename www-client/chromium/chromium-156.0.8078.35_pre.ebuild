@@ -214,6 +214,27 @@ for _c in ${SWS_VULKAN_DOCS_COMMIT} ${SWS_VIDEO_DOCS_COMMIT}; do
 	done
 done
 unset _c _f
+# The Khronos registries the copies of Khronos' generated headers in third_party/khronos and
+# ANGLE's include/ were generated from (their registries' api/ copies at these commits):
+# "repository:commit:directory:registry:destination:headers", headers as genheaders.py names
+# them, "=path" where the copy is elsewhere under the destination.
+KHRONOS_HEADERS="
+	OpenGL-Registry:f37a01b810c6b02dd22979352df995555b51ae50:xml:gl.xml:third_party/khronos:../api/GLES3/gl31.h,../api/GLES3/gl32.h
+	OpenGL-Registry:accf5ad3cd89ddb5cd6e09b6823bf28bce444c3d:xml:gl.xml:third_party/khronos:../api/GLES3/gl3.h
+	EGL-Registry:992aa3914f8fea801b1034c992db389911d9f3c3:api:egl.xml:third_party/khronos:EGL/egl.h
+	OpenGL-Registry:9cb90ca4902d588bef3c830fbb1da484893bd5fb:xml:gl.xml:third_party/angle/include:../api/GLES2/gl2.h,../api/GLES2/gl2ext.h,../api/GLES3/gl3.h,../api/GLES3/gl31.h,../api/GLES3/gl32.h
+	OpenGL-Registry:08549e96bd581527e38b492e92f6fbdb965b5d77:xml:glx.xml:third_party/angle/include:../api/GL/glxext.h=GLX/glxext.h
+	OpenGL-Registry:89acc93eaa6acd97159fb069e66acb92f12d7b87:xml:wgl.xml:third_party/angle/include:../api/GL/wgl.h=WGL/wgl.h
+	EGL-Registry:2e25852c8c92fcd67f66844ae780323155a32d7c:api:egl.xml:third_party/angle/include:EGL/egl.h,EGL/eglext.h
+"
+for _k in ${KHRONOS_HEADERS}; do
+	_p=( ${_k//:/ } ) # repository commit directory registry destination headers
+	for _f in genheaders.py reg.py "${_p[3]}"; do
+		SRC_URI+=" https://raw.githubusercontent.com/KhronosGroup/${_p[0]}/${_p[1]}/${_p[2]}/${_f}
+			-> ${_p[0]}-${_p[1]:0:10}-${_f}"
+	done
+done
+unset _k _p _f
 
 # https://gitweb.gentoo.org/proj/chromium-tools.git/tree/get-chromium-licences.py @ 155.0.8059.40
 # (newest SPDX data available for M156 at the time), merged with the previous list.
@@ -1347,6 +1368,36 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	einfo "Regenerating tools/metrics' setup_modules.py ..."
 	"${EPYTHON}" -B tools/metrics/python_support/generate_setup_modules.py > "${T}/setup_modules.log" ||
 		die "Failed to regenerate tools/metrics' setup_modules.py"
+	# The Khronos headers in third_party/khronos and ANGLE's include/ are copies of Khronos'
+	# generated headers. They are regenerated from the registry they were made from, with its
+	# genheaders.py (KHRONOS_HEADERS), and installed with files/chromium-khronos-merge.py: the
+	# generation date and registry commit stamps are kept (version stamps), and so are ANGLE's
+	# includes of its own extension headers; third_party/khronos' differ only in old comments. Kept
+	# as source: those Chromium modified (third_party/khronos: GLES2/gl2.h, gl2ext.h, EGL/eglext.h;
+	# README.chromium) and ANGLE's GLES1 headers (GLES/gl.h, glext.h), which ANGLE edited.
+	einfo "Regenerating the Khronos GL and EGL headers ..."
+	local khr khr_p khr_h khr_w khr_f
+	for khr in ${KHRONOS_HEADERS}; do
+		khr_p=( ${khr//:/ } )
+		khr_w="${WORKDIR}/khronos-${khr_p[0]}-${khr_p[1]:0:10}"
+		mkdir -p "${khr_w}/${khr_p[2]}" || die
+		for khr_f in genheaders.py reg.py "${khr_p[3]}"; do
+			cp "${DISTDIR}/${khr_p[0]}-${khr_p[1]:0:10}-${khr_f}" "${khr_w}/${khr_p[2]}/${khr_f}" || die
+		done
+		for khr_h in ${khr_p[5]//,/ }; do
+			local khr_dest="${khr_p[4]}/${khr_h#*=}"
+			[[ ${khr_h} == *=* ]] || khr_dest="${khr_p[4]}/${khr_h#../api/}"
+			khr_h=${khr_h%%=*}
+			local khr_out="${khr_w}/${khr_p[2]}/${khr_h}"
+			mkdir -p "${khr_out%/*}" || die
+			( cd "${khr_w}/${khr_p[2]}" && "${EPYTHON}" -B "${FILESDIR}/chromium-khronos-genheaders.py" \
+				genheaders.py -registry "${khr_p[3]}" "${khr_h}" ) >> "${T}/khronos-headers.log" 2>&1 ||
+				die "genheaders.py ${khr_h} failed"
+			[[ -f ${khr_out} ]] || die "genheaders.py did not write ${khr_h} (see ${T}/khronos-headers.log)"
+			"${EPYTHON}" -B "${FILESDIR}/chromium-khronos-merge.py" "${khr_out}" "${khr_dest}" ||
+				die "Failed to install ${khr_dest}"
+		done
+	done
 
 	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
 	local devtools_ts="${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}/lib/typescript.js"
