@@ -330,6 +330,9 @@ built-in terms dialog Linux builds show on a new profile's first run.
   - libaom's configuration for this arch (`source/config/linux/<arch>/config`) is regenerated with
     its CMake configure as Chromium's `cmake_update.sh` runs it, and `wedge_masks_data.inc` with
     libaom's `gen_wedge_masks_data.py`. Byte-identical; `aom_version.h` (version stamp) is kept.
+  - dav1d's configuration for this arch (`config/linux/<arch>/config.{h,asm}`) is regenerated with
+    Meson through Chromium's `generate_configs.py`. Byte-identical; `vcs_version.h` (version stamp)
+    is kept.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
