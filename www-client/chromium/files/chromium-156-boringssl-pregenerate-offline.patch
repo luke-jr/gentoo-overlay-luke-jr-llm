@@ -1,0 +1,63 @@
+Let BoringSSL's util/pregenerate (which writes gen/: the perlasm assembly, err_data.cc
+and the source lists) run in the release tarball, offline:
+
+- The tarball leaves out test data (e.g. third_party/wycheproof_testvectors/), so some
+  globs in build.json match nothing; allow that (the lists they feed are only for tests).
+- Drop github.com/hexops/gotextdiff, which is only used to print a diff in -check mode
+  and isn't in the tarball; -check still reports out-of-date files.
+
+--- a/third_party/boringssl/src/util/pregenerate/build.go
++++ b/third_party/boringssl/src/util/pregenerate/build.go
+@@ -176,9 +176,8 @@
+ 		if err != nil {
+ 			return nil, err
+ 		}
+-		if len(matches) == 0 {
+-			return nil, fmt.Errorf("glob matched no files: %q", path)
+-		}
++		// Release tarballs leave out test data (e.g. third_party/wycheproof_testvectors/), so a
++		// glob may match nothing; the lists it feeds are only for tests.
+ 		// Switch from Windows to POSIX paths.
+ 		for _, match := range matches {
+ 			ret = append(ret, strings.ReplaceAll(match, "\\", "/"))
+--- a/third_party/boringssl/src/util/pregenerate/pregenerate.go
++++ b/third_party/boringssl/src/util/pregenerate/pregenerate.go
+@@ -32,10 +32,6 @@
+ 	"sync"
+ 	"sync/atomic"
+ 
+-	"github.com/hexops/gotextdiff"
+-	"github.com/hexops/gotextdiff/myers"
+-	"github.com/hexops/gotextdiff/span"
+-
+ 	"boringssl.googlesource.com/boringssl.git/util/build"
+ )
+ 
+@@ -52,15 +48,6 @@
+ // logV is a discarding logger for use by verbose logging if -v is not set.
+ var logV = log.New(io.MultiWriter( /* write nowhere */ ), "", log.Flags())
+ 
+-type gotextdiffHandleWrapper struct {
+-	io.Writer
+-	fmt.State // Usually left as nil as gotextdiff doesn't use it.
+-}
+-
+-func (w gotextdiffHandleWrapper) Write(p []byte) (n int, err error) {
+-	return w.Writer.Write(p)
+-}
+-
+ var generated atomic.Int32
+ 
+ func runTask(t *Task) error {
+@@ -83,11 +70,6 @@
+ 		}
+ 
+ 		if !bytes.Equal(expected, actual) {
+-			uri := span.URIFromPath(dstPath)
+-			// Diff is from actual (i.e. what's in the repo) to expected (i.e. what should be in the repo).
+-			edits := myers.ComputeEdits(uri, string(actual), string(expected))
+-			unified := gotextdiff.ToUnified(dstPath, dstPath, string(actual), edits)
+-			unified.Format(gotextdiffHandleWrapper{Writer: os.Stderr}, 's')
+ 			return errors.New("file out of date")
+ 		}
+ 		return nil

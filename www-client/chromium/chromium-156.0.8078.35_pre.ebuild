@@ -630,6 +630,9 @@ src_prepare() {
 		"${FILESDIR}/chromium-156-angle-mock-icd-arg.patch"
 		# No terms dialog on a new profile's first run (from ungoogled-chromium).
 		"${FILESDIR}/chromium-156-disable-tos-dialog.patch"
+		# BoringSSL's generators, run offline from the tarball (see below).
+		"${FILESDIR}/chromium-156-boringssl-pregenerate-offline.patch"
+		"${FILESDIR}/chromium-156-boringssl-curve25519-tables.patch"
 	)
 
 	# So many fontconfig magic numbers to cover
@@ -943,6 +946,47 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	rm -f "${S}/third_party/devtools-frontend/src/node_modules/typescript/lib/typescript.js" || die
 	ln -s "${devtools_ts}" "${S}/third_party/devtools-frontend/src/node_modules/typescript/lib/typescript.js" ||
 		die "Failed to symlink ${devtools_ts}"
+
+	# BoringSSL checks in generated files: gen/ (the assembly from its perlasm scripts, the
+	# error-string table and the source lists GN reads), written by util/pregenerate, and the
+	# tables written by crypto/fipsmodule/ec/make_tables.go (P-256, built-in curves),
+	# crypto/obj/objects.go (OIDs, nid.h) and crypto/curve25519/make_curve25519_tables.py.
+	# Regenerate them with those generators (Go, offline: a go.mod without the dependencies of
+	# BoringSSL's other tools). Not regenerated, treated as source: third_party/fiat/ (Fiat
+	# Cryptography's output, see README.md), and crypto/hrss/asm/poly_rq_mul.S, output of the
+	# HRSS authors' poly_rq_mul.py but edited by hand in BoringSSL since (2018-2025).
+	einfo "Regenerating BoringSSL's generated files ..."
+	local bssl="${S}/third_party/boringssl/src" bssl_bin="${T}/boringssl-bin"
+	mkdir -p "${bssl_bin}" || die
+	if use bundled-toolchain; then
+		# No system clang-format: the generators pipe their output through it, so pass it on
+		# unformatted (only the layout differs).
+		printf '#!/bin/sh\nexec cat\n' > "${bssl_bin}/clang-format" || die
+		chmod +x "${bssl_bin}/clang-format" || die
+	else
+		ln -s "$(get_llvm_prefix -b)/bin/clang-format" "${bssl_bin}/clang-format" || die
+	fi
+	printf 'module boringssl.googlesource.com/boringssl.git\n\ngo 1.24\n' > "${T}/boringssl-go.mod" || die
+	local bssl_env=( PATH="${bssl_bin}:${PATH}" GOFLAGS=-mod=mod GOPROXY=off GOTOOLCHAIN=local
+		GOCACHE="${T}/go-cache" GOPATH="${T}/go" CGO_ENABLED=0 PYTHONDONTWRITEBYTECODE=1 )
+	rm -r "${bssl}"/gen/{bcm,crypto,test_support} "${bssl}"/gen/sources.* || die
+	pushd "${bssl}" >/dev/null || die
+	env "${bssl_env[@]}" go build -modfile="${T}/boringssl-go.mod" -o "${T}/boringssl-pregenerate" \
+		./util/pregenerate || die "Failed to build BoringSSL's pregenerate"
+	# -clang= skips the symbol lists for Windows (gen/boringssl_prefix_symbols_*), unused here.
+	env "${bssl_env[@]}" "${T}/boringssl-pregenerate" -perl "$(type -P perl)" -clang= ||
+		die "Failed to regenerate BoringSSL's gen/"
+	cd crypto/fipsmodule/ec || die
+	env "${bssl_env[@]}" go run -modfile="${T}/boringssl-go.mod" make_tables.go ||
+		die "Failed to regenerate BoringSSL's EC tables"
+	cd ../../obj || die
+	env "${bssl_env[@]}" go run -modfile="${T}/boringssl-go.mod" objects.go ||
+		die "Failed to regenerate BoringSSL's OID tables"
+	cd ../curve25519 || die
+	env "${bssl_env[@]}" "${EPYTHON}" make_curve25519_tables.py > curve25519_tables.h.new ||
+		die "Failed to regenerate BoringSSL's curve25519 tables"
+	mv curve25519_tables.h{.new,} || die
+	popd >/dev/null || die
 
 	# DevTools checks in files generated from Blink's and V8's definitions: front_end/generated/
 	# (the protocol, ARIA, CSS and deprecation data) and models/javascript_metadata/
