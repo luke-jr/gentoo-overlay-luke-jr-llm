@@ -133,6 +133,33 @@ SRC_URI+="
 	https://github.com/KhronosGroup/SPIRV-Headers/archive/${ANGLE_SPIRV_HEADERS_COMMIT}.tar.gz
 		-> SPIRV-Headers-${ANGLE_SPIRV_HEADERS_COMMIT}.gh.tar.gz
 "
+# Inputs of ICU's generated files (files/chromium-icu-regen.sh): Unicode's release files for
+# the Unicode version of the bundled ICU, and the generators from ICU's repository that its
+# release (and Chromium's copy) leave out, at the release-78.2 tag.
+ICU_UNICODE_VER="17.0.0"
+ICU_TOOLS_COMMIT="f1b3db8ecd39d5b3a6eff4d5641b176c7f914dfb"
+ICU_TOOLS_FILES="
+	py/preparseucd.py
+	c/genprops/bidipropsbuilder.cpp c/genprops/casepropsbuilder.cpp c/genprops/corepropsbuilder.cpp
+	c/genprops/emojipropsbuilder.cpp c/genprops/genprops.cpp c/genprops/genprops.h
+	c/genprops/layoutpropsbuilder.cpp c/genprops/namespropsbuilder.cpp c/genprops/pnamesbuilder.cpp
+	c/genuca/collationbasedatabuilder.cpp c/genuca/collationbasedatabuilder.h c/genuca/genuca.cpp
+"
+SRC_URI+="
+	https://unicode.org/Public/zipped/${ICU_UNICODE_VER}/UCD.zip -> unicode-data-${ICU_UNICODE_VER}-UCD.zip
+	https://unicode.org/Public/${ICU_UNICODE_VER}/idna/IdnaMappingTable.txt
+		-> unicode-${ICU_UNICODE_VER}-IdnaMappingTable.txt
+	https://unicode.org/Public/${ICU_UNICODE_VER}/security/uts39-data-${ICU_UNICODE_VER}.zip
+	https://unicode.org/Public/${ICU_UNICODE_VER}/emoji/emoji-sequences.txt
+		-> unicode-emoji-sequences-${ICU_UNICODE_VER}.txt
+	https://unicode.org/Public/${ICU_UNICODE_VER}/emoji/emoji-zwj-sequences.txt
+		-> unicode-emoji-zwj-sequences-${ICU_UNICODE_VER}.txt
+"
+for _f in ${ICU_TOOLS_FILES}; do
+	SRC_URI+=" https://raw.githubusercontent.com/unicode-org/icu/${ICU_TOOLS_COMMIT}/tools/unicode/${_f}
+		-> icu-${ICU_TOOLS_COMMIT:0:10}-${_f//\//-}"
+done
+unset _f
 
 # https://gitweb.gentoo.org/proj/chromium-tools.git/tree/get-chromium-licences.py @ 155.0.8059.40
 # (newest SPDX data available for M156 at the time), merged with the previous list.
@@ -266,6 +293,7 @@ BDEPEND="
 		!bundled-toolchain? ( dev-python/clang[${PYTHON_USEDEP}] )
 	')
 	>=app-arch/gzip-1.7
+	!system-icu? ( app-arch/unzip )
 	!headless? (
 		qt6? ( dev-qt/qtbase:6 )
 	)
@@ -635,6 +663,8 @@ src_prepare() {
 		# BoringSSL's generators, run offline from the tarball (see below).
 		"${FILESDIR}/chromium-156-boringssl-pregenerate-offline.patch"
 		"${FILESDIR}/chromium-156-boringssl-curve25519-tables.patch"
+		# A reproducible header for ICU's generated rbbirpt.h (see below).
+		"${FILESDIR}/chromium-156-icu-rbbicst-header.patch"
 	)
 
 	# So many fontconfig magic numbers to cover
@@ -903,6 +933,34 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 			die "Version mismatch in ${rollup_dir}: expected ${rollup_dirs[${rollup_dir}]}, found ${found}"
 		fi
 	done
+
+	# Chromium's bundled ICU checks in generated files: its preprocessed Unicode data, the
+	# property, normalization and collation data built from it (C headers and binary inputs of
+	# its data package), rule parser tables, urename.h and the data package itself, icudtl.dat.
+	# Regenerate them (files/chromium-icu-regen.sh) from Unicode's release files and ICU's own
+	# sources and tools, with the generators ICU's release leaves out (SRC_URI). Kept as they
+	# are, as Unicode's published release data: the locale data ICU converts from CLDR with its
+	# Java tools (source/data/*/*.txt, FractionalUCA.txt, UCARules.txt, localefallback_data.h).
+	if use !system-icu; then
+		einfo "Regenerating ICU's generated files ..."
+		local icu_unicode="${WORKDIR}/icu-unicode" icu_tools="${WORKDIR}/icu-tools" icu_f
+		mkdir -p "${icu_unicode}"/{ucd,idna,security,emoji} "${icu_tools}"/{py,c/genprops,c/genuca} \
+			"${WORKDIR}/icu-work" || die
+		unzip -qo "${DISTDIR}/unicode-data-${ICU_UNICODE_VER}-UCD.zip" -d "${icu_unicode}/ucd" || die
+		unzip -qo "${DISTDIR}/uts39-data-${ICU_UNICODE_VER}.zip" -d "${icu_unicode}/security" || die
+		cp "${DISTDIR}/unicode-${ICU_UNICODE_VER}-IdnaMappingTable.txt" \
+			"${icu_unicode}/idna/IdnaMappingTable.txt" || die
+		for icu_f in sequences zwj-sequences; do
+			cp "${DISTDIR}/unicode-emoji-${icu_f}-${ICU_UNICODE_VER}.txt" \
+				"${icu_unicode}/emoji/emoji-${icu_f}.txt" || die
+		done
+		for icu_f in ${ICU_TOOLS_FILES}; do
+			cp "${DISTDIR}/icu-${ICU_TOOLS_COMMIT:0:10}-${icu_f//\//-}" "${icu_tools}/${icu_f}" || die
+		done
+		CC="$(tc-getBUILD_CC)" CXX="$(tc-getBUILD_CXX)" bash "${FILESDIR}/chromium-icu-regen.sh" \
+			third_party/icu "${WORKDIR}/icu-work" "${icu_unicode}" "${icu_tools}" "$(makeopts_jobs)" \
+			> "${T}/icu-regen.log" 2>&1 || die "Failed to regenerate ICU's generated files (see ${T}/icu-regen.log)"
+	fi
 
 	# The tarball's node_modules directories (WebUI, chromium-bidi, DevTools) hold 1329 npm
 	# packages, as npm publishes them: mostly generated JavaScript. Delete those the build

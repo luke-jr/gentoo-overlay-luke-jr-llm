@@ -264,6 +264,20 @@ built-in terms dialog Linux builds show on a new profile's first run.
   - The Babel passes that lower code for old browsers are left out (axe-core, and Puppeteer's
     `es5-iife` bundle, which nothing loads); Chromium runs the modern code. axe-core's polyfills stay
     in, but only apply where a feature is missing.
+  - Chromium's bundled ICU: its generated files are regenerated in `src_prepare`
+    (`files/chromium-icu-regen.sh`), the way ICU's `unidata/generate.sh` and Chromium's
+    `make_data_all.sh` make them. ICU's preprocessed Unicode data (`ppucd.txt`, the normalization
+    inputs) from Unicode 17.0.0's release files (UCD, IDNA, security and emoji data) with ICU's
+    `preparseucd.py`; the property, normalization and collation data built from it (C headers and
+    the binary inputs of the data package) with `gennorm2` and ICU's `genprops` and `genuca` (13
+    files fetched from ICU's repository, which its releases leave out); `collunsafe.h`, the rule
+    parser tables and `urename.h` with ICU's tools; and `icudtl.dat` with Chromium's data filter.
+    All byte-identical except `collunsafe.h` (its version string) and `urename.h` (without the
+    names of ICU's layout engine, which isn't built; upstream copies them in by hand). The tools
+    are built with the checked-in data and regenerate it unchanged (a bootstrap, as for a
+    compiler). Kept as they are, as Unicode's published release data: the locale data ICU converts
+    from CLDR with its Java tools (`source/data/*/*.txt`, `FractionalUCA.txt`, `UCARules.txt`,
+    `localefallback_data.h`).
   - `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
     by this build.
 
