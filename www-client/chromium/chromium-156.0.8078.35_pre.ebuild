@@ -1341,6 +1341,12 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	( cd third_party/utf/src && LC_ALL=C awk -f bin/mkrunetype.awk share/UnicodeData-9.0.0.txt ) ||
 		die "Failed to regenerate libutf's rune type tables"
 	cp "${T}/isalpharune.c" third_party/utf/src/runetype/isalpharune.c || die
+	# The setup_modules.py shims of tools/metrics (imported by its scripts, which the build runs
+	# for histograms and other metrics) are written by its python_support/generate_setup_modules.py:
+	# regenerate them (the checked-in ones were reformatted by a Python formatter since).
+	einfo "Regenerating tools/metrics' setup_modules.py ..."
+	"${EPYTHON}" -B tools/metrics/python_support/generate_setup_modules.py > "${T}/setup_modules.log" ||
+		die "Failed to regenerate tools/metrics' setup_modules.py"
 
 	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
 	local devtools_ts="${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}/lib/typescript.js"
