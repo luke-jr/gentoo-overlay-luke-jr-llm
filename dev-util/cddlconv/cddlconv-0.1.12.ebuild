@@ -193,7 +193,8 @@ SRC_URI="
 LICENSE="Apache-2.0"
 # Dependent crate licenses
 LICENSE+=" Apache-2.0-with-LLVM-exceptions Boost-1.0 CC0-1.0 MIT Unicode-3.0 Unlicense"
-SLOT="0"
+# One slot per version (the output differs between versions): bin/cddlconv-<version>.
+SLOT="${PV}"
 KEYWORDS="~amd64 ~arm64"
 
 src_compile() {
@@ -201,6 +202,6 @@ src_compile() {
 }
 
 src_install() {
-	cargo_src_install --bin "${PN}"
+	newbin "$(cargo_target_dir)/${PN}" "${PN}-${PV}"
 	dodoc README.md
 }

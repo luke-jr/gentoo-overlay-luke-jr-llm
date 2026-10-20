@@ -281,7 +281,7 @@ BDEPEND="
 	dev-lang/typescript:${DEVTOOLS_TS_VER}
 	dev-util/rollup:${ROLLUP_VER}
 	dev-util/chromium-node-modules:${PV%%.*}
-	~dev-util/cddlconv-0.1.12
+	dev-util/cddlconv:0.1.12
 	dev-libs/protobuf
 	dev-vcs/git
 	>=net-libs/nodejs-${NODE_VER}[inspector]
@@ -907,8 +907,11 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 			NODE_PATH="${S}/third_party/node/node_modules" node "${bidi_gen}" "src/${bidi_f}" ) ||
 			die "Failed to extract the CDDL of ${bidi_p[0]}"
 	done
-	"${EPYTHON}" -B "${FILESDIR}/chromium-bidi-types.py" third_party/chromium-bidi "${bidi_cddl}" ||
-		die "Failed to regenerate chromium-bidi's protocol types"
+	# update_bidi_types.py runs `cddlconv` (the version it requires).
+	mkdir -p "${bidi_cddl}/bin" || die
+	ln -s "${BROOT}/usr/bin/cddlconv-0.1.12" "${bidi_cddl}/bin/cddlconv" || die
+	PATH="${bidi_cddl}/bin:${PATH}" "${EPYTHON}" -B "${FILESDIR}/chromium-bidi-types.py" third_party/chromium-bidi \
+		"${bidi_cddl}" || die "Failed to regenerate chromium-bidi's protocol types"
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has
