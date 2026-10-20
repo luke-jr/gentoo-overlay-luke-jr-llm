@@ -411,6 +411,8 @@ built-in terms dialog Linux builds show on a new profile's first run.
     `build_keyboard_adjacency_graphs.py`. Byte-identical.
   - libzip's error strings (`zip_err_str.c`) are regenerated with its CMake script. Byte-identical.
     Its `zipconf.h` and `config.h` are configure output edited by hand since, kept as source.
+  - libwayland's `include/config.h` is regenerated with its Meson configure (`USE=wayland`). It
+    finds glibc's `gettid()`, which the checked-in one doesn't; otherwise identical.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)

@@ -481,6 +481,7 @@ BDEPEND="
 	dev-build/meson
 	amd64? ( dev-lang/nasm )
 	=dev-util/ragel-6*
+	wayland? ( dev-build/meson )
 	sys-devel/flex
 	virtual/pkgconfig
 	x11-misc/xdg-utils
@@ -1505,6 +1506,15 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 		-P cmake/GenerateZipErrorStrings.cmake ) || die "Failed to regenerate libzip's zip_err_str.c"
 	sed -i 's|^#include "zipint.h"$|#include "lib/zipint.h"|' third_party/libzip/src/zip_err_str.c || die
 	grep -q '^#include "lib/zipint.h"$' third_party/libzip/src/zip_err_str.c || die "zip_err_str.c's include not found"
+	if use wayland; then
+		# libwayland's include/config.h is the output of its Meson configure: regenerate it.
+		# Unlike the checked-in one, it finds glibc's gettid().
+		einfo "Regenerating libwayland's config.h ..."
+		meson setup "${WORKDIR}/wayland-config" third_party/wayland/src -Dlibraries=true -Dscanner=false \
+			-Ddocumentation=false -Dtests=false -Ddtd_validation=false > "${T}/wayland-meson.log" 2>&1 ||
+			die "libwayland's Meson configure failed (see ${T}/wayland-meson.log)"
+		cp "${WORKDIR}/wayland-config/config.h" third_party/wayland/include/config.h || die
+	fi
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has
