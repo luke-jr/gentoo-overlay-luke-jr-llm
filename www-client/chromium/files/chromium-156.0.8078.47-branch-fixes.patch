@@ -1,0 +1,1423 @@
+Chromium 156.0.8078.47 + the later changes of its release branch, for the
+156.0.8078.47 tree that chromium-156.0.8078.12-to-156.0.8078.35.patch and
+chromium-156.0.8078.35-to-156.0.8078.47.patch make.
+
+The 156 branch has gained fixes since 156.0.8078.47 (in editing, SVG
+animation in <use> trees, FEDisplacementMap, the HTTP cache, headless mode,
+ICU, V8, Skia's Vulkan backend and WebRTC), some of them likely security fixes
+that later release notes will credit.
+
+Generated from the upstream diffs chromium/src
+refs/tags/156.0.8078.47..3cb2f75a39c46a893dfa644b3e16013a4b6135d7
+(refs/branch-heads/8078 on 2026-10-20, 48 commits) and the dependencies
+whose DEPS revision changed (v8, third_party/skia, third_party/webrtc,
+third_party/icu), as served by Gitiles, with the same rules as
+chromium-156.0.8078.12-to-156.0.8078.35.patch: left out are files not in the
+release tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
+translations other than en-GB, PGO/AFDO/orderfile pointers, ChromeOS LKGM,
+submodule pointer updates. chrome/VERSION, DEPS and the generated LASTCHANGE
+files stay at 156.0.8078.47.
+
+Commits contributing to it (oldest first; "Roll commits from side projects"
+are the v8, skia and webrtc updates):
+  427db60c7e26 Roll commits from side projects in M156
+  4c67b46435ac [M156] [Editing] Copy id attribute when undoing a split
+  cc11293118a6 Roll commits from side projects in M156
+  aa562b9e07a1 [M156] HttpCache: prevent lock timeout overtaking explicit restart
+  7c74a2cb07fe [M156] Disable FEDisplacementMap acting as a backdrop-filter
+  ae9ac8317edd Roll commits from side projects in M156
+  94bace9c2c99 [M156] Make timed elements inserted into <use> shadow trees inert
+  7b0b15f0ff3e [M156] Roll src/third_party/icu/ 19dfb44a6..4fe960221 (2 commits)
+  c5f3959f2501 Roll commits from side projects in M156
+  15da27e569d0 [M156] [headless] Do not mutate process CommandLine in ProcessHeadlessCommands
+
+Checked: applies to the 156.0.8078.47 tree; every patched file is
+byte-identical to its version at the commits above.
+
+diff --git a/chrome/app/resources/generated_resources_no.xtb b/chrome/app/resources/generated_resources_no.xtb
+index ca73d49e..a8af64e 100644
+--- a/chrome/app/resources/generated_resources_no.xtb
++++ b/chrome/app/resources/generated_resources_no.xtb
+@@ -2627,7 +2627,7 @@
+ <translation id="2990583317361835189">Ikke la nettsteder bruke bevegelsessensorer</translation>
+ <translation id="2991182900092497283">Oppgi en årsak til at du laster ned disse dataene:</translation>
+ <translation id="2992754757708650257">Vil du forlate nettstedet og avslutte oppgaven?</translation>
+-<translation id="2992931425024192067">Vis alt innhold i varsler</translation>
++<translation id="2992931425024192067">Vis alt varselinnhold</translation>
+ <translation id="2993517869960930405">Appinformasjon</translation>
+ <translation id="2994495699095559601">For å gi deg mer relevante svar bruker Google innholdet i og nettadressen til delte faner. Den aktive fanen deles i nye chatter. Du kan endre denne innstillingen når som helst.</translation>
+ <translation id="2994804273850542871">Nivå 4: ULTRA</translation>
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index 33a6696f..5aa5b044 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -1299,6 +1299,7 @@
+       "//chrome/browser/dictation",
+       "//chrome/browser/direct_sockets",
+       "//chrome/browser/error_reporting",
++      "//chrome/browser/headless:command_processor",
+       "//chrome/browser/password_manager/remote_actor",
+       "//chrome/browser/ui:browser_actions_impl",
+       "//chrome/browser/ui:browser_commands",
+diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
+index 2e0f2872..aa8b16f 100644
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -573,6 +573,7 @@
+ #include "chrome/browser/direct_sockets/chrome_direct_sockets_delegate.h"
+ #include "chrome/browser/glic/public/features.h"
+ #include "chrome/browser/global_features.h"
++#include "chrome/browser/headless/headless_command_processor.h"
+ #include "chrome/browser/indigo/onboarding/indigo_onboarding_dialog.h"
+ #include "chrome/browser/loader/features.h"
+ #include "chrome/browser/loader/fetch_keepalive_process_manager.h"
+@@ -4893,7 +4894,11 @@
+   }
+ 
+   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+-          switches::kDisableLazyLoading)) {
++          switches::kDisableLazyLoading)
++#if !BUILDFLAG(IS_ANDROID)
++      || headless::ShouldProcessHeadlessCommands()
++#endif
++  ) {
+     web_prefs->lazy_load_enabled = false;
+   } else {
+     web_prefs->lazy_load_enabled =
+diff --git a/chrome/browser/headless/BUILD.gn b/chrome/browser/headless/BUILD.gn
+index 0d83cc4..48e9be2 100644
+--- a/chrome/browser/headless/BUILD.gn
++++ b/chrome/browser/headless/BUILD.gn
+@@ -83,7 +83,6 @@
+     deps = [
+       ":headless",
+       "//base",
+-      "//chrome/common:non_code_constants",
+       "//components/headless/command_handler",
+       "//components/keep_alive_registry",
+       "//content/public/browser",
+diff --git a/chrome/browser/headless/headless_command_processor.cc b/chrome/browser/headless/headless_command_processor.cc
+index a49d59e..4a7a727 100644
+--- a/chrome/browser/headless/headless_command_processor.cc
++++ b/chrome/browser/headless/headless_command_processor.cc
+@@ -9,7 +9,6 @@
+ #include "base/command_line.h"
+ #include "base/functional/bind.h"
+ #include "chrome/browser/headless/headless_mode_util.h"
+-#include "chrome/common/chrome_switches.h"
+ #include "components/keep_alive_registry/keep_alive_types.h"
+ #include "components/keep_alive_registry/scoped_keep_alive.h"
+ #include "content/public/browser/browser_context.h"
+@@ -29,12 +28,6 @@
+     HeadlessCommandHandler::DoneCallback done_callback) {
+   DCHECK(browser_context);
+ 
+-  // Ensure lazy loaded content is being captured by the commands.
+-  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
+-  if (!command_line->HasSwitch(switches::kDisableLazyLoading)) {
+-    command_line->AppendSwitch(switches::kDisableLazyLoading);
+-  }
+-
+   auto keepalive = std::make_unique<ScopedKeepAlive>(
+       KeepAliveOrigin::HEADLESS_COMMAND, KeepAliveRestartOption::DISABLED);
+ 
+diff --git a/net/http/http_cache.cc b/net/http/http_cache.cc
+index 13ef0046..fb45d1f 100644
+--- a/net/http/http_cache.cc
++++ b/net/http/http_cache.cc
+@@ -1437,6 +1437,13 @@
+   // for the transaction to not be found in this entry.
+   for (HttpCache::Transaction* transaction : entry->add_to_entry_queue()) {
+     transaction->ResetCachePendingState();
++
++    // Cancel the timeout timer. Under extreme load that can end up firing
++    // before the task we post below, and our tasks expects us to be removed
++    // from the entry queue, which we might no longer be the case with the
++    // reversal.
++    transaction->CancelEntryLockTimeout();
++
+     TaskRunner(transaction->priority())
+         ->PostTask(FROM_HERE, base::BindOnce(transaction->cache_io_callback(),
+                                              ERR_CACHE_RACE));
+diff --git a/net/http/http_cache_transaction.h b/net/http/http_cache_transaction.h
+index b4375716..bfd85145 100644
+--- a/net/http/http_cache_transaction.h
++++ b/net/http/http_cache_transaction.h
+@@ -182,6 +182,10 @@
+   // added to an entry and the entry.
+   void ResetCachePendingState() { cache_pending_ = false; }
+ 
++  void CancelEntryLockTimeout() {
++    entry_lock_waiting_since_ = base::TimeTicks();
++  }
++
+   RequestPriority priority() const { return priority_; }
+   PartialData* partial() { return partial_.get(); }
+   bool is_truncated() { return truncated_; }
+diff --git a/net/http/http_transaction_test_util.cc b/net/http/http_transaction_test_util.cc
+index 646dde5..88a416c 100644
+--- a/net/http/http_transaction_test_util.cc
++++ b/net/http/http_transaction_test_util.cc
+@@ -389,6 +389,10 @@
+   const MockTransaction* t = FindMockTransaction(current_request_.url);
+   DCHECK(t);
+ 
++  if (test_mode_ & TEST_MODE_STUCK_READ) {
++    return ERR_IO_PENDING;
++  }
++
+   CHECK(!done_reading_called_);
+   reading_ = true;
+ 
+@@ -517,8 +521,17 @@
+   if (t->start_handler) {
+     DCHECK_EQ(start_return_code, OK)
+         << "set either start_return_code or start_handler, not both";
+-    start_return_code = t->start_handler.Run(&current_request_);
++    start_return_code = t->start_handler.Run(
++        &current_request_, base::BindOnce(&MockNetworkTransaction::OnIOComplete,
++                                          weak_factory_.GetWeakPtr()));
++    if (start_return_code == ERR_IO_PENDING) {
++      // The `start_handler` is responsible for resuming us.
++      callback_ = std::move(callback);
++      next_state_ = State::CREATE_STREAM;
++      return ERR_IO_PENDING;
++    }
+   }
++
+   if (OK != start_return_code) {
+     if (test_mode_ & TEST_MODE_SYNC_NET_START) {
+       return start_return_code;
+diff --git a/net/http/http_transaction_test_util.h b/net/http/http_transaction_test_util.h
+index 3ce1625..c830d6c 100644
+--- a/net/http/http_transaction_test_util.h
++++ b/net/http/http_transaction_test_util.h
+@@ -52,14 +52,15 @@
+ enum {
+   TEST_MODE_NORMAL = 0,
+   TEST_MODE_SYNC_NET_START = 1 << 0,
+-  TEST_MODE_SYNC_NET_READ  = 1 << 1,
++  TEST_MODE_SYNC_NET_READ = 1 << 1,
+   TEST_MODE_SYNC_CACHE_START = 1 << 2,
+-  TEST_MODE_SYNC_CACHE_READ  = 1 << 3,
+-  TEST_MODE_SYNC_CACHE_WRITE  = 1 << 4,
++  TEST_MODE_SYNC_CACHE_READ = 1 << 3,
++  TEST_MODE_SYNC_CACHE_WRITE = 1 << 4,
+   TEST_MODE_SYNC_ALL = (TEST_MODE_SYNC_NET_START | TEST_MODE_SYNC_NET_READ |
+                         TEST_MODE_SYNC_CACHE_START | TEST_MODE_SYNC_CACHE_READ |
+                         TEST_MODE_SYNC_CACHE_WRITE),
+-  TEST_MODE_SLOW_READ = 1 << 5
++  TEST_MODE_SLOW_READ = 1 << 5,
++  TEST_MODE_STUCK_READ = 1 << 6
+ };
+ 
+ using MockTransactionReadHandler = base::RepeatingCallback<
+@@ -71,7 +72,8 @@
+                                  std::string* response_headers,
+                                  std::string* response_data)>;
+ using MockTransactionStartHandler =
+-    base::RepeatingCallback<Error(const HttpRequestInfo* request)>;
++    base::RepeatingCallback<Error(const HttpRequestInfo* request,
++                                  CompletionOnceCallback callback)>;
+ 
+ // Default TransportInfo suitable for most MockTransactions.
+ // Describes a direct connection to (127.0.0.1, 80).
+diff --git a/third_party/blink/renderer/core/dom/id_target_observer.h b/third_party/blink/renderer/core/dom/id_target_observer.h
+index 048c08a..ec1e8f8 100644
+--- a/third_party/blink/renderer/core/dom/id_target_observer.h
++++ b/third_party/blink/renderer/core/dom/id_target_observer.h
+@@ -26,6 +26,7 @@
+ #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_DOM_ID_TARGET_OBSERVER_H_
+ #define THIRD_PARTY_BLINK_RENDERER_CORE_DOM_ID_TARGET_OBSERVER_H_
+ 
++#include "third_party/blink/renderer/core/core_export.h"
+ #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+ #include "third_party/blink/renderer/platform/heap/member.h"
+ #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
+@@ -34,7 +35,7 @@
+ 
+ class IdTargetObserverRegistry;
+ 
+-class IdTargetObserver : public GarbageCollected<IdTargetObserver> {
++class CORE_EXPORT IdTargetObserver : public GarbageCollected<IdTargetObserver> {
+  public:
+   virtual ~IdTargetObserver();
+   virtual void Trace(Visitor*) const;
+diff --git a/third_party/blink/renderer/core/editing/commands/split_element_command.cc b/third_party/blink/renderer/core/editing/commands/split_element_command.cc
+index 7c5670f9..d96054c9 100644
+--- a/third_party/blink/renderer/core/editing/commands/split_element_command.cc
++++ b/third_party/blink/renderer/core/editing/commands/split_element_command.cc
+@@ -90,8 +90,10 @@
+   for (const auto& child : children)
+     element2_->InsertBefore(child, ref_child, IGNORE_EXCEPTION_FOR_TESTING);
+ 
+-  // Recover the id attribute of the original element.
+-  const AtomicString& id = element1_->FastGetAttribute(html_names::kIdAttr);
++  // Recover the id attribute of the original element. This must be a copy,
++  // not a reference: setAttribute() below notifies id observers, which can
++  // reallocate `element1_`'s attribute storage.
++  const AtomicString id = element1_->FastGetAttribute(html_names::kIdAttr);
+   if (!id.IsNull())
+     element2_->setAttribute(html_names::kIdAttr, id);
+ 
+diff --git a/third_party/blink/renderer/core/paint/filter_effect_builder.cc b/third_party/blink/renderer/core/paint/filter_effect_builder.cc
+index 2e5ae85c..63393eb 100644
+--- a/third_party/blink/renderer/core/paint/filter_effect_builder.cc
++++ b/third_party/blink/renderer/core/paint/filter_effect_builder.cc
+@@ -364,6 +364,9 @@
+       }
+       if (previous_effect->OriginTainted())
+         effect->SetOriginTainted();
++      if (previous_effect->ContainsBackdrop()) {
++        effect->SetContainsBackdrop();
++      }
+       previous_effect = effect;
+     }
+   }
+@@ -371,16 +374,21 @@
+ }
+ 
+ CompositorFilterOperations FilterEffectBuilder::BuildFilterOperations(
+-    const FilterOperations& operations) const {
++    const FilterOperations& operations,
++    bool contains_backdrop) const {
+   InterpolationSpace current_interpolation_space = kInterpolationSpaceSRGB;
+ 
+   CompositorFilterOperations filters;
++  if (contains_backdrop) {
++    filters.SetContainsBackdrop();
++  }
+   for (FilterOperation* op : operations.Operations()) {
+     switch (op->GetType()) {
+       case FilterOperation::OperationType::kReference: {
+         auto& reference_operation = To<ReferenceFilterOperation>(*op);
+         Filter* reference_filter = BuildReferenceFilter(
+-            reference_operation, nullptr, nullptr, filters.OriginTainted());
++            reference_operation, nullptr, nullptr, filters.OriginTainted(),
++            filters.ContainsBackdrop());
+         if (reference_filter && reference_filter->LastEffect()) {
+           // Set the interpolation space for the source of the (sub)filter to
+           // match that of the previous primitive (or input).
+@@ -515,7 +523,8 @@
+     const ReferenceFilterOperation& reference_operation,
+     FilterEffect* previous_effect,
+     SVGFilterGraphNodeMap* node_map,
+-    bool input_tainted) const {
++    bool input_tainted,
++    bool input_contains_backdrop) const {
+   SVGResource* resource = reference_operation.Resource();
+   auto* filter_element =
+       DynamicTo<SVGFilterElement>(resource ? resource->Target() : nullptr);
+@@ -554,6 +563,10 @@
+   if (input_tainted || (previous_effect && previous_effect->OriginTainted())) {
+     result->GetSourceGraphic()->SetOriginTainted();
+   }
++  if (input_contains_backdrop ||
++      (previous_effect && previous_effect->ContainsBackdrop())) {
++    result->GetSourceGraphic()->SetContainsBackdrop();
++  }
+ 
+   if (!previous_effect)
+     previous_effect = result->GetSourceGraphic();
+diff --git a/third_party/blink/renderer/core/paint/filter_effect_builder.h b/third_party/blink/renderer/core/paint/filter_effect_builder.h
+index d09119bf..4fdc6df 100644
+--- a/third_party/blink/renderer/core/paint/filter_effect_builder.h
++++ b/third_party/blink/renderer/core/paint/filter_effect_builder.h
+@@ -57,12 +57,14 @@
+   Filter* BuildReferenceFilter(const ReferenceFilterOperation&,
+                                FilterEffect* previous_effect,
+                                SVGFilterGraphNodeMap* = nullptr,
+-                               bool input_tainted = false) const;
++                               bool input_tainted = false,
++                               bool input_contains_backdrop = false) const;
+ 
+   FilterEffect* BuildFilterEffect(const FilterOperations&,
+                                   bool input_tainted = false) const;
+   CompositorFilterOperations BuildFilterOperations(
+-      const FilterOperations&) const;
++      const FilterOperations&,
++      bool contains_backdrop = false) const;
+ 
+   void SetShorthandScale(float shorthand_scale) {
+     shorthand_scale_ = shorthand_scale;
+diff --git a/third_party/blink/renderer/core/paint/paint_layer.cc b/third_party/blink/renderer/core/paint/paint_layer.cc
+index 1761a33..8d31c36d 100644
+--- a/third_party/blink/renderer/core/paint/paint_layer.cc
++++ b/third_party/blink/renderer/core/paint/paint_layer.cc
+@@ -2637,7 +2637,7 @@
+       FilterEffectBuilder(reference_box, FilterViewport(), zoom,
+                           style.VisitedDependentColor(GetCSSPropertyColor()),
+                           style.UsedColorScheme(), nullptr, nullptr)
+-          .BuildFilterOperations(filter_operations);
++          .BuildFilterOperations(filter_operations, /*contains_backdrop=*/true);
+   // Note that |operations| may be empty here, if the |filter_operations| list
+   // contains only invalid filters (e.g. invalid reference filters). See
+   // https://crbug.com/983157 for details.
+diff --git a/third_party/blink/renderer/core/svg/animation/svg_smil_element.cc b/third_party/blink/renderer/core/svg/animation/svg_smil_element.cc
+index f64f6064..fe85e6a 100644
+--- a/third_party/blink/renderer/core/svg/animation/svg_smil_element.cc
++++ b/third_party/blink/renderer/core/svg/animation/svg_smil_element.cc
+@@ -328,7 +328,9 @@
+   ClearResourceAndEventBaseReferences();
+   DisconnectConditions();
+ 
+-  if (!isConnected()) {
++  // Ignore timed elements that are inserted into a <use> shadow tree. This is
++  // currently possible via a cloned event handler.
++  if (!isConnected() || InUseShadowTree()) {
+     // Reset the target element if we are no longer in the document.
+     SetTargetElement(nullptr);
+     return;
+diff --git a/third_party/blink/renderer/core/svg/graphics/filters/svg_filter_builder.cc b/third_party/blink/renderer/core/svg/graphics/filters/svg_filter_builder.cc
+index 4a81812..556d652 100644
+--- a/third_party/blink/renderer/core/svg/graphics/filters/svg_filter_builder.cc
++++ b/third_party/blink/renderer/core/svg/graphics/filters/svg_filter_builder.cc
+@@ -130,6 +130,11 @@
+       entry.value->SetOriginTainted();
+     }
+   }
++  if (source_graphic->ContainsBackdrop()) {
++    for (auto& entry : builtin_effects_) {
++      entry.value->SetContainsBackdrop();
++    }
++  }
+   AddBuiltinEffects();
+ }
+ 
+@@ -200,6 +205,9 @@
+         ResolveInterpolationSpace(color_interpolation));
+     if (effect->InputsTaintOrigin() || effect_element.TaintsOrigin())
+       effect->SetOriginTainted();
++    if (effect->InputsContainBackdrop()) {
++      effect->SetContainsBackdrop();
++    }
+ 
+     Add(AtomicString(effect_element.result()->CurrentValue()->Value()), effect);
+   }
+diff --git a/third_party/blink/renderer/platform/graphics/compositor_filter_operations.h b/third_party/blink/renderer/platform/graphics/compositor_filter_operations.h
+index c5108991..535ed43 100644
+--- a/third_party/blink/renderer/platform/graphics/compositor_filter_operations.h
++++ b/third_party/blink/renderer/platform/graphics/compositor_filter_operations.h
+@@ -60,6 +60,9 @@
+   void SetOriginTainted() { origin_tainted_ = true; }
+   bool OriginTainted() const { return origin_tainted_; }
+ 
++  void SetContainsBackdrop() { contains_backdrop_ = true; }
++  bool ContainsBackdrop() const { return contains_backdrop_; }
++
+   // For reference filters, this equality operator compares pointers of the
+   // image_filter fields instead of their values.
+   bool operator==(const CompositorFilterOperations&) const;
+@@ -70,6 +73,7 @@
+   cc::FilterOperations filter_operations_;
+   gfx::RectF reference_box_;
+   bool origin_tainted_ = false;
++  bool contains_backdrop_ = false;
+ };
+ 
+ }  // namespace blink
+diff --git a/third_party/blink/renderer/platform/graphics/filters/fe_displacement_map.cc b/third_party/blink/renderer/platform/graphics/filters/fe_displacement_map.cc
+index 92163f8..248b9ef 100644
+--- a/third_party/blink/renderer/platform/graphics/filters/fe_displacement_map.cc
++++ b/third_party/blink/renderer/platform/graphics/filters/fe_displacement_map.cc
+@@ -110,8 +110,11 @@
+   // FEDisplacementMap must be a pass-through filter if
+   // the origin is tainted. See:
+   // https://drafts.fxtf.org/filter-effects/#fedisplacemnentmap-restrictions.
+-  if (InputEffect(1)->OriginTainted())
++  // Backdrop filters also are considered origin tainting for FEDisplacementMap
++  // because the backdrop may contain private information.
++  if (InputEffect(1)->OriginTainted() || InputEffect(1)->ContainsBackdrop()) {
+     return color;
++  }
+ 
+   sk_sp<PaintFilter> displ = paint_filter_builder::Build(
+       InputEffect(1), OperatingInterpolationSpace());
+diff --git a/third_party/blink/renderer/platform/graphics/filters/filter_effect.cc b/third_party/blink/renderer/platform/graphics/filters/filter_effect.cc
+index bcf20aa9..f0c75a9 100644
+--- a/third_party/blink/renderer/platform/graphics/filters/filter_effect.cc
++++ b/third_party/blink/renderer/platform/graphics/filters/filter_effect.cc
+@@ -32,11 +32,7 @@
+ 
+ namespace blink {
+ 
+-FilterEffect::FilterEffect(Filter* filter)
+-    : filter_(filter),
+-      clips_to_bounds_(true),
+-      origin_tainted_(false),
+-      operating_interpolation_space_(kInterpolationSpaceLinear) {
++FilterEffect::FilterEffect(Filter* filter) : filter_(filter) {
+   DCHECK(filter_);
+ }
+ 
+@@ -134,6 +130,15 @@
+   return false;
+ }
+ 
++bool FilterEffect::InputsContainBackdrop() const {
++  for (const Member<FilterEffect>& effect : input_effects_) {
++    if (effect->ContainsBackdrop()) {
++      return true;
++    }
++  }
++  return false;
++}
++
+ sk_sp<PaintFilter> FilterEffect::CreateTransparentBlack() const {
+   sk_sp<cc::ColorFilter> color_filter =
+       cc::ColorFilter::MakeBlend(SkColors::kBlack, SkBlendMode::kClear);
+diff --git a/third_party/blink/renderer/platform/graphics/filters/filter_effect.h b/third_party/blink/renderer/platform/graphics/filters/filter_effect.h
+index ebb1ef6..246778f 100644
+--- a/third_party/blink/renderer/platform/graphics/filters/filter_effect.h
++++ b/third_party/blink/renderer/platform/graphics/filters/filter_effect.h
+@@ -125,6 +125,11 @@
+ 
+   bool InputsTaintOrigin() const;
+ 
++  bool ContainsBackdrop() const { return contains_backdrop_; }
++  void SetContainsBackdrop() { contains_backdrop_ = true; }
++
++  bool InputsContainBackdrop() const;
++
+  protected:
+   FilterEffect(Filter*);
+ 
+@@ -160,11 +165,13 @@
+ 
+   // Whether the effect should clip to its primitive region, or expand to use
+   // the combined region of its inputs.
+-  bool clips_to_bounds_;
++  bool clips_to_bounds_ = true;
+ 
+-  bool origin_tainted_;
++  bool origin_tainted_ = false;
+ 
+-  InterpolationSpace operating_interpolation_space_;
++  bool contains_backdrop_ = false;
++
++  InterpolationSpace operating_interpolation_space_ = kInterpolationSpaceLinear;
+ 
+   std::array<sk_sp<PaintFilter>, 4> image_filters_;
+ };
+diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
+index 0776c05..fec1a1c 100644
+--- a/v8/include/v8-version.h
++++ b/v8/include/v8-version.h
+@@ -11,7 +11,7 @@
+ #define V8_MAJOR_VERSION 15
+ #define V8_MINOR_VERSION 6
+ #define V8_BUILD_NUMBER 75
+-#define V8_PATCH_LEVEL 19
++#define V8_PATCH_LEVEL 20
+ 
+ // Use 1 for candidates and 0 otherwise.
+ // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/ast/scopes.cc b/v8/src/ast/scopes.cc
+index 7713cd8..725f007 100644
+--- a/v8/src/ast/scopes.cc
++++ b/v8/src/ast/scopes.cc
+@@ -345,6 +345,7 @@ void DeclarationScope::SetDefaults() {
+                            is_module_scope());
+   set_needs_private_name_context_chain_recalc(false);
+   set_class_scope_has_private_brand(false);
++  set_class_initializer_allows_await(false);
+   receiver_ = nullptr;
+   new_target_ = nullptr;
+   function_ = nullptr;
+@@ -1575,7 +1576,8 @@ bool Scope::NeedsScopeInfo() const {
+ }
+ 
+ bool Scope::ShouldBanArguments() {
+-  return GetReceiverScope()->should_ban_arguments();
++  return GetReceiverScope()->should_ban_arguments() &&
++         !GetClosureScope()->from_scope_info();
+ }
+ 
+ DeclarationScope* Scope::GetReceiverScope() {
+diff --git a/v8/src/ast/scopes.h b/v8/src/ast/scopes.h
+index f85e742..fa13cc9 100644
+--- a/v8/src/ast/scopes.h
++++ b/v8/src/ast/scopes.h
+@@ -1387,6 +1387,13 @@ class V8_EXPORT_PRIVATE DeclarationScope : public Scope {
+     return ClassScopeHasPrivateBrandField::decode(flags_);
+   }
+ 
++  bool class_initializer_allows_await() const {
++    return ClassInitializerAllowsAwaitField::decode(flags_);
++  }
++  void set_class_initializer_allows_await(bool value) {
++    flags_ = ClassInitializerAllowsAwaitField::update(flags_, value);
++  }
++
+  private:
+   V8_INLINE void AllocateParameter(Variable* var, int index);
+ 
+@@ -1430,6 +1437,8 @@ class V8_EXPORT_PRIVATE DeclarationScope : public Scope {
+       HasThisDeclarationField::Next<bool, 1>;
+   using ClassScopeHasPrivateBrandField =
+       NeedsPrivateNameContextChainRecalcField::Next<bool, 1>;
++  using ClassInitializerAllowsAwaitField =
++      ClassScopeHasPrivateBrandField::Next<bool, 1>;
+ 
+ #if DEBUG
+   bool is_being_lazily_parsed_;
+diff --git a/v8/src/objects/shared-function-info-inl.h b/v8/src/objects/shared-function-info-inl.h
+index 93de8a2..c4504c0 100644
+--- a/v8/src/objects/shared-function-info-inl.h
++++ b/v8/src/objects/shared-function-info-inl.h
+@@ -511,6 +511,9 @@ BIT_FIELD_ACCESSORS(SharedFunctionInfo, relaxed_flags,
+                     SharedFunctionInfo::PrivateNameLookupSkipsOuterClassBit)
+ BIT_FIELD_ACCESSORS(SharedFunctionInfo, relaxed_flags, is_hoisted_in_context,
+                     SharedFunctionInfo::IsHoistedInContextBit)
++BIT_FIELD_ACCESSORS(SharedFunctionInfo, relaxed_flags,
++                    class_initializer_allows_await,
++                    SharedFunctionInfo::ClassInitializerAllowsAwaitBit)
+ 
+ bool SharedFunctionInfo::optimization_disabled(CodeKind kind) const {
+   switch (kind) {
+diff --git a/v8/src/objects/shared-function-info.cc b/v8/src/objects/shared-function-info.cc
+index 5151351..0f4078e 100644
+--- a/v8/src/objects/shared-function-info.cc
++++ b/v8/src/objects/shared-function-info.cc
+@@ -600,6 +600,10 @@ void SharedFunctionInfo::InitFromFunctionLiteral(IsolateT* isolate,
+         lit->has_static_private_methods_or_accessors());
+ 
+     raw_sfi->set_is_hoisted_in_context(lit->scope()->is_hoisted_in_context());
++    DCHECK_IMPLIES(lit->scope()->class_initializer_allows_await(),
++                   IsClassInitializerFunction(lit->kind()));
++    raw_sfi->set_class_initializer_allows_await(
++        lit->scope()->class_initializer_allows_await());
+ 
+     raw_sfi->set_is_toplevel(is_toplevel);
+     DCHECK(IsTheHole(raw_sfi->outer_scope_info()));
+diff --git a/v8/src/objects/shared-function-info.h b/v8/src/objects/shared-function-info.h
+index d5f8a8f..dd0e0bc 100644
+--- a/v8/src/objects/shared-function-info.h
++++ b/v8/src/objects/shared-function-info.h
+@@ -289,6 +289,7 @@ V8_OBJECT class SharedFunctionInfo : public HeapObject {
+       PropertiesAreFinalBit::Next<bool, 1>;
+   using IsHoistedInContextBit =
+       PrivateNameLookupSkipsOuterClassBit::Next<bool, 1>;
++  using ClassInitializerAllowsAwaitBit = IsHoistedInContextBit::Next<bool, 1>;
+   // Bit positions in |flags2|.
+   using ClassScopeHasPrivateBrandBit = base::BitField<bool, 0, 1, uint8_t>;
+   using HasStaticPrivateMethodsOrAccessorsBit =
+@@ -708,6 +709,9 @@ V8_OBJECT class SharedFunctionInfo : public HeapObject {
+   // Indicates that the function is a hoisted-in-context declaration.
+   DECL_BOOLEAN_ACCESSORS(is_hoisted_in_context)
+ 
++  // Indicates that a class initializer's enclosing scope allowed await.
++  DECL_BOOLEAN_ACCESSORS(class_initializer_allows_await)
++
+   inline FunctionKind kind() const;
+ 
+   int UniqueIdInScript() const;
+diff --git a/v8/src/objects/shared-function-info.tq b/v8/src/objects/shared-function-info.tq
+index f4949b0..b46945f 100644
+--- a/v8/src/objects/shared-function-info.tq
++++ b/v8/src/objects/shared-function-info.tq
+@@ -42,6 +42,7 @@ bitfield struct SharedFunctionInfoFlags extends uint32 {
+   properties_are_final: bool: 1 bit;
+   private_name_lookup_skips_outer_class: bool: 1 bit;
+   is_hoisted_in_context: bool: 1 bit;
++  class_initializer_allows_await: bool: 1 bit;
+ }
+ 
+ @cppScope('SharedFunctionInfo')
+diff --git a/v8/src/parsing/parse-info.cc b/v8/src/parsing/parse-info.cc
+index f33708a..aa1647e 100644
+--- a/v8/src/parsing/parse-info.cc
++++ b/v8/src/parsing/parse-info.cc
+@@ -55,6 +55,8 @@ UnoptimizedCompileFlags UnoptimizedCompileFlags::ForFunctionCompile(
+   flags.set_is_lazy_compile(true);
+ 
+   flags.set_is_repl_mode(script->is_repl_mode());
++  flags.set_class_initializer_allows_await(
++      shared->class_initializer_allows_await());
+ 
+   // Do not support re-parsing top-level function of a wrapped script.
+   DCHECK_IMPLIES(flags.is_toplevel(), !script->is_wrapped());
+diff --git a/v8/src/parsing/parse-info.h b/v8/src/parsing/parse-info.h
+index ef6f4f5..d62979f 100644
+--- a/v8/src/parsing/parse-info.h
++++ b/v8/src/parsing/parse-info.h
+@@ -66,6 +66,7 @@ class Zone;
+   V(compile_hints_magic_enabled, bool, 1, _)                    \
+   V(compile_hints_per_function_magic_enabled, bool, 1, _)       \
+   V(is_hoisted_in_context, bool, 1, _)                          \
++  V(class_initializer_allows_await, bool, 1, _)                 \
+   V(allow_heap_allocation, bool, 1, _)
+ 
+ class V8_EXPORT_PRIVATE UnoptimizedCompileFlags {
+diff --git a/v8/src/parsing/parser-base.h b/v8/src/parsing/parser-base.h
+index 5b552c5..1df1fa0 100644
+--- a/v8/src/parsing/parser-base.h
++++ b/v8/src/parsing/parser-base.h
+@@ -450,7 +450,11 @@ class ParserBase {
+   class FunctionState final : public BlockState {
+    public:
+     FunctionState(FunctionState** function_state_stack, Scope** scope_stack,
+-                  DeclarationScope* scope);
++                  DeclarationScope* scope)
++        : FunctionState(function_state_stack, scope_stack, scope,
++                        scope->function_kind()) {}
++    FunctionState(FunctionState** function_state_stack, Scope** scope_stack,
++                  DeclarationScope* scope, FunctionKind kind);
+     ~FunctionState();
+ 
+     DeclarationScope* scope() const { return scope_->AsDeclarationScope(); }
+@@ -467,7 +471,7 @@ class ParserBase {
+     int suspend_count() const { return suspend_count_; }
+     bool CanSuspend() const { return suspend_count_ > 0; }
+ 
+-    FunctionKind kind() const { return scope()->function_kind(); }
++    FunctionKind kind() const { return kind_; }
+ 
+     bool next_function_is_likely_called() const {
+       return next_function_is_likely_called_;
+@@ -534,6 +538,7 @@ class ParserBase {
+     FunctionState** function_state_stack_;
+     FunctionState* outer_function_state_;
+     DeclarationScope* scope_;
++    FunctionKind kind_;
+     Target* target_stack_ = nullptr;  // for break, continue statements
+ 
+     // A reason, if any, why this function should not be optimized.
+@@ -639,6 +644,8 @@ class ParserBase {
+         static_elements_scope = parser->NewFunctionScope(kind);
+         static_elements_scope->SetLanguageMode(LanguageMode::kStrict);
+         static_elements_scope->set_start_position(beg_pos);
++        static_elements_scope->set_class_initializer_allows_await(
++            parser->is_await_allowed());
+         static_elements_function_id = info_id;
+         // Actually consume the id. The id that was passed in might be an
+         // earlier id in case of computed property names.
+@@ -657,6 +664,8 @@ class ParserBase {
+         instance_members_scope = parser->NewFunctionScope(kind);
+         instance_members_scope->SetLanguageMode(LanguageMode::kStrict);
+         instance_members_scope->set_start_position(beg_pos);
++        instance_members_scope->set_class_initializer_allows_await(
++            parser->is_await_allowed());
+         instance_members_function_id = info_id;
+         // Actually consume the id. The id that was passed in might be an
+         // earlier id in case of computed property names.
+@@ -1833,13 +1842,14 @@ class ParserBase {
+ template <typename Impl>
+ ParserBase<Impl>::FunctionState::FunctionState(
+     FunctionState** function_state_stack, Scope** scope_stack,
+-    DeclarationScope* scope)
++    DeclarationScope* scope, FunctionKind kind)
+     : BlockState(scope_stack, scope),
+       expected_property_count_(0),
+       suspend_count_(0),
+       function_state_stack_(function_state_stack),
+       outer_function_state_(*function_state_stack),
+       scope_(scope),
++      kind_(kind),
+       dont_optimize_reason_(BailoutReason::kNoReason),
+       next_function_is_likely_called_(false),
+       previous_function_was_likely_called_(false),
+diff --git a/v8/src/parsing/parser.cc b/v8/src/parsing/parser.cc
+index 94f1999..388e4f1 100644
+--- a/v8/src/parsing/parser.cc
++++ b/v8/src/parsing/parser.cc
+@@ -1274,10 +1274,19 @@ FunctionLiteral* Parser::ParseClassForMemberInitialization(
+   // this point the scanner should be rewound to the position of the class
+   // token.
+   DCHECK_EQ(peek_position(), initializer_pos);
+-  // Insert a FunctionState with the closest outer Declaration scope
++  // Insert a FunctionState with the closest outer Declaration scope.
++  // The immediate enclosing function scope may have been elided from the
++  // ScopeInfo chain if it did not allocate a context. Since class bodies are
++  // always strict mode, 'yield' is never a valid identifier in computed
++  // property names, so we can unconditionally enable generator mode; whether
++  // 'await' is a keyword is recorded on the initializer SharedFunctionInfo.
+   DeclarationScope* nearest_decl_scope = original_scope_->GetDeclarationScope();
+   DCHECK_NOT_NULL(nearest_decl_scope);
+-  FunctionState function_state(&function_state_, &scope_, nearest_decl_scope);
++  FunctionKind enclosing_kind = flags().class_initializer_allows_await()
++                                    ? FunctionKind::kAsyncGeneratorFunction
++                                    : FunctionKind::kGeneratorFunction;
++  FunctionState function_state(&function_state_, &scope_, nearest_decl_scope,
++                               enclosing_kind);
+ 
+   // We preparse the class members that are not fields with initializers
+   // in order to collect the function literal ids.
+diff --git a/third_party/skia/src/gpu/ganesh/GrResourceCache.cpp b/third_party/skia/src/gpu/ganesh/GrResourceCache.cpp
+index 80727af..2e1bae5 100644
+--- a/third_party/skia/src/gpu/ganesh/GrResourceCache.cpp
++++ b/third_party/skia/src/gpu/ganesh/GrResourceCache.cpp
+@@ -295,8 +295,14 @@ void GrResourceCache::changeUniqueKey(GrGpuResource* resource, const skgpu::Uniq
+                 old->resourcePriv().isPurgeable()) {
+                 old->cacheAccess().release();
+             } else {
+-                // removeUniqueKey expects an external owner of the resource.
+-                this->removeUniqueKey(sk_ref_sp(old).get());
++                // GrResourceCache::removeUniqueKey() expects a non-zero refcount, we refcount with
++                // GrResourceCache::refResource() instead of sk_ref_sp since the first ref of a
++                // resource must be by the resource cache. In the case that this is the first ref
++                // on the resource, refResource() also transfers the resource to the unpurgeable
++                // queue, which is required as unref() expects the resource to be there.
++                this->refResource(old);
++                this->removeUniqueKey(old);
++                old->unref();
+             }
+         }
+         SkASSERT(nullptr == fUniqueHash.find(newKey));
+diff --git a/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp b/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp
+index e41868a..0c7e419 100644
+--- a/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp
++++ b/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp
+@@ -2658,6 +2658,7 @@ bool GrVkGpu::checkVkResult(VkResult result) {
+         case VK_SUCCESS:
+             return true;
+         case VK_ERROR_DEVICE_LOST:
++        case VK_ERROR_UNKNOWN:
+             if (!fDeviceIsLost) {
+                 // Callback should only be invoked once, and device should be marked as lost first.
+                 fDeviceIsLost = true;
+@@ -2665,7 +2666,8 @@ bool GrVkGpu::checkVkResult(VkResult result) {
+                                                 device(),
+                                                 fDeviceLostContext,
+                                                 fDeviceLostProc,
+-                                                vkCaps().supportsDeviceFaultInfo());
++                                                vkCaps().supportsDeviceFaultInfo(),
++                                                /*isUnknownError=*/result == VK_ERROR_UNKNOWN);
+             }
+             return false;
+         case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+diff --git a/third_party/skia/src/gpu/graphite/vk/VulkanSharedContext.cpp b/third_party/skia/src/gpu/graphite/vk/VulkanSharedContext.cpp
+index 2b27b49..4ddcce6 100644
+--- a/third_party/skia/src/gpu/graphite/vk/VulkanSharedContext.cpp
++++ b/third_party/skia/src/gpu/graphite/vk/VulkanSharedContext.cpp
+@@ -268,6 +268,7 @@ bool VulkanSharedContext::checkVkResult(VkResult result) const {
+     case VK_SUCCESS:
+         return true;
+     case VK_ERROR_DEVICE_LOST:
++    case VK_ERROR_UNKNOWN:
+         {
+             SkAutoMutexExclusive lock(fDeviceIsLostMutex);
+             if (fDeviceIsLost) {
+@@ -282,7 +283,8 @@ bool VulkanSharedContext::checkVkResult(VkResult result) const {
+                                         device(),
+                                         fDeviceLostContext,
+                                         fDeviceLostProc,
+-                                        vulkanCaps().supportsDeviceFaultInfo());
++                                        vulkanCaps().supportsDeviceFaultInfo(),
++                                        /*isUnknownError=*/result == VK_ERROR_UNKNOWN);
+         return false;
+     case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+     case VK_ERROR_OUT_OF_HOST_MEMORY:
+diff --git a/third_party/skia/src/gpu/vk/VulkanUtilsPriv.cpp b/third_party/skia/src/gpu/vk/VulkanUtilsPriv.cpp
+index 0c17025..943f615 100644
+--- a/third_party/skia/src/gpu/vk/VulkanUtilsPriv.cpp
++++ b/third_party/skia/src/gpu/vk/VulkanUtilsPriv.cpp
+@@ -232,7 +232,8 @@ void InvokeDeviceLostCallback(const skgpu::VulkanInterface* vulkanInterface,
+                               VkDevice vkDevice,
+                               skgpu::VulkanDeviceLostContext deviceLostContext,
+                               skgpu::VulkanDeviceLostProc deviceLostProc,
+-                              bool supportsDeviceFaultInfoExtension) {
++                              bool supportsDeviceFaultInfoExtension,
++                              bool isUnknownError) {
+     if (!deviceLostProc) {
+         return;
+     }
+@@ -241,6 +242,15 @@ void InvokeDeviceLostCallback(const skgpu::VulkanInterface* vulkanInterface,
+     std::vector<VkDeviceFaultVendorInfoEXT> vendorInfos = {};
+     std::vector<std::byte> vendorBinaryData = {};
+ 
++    if (isUnknownError) {
++        deviceLostProc(deviceLostContext,
++                       "No details: A VK_UNKNOWN_ERROR has occured.",
++                       addressInfos,
++                       vendorInfos,
++                       vendorBinaryData);
++        return;
++    }
++
+     if (!supportsDeviceFaultInfoExtension) {
+         deviceLostProc(deviceLostContext,
+                        "No details: VK_EXT_device_fault not available/enabled.",
+diff --git a/third_party/skia/src/gpu/vk/VulkanUtilsPriv.h b/third_party/skia/src/gpu/vk/VulkanUtilsPriv.h
+index c9cadcd..9865b0d 100644
+--- a/third_party/skia/src/gpu/vk/VulkanUtilsPriv.h
++++ b/third_party/skia/src/gpu/vk/VulkanUtilsPriv.h
+@@ -39,9 +39,9 @@ struct ShaderCaps;
+ namespace skgpu {
+ 
+ class ShaderErrorHandler;
+-struct VulkanInterface;
+-struct VulkanBackendContext;
+ class VulkanExtensions;
++struct VulkanBackendContext;
++struct VulkanInterface;
+ 
+ enum VkVendor {
+     kAMD_VkVendor = 0x1002,
+@@ -362,15 +362,17 @@ bool AllocateAndBindImageMemory(skgpu::VulkanAlloc* outVulkanAlloc,
+ #endif // SK_BUILD_FOR_ANDROID
+ 
+ /**
+- * Calls faultProc with faultContext; passes debug info if VK_EXT_device_fault is supported/enabled.
++ * Calls faultProc with faultContext; passes debug info if VK_EXT_device_fault is supported/enabled
++ * and the error is VK_ERROR_DEVICE_LOST.
+  *
+- * Note: must only be called *after* receiving VK_ERROR_DEVICE_LOST.
++ * Note: must only be called *after* receiving VK_ERROR_DEVICE_LOST or VK_ERROR_UNKNOWN.
+  */
+ void InvokeDeviceLostCallback(const skgpu::VulkanInterface* vulkanInterface,
+                               VkDevice vkDevice,
+                               skgpu::VulkanDeviceLostContext faultContext,
+                               skgpu::VulkanDeviceLostProc faultProc,
+-                              bool supportsDeviceFaultInfoExtension);
++                              bool supportsDeviceFaultInfoExtension,
++                              bool isUnknownError);
+ 
+ sk_sp<skgpu::VulkanInterface> MakeInterface(const skgpu::VulkanBackendContext&,
+                                             const skgpu::VulkanExtensions* extOverride,
+diff --git a/third_party/webrtc/video/video_receive_stream2.cc b/third_party/webrtc/video/video_receive_stream2.cc
+index e30453c..1d4f86e 100644
+--- a/third_party/webrtc/video/video_receive_stream2.cc
++++ b/third_party/webrtc/video/video_receive_stream2.cc
+@@ -574,23 +574,32 @@ VideoReceiveStream2::GetReceiveCodecConfig() const {
+   return receive_codecs;
+ }
+ 
+-void VideoReceiveStream2::RegisterCodecsOnReceiver(
++bool VideoReceiveStream2::RegisterCodecsOnReceiver(
+     const std::vector<Decoder>& old_decoders,
+     const std::vector<Decoder>& new_decoders) {
+-  // Deregister all external decoders from the previous configuration, also
+-  // the unchanged ones. DeregisterReceiveCodecs() below causes the active
+-  // decoder to be released before the next frame is decoded, and a released
+-  // decoder must not be configured again since not all implementations
+-  // support that (e.g. hardware decoders may fall back to software). New
+-  // decoder instances get created on demand instead.
++  // Deregister decoders from the previous configuration that are removed or
++  // updated in the new configuration. Unchanged decoders are left as is, so
++  // that a decoder that is in use keeps running. Releasing and configuring it
++  // again would require a keyframe and isn't supported by all implementations
++  // (e.g. hardware decoders may fall back to software).
++  bool removed_decoder_instance = false;
+   for (const Decoder& old_decoder : old_decoders) {
+-    video_receiver_.RegisterExternalDecoder(nullptr, old_decoder.payload_type);
++    if (absl::c_linear_search(new_decoders, old_decoder)) {
++      continue;
++    }
++    if (video_receiver_.IsExternalDecoderRegistered(old_decoder.payload_type)) {
++      video_receiver_.RegisterExternalDecoder(nullptr,
++                                              old_decoder.payload_type);
++      removed_decoder_instance = true;
++    }
++    video_receiver_.DeregisterReceiveCodec(old_decoder.payload_type);
+   }
+ 
+-  video_receiver_.DeregisterReceiveCodecs();
+-
+-  // Register settings for the new decoder configuration.
++  // Register settings for added or updated decoders.
+   for (const Decoder& decoder : new_decoders) {
++    if (absl::c_linear_search(old_decoders, decoder)) {
++      continue;
++    }
+     VideoDecoder::Settings settings;
+     settings.set_codec_type(
+         PayloadStringToCodecType(decoder.video_format.name));
+@@ -600,6 +609,8 @@ void VideoReceiveStream2::RegisterCodecsOnReceiver(
+ 
+     video_receiver_.RegisterReceiveCodec(decoder.payload_type, settings);
+   }
++
++  return removed_decoder_instance;
+ }
+ 
+ void VideoReceiveStream2::ConfigureCodecs() {
+@@ -629,19 +640,26 @@ void VideoReceiveStream2::SetDecoders(std::vector<Decoder> decoders) {
+   // if Stop() is called, it synchronously flushes decode_queue_ before setting
+   // decoder_running_ to false, avoiding a clash with ConfigureCodecs().
+   decode_queue_->PostTask([this, old_decoders = std::move(old_decoders),
+-                           new_decoders = config_.decoders]() mutable {
++                           new_decoders = config_.decoders,
++                           task_safety_flag = task_safety_.flag()]() mutable {
+     RTC_DCHECK_RUN_ON(&decode_sequence_checker_);
+-    RegisterCodecsOnReceiver(old_decoders, new_decoders);
++    const bool removed_decoder_instance =
++        RegisterCodecsOnReceiver(old_decoders, new_decoders);
+     active_decoders_ = std::move(new_decoders);
++    if (!removed_decoder_instance) {
++      return;
++    }
++    // The decoder that was in use has been removed or replaced. Request a
++    // keyframe right away since delta frames currently in the jitter buffer or
++    // arriving before the keyframe will fail to decode due to missing state.
++    call_->worker_thread()->PostTask(
++        SafeTask(std::move(task_safety_flag), [this] {
++          RTC_DCHECK_RUN_ON(&worker_sequence_checker_);
++          RequestKeyFrame(env_.clock().CurrentTime());
++        }));
+   });
+ 
+   rtp_video_stream_receiver_.SetReceiveCodecs(GetReceiveCodecConfig());
+-
+-  // Request a keyframe immediately because changing the decoder configuration
+-  // resets the decoder database and underlying decoders. Delta frames currently
+-  // in the jitter buffer or arriving before the keyframe will fail to decode
+-  // due to missing state.
+-  RequestKeyFrame(env_.clock().CurrentTime());
+ }
+ 
+ void VideoReceiveStream2::SetRawPayloadTypes(std::set<int> raw_payload_types) {
+diff --git a/third_party/webrtc/video/video_receive_stream2.h b/third_party/webrtc/video/video_receive_stream2.h
+index 4ff12a7..a55b348 100644
+--- a/third_party/webrtc/video/video_receive_stream2.h
++++ b/third_party/webrtc/video/video_receive_stream2.h
+@@ -255,10 +255,12 @@ class VideoReceiveStream2
+ 
+   void UpdateHistograms();
+   void ConfigureCodecs() RTC_RUN_ON(worker_sequence_checker_);
+-  // Registers new decoders with the internal VideoReceiver2 database and
+-  // deregisters all external decoder instances from `old_decoders` so that new
+-  // instances get created on demand.
+-  void RegisterCodecsOnReceiver(const std::vector<Decoder>& old_decoders,
++  // Applies the difference between `old_decoders` and `new_decoders` to the
++  // internal VideoReceiver2 database. Removed or updated decoders, including
++  // their external decoder instances, are deregistered and added or updated
++  // decoders are registered. Unchanged decoders are left as is. Returns true if
++  // an external decoder instance was deregistered.
++  bool RegisterCodecsOnReceiver(const std::vector<Decoder>& old_decoders,
+                                 const std::vector<Decoder>& new_decoders);
+   std::vector<RtpVideoStreamReceiver2::ReceiveCodec> GetReceiveCodecConfig()
+       const RTC_RUN_ON(worker_sequence_checker_);
+diff --git a/third_party/icu/README.chromium b/third_party/icu/README.chromium
+index 4960cc3..3e93de4 100644
+--- a/third_party/icu/README.chromium
++++ b/third_party/icu/README.chromium
+@@ -2,7 +2,7 @@ Name: icu
+ URL: https://github.com/unicode-org/icu
+ Version: 78-2
+ CPEPrefix: cpe:/a:icu-project:international_components_for_unicode:78.2
+-License: MIT
++License: MIT, BSD-2-Clause, BSD-3-Clause, HPND-sell-variant, ICU, MIT-0, NAIST-2003, Unicode-3.0
+ License File: LICENSE
+ Security Critical: yes
+ Update Mechanism: Manual (https://crbug.com/494114589)
+@@ -270,3 +270,9 @@ D. Local Modifications
+ 13. Missing long name in iso8601 calendar.
+     https://unicode-org.atlassian.net/browse/ICU-23262
+   - patches/missing_iso8601_resource.patch
++
++14. Fix signed int32_t overflow in CharString.
++  - patches/charstr.patch
++  - https://unicode-org.atlassian.net/browse/ICU-23537
++  - https://github.com/unicode-org/icu/pull/4243
++  - https://crbug.com/565133743
+diff --git a/third_party/icu/patches/charstr.patch b/third_party/icu/patches/charstr.patch
+new file mode 100644
+index 0000000..ebf713e
+--- /dev/null
++++ b/third_party/icu/patches/charstr.patch
+@@ -0,0 +1,270 @@
++diff --git a/source/common/charstr.cpp b/source/common/charstr.cpp
++index dadc829b0..f956c419d 100644
++--- a/source/common/charstr.cpp
+++++ b/source/common/charstr.cpp
++@@ -21,6 +21,7 @@
++ #include "charstr.h"
++ #include "cmemory.h"
++ #include "cstring.h"
+++#include "putilimp.h"
++ #include "uinvchar.h"
++ #include "ustr_imp.h"
++ 
++@@ -111,7 +112,15 @@ CharString &CharString::truncate(int32_t newLength) {
++ }
++ 
++ CharString &CharString::append(char c, UErrorCode &errorCode) {
++-    if(ensureCapacity(len+2, 0, errorCode)) {
+++    if(U_FAILURE(errorCode)) {
+++        return *this;
+++    }
+++    int32_t newCapacity;
+++    if (uprv_add32_overflow(len, 2, &newCapacity)) {
+++        errorCode = U_ILLEGAL_ARGUMENT_ERROR;
+++        return *this;
+++    }
+++    if(ensureCapacity(newCapacity, 0, errorCode)) {
++         buffer[len++]=c;
++         buffer[len]=0;
++     }
++@@ -138,15 +147,21 @@ CharString &CharString::append(const char *s, int32_t sLength, UErrorCode &error
++             } else {
++                 buffer[len+=sLength]=0;
++             }
++-        } else if(buffer.getAlias()<=s && s<(buffer.getAlias()+len) &&
++-                  sLength>=(buffer.getCapacity()-len)
++-        ) {
++-            // (Part of) this string is appended to itself which requires reallocation,
++-            // so we have to make a copy of the substring and append that.
++-            return append(CharString(s, sLength, errorCode), errorCode);
++-        } else if(ensureCapacity(len+sLength+1, 0, errorCode)) {
++-            uprv_memcpy(buffer.getAlias()+len, s, sLength);
++-            buffer[len+=sLength]=0;
+++        } else {
+++            int32_t newCapacity;
+++            if(uprv_add32_overflow(len, sLength, &newCapacity) ||
+++               uprv_add32_overflow(newCapacity, 1, &newCapacity)) {
+++                errorCode=U_ILLEGAL_ARGUMENT_ERROR;
+++            } else if(buffer.getAlias()<=s && s<(buffer.getAlias()+len) &&
+++                      newCapacity>buffer.getCapacity()
+++            ) {
+++                // (Part of) this string is appended to itself which requires reallocation,
+++                // so we have to make a copy of the substring and append that.
+++                return append(CharString(s, sLength, errorCode), errorCode);
+++            } else if(ensureCapacity(newCapacity, 0, errorCode)) {
+++                uprv_memcpy(buffer.getAlias()+len, s, sLength);
+++                buffer[len+=sLength]=0;
+++            }
++         }
++     }
++     return *this;
++@@ -192,12 +207,30 @@ char *CharString::getAppendBuffer(int32_t minCapacity,
++         resultCapacity=0;
++         return nullptr;
++     }
+++    if(minCapacity<0 || desiredCapacityHint<0) {
+++        errorCode=U_ILLEGAL_ARGUMENT_ERROR;
+++        resultCapacity=0;
+++        return nullptr;
+++    }
++     int32_t appendCapacity=buffer.getCapacity()-len-1;  // -1 for NUL
++     if(appendCapacity>=minCapacity) {
++         resultCapacity=appendCapacity;
++         return buffer.getAlias()+len;
++     }
++-    if(ensureCapacity(len+minCapacity+1, len+desiredCapacityHint+1, errorCode)) {
+++    int32_t newCapacity;
+++    if(uprv_add32_overflow(len, minCapacity, &newCapacity) ||
+++       uprv_add32_overflow(newCapacity, 1, &newCapacity)) {
+++        errorCode=U_ILLEGAL_ARGUMENT_ERROR;
+++        resultCapacity=0;
+++        return nullptr;
+++    }
+++    int32_t newDesiredCapacity = 0;
+++    if(desiredCapacityHint > 0 &&
+++       (uprv_add32_overflow(len, desiredCapacityHint, &newDesiredCapacity) ||
+++        uprv_add32_overflow(newDesiredCapacity, 1, &newDesiredCapacity))) {
+++        newDesiredCapacity = 0;
+++    }
+++    if(ensureCapacity(newCapacity, newDesiredCapacity, errorCode)) {
++         resultCapacity=buffer.getCapacity()-len-1;
++         return buffer.getAlias()+len;
++     }
++@@ -213,11 +246,21 @@ CharString &CharString::appendInvariantChars(const char16_t* uchars, int32_t uch
++     if(U_FAILURE(errorCode)) {
++         return *this;
++     }
+++    if(ucharsLen < 0 || (uchars == nullptr && ucharsLen != 0)) {
+++        errorCode = U_ILLEGAL_ARGUMENT_ERROR;
+++        return *this;
+++    }
++     if (!uprv_isInvariantUString(uchars, ucharsLen)) {
++         errorCode = U_INVARIANT_CONVERSION_ERROR;
++         return *this;
++     }
++-    if(ensureCapacity(len+ucharsLen+1, 0, errorCode)) {
+++    int32_t newCapacity;
+++    if (uprv_add32_overflow(len, ucharsLen, &newCapacity) ||
+++        uprv_add32_overflow(newCapacity, 1, &newCapacity)) {
+++        errorCode = U_ILLEGAL_ARGUMENT_ERROR;
+++        return *this;
+++    }
+++    if(ensureCapacity(newCapacity, 0, errorCode)) {
++         u_UCharsToChars(uchars, buffer.getAlias()+len, ucharsLen);
++         len += ucharsLen;
++         buffer[len] = 0;
++@@ -231,9 +274,17 @@ UBool CharString::ensureCapacity(int32_t capacity,
++     if(U_FAILURE(errorCode)) {
++         return false;
++     }
+++    if(capacity<0) {
+++        errorCode=U_ILLEGAL_ARGUMENT_ERROR;
+++        return false;
+++    }
++     if(capacity>buffer.getCapacity()) {
++         if(desiredCapacityHint==0) {
++-            desiredCapacityHint=capacity+buffer.getCapacity();
+++            // Default growth heuristic. If it overflows, skip the extra headroom
+++            // and allocate exactly the requested capacity, which is still valid.
+++            if(uprv_add32_overflow(capacity, buffer.getCapacity(), &desiredCapacityHint)) {
+++                desiredCapacityHint=0;
+++            }
++         }
++         if( (desiredCapacityHint<=capacity || buffer.resize(desiredCapacityHint, len+1)==nullptr) &&
++             buffer.resize(capacity, len+1)==nullptr
++diff --git a/source/test/intltest/strtest.cpp b/source/test/intltest/strtest.cpp
++index bf63dfaec..ee0d7a11b 100644
++--- a/source/test/intltest/strtest.cpp
+++++ b/source/test/intltest/strtest.cpp
++@@ -836,6 +836,131 @@ StringTest::TestCharString() {
++         s.extract(buffer, 2, errorCode);
++         assertEquals("abc.extract(2) overflow", U_BUFFER_OVERFLOW_ERROR, errorCode.reset());
++     }
+++
+++    {
+++        errorCode.reset();
+++        CharString s("abc", errorCode);
+++        int32_t capacity = -1;
+++
+++        assertTrue("getAppendBuffer(minCapacity<0)",
+++                   s.getAppendBuffer(-1, 10, capacity, errorCode) == nullptr);
+++        assertEquals("getAppendBuffer(minCapacity<0) error",
+++                     U_ILLEGAL_ARGUMENT_ERROR, errorCode.reset());
+++        assertEquals("getAppendBuffer(minCapacity<0) capacity", 0, capacity);
+++
+++        capacity = -1;
+++        assertTrue("getAppendBuffer(desiredCapacityHint<0)",
+++                   s.getAppendBuffer(10, -1, capacity, errorCode) == nullptr);
+++        assertEquals("getAppendBuffer(desiredCapacityHint<0) error",
+++                     U_ILLEGAL_ARGUMENT_ERROR, errorCode.reset());
+++        assertEquals("getAppendBuffer(desiredCapacityHint<0) capacity", 0, capacity);
+++
+++        capacity = -1;
+++        assertTrue("getAppendBuffer(INT32_MAX)",
+++                   s.getAppendBuffer(INT32_MAX, 0, capacity, errorCode) == nullptr);
+++        assertEquals("getAppendBuffer(INT32_MAX) error",
+++                     U_ILLEGAL_ARGUMENT_ERROR, errorCode.reset());
+++        assertEquals("getAppendBuffer(INT32_MAX) capacity", 0, capacity);
+++
+++        capacity = -1;
+++        assertTrue("getAppendBuffer(INT32_MAX - len)",
+++                   s.getAppendBuffer(INT32_MAX - s.length(), 0, capacity, errorCode) == nullptr);
+++        assertEquals("getAppendBuffer(INT32_MAX - len) error",
+++                     U_ILLEGAL_ARGUMENT_ERROR, errorCode.reset());
+++        assertEquals("getAppendBuffer(INT32_MAX - len) capacity", 0, capacity);
+++
+++        assertTrue("getAppendBuffer(hint=INT32_MAX)",
+++                   s.getAppendBuffer(50, INT32_MAX, capacity, errorCode) != nullptr);
+++        assertEquals("getAppendBuffer(hint=INT32_MAX) success",
+++                     U_ZERO_ERROR, errorCode.reset());
+++        assertTrue("getAppendBuffer(hint=INT32_MAX) capacity", capacity >= 50);
+++
+++        assertTrue("getAppendBuffer(hint=INT32_MAX - len)",
+++                   s.getAppendBuffer(150, INT32_MAX - s.length(), capacity, errorCode) != nullptr);
+++        assertEquals("getAppendBuffer(hint=INT32_MAX - len) success",
+++                     U_ZERO_ERROR, errorCode.reset());
+++        assertTrue("getAppendBuffer(hint=INT32_MAX - len) capacity", capacity >= 150);
+++
+++        s.appendInvariantChars(u"abc", -1, errorCode);
+++        assertEquals("appendInvariantChars(ucharsLen<0)",
+++                     U_ILLEGAL_ARGUMENT_ERROR, errorCode.reset());
+++
+++        s.appendInvariantChars(nullptr, 1, errorCode);
+++        assertEquals("appendInvariantChars(nullptr, 1)",
+++                     U_ILLEGAL_ARGUMENT_ERROR, errorCode.reset());
+++
+++        s.append("x", INT32_MAX, errorCode);
+++        assertEquals("append(INT32_MAX)", U_ILLEGAL_ARGUMENT_ERROR, errorCode.reset());
+++        assertEquals("append(INT32_MAX) length unchanged", 3, s.length());
+++
+++        s.append("x", INT32_MAX - s.length(), errorCode);
+++        assertEquals("append(INT32_MAX - len)", U_ILLEGAL_ARGUMENT_ERROR, errorCode.reset());
+++        assertEquals("append(INT32_MAX - len) length unchanged", 3, s.length());
+++
+++        constexpr int32_t kChunkLen = 0x30000000;
+++        CharString chunk;
+++        char* buf = chunk.getAppendBuffer(kChunkLen, kChunkLen, capacity, errorCode);
+++        if (buf != nullptr && errorCode.isSuccess()) {
+++            uprv_memset(buf, 'a', kChunkLen);
+++            chunk.append(buf, kChunkLen, errorCode);
+++            CharString dest;
+++            int64_t total = 0;
+++            for (int32_t i = 0; i < 3; ++i) {
+++                int32_t prevLen = dest.length();
+++                dest.append(chunk, errorCode);
+++                total += kChunkLen;
+++                if (total < INT32_MAX) {
+++                    if (errorCode.isFailure()) {
+++                        assertEquals("append allocation failure",
+++                                     U_MEMORY_ALLOCATION_ERROR, errorCode.reset());
+++                        break;
+++                    }
+++                    assertEquals("dest.length()", static_cast<int32_t>(total), dest.length());
+++                } else {
+++                    assertEquals("append overflow", U_ILLEGAL_ARGUMENT_ERROR, errorCode.reset());
+++                    assertEquals("dest.length() unchanged", prevLen, dest.length());
+++                }
+++            }
+++            if (dest.length() == 2 * kChunkLen) {
+++                int32_t remain = (INT32_MAX - 1) - dest.length();
+++                dest.append(chunk.data(), remain, errorCode);
+++                if (errorCode.isSuccess()) {
+++                    assertEquals("dest at max length", INT32_MAX - 1, dest.length());
+++
+++                    dest.append('a', errorCode);
+++                    assertEquals("append(char) overflow",
+++                                 U_ILLEGAL_ARGUMENT_ERROR, errorCode.reset());
+++                    assertEquals("dest.length() after append(char)", INT32_MAX - 1, dest.length());
+++
+++                    dest.append("a", 1, errorCode);
+++                    assertEquals("append(char*, 1) overflow",
+++                                 U_ILLEGAL_ARGUMENT_ERROR, errorCode.reset());
+++                    assertEquals("dest.length() after append(char*, 1)",
+++                                 INT32_MAX - 1, dest.length());
+++
+++                    dest.appendInvariantChars(u"a", 1, errorCode);
+++                    assertEquals("appendInvariantChars(1) overflow",
+++                                 U_ILLEGAL_ARGUMENT_ERROR, errorCode.reset());
+++                    assertEquals("dest.length() after appendInvariantChars(1)",
+++                                 INT32_MAX - 1, dest.length());
+++
+++                    dest.appendInvariantChars(u"ab", 2, errorCode);
+++                    assertEquals("appendInvariantChars(2) overflow",
+++                                 U_ILLEGAL_ARGUMENT_ERROR, errorCode.reset());
+++                    assertEquals("dest.length() after appendInvariantChars(2)",
+++                                 INT32_MAX - 1, dest.length());
+++                } else {
+++                    assertEquals("append remain allocation failure",
+++                                 U_MEMORY_ALLOCATION_ERROR, errorCode.reset());
+++                }
+++            }
+++        } else {
+++            // Allocating 768 MiB (kChunkLen) can legitimately fail on 32-bit
+++            // platforms or memory-constrained test runners.
+++            assertEquals("chunk allocation failure",
+++                         U_MEMORY_ALLOCATION_ERROR, errorCode.reset());
+++        }
+++    }
++ }
++ 
++ void
+diff --git a/third_party/icu/source/common/charstr.cpp b/third_party/icu/source/common/charstr.cpp
+index dadc829..f956c41 100644
+--- a/third_party/icu/source/common/charstr.cpp
++++ b/third_party/icu/source/common/charstr.cpp
+@@ -21,6 +21,7 @@
+ #include "charstr.h"
+ #include "cmemory.h"
+ #include "cstring.h"
++#include "putilimp.h"
+ #include "uinvchar.h"
+ #include "ustr_imp.h"
+ 
+@@ -111,7 +112,15 @@ CharString &CharString::truncate(int32_t newLength) {
+ }
+ 
+ CharString &CharString::append(char c, UErrorCode &errorCode) {
+-    if(ensureCapacity(len+2, 0, errorCode)) {
++    if(U_FAILURE(errorCode)) {
++        return *this;
++    }
++    int32_t newCapacity;
++    if (uprv_add32_overflow(len, 2, &newCapacity)) {
++        errorCode = U_ILLEGAL_ARGUMENT_ERROR;
++        return *this;
++    }
++    if(ensureCapacity(newCapacity, 0, errorCode)) {
+         buffer[len++]=c;
+         buffer[len]=0;
+     }
+@@ -138,15 +147,21 @@ CharString &CharString::append(const char *s, int32_t sLength, UErrorCode &error
+             } else {
+                 buffer[len+=sLength]=0;
+             }
+-        } else if(buffer.getAlias()<=s && s<(buffer.getAlias()+len) &&
+-                  sLength>=(buffer.getCapacity()-len)
+-        ) {
+-            // (Part of) this string is appended to itself which requires reallocation,
+-            // so we have to make a copy of the substring and append that.
+-            return append(CharString(s, sLength, errorCode), errorCode);
+-        } else if(ensureCapacity(len+sLength+1, 0, errorCode)) {
+-            uprv_memcpy(buffer.getAlias()+len, s, sLength);
+-            buffer[len+=sLength]=0;
++        } else {
++            int32_t newCapacity;
++            if(uprv_add32_overflow(len, sLength, &newCapacity) ||
++               uprv_add32_overflow(newCapacity, 1, &newCapacity)) {
++                errorCode=U_ILLEGAL_ARGUMENT_ERROR;
++            } else if(buffer.getAlias()<=s && s<(buffer.getAlias()+len) &&
++                      newCapacity>buffer.getCapacity()
++            ) {
++                // (Part of) this string is appended to itself which requires reallocation,
++                // so we have to make a copy of the substring and append that.
++                return append(CharString(s, sLength, errorCode), errorCode);
++            } else if(ensureCapacity(newCapacity, 0, errorCode)) {
++                uprv_memcpy(buffer.getAlias()+len, s, sLength);
++                buffer[len+=sLength]=0;
++            }
+         }
+     }
+     return *this;
+@@ -192,12 +207,30 @@ char *CharString::getAppendBuffer(int32_t minCapacity,
+         resultCapacity=0;
+         return nullptr;
+     }
++    if(minCapacity<0 || desiredCapacityHint<0) {
++        errorCode=U_ILLEGAL_ARGUMENT_ERROR;
++        resultCapacity=0;
++        return nullptr;
++    }
+     int32_t appendCapacity=buffer.getCapacity()-len-1;  // -1 for NUL
+     if(appendCapacity>=minCapacity) {
+         resultCapacity=appendCapacity;
+         return buffer.getAlias()+len;
+     }
+-    if(ensureCapacity(len+minCapacity+1, len+desiredCapacityHint+1, errorCode)) {
++    int32_t newCapacity;
++    if(uprv_add32_overflow(len, minCapacity, &newCapacity) ||
++       uprv_add32_overflow(newCapacity, 1, &newCapacity)) {
++        errorCode=U_ILLEGAL_ARGUMENT_ERROR;
++        resultCapacity=0;
++        return nullptr;
++    }
++    int32_t newDesiredCapacity = 0;
++    if(desiredCapacityHint > 0 &&
++       (uprv_add32_overflow(len, desiredCapacityHint, &newDesiredCapacity) ||
++        uprv_add32_overflow(newDesiredCapacity, 1, &newDesiredCapacity))) {
++        newDesiredCapacity = 0;
++    }
++    if(ensureCapacity(newCapacity, newDesiredCapacity, errorCode)) {
+         resultCapacity=buffer.getCapacity()-len-1;
+         return buffer.getAlias()+len;
+     }
+@@ -213,11 +246,21 @@ CharString &CharString::appendInvariantChars(const char16_t* uchars, int32_t uch
+     if(U_FAILURE(errorCode)) {
+         return *this;
+     }
++    if(ucharsLen < 0 || (uchars == nullptr && ucharsLen != 0)) {
++        errorCode = U_ILLEGAL_ARGUMENT_ERROR;
++        return *this;
++    }
+     if (!uprv_isInvariantUString(uchars, ucharsLen)) {
+         errorCode = U_INVARIANT_CONVERSION_ERROR;
+         return *this;
+     }
+-    if(ensureCapacity(len+ucharsLen+1, 0, errorCode)) {
++    int32_t newCapacity;
++    if (uprv_add32_overflow(len, ucharsLen, &newCapacity) ||
++        uprv_add32_overflow(newCapacity, 1, &newCapacity)) {
++        errorCode = U_ILLEGAL_ARGUMENT_ERROR;
++        return *this;
++    }
++    if(ensureCapacity(newCapacity, 0, errorCode)) {
+         u_UCharsToChars(uchars, buffer.getAlias()+len, ucharsLen);
+         len += ucharsLen;
+         buffer[len] = 0;
+@@ -231,9 +274,17 @@ UBool CharString::ensureCapacity(int32_t capacity,
+     if(U_FAILURE(errorCode)) {
+         return false;
+     }
++    if(capacity<0) {
++        errorCode=U_ILLEGAL_ARGUMENT_ERROR;
++        return false;
++    }
+     if(capacity>buffer.getCapacity()) {
+         if(desiredCapacityHint==0) {
+-            desiredCapacityHint=capacity+buffer.getCapacity();
++            // Default growth heuristic. If it overflows, skip the extra headroom
++            // and allocate exactly the requested capacity, which is still valid.
++            if(uprv_add32_overflow(capacity, buffer.getCapacity(), &desiredCapacityHint)) {
++                desiredCapacityHint=0;
++            }
+         }
+         if( (desiredCapacityHint<=capacity || buffer.resize(desiredCapacityHint, len+1)==nullptr) &&
+             buffer.resize(capacity, len+1)==nullptr
