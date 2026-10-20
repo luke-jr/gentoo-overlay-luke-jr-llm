@@ -396,6 +396,10 @@ built-in terms dialog Linux builds show on a new profile's first run.
   - RE2's Unicode tables are regenerated from Unicode 15.1.0's data files (RE2's version) with its
     `make_unicode_groups.py` and `make_unicode_casefold.py`, and its Perl classes with
     `make_perl_groups.pl`. Byte-identical.
+  - Bison and Ragel output is regenerated: Blink's XPath parser (`rule_bison.py`), the emoji
+    presentation scanner and HarfBuzz's state machines (Ragel 6.10). All byte-identical. Blink's
+    `css_group_config.json5` is kept as source: its generator (from CSS usage statistics) no longer
+    exists.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
