@@ -25,6 +25,7 @@ Goals:
 | Package | Why |
 |---|---|
 | `www-client/chromium-156.0.8078.35_pre` | the browser: 156.0.8078.35, which has no Linux release or source tarball yet, built from the 156.0.8078.12 tarball plus `files/chromium-156.0.8078.12-to-156.0.8078.35.patch` (the upstream changes that can affect a Linux build; see its header). `_pre` sorts below the real release, which replaces it. |
+| `dev-util/ragel-6.10-r100` | Ragel 6 in slot 6, installed as `ragel-6`, so it can sit next to `::gentoo`'s Ragel 7 (both are slot 0 there). Chromium's ebuild regenerates HarfBuzz's state machines with it, and HarfBuzz requires 6.10. |
 | `dev-util/esbuild-0.28.2` | DevTools needs exactly this version. `::gentoo` stops at 0.27.3, and deps.gentoo.zip has no vendor tarball, so this uses `EGO_SUM`. |
 | `dev-build/gn-0.2578` | 156's `.gn` needs gn ≥ 1b0f22ec. Pinned to the commit Chromium's `DEPS` uses, via git-r3, because there is no tarball and gitiles archives aren't reproducible. |
 | `dev-lang/typescript:6.0.2` | TypeScript 6 (the JavaScript implementation: compiler, language server, JavaScript API) built from source the way upstream builds its npm package; `::gentoo`'s `dev-lang/typescript` installs the npm package's prebuilt bundles. DevTools' build uses its JavaScript API (`collect-ui-strings`). `lib*.d.ts`, `typesMap.json` and the localized messages are byte-identical to npm's; `typescript.d.ts` differs in formatting only (upstream formats it with dprint's prebuilt WebAssembly plugin). |
