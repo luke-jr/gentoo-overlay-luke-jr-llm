@@ -14,7 +14,8 @@ whose DEPS revision changed (v8, third_party/skia, third_party/webrtc,
 third_party/icu), as served by Gitiles, with the same rules as
 chromium-156.0.8078.12-to-156.0.8078.35.patch: left out are files not in the
 release tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
-translations other than en-GB, PGO/AFDO/orderfile pointers, ChromeOS LKGM,
+translations other than en-GB (Chromium's .xtb files and DevTools' locale
+files), PGO/AFDO/orderfile pointers, ChromeOS LKGM,
 submodule pointer updates. chrome/VERSION, DEPS and the generated LASTCHANGE
 files stay at 156.0.8078.47.
 
@@ -34,19 +35,6 @@ are the v8, skia and webrtc updates):
 Checked: applies to the 156.0.8078.47 tree; every patched file is
 byte-identical to its version at the commits above.
 
-diff --git a/chrome/app/resources/generated_resources_no.xtb b/chrome/app/resources/generated_resources_no.xtb
-index ca73d49e..a8af64e 100644
---- a/chrome/app/resources/generated_resources_no.xtb
-+++ b/chrome/app/resources/generated_resources_no.xtb
-@@ -2627,7 +2627,7 @@
- <translation id="2990583317361835189">Ikke la nettsteder bruke bevegelsessensorer</translation>
- <translation id="2991182900092497283">Oppgi en årsak til at du laster ned disse dataene:</translation>
- <translation id="2992754757708650257">Vil du forlate nettstedet og avslutte oppgaven?</translation>
--<translation id="2992931425024192067">Vis alt innhold i varsler</translation>
-+<translation id="2992931425024192067">Vis alt varselinnhold</translation>
- <translation id="2993517869960930405">Appinformasjon</translation>
- <translation id="2994495699095559601">For å gi deg mer relevante svar bruker Google innholdet i og nettadressen til delte faner. Den aktive fanen deles i nye chatter. Du kan endre denne innstillingen når som helst.</translation>
- <translation id="2994804273850542871">Nivå 4: ULTRA</translation>
 diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
 index 33a6696f..5aa5b044 100644
 --- a/chrome/browser/BUILD.gn
