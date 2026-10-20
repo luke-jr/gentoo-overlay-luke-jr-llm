@@ -372,6 +372,11 @@ built-in terms dialog Linux builds show on a new profile's first run.
     WebDriver BiDi specs, extracted with the spec's `generate.js` and parse5 (6, not compiled), at
     the spec commits current when the checked-in types were made. Upstream's prettier/eslint
     formatting pass is left out; with it, the output is byte-identical.
+  - Skia's generated files are regenerated with its generators: the GL interface code
+    (`*Autogen.cpp`) with `tools/ganesh/gl/interface` (Go, offline), the SkSL lexer with `sksllex`,
+    and the minified SkSL modules with `sksl-minify`, built with Skia's standalone GN build (only
+    the SkSL compiler). All byte-identical. `src/sksl/spirv.h` is Khronos' SPIR-V 1.0 revision 4
+    header, published before its generator and grammar were: kept as source.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
