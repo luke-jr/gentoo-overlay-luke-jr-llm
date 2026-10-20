@@ -423,6 +423,10 @@ built-in terms dialog Linux builds show on a new profile's first run.
   - Jinja's identifier pattern (`third_party/jinja2/_identifier.py`) is regenerated with its
     `generate_identifier_pattern.py`, from the build's Python's Unicode data (newer than the checked-in
     one's; only non-ASCII template identifiers are affected).
+  - Bundled HarfBuzz's Unicode tables (`USE=-system-harfbuzz`) are regenerated from Unicode 17.0.0's
+    data with its `gen-*.py` and packTab 1.9.0. Byte-identical. Kept as source: its OpenType language
+    tag table (from Microsoft's and IANA's registries, whose old versions aren't published) and its
+    OS/2 Unicode ranges (from a table copied from the OpenType spec).
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
