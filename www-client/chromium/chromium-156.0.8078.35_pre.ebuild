@@ -99,6 +99,40 @@ SRC_URI="https://github.com/chromium-linux-tarballs/chromium-tarballs/releases/d
 		https://gitlab.raptorengineering.com/raptor-engineering-public/chromium/openpower-patches/-/archive/${PPC64_HASH}/openpower-patches-${PPC64_HASH}.tar.bz2 -> chromium-openpower-${PPC64_HASH:0:10}.tar.bz2
 	)
 	pgo? ( https://github.com/elkablo/chromium-profiler/releases/download/v0.2/chromium-profiler-0.2.tar )"
+# Inputs of ANGLE's code generators that the tarball lacks (files/chromium-angle-regen.py):
+# Khronos' registries at ANGLE's (and, for Vulkan, Chromium's) DEPS revisions; perfect-hash,
+# the version its built-in symbols generator is written for; and glslang (with SPIRV-Tools and
+# SPIRV-Headers) at the revision ANGLE's prebuilt glslang_validator is built from (ANGLE's DEPS
+# when it was last updated, 2020-06-23), whose output the checked-in shaders are.
+ANGLE_GL_REGISTRY_COMMIT=9cb90ca4902d588bef3c830fbb1da484893bd5fb
+ANGLE_EGL_REGISTRY_COMMIT=7dea2ed79187cd13f76183c4b9100159b9e3e071
+ANGLE_CL_DOCS_COMMIT=5b4ca15f0e5a5be87b56b99f652f728e05cab587
+VULKAN_HEADERS_COMMIT=3c65a01745e4a1134d32b9c2c456472212dba16d
+ANGLE_PERFECT_HASH_VER=0.2.1
+ANGLE_GLSLANG_COMMIT=839704450200e407490c538418f4d1a493b789ab
+ANGLE_SPIRV_TOOLS_COMMIT=36b5bb701da9054d5981b54e74e243f737ea17dc
+ANGLE_SPIRV_HEADERS_COMMIT=ac638f1815425403e946d0ab78bac71d2bdbf3be
+SRC_URI+="
+	https://raw.githubusercontent.com/KhronosGroup/OpenGL-Registry/${ANGLE_GL_REGISTRY_COMMIT}/xml/gl.xml
+		-> OpenGL-Registry-${ANGLE_GL_REGISTRY_COMMIT:0:8}-gl.xml
+	https://raw.githubusercontent.com/KhronosGroup/OpenGL-Registry/${ANGLE_GL_REGISTRY_COMMIT}/xml/glx.xml
+		-> OpenGL-Registry-${ANGLE_GL_REGISTRY_COMMIT:0:8}-glx.xml
+	https://raw.githubusercontent.com/KhronosGroup/OpenGL-Registry/${ANGLE_GL_REGISTRY_COMMIT}/xml/wgl.xml
+		-> OpenGL-Registry-${ANGLE_GL_REGISTRY_COMMIT:0:8}-wgl.xml
+	https://raw.githubusercontent.com/KhronosGroup/EGL-Registry/${ANGLE_EGL_REGISTRY_COMMIT}/api/egl.xml
+		-> EGL-Registry-${ANGLE_EGL_REGISTRY_COMMIT:0:8}-egl.xml
+	https://raw.githubusercontent.com/KhronosGroup/OpenCL-Docs/${ANGLE_CL_DOCS_COMMIT}/xml/cl.xml
+		-> OpenCL-Docs-${ANGLE_CL_DOCS_COMMIT:0:8}-cl.xml
+	https://raw.githubusercontent.com/KhronosGroup/Vulkan-Headers/${VULKAN_HEADERS_COMMIT}/registry/vk.xml
+		-> Vulkan-Headers-${VULKAN_HEADERS_COMMIT:0:8}-vk.xml
+	https://files.pythonhosted.org/packages/source/p/perfect-hash/perfect-hash-${ANGLE_PERFECT_HASH_VER}.tar.gz
+	https://github.com/KhronosGroup/glslang/archive/${ANGLE_GLSLANG_COMMIT}.tar.gz
+		-> glslang-${ANGLE_GLSLANG_COMMIT}.gh.tar.gz
+	https://github.com/KhronosGroup/SPIRV-Tools/archive/${ANGLE_SPIRV_TOOLS_COMMIT}.tar.gz
+		-> SPIRV-Tools-${ANGLE_SPIRV_TOOLS_COMMIT}.gh.tar.gz
+	https://github.com/KhronosGroup/SPIRV-Headers/archive/${ANGLE_SPIRV_HEADERS_COMMIT}.tar.gz
+		-> SPIRV-Headers-${ANGLE_SPIRV_HEADERS_COMMIT}.gh.tar.gz
+"
 
 # https://gitweb.gentoo.org/proj/chromium-tools.git/tree/get-chromium-licences.py @ 155.0.8059.40
 # (newest SPDX data available for M156 at the time), merged with the previous list.
@@ -265,6 +299,7 @@ BDEPEND="
 	>=net-libs/nodejs-${NODE_VER}[inspector]
 	sys-apps/hwdata
 	>=sys-devel/bison-2.4.3
+	dev-build/cmake
 	sys-devel/flex
 	virtual/pkgconfig
 	x11-misc/xdg-utils
@@ -458,6 +493,8 @@ pkg_setup() {
 src_unpack() {
 	unpack chromium-${CHROMIUM_TARBALL_PV}-linux.tar.xz
 	unpack polymer-${POLYMER_VER}.gh.tar.gz shadycss-${SHADYCSS_COMMIT}.gh.tar.gz
+	unpack perfect-hash-${ANGLE_PERFECT_HASH_VER}.tar.gz glslang-${ANGLE_GLSLANG_COMMIT}.gh.tar.gz \
+		SPIRV-Tools-${ANGLE_SPIRV_TOOLS_COMMIT}.gh.tar.gz SPIRV-Headers-${ANGLE_SPIRV_HEADERS_COMMIT}.gh.tar.gz
 	# These should only be required when we're not using the official toolchain
 	if use !bundled-toolchain; then
 		unpack chromium-patches-copium-${COPIUM_COMMIT:0:10}.tar.gz
@@ -933,6 +970,43 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	einfo "Regenerating XNNPACK's micro-kernels ..."
 	"${EPYTHON}" -B "${FILESDIR}/chromium-xnnpack-regen.py" third_party/xnnpack "$(makeopts_jobs)" ||
 		die "Failed to regenerate XNNPACK's micro-kernels"
+	# ANGLE checks in the output of its ~30 code generators (entry points, format tables,
+	# shader lexers/parsers and symbol tables, its Vulkan back-end's compiled shaders); run
+	# them instead (see the script), with the inputs from SRC_URI and glslang's validator at
+	# the revision upstream compiles the shaders with.
+	einfo "Building glslang ${ANGLE_GLSLANG_COMMIT:0:8} for ANGLE's shaders ..."
+	local glslang_src="${WORKDIR}/glslang-${ANGLE_GLSLANG_COMMIT}" glslang_build="${WORKDIR}/angle-glslang-build"
+	ln -s "${WORKDIR}/SPIRV-Tools-${ANGLE_SPIRV_TOOLS_COMMIT}" "${glslang_src}/External/spirv-tools" || die
+	ln -s "${WORKDIR}/SPIRV-Headers-${ANGLE_SPIRV_HEADERS_COMMIT}" \
+		"${WORKDIR}/SPIRV-Tools-${ANGLE_SPIRV_TOOLS_COMMIT}/external/spirv-headers" || die
+	cmake -S "${glslang_src}" -B "${glslang_build}" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_OPT=ON -DENABLE_HLSL=ON -DENABLE_CTEST=OFF \
+		-DBUILD_TESTING=OFF -DENABLE_GLSLANG_JS=OFF -DSPIRV_SKIP_TESTS=ON -DSPIRV_WERROR=OFF \
+		-DCMAKE_CXX_FLAGS="-Wno-error -include cstdint" > "${T}/angle-glslang-cmake.log" ||
+		die "Failed to configure glslang (see ${T}/angle-glslang-cmake.log)"
+	eninja -C "${glslang_build}" glslangValidator
+	local angle_xml="${WORKDIR}/angle-xml" f
+	mkdir -p "${angle_xml}" || die
+	for f in OpenGL-Registry-${ANGLE_GL_REGISTRY_COMMIT:0:8}-{gl,glx,wgl}.xml \
+		EGL-Registry-${ANGLE_EGL_REGISTRY_COMMIT:0:8}-egl.xml OpenCL-Docs-${ANGLE_CL_DOCS_COMMIT:0:8}-cl.xml \
+		Vulkan-Headers-${VULKAN_HEADERS_COMMIT:0:8}-vk.xml; do
+		cp "${DISTDIR}/${f}" "${angle_xml}/${f##*-}" || die
+	done
+	einfo "Regenerating ANGLE's generated code ..."
+	"${EPYTHON}" -B "${FILESDIR}/chromium-angle-regen.py" "${S}" "${angle_xml}" \
+		"${WORKDIR}/perfect-hash-${ANGLE_PERFECT_HASH_VER}" "${glslang_build}/StandAlone/glslangValidator" \
+		"$(type -P flex)" "$(type -P bison)" \
+		"$(usex bundled-toolchain '' "$(get_llvm_prefix -b)/bin/clang-format")" "$(type -P gn)" ||
+		die "Failed to regenerate ANGLE's generated code"
+	# src/common/Float16ToFloat32.cpp is the output of the Float16ToFloat32.py next to it (not one
+	# of run_code_generation.py's generators), formatted with ANGLE's clang-format style.
+	( cd third_party/angle/src/common && "${EPYTHON}" -B Float16ToFloat32.py ) > "${T}/Float16ToFloat32.cpp" ||
+		die "Failed to regenerate ANGLE's Float16ToFloat32.cpp"
+	if use !bundled-toolchain; then
+		"$(get_llvm_prefix -b)/bin/clang-format" -i --style=file:third_party/angle/.clang-format \
+			"${T}/Float16ToFloat32.cpp" || die
+	fi
+	mv "${T}/Float16ToFloat32.cpp" third_party/angle/src/common/Float16ToFloat32.cpp || die
 
 	# Other generated files of npm packages (terser's library bundle, chromium-bidi's rollup
 	# plugins, ...): dev-util/chromium-node-modules builds them from their sources, as

@@ -215,6 +215,14 @@ built-in terms dialog Linux builds show on a new profile's first run.
     again from its templates by its own `tools/xngen` and `gemm_compiler`, plus its
     `build_identifier.c` (`files/chromium-xnnpack-regen.py`); byte-identical. The 4 that nothing
     generates (RISC-V and Hexagon kernels, not built for Linux) are left out.
+  - ANGLE's checked-in generated code (entry points, format and enum tables, shader lexers/parsers and
+    built-in symbol tables, its Vulkan back-end's compiled internal shaders) is regenerated with its ~30
+    code generators (`files/chromium-angle-regen.py`), from inputs the tarball lacks: Khronos' XML
+    registries at ANGLE's DEPS revisions, `perfect-hash` 0.2.1 (the API its symbol-table generator
+    uses), and a glslang validator built from source at the revision ANGLE's prebuilt one comes from
+    (2020's), so the SPIR-V is the same as upstream's. Everything a Linux build uses comes out
+    byte-identical, except the two flex lexers, whose generated comments differ with Gentoo's flex.
+    `src/common/Float16ToFloat32.cpp` is regenerated with the script next to it (byte-identical).
   - DevTools' checked-in generated TypeScript is regenerated in `src_prepare` with DevTools' own
     scripts from the tarball's inputs: `front_end/generated/` (protocol, ARIA, CSS and deprecation
     data, from the `.pdl` and `.json5` definitions; byte-identical) and
