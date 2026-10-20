@@ -302,6 +302,12 @@ built-in terms dialog Linux builds show on a new profile's first run.
     regenerated with zlib's own table writers (byte-identical).
   - libc++'s generated headers (`<format>`'s four Unicode tables, from the UCD files libc++ keeps,
     and `<version>`) are regenerated with libc++'s scripts. Byte-identical.
+  - protobuf's bootstrap files (the C++ code of protoc's own protos, and the Python `_pb2` modules
+    and edition defaults the build's scripts use) are regenerated with the protoc built from them,
+    first thing in `src_compile`, as Chromium's `gen_extra_chromium_files.py` does; ninja then
+    rebuilds what changed. Regenerating again with the rebuilt protoc gives the same files. The
+    feature protos differ from the checked-in ones, made by upstream's unpatched protoc, only in
+    `[[nodiscard]]` and `Swap()` inlining (as Chromium's own regenerated `descriptor.pb.h`).
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
