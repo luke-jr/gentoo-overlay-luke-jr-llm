@@ -389,6 +389,7 @@ BDEPEND="
 	dev-build/autoconf
 	dev-build/automake
 	sys-libs/zlib
+	dev-lang/yasm
 	sys-devel/flex
 	virtual/pkgconfig
 	x11-misc/xdg-utils
@@ -2025,20 +2026,25 @@ sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polym
 	if use arm64 || use ppc64 ; then
 		keeplibs+=( third_party/swiftshader/third_party/llvm-10.0 )
 	fi
-	# we need to generate ppc64 stuff because upstream does not ship it yet
-	# it has to be done before unbundling.
-	if use ppc64; then
-		pushd third_party/libvpx >/dev/null || die
-		mkdir -p source/config/linux/ppc64 || die
-		# requires git and clang, bug #832803
-		# Revert https://chromium.googlesource.com/chromium/src/+/b463d0f40b08b4e896e7f458d89ae58ce2a27165%5E%21/third_party/libvpx/generate_gni.sh
-		# and https://chromium.googlesource.com/chromium/src/+/71ebcbce867dd31da5f8b405a28fcb0de0657d91%5E%21/third_party/libvpx/generate_gni.sh
-		# since we're not in a git repo
-		sed -i -e "s|^update_readme||g; s|clang-format|${EPREFIX}/bin/true|g; /^git -C/d; /git cl/d; /cd \$BASE_DIR\/\$LIBVPX_SRC_DIR/ign format --in-place \$BASE_DIR\/BUILD.gn\ngn format --in-place \$BASE_DIR\/libvpx_srcs.gni" \
-			generate_gni.sh || die
-		./generate_gni.sh || die
-		popd >/dev/null || die
+	# libvpx's configuration (source/config/: vpx_config.*, the *_rtcd.h headers) is the output of
+	# its configure and rtcd.pl, as Chromium's generate_gni.sh runs them (for all platforms):
+	# regenerate it. ppc64 needs it anyway, upstream doesn't ship one. It has to be done before
+	# unbundling. vpx_version.h is a version stamp (git describe), kept.
+	pushd third_party/libvpx >/dev/null || die
+	use ppc64 && { mkdir -p source/config/linux/ppc64 || die ; }
+	cp source/config/vpx_version.h "${T}/vpx_version.h" || die
+	# requires git and clang, bug #832803
+	# Revert https://chromium.googlesource.com/chromium/src/+/b463d0f40b08b4e896e7f458d89ae58ce2a27165%5E%21/third_party/libvpx/generate_gni.sh
+	# and https://chromium.googlesource.com/chromium/src/+/71ebcbce867dd31da5f8b405a28fcb0de0657d91%5E%21/third_party/libvpx/generate_gni.sh
+	# since we're not in a git repo
+	sed -i -e "s|^update_readme||g; s|clang-format|${EPREFIX}/bin/true|g; /^git -C/d; /git cl/d; /cd \$BASE_DIR\/\$LIBVPX_SRC_DIR/ign format --in-place \$BASE_DIR\/BUILD.gn\ngn format --in-place \$BASE_DIR\/libvpx_srcs.gni" \
+		generate_gni.sh || die
+	einfo "Regenerating libvpx's configuration ..."
+	./generate_gni.sh > "${T}/libvpx-generate_gni.log" 2>&1 || die "generate_gni.sh failed (see ${T}/libvpx-generate_gni.log)"
+	cp "${T}/vpx_version.h" source/config/vpx_version.h || die
+	popd >/dev/null || die
 
+	if use ppc64; then
 		pushd third_party/ffmpeg >/dev/null || die
 		cp libavcodec/ppc/h264dsp.c libavcodec/ppc/h264dsp_ppc.c || die
 		cp libavcodec/ppc/h264qpel.c libavcodec/ppc/h264qpel_ppc.c || die
