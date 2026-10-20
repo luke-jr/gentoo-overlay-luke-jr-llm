@@ -560,9 +560,14 @@ src_prepare() {
 		die "Failed to read chrome/VERSION"
 	[[ ${version} == "${PV%_pre}" ]] || die "chrome/VERSION says ${version} after upgrading, expected ${PV%_pre}"
 
-	# The CVE-2026-110914 fix (from Stable 155.0.8059.84) 156 hasn't got yet; see the patch header.
-	git apply --whitespace=nowarn "${FILESDIR}/chromium-156-cve-2026-110914.patch" ||
-		die "Failed to apply chromium-156-cve-2026-110914.patch"
+	# Fixes newer than ${PV%_pre}: the later changes of its release branch, and the
+	# CVE-2026-110914 fix (from Stable 155.0.8059.84) 156 hasn't got yet. See the patch headers.
+	# Keep chrome/VERSION as is.
+	einfo "Applying the 156 branch's fixes after ${PV%_pre} ..."
+	local p
+	for p in chromium-${PV%_pre}-branch-fixes.patch chromium-156-cve-2026-110914.patch; do
+		git apply --whitespace=nowarn "${FILESDIR}/${p}" || die "Failed to apply ${p}"
+	done
 
 	# Calling this here supports resumption via FEATURES=keepwork
 	python_setup
