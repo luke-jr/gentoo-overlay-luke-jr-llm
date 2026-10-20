@@ -180,6 +180,40 @@ for _f in genvk.py reflib.py extdependency.py; do
 		-> vulkan-docs-${VULKAN_DOCS_COMMIT:0:10}-${_f}"
 done
 unset _f
+# SwiftShader's Vulkan headers (third_party/swiftshader/include): its C headers come from the
+# registry of Vulkan-Headers v1.4.355 (the video headers: v1.4.322's), made with Vulkan-Docs'
+# genvk.py at the same tags, its C++ headers from Vulkan-Hpp v1.4.355's generator (with the
+# tinyxml2 it pins).
+SWS_VULKAN_HEADERS_COMMIT="6433e5c70bb9ec995f72d767934acaff8ef11ae3" # v1.4.355
+SWS_VULKAN_DOCS_COMMIT="8bd7db8d668381b529b3a2065e65aacdcd244ee2" # v1.4.355
+SWS_VIDEO_HEADERS_COMMIT="f69f0433bae0b30598380ef0420b9d2d02dbac4d" # v1.4.322
+SWS_VIDEO_DOCS_COMMIT="6ecb205ac29c6c07186c500460c1d9b837993ec2" # v1.4.322
+SWS_VULKAN_HPP_COMMIT="f6fa5c494ebd729129a4d674d9b08e5a14bb54a4" # v1.4.355
+SWS_TINYXML2_COMMIT="ff61650517cc32d524689366f977716e73d4f924"
+# SwiftShader's minimized LLVM for Subzero (third_party/llvm-subzero), on amd64: its TableGen'd
+# files come from LLVM trunk r290449 (llvm-mirror's 759dd39, per SwiftShader's history).
+SWS_LLVM_COMMIT="759dd39154f0bbf1adc87bf613c95f9564f64aa8"
+SRC_URI+="
+	amd64? (
+		https://github.com/llvm-mirror/llvm/archive/${SWS_LLVM_COMMIT}.tar.gz
+			-> llvm-mirror-${SWS_LLVM_COMMIT}.gh.tar.gz
+	)
+	https://github.com/KhronosGroup/Vulkan-Headers/archive/${SWS_VULKAN_HEADERS_COMMIT}.tar.gz
+		-> Vulkan-Headers-${SWS_VULKAN_HEADERS_COMMIT}.gh.tar.gz
+	https://github.com/KhronosGroup/Vulkan-Headers/archive/${SWS_VIDEO_HEADERS_COMMIT}.tar.gz
+		-> Vulkan-Headers-${SWS_VIDEO_HEADERS_COMMIT}.gh.tar.gz
+	https://github.com/KhronosGroup/Vulkan-Hpp/archive/${SWS_VULKAN_HPP_COMMIT}.tar.gz
+		-> Vulkan-Hpp-${SWS_VULKAN_HPP_COMMIT}.gh.tar.gz
+	https://github.com/leethomason/tinyxml2/archive/${SWS_TINYXML2_COMMIT}.tar.gz
+		-> tinyxml2-${SWS_TINYXML2_COMMIT}.gh.tar.gz
+"
+for _c in ${SWS_VULKAN_DOCS_COMMIT} ${SWS_VIDEO_DOCS_COMMIT}; do
+	for _f in genvk.py reflib.py extdependency.py; do
+		SRC_URI+=" https://raw.githubusercontent.com/KhronosGroup/Vulkan-Docs/${_c}/scripts/${_f}
+			-> vulkan-docs-${_c:0:10}-${_f}"
+	done
+done
+unset _c _f
 
 # https://gitweb.gentoo.org/proj/chromium-tools.git/tree/get-chromium-licences.py @ 155.0.8059.40
 # (newest SPDX data available for M156 at the time), merged with the previous list.
@@ -550,6 +584,9 @@ src_unpack() {
 	unpack polymer-${POLYMER_VER}.gh.tar.gz shadycss-${SHADYCSS_COMMIT}.gh.tar.gz
 	unpack perfect-hash-${ANGLE_PERFECT_HASH_VER}.tar.gz glslang-${ANGLE_GLSLANG_COMMIT}.gh.tar.gz \
 		SPIRV-Tools-${ANGLE_SPIRV_TOOLS_COMMIT}.gh.tar.gz SPIRV-Headers-${ANGLE_SPIRV_HEADERS_COMMIT}.gh.tar.gz
+	unpack Vulkan-Headers-${SWS_VULKAN_HEADERS_COMMIT}.gh.tar.gz Vulkan-Headers-${SWS_VIDEO_HEADERS_COMMIT}.gh.tar.gz \
+		Vulkan-Hpp-${SWS_VULKAN_HPP_COMMIT}.gh.tar.gz tinyxml2-${SWS_TINYXML2_COMMIT}.gh.tar.gz
+	use amd64 && unpack llvm-mirror-${SWS_LLVM_COMMIT}.gh.tar.gz
 	# These should only be required when we're not using the official toolchain
 	if use !bundled-toolchain; then
 		unpack chromium-patches-copium-${COPIUM_COMMIT:0:10}.tar.gz
@@ -1200,6 +1237,84 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 			"${spv_bin}/dos2unix" spirv.* spv.* ) >> "${T}/spirv-headers.log" 2>&1 ||
 			die "buildHeaders failed for ${spv}"
 	done
+	# SwiftShader's copies of libxcb's headers (include/xcb: xcb.h, and xproto.h and shm.h, which
+	# libxcb's c_client.py generates from xcbproto) are only used by its X11 surface code (USE=X),
+	# which loads libxcb at run time: use the system's, which libxcb's build generates.
+	rm -r third_party/swiftshader/include/xcb || die
+
+	# SwiftShader's Vulkan headers (third_party/swiftshader/include). The C headers (vulkan_*.h,
+	# vk_video/) are made from the registry of their Vulkan-Headers release by Vulkan-Docs'
+	# genvk.py; the checked-in core headers were partly reformatted by hand since, which only
+	# changes whitespace. The C++ headers (vulkan*.hpp, *.cppm) are made by Vulkan-Hpp's generator;
+	# SwiftShader's are Vulkan-Headers' copies, from another Vulkan-Hpp commit and clang-format,
+	# with two edits for macOS: they differ in formatting and spelling only.
+	# vulkan_profiles.hpp is Vulkan-Profiles' and not used.
+	einfo "Regenerating SwiftShader's Vulkan headers ..."
+	local sws_inc="${S}/third_party/swiftshader/include" sws_gen="${WORKDIR}/swiftshader-genvk" sws_f sws_v
+	for sws_v in core video; do
+		local sws_vh=${SWS_VULKAN_HEADERS_COMMIT} sws_docs=${SWS_VULKAN_DOCS_COMMIT}
+		[[ ${sws_v} == video ]] && sws_vh=${SWS_VIDEO_HEADERS_COMMIT} sws_docs=${SWS_VIDEO_DOCS_COMMIT}
+		mkdir -p "${sws_gen}/${sws_v}" || die
+		cp -r "${WORKDIR}/Vulkan-Headers-${sws_vh}/registry/." "${sws_gen}/${sws_v}/" || die
+		for sws_f in genvk.py reflib.py extdependency.py; do
+			cp "${DISTDIR}/vulkan-docs-${sws_docs:0:10}-${sws_f}" "${sws_gen}/${sws_v}/${sws_f}" || die
+		done
+	done
+	for sws_f in "${sws_inc}"/vulkan/vulkan_*.h; do
+		"${EPYTHON}" -B "${sws_gen}/core/genvk.py" -registry "${sws_gen}/core/vk.xml" -o "${sws_inc}/vulkan" \
+			"${sws_f##*/}" >> "${T}/swiftshader-vulkan.log" 2>&1 || die "genvk.py ${sws_f##*/} failed"
+	done
+	for sws_f in "${sws_inc}"/vk_video/*.h; do
+		"${EPYTHON}" -B "${sws_gen}/video/genvk.py" -registry "${sws_gen}/video/video.xml" -o "${sws_inc}/vk_video" \
+			"${sws_f##*/}" >> "${T}/swiftshader-vulkan.log" 2>&1 || die "genvk.py ${sws_f##*/} failed"
+	done
+	local sws_hpp="${WORKDIR}/Vulkan-Hpp-${SWS_VULKAN_HPP_COMMIT}"
+	rmdir "${sws_hpp}"/{Vulkan-Headers,tinyxml2} || die
+	ln -s "${WORKDIR}/Vulkan-Headers-${SWS_VULKAN_HEADERS_COMMIT}" "${sws_hpp}/Vulkan-Headers" || die
+	ln -s "${WORKDIR}/tinyxml2-${SWS_TINYXML2_COMMIT}" "${sws_hpp}/tinyxml2" || die
+	local sws_cf=()
+	use bundled-toolchain || sws_cf=( -DVULKAN_HPP_CLANG_FORMAT_PATH_HINT="$(get_llvm_prefix -b)/bin" )
+	cmake -S "${sws_hpp}" -B "${WORKDIR}/vulkan-hpp-build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+		-DVULKAN_HPP_GENERATOR_BUILD=ON -DVULKAN_HPP_PRECOMPILE=OFF "${sws_cf[@]}" \
+		> "${T}/vulkan-hpp-cmake.log" 2>&1 || die "Failed to configure Vulkan-Hpp (see ${T}/vulkan-hpp-cmake.log)"
+	eninja -C "${WORKDIR}/vulkan-hpp-build" VulkanHppGenerator VideoHppGenerator
+	( cd "${sws_hpp}" && "${WORKDIR}/vulkan-hpp-build/VulkanHppGenerator" &&
+		"${WORKDIR}/vulkan-hpp-build/VideoHppGenerator" ) > "${T}/vulkan-hpp.log" 2>&1 ||
+		die "Vulkan-Hpp's generators failed (see ${T}/vulkan-hpp.log)"
+	for sws_f in "${sws_inc}"/vulkan/*.{hpp,cppm}; do
+		[[ ${sws_f##*/} == vulkan_profiles.hpp ]] && continue
+		cp "${sws_hpp}/vulkan/${sws_f##*/}" "${sws_f}" || die "Vulkan-Hpp doesn't generate ${sws_f##*/}"
+	done
+
+	# Subzero's LLVM (amd64; other arches use SwiftShader's full LLVM): Attributes.gen and
+	# Intrinsics.gen, made by llvm-tblgen of the LLVM revision it was taken from, built here
+	# (with fixes for today's CMake and libstdc++ that don't affect its output), and DataTypes.h
+	# from its configure. Its Config/*.h were configured with other options and edited by hand
+	# since (SwiftShader's mallinfo2 and ABI-check changes): kept as source.
+	if use amd64; then
+		einfo "Regenerating the TableGen'd files of SwiftShader's Subzero LLVM ..."
+		local sws_llvm="${WORKDIR}/llvm-${SWS_LLVM_COMMIT}" sws_sz="${S}/third_party/swiftshader/third_party/llvm-subzero"
+		sed -i '/cmake_policy(SET CMP0051 OLD)/d' "${sws_llvm}/CMakeLists.txt" || die
+		sed -i '/^struct AliasPriorityComparator/,/bool operator()/s/const ValueType &RHS) {/const ValueType \&RHS) const {/' \
+			"${sws_llvm}/utils/TableGen/AsmWriterEmitter.cpp" || die
+		grep -q 'const ValueType &RHS) const {' "${sws_llvm}/utils/TableGen/AsmWriterEmitter.cpp" ||
+			die "Failed to fix AliasPriorityComparator"
+		cmake -S "${sws_llvm}" -B "${WORKDIR}/llvm-subzero-build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+			-DCMAKE_C_COMPILER="$(tc-getBUILD_CC)" -DCMAKE_CXX_COMPILER="$(tc-getBUILD_CXX)" \
+			-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DLLVM_TARGETS_TO_BUILD=X86 -DLLVM_INCLUDE_TESTS=OFF \
+			-DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_INCLUDE_DOCS=OFF -DLLVM_ENABLE_TERMINFO=OFF \
+			-DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_LIBXML2=OFF \
+			"-DCMAKE_CXX_FLAGS=-include cstdint -include limits" > "${T}/llvm-subzero-cmake.log" 2>&1 ||
+			die "Failed to configure LLVM r290449 (see ${T}/llvm-subzero-cmake.log)"
+		eninja -C "${WORKDIR}/llvm-subzero-build" llvm-tblgen
+		local sws_tg="${WORKDIR}/llvm-subzero-build/bin/llvm-tblgen" sws_td="${sws_llvm}/include/llvm/IR"
+		"${sws_tg}" -gen-attrs -I "${sws_td}" -I "${sws_llvm}/include" "${sws_td}/Attributes.td" \
+			-o "${sws_sz}/build/Linux/include/llvm/IR/Attributes.gen" || die "Failed to generate Attributes.gen"
+		"${sws_tg}" -gen-intrinsic -I "${sws_td}" -I "${sws_llvm}/include" "${sws_td}/Intrinsics.td" \
+			-o "${sws_sz}/build/Linux/include/llvm/IR/Intrinsics.gen" || die "Failed to generate Intrinsics.gen"
+		cp "${WORKDIR}/llvm-subzero-build/include/llvm/Support/DataTypes.h" \
+			"${sws_sz}/build/Linux/include/llvm/Support/DataTypes.h" || die
+	fi
 
 	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
 	local devtools_ts="${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}/lib/typescript.js"
