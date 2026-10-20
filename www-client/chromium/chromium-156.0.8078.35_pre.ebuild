@@ -1793,6 +1793,10 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 		[[ ${sws_f##*/} == vulkan_profiles.hpp ]] && continue
 		cp "${sws_hpp}/vulkan/${sws_f##*/}" "${sws_f}" || die "Vulkan-Hpp doesn't generate ${sws_f##*/}"
 	done
+	# vulkan.hpp names vk::Result once where it should use its namespace macro; SwiftShader, which
+	# renames the namespace (VULKAN_HPP_NAMESPACE vkhpp), fixed its copy by hand: do the same.
+	grep -q 'result == vk::Result::eSuccess;' "${sws_inc}/vulkan/vulkan.hpp" || die "vk::Result in vulkan.hpp not found"
+	sed -i 's/result == vk::Result::eSuccess;/result == Result::eSuccess;/' "${sws_inc}/vulkan/vulkan.hpp" || die
 
 	# Subzero's LLVM (amd64; other arches use SwiftShader's full LLVM): Attributes.gen and
 	# Intrinsics.gen, made by llvm-tblgen of the LLVM revision it was taken from, built here
