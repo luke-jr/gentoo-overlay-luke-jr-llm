@@ -745,10 +745,15 @@ src_compile() {
 
 	einfo "unicode-width: src/tables.rs"
 	d="${WORKDIR}/unicode-width-${UNICODE_WIDTH_COMMIT}/scripts"
-	# The script reads the UCD files from its directory (or downloads them).
-	for f in "${WORKDIR}"/ucd-17.0.0/*.txt "${WORKDIR}"/ucd-17.0.0/emoji/emoji-{data,variation-sequences}.txt; do
+	# The script reads the UCD files (by their base names) from its directory, and emoji-test.txt
+	# from ../tests (in the repository), and downloads any that are missing: make that an error.
+	for f in "${WORKDIR}"/ucd-17.0.0/{,auxiliary/,extracted/}*.txt \
+		"${WORKDIR}"/ucd-17.0.0/emoji/emoji-{data,variation-sequences}.txt; do
 		ln -s "${f}" "${d}/" || die
 	done
+	sed -i 's|^\( *\)urllib.request.urlretrieve($|\1sys.exit(f"{localname} is missing")\n&|' "${d}"/unicode.py || die
+	grep -q 'sys.exit(f"{localname} is missing")' "${d}"/unicode.py ||
+		die "Failed to disable unicode-width's downloads"
 	pushd "${d}" >/dev/null || die
 	"${EPYTHON}" unicode.py || die "unicode-width's unicode.py failed"
 	popd >/dev/null || die
