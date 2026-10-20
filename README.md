@@ -377,6 +377,13 @@ built-in terms dialog Linux builds show on a new profile's first run.
     and the minified SkSL modules with `sksl-minify`, built with Skia's standalone GN build (only
     the SkSL compiler). All byte-identical. `src/sksl/spirv.h` is Khronos' SPIR-V 1.0 revision 4
     header, published before its generator and grammar were: kept as source.
+  - V8's keyword table (`src/parsing/keywords-gen.h`) is regenerated with its
+    `gen-keywords-gen-h.py` and the system gperf (`chromium-156-v8-keywords-gperf.patch` lets the
+    script accept newer gperf output; only the version comment differs). Its static roots
+    (`src/roots/static-roots-intl-wasm.h` and the values in `include/v8-internal.h` taken from them)
+    are regenerated at the start of `src_compile` with a `mksnapshot` built in a second build
+    directory with `v8_enable_static_roots_generation`, as V8's `gen-static-roots.py` does (about
+    3,400 extra build steps); only a comment's indentation differs.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
