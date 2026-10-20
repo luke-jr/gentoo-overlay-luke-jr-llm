@@ -290,6 +290,11 @@ WUFFS_COMMIT="d1a6f2c3de7e52b8775782028e5a49946a7f9184"
 WUFFS_RELEASE_VER="0.3.5"
 SRC_URI+=" https://github.com/google/wuffs/archive/${WUFFS_COMMIT}.tar.gz -> wuffs-${WUFFS_COMMIT}.gh.tar.gz"
 
+# simdutf's sources at the release Chromium's amalgamation (third_party/simdutf) was made from
+# (7.7.0; its README.chromium names an older revision), for singleheader/amalgamate.py.
+SIMDUTF_COMMIT="94fb52ea0219cb37092d8ae294b4702bacf5d8df"
+SRC_URI+=" https://github.com/simdutf/simdutf/archive/${SIMDUTF_COMMIT}.tar.gz -> simdutf-${SIMDUTF_COMMIT}.gh.tar.gz"
+
 # https://gitweb.gentoo.org/proj/chromium-tools.git/tree/get-chromium-licences.py @ 155.0.8059.40
 # (newest SPDX data available for M156 at the time), merged with the previous list.
 LICENSE="Apache-2.0 Apache-2.0-with-LLVM-exceptions BSD BSD-2 Base64 Boost-1.0 CC-BY-3.0 CC-BY-4.0 Clear-BSD FFT2D FTL"
@@ -668,6 +673,7 @@ src_unpack() {
 	use amd64 && unpack llvm-mirror-${SWS_LLVM_COMMIT}.gh.tar.gz
 	unpack OpenXR-SDK-Source-${OPENXR_VER}.tar.gz
 	unpack wuffs-${WUFFS_COMMIT}.gh.tar.gz
+	unpack simdutf-${SIMDUTF_COMMIT}.gh.tar.gz
 	# These should only be required when we're not using the official toolchain
 	if use !bundled-toolchain; then
 		unpack chromium-patches-copium-${COPIUM_COMMIT:0:10}.tar.gz
@@ -1401,6 +1407,19 @@ if len(block.findall(old)) != 1 or len(block.findall(new)) != 1:
     sys.exit("WUFFS_VERSION block not found")
 open(sys.argv[1], "w", encoding="utf-8").write(block.sub(lambda m: block.search(old)[0], new))
 ' "${wuffs_c}" "${wuffs_src}/release/c/${wuffs_c##*/}" || die "Failed to install Wuffs' C library"
+	# simdutf's single-file amalgamation (third_party/simdutf/simdutf.{h,cpp}) is made from its
+	# sources by its singleheader/amalgamate.py: regenerate it. The generation timestamp in the
+	# first line (from git) is kept.
+	einfo "Regenerating simdutf's amalgamation ..."
+	local simdutf_out="${WORKDIR}/simdutf-amalgamation" f
+	mkdir -p "${simdutf_out}" || die
+	"${EPYTHON}" -B "${WORKDIR}/simdutf-${SIMDUTF_COMMIT}/singleheader/amalgamate.py" --no-zip --no-readme \
+		--output-dir "${simdutf_out}" > "${T}/simdutf-amalgamate.log" 2>&1 ||
+		die "simdutf's amalgamate.py failed (see ${T}/simdutf-amalgamate.log)"
+	for f in simdutf.h simdutf.cpp; do
+		{ head -n 1 "third_party/simdutf/${f}" && tail -n +2 "${simdutf_out}/${f}"; } > "${T}/${f}" &&
+			mv "${T}/${f}" "third_party/simdutf/${f}" || die
+	done
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has
