@@ -588,6 +588,8 @@ src_prepare() {
 		"${FILESDIR}/chromium-156-skia-avx512-feature-flags.patch"
 		# Deterministic output for DevTools' NativeFunctions.ts generator (see below).
 		"${FILESDIR}/chromium-156-devtools-natives-sorted.patch"
+		# GN arg angle_vulkan_mock_icd (see chromium_configure).
+		"${FILESDIR}/chromium-156-angle-mock-icd-arg.patch"
 		# No terms dialog on a new profile's first run (from ungoogled-chromium).
 		"${FILESDIR}/chromium-156-disable-tos-dialog.patch"
 	)
@@ -1755,6 +1757,12 @@ chromium_configure() {
 		# DCHECK is fatal by default, make it configurable at runtime, #bug 807881.
 		"dcheck_always_on=$(usex debug true false)"
 		"dcheck_is_configurable=$(usex debug true false)"
+		# Vulkan debugging aids, only loaded on request (Dawn's
+		# --enable-dawn-backend-validation; ANGLE's --use-angle=vulkan-null): Khronos'
+		# validation layer and mock driver, built from generated sources that are only
+		# used then.
+		"dawn_enable_vulkan_validation_layers=$(usex debug true false)"
+		"angle_vulkan_mock_icd=$(usex debug true false)"
 		# Chromium builds provided by Linux distros should disable the testing config
 		"disable_fieldtrial_testing_config=true"
 		# Custom patch: Enable building Chromium as individual channels (e.g. stable, beta, dev) that
