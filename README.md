@@ -333,6 +333,11 @@ built-in terms dialog Linux builds show on a new profile's first run.
   - dav1d's configuration for this arch (`config/linux/<arch>/config.{h,asm}`) is regenerated with
     Meson through Chromium's `generate_configs.py`. Byte-identical; `vcs_version.h` (version stamp)
     is kept.
+  - net's generated files are regenerated: the root certificate list (`root_cert_list_generated.h`)
+    from `root_stores.json` with `update_root_stores.py`, and `effective_tld_names.gperf` from the
+    Public Suffix List with `tld_cleanup`, built first in `src_compile`. Both byte-identical. (base's
+    `utf8_validator_tables.cc` is kept as source: its generator's data comes out the same, but the
+    file has been edited by hand since.)
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)

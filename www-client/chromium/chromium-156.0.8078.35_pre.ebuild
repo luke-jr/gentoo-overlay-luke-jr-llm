@@ -1318,6 +1318,20 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 		cp "${WORKDIR}/llvm-subzero-build/include/llvm/Support/DataTypes.h" \
 			"${sws_sz}/build/Linux/include/llvm/Support/DataTypes.h" || die
 	fi
+	# net/cert/root_cert_list_generated.h is made from net/data/ssl/root_stores/root_stores.json
+	# by update_root_stores.py (which formats it with clang-format): regenerate it.
+	einfo "Regenerating net's root certificate list ..."
+	local net_bin="${WORKDIR}/net-bin"
+	mkdir -p "${net_bin}" || die
+	if use bundled-toolchain; then
+		# No system clang-format: leave the output unformatted (only the layout differs).
+		printf '#!/bin/sh\nexit 0\n' > "${net_bin}/clang-format" || die
+		chmod +x "${net_bin}/clang-format" || die
+	else
+		ln -s "$(get_llvm_prefix -b)/bin/clang-format" "${net_bin}/clang-format" || die
+	fi
+	PATH="${net_bin}:${PATH}" "${EPYTHON}" -B net/data/ssl/root_stores/update_root_stores.py \
+		> "${T}/update_root_stores.log" 2>&1 || die "update_root_stores.py failed (see ${T}/update_root_stores.log)"
 
 	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
 	local devtools_ts="${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}/lib/typescript.js"
@@ -2634,6 +2648,17 @@ chromium_compile() {
 		"${EPYTHON}" -B -c 'import sys; sys.path.insert(0, sys.argv[1]); import gen_extra_chromium_files as g; g.generate_python_edition_defaults(sys.argv[2])' \
 			"${pb}" "${pb_protoc}" || die "Failed to regenerate python_edition_defaults.py"
 		touch "${WORKDIR}/.protobuf-regenerated" || die
+	# net's effective_tld_names.gperf is made from effective_tld_names.dat (the Public Suffix
+	# List) by net/tools/tld_cleanup, which is built from the tree: build and run it first, ninja
+	# then rebuilds what depends on it.
+	if [[ ! -e ${WORKDIR}/.tld-regenerated ]]; then
+		local net_tld=tld_cleanup
+		tc-is-cross-compiler && net_tld=host/tld_cleanup
+		eninja -C out/Release "${net_tld}"
+		einfo "Regenerating net's effective_tld_names.gperf ..."
+		CR_SOURCE_ROOT="${S}" "out/Release/${net_tld}" > "${T}/tld_cleanup.log" 2>&1 ||
+			die "tld_cleanup failed (see ${T}/tld_cleanup.log)"
+		touch "${WORKDIR}/.tld-regenerated" || die
 	fi
 
 	# Build mksnapshot and pax-mark it.
