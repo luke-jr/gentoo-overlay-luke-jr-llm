@@ -1496,6 +1496,15 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 			"third_party/zxcvbn-cpp/native-src/zxcvbn/adjacency_graphs.${f}" ||
 			die "Failed to regenerate zxcvbn's adjacency_graphs.${f}"
 	done
+	# libzip's error strings (src/zip_err_str.c) are made from zip.h and zipint.h by its
+	# cmake/GenerateZipErrorStrings.cmake: regenerate them, with the include path Chromium's
+	# patches/0001-patch-configs.patch changes. Its zipconf.h and config.h are configure output
+	# edited by hand since (they use Chromium's build_config.h), so they are kept as source.
+	einfo "Regenerating libzip's error strings ..."
+	( cd third_party/libzip/src && cmake -DPROJECT_SOURCE_DIR="${S}/third_party/libzip/src" \
+		-P cmake/GenerateZipErrorStrings.cmake ) || die "Failed to regenerate libzip's zip_err_str.c"
+	sed -i 's|^#include "zipint.h"$|#include "lib/zipint.h"|' third_party/libzip/src/zip_err_str.c || die
+	grep -q '^#include "lib/zipint.h"$' third_party/libzip/src/zip_err_str.c || die "zip_err_str.c's include not found"
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has

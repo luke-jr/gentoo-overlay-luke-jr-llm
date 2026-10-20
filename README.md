@@ -409,6 +409,8 @@ built-in terms dialog Linux builds show on a new profile's first run.
     built from the tree. Byte-identical. (Their input, `domains.list`, is Chrome UX Report data.)
   - zxcvbn's keyboard adjacency graphs are regenerated with its
     `build_keyboard_adjacency_graphs.py`. Byte-identical.
+  - libzip's error strings (`zip_err_str.c`) are regenerated with its CMake script. Byte-identical.
+    Its `zipconf.h` and `config.h` are configure output edited by hand since, kept as source.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
