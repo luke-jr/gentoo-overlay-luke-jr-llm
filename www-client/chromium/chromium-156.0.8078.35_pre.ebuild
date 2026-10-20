@@ -100,6 +100,13 @@ SRC_URI="https://github.com/chromium-linux-tarballs/chromium-tarballs/releases/d
 	)
 	pgo? ( https://github.com/elkablo/chromium-profiler/releases/download/v0.2/chromium-profiler-0.2.tar )"
 
+# Selenium's sources at the revision chromedriver's atoms (third_party/selenium-atoms) are built
+# from (its README.chromium), for building them without Closure Compiler (see src_prepare).
+SELENIUM_COMMIT="c0b8ff6451419542dcecc53c922e1a79e4dc3940"
+SRC_URI+=" !prebuilt-chromedriver-atoms? (
+	https://github.com/SeleniumHQ/selenium/archive/${SELENIUM_COMMIT}.tar.gz -> selenium-${SELENIUM_COMMIT}.gh.tar.gz
+)"
+
 # https://gitweb.gentoo.org/proj/chromium-tools.git/tree/get-chromium-licences.py @ 155.0.8059.40
 # (newest SPDX data available for M156 at the time), merged with the previous list.
 LICENSE="Apache-2.0 Apache-2.0-with-LLVM-exceptions BSD BSD-2 Base64 Boost-1.0 CC-BY-3.0 CC-BY-4.0 Clear-BSD FFT2D FTL"
@@ -113,7 +120,7 @@ KEYWORDS="~amd64 ~arm64"
 IUSE_SYSTEM_LIBS="+system-harfbuzz +system-icu +system-zstd"
 IUSE="+X ${IUSE_SYSTEM_LIBS} bindist bundled-toolchain cups debug ffmpeg-chromium gtk4 +hangouts headless kerberos +lto +official pax-kernel pgo"
 IUSE+=" +proprietary-codecs pulseaudio qt6 +rar +screencast selinux test +vaapi +wayland +widevine cpu_flags_ppc_vsx3"
-IUSE+=" hardened"
+IUSE+=" hardened prebuilt-chromedriver-atoms"
 RESTRICT="
 	!bindist? ( bindist )
 	!test? ( test )
@@ -458,6 +465,13 @@ pkg_setup() {
 src_unpack() {
 	unpack chromium-${CHROMIUM_TARBALL_PV}-linux.tar.xz
 	unpack polymer-${POLYMER_VER}.gh.tar.gz shadycss-${SHADYCSS_COMMIT}.gh.tar.gz
+	if use !prebuilt-chromedriver-atoms; then
+		# Only the JavaScript the atoms are built from (and Selenium's file generator).
+		einfo "Unpacking Selenium's JavaScript ..."
+		tar -xzf "${DISTDIR}/selenium-${SELENIUM_COMMIT}.gh.tar.gz" -C "${WORKDIR}" \
+			"selenium-${SELENIUM_COMMIT}/javascript" "selenium-${SELENIUM_COMMIT}/third_party/closure" ||
+			die "Failed to unpack Selenium's JavaScript"
+	fi
 	# These should only be required when we're not using the official toolchain
 	if use !bundled-toolchain; then
 		unpack chromium-patches-copium-${COPIUM_COMMIT:0:10}.tar.gz
@@ -860,6 +874,25 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 			die "Expected to find ${src} to restore ${dst}, but it does not exist."
 		fi
 	done
+
+	if use !prebuilt-chromedriver-atoms; then
+		# chromedriver's atoms (third_party/selenium-atoms/atoms.{h,cc}: JavaScript it runs in pages
+		# for element commands) are compiled by Selenium's Bazel build with Closure Compiler, which
+		# isn't available from source. Build them from Selenium's sources (with Chromium's
+		# patch.diff) without it (files/chromium-selenium-atoms.py): each atom's Closure files in
+		# dependency order, uncompiled, minified with esbuild. They behave the same, but are much
+		# larger, so element commands take about four times as long (USE=prebuilt-chromedriver-atoms
+		# keeps upstream's).
+		einfo "Building chromedriver's Selenium atoms ..."
+		grep -qx "Revision: ${SELENIUM_COMMIT}" third_party/selenium-atoms/README.chromium ||
+			die "third_party/selenium-atoms is not from Selenium ${SELENIUM_COMMIT}"
+		local selenium="${WORKDIR}/selenium-${SELENIUM_COMMIT}"
+		patch -d "${selenium}" -p1 < third_party/selenium-atoms/patch.diff > "${T}/selenium-patch.log" ||
+			die "Failed to apply third_party/selenium-atoms/patch.diff"
+		"${EPYTHON}" -B "${FILESDIR}/chromium-selenium-atoms.py" "${selenium}" \
+			"${BROOT}/usr/bin/esbuild-${ESBUILD_VER}" third_party/selenium-atoms ||
+			die "Failed to build chromedriver's Selenium atoms"
+	fi
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has
