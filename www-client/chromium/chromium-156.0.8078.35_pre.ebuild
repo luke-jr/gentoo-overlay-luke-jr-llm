@@ -2079,6 +2079,44 @@ sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polym
 			"${S}" "${WORKDIR}/ffmpeg-config" "${ffmpeg_branding}" "${ffmpeg_arch}" \
 			> "${T}/ffmpeg-config.log" 2>&1 || die "Failed to regenerate FFmpeg's configuration (see ${T}/ffmpeg-config.log)"
 	fi
+	# libaom's configuration (source/config/linux/<arch>/config: aom_config.*, the *_rtcd.h headers)
+	# is the output of its CMake configure, as Chromium's cmake_update.sh runs it (for all
+	# platforms, some with cross toolchains): regenerate the one for this arch the same way, and
+	# wedge_masks_data.inc with libaom's tools/gen_wedge_masks_data.py. aom_version.h is a
+	# version stamp, kept.
+	local aom_cfg
+	case ${ARCH} in
+		amd64) aom_cfg=x64 ;;
+		arm64) aom_cfg=arm64-cpu-detect ;;
+	esac
+	if [[ -n ${aom_cfg} ]]; then
+		einfo "Regenerating libaom's configuration for ${aom_cfg} ..."
+		local aom_args=(
+			-DCONFIG_SIZE_LIMIT=1 -DDECODE_HEIGHT_LIMIT=16384 -DDECODE_WIDTH_LIMIT=16384
+			-DCONFIG_AV1_ENCODER=1 -DCONFIG_AV1_DECODER=0 -DCONFIG_AV1_HIGHBITDEPTH=0
+			-DCONFIG_REALTIME_ONLY=1 -DCONFIG_AV1_TEMPORAL_DENOISING=0 -DCONFIG_DENOISE=0
+			-DCONFIG_QUANT_MATRIX=0
+		)
+		if [[ ${aom_cfg} == x64 ]]; then
+			aom_args+=( "-DAOM_RTCD_FLAGS=--require-mmx;--require-sse;--require-sse2;--require-sse3" )
+		else
+			aom_args=( -DCMAKE_TOOLCHAIN_FILE=../source/libaom/cmake/toolchains/arm64-linux-clang.cmake "${aom_args[@]}" )
+		fi
+		# Configured where cmake_update.sh does: the command line ends up in aom_config.c.
+		mkdir -p third_party/libaom/build.gentoo || die
+		pushd third_party/libaom/build.gentoo >/dev/null || die
+		LC_ALL=C CC="$(tc-getBUILD_CC)" CXX="$(tc-getBUILD_CXX)" cmake ../source/libaom "${aom_args[@]}" \
+			> "${T}/libaom-cmake.log" 2>&1 || die "Failed to configure libaom (see ${T}/libaom-cmake.log)"
+		if [[ ${aom_cfg} == x64 ]]; then
+			grep -E "#define [A-Z0-9_]+ [01]" config/aom_config.h |
+				awk '{print "%define " $2 " " $3}' > config/aom_config.asm || die
+		fi
+		cp config/aom_config.{h,c,asm} config/*_rtcd.h "../source/config/linux/${aom_cfg}/config/" || die
+		popd >/dev/null || die
+		rm -r third_party/libaom/build.gentoo || die
+	fi
+	"${EPYTHON}" -B third_party/libaom/source/libaom/tools/gen_wedge_masks_data.py > "${T}/libaom-wedge.log" ||
+		die "Failed to regenerate libaom's wedge_masks_data.inc"
 
 	# Sanity check keeplibs, on major version bumps it is often necessary to update this list
 	# and this enables us to hit them all at once.

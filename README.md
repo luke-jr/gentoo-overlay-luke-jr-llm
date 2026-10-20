@@ -327,6 +327,9 @@ built-in terms dialog Linux builds show on a new profile's first run.
     `generate_gni.sh` (libvpx's `configure` and `rtcd.pl`), as the ebuild already did for ppc64.
     Byte-identical; `vpx_version.h` (a `git describe` version stamp) is kept. libvpx's VP8
     probability tables are constants computed long ago (no generator exists), kept as source.
+  - libaom's configuration for this arch (`source/config/linux/<arch>/config`) is regenerated with
+    its CMake configure as Chromium's `cmake_update.sh` runs it, and `wedge_masks_data.inc` with
+    libaom's `gen_wedge_masks_data.py`. Byte-identical; `aom_version.h` (version stamp) is kept.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
