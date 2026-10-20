@@ -291,6 +291,9 @@ built-in terms dialog Linux builds show on a new profile's first run.
     (`files/chromium-ffmpeg-config.py`, with system nasm on amd64). Identical but for the compiler
     named in `CC_IDENT` and a path in a comment. The `autorename_*.c` wrappers (one `#include`
     each) and `ffmpeg_generated.gni` are file lists, so they are left as they are.
+  - The Vulkan headers (`third_party/vulkan-headers`: `vulkan_*.h` and `vk_video/`, 30 files) are
+    regenerated from the registry next to them with Vulkan-Docs' `genvk.py` (three files from
+    Vulkan-Docs, which Vulkan-Headers leaves out). Byte-identical.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
