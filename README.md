@@ -351,6 +351,9 @@ built-in terms dialog Linux builds show on a new profile's first run.
     copies (`include/`: GLES2, GLES3, EGL, GLX, WGL) are regenerated the same way, keeping ANGLE's
     includes of its own extension headers (`files/chromium-khronos-merge.py`); byte-identical. Its
     GLES1 headers, which ANGLE edited, are kept as source.
+  - The Vulkan loader's and Vulkan-Utility-Libraries' generated sources are regenerated from
+    `third_party/vulkan-headers`' registry with their `generate_source.py`, which formats them with
+    clang-format. Byte-identical.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
