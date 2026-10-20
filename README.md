@@ -400,6 +400,8 @@ built-in terms dialog Linux builds show on a new profile's first run.
     presentation scanner and HarfBuzz's state machines (Ragel 6.10). All byte-identical. Blink's
     `css_group_config.json5` is kept as source: its generator (from CSS usage statistics) no longer
     exists.
+  - ipcz's message definitions (`node_messages.{cc,h}`) are regenerated from their
+    `*_messages_generator.h` with its `node_messages.py`. Byte-identical.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
