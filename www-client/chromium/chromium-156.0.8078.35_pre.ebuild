@@ -1532,6 +1532,28 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 			--destdir="${tsd_out}" || die "Failed to regenerate ${tsd}"
 		mv "${tsd_out}/${tsd_src%.*}.d.ts" "${tsd}" || die
 	done
+	# Glic's TypeScript API enums (chrome/browser/resources/glic/glic_api/glic_api_generated.ts and
+	# the generated block of glic_api.ts) are made from its mojom definitions by
+	# glic_api_impl/generate.py (gen_sources.ts, compiled with TypeScript, formatted through
+	# depot_tools' clang_format.py): regenerate them, with DevTools' TypeScript in place of the
+	# tarball's (pruned) one, and a stand-in for clang_format.py, which can't run from the tarball
+	# (its depot_tools lacks modules). Without a system clang-format (USE=bundled-toolchain), the
+	# output is left unformatted. glic_api_generated.ts is emptied first: the generator only
+	# writes files whose content differs.
+	einfo "Regenerating Glic's API enums ..."
+	local glic_cf=third_party/depot_tools/clang_format.py
+	mv "${glic_cf}" "${T}/clang_format.py" || die
+	if use !bundled-toolchain; then
+		printf 'import os, sys\nos.execv("%s", ["clang-format"] + sys.argv[1:])\n' \
+			"$(get_llvm_prefix -b)/bin/clang-format" > "${glic_cf}" || die
+	fi
+	ln -s "${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}" third_party/node/node_modules/typescript || die
+	: > chrome/browser/resources/glic/glic_api/glic_api_generated.ts || die
+	"${EPYTHON}" -B chrome/browser/resources/glic/glic_api_impl/generate.py > "${T}/glic-generate.log" 2>&1 ||
+		die "Glic's generate.py failed (see ${T}/glic-generate.log)"
+	rm third_party/node/node_modules/typescript || die
+	rm -f "${glic_cf}" || die
+	mv "${T}/clang_format.py" "${glic_cf}" || die
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has

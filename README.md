@@ -418,6 +418,8 @@ built-in terms dialog Linux builds show on a new profile's first run.
     copyright year, a trailing blank line and the command named in a comment. `storage`,
     `extension_types`, `metrics_private` and `web_request` were edited by hand since or lag their
     schema, and the partially generated ones were edited by hand: kept as source.
+  - Glic's generated TypeScript API enums (`glic_api_generated.ts` and a block of `glic_api.ts`) are
+    regenerated from its mojom definitions with its `generate.py`. Byte-identical.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
