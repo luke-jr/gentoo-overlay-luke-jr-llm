@@ -223,6 +223,11 @@ built-in terms dialog Linux builds show on a new profile's first run.
     (2020's), so the SPIR-V is the same as upstream's. Everything a Linux build uses comes out
     byte-identical, except the two flex lexers, whose generated comments differ with Gentoo's flex.
     `src/common/Float16ToFloat32.cpp` is regenerated with the script next to it (byte-identical).
+  - Chromium's own generated GPU code is regenerated in `src_prepare` with its generators: the command
+    buffer (`gpu/command_buffer/build_{gles2,raster,webgpu}_cmd_buffer.py`), the GL and Vulkan bindings
+    (`ui/gl/generate_bindings.py`, `gpu/vulkan/generate_bindings.py`, from `vk.xml`) and Vulkan's mojo
+    types (`gpu/ipc/common/generate_vulkan_types.py`); and the X11 protocol bindings at build time from
+    xcbproto's XML (`regenerate_x11_protos=true`). All byte-identical.
   - DevTools' checked-in generated TypeScript is regenerated in `src_prepare` with DevTools' own
     scripts from the tarball's inputs: `front_end/generated/` (protocol, ARIA, CSS and deprecation
     data, from the `.pdl` and `.json5` definitions; byte-identical) and
