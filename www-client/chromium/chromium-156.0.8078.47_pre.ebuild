@@ -320,6 +320,12 @@ JINJA_COMMIT="b08cd4bc64bb980df86ed2876978ae5735572280"
 SRC_URI+=" https://raw.githubusercontent.com/pallets/jinja/${JINJA_COMMIT}/scripts/generate_identifier_pattern.py
 	-> jinja-${JINJA_COMMIT:0:10}-generate_identifier_pattern.py"
 
+# Unicode's plain-text data files come from unicode-org/unicodetools (byte-identical to
+# unicode.org's): unicode.org's CDN gives a wrong total size for a range request (that of its
+# compressed copy), so that a downloader using ranges (axel) saves a truncated file.
+UNICODETOOLS_COMMIT="578f6c0516f5f268292ebda50b51848407a06478"
+UNICODETOOLS_DATA="https://raw.githubusercontent.com/unicode-org/unicodetools/${UNICODETOOLS_COMMIT}/unicodetools/data"
+
 # The inputs of bundled HarfBuzz's table generators (src/gen-*.py; used without
 # USE=system-harfbuzz): Unicode's data at the version they name, and packTab, which they use.
 HB_UNICODE_VER="17.0.0"
@@ -329,7 +335,7 @@ SRC_URI+="
 		https://unicode.org/Public/zipped/${HB_UNICODE_VER}/UCD.zip -> unicode-data-${HB_UNICODE_VER}-UCD.zip
 		https://www.unicode.org/Public/${HB_UNICODE_VER}/ucdxml/ucd.nounihan.grouped.zip
 			-> unicode-${HB_UNICODE_VER}-ucd.nounihan.grouped.zip
-		https://www.unicode.org/Public/${HB_UNICODE_VER}/emoji/emoji-test.txt
+		${UNICODETOOLS_DATA}/emoji/${HB_UNICODE_VER%.0}/emoji-test.txt
 			-> unicode-emoji-test-${HB_UNICODE_VER}.txt
 		https://files.pythonhosted.org/packages/source/p/packtab/packtab-${HB_PACKTAB_VER}.tar.gz
 	)
