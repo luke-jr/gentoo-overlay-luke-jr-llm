@@ -283,6 +283,8 @@ built-in terms dialog Linux builds show on a new profile's first run.
   - Dawn's and Tint's 114 generated `BUILD.gn` files are regenerated with Dawn's
     `tools/src/cmd/gen` (Go, offline; the two Go modules it imports come from SRC_URI, checked
     against Dawn's `go.sum`). Byte-identical (existing files keep their copyright year).
+  - abseil's 25 generated `BUILD.gn` files are regenerated from its `BUILD.bazel` files with
+    Chromium's `convert_bazel_to_gn.py` (which parses them without Bazel). Byte-identical.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
