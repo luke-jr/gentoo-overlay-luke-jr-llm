@@ -3154,6 +3154,19 @@ chromium_compile() {
 			die "Failed to regenerate V8's static roots"
 		rm -r "${v8_sr}" || die
 		touch "${WORKDIR}/.v8-static-roots-regenerated" || die
+	# The skeletons of the top domains for the lookalike-URL check
+	# (components/url_formatter/spoof_checks/top_domains/*.skeletons) are made from domains.list by
+	# make_top_domain_skeletons, built from the tree with its ICU (skeletons depend on the ICU
+	# version; see that directory's README.md): build and run it first, ninja then rebuilds the
+	# trie made from them.
+	if [[ ! -e ${WORKDIR}/.top-domains-regenerated ]]; then
+		local td_tool=make_top_domain_skeletons
+		tc-is-cross-compiler && td_tool=host/make_top_domain_skeletons
+		eninja -C out/Release "${td_tool}"
+		einfo "Regenerating the top domains' skeletons ..."
+		"out/Release/${td_tool}" > "${T}/top-domain-skeletons.log" 2>&1 ||
+			die "make_top_domain_skeletons failed (see ${T}/top-domain-skeletons.log)"
+		touch "${WORKDIR}/.top-domains-regenerated" || die
 	fi
 
 	# Build mksnapshot and pax-mark it.

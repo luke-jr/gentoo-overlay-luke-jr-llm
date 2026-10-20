@@ -404,6 +404,9 @@ built-in terms dialog Linux builds show on a new profile's first run.
     `*_messages_generator.h` with its `node_messages.py`. Byte-identical.
   - The IME character composer's table (`ui/base/ime/character_composer_data.h`) is regenerated
     with `generate_character_composer_data.py`. Byte-identical.
+  - The top domains' skeletons for the lookalike-URL check (`components/url_formatter/spoof_checks/
+    top_domains/*.skeletons`) are regenerated in `src_compile` with `make_top_domain_skeletons`,
+    built from the tree. Byte-identical. (Their input, `domains.list`, is Chrome UX Report data.)
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
