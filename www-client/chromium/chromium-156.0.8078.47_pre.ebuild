@@ -70,12 +70,13 @@ DESCRIPTION="Open-source version of Google Chrome web browser"
 HOMEPAGE="https://www.chromium.org/"
 PPC64_HASH="7aae8a84e327fc2078ce1625c9c70bfda77d626f"
 COPIUM_COMMIT="027d15ffdcd1816b7935cee9ea4a4f6bae0bbe60"
-# 156.0.8078.35 has no Linux release, and so no source tarball, yet (it shipped as Early Stable
-# for Windows and Mac only). It is built from the 156.0.8078.12 tarball plus the upstream
-# changes between the two tags, limited to what can affect a Linux build (see the header of
-# files/chromium-156.0.8078.12-to-35.patch). Drop this once the real 156.0.8078.35 is out.
-# Fixes that came later are applied on top (src_prepare).
+# 156.0.8078.47 has no source tarball yet. It is built from the 156.0.8078.12 tarball plus the
+# upstream changes from tag to tag (to 156.0.8078.35, then to 156.0.8078.47), limited to what can
+# affect a Linux build (see the headers of files/chromium-*-to-*.patch). Drop this once the real
+# 156.0.8078.47 tarball is out.
 CHROMIUM_TARBALL_PV="156.0.8078.12"
+# The versions the tarball is upgraded through, in order; the last is ${PV%_pre}.
+CHROMIUM_UPGRADES=( 156.0.8078.35 156.0.8078.47 )
 S="${WORKDIR}/chromium-${CHROMIUM_TARBALL_PV}"
 SRC_URI="https://github.com/chromium-linux-tarballs/chromium-tarballs/releases/download/${CHROMIUM_TARBALL_PV}/chromium-${CHROMIUM_TARBALL_PV}-linux.tar.xz
 	https://github.com/Polymer/polymer/archive/refs/tags/v${POLYMER_VER}.tar.gz
@@ -803,24 +804,23 @@ remove_compiler_builtins() {
 }
 
 src_prepare() {
-	# Upgrade the ${CHROMIUM_TARBALL_PV} tarball to ${PV%_pre} first (see SRC_URI). It contains a
-	# git binary patch (ICU data), which GNU patch (eapply) cannot apply.
-	einfo "Upgrading the ${CHROMIUM_TARBALL_PV} sources to ${PV%_pre} ..."
-	git apply --whitespace=nowarn "${FILESDIR}/chromium-${CHROMIUM_TARBALL_PV}-to-${PV%_pre}.patch" ||
-		die "Failed to upgrade the sources to ${PV%_pre}"
+	# Upgrade the ${CHROMIUM_TARBALL_PV} tarball to ${PV%_pre} first (see SRC_URI). The patches
+	# contain git binary patches (ICU data), which GNU patch (eapply) cannot apply.
+	local from=${CHROMIUM_TARBALL_PV} to
+	for to in "${CHROMIUM_UPGRADES[@]}"; do
+		einfo "Upgrading the ${from} sources to ${to} ..."
+		git apply --whitespace=nowarn "${FILESDIR}/chromium-${from}-to-${to}.patch" ||
+			die "Failed to upgrade the sources to ${to}"
+		from=${to}
+	done
 	local version
 	version=$(source chrome/VERSION && echo "${MAJOR}.${MINOR}.${BUILD}.${PATCH}") ||
 		die "Failed to read chrome/VERSION"
 	[[ ${version} == "${PV%_pre}" ]] || die "chrome/VERSION says ${version} after upgrading, expected ${PV%_pre}"
 
-	# Security fixes newer than ${PV%_pre}: the later changes of its release branch (which
-	# include CVE-2026-110913, -110918 and -110922 from Stable 155.0.8059.84), and the
-	# CVE-2026-110914 fix 156 hasn't got yet. See the patch headers. Keep chrome/VERSION as is.
-	einfo "Applying the 156 branch's fixes after ${PV%_pre} ..."
-	local p
-	for p in chromium-${PV%_pre}-branch-fixes.patch chromium-156-cve-2026-110914.patch; do
-		git apply --whitespace=nowarn "${FILESDIR}/${p}" || die "Failed to apply ${p}"
-	done
+	# The CVE-2026-110914 fix (from Stable 155.0.8059.84) 156 hasn't got yet; see the patch header.
+	git apply --whitespace=nowarn "${FILESDIR}/chromium-156-cve-2026-110914.patch" ||
+		die "Failed to apply chromium-156-cve-2026-110914.patch"
 
 	# Calling this here supports resumption via FEATURES=keepwork
 	python_setup
