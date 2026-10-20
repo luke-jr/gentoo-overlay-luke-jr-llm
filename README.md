@@ -360,6 +360,13 @@ built-in terms dialog Linux builds show on a new profile's first run.
     pdfium's OpenJPEG `t1_luts.h`/`t1_ht_luts.h` and libtiff `tif_fax3sm.c` with OpenJPEG's
     `t1_generate_luts` and libtiff's `mkg3states`, fetched at the revisions pdfium bundles; libtiff's
     `tiffconf.h` is a configure output edited by hand since and is kept as source.
+  - FlatBuffers' `reflection_generated.h` and the FlatBuffers headers of TensorFlow Lite and LiteRT
+    (`schema_generated.h`, `conversion_metadata_generated.h`, `configuration_generated.h`, the
+    latter's schema made from its `.proto`) are regenerated in `src_compile` with the build's
+    `flatc`, with the options of upstream's rules; the builtin op lists (`builtin_ops.h`,
+    `builtin_ops_list.inc`) with TensorFlow Lite's generators, also for LiteRT, which only copies
+    them. The checked-in headers were made by an older `flatc` (and `conversion_metadata` from an
+    older schema, without `PYTORCH` and `model_hash`), so those differ.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)

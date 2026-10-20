@@ -2806,6 +2806,64 @@ chromium_compile() {
 		CR_SOURCE_ROOT="${S}" "out/Release/${net_tld}" > "${T}/tld_cleanup.log" 2>&1 ||
 			die "tld_cleanup failed (see ${T}/tld_cleanup.log)"
 		touch "${WORKDIR}/.tld-regenerated" || die
+	# FlatBuffers' C++ reflection header (flatc is built from it) and the FlatBuffers headers of
+	# TensorFlow Lite and LiteRT are checked in: regenerate them with the flatc built from the
+	# regenerated reflection header, with the options of upstream's rules (flatbuffers'
+	# scripts/generate_code.py; TensorFlow's flatbuffer_cc_library defaults, and for the delegate
+	# configuration its configuration_schema genrule, which makes the schema from the .proto),
+	# keeping their license headers. Then build TensorFlow Lite's generators of the builtin op
+	# lists (builtin_ops.h, builtin_ops_list.inc; their README) and run them with TensorFlow
+	# Lite's and LiteRT's schemas: LiteRT copies the lists and doesn't have the generators.
+	if [[ ! -e ${WORKDIR}/.flatbuffers-regenerated ]]; then
+		local fb_flatc=out/Release/flatc fb_gen="${WORKDIR}/flatbuffers-gen" fb_f fb_d fb_g
+		local fb_tfl=third_party/tflite/src/tensorflow fb_lrt=third_party/litert/src/tflite
+		if tc-is-cross-compiler; then
+			fb_flatc=out/Release/host/flatc
+		fi
+		eninja -C out/Release "${fb_flatc#out/Release/}"
+		einfo "Regenerating FlatBuffers' reflection header ..."
+		( cd third_party/flatbuffers/src/reflection &&
+			"${S}/${fb_flatc}" --no-prefix -c --cpp-std c++0x -o ../include/flatbuffers reflection.fbs ) ||
+			die "Failed to regenerate reflection_generated.h"
+		eninja -C out/Release "${fb_flatc#out/Release/}"
+		einfo "Regenerating TensorFlow Lite's and LiteRT's FlatBuffers headers ..."
+		mkdir -p "${fb_gen}/litert/tensorflow/lite/schema" || die
+		"${fb_flatc}" --proto -o "${fb_gen}" "${fb_tfl}/lite/acceleration/configuration/configuration.proto" &&
+			sed -i 's/tflite\.proto/tflite/' "${fb_gen}/configuration.fbs" ||
+			die "Failed to make configuration.fbs"
+		for fb_f in "${fb_tfl}/compiler/mlir/lite/schema/schema" "${fb_tfl}/compiler/mlir/lite/schema/conversion_metadata" \
+			"${fb_lrt}/converter/schema/schema" "${fb_tfl}/lite/acceleration/configuration/configuration"; do
+			fb_g=( --no-union-value-namespacing --gen-object-api "${fb_f}.fbs" )
+			if [[ ${fb_f##*/} == configuration ]]; then
+				fb_g=( --no-union-value-namespacing --gen-object-api --gen-compare "${fb_gen}/configuration.fbs" )
+			fi
+			sed '/^=*\*\/$/q' "${fb_f}_generated.h" > "${fb_gen}/license.h" || die
+			if grep -q "automatically generated" "${fb_gen}/license.h"; then
+				die "No license header found in ${fb_f}_generated.h"
+			fi
+			"${fb_flatc}" -c -o "${fb_gen}" "${fb_g[@]}" &&
+				cat "${fb_gen}/license.h" "${fb_gen}/${fb_f##*/}_generated.h" > "${fb_f}_generated.h" &&
+				rm "${fb_gen}/${fb_f##*/}_generated.h" || die "Failed to regenerate ${fb_f}_generated.h"
+		done
+		# LiteRT's schema, where the generators include TensorFlow Lite's.
+		echo '#include "tflite/converter/schema/schema_generated.h"' \
+			> "${fb_gen}/litert/tensorflow/lite/schema/schema_generated.h" || die
+		for fb_g in builtin_ops_header builtin_ops_list; do
+			for fb_d in tflite litert; do
+				# shellcheck disable=SC2086
+				$(tc-getBUILD_CXX) ${BUILD_CXXFLAGS} ${BUILD_CPPFLAGS} -std=c++17 \
+					$([[ ${fb_d} == litert ]] && echo "-I${fb_gen}/litert -I${fb_lrt%/tflite}") \
+					-I"${fb_tfl%/tensorflow}" -Ithird_party/flatbuffers/src/include ${BUILD_LDFLAGS} \
+					-o "${fb_gen}/${fb_g}-${fb_d}" "${fb_tfl}/lite/schema/${fb_g}/generate.cc" \
+					"${fb_tfl}/lite/schema/${fb_g}/generator.cc" || die "Failed to build ${fb_g} (${fb_d})"
+			done
+		done
+		"${fb_gen}/builtin_ops_header-tflite" > "${fb_tfl}/lite/builtin_ops.h" &&
+			"${fb_gen}/builtin_ops_list-tflite" > "${fb_tfl}/lite/kernels/builtin_ops_list.inc" &&
+			"${fb_gen}/builtin_ops_header-litert" > "${fb_lrt}/builtin_ops.h" &&
+			"${fb_gen}/builtin_ops_list-litert" > "${fb_lrt}/kernels/builtin_ops_list.inc" ||
+			die "Failed to regenerate the builtin op lists"
+		touch "${WORKDIR}/.flatbuffers-regenerated" || die
 	fi
 
 	# Build mksnapshot and pax-mark it.
