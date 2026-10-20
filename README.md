@@ -384,6 +384,10 @@ built-in terms dialog Linux builds show on a new profile's first run.
     are regenerated at the start of `src_compile` with a `mksnapshot` built in a second build
     directory with `v8_enable_static_roots_generation`, as V8's `gen-static-roots.py` does (about
     3,400 extra build steps); only a comment's indentation differs.
+  - SQLite's amalgamation (`sqlite3.c`, `sqlite3.h`, the shell and `rename_exports.h`) is
+    regenerated from SQLite's sources with Chromium's `generate_amalgamation.py`
+    (`files/chromium-sqlite-amalgamation.py`). Byte-identical, once `SQLITE_SOURCE_ID` (a version
+    stamp, which SQLite marks as modified because the tarball lacks its tests) is kept.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)

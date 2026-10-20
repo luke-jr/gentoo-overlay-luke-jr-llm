@@ -1359,6 +1359,13 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	# From v8/, so that clang-format (reading stdin) uses V8's .clang-format.
 	( cd v8 && "${EPYTHON}" -B tools/gen-keywords-gen-h.py ) || die "Failed to regenerate V8's keywords-gen.h"
 	rm -r v8/third_party/depot_tools || die
+	# SQLite's amalgamation (third_party/sqlite/src/amalgamation) is made from its sources by
+	# scripts/generate_amalgamation.py (SQLite's configure and make, with its bootstrap Jim Tcl):
+	# regenerate it (files/chromium-sqlite-amalgamation.py), keeping SQLITE_SOURCE_ID.
+	einfo "Regenerating SQLite's amalgamation ..."
+	CC="$(tc-getBUILD_CC)" "${EPYTHON}" -B "${FILESDIR}/chromium-sqlite-amalgamation.py" third_party/sqlite \
+		> "${T}/sqlite-amalgamation.log" 2>&1 ||
+		die "Failed to regenerate SQLite's amalgamation (see ${T}/sqlite-amalgamation.log)"
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has
