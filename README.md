@@ -367,6 +367,11 @@ built-in terms dialog Linux builds show on a new profile's first run.
     `builtin_ops_list.inc`) with TensorFlow Lite's generators, also for LiteRT, which only copies
     them. The checked-in headers were made by an older `flatc` (and `conversion_metadata` from an
     older schema, without `PYTORCH` and `model_hash`), so those differ.
+  - chromium-bidi's protocol types and Zod schemas (`src/protocol{,-parser}/generated`) are
+    regenerated with its `tools/update_bidi_types.py` and `dev-util/cddlconv` from the CDDL in the
+    WebDriver BiDi specs, extracted with the spec's `generate.js` and parse5 (6, not compiled), at
+    the spec commits current when the checked-in types were made. Upstream's prettier/eslint
+    formatting pass is left out; with it, the output is byte-identical.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)

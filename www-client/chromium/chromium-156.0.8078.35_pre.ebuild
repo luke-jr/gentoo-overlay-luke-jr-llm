@@ -253,6 +253,27 @@ SRC_URI+="
 	https://gitlab.com/libtiff/libtiff/-/raw/${PDFIUM_LIBTIFF_COMMIT}/tools/mkg3states.c
 		-> libtiff-${PDFIUM_LIBTIFF_COMMIT:0:10}-mkg3states.c"
 
+# The sources of the CDDL chromium-bidi makes its protocol types from (its
+# tools/update_bidi_types.py): the specs' sources at the commits current when
+# its checked-in types were last regenerated, and the extraction script of the
+# WebDriver BiDi spec. Repository, commit, files (see src_prepare).
+CHROMIUM_BIDI_SPECS="
+	w3c/webdriver-bidi:ff4f83dfae2c8c51482acd503c50fb5abfac2cca:index.bs,scripts/cddl/generate.js,scripts/cddl/utils.js
+	w3c/permissions:0051a836a92c4f8e37d016f261bbbed5b6312b96:index.html
+	WebBluetoothCG/web-bluetooth:2e451c162f6a3f2277f86104223de4630710506e:index.bs
+	WICG/nav-speculation:55f0c9565659d4af2fda2cb93060c17a04feb7fd:prefetch.bs
+	WICG/ua-client-hints:6cf1025597fe4ee96063f32e94442613a7fa77f9:index.bs
+	w3c-fedid/digital-credentials:b31343b4890a39ad3aa6d2bf066db1069458da4f:index.html
+"
+for _s in ${CHROMIUM_BIDI_SPECS}; do
+	_p=( ${_s//:/ } ) # repository commit files
+	for _f in ${_p[2]//,/ }; do
+		SRC_URI+=" https://raw.githubusercontent.com/${_p[0]}/${_p[1]}/${_f}
+			-> chromium-bidi-${_p[0]#*/}-${_p[1]:0:10}-${_f//\//-}"
+	done
+done
+unset _s _p _f
+
 # https://gitweb.gentoo.org/proj/chromium-tools.git/tree/get-chromium-licences.py @ 155.0.8059.40
 # (newest SPDX data available for M156 at the time), merged with the previous list.
 LICENSE="Apache-2.0 Apache-2.0-with-LLVM-exceptions BSD BSD-2 Base64 Boost-1.0 CC-BY-3.0 CC-BY-4.0 Clear-BSD FFT2D FTL"
@@ -417,6 +438,7 @@ BDEPEND="
 	dev-util/chromium-node-modules:${PV%%.*}
 	dev-util/gnrt:${PV%%.*}
 	dev-util/chromium-rust-crates:${PV%%.*}
+	dev-util/cddlconv:0.1.12
 	dev-libs/protobuf
 	dev-vcs/git
 	>=net-libs/nodejs-${NODE_VER}[inspector]
@@ -1216,6 +1238,35 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 		die "Failed to build libtiff's mkg3states"
 	rm "${pdfium_tp}/libtiff/tif_fax3sm.c" || die
 	"${pdfium_gen}/mkg3states" -b -c const "${pdfium_tp}/libtiff/tif_fax3sm.c" || die "Failed to run mkg3states"
+	# chromium-bidi's protocol types and Zod schemas (src/protocol{,-parser}/generated) are made by
+	# its tools/update_bidi_types.py with cddlconv from the CDDL in the WebDriver BiDi specs, which
+	# the WebDriver BiDi spec's scripts/cddl/generate.js extracts (with parse5): regenerate them from
+	# the specs' sources (CHROMIUM_BIDI_SPECS). Upstream formats the output with prettier and eslint
+	# afterwards, which only changes the layout; that is left out.
+	einfo "Regenerating chromium-bidi's protocol types ..."
+	local bidi_spec bidi_p bidi_f bidi_d bidi_cddl="${T}/bidi-cddl" bidi_gen
+	for bidi_spec in ${CHROMIUM_BIDI_SPECS}; do
+		bidi_p=( ${bidi_spec//:/ } )
+		for bidi_f in ${bidi_p[2]//,/ }; do
+			bidi_d="${bidi_cddl}/${bidi_p[0]#*/}/src/${bidi_f}"
+			mkdir -p "${bidi_d%/*}" || die
+			cp "${DISTDIR}/chromium-bidi-${bidi_p[0]#*/}-${bidi_p[1]:0:10}-${bidi_f//\//-}" "${bidi_d}" || die
+		done
+	done
+	bidi_gen="${bidi_cddl}/webdriver-bidi/src/scripts/cddl/generate.js"
+	for bidi_spec in ${CHROMIUM_BIDI_SPECS}; do
+		bidi_p=( ${bidi_spec//:/ } )
+		bidi_f=${bidi_p[2]%%,*} # the spec's source
+		# generate.js writes all.cddl (and local.cddl, remote.cddl) to the current directory.
+		( cd "${bidi_cddl}/${bidi_p[0]#*/}" &&
+			NODE_PATH="${S}/third_party/node/node_modules" node "${bidi_gen}" "src/${bidi_f}" ) ||
+			die "Failed to extract the CDDL of ${bidi_p[0]}"
+	done
+	# update_bidi_types.py runs `cddlconv` (the version it requires).
+	mkdir -p "${bidi_cddl}/bin" || die
+	ln -s "${BROOT}/usr/bin/cddlconv-0.1.12" "${bidi_cddl}/bin/cddlconv" || die
+	PATH="${bidi_cddl}/bin:${PATH}" "${EPYTHON}" -B "${FILESDIR}/chromium-bidi-types.py" third_party/chromium-bidi \
+		"${bidi_cddl}" || die "Failed to regenerate chromium-bidi's protocol types"
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has
