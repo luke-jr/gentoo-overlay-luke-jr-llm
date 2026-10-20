@@ -1515,6 +1515,23 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 			die "libwayland's Meson configure failed (see ${T}/wayland-meson.log)"
 		cp "${WORKDIR}/wayland-config/config.h" third_party/wayland/include/config.h || die
 	fi
+	# TypeScript declarations of extension APIs used by WebUI code are the output of
+	# tools/json_schema_compiler (-g ts_definitions) for the schema each names ("Generated from:"):
+	# regenerate those that still match their schema. storage, extension_types, metrics_private
+	# and web_request were edited by hand since (or lag their schema), and others say they were only
+	# partially generated: those are kept as source.
+	einfo "Regenerating extension API TypeScript declarations ..."
+	local tsd tsd_src tsd_out="${T}/ts-definitions"
+	for tsd in tools/typescript/definitions/{chromeos_info_private,command_line_private,i18n}.d.ts \
+		tools/typescript/definitions/{metrics_private_individual_apis,networking_private,offscreen,wallpaper}.d.ts \
+		chrome/browser/resources/glic/extension/glic_private.d.ts \
+		chrome/browser/resources/contextual_tasks/extension/contextual_tasks_private.d.ts; do
+		tsd_src=$(sed -n 's/^ \* Generated from: \([^ ]*\).*/\1/p' "${tsd}") || die
+		[[ -f ${tsd_src} ]] || die "${tsd} names no schema"
+		"${EPYTHON}" -B tools/json_schema_compiler/compiler.py "${tsd_src}" -g ts_definitions --root=. \
+			--destdir="${tsd_out}" || die "Failed to regenerate ${tsd}"
+		mv "${tsd_out}/${tsd_src%.*}.d.ts" "${tsd}" || die
+	done
 
 	# The native TypeScript compiler must be copied, not symlinked: tsc loads
 	# lib*.d.ts from the directory of its symlink-resolved executable, and has

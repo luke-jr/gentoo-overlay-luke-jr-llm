@@ -413,6 +413,11 @@ built-in terms dialog Linux builds show on a new profile's first run.
     Its `zipconf.h` and `config.h` are configure output edited by hand since, kept as source.
   - libwayland's `include/config.h` is regenerated with its Meson configure (`USE=wayland`). It
     finds glibc's `gettid()`, which the checked-in one doesn't; otherwise identical.
+  - The extension APIs' TypeScript declarations that still match their schema (9 files) are
+    regenerated with `tools/json_schema_compiler` (`-g ts_definitions`); they differ only in the
+    copyright year, a trailing blank line and the command named in a comment. `storage`,
+    `extension_types`, `metrics_private` and `web_request` were edited by hand since or lag their
+    schema, and the partially generated ones were edited by hand: kept as source.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
