@@ -227,6 +227,10 @@ built-in terms dialog Linux builds show on a new profile's first run.
     WebDriver BiDi specs, extracted with the spec's `generate.js` and parse5 (6, not compiled), at
     the spec commits current when the checked-in types were made. Upstream's prettier/eslint
     formatting pass is left out; with it, the output is byte-identical.
+  - DevTools' Puppeteer type declarations come from `dev-util/chromium-node-modules`' Puppeteer build
+    (with `devtools-protocol`'s declarations made from its `.pdl` definitions), byte-identical;
+    api-extractor's rollups of them (`types.d.ts`, `es5-iife/puppeteer-core-browser.d.ts`), which
+    nothing imports, are left out.
 
   Where sources come from:
   - Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
