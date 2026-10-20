@@ -928,6 +928,12 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 		die "Failed to regenerate NativeFunctions.ts"
 	popd >/dev/null || die
 
+	# XNNPACK (TFLite's CPU kernels) checks in ~9,400 generated micro-kernels (C and assembly);
+	# make them from its templates with its own generators instead (see the script).
+	einfo "Regenerating XNNPACK's micro-kernels ..."
+	"${EPYTHON}" -B "${FILESDIR}/chromium-xnnpack-regen.py" third_party/xnnpack "$(makeopts_jobs)" ||
+		die "Failed to regenerate XNNPACK's micro-kernels"
+
 	# Other generated files of npm packages (terser's library bundle, chromium-bidi's rollup
 	# plugins, ...): dev-util/chromium-node-modules builds them from their sources, as
 	# self-contained bundles, at the paths of the files they replace. The packages they include

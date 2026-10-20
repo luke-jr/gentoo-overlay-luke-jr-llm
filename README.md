@@ -211,6 +211,10 @@ built-in terms dialog Linux builds show on a new profile's first run.
     (for ANGLE's `--use-angle=vulkan-null`), mostly generated sources, are only built with
     `USE=debug` (`chromium-156-angle-mock-icd-arg.patch` adds the GN arg for the latter); upstream
     always builds and ships them, but only loads them on these debugging switches.
+  - XNNPACK's ~9,400 checked-in micro-kernels (`src/*/gen/`, C and assembly) are deleted and made
+    again from its templates by its own `tools/xngen` and `gemm_compiler`, plus its
+    `build_identifier.c` (`files/chromium-xnnpack-regen.py`); byte-identical. The 4 that nothing
+    generates (RISC-V and Hexagon kernels, not built for Linux) are left out.
   - DevTools' checked-in generated TypeScript is regenerated in `src_prepare` with DevTools' own
     scripts from the tarball's inputs: `front_end/generated/` (protocol, ARIA, CSS and deprecation
     data, from the `.pdl` and `.json5` definitions; byte-identical) and
