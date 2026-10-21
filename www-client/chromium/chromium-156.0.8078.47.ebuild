@@ -3666,14 +3666,22 @@ chromium_compile() {
 	# (components/url_formatter/spoof_checks/top_domains/*.skeletons) are made from domains.list by
 	# make_top_domain_skeletons, built from the tree with its ICU (skeletons depend on the ICU
 	# version; see that directory's README.md): build and run it first, ninja then rebuilds the
-	# trie made from them.
+	# trie made from them. The tool itself is built with the trie of the checked-in skeletons
+	# (moved out by src_prepare): put them back for that only, and check that the tool rewrote
+	# every one.
 	if [[ ! -e ${WORKDIR}/.top-domains-regenerated ]]; then
-		local td_tool=make_top_domain_skeletons
+		local td_tool=make_top_domain_skeletons td_dir=components/url_formatter/spoof_checks/top_domains
+		local td_f td_stamp="${T}/top-domains-bootstrap"
 		tc-is-cross-compiler && td_tool=host/make_top_domain_skeletons
+		cp "${WORKDIR}/upstream-generated/${td_dir}"/*.skeletons "${td_dir}/" || die
 		eninja -C out/Release "${td_tool}"
+		touch "${td_stamp}" || die
 		einfo "Regenerating the top domains' skeletons ..."
 		"out/Release/${td_tool}" > "${T}/top-domain-skeletons.log" 2>&1 ||
 			die "make_top_domain_skeletons failed (see ${T}/top-domain-skeletons.log)"
+		for td_f in "${td_dir}"/*.skeletons; do
+			[[ ${td_f} -nt ${td_stamp} ]] || die "make_top_domain_skeletons didn't rewrite ${td_f}"
+		done
 		touch "${WORKDIR}/.top-domains-regenerated" || die
 	fi
 
