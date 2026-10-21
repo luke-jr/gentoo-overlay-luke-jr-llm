@@ -1404,6 +1404,7 @@ chromium_regenerate_gn() {
 	ln -s "${WORKDIR}/SPIRV-Headers-${ANGLE_SPIRV_HEADERS_COMMIT}" \
 		"${WORKDIR}/SPIRV-Tools-${ANGLE_SPIRV_TOOLS_COMMIT}/external/spirv-headers" || die
 	cmake -S "${glslang_src}" -B "${glslang_build}" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_C_COMPILER="$(tc-getBUILD_CC)" -DCMAKE_CXX_COMPILER="$(tc-getBUILD_CXX)" \
 		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_OPT=ON -DENABLE_HLSL=ON -DENABLE_CTEST=OFF \
 		-DBUILD_TESTING=OFF -DENABLE_GLSLANG_JS=OFF -DSPIRV_SKIP_TESTS=ON -DSPIRV_WERROR=OFF \
 		-DCMAKE_CXX_FLAGS="-Wno-error -include cstdint" > "${T}/angle-glslang-cmake.log" ||
@@ -1473,7 +1474,7 @@ chromium_regenerate_gn() {
 	sed -i -e "s|^update_readme||g; s|clang-format|${EPREFIX}/bin/true|g; /^git -C/d; /git cl/d; /cd \$BASE_DIR\/\$LIBVPX_SRC_DIR/ign format --in-place \$BASE_DIR\/BUILD.gn\ngn format --in-place \$BASE_DIR\/libvpx_srcs.gni" \
 		generate_gni.sh || die
 	einfo "Regenerating libvpx's configuration ..."
-	./generate_gni.sh > "${T}/libvpx-generate_gni.log" 2>&1 || die "generate_gni.sh failed (see ${T}/libvpx-generate_gni.log)"
+	CC="$(tc-getBUILD_CC)" CXX="$(tc-getBUILD_CXX)" ./generate_gni.sh > "${T}/libvpx-generate_gni.log" 2>&1 || die "generate_gni.sh failed (see ${T}/libvpx-generate_gni.log)"
 	cp "${T}/vpx_version.h" source/config/vpx_version.h || die
 	popd >/dev/null || die
 }
@@ -1838,8 +1839,9 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 		# libwayland's include/config.h is the output of its Meson configure: regenerate it.
 		# Unlike the checked-in one, it finds glibc's gettid().
 		einfo "Regenerating libwayland's config.h ..."
-		meson setup "${WORKDIR}/wayland-config" third_party/wayland/src -Dlibraries=true -Dscanner=false \
-			-Ddocumentation=false -Dtests=false -Ddtd_validation=false > "${T}/wayland-meson.log" 2>&1 ||
+		CC="$(tc-getBUILD_CC)" CXX="$(tc-getBUILD_CXX)" \
+			meson setup "${WORKDIR}/wayland-config" third_party/wayland/src -Dlibraries=true -Dscanner=false \
+				-Ddocumentation=false -Dtests=false -Ddtd_validation=false > "${T}/wayland-meson.log" 2>&1 ||
 			die "libwayland's Meson configure failed (see ${T}/wayland-meson.log)"
 		cp "${WORKDIR}/wayland-config/config.h" third_party/wayland/include/config.h || die
 	fi
