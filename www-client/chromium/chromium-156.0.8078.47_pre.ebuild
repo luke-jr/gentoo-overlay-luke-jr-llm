@@ -1433,6 +1433,32 @@ chromium_regenerate_gn() {
 	fi
 	mv "${T}/Float16ToFloat32.cpp" third_party/angle/src/common/Float16ToFloat32.cpp || die
 
+	# Chromium's own checked-in generated GPU code: the command buffer's GLES2/raster/WebGPU
+	# client and service code, the GL and Vulkan function bindings (Vulkan's from vk.xml, put
+	# in place above) and Vulkan's mojo types (with their type mappings, a .gni file GN reads).
+	# The generators insist on a checkout named src/ or chromium/, and format their output with
+	# third_party/depot_tools/clang-format (a wrapper that runs a prebuilt one; replaced while
+	# they run, and they ignore its failures).
+	einfo "Regenerating Chromium's generated GPU code ..."
+	mv third_party/depot_tools/clang-format{,.orig} || die
+	if use bundled-toolchain; then
+		# No system clang-format: leave the output unformatted (only the layout differs).
+		printf '#!/bin/sh\nexit 0\n' > third_party/depot_tools/clang-format || die
+		chmod +x third_party/depot_tools/clang-format || die
+	else
+		ln -s "$(get_llvm_prefix -b)/bin/clang-format" third_party/depot_tools/clang-format || die
+	fi
+	ln -s "${S}" "${WORKDIR}/src" || die
+	local gpu_gen
+	for gpu_gen in gpu/command_buffer/build_{gles2,raster,webgpu}_cmd_buffer.py ui/gl/generate_bindings.py \
+		gpu/vulkan/generate_bindings.py gpu/ipc/common/generate_vulkan_types.py; do
+		( cd "${WORKDIR}/src" && PATH="${S}/third_party/depot_tools:${PATH}" \
+			"${EPYTHON}" -B "${WORKDIR}/src/${gpu_gen}" ) > "${T}/$(basename ${gpu_gen} .py).log" 2>&1 ||
+			die "${gpu_gen} failed (see ${T}/$(basename ${gpu_gen} .py).log)"
+	done
+	rm "${WORKDIR}/src" third_party/depot_tools/clang-format || die
+	mv third_party/depot_tools/clang-format{.orig,} || die
+
 	# libvpx's configuration (source/config/: vpx_config.*, the *_rtcd.h headers) is the output of
 	# its configure and rtcd.pl, as Chromium's generate_gni.sh runs them (for all platforms):
 	# regenerate it. ppc64 needs it anyway, upstream doesn't ship one. It has to be done before
@@ -2173,30 +2199,6 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 	einfo "Regenerating XNNPACK's micro-kernels ..."
 	"${EPYTHON}" -B "${FILESDIR}/chromium-xnnpack-regen.py" third_party/xnnpack "$(makeopts_jobs)" ||
 		die "Failed to regenerate XNNPACK's micro-kernels"
-	# Chromium's own checked-in generated GPU code: the command buffer's GLES2/raster/WebGPU
-	# client and service code, the GL and Vulkan function bindings (Vulkan's from vk.xml, put
-	# in place above) and Vulkan's mojo types. The generators insist on a checkout named src/
-	# or chromium/, and format their output with third_party/depot_tools/clang-format (a wrapper
-	# that runs a prebuilt one; replaced while they run, and they ignore its failures).
-	einfo "Regenerating Chromium's generated GPU code ..."
-	mv third_party/depot_tools/clang-format{,.orig} || die
-	if use bundled-toolchain; then
-		# No system clang-format: leave the output unformatted (only the layout differs).
-		printf '#!/bin/sh\nexit 0\n' > third_party/depot_tools/clang-format || die
-		chmod +x third_party/depot_tools/clang-format || die
-	else
-		ln -s "$(get_llvm_prefix -b)/bin/clang-format" third_party/depot_tools/clang-format || die
-	fi
-	ln -s "${S}" "${WORKDIR}/src" || die
-	local gpu_gen
-	for gpu_gen in gpu/command_buffer/build_{gles2,raster,webgpu}_cmd_buffer.py ui/gl/generate_bindings.py \
-		gpu/vulkan/generate_bindings.py gpu/ipc/common/generate_vulkan_types.py; do
-		( cd "${WORKDIR}/src" && PATH="${S}/third_party/depot_tools:${PATH}" \
-			"${EPYTHON}" -B "${WORKDIR}/src/${gpu_gen}" ) > "${T}/$(basename ${gpu_gen} .py).log" 2>&1 ||
-			die "${gpu_gen} failed (see ${T}/$(basename ${gpu_gen} .py).log)"
-	done
-	rm "${WORKDIR}/src" third_party/depot_tools/clang-format || die
-	mv third_party/depot_tools/clang-format{.orig,} || die
 
 	# Polymer: third_party/polymer/v3_0's reproduce.sh and minify_polymer.sh generate
 	# polymer_bundled.min.js from @polymer/polymer and @webcomponents/shadycss (npm's files are
