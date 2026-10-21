@@ -1305,6 +1305,8 @@ print(version)
 #   lists in abseil's root BUILD.gn).
 chromium_regenerated_outputs() {
 	# --- chromium_regenerate_gn ---
+	# Jinja's identifier pattern
+	echo third_party/jinja2/_identifier.py
 	# The vendored Rust crates' BUILD.gn files (gnrt)
 	echo 'third_party/rust/*/*/BUILD.gn'
 	# Dawn's (Tint's) generated BUILD.gn files; src/tint/BUILD.gn is written by hand
@@ -1382,12 +1384,12 @@ chromium_regenerated_outputs() {
 	echo third_party/ipcz/src/ipcz/{node,test}_messages.{cc,h} ui/base/ime/character_composer_data.h \
 		third_party/zxcvbn-cpp/native-src/zxcvbn/adjacency_graphs.{cpp,hpp} third_party/libzip/src/zip_err_str.c
 	use wayland && echo third_party/wayland/include/config.h
-	# Extension API TypeScript declarations, Glic's API enums, Jinja's identifier pattern
+	# Extension API TypeScript declarations, Glic's API enums
 	echo tools/typescript/definitions/{chromeos_info_private,command_line_private,i18n}.d.ts \
 		tools/typescript/definitions/{metrics_private_individual_apis,networking_private,offscreen,wallpaper}.d.ts \
 		chrome/browser/resources/glic/extension/glic_private.d.ts \
 		chrome/browser/resources/contextual_tasks/extension/contextual_tasks_private.d.ts \
-		chrome/browser/resources/glic/glic_api/glic_api_generated.ts third_party/jinja2/_identifier.py
+		chrome/browser/resources/glic/glic_api/glic_api_generated.ts
 	if use !system-harfbuzz; then
 		echo third_party/harfbuzz/src/src/hb-ot-shaper-{arabic-joining-list,arabic-pua,arabic-table,use-table}.hh \
 			third_party/harfbuzz/src/src/hb-{ucd-table,unicode-emoji-table}.hh \
@@ -1506,6 +1508,20 @@ chromium_regenerate_gn() {
 	chromium_regen_env
 	# The checked-in generated files (see chromium_regenerated_outputs)
 	local ug="${WORKDIR}/upstream-generated"
+
+	# First, as other generators use Chromium's jinja2 (which imports it): Jinja's identifier
+	# pattern (third_party/jinja2/_identifier.py, the characters Python accepts in
+	# identifiers beyond \w) is written by its scripts/generate_identifier_pattern.py: regenerate
+	# it. It follows the Unicode version of the Python running it, so it is newer than the
+	# checked-in one (only non-ASCII template identifiers, which Chromium's templates don't use,
+	# are affected).
+	einfo "Regenerating Jinja's identifier pattern ..."
+	mkdir -p "${WORKDIR}/jinja/scripts" "${WORKDIR}/jinja/src/jinja2" || die
+	cp "${DISTDIR}/jinja-${JINJA_COMMIT:0:10}-generate_identifier_pattern.py" \
+		"${WORKDIR}/jinja/scripts/generate_identifier_pattern.py" || die
+	"${EPYTHON}" -B "${WORKDIR}/jinja/scripts/generate_identifier_pattern.py" &&
+		cp "${WORKDIR}/jinja/src/jinja2/_identifier.py" third_party/jinja2/_identifier.py ||
+		die "Failed to regenerate Jinja's _identifier.py"
 
 	# The BUILD.gn files of the vendored Rust crates (third_party/rust/<crate>/<epoch>/) are
 	# gnrt's output, from the crates' Cargo metadata and gnrt_config.toml: regenerate them with
@@ -2114,18 +2130,6 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 	rm third_party/node/node_modules/typescript || die
 	rm -f "${glic_cf}" || die
 	mv "${T}/clang_format.py" "${glic_cf}" || die
-	# Jinja's identifier pattern (third_party/jinja2/_identifier.py, the characters Python accepts in
-	# identifiers beyond \w) is written by its scripts/generate_identifier_pattern.py: regenerate
-	# it. It follows the Unicode version of the Python running it, so it is newer than the
-	# checked-in one (only non-ASCII template identifiers, which Chromium's templates don't use,
-	# are affected).
-	einfo "Regenerating Jinja's identifier pattern ..."
-	mkdir -p "${WORKDIR}/jinja/scripts" "${WORKDIR}/jinja/src/jinja2" || die
-	cp "${DISTDIR}/jinja-${JINJA_COMMIT:0:10}-generate_identifier_pattern.py" \
-		"${WORKDIR}/jinja/scripts/generate_identifier_pattern.py" || die
-	"${EPYTHON}" -B "${WORKDIR}/jinja/scripts/generate_identifier_pattern.py" &&
-		cp "${WORKDIR}/jinja/src/jinja2/_identifier.py" third_party/jinja2/_identifier.py ||
-		die "Failed to regenerate Jinja's _identifier.py"
 	if use !system-harfbuzz; then
 		# Bundled HarfBuzz's Unicode tables (shaper, UCD and emoji tables) are made from Unicode's
 		# data by its src/gen-*.py (with packTab), with the commands their headers name: regenerate
