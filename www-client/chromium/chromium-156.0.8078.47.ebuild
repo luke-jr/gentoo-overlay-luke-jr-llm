@@ -1493,6 +1493,21 @@ chromium_regenerated_outputs() {
 
 # Regeneration of the files GN reads (BUILD.gn and .gni files, and the generated sources they
 # list): run from chromium_configure before gn gen. See chromium_regenerate for the others.
+# Some generators write the copyright year of the file they replace, or else the current year:
+# give the regenerated files under the given directories the year of their checked-in copies
+# (in ${WORKDIR}/upstream-generated), so that the output doesn't depend on the build date.
+chromium_keep_copyright_years() {
+	local f old year
+	while IFS= read -r -d '' f; do
+		old="${WORKDIR}/upstream-generated/${f}"
+		[[ -f ${old} ]] || continue
+		year=$(sed -n -E '1,5{s/.*Copyright ([0-9]{4}).*/\1/p}' "${old}") || die
+		year=${year%%$'\n'*}
+		[[ -n ${year} ]] || continue
+		sed -i -E "1,5s/Copyright [0-9]{4}/Copyright ${year}/" "${f}" || die
+	done < <(find "$@" -name BUILD.gn -print0)
+}
+
 chromium_regenerate_gn() {
 	# The compilers and flags of the build tools and configure runs (see chromium_regen_env).
 	local -x CC=${CC} CXX=${CXX} CFLAGS=${CFLAGS} CXXFLAGS=${CXXFLAGS} CPPFLAGS=${CPPFLAGS} \
@@ -1539,6 +1554,7 @@ chromium_regenerate_gn() {
 		go run -modfile="${dawn_go}/go.mod" ./tools/src/cmd/gen build > "${T}/dawn-gen.log" 2>&1 ||
 		die "Dawn's gen failed (see ${T}/dawn-gen.log)"
 	popd >/dev/null || die
+	chromium_keep_copyright_years third_party/dawn
 	rm -r third_party/dawn/buildtools || die
 
 	# abseil's BUILD.gn files are generated from its BUILD.bazel files by Chromium's
@@ -1548,6 +1564,7 @@ chromium_regenerate_gn() {
 	"${EPYTHON}" -B -c 'import sys; sys.path.insert(0, sys.argv[1]); import convert_bazel_to_gn as c; c.convert_all(sys.argv[1])' \
 		"${S}/third_party/abseil-cpp" > "${T}/abseil-gn.log" 2>&1 ||
 		die "Failed to regenerate abseil's BUILD.gn files (see ${T}/abseil-gn.log)"
+	chromium_keep_copyright_years third_party/abseil-cpp
 
 	# BoringSSL checks in generated files: gen/ (the assembly from its perlasm scripts, the
 	# error-string table and the source lists GN reads), written by util/pregenerate, and the
