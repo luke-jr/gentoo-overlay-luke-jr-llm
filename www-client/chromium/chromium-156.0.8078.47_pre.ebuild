@@ -1052,7 +1052,7 @@ src_prepare() {
 	# third_party/.clang-format-ignore ("**") makes clang-format silently skip every file under
 	# third_party (no output, success), so the generators below that format their output with it
 	# would leave it unformatted. It's only for Chromium's own presubmit tooling, and the unbundling
-	# at the end of src_prepare deletes it anyway.
+	# (chromium_unbundle) deletes it anyway.
 	rm third_party/.clang-format-ignore || die
 
 	if use !bundled-toolchain; then
@@ -1086,14 +1086,6 @@ src_prepare() {
 		done < <(cd "${crates_vendor}/${crate_dir}" && find . -type f -name "${crate_pat:-*}" -printf '%P\n' || die)
 	done < "${crates_dir}/DIRS" || die
 	cp -r "${crates_dir}/vendor/." "${crates_vendor}/" || die "Failed to copy the regenerated crate files"
-
-	# The BUILD.gn files of the vendored Rust crates (third_party/rust/<crate>/<epoch>/) are
-	# gnrt's output, from the crates' Cargo metadata and gnrt_config.toml: regenerate them with
-	# dev-util/gnrt. It runs `cargo metadata` offline on the vendored crates, with a nightly
-	# flag (Chromium's cargo is a beta), and `gn format`.
-	einfo "Regenerating the vendored Rust crates' BUILD.gn files ..."
-	RUSTC_BOOTSTRAP=1 CARGO_HOME="${T}/gnrt-cargo-home" "${BROOT}/usr/lib/gnrt/${PV%%.*}/gnrt" gen \
-		> "${T}/gnrt.log" 2>&1 || die "gnrt gen failed (see ${T}/gnrt.log)"
 
 	# Sanity check esbuild version before we start removing files.
 	# We _could_ patch the version check out - in theory esbuild upstream are being super conservative after
@@ -1139,40 +1131,188 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 		fi
 	done
 
-	# Chromium's bundled ICU checks in generated files: its preprocessed Unicode data, the
-	# property, normalization and collation data built from it (C headers and binary inputs of
-	# its data package), rule parser tables, urename.h and the data package itself, icudtl.dat.
-	# Regenerate them (files/chromium-icu-regen.sh) from Unicode's release files and ICU's own
-	# sources and tools, with the generators ICU's release leaves out (SRC_URI). Kept as they
-	# are, as Unicode's published release data: the locale data ICU converts from CLDR with its
-	# Java tools (source/data/*/*.txt, FractionalUCA.txt, UCARules.txt, localefallback_data.h).
-	if use !system-icu; then
-		einfo "Regenerating ICU's generated files ..."
-		local icu_unicode="${WORKDIR}/icu-unicode" icu_tools="${WORKDIR}/icu-tools" icu_f
-		mkdir -p "${icu_unicode}"/{ucd,idna,security,emoji} "${icu_tools}"/{py,c/genprops,c/genuca} \
-			"${WORKDIR}/icu-work" || die
-		unzip -qo "${DISTDIR}/unicode-data-${ICU_UNICODE_VER}-UCD.zip" -d "${icu_unicode}/ucd" || die
-		unzip -qo "${DISTDIR}/uts39-data-${ICU_UNICODE_VER}.zip" -d "${icu_unicode}/security" || die
-		cp "${DISTDIR}/unicode-${ICU_UNICODE_VER}-IdnaMappingTable.txt" \
-			"${icu_unicode}/idna/IdnaMappingTable.txt" || die
-		for icu_f in sequences zwj-sequences; do
-			cp "${DISTDIR}/unicode-emoji-${icu_f}-${ICU_UNICODE_VER}.txt" \
-				"${icu_unicode}/emoji/emoji-${icu_f}.txt" || die
-		done
-		for icu_f in ${ICU_TOOLS_FILES}; do
-			cp "${DISTDIR}/icu-${ICU_TOOLS_COMMIT:0:10}-${icu_f//\//-}" "${icu_tools}/${icu_f}" || die
-		done
-		CC="$(tc-getBUILD_CC)" CXX="$(tc-getBUILD_CXX)" bash "${FILESDIR}/chromium-icu-regen.sh" \
-			third_party/icu "${WORKDIR}/icu-work" "${icu_unicode}" "${icu_tools}" "$(makeopts_jobs)" \
-			> "${T}/icu-regen.log" 2>&1 || die "Failed to regenerate ICU's generated files (see ${T}/icu-regen.log)"
-	fi
-
 	# The tarball's node_modules directories (WebUI, chromium-bidi, DevTools) hold 1329 npm
 	# packages, as npm publishes them: mostly generated JavaScript. Delete those the build
 	# doesn't use (most of the rest are the ESLint/Stylelint checks, disabled below).
 	einfo "Removing unused npm packages ..."
 	"${EPYTHON}" "${FILESDIR}/chromium-prune-node-modules.py" "${S}" \
 		"${FILESDIR}/chromium-${PV%%.*}-node-modules.txt" || die "Failed to remove unused npm packages"
+
+	# Nothing prebuilt may be used for the build: delete all compiled code (ELF, PE, Mach-O,
+	# WebAssembly, LLVM bitcode, SPIR-V, Java/Android bytecode, ...) and all archives, which could
+	# hide it (none are build inputs; see files/chromium-binary-audit.py), then provide the few
+	# tools the build needs from the system (below), and check the result.
+	local binary_allowlist=()
+	elog "Removing bundled binaries from source tree ..."
+	"${EPYTHON}" "${FILESDIR}/chromium-binary-audit.py" --delete "${binary_allowlist[@]/#/--allow=}" \
+		"${S}" > "${T}/binary-removal.log" || die "Failed to remove bundled binaries"
+
+	# And now we restore any that we actually need, from the host system
+	local esbuild_path="${S}/third_party/devtools-frontend/src/third_party/esbuild"
+	local -A restore_list=(
+		["/usr/bin/esbuild-${ESBUILD_VER}"]="${esbuild_path}/esbuild"
+		["/usr/bin/gperf"]="${S}/third_party/gperf/cipd/bin/gperf"
+		["/usr/bin/node"]="${S}/third_party/node/linux/node-linux-x64/bin/node"
+	)
+
+	for src in "${!restore_list[@]}"; do
+		dst="${restore_list[${src}]}"
+		if [[ -f "${src}" ]]; then
+			einfo "Symlinking ${src} ..."
+			# Make sure the parent dir exists; some tarballs don't include (e.g.) node's bindir
+			mkdir -p "$(dirname "${dst}")" || die "Failed to create directory for ${dst}"
+			# Replace whatever is left there (e.g. a stub or a symlink to /dev/null/INVALID put in
+			# place by a user patch or hook instead of the deleted prebuilt binary).
+			rm -f "${dst}" || die "Failed to remove ${dst}"
+			ln -s "${src}" "${dst}" || die "Failed to symlink ${dst} from ${src}"
+			if [[ ! -L "${dst}" || "$(readlink -f "${dst}")" != "${src}" ]]; then
+				die "Symlink verification failed for ${dst} -> ${src}"
+			fi
+		else
+			die "Expected to find ${src} to restore ${dst}, but it does not exist."
+		fi
+	done
+
+	# The native TypeScript compiler must be copied, not symlinked: tsc loads
+	# lib*.d.ts from the directory of its symlink-resolved executable, and has
+	# to use the in-tree ones next to it (Chromium patches lib.dom.d.ts, see
+	# third_party/typescript/README.chromium; and tools/typescript/ts_library.py
+	# rejects .d.ts files from outside the source tree).
+	local tsgo_src="${BROOT}/usr/lib/typescript/${TSGO_VER}/tsc"
+	[[ -f ${tsgo_src} ]] || die "Expected to find ${tsgo_src}, but it does not exist."
+	einfo "Copying ${tsgo_src} ..."
+	# Remove what is left first: cp would follow a symlink put there instead of the
+	# deleted prebuilt binary (e.g. one pointing at /dev/null/INVALID).
+	rm -f "${tsgo_dir}/tsc" || die "Failed to remove ${tsgo_dir}/tsc"
+	cp "${tsgo_src}" "${tsgo_dir}/tsc" || die "Failed to copy ${tsgo_src}"
+	found=$("${tsgo_dir}/tsc" --version) || die "Failed to run ${tsgo_dir}/tsc"
+	if [[ "${found}" != "Version ${TSGO_VER}" ]]; then
+		die "Unexpected ${tsgo_dir}/tsc --version: ${found}"
+	fi
+
+	# Rollup: everything in @rollup/wasm-node's dist/ is generated (the CLI and library
+	# bundles, and the WebAssembly parser deleted above). The build only runs dist/bin/rollup;
+	# use dev-util/rollup's, built from the same sources (TypeScript, the npm packages its
+	# build bundles in, and the parser's Rust). The WebUI bundles are byte-identical.
+	rollup_dir="${S}/third_party/node/node_modules/@rollup/wasm-node"
+	local rollup_cli="${BROOT}/usr/lib/rollup/${ROLLUP_VER}/rollup"
+	[[ -f ${rollup_cli} ]] || die "Expected to find ${rollup_cli}, but it does not exist."
+	einfo "Symlinking ${rollup_cli} ..."
+	rm -r "${rollup_dir}/dist" || die "Failed to remove ${rollup_dir}/dist"
+	mkdir -p "${rollup_dir}/dist/bin" || die
+	ln -s "${rollup_cli}" "${rollup_dir}/dist/bin/rollup" || die "Failed to symlink ${rollup_cli}"
+
+	# SwiftShader's copies of libxcb's headers (include/xcb: xcb.h, and xproto.h and shm.h, which
+	# libxcb's c_client.py generates from xcbproto) are only used by its X11 surface code (USE=X),
+	# which loads libxcb at run time: use the system's, which libxcb's build generates.
+	rm -r third_party/swiftshader/include/xcb || die
+
+	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
+	local devtools_ts="${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}/lib/typescript.js"
+	[[ -f ${devtools_ts} ]] || die "Expected to find ${devtools_ts}, but it does not exist."
+	einfo "Symlinking ${devtools_ts} ..."
+	rm -f "${S}/third_party/devtools-frontend/src/node_modules/typescript/lib/typescript.js" || die
+	ln -s "${devtools_ts}" "${S}/third_party/devtools-frontend/src/node_modules/typescript/lib/typescript.js" ||
+		die "Failed to symlink ${devtools_ts}"
+
+	# Other generated files of npm packages (terser's library bundle, chromium-bidi's rollup
+	# plugins, ...): dev-util/chromium-node-modules builds them from their sources, as
+	# self-contained bundles, at the paths of the files they replace. The packages they include
+	# are deleted above (files/chromium-${PV%%.*}-node-modules.txt).
+	local cnm_dir="${BROOT}/usr/lib/chromium-node-modules/${PV%%.*}" cnm_pkg cnm_ver cnm_file
+	[[ -f ${cnm_dir}/VERSIONS ]] || die "Expected to find ${cnm_dir}/VERSIONS, but it does not exist."
+	local cnm_tree="${cnm_dir}/tree"
+	while read -r cnm_pkg cnm_ver; do
+		# package.json's version, or for a vendored directory without one, README.chromium's
+		found=$("${EPYTHON}" -c '
+import json, os, re, sys
+d = sys.argv[1]
+version = None
+if os.path.exists(d + "/package.json"):
+    version = json.load(open(d + "/package.json")).get("version")
+if version is None:
+    version = re.search(r"^Version: (\S+)$", open(d + "/README.chromium").read(), re.M).group(1)
+print(version)
+' "${S}/${cnm_pkg}") || die "Failed to read the version of ${cnm_pkg}"
+		[[ ${found} == "${cnm_ver}" ]] ||
+			die "Version mismatch in ${cnm_pkg}: dev-util/chromium-node-modules has ${cnm_ver}, found ${found}"
+	done < "${cnm_dir}/VERSIONS" || die
+	einfo "Replacing generated npm package files with dev-util/chromium-node-modules' ..."
+	while IFS= read -r -d '' cnm_file; do
+		# Every file replaces one, except new chunks of code-split builds.
+		[[ -f ${S}/${cnm_file} || ${cnm_file##*/} == chunk-* ]] ||
+			die "${cnm_file} not found in the source tree"
+		# Remove first: cp would follow a symlink left in its place.
+		rm -f "${S}/${cnm_file}" || die
+		cp "${cnm_tree}/${cnm_file}" "${S}/${cnm_file}" || die "Failed to copy ${cnm_file}"
+	done < <(cd "${cnm_tree}" && find . -type f -printf '%P\0' || die)
+	# DevTools' puppeteer-core (package/lib: the modules DevTools uses, of puppeteer's lib/, and
+	# their type declarations). Not api-extractor's rollups of the declarations, which nothing
+	# imports (chromium-156-devtools-puppeteer-no-type-rollups.patch).
+	local devtools_puppeteer="${S}/third_party/devtools-frontend/src/front_end/third_party/puppeteer/package/lib"
+	rm "${devtools_puppeteer}"/{types.d.ts,es5-iife/puppeteer-core-browser.d.ts} || die
+	while IFS= read -r -d '' cnm_file; do
+		[[ -f ${cnm_dir}/build/devtools-puppeteer/lib/${cnm_file} ]] ||
+			die "puppeteer's ${cnm_file} not built by dev-util/chromium-node-modules"
+		cp "${cnm_dir}/build/devtools-puppeteer/lib/${cnm_file}" "${devtools_puppeteer}/${cnm_file}" || die
+	done < <(cd "${devtools_puppeteer}" && find . \( -name '*.js' -o -name '*.d.ts' \) -printf '%P\0' || die)
+	# Chromium patches some npm packages (third_party/node/patches; the tree has them applied).
+	# Of the files replaced above, that is only lit-html.js: apply its patch again.
+	pushd "${S}/third_party/node" >/dev/null || die
+	eapply "${S}/third_party/node/patches/lit_html.patch"
+	popd >/dev/null || die
+
+	# chromium-bidi bundles its BiDi mapper (used for browser automation, e.g. chromedriver)
+	# with its own copy of rollup ${ROLLUP_BIDI_VER}. Use the one above instead: the mapper
+	# then only differs by a little more retained dead code (unused enum entries, pure
+	# expressions) and number formatting (-32e3 vs -32000), so one dev-util/rollup suffices.
+	local bidi_rollup_dir="${S}/third_party/chromium-bidi/node_modules/@rollup/wasm-node"
+	rm -r "${bidi_rollup_dir}" || die "Failed to remove ${bidi_rollup_dir}"
+	ln -s ../../../node/node_modules/@rollup/wasm-node "${bidi_rollup_dir}" ||
+		die "Failed to symlink ${bidi_rollup_dir}"
+
+	einfo "Checking that no prebuilt binaries are left in the source tree ..."
+	binary_allowlist+=(
+		# Copied from dev-lang/typescript above
+		third_party/typescript/linux-amd64/src/lib/tsc
+	)
+	"${EPYTHON}" "${FILESDIR}/chromium-binary-audit.py" "${binary_allowlist[@]/#/--allow=}" "${S}" ||
+		die "Prebuilt binaries found in the source tree, see above"
+
+	# adjust python interpreter version
+	sed -i -e "s|\(^script_executable = \).*|\1\"${EPYTHON}\"|g" .gn || die
+
+	# Use the system copy of hwdata's usb.ids
+	sed 's|//third_party/usb_ids/src/usb.ids|/usr/share/hwdata/usb.ids|g' \
+		-i services/device/public/cpp/usb/BUILD.gn || die "Failed to set system usb.ids path"
+
+	if use ppc64; then
+		pushd third_party/ffmpeg >/dev/null || die
+		cp libavcodec/ppc/h264dsp.c libavcodec/ppc/h264dsp_ppc.c || die
+		cp libavcodec/ppc/h264qpel.c libavcodec/ppc/h264qpel_ppc.c || die
+		popd >/dev/null || die
+	fi
+
+	# Interferes with our bundled clang path; we don't want stripped binaries anyway.
+	sed -i -e 's|${clang_base_path}/bin/llvm-strip|/bin/true|g' \
+		-e 's|${clang_base_path}/bin/llvm-objcopy|/bin/true|g' \
+		build/linux/strip_binary.gni || die
+}
+
+# Regeneration of the files GN reads (BUILD.gn and .gni files, and the generated sources they
+# list): run from chromium_configure before gn gen. See chromium_regenerate for the others.
+chromium_regenerate_gn() {
+	# The generators run with fixed flags, not the user's: what they write must not depend on
+	# them (configure scripts record what the compiler targets), and they only run here.
+	local -x CFLAGS="-O2 -pipe" CXXFLAGS="-O2 -pipe" CPPFLAGS= LDFLAGS= FFLAGS= FCFLAGS=
+
+	# The BUILD.gn files of the vendored Rust crates (third_party/rust/<crate>/<epoch>/) are
+	# gnrt's output, from the crates' Cargo metadata and gnrt_config.toml: regenerate them with
+	# dev-util/gnrt. It runs `cargo metadata` offline on the vendored crates, with a nightly
+	# flag (Chromium's cargo is a beta), and `gn format`.
+	einfo "Regenerating the vendored Rust crates' BUILD.gn files ..."
+	RUSTC_BOOTSTRAP=1 CARGO_HOME="${T}/gnrt-cargo-home" "${BROOT}/usr/lib/gnrt/${PV%%.*}/gnrt" gen \
+		> "${T}/gnrt.log" 2>&1 || die "gnrt gen failed (see ${T}/gnrt.log)"
 
 	# Dawn's and Tint's BUILD.gn files are generated by its tools/src/cmd/gen, from templates and
 	# Tint's sources: regenerate them (Go, offline: a go.mod with just the modules the tool
@@ -1205,14 +1345,150 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	popd >/dev/null || die
 	rm -r third_party/dawn/buildtools || die
 
-	# Nothing prebuilt may be used for the build: delete all compiled code (ELF, PE, Mach-O,
-	# WebAssembly, LLVM bitcode, SPIR-V, Java/Android bytecode, ...) and all archives, which could
-	# hide it (none are build inputs; see files/chromium-binary-audit.py), then provide the few
-	# tools the build needs from the system (below), and check the result.
-	local binary_allowlist=()
-	elog "Removing bundled binaries from source tree ..."
-	"${EPYTHON}" "${FILESDIR}/chromium-binary-audit.py" --delete "${binary_allowlist[@]/#/--allow=}" \
-		"${S}" > "${T}/binary-removal.log" || die "Failed to remove bundled binaries"
+	# abseil's BUILD.gn files are generated from its BUILD.bazel files by Chromium's
+	# convert_bazel_to_gn.py (no Bazel needed: it parses them as Python). Its main() insists on a
+	# checkout named src/, so call convert_all() itself. Existing files keep their copyright year.
+	einfo "Regenerating abseil's generated BUILD.gn files ..."
+	"${EPYTHON}" -B -c 'import sys; sys.path.insert(0, sys.argv[1]); import convert_bazel_to_gn as c; c.convert_all(sys.argv[1])' \
+		"${S}/third_party/abseil-cpp" > "${T}/abseil-gn.log" 2>&1 ||
+		die "Failed to regenerate abseil's BUILD.gn files (see ${T}/abseil-gn.log)"
+
+	# BoringSSL checks in generated files: gen/ (the assembly from its perlasm scripts, the
+	# error-string table and the source lists GN reads), written by util/pregenerate, and the
+	# tables written by crypto/fipsmodule/ec/make_tables.go (P-256, built-in curves),
+	# crypto/obj/objects.go (OIDs, nid.h) and crypto/curve25519/make_curve25519_tables.py.
+	# Regenerate them with those generators (Go, offline: a go.mod without the dependencies of
+	# BoringSSL's other tools). Not regenerated, treated as source: third_party/fiat/ (Fiat
+	# Cryptography's output, see README.md), and crypto/hrss/asm/poly_rq_mul.S, output of the
+	# HRSS authors' poly_rq_mul.py but edited by hand in BoringSSL since (2018-2025).
+	einfo "Regenerating BoringSSL's generated files ..."
+	local bssl="${S}/third_party/boringssl/src" bssl_bin="${T}/boringssl-bin"
+	mkdir -p "${bssl_bin}" || die
+	if use bundled-toolchain; then
+		# No system clang-format: the generators pipe their output through it, so pass it on
+		# unformatted (only the layout differs).
+		printf '#!/bin/sh\nexec cat\n' > "${bssl_bin}/clang-format" || die
+		chmod +x "${bssl_bin}/clang-format" || die
+	else
+		ln -s "$(get_llvm_prefix -b)/bin/clang-format" "${bssl_bin}/clang-format" || die
+	fi
+	printf 'module boringssl.googlesource.com/boringssl.git\n\ngo 1.24\n' > "${T}/boringssl-go.mod" || die
+	local bssl_env=( PATH="${bssl_bin}:${PATH}" GOFLAGS=-mod=mod GOPROXY=off GOTOOLCHAIN=local
+		GOCACHE="${T}/go-cache" GOPATH="${T}/go" CGO_ENABLED=0 PYTHONDONTWRITEBYTECODE=1 )
+	rm -r "${bssl}"/gen/{bcm,crypto,test_support} "${bssl}"/gen/sources.* || die
+	pushd "${bssl}" >/dev/null || die
+	env "${bssl_env[@]}" go build -modfile="${T}/boringssl-go.mod" -o "${T}/boringssl-pregenerate" \
+		./util/pregenerate || die "Failed to build BoringSSL's pregenerate"
+	# -clang= skips the symbol lists for Windows (gen/boringssl_prefix_symbols_*), unused here.
+	env "${bssl_env[@]}" "${T}/boringssl-pregenerate" -perl "$(type -P perl)" -clang= ||
+		die "Failed to regenerate BoringSSL's gen/"
+	cd crypto/fipsmodule/ec || die
+	env "${bssl_env[@]}" go run -modfile="${T}/boringssl-go.mod" make_tables.go ||
+		die "Failed to regenerate BoringSSL's EC tables"
+	cd ../../obj || die
+	env "${bssl_env[@]}" go run -modfile="${T}/boringssl-go.mod" objects.go ||
+		die "Failed to regenerate BoringSSL's OID tables"
+	cd ../curve25519 || die
+	env "${bssl_env[@]}" "${EPYTHON}" make_curve25519_tables.py > curve25519_tables.h.new ||
+		die "Failed to regenerate BoringSSL's curve25519 tables"
+	mv curve25519_tables.h{.new,} || die
+	popd >/dev/null || die
+
+	# ANGLE checks in the output of its ~30 code generators (entry points, format tables,
+	# shader lexers/parsers and symbol tables, its Vulkan back-end's compiled shaders); run
+	# them instead (see the script), with the inputs from SRC_URI and glslang's validator at
+	# the revision upstream compiles the shaders with.
+	einfo "Building glslang ${ANGLE_GLSLANG_COMMIT:0:8} for ANGLE's shaders ..."
+	local glslang_src="${WORKDIR}/glslang-${ANGLE_GLSLANG_COMMIT}" glslang_build="${WORKDIR}/angle-glslang-build"
+	ln -s "${WORKDIR}/SPIRV-Tools-${ANGLE_SPIRV_TOOLS_COMMIT}" "${glslang_src}/External/spirv-tools" || die
+	ln -s "${WORKDIR}/SPIRV-Headers-${ANGLE_SPIRV_HEADERS_COMMIT}" \
+		"${WORKDIR}/SPIRV-Tools-${ANGLE_SPIRV_TOOLS_COMMIT}/external/spirv-headers" || die
+	cmake -S "${glslang_src}" -B "${glslang_build}" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_OPT=ON -DENABLE_HLSL=ON -DENABLE_CTEST=OFF \
+		-DBUILD_TESTING=OFF -DENABLE_GLSLANG_JS=OFF -DSPIRV_SKIP_TESTS=ON -DSPIRV_WERROR=OFF \
+		-DCMAKE_CXX_FLAGS="-Wno-error -include cstdint" > "${T}/angle-glslang-cmake.log" ||
+		die "Failed to configure glslang (see ${T}/angle-glslang-cmake.log)"
+	eninja -C "${glslang_build}" glslangValidator
+	local angle_xml="${WORKDIR}/angle-xml" f
+	mkdir -p "${angle_xml}" || die
+	for f in OpenGL-Registry-${ANGLE_GL_REGISTRY_COMMIT:0:8}-{gl,glx,wgl}.xml \
+		EGL-Registry-${ANGLE_EGL_REGISTRY_COMMIT:0:8}-egl.xml OpenCL-Docs-${ANGLE_CL_DOCS_COMMIT:0:8}-cl.xml \
+		Vulkan-Headers-${VULKAN_HEADERS_COMMIT:0:8}-vk.xml; do
+		cp "${DISTDIR}/${f}" "${angle_xml}/${f##*-}" || die
+	done
+	einfo "Regenerating ANGLE's generated code ..."
+	"${EPYTHON}" -B "${FILESDIR}/chromium-angle-regen.py" "${S}" "${angle_xml}" \
+		"${WORKDIR}/perfect-hash-${ANGLE_PERFECT_HASH_VER}" "${glslang_build}/StandAlone/glslangValidator" \
+		"$(type -P flex)" "$(type -P bison)" \
+		"$(usex bundled-toolchain '' "$(get_llvm_prefix -b)/bin/clang-format")" "$(type -P gn)" ||
+		die "Failed to regenerate ANGLE's generated code"
+
+	# src/common/Float16ToFloat32.cpp is the output of the Float16ToFloat32.py next to it (not one
+	# of run_code_generation.py's generators), formatted with ANGLE's clang-format style.
+	( cd third_party/angle/src/common && "${EPYTHON}" -B Float16ToFloat32.py ) > "${T}/Float16ToFloat32.cpp" ||
+		die "Failed to regenerate ANGLE's Float16ToFloat32.cpp"
+	if use !bundled-toolchain; then
+		"$(get_llvm_prefix -b)/bin/clang-format" -i --style=file:third_party/angle/.clang-format \
+			"${T}/Float16ToFloat32.cpp" || die
+	fi
+	mv "${T}/Float16ToFloat32.cpp" third_party/angle/src/common/Float16ToFloat32.cpp || die
+
+	# libvpx's configuration (source/config/: vpx_config.*, the *_rtcd.h headers) is the output of
+	# its configure and rtcd.pl, as Chromium's generate_gni.sh runs them (for all platforms):
+	# regenerate it. ppc64 needs it anyway, upstream doesn't ship one. It has to be done before
+	# unbundling. vpx_version.h is a version stamp (git describe), kept.
+	pushd third_party/libvpx >/dev/null || die
+	use ppc64 && { mkdir -p source/config/linux/ppc64 || die ; }
+	cp source/config/vpx_version.h "${T}/vpx_version.h" || die
+	# requires git and clang, bug #832803
+	# Revert https://chromium.googlesource.com/chromium/src/+/b463d0f40b08b4e896e7f458d89ae58ce2a27165%5E%21/third_party/libvpx/generate_gni.sh
+	# and https://chromium.googlesource.com/chromium/src/+/71ebcbce867dd31da5f8b405a28fcb0de0657d91%5E%21/third_party/libvpx/generate_gni.sh
+	# since we're not in a git repo
+	sed -i -e "s|^update_readme||g; s|clang-format|${EPREFIX}/bin/true|g; /^git -C/d; /git cl/d; /cd \$BASE_DIR\/\$LIBVPX_SRC_DIR/ign format --in-place \$BASE_DIR\/BUILD.gn\ngn format --in-place \$BASE_DIR\/libvpx_srcs.gni" \
+		generate_gni.sh || die
+	einfo "Regenerating libvpx's configuration ..."
+	./generate_gni.sh > "${T}/libvpx-generate_gni.log" 2>&1 || die "generate_gni.sh failed (see ${T}/libvpx-generate_gni.log)"
+	cp "${T}/vpx_version.h" source/config/vpx_version.h || die
+	popd >/dev/null || die
+}
+
+# Regeneration of the other generated files, with their generators: run from chromium_compile
+# before anything is built with ninja, then the unbundling (which deletes some of their inputs).
+chromium_regenerate() {
+	# The generators run with fixed flags, not the user's: what they write must not depend on
+	# them (configure scripts record what the compiler targets), and they only run here.
+	local -x CFLAGS="-O2 -pipe" CXXFLAGS="-O2 -pipe" CPPFLAGS= LDFLAGS= FFLAGS= FCFLAGS=
+
+	local tsgo_dir="${S}/third_party/typescript/linux-amd64/src/lib" found
+	local cnm_dir="${BROOT}/usr/lib/chromium-node-modules/${PV%%.*}"
+
+	# Chromium's bundled ICU checks in generated files: its preprocessed Unicode data, the
+	# property, normalization and collation data built from it (C headers and binary inputs of
+	# its data package), rule parser tables, urename.h and the data package itself, icudtl.dat.
+	# Regenerate them (files/chromium-icu-regen.sh) from Unicode's release files and ICU's own
+	# sources and tools, with the generators ICU's release leaves out (SRC_URI). Kept as they
+	# are, as Unicode's published release data: the locale data ICU converts from CLDR with its
+	# Java tools (source/data/*/*.txt, FractionalUCA.txt, UCARules.txt, localefallback_data.h).
+	if use !system-icu; then
+		einfo "Regenerating ICU's generated files ..."
+		local icu_unicode="${WORKDIR}/icu-unicode" icu_tools="${WORKDIR}/icu-tools" icu_f
+		mkdir -p "${icu_unicode}"/{ucd,idna,security,emoji} "${icu_tools}"/{py,c/genprops,c/genuca} \
+			"${WORKDIR}/icu-work" || die
+		unzip -qo "${DISTDIR}/unicode-data-${ICU_UNICODE_VER}-UCD.zip" -d "${icu_unicode}/ucd" || die
+		unzip -qo "${DISTDIR}/uts39-data-${ICU_UNICODE_VER}.zip" -d "${icu_unicode}/security" || die
+		cp "${DISTDIR}/unicode-${ICU_UNICODE_VER}-IdnaMappingTable.txt" \
+			"${icu_unicode}/idna/IdnaMappingTable.txt" || die
+		for icu_f in sequences zwj-sequences; do
+			cp "${DISTDIR}/unicode-emoji-${icu_f}-${ICU_UNICODE_VER}.txt" \
+				"${icu_unicode}/emoji/emoji-${icu_f}.txt" || die
+		done
+		for icu_f in ${ICU_TOOLS_FILES}; do
+			cp "${DISTDIR}/icu-${ICU_TOOLS_COMMIT:0:10}-${icu_f//\//-}" "${icu_tools}/${icu_f}" || die
+		done
+		CC="$(tc-getBUILD_CC)" CXX="$(tc-getBUILD_CXX)" bash "${FILESDIR}/chromium-icu-regen.sh" \
+			third_party/icu "${WORKDIR}/icu-work" "${icu_unicode}" "${icu_tools}" "$(makeopts_jobs)" \
+			> "${T}/icu-regen.log" 2>&1 || die "Failed to regenerate ICU's generated files (see ${T}/icu-regen.log)"
+	fi
 
 	# libc++'s generated headers: the Unicode tables of <format> (from the UCD files libc++ keeps
 	# in utils/data/unicode) and <version> (from its feature-test macro list). Regenerate them with
@@ -1240,32 +1516,6 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 		die "Failed to regenerate libc++'s <version>"
 	for libcxx_p in "${libcxx_made[@]}"; do
 		if [[ -d ${libcxx_p} ]]; then rmdir "${libcxx_p}" || die; else rm "${libcxx_p}" || die; fi
-	done
-
-	# And now we restore any that we actually need, from the host system
-	local esbuild_path="${S}/third_party/devtools-frontend/src/third_party/esbuild"
-	local -A restore_list=(
-		["/usr/bin/esbuild-${ESBUILD_VER}"]="${esbuild_path}/esbuild"
-		["/usr/bin/gperf"]="${S}/third_party/gperf/cipd/bin/gperf"
-		["/usr/bin/node"]="${S}/third_party/node/linux/node-linux-x64/bin/node"
-	)
-
-	for src in "${!restore_list[@]}"; do
-		dst="${restore_list[${src}]}"
-		if [[ -f "${src}" ]]; then
-			einfo "Symlinking ${src} ..."
-			# Make sure the parent dir exists; some tarballs don't include (e.g.) node's bindir
-			mkdir -p "$(dirname "${dst}")" || die "Failed to create directory for ${dst}"
-			# Replace whatever is left there (e.g. a stub or a symlink to /dev/null/INVALID put in
-			# place by a user patch or hook instead of the deleted prebuilt binary).
-			rm -f "${dst}" || die "Failed to remove ${dst}"
-			ln -s "${src}" "${dst}" || die "Failed to symlink ${dst} from ${src}"
-			if [[ ! -L "${dst}" || "$(readlink -f "${dst}")" != "${src}" ]]; then
-				die "Symlink verification failed for ${dst} -> ${src}"
-			fi
-		else
-			die "Expected to find ${src} to restore ${dst}, but it does not exist."
-		fi
 	done
 
 	# The Vulkan headers (third_party/vulkan-headers/src/include: vulkan/vulkan_*.h, vk_video/)
@@ -1667,43 +1917,6 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 			die "Failed to build chromedriver's Selenium atoms"
 	fi
 
-	# The native TypeScript compiler must be copied, not symlinked: tsc loads
-	# lib*.d.ts from the directory of its symlink-resolved executable, and has
-	# to use the in-tree ones next to it (Chromium patches lib.dom.d.ts, see
-	# third_party/typescript/README.chromium; and tools/typescript/ts_library.py
-	# rejects .d.ts files from outside the source tree).
-	local tsgo_src="${BROOT}/usr/lib/typescript/${TSGO_VER}/tsc"
-	[[ -f ${tsgo_src} ]] || die "Expected to find ${tsgo_src}, but it does not exist."
-	einfo "Copying ${tsgo_src} ..."
-	# Remove what is left first: cp would follow a symlink put there instead of the
-	# deleted prebuilt binary (e.g. one pointing at /dev/null/INVALID).
-	rm -f "${tsgo_dir}/tsc" || die "Failed to remove ${tsgo_dir}/tsc"
-	cp "${tsgo_src}" "${tsgo_dir}/tsc" || die "Failed to copy ${tsgo_src}"
-	found=$("${tsgo_dir}/tsc" --version) || die "Failed to run ${tsgo_dir}/tsc"
-	if [[ "${found}" != "Version ${TSGO_VER}" ]]; then
-		die "Unexpected ${tsgo_dir}/tsc --version: ${found}"
-	fi
-
-	# abseil's BUILD.gn files are generated from its BUILD.bazel files by Chromium's
-	# convert_bazel_to_gn.py (no Bazel needed: it parses them as Python). Its main() insists on a
-	# checkout named src/, so call convert_all() itself. Existing files keep their copyright year.
-	einfo "Regenerating abseil's generated BUILD.gn files ..."
-	"${EPYTHON}" -B -c 'import sys; sys.path.insert(0, sys.argv[1]); import convert_bazel_to_gn as c; c.convert_all(sys.argv[1])' \
-		"${S}/third_party/abseil-cpp" > "${T}/abseil-gn.log" 2>&1 ||
-		die "Failed to regenerate abseil's BUILD.gn files (see ${T}/abseil-gn.log)"
-
-	# Rollup: everything in @rollup/wasm-node's dist/ is generated (the CLI and library
-	# bundles, and the WebAssembly parser deleted above). The build only runs dist/bin/rollup;
-	# use dev-util/rollup's, built from the same sources (TypeScript, the npm packages its
-	# build bundles in, and the parser's Rust). The WebUI bundles are byte-identical.
-	rollup_dir="${S}/third_party/node/node_modules/@rollup/wasm-node"
-	local rollup_cli="${BROOT}/usr/lib/rollup/${ROLLUP_VER}/rollup"
-	[[ -f ${rollup_cli} ]] || die "Expected to find ${rollup_cli}, but it does not exist."
-	einfo "Symlinking ${rollup_cli} ..."
-	rm -r "${rollup_dir}/dist" || die "Failed to remove ${rollup_dir}/dist"
-	mkdir -p "${rollup_dir}/dist/bin" || die
-	ln -s "${rollup_cli}" "${rollup_dir}/dist/bin/rollup" || die "Failed to symlink ${rollup_cli}"
-
 	# nasm (built from third_party/nasm, as the build's assembler) checks in what its configure
 	# and its Perl scripts generate: config/config-linux.h (configure, then Chromium's
 	# generate_nasm_configs.py; the checked-in one is from an older configure.ac) and the
@@ -1760,11 +1973,6 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 			"${spv_bin}/dos2unix" spirv.* spv.* ) >> "${T}/spirv-headers.log" 2>&1 ||
 			die "buildHeaders failed for ${spv}"
 	done
-	# SwiftShader's copies of libxcb's headers (include/xcb: xcb.h, and xproto.h and shm.h, which
-	# libxcb's c_client.py generates from xcbproto) are only used by its X11 surface code (USE=X),
-	# which loads libxcb at run time: use the system's, which libxcb's build generates.
-	rm -r third_party/swiftshader/include/xcb || die
-
 	# SwiftShader's Vulkan headers (third_party/swiftshader/include). The C headers (vulkan_*.h,
 	# vk_video/) are made from the registry of their Vulkan-Headers release by Vulkan-Docs'
 	# genvk.py; the checked-in core headers were partly reformatted by hand since, which only
@@ -1938,55 +2146,6 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 			>> "${T}/openxr.log" 2>&1 || die "src_genxr.py ${oxr_f##*/} failed"
 	done
 
-	# DevTools' TypeScript 6 (only its JavaScript API, lib/typescript.js, is used).
-	local devtools_ts="${BROOT}/usr/lib/typescript/${DEVTOOLS_TS_VER}/lib/typescript.js"
-	[[ -f ${devtools_ts} ]] || die "Expected to find ${devtools_ts}, but it does not exist."
-	einfo "Symlinking ${devtools_ts} ..."
-	rm -f "${S}/third_party/devtools-frontend/src/node_modules/typescript/lib/typescript.js" || die
-	ln -s "${devtools_ts}" "${S}/third_party/devtools-frontend/src/node_modules/typescript/lib/typescript.js" ||
-		die "Failed to symlink ${devtools_ts}"
-
-	# BoringSSL checks in generated files: gen/ (the assembly from its perlasm scripts, the
-	# error-string table and the source lists GN reads), written by util/pregenerate, and the
-	# tables written by crypto/fipsmodule/ec/make_tables.go (P-256, built-in curves),
-	# crypto/obj/objects.go (OIDs, nid.h) and crypto/curve25519/make_curve25519_tables.py.
-	# Regenerate them with those generators (Go, offline: a go.mod without the dependencies of
-	# BoringSSL's other tools). Not regenerated, treated as source: third_party/fiat/ (Fiat
-	# Cryptography's output, see README.md), and crypto/hrss/asm/poly_rq_mul.S, output of the
-	# HRSS authors' poly_rq_mul.py but edited by hand in BoringSSL since (2018-2025).
-	einfo "Regenerating BoringSSL's generated files ..."
-	local bssl="${S}/third_party/boringssl/src" bssl_bin="${T}/boringssl-bin"
-	mkdir -p "${bssl_bin}" || die
-	if use bundled-toolchain; then
-		# No system clang-format: the generators pipe their output through it, so pass it on
-		# unformatted (only the layout differs).
-		printf '#!/bin/sh\nexec cat\n' > "${bssl_bin}/clang-format" || die
-		chmod +x "${bssl_bin}/clang-format" || die
-	else
-		ln -s "$(get_llvm_prefix -b)/bin/clang-format" "${bssl_bin}/clang-format" || die
-	fi
-	printf 'module boringssl.googlesource.com/boringssl.git\n\ngo 1.24\n' > "${T}/boringssl-go.mod" || die
-	local bssl_env=( PATH="${bssl_bin}:${PATH}" GOFLAGS=-mod=mod GOPROXY=off GOTOOLCHAIN=local
-		GOCACHE="${T}/go-cache" GOPATH="${T}/go" CGO_ENABLED=0 PYTHONDONTWRITEBYTECODE=1 )
-	rm -r "${bssl}"/gen/{bcm,crypto,test_support} "${bssl}"/gen/sources.* || die
-	pushd "${bssl}" >/dev/null || die
-	env "${bssl_env[@]}" go build -modfile="${T}/boringssl-go.mod" -o "${T}/boringssl-pregenerate" \
-		./util/pregenerate || die "Failed to build BoringSSL's pregenerate"
-	# -clang= skips the symbol lists for Windows (gen/boringssl_prefix_symbols_*), unused here.
-	env "${bssl_env[@]}" "${T}/boringssl-pregenerate" -perl "$(type -P perl)" -clang= ||
-		die "Failed to regenerate BoringSSL's gen/"
-	cd crypto/fipsmodule/ec || die
-	env "${bssl_env[@]}" go run -modfile="${T}/boringssl-go.mod" make_tables.go ||
-		die "Failed to regenerate BoringSSL's EC tables"
-	cd ../../obj || die
-	env "${bssl_env[@]}" go run -modfile="${T}/boringssl-go.mod" objects.go ||
-		die "Failed to regenerate BoringSSL's OID tables"
-	cd ../curve25519 || die
-	env "${bssl_env[@]}" "${EPYTHON}" make_curve25519_tables.py > curve25519_tables.h.new ||
-		die "Failed to regenerate BoringSSL's curve25519 tables"
-	mv curve25519_tables.h{.new,} || die
-	popd >/dev/null || die
-
 	# DevTools checks in files generated from Blink's and V8's definitions: front_end/generated/
 	# (the protocol, ARIA, CSS and deprecation data) and models/javascript_metadata/
 	# NativeFunctions.ts (from Blink's Web IDL). Regenerate them with DevTools' own scripts (the
@@ -2014,45 +2173,6 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 	einfo "Regenerating XNNPACK's micro-kernels ..."
 	"${EPYTHON}" -B "${FILESDIR}/chromium-xnnpack-regen.py" third_party/xnnpack "$(makeopts_jobs)" ||
 		die "Failed to regenerate XNNPACK's micro-kernels"
-	# ANGLE checks in the output of its ~30 code generators (entry points, format tables,
-	# shader lexers/parsers and symbol tables, its Vulkan back-end's compiled shaders); run
-	# them instead (see the script), with the inputs from SRC_URI and glslang's validator at
-	# the revision upstream compiles the shaders with.
-	einfo "Building glslang ${ANGLE_GLSLANG_COMMIT:0:8} for ANGLE's shaders ..."
-	local glslang_src="${WORKDIR}/glslang-${ANGLE_GLSLANG_COMMIT}" glslang_build="${WORKDIR}/angle-glslang-build"
-	ln -s "${WORKDIR}/SPIRV-Tools-${ANGLE_SPIRV_TOOLS_COMMIT}" "${glslang_src}/External/spirv-tools" || die
-	ln -s "${WORKDIR}/SPIRV-Headers-${ANGLE_SPIRV_HEADERS_COMMIT}" \
-		"${WORKDIR}/SPIRV-Tools-${ANGLE_SPIRV_TOOLS_COMMIT}/external/spirv-headers" || die
-	cmake -S "${glslang_src}" -B "${glslang_build}" -G Ninja -DCMAKE_BUILD_TYPE=Release \
-		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_OPT=ON -DENABLE_HLSL=ON -DENABLE_CTEST=OFF \
-		-DBUILD_TESTING=OFF -DENABLE_GLSLANG_JS=OFF -DSPIRV_SKIP_TESTS=ON -DSPIRV_WERROR=OFF \
-		-DCMAKE_CXX_FLAGS="-Wno-error -include cstdint" > "${T}/angle-glslang-cmake.log" ||
-		die "Failed to configure glslang (see ${T}/angle-glslang-cmake.log)"
-	eninja -C "${glslang_build}" glslangValidator
-	local angle_xml="${WORKDIR}/angle-xml" f
-	mkdir -p "${angle_xml}" || die
-	for f in OpenGL-Registry-${ANGLE_GL_REGISTRY_COMMIT:0:8}-{gl,glx,wgl}.xml \
-		EGL-Registry-${ANGLE_EGL_REGISTRY_COMMIT:0:8}-egl.xml OpenCL-Docs-${ANGLE_CL_DOCS_COMMIT:0:8}-cl.xml \
-		Vulkan-Headers-${VULKAN_HEADERS_COMMIT:0:8}-vk.xml; do
-		cp "${DISTDIR}/${f}" "${angle_xml}/${f##*-}" || die
-	done
-	einfo "Regenerating ANGLE's generated code ..."
-	"${EPYTHON}" -B "${FILESDIR}/chromium-angle-regen.py" "${S}" "${angle_xml}" \
-		"${WORKDIR}/perfect-hash-${ANGLE_PERFECT_HASH_VER}" "${glslang_build}/StandAlone/glslangValidator" \
-		"$(type -P flex)" "$(type -P bison)" \
-		"$(usex bundled-toolchain '' "$(get_llvm_prefix -b)/bin/clang-format")" "$(type -P gn)" ||
-		die "Failed to regenerate ANGLE's generated code"
-
-	# src/common/Float16ToFloat32.cpp is the output of the Float16ToFloat32.py next to it (not one
-	# of run_code_generation.py's generators), formatted with ANGLE's clang-format style.
-	( cd third_party/angle/src/common && "${EPYTHON}" -B Float16ToFloat32.py ) > "${T}/Float16ToFloat32.cpp" ||
-		die "Failed to regenerate ANGLE's Float16ToFloat32.cpp"
-	if use !bundled-toolchain; then
-		"$(get_llvm_prefix -b)/bin/clang-format" -i --style=file:third_party/angle/.clang-format \
-			"${T}/Float16ToFloat32.cpp" || die
-	fi
-	mv "${T}/Float16ToFloat32.cpp" third_party/angle/src/common/Float16ToFloat32.cpp || die
-
 	# Chromium's own checked-in generated GPU code: the command buffer's GLES2/raster/WebGPU
 	# client and service code, the GL and Vulkan function bindings (Vulkan's from vk.xml, put
 	# in place above) and Vulkan's mojo types. The generators insist on a checkout named src/
@@ -2077,53 +2197,6 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 	done
 	rm "${WORKDIR}/src" third_party/depot_tools/clang-format || die
 	mv third_party/depot_tools/clang-format{.orig,} || die
-
-	# Other generated files of npm packages (terser's library bundle, chromium-bidi's rollup
-	# plugins, ...): dev-util/chromium-node-modules builds them from their sources, as
-	# self-contained bundles, at the paths of the files they replace. The packages they include
-	# are deleted above (files/chromium-${PV%%.*}-node-modules.txt).
-	local cnm_dir="${BROOT}/usr/lib/chromium-node-modules/${PV%%.*}" cnm_pkg cnm_ver cnm_file
-	[[ -f ${cnm_dir}/VERSIONS ]] || die "Expected to find ${cnm_dir}/VERSIONS, but it does not exist."
-	local cnm_tree="${cnm_dir}/tree"
-	while read -r cnm_pkg cnm_ver; do
-		# package.json's version, or for a vendored directory without one, README.chromium's
-		found=$("${EPYTHON}" -c '
-import json, os, re, sys
-d = sys.argv[1]
-version = None
-if os.path.exists(d + "/package.json"):
-    version = json.load(open(d + "/package.json")).get("version")
-if version is None:
-    version = re.search(r"^Version: (\S+)$", open(d + "/README.chromium").read(), re.M).group(1)
-print(version)
-' "${S}/${cnm_pkg}") || die "Failed to read the version of ${cnm_pkg}"
-		[[ ${found} == "${cnm_ver}" ]] ||
-			die "Version mismatch in ${cnm_pkg}: dev-util/chromium-node-modules has ${cnm_ver}, found ${found}"
-	done < "${cnm_dir}/VERSIONS" || die
-	einfo "Replacing generated npm package files with dev-util/chromium-node-modules' ..."
-	while IFS= read -r -d '' cnm_file; do
-		# Every file replaces one, except new chunks of code-split builds.
-		[[ -f ${S}/${cnm_file} || ${cnm_file##*/} == chunk-* ]] ||
-			die "${cnm_file} not found in the source tree"
-		# Remove first: cp would follow a symlink left in its place.
-		rm -f "${S}/${cnm_file}" || die
-		cp "${cnm_tree}/${cnm_file}" "${S}/${cnm_file}" || die "Failed to copy ${cnm_file}"
-	done < <(cd "${cnm_tree}" && find . -type f -printf '%P\0' || die)
-	# DevTools' puppeteer-core (package/lib: the modules DevTools uses, of puppeteer's lib/, and
-	# their type declarations). Not api-extractor's rollups of the declarations, which nothing
-	# imports (chromium-156-devtools-puppeteer-no-type-rollups.patch).
-	local devtools_puppeteer="${S}/third_party/devtools-frontend/src/front_end/third_party/puppeteer/package/lib"
-	rm "${devtools_puppeteer}"/{types.d.ts,es5-iife/puppeteer-core-browser.d.ts} || die
-	while IFS= read -r -d '' cnm_file; do
-		[[ -f ${cnm_dir}/build/devtools-puppeteer/lib/${cnm_file} ]] ||
-			die "puppeteer's ${cnm_file} not built by dev-util/chromium-node-modules"
-		cp "${cnm_dir}/build/devtools-puppeteer/lib/${cnm_file}" "${devtools_puppeteer}/${cnm_file}" || die
-	done < <(cd "${devtools_puppeteer}" && find . \( -name '*.js' -o -name '*.d.ts' \) -printf '%P\0' || die)
-	# Chromium patches some npm packages (third_party/node/patches; the tree has them applied).
-	# Of the files replaced above, that is only lit-html.js: apply its patch again.
-	pushd "${S}/third_party/node" >/dev/null || die
-	eapply "${S}/third_party/node/patches/lit_html.patch"
-	popd >/dev/null || die
 
 	# Polymer: third_party/polymer/v3_0's reproduce.sh and minify_polymer.sh generate
 	# polymer_bundled.min.js from @polymer/polymer and @webcomponents/shadycss (npm's files are
@@ -2153,9 +2226,11 @@ for line in open(sys.argv[1]):
     keep = keep or (line.startswith("+++ ") and "components-chromium/polymer/" in line)
 if keep: out += cur
 sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polymer.patch || die
-	eapply chromium-polymer.patch
+	patch -p1 -f -g0 --no-backup-if-mismatch < chromium-polymer.patch > "${T}/chromium-polymer.patch.log" ||
+		die "Failed to apply chromium-polymer.patch (see ${T}/chromium-polymer.patch.log)"
 	# minify_polymer.sh and minify_polymer.py
-	eapply "${polymer_dir}/polymer.patch"
+	patch -p1 -f -g0 --no-backup-if-mismatch < "${polymer_dir}/polymer.patch" > "${T}/polymer.patch.log" ||
+		die "Failed to apply polymer.patch (see ${T}/polymer.patch.log)"
 	local f
 	for f in $(grep -rl "window\['Shady\(DOM\|CSS\)'\]" components-chromium/polymer components-chromium/shadycss); do
 		sed -i "s/window\['ShadyDOM'\]/window.ShadyDOM/g; s/window\['ShadyCSS'\]/window.ShadyCSS/g" "${f}" || die
@@ -2297,30 +2372,101 @@ sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polym
 		"${S}/third_party/devtools-frontend/src/front_end/third_party/chromium/client-variations/ClientVariations.js" || die
 	rm -r "${cv_tmp}" || die
 
-	# chromium-bidi bundles its BiDi mapper (used for browser automation, e.g. chromedriver)
-	# with its own copy of rollup ${ROLLUP_BIDI_VER}. Use the one above instead: the mapper
-	# then only differs by a little more retained dead code (unused enum entries, pure
-	# expressions) and number formatting (-32e3 vs -32000), so one dev-util/rollup suffices.
-	local bidi_rollup_dir="${S}/third_party/chromium-bidi/node_modules/@rollup/wasm-node"
-	rm -r "${bidi_rollup_dir}" || die "Failed to remove ${bidi_rollup_dir}"
-	ln -s ../../../node/node_modules/@rollup/wasm-node "${bidi_rollup_dir}" ||
-		die "Failed to symlink ${bidi_rollup_dir}"
+	# FFmpeg's configuration (config.h, config.asm, the codec/format lists, ...) is the output of
+	# its configure script, as Chromium's media/ffmpeg/scripts/build_ffmpeg.py runs it, checked
+	# in per branding and architecture. Regenerate the one this build uses
+	# (files/chromium-ffmpeg-config.py). ppc64 builds use the openpower patches' configuration.
+	local ffmpeg_arch
+	case ${ARCH} in
+		amd64) ffmpeg_arch=x64 ;;
+		arm64) ffmpeg_arch=arm64 ;;
+	esac
+	if [[ -n ${ffmpeg_arch} ]]; then
+		local ffmpeg_branding=$( (use bindist || use proprietary-codecs) && echo Chrome || echo Chromium)
+		einfo "Regenerating FFmpeg's ${ffmpeg_branding} configuration for ${ffmpeg_arch} ..."
+		local ffmpeg_bin="${T}/ffmpeg-bin"
+		mkdir -p "${ffmpeg_bin}" || die
+		# Like Chromium's scripts (robo_lib's EnsureNoMakeInfo): without makeinfo.
+		printf '#!/bin/sh\nexit 1\n' > "${ffmpeg_bin}/makeinfo" || die
+		chmod +x "${ffmpeg_bin}/makeinfo" || die
+		# build_ffmpeg.py runs configure with clang, clang++ and ld.lld from PATH.
+		local ffmpeg_llvm
+		if use bundled-toolchain; then
+			ffmpeg_llvm="${S}/third_party/llvm-build/Release+Asserts/bin"
+		else
+			ffmpeg_llvm="$(get_llvm_prefix -b)/bin"
+		fi
+		PATH="${ffmpeg_bin}:${ffmpeg_llvm}:${PATH}" "${EPYTHON}" -B "${FILESDIR}/chromium-ffmpeg-config.py" \
+			"${S}" "${WORKDIR}/ffmpeg-config" "${ffmpeg_branding}" "${ffmpeg_arch}" \
+			> "${T}/ffmpeg-config.log" 2>&1 || die "Failed to regenerate FFmpeg's configuration (see ${T}/ffmpeg-config.log)"
+	fi
+	# libaom's configuration (source/config/linux/<arch>/config: aom_config.*, the *_rtcd.h headers)
+	# is the output of its CMake configure, as Chromium's cmake_update.sh runs it (for all
+	# platforms, some with cross toolchains): regenerate the one for this arch the same way, and
+	# wedge_masks_data.inc with libaom's tools/gen_wedge_masks_data.py. aom_version.h is a
+	# version stamp, kept.
+	local aom_cfg
+	case ${ARCH} in
+		amd64) aom_cfg=x64 ;;
+		arm64) aom_cfg=arm64-cpu-detect ;;
+	esac
+	if [[ -n ${aom_cfg} ]]; then
+		einfo "Regenerating libaom's configuration for ${aom_cfg} ..."
+		local aom_args=(
+			-DCONFIG_SIZE_LIMIT=1 -DDECODE_HEIGHT_LIMIT=16384 -DDECODE_WIDTH_LIMIT=16384
+			-DCONFIG_AV1_ENCODER=1 -DCONFIG_AV1_DECODER=0 -DCONFIG_AV1_HIGHBITDEPTH=0
+			-DCONFIG_REALTIME_ONLY=1 -DCONFIG_AV1_TEMPORAL_DENOISING=0 -DCONFIG_DENOISE=0
+			-DCONFIG_QUANT_MATRIX=0
+		)
+		if [[ ${aom_cfg} == x64 ]]; then
+			aom_args+=( "-DAOM_RTCD_FLAGS=--require-mmx;--require-sse;--require-sse2;--require-sse3" )
+		else
+			aom_args=( -DCMAKE_TOOLCHAIN_FILE=../source/libaom/cmake/toolchains/arm64-linux-clang.cmake "${aom_args[@]}" )
+		fi
+		# Configured where cmake_update.sh does: the command line ends up in aom_config.c.
+		mkdir -p third_party/libaom/build.gentoo || die
+		pushd third_party/libaom/build.gentoo >/dev/null || die
+		LC_ALL=C CC="$(tc-getBUILD_CC)" CXX="$(tc-getBUILD_CXX)" cmake ../source/libaom "${aom_args[@]}" \
+			> "${T}/libaom-cmake.log" 2>&1 || die "Failed to configure libaom (see ${T}/libaom-cmake.log)"
+		if [[ ${aom_cfg} == x64 ]]; then
+			grep -E "#define [A-Z0-9_]+ [01]" config/aom_config.h |
+				awk '{print "%define " $2 " " $3}' > config/aom_config.asm || die
+		fi
+		cp config/aom_config.{h,c,asm} config/*_rtcd.h "../source/config/linux/${aom_cfg}/config/" || die
+		popd >/dev/null || die
+		rm -r third_party/libaom/build.gentoo || die
+	fi
+	"${EPYTHON}" -B third_party/libaom/source/libaom/tools/gen_wedge_masks_data.py > "${T}/libaom-wedge.log" ||
+		die "Failed to regenerate libaom's wedge_masks_data.inc"
+	# dav1d's configuration (config/linux/<arch>/config.{h,asm}) is the output of its Meson setup,
+	# as Chromium's generate_configs.py runs it: regenerate the one for this arch with that
+	# script's own GenerateConfig(). version/vcs_version.h is a version stamp, kept.
+	local dav1d_args
+	case ${ARCH} in
+		amd64) dav1d_args='"config/linux/x64", env' ;;
+		arm64) dav1d_args='"config/linux/arm64", env, ["--cross-file", "../crossfiles/arm64.crossfile"]' ;;
+	esac
+	if [[ -n ${dav1d_args} ]]; then
+		einfo "Regenerating dav1d's configuration ..."
+		local dav1d_llvm
+		if use bundled-toolchain; then
+			dav1d_llvm="${S}/third_party/llvm-build/Release+Asserts/bin"
+		else
+			dav1d_llvm="$(get_llvm_prefix -b)/bin"
+		fi
+		( cd third_party/dav1d && PATH="${dav1d_llvm}:${PATH}" "${EPYTHON}" -B -c \
+			"import os, generate_configs as g; env = dict(os.environ); env['CC'] = 'clang'; g.GenerateConfig(${dav1d_args})" ) \
+			> "${T}/dav1d-config.log" 2>&1 || die "Failed to regenerate dav1d's configuration (see ${T}/dav1d-config.log)"
+	fi
 
-	einfo "Checking that no prebuilt binaries are left in the source tree ..."
-	binary_allowlist+=(
-		# Copied from dev-lang/typescript above
-		third_party/typescript/linux-amd64/src/lib/tsc
-	)
-	"${EPYTHON}" "${FILESDIR}/chromium-binary-audit.py" "${binary_allowlist[@]/#/--allow=}" "${S}" ||
-		die "Prebuilt binaries found in the source tree, see above"
+	# remove_bundled_libraries.py walks the whole tree, so it would also delete what GN wrote in
+	# out/ (src_configure) under paths with a third_party component: keep that out of its way.
+	mv out "${WORKDIR}/chromium-out" || die
+	chromium_unbundle
+	mv "${WORKDIR}/chromium-out" out || die
+}
 
-	# adjust python interpreter version
-	sed -i -e "s|\(^script_executable = \).*|\1\"${EPYTHON}\"|g" .gn || die
-
-	# Use the system copy of hwdata's usb.ids
-	sed 's|//third_party/usb_ids/src/usb.ids|/usr/share/hwdata/usb.ids|g' \
-		-i services/device/public/cpp/usb/BUILD.gn || die "Failed to set system usb.ids path"
-
+chromium_unbundle() {
 	# remove_bundled_libraries.py walks the source tree and looks for paths containing the substring 'third_party'
 	# whitelist matches use the right-most matching path component, so we need to whitelist from that point down.
 	local keeplibs=(
@@ -2651,118 +2797,6 @@ sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polym
 	if use arm64 || use ppc64 ; then
 		keeplibs+=( third_party/swiftshader/third_party/llvm-10.0 )
 	fi
-	# libvpx's configuration (source/config/: vpx_config.*, the *_rtcd.h headers) is the output of
-	# its configure and rtcd.pl, as Chromium's generate_gni.sh runs them (for all platforms):
-	# regenerate it. ppc64 needs it anyway, upstream doesn't ship one. It has to be done before
-	# unbundling. vpx_version.h is a version stamp (git describe), kept.
-	pushd third_party/libvpx >/dev/null || die
-	use ppc64 && { mkdir -p source/config/linux/ppc64 || die ; }
-	cp source/config/vpx_version.h "${T}/vpx_version.h" || die
-	# requires git and clang, bug #832803
-	# Revert https://chromium.googlesource.com/chromium/src/+/b463d0f40b08b4e896e7f458d89ae58ce2a27165%5E%21/third_party/libvpx/generate_gni.sh
-	# and https://chromium.googlesource.com/chromium/src/+/71ebcbce867dd31da5f8b405a28fcb0de0657d91%5E%21/third_party/libvpx/generate_gni.sh
-	# since we're not in a git repo
-	sed -i -e "s|^update_readme||g; s|clang-format|${EPREFIX}/bin/true|g; /^git -C/d; /git cl/d; /cd \$BASE_DIR\/\$LIBVPX_SRC_DIR/ign format --in-place \$BASE_DIR\/BUILD.gn\ngn format --in-place \$BASE_DIR\/libvpx_srcs.gni" \
-		generate_gni.sh || die
-	einfo "Regenerating libvpx's configuration ..."
-	./generate_gni.sh > "${T}/libvpx-generate_gni.log" 2>&1 || die "generate_gni.sh failed (see ${T}/libvpx-generate_gni.log)"
-	cp "${T}/vpx_version.h" source/config/vpx_version.h || die
-	popd >/dev/null || die
-
-	if use ppc64; then
-		pushd third_party/ffmpeg >/dev/null || die
-		cp libavcodec/ppc/h264dsp.c libavcodec/ppc/h264dsp_ppc.c || die
-		cp libavcodec/ppc/h264qpel.c libavcodec/ppc/h264qpel_ppc.c || die
-		popd >/dev/null || die
-	fi
-
-	# FFmpeg's configuration (config.h, config.asm, the codec/format lists, ...) is the output of
-	# its configure script, as Chromium's media/ffmpeg/scripts/build_ffmpeg.py runs it, checked
-	# in per branding and architecture. Regenerate the one this build uses
-	# (files/chromium-ffmpeg-config.py). ppc64 builds use the openpower patches' configuration.
-	local ffmpeg_arch
-	case ${ARCH} in
-		amd64) ffmpeg_arch=x64 ;;
-		arm64) ffmpeg_arch=arm64 ;;
-	esac
-	if [[ -n ${ffmpeg_arch} ]]; then
-		local ffmpeg_branding=$( (use bindist || use proprietary-codecs) && echo Chrome || echo Chromium)
-		einfo "Regenerating FFmpeg's ${ffmpeg_branding} configuration for ${ffmpeg_arch} ..."
-		local ffmpeg_bin="${T}/ffmpeg-bin"
-		mkdir -p "${ffmpeg_bin}" || die
-		# Like Chromium's scripts (robo_lib's EnsureNoMakeInfo): without makeinfo.
-		printf '#!/bin/sh\nexit 1\n' > "${ffmpeg_bin}/makeinfo" || die
-		chmod +x "${ffmpeg_bin}/makeinfo" || die
-		# build_ffmpeg.py runs configure with clang, clang++ and ld.lld from PATH.
-		local ffmpeg_llvm
-		if use bundled-toolchain; then
-			ffmpeg_llvm="${S}/third_party/llvm-build/Release+Asserts/bin"
-		else
-			ffmpeg_llvm="$(get_llvm_prefix -b)/bin"
-		fi
-		PATH="${ffmpeg_bin}:${ffmpeg_llvm}:${PATH}" "${EPYTHON}" -B "${FILESDIR}/chromium-ffmpeg-config.py" \
-			"${S}" "${WORKDIR}/ffmpeg-config" "${ffmpeg_branding}" "${ffmpeg_arch}" \
-			> "${T}/ffmpeg-config.log" 2>&1 || die "Failed to regenerate FFmpeg's configuration (see ${T}/ffmpeg-config.log)"
-	fi
-	# libaom's configuration (source/config/linux/<arch>/config: aom_config.*, the *_rtcd.h headers)
-	# is the output of its CMake configure, as Chromium's cmake_update.sh runs it (for all
-	# platforms, some with cross toolchains): regenerate the one for this arch the same way, and
-	# wedge_masks_data.inc with libaom's tools/gen_wedge_masks_data.py. aom_version.h is a
-	# version stamp, kept.
-	local aom_cfg
-	case ${ARCH} in
-		amd64) aom_cfg=x64 ;;
-		arm64) aom_cfg=arm64-cpu-detect ;;
-	esac
-	if [[ -n ${aom_cfg} ]]; then
-		einfo "Regenerating libaom's configuration for ${aom_cfg} ..."
-		local aom_args=(
-			-DCONFIG_SIZE_LIMIT=1 -DDECODE_HEIGHT_LIMIT=16384 -DDECODE_WIDTH_LIMIT=16384
-			-DCONFIG_AV1_ENCODER=1 -DCONFIG_AV1_DECODER=0 -DCONFIG_AV1_HIGHBITDEPTH=0
-			-DCONFIG_REALTIME_ONLY=1 -DCONFIG_AV1_TEMPORAL_DENOISING=0 -DCONFIG_DENOISE=0
-			-DCONFIG_QUANT_MATRIX=0
-		)
-		if [[ ${aom_cfg} == x64 ]]; then
-			aom_args+=( "-DAOM_RTCD_FLAGS=--require-mmx;--require-sse;--require-sse2;--require-sse3" )
-		else
-			aom_args=( -DCMAKE_TOOLCHAIN_FILE=../source/libaom/cmake/toolchains/arm64-linux-clang.cmake "${aom_args[@]}" )
-		fi
-		# Configured where cmake_update.sh does: the command line ends up in aom_config.c.
-		mkdir -p third_party/libaom/build.gentoo || die
-		pushd third_party/libaom/build.gentoo >/dev/null || die
-		LC_ALL=C CC="$(tc-getBUILD_CC)" CXX="$(tc-getBUILD_CXX)" cmake ../source/libaom "${aom_args[@]}" \
-			> "${T}/libaom-cmake.log" 2>&1 || die "Failed to configure libaom (see ${T}/libaom-cmake.log)"
-		if [[ ${aom_cfg} == x64 ]]; then
-			grep -E "#define [A-Z0-9_]+ [01]" config/aom_config.h |
-				awk '{print "%define " $2 " " $3}' > config/aom_config.asm || die
-		fi
-		cp config/aom_config.{h,c,asm} config/*_rtcd.h "../source/config/linux/${aom_cfg}/config/" || die
-		popd >/dev/null || die
-		rm -r third_party/libaom/build.gentoo || die
-	fi
-	"${EPYTHON}" -B third_party/libaom/source/libaom/tools/gen_wedge_masks_data.py > "${T}/libaom-wedge.log" ||
-		die "Failed to regenerate libaom's wedge_masks_data.inc"
-	# dav1d's configuration (config/linux/<arch>/config.{h,asm}) is the output of its Meson setup,
-	# as Chromium's generate_configs.py runs it: regenerate the one for this arch with that
-	# script's own GenerateConfig(). version/vcs_version.h is a version stamp, kept.
-	local dav1d_args
-	case ${ARCH} in
-		amd64) dav1d_args='"config/linux/x64", env' ;;
-		arm64) dav1d_args='"config/linux/arm64", env, ["--cross-file", "../crossfiles/arm64.crossfile"]' ;;
-	esac
-	if [[ -n ${dav1d_args} ]]; then
-		einfo "Regenerating dav1d's configuration ..."
-		local dav1d_llvm
-		if use bundled-toolchain; then
-			dav1d_llvm="${S}/third_party/llvm-build/Release+Asserts/bin"
-		else
-			dav1d_llvm="$(get_llvm_prefix -b)/bin"
-		fi
-		( cd third_party/dav1d && PATH="${dav1d_llvm}:${PATH}" "${EPYTHON}" -B -c \
-			"import os, generate_configs as g; env = dict(os.environ); env['CC'] = 'clang'; g.GenerateConfig(${dav1d_args})" ) \
-			> "${T}/dav1d-config.log" 2>&1 || die "Failed to regenerate dav1d's configuration (see ${T}/dav1d-config.log)"
-	fi
-
 	# Sanity check keeplibs, on major version bumps it is often necessary to update this list
 	# and this enables us to hit them all at once.
 	# There are some entries that need to be whitelisted (TODO: Why? The file is understandable, the rest seem odd)
@@ -2792,11 +2826,6 @@ sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polym
 	# Remove most bundled libraries. Some are still needed.
 	einfo "Unbundling third-party libraries ..."
 	build/linux/unbundle/remove_bundled_libraries.py "${keeplibs[@]}" --do-remove || die
-
-	# Interferes with our bundled clang path; we don't want stripped binaries anyway.
-	sed -i -e 's|${clang_base_path}/bin/llvm-strip|/bin/true|g' \
-		-e 's|${clang_base_path}/bin/llvm-objcopy|/bin/true|g' \
-		build/linux/strip_binary.gni || die
 }
 
 chromium_configure() {
@@ -3185,6 +3214,12 @@ chromium_configure() {
 	# Since we build from tarballs, we need to set the channel here so that it can be used in the build.
 	export CHROME_VERSION_EXTRA="${SLOT}"
 
+	# The files GN reads that are regenerated (see chromium_regenerate_gn), once.
+	if [[ ! -e ${WORKDIR}/.chromium-regenerated-gn ]]; then
+		chromium_regenerate_gn
+		touch "${WORKDIR}/.chromium-regenerated-gn" || die
+	fi
+
 	einfo "Configuring Chromium ..."
 	# add a `-v` here if gn `hangs` to see which file it's getting stuck on.
 	# GN's toolchain (build/toolchain/linux/unbundle) takes the compilers and flags from the
@@ -3225,6 +3260,12 @@ chromium_compile() {
 
 	# Don't inherit PYTHONPATH from environment, bug #789021, #812689
 	local -x PYTHONPATH=
+
+	# The other regenerated files (see chromium_regenerate), once.
+	if [[ ! -e ${WORKDIR}/.chromium-regenerated ]]; then
+		chromium_regenerate
+		touch "${WORKDIR}/.chromium-regenerated" || die
+	fi
 
 	# protobuf's bootstrap files are checked in as protoc output: the C++ code of protoc's own
 	# protos (descriptor, plugin and the feature protos: src/google/protobuf/*.pb.{h,cc}) and the
