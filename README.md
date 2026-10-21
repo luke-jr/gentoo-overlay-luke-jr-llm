@@ -10,7 +10,7 @@ masters = gentoo
 auto-sync = no
 ```
 
-`www-client/chromium-156.0.8078.47_pre`, based on `::gentoo`'s `chromium-151.0.7922.169-r1`
+`www-client/chromium-156.0.8078.47`, based on `::gentoo`'s `chromium-151.0.7922.169-r1`
 (`::gentoo` has masked Chromium for removal on 2026-10-24, bug #982204).
 
 Goals:
@@ -24,7 +24,7 @@ Goals:
 
 | Package | Why |
 |---|---|
-| `www-client/chromium-156.0.8078.47_pre` | the browser: 156.0.8078.47, which has no source tarball yet, built from the 156.0.8078.12 tarball plus `files/chromium-156.0.8078.12-to-156.0.8078.35.patch` and `files/chromium-156.0.8078.35-to-156.0.8078.47.patch` (the upstream changes that can affect a Linux build; see their headers). `_pre` sorts below the real release, which replaces it. |
+| `www-client/chromium-156.0.8078.47` | the browser: 156.0.8078.47, from Google's official "lite" source tarball (`chromium-linux-tarballs`, which `::gentoo` uses, has none for it), plus `files/chromium-156.0.8078.47-branch-fixes.patch` (the later changes of the 156 branch) and the CVE-2026-110914 fix 156 hasn't got yet. |
 | `dev-util/esbuild-0.28.2` | DevTools needs exactly this version. `::gentoo` stops at 0.27.3, and deps.gentoo.zip has no vendor tarball, so this uses `EGO_SUM`. |
 | `dev-build/gn-0.2578` | 156's `.gn` needs gn ≥ 1b0f22ec. Pinned to the commit Chromium's `DEPS` uses, via git-r3, because there is no tarball and gitiles archives aren't reproducible. |
 | `dev-lang/typescript:6.0.2` | TypeScript 6 (the JavaScript implementation: compiler, language server, JavaScript API) built from source the way upstream builds its npm package; `::gentoo`'s `dev-lang/typescript` installs the npm package's prebuilt bundles. DevTools' build uses its JavaScript API (`collect-ui-strings`). `lib*.d.ts`, `typesMap.json` and the localized messages are byte-identical to npm's; `typescript.d.ts` differs in formatting only (upstream formats it with dprint's prebuilt WebAssembly plugin). |
