@@ -172,6 +172,12 @@ No USE flags were removed. New ones:
 Also new, for all builds: `chromium-156-disable-tos-dialog.patch` (from ungoogled-chromium) skips the
 built-in terms dialog Linux builds show on a new profile's first run.
 
+`chromium-156-crash-bubble-once.patch` fixes an upstream bug: after a crash and a restore from
+the "Restore pages?" bubble, a window opened later through the startup path (running `chromium`
+again, a launcher) offered to restore again. `HasPendingUncleanExit()` relied on
+`ProfileLaunchObserver`, which forgets the launched profiles once startup is done; it now also
+requires `ExitTypeService` to still be waiting for the user to acknowledge the crash.
+
 ## Known issues / TODO
 
 - **`USE=system-icu` doesn't work, and `::gentoo` masks it** (`profiles/base/package.use.mask`, bug #943216),

@@ -1,0 +1,30 @@
+Show "Restore pages?" only while the last session's crash is pending
+
+After the user restored (or closed the bubble, or used a new window), a
+window opened later through the startup path (running chromium again, a
+launcher) offered to restore again: HasPendingUncleanExit() relied on
+ProfileLaunchObserver, which forgets the launched profiles once startup
+is done. Also require ExitTypeService to still wait for the crash to be
+acknowledged.
+
+diff --git a/chrome/browser/ui/startup/startup_browser_creator.cc b/chrome/browser/ui/startup/startup_browser_creator.cc
+index be05049..59f2ae1 100644
+--- a/chrome/browser/ui/startup/startup_browser_creator.cc
++++ b/chrome/browser/ui/startup/startup_browser_creator.cc
+@@ -1596,8 +1596,16 @@ bool StartupBrowserCreator::ActivatedProfile() {
+ }
+ 
+ bool HasPendingUncleanExit(Profile* profile) {
++  // Once the user has acknowledged the crash (restored, closed the bubble or
++  // used a new window), the last session's crash is no longer pending: don't
++  // offer to restore it again in later windows. ProfileLaunchObserver forgets
++  // the launched profiles once startup is done, so it can't tell.
++  ExitTypeService* exit_type_service =
++      ExitTypeService::GetInstanceForProfile(profile->GetOriginalProfile());
+   return ExitTypeService::GetLastSessionExitType(profile) ==
+              ExitType::kCrashed &&
++         exit_type_service &&
++         exit_type_service->waiting_for_user_to_ack_crash() &&
+          !ProfileLaunchObserver::HasBeenLaunchedAndBrowserOpen(profile) &&
+          !base::CommandLine::ForCurrentProcess()->HasSwitch(
+              switches::kHideCrashRestoreBubble);

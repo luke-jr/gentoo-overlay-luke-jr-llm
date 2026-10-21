@@ -849,6 +849,8 @@ src_prepare() {
 		"${FILESDIR}/chromium-156-angle-mock-icd-arg.patch"
 		# No terms dialog on a new profile's first run (from ungoogled-chromium).
 		"${FILESDIR}/chromium-156-disable-tos-dialog.patch"
+		# "Restore pages?" only while the last session's crash is pending (see the patch).
+		"${FILESDIR}/chromium-156-crash-bubble-once.patch"
 		# BoringSSL's generators, run offline from the tarball (see below).
 		"${FILESDIR}/chromium-156-boringssl-pregenerate-offline.patch"
 		"${FILESDIR}/chromium-156-boringssl-curve25519-tables.patch"
