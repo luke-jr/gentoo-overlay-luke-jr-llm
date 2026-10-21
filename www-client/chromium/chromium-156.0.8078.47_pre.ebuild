@@ -1302,9 +1302,14 @@ print(version)
 # Regeneration of the files GN reads (BUILD.gn and .gni files, and the generated sources they
 # list): run from chromium_configure before gn gen. See chromium_regenerate for the others.
 chromium_regenerate_gn() {
-	# The generators run with fixed flags, not the user's: what they write must not depend on
-	# them (configure scripts record what the compiler targets), and they only run here.
-	local -x CFLAGS="-O2 -pipe" CXXFLAGS="-O2 -pipe" CPPFLAGS= LDFLAGS= FFLAGS= FCFLAGS=
+	# The generators' host builds and configure runs use the user's flags as Chromium's build
+	# does (see chromium_filter_flags), without those the compiler (${CC}, ${CXX}: clang, see
+	# pkg_setup) doesn't support. Set up here, for this function: the flags of the user's
+	# bashrc and env files are back as they were in each phase.
+	local -x CFLAGS=${CFLAGS} CXXFLAGS=${CXXFLAGS} CPPFLAGS=${CPPFLAGS} LDFLAGS=${LDFLAGS} \
+		FFLAGS=${FFLAGS} FCFLAGS=${FCFLAGS}
+	chromium_filter_flags
+	strip-unsupported-flags
 
 	# The BUILD.gn files of the vendored Rust crates (third_party/rust/<crate>/<epoch>/) are
 	# gnrt's output, from the crates' Cargo metadata and gnrt_config.toml: regenerate them with
@@ -1482,9 +1487,14 @@ chromium_regenerate_gn() {
 # Regeneration of the other generated files, with their generators: run from chromium_compile
 # before anything is built with ninja, then the unbundling (which deletes some of their inputs).
 chromium_regenerate() {
-	# The generators run with fixed flags, not the user's: what they write must not depend on
-	# them (configure scripts record what the compiler targets), and they only run here.
-	local -x CFLAGS="-O2 -pipe" CXXFLAGS="-O2 -pipe" CPPFLAGS= LDFLAGS= FFLAGS= FCFLAGS=
+	# The generators' host builds and configure runs use the user's flags as Chromium's build
+	# does (see chromium_filter_flags), without those the compiler (${CC}, ${CXX}: clang, see
+	# pkg_setup) doesn't support. Set up here, for this function: the flags of the user's
+	# bashrc and env files are back as they were in each phase.
+	local -x CFLAGS=${CFLAGS} CXXFLAGS=${CXXFLAGS} CPPFLAGS=${CPPFLAGS} LDFLAGS=${LDFLAGS} \
+		FFLAGS=${FFLAGS} FCFLAGS=${FCFLAGS}
+	chromium_filter_flags
+	strip-unsupported-flags
 
 	local tsgo_dir="${S}/third_party/typescript/linux-amd64/src/lib" found
 	local cnm_dir="${BROOT}/usr/lib/chromium-node-modules/${PV%%.*}"
@@ -2837,6 +2847,29 @@ chromium_unbundle() {
 	build/linux/unbundle/remove_bundled_libraries.py "${keeplibs[@]}" --do-remove || die
 }
 
+# The user's flags as Chromium's build uses them (USE=custom-cflags keeps them as they are).
+# Also used by the regeneration steps, which build host tools and run configure scripts.
+chromium_filter_flags() {
+	if use !custom-cflags; then
+		replace-flags "-Os" "-O2"
+		strip-flags
+		# Debug info section overflows without component build
+		# Prevent linker from running out of address space, bug #471810 .
+		filter-flags "-g*"
+		# 949123: Several multimedia components explicitly build with specific CFLAGS and
+		# use runtime detection to enable optimisations; unfortunately any of our CFLAGS are suffixed
+		# to the end of the command line, which causes build failures.
+		# Since M150 `skia` will begin breaking for x86_64 due to compilation of `avx512` code paths;
+		# we need to filter these for all arches.
+		filter-flags "-march*" "-mtune*" "-mcpu*"
+
+	fi
+
+	# We don't use the same clang version as upstream, and with -Werror
+	# we need to make sure that we don't get superfluous warnings.
+	append-flags -Wno-unknown-warning-option
+}
+
 chromium_configure() {
 	# Calling this here supports resumption via FEATURES=keepwork
 	python_setup
@@ -2890,24 +2923,7 @@ chromium_configure() {
 	echo "  enable_freetype = true" >> ${freetype_gni} || die
 	echo "}" >> ${freetype_gni} || die
 
-	if use !custom-cflags; then
-		replace-flags "-Os" "-O2"
-		strip-flags
-		# Debug info section overflows without component build
-		# Prevent linker from running out of address space, bug #471810 .
-		filter-flags "-g*"
-		# 949123: Several multimedia components explicitly build with specific CFLAGS and
-		# use runtime detection to enable optimisations; unfortunately any of our CFLAGS are suffixed
-		# to the end of the command line, which causes build failures.
-		# Since M150 `skia` will begin breaking for x86_64 due to compilation of `avx512` code paths;
-		# we need to filter these for all arches.
-		filter-flags "-march*" "-mtune*" "-mcpu*"
-
-	fi
-
-	# We don't use the same clang version as upstream, and with -Werror
-	# we need to make sure that we don't get superfluous warnings.
-	append-flags -Wno-unknown-warning-option
+	chromium_filter_flags
 	if tc-is-cross-compiler; then # can you cross-compile with the bundled toolchain?
 			export BUILD_CXXFLAGS+=" -Wno-unknown-warning-option"
 			export BUILD_CFLAGS+=" -Wno-unknown-warning-option"
