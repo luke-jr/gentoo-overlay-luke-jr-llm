@@ -2031,7 +2031,12 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 	ln -s "${WORKDIR}/tinyxml2-${SWS_TINYXML2_COMMIT}" "${sws_hpp}/tinyxml2" || die
 	local sws_cf=()
 	use bundled-toolchain || sws_cf=( -DVULKAN_HPP_CLANG_FORMAT_PATH_HINT="$(get_llvm_prefix -b)/bin" )
+	# Its generators are built with -Werror, which turns new compilers' warnings (GCC 16's
+	# -Warray-bounds in libstdc++'s vector<bool>, with -O3) into errors: drop it.
+	sed -i 's/ -Wall -Wextra -Wpedantic -Werror )/ -Wall -Wextra -Wpedantic )/' "${sws_hpp}/CMakeLists.txt" || die
+	grep -q -- '-Werror' "${sws_hpp}/CMakeLists.txt" && die "Failed to drop Vulkan-Hpp's -Werror"
 	cmake -S "${sws_hpp}" -B "${WORKDIR}/vulkan-hpp-build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_C_COMPILER="$(tc-getBUILD_CC)" -DCMAKE_CXX_COMPILER="$(tc-getBUILD_CXX)" \
 		-DVULKAN_HPP_GENERATOR_BUILD=ON -DVULKAN_HPP_PRECOMPILE=OFF "${sws_cf[@]}" \
 		> "${T}/vulkan-hpp-cmake.log" 2>&1 || die "Failed to configure Vulkan-Hpp (see ${T}/vulkan-hpp-cmake.log)"
 	eninja -C "${WORKDIR}/vulkan-hpp-build" VulkanHppGenerator VideoHppGenerator
