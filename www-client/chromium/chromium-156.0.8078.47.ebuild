@@ -1376,10 +1376,11 @@ chromium_regenerated_outputs() {
 		third_party/re2/src/re2/{unicode_groups,unicode_casefold,perl_groups}.cc
 	# Bison's and Ragel's output
 	echo third_party/blink/renderer/core/xml/xpath_grammar_generated.{cc,h} \
-		third_party/emoji-segmenter/src/emoji_presentation_scanner.c \
-		third_party/harfbuzz/src/src/hb-{buffer-deserialize-json,buffer-deserialize-text-glyphs}.hh \
-		third_party/harfbuzz/src/src/hb-{buffer-deserialize-text-unicode,number-parser}.hh \
-		third_party/harfbuzz/src/src/hb-ot-shaper-{indic,khmer,myanmar,use}-machine.hh
+		third_party/emoji-segmenter/src/emoji_presentation_scanner.c
+	use !system-harfbuzz &&
+		echo third_party/harfbuzz/src/src/hb-{buffer-deserialize-json,buffer-deserialize-text-glyphs}.hh \
+			third_party/harfbuzz/src/src/hb-{buffer-deserialize-text-unicode,number-parser}.hh \
+			third_party/harfbuzz/src/src/hb-ot-shaper-{indic,khmer,myanmar,use}-machine.hh
 	# ipcz's messages, the IME's character composer table, zxcvbn's graphs, libzip's error strings
 	echo third_party/ipcz/src/ipcz/{node,test}_messages.{cc,h} ui/base/ime/character_composer_data.h \
 		third_party/zxcvbn-cpp/native-src/zxcvbn/adjacency_graphs.{cpp,hpp} third_party/libzip/src/zip_err_str.c
@@ -2042,12 +2043,14 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 	has_version -b "=dev-util/ragel-6*:0" && ragel=ragel
 	( cd third_party/emoji-segmenter/src && "${ragel}" -F1 emoji_presentation_scanner.rl ) ||
 		die "Failed to regenerate the emoji presentation scanner"
-	pushd third_party/harfbuzz/src/src >/dev/null || die
-	local rl
-	for rl in *.rl; do
-		"${ragel}" -e -F1 -o "${rl%.rl}.hh" "${rl}" || die "Failed to regenerate HarfBuzz's ${rl%.rl}.hh"
-	done
-	popd >/dev/null || die
+	if use !system-harfbuzz; then
+		pushd third_party/harfbuzz/src/src >/dev/null || die
+		local rl
+		for rl in *.rl; do
+			"${ragel}" -e -F1 -o "${rl%.rl}.hh" "${rl}" || die "Failed to regenerate HarfBuzz's ${rl%.rl}.hh"
+		done
+		popd >/dev/null || die
+	fi
 	# ipcz's message definitions (src/ipcz/node_messages.{cc,h}, test_messages.{cc,h}) are made
 	# from its *_messages_generator.h by node_messages.py (jinja2 templates): regenerate them. The
 	# script only writes files whose content differs, so empty them first.
