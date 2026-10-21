@@ -12,7 +12,8 @@ build fails if it needs one). Then regenerate build_identifier.c (a fingerprint 
 library's sources) with scripts/generate-build-identifier.py, from the source list it
 records.
 
-usage: chromium-xnnpack-regen.py THIRD_PARTY_XNNPACK_DIR JOBS
+usage: chromium-xnnpack-regen.py THIRD_PARTY_XNNPACK_DIR JOBS [OLD_BUILD_IDENTIFIER]
+  OLD_BUILD_IDENTIFIER: the checked-in build_identifier.c (which lists its inputs), if not in place
 """
 import concurrent.futures
 import glob
@@ -22,6 +23,7 @@ import subprocess
 import sys
 
 top, jobs = os.path.abspath(sys.argv[1]), int(sys.argv[2])
+old_bid = sys.argv[3] if len(sys.argv) > 3 else os.path.join(top, 'build_identifier.c')
 src = os.path.join(top, 'src')
 
 commands = {}
@@ -63,7 +65,7 @@ missing = sorted(before - after)
 # build_identifier.c lists its inputs as Bazel saw them (external/xnnpack+/<path in src/>).
 bid = os.path.join(top, 'build_identifier.c')
 prefix = '// - external/xnnpack+/'
-inputs = [l[len(prefix):].rstrip('\n') for l in open(bid) if l.startswith(prefix)]
+inputs = [l[len(prefix):].rstrip('\n') for l in open(old_bid) if l.startswith(prefix)]
 if not inputs:
     sys.exit('no inputs listed in build_identifier.c')
 workdir = os.path.join(top, '.build-identifier')

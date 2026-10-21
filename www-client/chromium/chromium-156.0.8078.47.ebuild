@@ -1291,6 +1291,204 @@ print(version)
 	sed -i -e 's|${clang_base_path}/bin/llvm-strip|/bin/true|g' \
 		-e 's|${clang_base_path}/bin/llvm-objcopy|/bin/true|g' \
 		build/linux/strip_binary.gni || die
+
+	# The checked-in generated files that are regenerated (in src_configure and src_compile): out
+	# of the tree, so that only the regenerated ones can be used (see chromium_regenerated_outputs).
+	einfo "Moving the checked-in generated files out of the tree ..."
+	chromium_regenerated_outputs | tr ' ' '\n' |
+		"${EPYTHON}" -B "${FILESDIR}/chromium-move-generated.py" "${S}" "${WORKDIR}/upstream-generated" \
+		"${PORTAGE_BUILDDIR}/.unpacked" || die "Failed to move the checked-in generated files"
+}
+
+# The checked-in generated files the regeneration steps make again (chromium_regenerate_gn,
+# chromium_regenerate, chromium_compile), as patterns (see files/chromium-move-generated.py),
+# in the order of the steps. src_prepare moves them out of the tree, to
+# ${WORKDIR}/upstream-generated, so that the build can only use the regenerated ones; steps that
+# keep something of the old files (version stamps, license headers) or need their names read them
+# from there. Left in place, each with its reason, are:
+# - bootstrap inputs, which their step deletes or overwrites: what ICU's own build (for its
+#   generators) compiles and reads, protobuf's C++ code that protoc is built from, FlatBuffers'
+#   reflection header that flatc is built from;
+# - files kept as they are: version stamps (vpx_version.h, ffversion.h, ...), files edited by
+#   hand since (see the steps), and files of which a step regenerates only a part (glic_api.ts'
+#   generated block, the values in V8's include/v8-internal.h, nasm's config-mac.h, the target
+#   lists in abseil's root BUILD.gn).
+chromium_regenerated_outputs() {
+	# --- chromium_regenerate_gn ---
+	# The vendored Rust crates' BUILD.gn files (gnrt)
+	echo 'third_party/rust/*/*/BUILD.gn'
+	# Dawn's (Tint's) generated BUILD.gn files; src/tint/BUILD.gn is written by hand
+	echo 'third_party/dawn/src/tint/*/**/BUILD.gn'
+	# abseil's BUILD.gn files (convert_bazel_to_gn.py; of the root BUILD.gn, only two lists)
+	echo 'third_party/abseil-cpp/absl/**/BUILD.gn'
+	# BoringSSL: gen/ (util/pregenerate) and the tables of its Go and Python generators.
+	# crypto/obj/obj_mac.num is objects.go's input (the NIDs) as well as its output: kept.
+	local b=third_party/boringssl/src
+	echo "${b}/gen/" "${b}/crypto/curve25519/curve25519_tables.h" "${b}/crypto/obj/obj_dat.h" \
+		"${b}"/crypto/fipsmodule/ec/{builtin_curves.h,p256-nistz-table.h,p256_table.h} \
+		"${b}"/include/openssl/{nid.h,prefix_symbols_internal_c.h,prefix_symbols_internal_S.h}
+	# ANGLE's code generators (*autogen*, the Vulkan back-end's shaders), less those not run for
+	# Linux (Metal's shaders, dEQP's and Mesa's file lists), and Float16ToFloat32.cpp
+	echo 'third_party/angle/**/*autogen*' '!third_party/angle/src/libANGLE/renderer/metal/shaders/**' \
+		'!third_party/angle/src/tests/deqp_support/deqp_data_autogen.gni' \
+		'!third_party/angle/third_party/mesa/mesa_autogen.gni' \
+		third_party/angle/src/libANGLE/renderer/vulkan/shaders/gen/ \
+		third_party/angle/doc/ExtensionSupport.md third_party/angle/src/common/Float16ToFloat32.cpp
+	# The Khronos headers (chromium-khronos-merge.py keeps their stamps from the old ones)
+	local k p h
+	for k in ${KHRONOS_HEADERS}; do
+		p=( ${k//:/ } )
+		for h in ${p[5]//,/ }; do
+			[[ ${h} == *=* ]] && echo "${p[4]}/${h#*=}" || echo "${p[4]}/${h#../api/}"
+		done
+	done
+	# Chromium's GPU code
+	echo 'gpu/command_buffer/*/*_autogen.*' gpu/GLES2/gl2chromium_autogen.h 'ui/gl/*_autogen*' \
+		gpu/vulkan/vulkan_function_pointers.{cc,h} \
+		gpu/ipc/common/{generated_vulkan_type_mappings.gni,vulkan_types.mojom,vulkan_types_mojom_traits.cc,vulkan_types_mojom_traits.h}
+	# libvpx's configuration and source lists (generate_gni.sh); vpx_version.h is a version stamp
+	echo third_party/libvpx/source/config/ '!third_party/libvpx/source/config/vpx_version.h' \
+		third_party/libvpx/libvpx_{,test_}srcs.gni
+
+	# --- chromium_regenerate ---
+	# ICU's Unicode data files and its data package. Its C/C++ outputs and source/data/in/ are
+	# bootstrap inputs of its own build (configure reads data/in/ for its data build's rules), which
+	# chromium-icu-regen.sh deletes or overwrites before regenerating them.
+	if use !system-icu; then
+		local i=third_party/icu/source/data/unidata
+		echo third_party/icu/common/icudtl.dat "${i}/norm2/*.txt" \
+			"${i}"/{CaseFolding,confusables,DerivedCoreProperties,DerivedNormalizationProps}.txt \
+			"${i}"/{emoji-sequences,emoji-zwj-sequences,NormalizationCorrections,NormalizationTest}.txt \
+			"${i}"/{ppucd,SpecialCasing,UnicodeData}.txt \
+			third_party/icu/source/test/testdata/{Bidi,GraphemeBreak,LineBreak,SentenceBreak,WordBreak}Test.txt
+	fi
+	# libc++'s <format> tables and <version>
+	echo 'third_party/libc++/src/include/__format/*_table.h' \
+		third_party/libc++/src/include/version
+	# The Vulkan headers
+	echo 'third_party/vulkan-headers/src/include/vulkan/vulkan_*.h' third_party/vulkan-headers/src/include/vk_video/
+	# FreeType's, OpenJPEG's and libtiff's tables
+	echo third_party/freetype/src/src/psnames/pstables.h third_party/pdfium/third_party/freetype/include/pstables.h \
+		third_party/pdfium/third_party/libopenjpeg/t1_{,ht_}luts.h third_party/pdfium/third_party/libtiff/tif_fax3sm.c
+	# chromium-bidi's protocol types
+	echo third_party/chromium-bidi/src/protocol/generated/ third_party/chromium-bidi/src/protocol-parser/generated/
+	# Skia's GL interface code, SkSL lexer and SkSL modules
+	echo 'third_party/skia/src/gpu/ganesh/gl/*Autogen.cpp' third_party/skia/src/sksl/SkSLLexer.{h,cpp} \
+		third_party/skia/src/sksl/generated/
+	# V8's keyword table
+	echo v8/src/parsing/keywords-gen.h
+	# SQLite's amalgamation
+	echo third_party/sqlite/src/amalgamation/{sqlite3.c,sqlite3.h,rename_exports.h,shell/shell.c}
+	# Wuffs' C library, simdutf's amalgamation, RE2's tables
+	echo "third_party/wuffs/src/release/c/wuffs-v${WUFFS_RELEASE_VER%.*}.c" third_party/simdutf/simdutf.{h,cpp} \
+		third_party/re2/src/re2/{unicode_groups,unicode_casefold,perl_groups}.cc
+	# Bison's and Ragel's output
+	echo third_party/blink/renderer/core/xml/xpath_grammar_generated.{cc,h} \
+		third_party/emoji-segmenter/src/emoji_presentation_scanner.c \
+		third_party/harfbuzz/src/src/hb-{buffer-deserialize-json,buffer-deserialize-text-glyphs}.hh \
+		third_party/harfbuzz/src/src/hb-{buffer-deserialize-text-unicode,number-parser}.hh \
+		third_party/harfbuzz/src/src/hb-ot-shaper-{indic,khmer,myanmar,use}-machine.hh
+	# ipcz's messages, the IME's character composer table, zxcvbn's graphs, libzip's error strings
+	echo third_party/ipcz/src/ipcz/{node,test}_messages.{cc,h} ui/base/ime/character_composer_data.h \
+		third_party/zxcvbn-cpp/native-src/zxcvbn/adjacency_graphs.{cpp,hpp} third_party/libzip/src/zip_err_str.c
+	use wayland && echo third_party/wayland/include/config.h
+	# Extension API TypeScript declarations, Glic's API enums, Jinja's identifier pattern
+	echo tools/typescript/definitions/{chromeos_info_private,command_line_private,i18n}.d.ts \
+		tools/typescript/definitions/{metrics_private_individual_apis,networking_private,offscreen,wallpaper}.d.ts \
+		chrome/browser/resources/glic/extension/glic_private.d.ts \
+		chrome/browser/resources/contextual_tasks/extension/contextual_tasks_private.d.ts \
+		chrome/browser/resources/glic/glic_api/glic_api_generated.ts third_party/jinja2/_identifier.py
+	if use !system-harfbuzz; then
+		echo third_party/harfbuzz/src/src/hb-ot-shaper-{arabic-joining-list,arabic-pua,arabic-table,use-table}.hh \
+			third_party/harfbuzz/src/src/hb-{ucd-table,unicode-emoji-table}.hh \
+			third_party/harfbuzz/src/src/hb-ot-shaper-{indic-table,vowel-constraints}.cc
+	fi
+	use !prebuilt-chromedriver-atoms && echo third_party/selenium-atoms/atoms.{h,cc}
+	# nasm's tables (its PERLREQ_CLEANABLE), configure output and zlib's tables; config/config.h is
+	# Chromium's own, config/config-mac.h only edited
+	local n=third_party/nasm
+	echo "${n}"/x86/{insnsb.c,insnsa.c,insnsd.c,insnsi.h,insnsn.c,regs.c,regs.h,regflags.c,regdis.c,regdis.h} \
+		"${n}"/x86/{regvals.c,iflag.c,iflaggen.h} "${n}"/asm/{tokhash.c,tokens.h,pptok.h,pptok.c,directbl.c} \
+		"${n}"/asm/{directiv.h,warnings_c.h} "${n}"/{macros/macros.c,include/warnings.h,version.h} \
+		"${n}"/config/{config-linux.h,unconfig.h} "${n}"/zlib/{crc32.h,inffixed.h}
+	# The SPIR-V headers (makeExtinstHeaders.py and buildHeaders' outputs; the grammars are inputs)
+	local s
+	for s in third_party/spirv-headers/src third_party/swiftshader/third_party/SPIRV-Headers; do
+		s+=/include/spirv/unified1
+		echo "${s}"/{AMD_gcn_shader,AMD_shader_ballot,AMD_shader_explicit_vertex_parameter,AMD_shader_trinary_minmax}.h \
+			"${s}"/{DebugInfo,NonSemanticClspvReflection,NonSemanticDebugBreak,NonSemanticDebugPrintf}.h \
+			"${s}"/{NonSemanticVkspReflection,OpenCLDebugInfo100,TOSA.001000.1}.h \
+			"${s}"/spirv.{bf,cs,h,hpp,hpp11,json,lua,py} "${s}/spv.d"
+	done
+	s=third_party/spirv-headers/src/include/spirv/unified1
+	echo "${s}"/{ArmExperimentalMLOperations,ArmMotionEngine.100,NonSemanticGraphDebugInfo}.h \
+		"${s}/org/khronos/spv/Spv.java"
+	# SwiftShader's Vulkan headers; vulkan_profiles.hpp is Vulkan-Profiles' (and not used)
+	local w=third_party/swiftshader/include
+	echo "${w}/vulkan/vulkan_*.h" "${w}/vk_video/" "${w}/vulkan/*.hpp" "${w}/vulkan/*.cppm" \
+		"!${w}/vulkan/vulkan_profiles.hpp"
+	use amd64 && echo third_party/swiftshader/third_party/llvm-subzero/build/Linux/include/llvm/{IR/Attributes.gen,IR/Intrinsics.gen,Support/DataTypes.h}
+	# net's root certificate list, libutf's rune tables (mkrunetype.awk's; isalpharune.c was edited
+	# by hand since), tools/metrics' setup_modules.py shims
+	echo net/cert/root_cert_list_generated.h \
+		third_party/utf/src/runetype/is{cntrl,digit,lower,space,title,upper}rune.c 'tools/metrics/**/setup_modules.py'
+	# The Vulkan loader's and Vulkan-Utility-Libraries' generated sources
+	local v=third_party/vulkan-utility-libraries/src
+	echo third_party/vulkan-loader/src/loader/generated/ third_party/vulkan-loader/src/tests/framework/generated/ \
+		third_party/vulkan-loader/src/tests/framework/layer/generated/ \
+		"${v}"/include/vulkan/utility/{vk_dispatch_table.h,vk_format_utils.h,vk_safe_struct.hpp,vk_struct_helper.hpp} \
+		"${v}/include/vulkan/vk_enum_string_helper.h" "${v}"/src/vulkan/vk_safe_struct_{core,ext,khr,utils,vendor}.cpp
+	# OpenXR's headers and loader dispatch code
+	local o=third_party/openxr/src
+	echo "${o}"/include/openxr/openxr{,_platform,_loader_negotiation,_reflection,_reflection_structs,_reflection_parent_structs}.h \
+		"${o}"/src/xr_generated_dispatch_table{,_core}.{c,h} "${o}"/src/loader/xr_generated_loader.{cpp,hpp}
+	# DevTools' generated files, and its JavaScript bundles (lit's, codemirror.next's,
+	# web-vitals', third-party-web's) and ClientVariations.js
+	local d=third_party/devtools-frontend/src
+	echo "${d}"/front_end/generated/{ARIAProperties,Deprecation,InspectorBackendCommands,protocol,SupportedCSSProperties}.ts \
+		"${d}"/front_end/generated/protocol-{mapping,proxy-api}.d.ts \
+		"${d}/front_end/models/javascript_metadata/NativeFunctions.ts" \
+		"${d}/third_party/blink/public/devtools_protocol/browser_protocol.json"
+	# XNNPACK's micro-kernels and build_identifier.c
+	echo 'third_party/xnnpack/src/src/**/gen/' third_party/xnnpack/build_identifier.c
+	# Polymer's bundle
+	echo third_party/polymer/v3_0/components-chromium/polymer/polymer_bundled.min.js
+	echo "${d}/front_end/third_party/lit/lib/*.js" "${d}/front_end/third_party/lit/lib/*.js.map" \
+		"${d}"/front_end/third_party/codemirror.next/codemirror.next.js{,.map} \
+		"${d}/front_end/third_party/codemirror.next/chunk/*.js" "${d}/front_end/third_party/codemirror.next/chunk/*.js.map" \
+		"${d}/front_end/third_party/web-vitals/package/dist/modules/" \
+		"${d}/front_end/third_party/third-party-web/lib/nostats-subset.js" \
+		components/variations/proto/devtools/client_variations.js \
+		"${d}/front_end/third_party/chromium/client-variations/ClientVariations.js"
+	# FFmpeg's, libaom's and dav1d's configuration for this build (version stamps kept)
+	local ffmpeg_arch aom_cfg dav1d_arch
+	case ${ARCH} in
+		amd64) ffmpeg_arch=x64 aom_cfg=x64 dav1d_arch=x64 ;;
+		arm64) ffmpeg_arch=arm64 aom_cfg=arm64-cpu-detect dav1d_arch=arm64 ;;
+	esac
+	if [[ -n ${ffmpeg_arch} ]]; then
+		local f=third_party/ffmpeg/chromium/config/$( (use bindist || use proprietary-codecs) && echo Chrome || echo Chromium)
+		echo "${f}/linux/${ffmpeg_arch}/" "!${f}/linux/${ffmpeg_arch}/libavutil/ffversion.h"
+		echo "third_party/libaom/source/config/linux/${aom_cfg}/config/" "third_party/dav1d/config/linux/${dav1d_arch}/"
+	fi
+	echo third_party/libaom/source/libaom/av1/common/wedge_masks_data.inc
+
+	# --- chromium_compile ---
+	# protobuf's Python modules (its C++ code is protoc's bootstrap)
+	echo third_party/protobuf/python/google/protobuf/{descriptor_pb2.py,compiler/plugin_pb2.py,internal/python_edition_defaults.py}
+	# net's effective_tld_names.gperf
+	echo net/base/registry_controlled_domains/effective_tld_names.gperf
+	# TensorFlow Lite's and LiteRT's FlatBuffers headers (FlatBuffers' reflection header is flatc's
+	# bootstrap) and builtin op lists
+	echo third_party/tflite/src/tensorflow/compiler/mlir/lite/schema/{schema,conversion_metadata}_generated.h \
+		third_party/tflite/src/tensorflow/lite/acceleration/configuration/configuration_generated.h \
+		third_party/litert/src/tflite/converter/schema/schema_generated.h \
+		third_party/tflite/src/tensorflow/lite/{builtin_ops.h,kernels/builtin_ops_list.inc} \
+		third_party/litert/src/tflite/{builtin_ops.h,kernels/builtin_ops_list.inc}
+	# V8's static roots
+	echo v8/src/roots/static-roots-intl-wasm.h
+	# The top domains' skeletons
+	echo 'components/url_formatter/spoof_checks/top_domains/*.skeletons'
 }
 
 # Regeneration of the files GN reads (BUILD.gn and .gni files, and the generated sources they
@@ -1301,6 +1499,8 @@ chromium_regenerate_gn() {
 		LDFLAGS=${LDFLAGS} FFLAGS=${FFLAGS} FCFLAGS=${FCFLAGS}
 	local chromium_target_vars
 	chromium_regen_env
+	# The checked-in generated files (see chromium_regenerated_outputs)
+	local ug="${WORKDIR}/upstream-generated"
 
 	# The BUILD.gn files of the vendored Rust crates (third_party/rust/<crate>/<epoch>/) are
 	# gnrt's output, from the crates' Cargo metadata and gnrt_config.toml: regenerate them with
@@ -1371,7 +1571,6 @@ chromium_regenerate_gn() {
 	printf 'module boringssl.googlesource.com/boringssl.git\n\ngo 1.24\n' > "${T}/boringssl-go.mod" || die
 	local bssl_env=( PATH="${bssl_bin}:${PATH}" GOFLAGS=-mod=mod GOPROXY=off GOTOOLCHAIN=local
 		GOCACHE="${T}/go-cache" GOPATH="${T}/go" CGO_ENABLED=0 PYTHONDONTWRITEBYTECODE=1 )
-	rm -r "${bssl}"/gen/{bcm,crypto,test_support} "${bssl}"/gen/sources.* || die
 	pushd "${bssl}" >/dev/null || die
 	env "${bssl_env[@]}" go build -modfile="${T}/boringssl-go.mod" -o "${T}/boringssl-pregenerate" \
 		./util/pregenerate || die "Failed to build BoringSSL's pregenerate"
@@ -1430,6 +1629,38 @@ chromium_regenerate_gn() {
 	fi
 	mv "${T}/Float16ToFloat32.cpp" third_party/angle/src/common/Float16ToFloat32.cpp || die
 
+	# The Khronos headers in third_party/khronos and ANGLE's include/ are copies of Khronos'
+	# generated headers. They are regenerated from the registry they were made from, with its
+	# genheaders.py (KHRONOS_HEADERS), and installed with files/chromium-khronos-merge.py: the
+	# generation date and registry commit stamps are kept (version stamps), and so are ANGLE's
+	# includes of its own extension headers; third_party/khronos' differ only in old comments. Kept
+	# as source: those Chromium modified (third_party/khronos: GLES2/gl2.h, gl2ext.h, EGL/eglext.h;
+	# README.chromium) and ANGLE's GLES1 headers (GLES/gl.h, glext.h), which ANGLE edited. Before the
+	# GPU code: ui/gl/generate_bindings.py reads them.
+	einfo "Regenerating the Khronos GL and EGL headers ..."
+	local khr khr_p khr_h khr_w khr_f
+	for khr in ${KHRONOS_HEADERS}; do
+		khr_p=( ${khr//:/ } )
+		khr_w="${WORKDIR}/khronos-${khr_p[0]}-${khr_p[1]:0:10}"
+		mkdir -p "${khr_w}/${khr_p[2]}" || die
+		for khr_f in genheaders.py reg.py "${khr_p[3]}"; do
+			cp "${DISTDIR}/${khr_p[0]}-${khr_p[1]:0:10}-${khr_f}" "${khr_w}/${khr_p[2]}/${khr_f}" || die
+		done
+		for khr_h in ${khr_p[5]//,/ }; do
+			local khr_dest="${khr_p[4]}/${khr_h#*=}"
+			[[ ${khr_h} == *=* ]] || khr_dest="${khr_p[4]}/${khr_h#../api/}"
+			khr_h=${khr_h%%=*}
+			local khr_out="${khr_w}/${khr_p[2]}/${khr_h}"
+			mkdir -p "${khr_out%/*}" || die
+			( cd "${khr_w}/${khr_p[2]}" && "${EPYTHON}" -B "${FILESDIR}/chromium-khronos-genheaders.py" \
+				genheaders.py -registry "${khr_p[3]}" "${khr_h}" ) >> "${T}/khronos-headers.log" 2>&1 ||
+				die "genheaders.py ${khr_h} failed"
+			[[ -f ${khr_out} ]] || die "genheaders.py did not write ${khr_h} (see ${T}/khronos-headers.log)"
+			"${EPYTHON}" -B "${FILESDIR}/chromium-khronos-merge.py" "${khr_out}" "${khr_dest}" "${ug}/${khr_dest}" ||
+				die "Failed to install ${khr_dest}"
+		done
+	done
+
 	# Chromium's own checked-in generated GPU code: the command buffer's GLES2/raster/WebGPU
 	# client and service code, the GL and Vulkan function bindings (Vulkan's from vk.xml, put
 	# in place above) and Vulkan's mojo types (with their type mappings, a .gni file GN reads).
@@ -1484,6 +1715,8 @@ chromium_regenerate() {
 		LDFLAGS=${LDFLAGS} FFLAGS=${FFLAGS} FCFLAGS=${FCFLAGS}
 	local chromium_target_vars
 	chromium_regen_env
+	# The checked-in generated files (see chromium_regenerated_outputs)
+	local ug="${WORKDIR}/upstream-generated"
 
 	local tsgo_dir="${S}/third_party/typescript/linux-amd64/src/lib" found
 	local cnm_dir="${BROOT}/usr/lib/chromium-node-modules/${PV%%.*}"
@@ -1555,11 +1788,11 @@ chromium_regenerate() {
 	for vkh_f in genvk.py reflib.py extdependency.py; do
 		cp "${DISTDIR}/vulkan-docs-${VULKAN_DOCS_COMMIT:0:10}-${vkh_f}" "${vkh_gen}/${vkh_f}" || die
 	done
-	for vkh_f in "${vkh}"/include/vulkan/vulkan_*.h; do
+	for vkh_f in "${ug}/${vkh#"${S}"/}"/include/vulkan/vulkan_*.h; do
 		"${EPYTHON}" -B "${vkh_gen}/genvk.py" -registry "${vkh_gen}/vk.xml" -o "${vkh}/include/vulkan" \
 			"${vkh_f##*/}" >> "${T}/vulkan-headers.log" 2>&1 || die "genvk.py ${vkh_f##*/} failed"
 	done
-	for vkh_f in "${vkh}"/include/vk_video/*.h; do
+	for vkh_f in "${ug}/${vkh#"${S}"/}"/include/vk_video/*.h; do
 		"${EPYTHON}" -B "${vkh_gen}/genvk.py" -registry "${vkh_gen}/video.xml" -o "${vkh}/include/vk_video" \
 			"${vkh_f##*/}" >> "${T}/vulkan-headers.log" 2>&1 || die "genvk.py ${vkh_f##*/} failed"
 	done
@@ -1592,7 +1825,6 @@ chromium_regenerate() {
 	$(tc-getBUILD_CC) ${CFLAGS} ${CPPFLAGS} -I"${pdfium_gen}/include" -I"${pdfium_tp}/libtiff" -I. \
 		${LDFLAGS} -o "${pdfium_gen}/mkg3states" "${DISTDIR}/libtiff-${PDFIUM_LIBTIFF_COMMIT:0:10}-mkg3states.c" ||
 		die "Failed to build libtiff's mkg3states"
-	rm "${pdfium_tp}/libtiff/tif_fax3sm.c" || die
 	"${pdfium_gen}/mkg3states" -b -c const "${pdfium_tp}/libtiff/tif_fax3sm.c" || die "Failed to run mkg3states"
 	# chromium-bidi's protocol types and Zod schemas (src/protocol{,-parser}/generated) are made by
 	# its tools/update_bidi_types.py with cddlconv from the CDDL in the WebDriver BiDi specs, which
@@ -1622,7 +1854,7 @@ chromium_regenerate() {
 	mkdir -p "${bidi_cddl}/bin" || die
 	ln -s "${BROOT}/usr/bin/cddlconv-0.1.12" "${bidi_cddl}/bin/cddlconv" || die
 	PATH="${bidi_cddl}/bin:${PATH}" "${EPYTHON}" -B "${FILESDIR}/chromium-bidi-types.py" third_party/chromium-bidi \
-		"${bidi_cddl}" || die "Failed to regenerate chromium-bidi's protocol types"
+		"${bidi_cddl}" "${ug}/third_party/chromium-bidi" || die "Failed to regenerate chromium-bidi's protocol types"
 	# Skia's generated files: regenerate them with its generators. Its GL interface assembly and
 	# validation code (src/gpu/ganesh/gl/*Autogen.cpp) with tools/ganesh/gl/interface (Go, offline:
 	# a go.mod with just the module it imports, from SRC_URI); the SkSL lexer (SkSLLexer.{h,cpp})
@@ -1711,6 +1943,7 @@ chromium_regenerate() {
 	# regenerate it (files/chromium-sqlite-amalgamation.py), keeping SQLITE_SOURCE_ID.
 	einfo "Regenerating SQLite's amalgamation ..."
 	CC="$(tc-getBUILD_CC)" "${EPYTHON}" -B "${FILESDIR}/chromium-sqlite-amalgamation.py" third_party/sqlite \
+		"${ug}/third_party/sqlite/src/amalgamation" \
 		> "${T}/sqlite-amalgamation.log" 2>&1 ||
 		die "Failed to regenerate SQLite's amalgamation (see ${T}/sqlite-amalgamation.log)"
 	# Wuffs' C library (third_party/wuffs/src/release/c/wuffs-v0.3.c, which Skia uses to decode
@@ -1739,8 +1972,8 @@ old, new = (open(f, encoding="utf-8").read() for f in sys.argv[1:3])
 block = re.compile(r"^// WUFFS_VERSION was overridden.*?^#define WUFFS_VERSION_STRING [^\n]*$", re.M | re.S)
 if len(block.findall(old)) != 1 or len(block.findall(new)) != 1:
     sys.exit("WUFFS_VERSION block not found")
-open(sys.argv[1], "w", encoding="utf-8").write(block.sub(lambda m: block.search(old)[0], new))
-' "${wuffs_c}" "${wuffs_src}/release/c/${wuffs_c##*/}" || die "Failed to install Wuffs' C library"
+open(sys.argv[3], "w", encoding="utf-8").write(block.sub(lambda m: block.search(old)[0], new))
+' "${ug}/${wuffs_c}" "${wuffs_src}/release/c/${wuffs_c##*/}" "${wuffs_c}" || die "Failed to install Wuffs' C library"
 	# simdutf's single-file amalgamation (third_party/simdutf/simdutf.{h,cpp}) is made from its
 	# sources by its singleheader/amalgamate.py: regenerate it. The generation timestamp in the
 	# first line (from git) is kept.
@@ -1751,7 +1984,7 @@ open(sys.argv[1], "w", encoding="utf-8").write(block.sub(lambda m: block.search(
 		--output-dir "${simdutf_out}" > "${T}/simdutf-amalgamate.log" 2>&1 ||
 		die "simdutf's amalgamate.py failed (see ${T}/simdutf-amalgamate.log)"
 	for f in simdutf.h simdutf.cpp; do
-		{ head -n 1 "third_party/simdutf/${f}" && tail -n +2 "${simdutf_out}/${f}"; } > "${T}/${f}" &&
+		{ head -n 1 "${ug}/third_party/simdutf/${f}" && tail -n +2 "${simdutf_out}/${f}"; } > "${T}/${f}" &&
 			mv "${T}/${f}" "third_party/simdutf/${f}" || die
 	done
 	# RE2's Unicode tables (unicode_groups.cc, unicode_casefold.cc) are made from Unicode's data
@@ -1858,7 +2091,7 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 		tools/typescript/definitions/{metrics_private_individual_apis,networking_private,offscreen,wallpaper}.d.ts \
 		chrome/browser/resources/glic/extension/glic_private.d.ts \
 		chrome/browser/resources/contextual_tasks/extension/contextual_tasks_private.d.ts; do
-		tsd_src=$(sed -n 's/^ \* Generated from: \([^ ]*\).*/\1/p' "${tsd}") || die
+		tsd_src=$(sed -n 's/^ \* Generated from: \([^ ]*\).*/\1/p' "${ug}/${tsd}") || die
 		[[ -f ${tsd_src} ]] || die "${tsd} names no schema"
 		"${EPYTHON}" -B tools/json_schema_compiler/compiler.py "${tsd_src}" -g ts_definitions --root=. \
 			--destdir="${tsd_out}" || die "Failed to regenerate ${tsd}"
@@ -2021,11 +2254,12 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 			cp "${DISTDIR}/vulkan-docs-${sws_docs:0:10}-${sws_f}" "${sws_gen}/${sws_v}/${sws_f}" || die
 		done
 	done
-	for sws_f in "${sws_inc}"/vulkan/vulkan_*.h; do
+	local sws_ug="${ug}/${sws_inc#"${S}"/}"
+	for sws_f in "${sws_ug}"/vulkan/vulkan_*.h; do
 		"${EPYTHON}" -B "${sws_gen}/core/genvk.py" -registry "${sws_gen}/core/vk.xml" -o "${sws_inc}/vulkan" \
 			"${sws_f##*/}" >> "${T}/swiftshader-vulkan.log" 2>&1 || die "genvk.py ${sws_f##*/} failed"
 	done
-	for sws_f in "${sws_inc}"/vk_video/*.h; do
+	for sws_f in "${sws_ug}"/vk_video/*.h; do
 		"${EPYTHON}" -B "${sws_gen}/video/genvk.py" -registry "${sws_gen}/video/video.xml" -o "${sws_inc}/vk_video" \
 			"${sws_f##*/}" >> "${T}/swiftshader-vulkan.log" 2>&1 || die "genvk.py ${sws_f##*/} failed"
 	done
@@ -2047,9 +2281,9 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 	( cd "${sws_hpp}" && "${WORKDIR}/vulkan-hpp-build/VulkanHppGenerator" &&
 		"${WORKDIR}/vulkan-hpp-build/VideoHppGenerator" ) > "${T}/vulkan-hpp.log" 2>&1 ||
 		die "Vulkan-Hpp's generators failed (see ${T}/vulkan-hpp.log)"
-	for sws_f in "${sws_inc}"/vulkan/*.{hpp,cppm}; do
-		[[ ${sws_f##*/} == vulkan_profiles.hpp ]] && continue
-		cp "${sws_hpp}/vulkan/${sws_f##*/}" "${sws_f}" || die "Vulkan-Hpp doesn't generate ${sws_f##*/}"
+	for sws_f in "${sws_ug}"/vulkan/*.{hpp,cppm}; do
+		cp "${sws_hpp}/vulkan/${sws_f##*/}" "${sws_inc}/vulkan/${sws_f##*/}" ||
+			die "Vulkan-Hpp doesn't generate ${sws_f##*/}"
 	done
 	# vulkan.hpp names vk::Result once where it should use its namespace macro; SwiftShader, which
 	# renames the namespace (VULKAN_HPP_NAMESPACE vkhpp), fixed its copy by hand: do the same.
@@ -2114,37 +2348,6 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 	einfo "Regenerating tools/metrics' setup_modules.py ..."
 	"${EPYTHON}" -B tools/metrics/python_support/generate_setup_modules.py > "${T}/setup_modules.log" ||
 		die "Failed to regenerate tools/metrics' setup_modules.py"
-	# The Khronos headers in third_party/khronos and ANGLE's include/ are copies of Khronos'
-	# generated headers. They are regenerated from the registry they were made from, with its
-	# genheaders.py (KHRONOS_HEADERS), and installed with files/chromium-khronos-merge.py: the
-	# generation date and registry commit stamps are kept (version stamps), and so are ANGLE's
-	# includes of its own extension headers; third_party/khronos' differ only in old comments. Kept
-	# as source: those Chromium modified (third_party/khronos: GLES2/gl2.h, gl2ext.h, EGL/eglext.h;
-	# README.chromium) and ANGLE's GLES1 headers (GLES/gl.h, glext.h), which ANGLE edited.
-	einfo "Regenerating the Khronos GL and EGL headers ..."
-	local khr khr_p khr_h khr_w khr_f
-	for khr in ${KHRONOS_HEADERS}; do
-		khr_p=( ${khr//:/ } )
-		khr_w="${WORKDIR}/khronos-${khr_p[0]}-${khr_p[1]:0:10}"
-		mkdir -p "${khr_w}/${khr_p[2]}" || die
-		for khr_f in genheaders.py reg.py "${khr_p[3]}"; do
-			cp "${DISTDIR}/${khr_p[0]}-${khr_p[1]:0:10}-${khr_f}" "${khr_w}/${khr_p[2]}/${khr_f}" || die
-		done
-		for khr_h in ${khr_p[5]//,/ }; do
-			local khr_dest="${khr_p[4]}/${khr_h#*=}"
-			[[ ${khr_h} == *=* ]] || khr_dest="${khr_p[4]}/${khr_h#../api/}"
-			khr_h=${khr_h%%=*}
-			local khr_out="${khr_w}/${khr_p[2]}/${khr_h}"
-			mkdir -p "${khr_out%/*}" || die
-			( cd "${khr_w}/${khr_p[2]}" && "${EPYTHON}" -B "${FILESDIR}/chromium-khronos-genheaders.py" \
-				genheaders.py -registry "${khr_p[3]}" "${khr_h}" ) >> "${T}/khronos-headers.log" 2>&1 ||
-				die "genheaders.py ${khr_h} failed"
-			[[ -f ${khr_out} ]] || die "genheaders.py did not write ${khr_h} (see ${T}/khronos-headers.log)"
-			"${EPYTHON}" -B "${FILESDIR}/chromium-khronos-merge.py" "${khr_out}" "${khr_dest}" ||
-				die "Failed to install ${khr_dest}"
-		done
-	done
-
 	# The Vulkan loader's and Vulkan-Utility-Libraries' generated sources (dispatch tables,
 	# extension and safe-struct code, enum strings) are made from the Vulkan registry by their
 	# scripts/generate_source.py, which formats them with clang-format: regenerate them, from
@@ -2206,7 +2409,8 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 	# XNNPACK (TFLite's CPU kernels) checks in ~9,400 generated micro-kernels (C and assembly);
 	# make them from its templates with its own generators instead (see the script).
 	einfo "Regenerating XNNPACK's micro-kernels ..."
-	"${EPYTHON}" -B "${FILESDIR}/chromium-xnnpack-regen.py" third_party/xnnpack "$(makeopts_jobs)" ||
+	"${EPYTHON}" -B "${FILESDIR}/chromium-xnnpack-regen.py" third_party/xnnpack "$(makeopts_jobs)" \
+		"${ug}/third_party/xnnpack/build_identifier.c" ||
 		die "Failed to regenerate XNNPACK's micro-kernels"
 
 	# Polymer: third_party/polymer/v3_0's reproduce.sh and minify_polymer.sh generate
@@ -2296,7 +2500,7 @@ sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polym
 		die "rollup failed"
 	popd >/dev/null || die
 	for f in "${lit_build}"/lib/*.js; do
-		[[ -f ${devtools_lit}/lib/${f##*/} ]] || die "Unexpected DevTools lit output ${f##*/}"
+		[[ -f ${ug}/${devtools_lit#"${S}"/}/lib/${f##*/} ]] || die "Unexpected DevTools lit output ${f##*/}"
 		cp "${f}" "${f}.map" "${devtools_lit}/lib/" || die
 	done
 
@@ -2333,7 +2537,7 @@ sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polym
 	local cm_rel
 	for f in "${cm_build}"/codemirror.next.js "${cm_build}"/chunk/*.js; do
 		cm_rel=${f#"${cm_build}"/}
-		[[ -f ${devtools_cm}/${cm_rel} ]] || die "Unexpected codemirror.next output ${cm_rel}"
+		[[ -f ${ug}/${devtools_cm#"${S}"/}/${cm_rel} ]] || die "Unexpected codemirror.next output ${cm_rel}"
 		cp "${f}" "${devtools_cm}/${cm_rel}" || die
 		cp "${f}.map" "${devtools_cm}/${cm_rel}.map" || die
 	done
@@ -3403,7 +3607,7 @@ chromium_compile() {
 			if [[ ${fb_f##*/} == configuration ]]; then
 				fb_g=( --no-union-value-namespacing --gen-object-api --gen-compare "${fb_gen}/configuration.fbs" )
 			fi
-			sed '/^=*\*\/$/q' "${fb_f}_generated.h" > "${fb_gen}/license.h" || die
+			sed '/^=*\*\/$/q' "${WORKDIR}/upstream-generated/${fb_f}_generated.h" > "${fb_gen}/license.h" || die
 			if grep -q "automatically generated" "${fb_gen}/license.h"; then
 				die "No license header found in ${fb_f}_generated.h"
 			fi

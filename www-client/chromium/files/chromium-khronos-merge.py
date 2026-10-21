@@ -10,7 +10,8 @@ checked-in copy it replaces, keeping only what the regeneration can't reproduce:
 
 Everything else comes from the regenerated header.
 
-Usage: chromium-khronos-merge.py REGENERATED CHECKED_IN
+Usage: chromium-khronos-merge.py REGENERATED DEST [CHECKED_IN]
+  CHECKED_IN: the checked-in copy, if not at DEST (default: DEST)
 """
 import difflib
 import re
@@ -19,9 +20,10 @@ import sys
 STAMP = re.compile(r"^(/\* Generated on date \d+ \*/|\*\* Khronos \$Git commit\$?.*"
                    r"|#define \w+_VERSION \d{8})\s*$")
 
-new_path, dest_path = sys.argv[1:]
+new_path, dest_path = sys.argv[1:3]
+old_path = sys.argv[3] if len(sys.argv) > 3 else dest_path
 new = open(new_path).read().splitlines(keepends=True)
-dest = open(dest_path).read().splitlines(keepends=True)
+dest = open(old_path).read().splitlines(keepends=True)
 
 out = []
 matcher = difflib.SequenceMatcher(a=new, b=dest, autojunk=False)

@@ -6,8 +6,9 @@
 # sqlite3.c, sqlite3.h, shell/shell.c, rename_exports.h) with its
 # scripts/generate_amalgamation.py, for the "chromium" configuration the build uses.
 #
-# Usage: chromium-sqlite-amalgamation.py SQLITE_DIR
+# Usage: chromium-sqlite-amalgamation.py SQLITE_DIR [OLD_AMALGAMATION_DIR]
 #   SQLITE_DIR  third_party/sqlite
+#   OLD_AMALGAMATION_DIR  where the checked-in amalgamation is, if not in place
 #
 # Differences from running the script as upstream does:
 # - ICU's compiler and linker flags are left out: the script would pass icu-config's
@@ -26,15 +27,17 @@ import sys
 
 root = os.path.abspath(sys.argv[1])
 amalgamation = os.path.join(root, "src", "amalgamation")
+# Where the checked-in amalgamation is, for its SQLITE_SOURCE_ID (if not in place).
+old_amalgamation = sys.argv[2] if len(sys.argv) > 2 else amalgamation
 source_id = re.compile(r'^#define SQLITE_SOURCE_ID .*$', re.M)
 
 
-def read(name):
-    with open(os.path.join(amalgamation, name), encoding="utf-8", errors="surrogateescape") as f:
+def read(name, directory=amalgamation):
+    with open(os.path.join(directory, name), encoding="utf-8", errors="surrogateescape") as f:
         return f.read()
 
 
-old_id = source_id.search(read("sqlite3.h"))[0]
+old_id = source_id.search(read("sqlite3.h", old_amalgamation))[0]
 
 spec = importlib.util.spec_from_file_location(
     "generate_amalgamation", os.path.join(root, "scripts", "generate_amalgamation.py"))
