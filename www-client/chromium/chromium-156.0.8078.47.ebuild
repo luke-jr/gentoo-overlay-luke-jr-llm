@@ -2619,8 +2619,10 @@ sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polym
 	# libaom's configuration (source/config/linux/<arch>/config: aom_config.*, the *_rtcd.h headers)
 	# is the output of its CMake configure, as Chromium's cmake_update.sh runs it (for all
 	# platforms, some with cross toolchains): regenerate the one for this arch the same way, and
-	# wedge_masks_data.inc with libaom's tools/gen_wedge_masks_data.py. aom_version.h is a
-	# version stamp, kept.
+	# wedge_masks_data.inc with libaom's tools/gen_wedge_masks_data.py, first, as the CMake
+	# configure lists it as a source. aom_version.h is a version stamp, kept.
+	"${EPYTHON}" -B third_party/libaom/source/libaom/tools/gen_wedge_masks_data.py > "${T}/libaom-wedge.log" ||
+		die "Failed to regenerate libaom's wedge_masks_data.inc"
 	local aom_cfg
 	case ${ARCH} in
 		amd64) aom_cfg=x64 ;;
@@ -2652,8 +2654,6 @@ sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polym
 		popd >/dev/null || die
 		rm -r third_party/libaom/build.gentoo || die
 	fi
-	"${EPYTHON}" -B third_party/libaom/source/libaom/tools/gen_wedge_masks_data.py > "${T}/libaom-wedge.log" ||
-		die "Failed to regenerate libaom's wedge_masks_data.inc"
 	# dav1d's configuration (config/linux/<arch>/config.{h,asm}) is the output of its Meson setup,
 	# as Chromium's generate_configs.py runs it: regenerate the one for this arch with that
 	# script's own GenerateConfig(). version/vcs_version.h is a version stamp, kept.
