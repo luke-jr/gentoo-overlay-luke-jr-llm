@@ -70,15 +70,10 @@ DESCRIPTION="Open-source version of Google Chrome web browser"
 HOMEPAGE="https://www.chromium.org/"
 PPC64_HASH="7aae8a84e327fc2078ce1625c9c70bfda77d626f"
 COPIUM_COMMIT="027d15ffdcd1816b7935cee9ea4a4f6bae0bbe60"
-# 156.0.8078.47 has no source tarball yet. It is built from the 156.0.8078.12 tarball plus the
-# upstream changes from tag to tag (to 156.0.8078.35, then to 156.0.8078.47), limited to what can
-# affect a Linux build (see the headers of files/chromium-*-to-*.patch). Drop this once the real
-# 156.0.8078.47 tarball is out.
-CHROMIUM_TARBALL_PV="156.0.8078.12"
-# The versions the tarball is upgraded through, in order; the last is ${PV%_pre}.
-CHROMIUM_UPGRADES=( 156.0.8078.35 156.0.8078.47 )
-S="${WORKDIR}/chromium-${CHROMIUM_TARBALL_PV}"
-SRC_URI="https://github.com/chromium-linux-tarballs/chromium-tarballs/releases/download/${CHROMIUM_TARBALL_PV}/chromium-${CHROMIUM_TARBALL_PV}-linux.tar.xz
+# Google's official "lite" source tarball: chromium-linux-tarballs (which ::gentoo uses) has none
+# for 156.0.8078.47 (its build failed). For 156.0.8078.12, the two have the same content, apart
+# from one empty test file (chrome/test/data/webui/i18n_process_css_test.html).
+SRC_URI="https://commondatastorage.googleapis.com/chromium-browser-official/chromium-${PV}-lite.tar.xz
 	https://github.com/Polymer/polymer/archive/refs/tags/v${POLYMER_VER}.tar.gz
 		-> polymer-${POLYMER_VER}.gh.tar.gz
 	https://github.com/webcomponents/shadycss/archive/${SHADYCSS_COMMIT}.tar.gz
@@ -564,7 +559,7 @@ pre_build_checks() {
 	# Check build requirements: bugs #471810, #541816, #914220
 	# We're going to start doing maths here on the size of an unpacked source tarball,
 	# this should make updates easier as chromium continues to balloon in size.
-	# xz -l /var/cache/distfiles/chromium-${CHROMIUM_TARBALL_PV}*.tar.xz
+	# xz -l /var/cache/distfiles/chromium-${PV}*.tar.xz
 	local base_disk=9 # Round up
 	use test && base_disk=$((base_disk + 5))
 	local extra_disk=1 # Always include a little extra space
@@ -718,7 +713,7 @@ pkg_setup() {
 }
 
 src_unpack() {
-	unpack chromium-${CHROMIUM_TARBALL_PV}-linux.tar.xz
+	unpack chromium-${PV}-lite.tar.xz
 	unpack polymer-${POLYMER_VER}.gh.tar.gz shadycss-${SHADYCSS_COMMIT}.gh.tar.gz
 	unpack perfect-hash-${ANGLE_PERFECT_HASH_VER}.tar.gz glslang-${ANGLE_GLSLANG_COMMIT}.gh.tar.gz \
 		SPIRV-Tools-${ANGLE_SPIRV_TOOLS_COMMIT}.gh.tar.gz SPIRV-Headers-${ANGLE_SPIRV_HEADERS_COMMIT}.gh.tar.gz
@@ -823,26 +818,12 @@ remove_compiler_builtins() {
 }
 
 src_prepare() {
-	# Upgrade the ${CHROMIUM_TARBALL_PV} tarball to ${PV%_pre} first (see SRC_URI). The patches
-	# contain git binary patches (ICU data), which GNU patch (eapply) cannot apply.
-	local from=${CHROMIUM_TARBALL_PV} to
-	for to in "${CHROMIUM_UPGRADES[@]}"; do
-		einfo "Upgrading the ${from} sources to ${to} ..."
-		git apply --whitespace=nowarn "${FILESDIR}/chromium-${from}-to-${to}.patch" ||
-			die "Failed to upgrade the sources to ${to}"
-		from=${to}
-	done
-	local version
-	version=$(source chrome/VERSION && echo "${MAJOR}.${MINOR}.${BUILD}.${PATCH}") ||
-		die "Failed to read chrome/VERSION"
-	[[ ${version} == "${PV%_pre}" ]] || die "chrome/VERSION says ${version} after upgrading, expected ${PV%_pre}"
-
-	# Fixes newer than ${PV%_pre}: the later changes of its release branch, and the
-	# CVE-2026-110914 fix (from Stable 155.0.8059.84) 156 hasn't got yet. See the patch headers.
-	# Keep chrome/VERSION as is.
-	einfo "Applying the 156 branch's fixes after ${PV%_pre} ..."
+	# Fixes newer than ${PV}: the later changes of its release branch, and the CVE-2026-110914
+	# fix (from Stable 155.0.8059.84) 156 hasn't got yet. See the patch headers. Keep
+	# chrome/VERSION as is.
+	einfo "Applying the 156 branch's fixes after ${PV} ..."
 	local p
-	for p in chromium-${PV%_pre}-branch-fixes.patch chromium-156-cve-2026-110914.patch; do
+	for p in chromium-${PV}-branch-fixes.patch chromium-156-cve-2026-110914.patch; do
 		git apply --whitespace=nowarn "${FILESDIR}/${p}" || die "Failed to apply ${p}"
 	done
 
