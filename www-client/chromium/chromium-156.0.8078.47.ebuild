@@ -2209,6 +2209,8 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 		cd "${nasm_z}" &&
 			$(tc-getBUILD_CC) ${CFLAGS} ${CPPFLAGS} -DMAKECRCH ${LDFLAGS} -o mkcrch src/crc32.c &&
 			./mkcrch &&
+			# makefixed links crc32.c, which includes crc32.h: the one just made.
+			cp crc32.h src/ &&
 			$(tc-getBUILD_CC) ${CFLAGS} ${CPPFLAGS} -DMAKEFIXED -Isrc ${LDFLAGS} -o makefixed \
 				makefixed.c src/{inflate,inftrees,inffast,adler32,crc32,zutil}.c &&
 			./makefixed > inffixed.h
