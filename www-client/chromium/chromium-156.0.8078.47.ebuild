@@ -97,17 +97,13 @@ SRC_URI="https://commondatastorage.googleapis.com/chromium-browser-official/chro
 	pgo? ( https://github.com/elkablo/chromium-profiler/releases/download/v0.2/chromium-profiler-0.2.tar )"
 # Inputs of ANGLE's code generators that the tarball lacks (files/chromium-angle-regen.py):
 # Khronos' registries at ANGLE's (and, for Vulkan, Chromium's) DEPS revisions; perfect-hash,
-# the version its built-in symbols generator is written for; and glslang (with SPIRV-Tools and
-# SPIRV-Headers) at the revision ANGLE's prebuilt glslang_validator is built from (ANGLE's DEPS
-# when it was last updated, 2020-06-23), whose output the checked-in shaders are.
+# the version its built-in symbols generator is written for. Its Vulkan back-end's shaders are
+# compiled with the system's glslang (dev-util/glslang; upstream's are from a 2020 glslang).
 ANGLE_GL_REGISTRY_COMMIT=9cb90ca4902d588bef3c830fbb1da484893bd5fb
 ANGLE_EGL_REGISTRY_COMMIT=7dea2ed79187cd13f76183c4b9100159b9e3e071
 ANGLE_CL_DOCS_COMMIT=5b4ca15f0e5a5be87b56b99f652f728e05cab587
 VULKAN_HEADERS_COMMIT=3c65a01745e4a1134d32b9c2c456472212dba16d
 ANGLE_PERFECT_HASH_VER=0.2.1
-ANGLE_GLSLANG_COMMIT=839704450200e407490c538418f4d1a493b789ab
-ANGLE_SPIRV_TOOLS_COMMIT=36b5bb701da9054d5981b54e74e243f737ea17dc
-ANGLE_SPIRV_HEADERS_COMMIT=ac638f1815425403e946d0ab78bac71d2bdbf3be
 SRC_URI+="
 	https://raw.githubusercontent.com/KhronosGroup/OpenGL-Registry/${ANGLE_GL_REGISTRY_COMMIT}/xml/gl.xml
 		-> OpenGL-Registry-${ANGLE_GL_REGISTRY_COMMIT:0:8}-gl.xml
@@ -122,12 +118,6 @@ SRC_URI+="
 	https://raw.githubusercontent.com/KhronosGroup/Vulkan-Headers/${VULKAN_HEADERS_COMMIT}/registry/vk.xml
 		-> Vulkan-Headers-${VULKAN_HEADERS_COMMIT:0:8}-vk.xml
 	https://files.pythonhosted.org/packages/source/p/perfect-hash/perfect-hash-${ANGLE_PERFECT_HASH_VER}.tar.gz
-	https://github.com/KhronosGroup/glslang/archive/${ANGLE_GLSLANG_COMMIT}.tar.gz
-		-> glslang-${ANGLE_GLSLANG_COMMIT}.gh.tar.gz
-	https://github.com/KhronosGroup/SPIRV-Tools/archive/${ANGLE_SPIRV_TOOLS_COMMIT}.tar.gz
-		-> SPIRV-Tools-${ANGLE_SPIRV_TOOLS_COMMIT}.gh.tar.gz
-	https://github.com/KhronosGroup/SPIRV-Headers/archive/${ANGLE_SPIRV_HEADERS_COMMIT}.tar.gz
-		-> SPIRV-Headers-${ANGLE_SPIRV_HEADERS_COMMIT}.gh.tar.gz
 "
 # Inputs of ICU's generated files (files/chromium-icu-regen.sh): Unicode's release files for
 # the Unicode version of the bundled ICU, and the generators from ICU's repository that its
@@ -509,6 +499,7 @@ BDEPEND="
 	dev-lang/yasm
 	dev-build/meson
 	|| ( =dev-util/ragel-6*:0 dev-util/ragel:6 )
+	dev-util/glslang
 	sys-devel/flex
 	virtual/pkgconfig
 	x11-misc/xdg-utils
@@ -715,8 +706,7 @@ pkg_setup() {
 src_unpack() {
 	unpack chromium-${PV}-lite.tar.xz
 	unpack polymer-${POLYMER_VER}.gh.tar.gz shadycss-${SHADYCSS_COMMIT}.gh.tar.gz
-	unpack perfect-hash-${ANGLE_PERFECT_HASH_VER}.tar.gz glslang-${ANGLE_GLSLANG_COMMIT}.gh.tar.gz \
-		SPIRV-Tools-${ANGLE_SPIRV_TOOLS_COMMIT}.gh.tar.gz SPIRV-Headers-${ANGLE_SPIRV_HEADERS_COMMIT}.gh.tar.gz
+	unpack perfect-hash-${ANGLE_PERFECT_HASH_VER}.tar.gz
 	unpack Vulkan-Headers-${SWS_VULKAN_HEADERS_COMMIT}.gh.tar.gz Vulkan-Headers-${SWS_VIDEO_HEADERS_COMMIT}.gh.tar.gz \
 		Vulkan-Hpp-${SWS_VULKAN_HPP_COMMIT}.gh.tar.gz tinyxml2-${SWS_TINYXML2_COMMIT}.gh.tar.gz
 	use amd64 && unpack llvm-mirror-${SWS_LLVM_COMMIT}.gh.tar.gz
@@ -1392,20 +1382,8 @@ chromium_regenerate_gn() {
 
 	# ANGLE checks in the output of its ~30 code generators (entry points, format tables,
 	# shader lexers/parsers and symbol tables, its Vulkan back-end's compiled shaders); run
-	# them instead (see the script), with the inputs from SRC_URI and glslang's validator at
-	# the revision upstream compiles the shaders with.
-	einfo "Building glslang ${ANGLE_GLSLANG_COMMIT:0:8} for ANGLE's shaders ..."
-	local glslang_src="${WORKDIR}/glslang-${ANGLE_GLSLANG_COMMIT}" glslang_build="${WORKDIR}/angle-glslang-build"
-	ln -s "${WORKDIR}/SPIRV-Tools-${ANGLE_SPIRV_TOOLS_COMMIT}" "${glslang_src}/External/spirv-tools" || die
-	ln -s "${WORKDIR}/SPIRV-Headers-${ANGLE_SPIRV_HEADERS_COMMIT}" \
-		"${WORKDIR}/SPIRV-Tools-${ANGLE_SPIRV_TOOLS_COMMIT}/external/spirv-headers" || die
-	cmake -S "${glslang_src}" -B "${glslang_build}" -G Ninja -DCMAKE_BUILD_TYPE=Release \
-		-DCMAKE_C_COMPILER="$(tc-getBUILD_CC)" -DCMAKE_CXX_COMPILER="$(tc-getBUILD_CXX)" \
-		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_OPT=ON -DENABLE_HLSL=ON -DENABLE_CTEST=OFF \
-		-DBUILD_TESTING=OFF -DENABLE_GLSLANG_JS=OFF -DSPIRV_SKIP_TESTS=ON -DSPIRV_WERROR=OFF \
-		-DCMAKE_CXX_FLAGS="${CXXFLAGS} -Wno-error -include cstdint" > "${T}/angle-glslang-cmake.log" ||
-		die "Failed to configure glslang (see ${T}/angle-glslang-cmake.log)"
-	eninja -C "${glslang_build}" glslangValidator
+	# them instead (see the script), with the inputs from SRC_URI and the system's glslang
+	# validator.
 	local angle_xml="${WORKDIR}/angle-xml" f
 	mkdir -p "${angle_xml}" || die
 	for f in OpenGL-Registry-${ANGLE_GL_REGISTRY_COMMIT:0:8}-{gl,glx,wgl}.xml \
@@ -1415,7 +1393,7 @@ chromium_regenerate_gn() {
 	done
 	einfo "Regenerating ANGLE's generated code ..."
 	"${EPYTHON}" -B "${FILESDIR}/chromium-angle-regen.py" "${S}" "${angle_xml}" \
-		"${WORKDIR}/perfect-hash-${ANGLE_PERFECT_HASH_VER}" "${glslang_build}/StandAlone/glslangValidator" \
+		"${WORKDIR}/perfect-hash-${ANGLE_PERFECT_HASH_VER}" "${BROOT}/usr/bin/glslangValidator" \
 		"$(type -P flex)" "$(type -P bison)" \
 		"$(usex bundled-toolchain '' "$(get_llvm_prefix -b)/bin/clang-format")" "$(type -P gn)" ||
 		die "Failed to regenerate ANGLE's generated code"
