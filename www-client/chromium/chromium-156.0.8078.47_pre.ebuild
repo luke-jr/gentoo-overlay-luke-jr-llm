@@ -606,6 +606,19 @@ pkg_pretend() {
 
 pkg_setup() {
 	if [[ ${MERGE_TYPE} != binary ]]; then
+		# The build tools the regeneration steps make are built with the user's own compiler
+		# and flags (see chromium_tool_env): keep them, before CC and CXX become clang (below)
+		# and the flags are cleaned up for Chromium (chromium_filter_flags).
+		CHROMIUM_TOOL_CC=$(tc-getBUILD_CC)
+		CHROMIUM_TOOL_CXX=$(tc-getBUILD_CXX)
+		if tc-is-cross-compiler; then
+			CHROMIUM_TOOL_CFLAGS=${BUILD_CFLAGS} CHROMIUM_TOOL_CXXFLAGS=${BUILD_CXXFLAGS}
+			CHROMIUM_TOOL_CPPFLAGS=${BUILD_CPPFLAGS} CHROMIUM_TOOL_LDFLAGS=${BUILD_LDFLAGS}
+		else
+			CHROMIUM_TOOL_CFLAGS=${CFLAGS} CHROMIUM_TOOL_CXXFLAGS=${CXXFLAGS}
+			CHROMIUM_TOOL_CPPFLAGS=${CPPFLAGS} CHROMIUM_TOOL_LDFLAGS=${LDFLAGS}
+		fi
+
 		# The pre_build_checks are all about compilation resources, no need to run it for a binpkg
 		pre_build_checks
 
@@ -1302,14 +1315,11 @@ print(version)
 # Regeneration of the files GN reads (BUILD.gn and .gni files, and the generated sources they
 # list): run from chromium_configure before gn gen. See chromium_regenerate for the others.
 chromium_regenerate_gn() {
-	# The generators' host builds and configure runs use the user's flags as Chromium's build
-	# does (see chromium_filter_flags), without those the compiler (${CC}, ${CXX}: clang, see
-	# pkg_setup) doesn't support. Set up here, for this function: the flags of the user's
-	# bashrc and env files are back as they were in each phase.
-	local -x CFLAGS=${CFLAGS} CXXFLAGS=${CXXFLAGS} CPPFLAGS=${CPPFLAGS} LDFLAGS=${LDFLAGS} \
-		FFLAGS=${FFLAGS} FCFLAGS=${FCFLAGS}
-	chromium_filter_flags
-	strip-unsupported-flags
+	# The compilers and flags of the build tools and configure runs (see chromium_regen_env).
+	local -x CC=${CC} CXX=${CXX} CFLAGS=${CFLAGS} CXXFLAGS=${CXXFLAGS} CPPFLAGS=${CPPFLAGS} \
+		LDFLAGS=${LDFLAGS} FFLAGS=${FFLAGS} FCFLAGS=${FCFLAGS}
+	local chromium_target_vars
+	chromium_regen_env
 
 	# The BUILD.gn files of the vendored Rust crates (third_party/rust/<crate>/<epoch>/) are
 	# gnrt's output, from the crates' Cargo metadata and gnrt_config.toml: regenerate them with
@@ -1412,7 +1422,7 @@ chromium_regenerate_gn() {
 		-DCMAKE_C_COMPILER="$(tc-getBUILD_CC)" -DCMAKE_CXX_COMPILER="$(tc-getBUILD_CXX)" \
 		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DENABLE_OPT=ON -DENABLE_HLSL=ON -DENABLE_CTEST=OFF \
 		-DBUILD_TESTING=OFF -DENABLE_GLSLANG_JS=OFF -DSPIRV_SKIP_TESTS=ON -DSPIRV_WERROR=OFF \
-		-DCMAKE_CXX_FLAGS="-Wno-error -include cstdint" > "${T}/angle-glslang-cmake.log" ||
+		-DCMAKE_CXX_FLAGS="${CXXFLAGS} -Wno-error -include cstdint" > "${T}/angle-glslang-cmake.log" ||
 		die "Failed to configure glslang (see ${T}/angle-glslang-cmake.log)"
 	eninja -C "${glslang_build}" glslangValidator
 	local angle_xml="${WORKDIR}/angle-xml" f
@@ -1479,7 +1489,8 @@ chromium_regenerate_gn() {
 	sed -i -e "s|^update_readme||g; s|clang-format|${EPREFIX}/bin/true|g; /^git -C/d; /git cl/d; /cd \$BASE_DIR\/\$LIBVPX_SRC_DIR/ign format --in-place \$BASE_DIR\/BUILD.gn\ngn format --in-place \$BASE_DIR\/libvpx_srcs.gni" \
 		generate_gni.sh || die
 	einfo "Regenerating libvpx's configuration ..."
-	CC="$(tc-getBUILD_CC)" CXX="$(tc-getBUILD_CXX)" ./generate_gni.sh > "${T}/libvpx-generate_gni.log" 2>&1 || die "generate_gni.sh failed (see ${T}/libvpx-generate_gni.log)"
+	( chromium_target_env && ./generate_gni.sh ) > "${T}/libvpx-generate_gni.log" 2>&1 ||
+		die "generate_gni.sh failed (see ${T}/libvpx-generate_gni.log)"
 	cp "${T}/vpx_version.h" source/config/vpx_version.h || die
 	popd >/dev/null || die
 }
@@ -1487,14 +1498,11 @@ chromium_regenerate_gn() {
 # Regeneration of the other generated files, with their generators: run from chromium_compile
 # before anything is built with ninja, then the unbundling (which deletes some of their inputs).
 chromium_regenerate() {
-	# The generators' host builds and configure runs use the user's flags as Chromium's build
-	# does (see chromium_filter_flags), without those the compiler (${CC}, ${CXX}: clang, see
-	# pkg_setup) doesn't support. Set up here, for this function: the flags of the user's
-	# bashrc and env files are back as they were in each phase.
-	local -x CFLAGS=${CFLAGS} CXXFLAGS=${CXXFLAGS} CPPFLAGS=${CPPFLAGS} LDFLAGS=${LDFLAGS} \
-		FFLAGS=${FFLAGS} FCFLAGS=${FCFLAGS}
-	chromium_filter_flags
-	strip-unsupported-flags
+	# The compilers and flags of the build tools and configure runs (see chromium_regen_env).
+	local -x CC=${CC} CXX=${CXX} CFLAGS=${CFLAGS} CXXFLAGS=${CXXFLAGS} CPPFLAGS=${CPPFLAGS} \
+		LDFLAGS=${LDFLAGS} FFLAGS=${FFLAGS} FCFLAGS=${FCFLAGS}
+	local chromium_target_vars
+	chromium_regen_env
 
 	local tsgo_dir="${S}/third_party/typescript/linux-amd64/src/lib" found
 	local cnm_dir="${BROOT}/usr/lib/chromium-node-modules/${PV%%.*}"
@@ -1587,7 +1595,7 @@ chromium_regenerate() {
 	"${EPYTHON}" -B third_party/freetype/src/src/tools/glnames.py \
 		third_party/freetype/src/src/psnames/pstables.h || die "Failed to regenerate pstables.h"
 	cp third_party/freetype/src/src/psnames/pstables.h "${pdfium_tp}/freetype/include/pstables.h" || die
-	$(tc-getBUILD_CC) ${BUILD_CFLAGS} ${BUILD_CPPFLAGS} -I"${pdfium_tp}/libopenjpeg" ${BUILD_LDFLAGS} \
+	$(tc-getBUILD_CC) ${CFLAGS} ${CPPFLAGS} -I"${pdfium_tp}/libopenjpeg" ${LDFLAGS} \
 		-o "${pdfium_gen}/t1_generate_luts" "${pdfium_tp}/libopenjpeg/t1_generate_luts.c" \
 		"${DISTDIR}/openjpeg-${PDFIUM_OPENJPEG_COMMIT:0:10}-t1_ht_generate_luts.c" -lm ||
 		die "Failed to build OpenJPEG's t1_generate_luts"
@@ -1600,8 +1608,8 @@ chromium_regenerate() {
 	# mkg3states.c includes libtiff's libport.h (unused here) and tif_config.h for HAVE_UNISTD_H.
 	: > "${pdfium_gen}/include/libport.h" || die
 	echo "#define HAVE_UNISTD_H 1" > "${pdfium_gen}/include/tif_config.h" || die
-	$(tc-getBUILD_CC) ${BUILD_CFLAGS} ${BUILD_CPPFLAGS} -I"${pdfium_gen}/include" -I"${pdfium_tp}/libtiff" -I. \
-		${BUILD_LDFLAGS} -o "${pdfium_gen}/mkg3states" "${DISTDIR}/libtiff-${PDFIUM_LIBTIFF_COMMIT:0:10}-mkg3states.c" ||
+	$(tc-getBUILD_CC) ${CFLAGS} ${CPPFLAGS} -I"${pdfium_gen}/include" -I"${pdfium_tp}/libtiff" -I. \
+		${LDFLAGS} -o "${pdfium_gen}/mkg3states" "${DISTDIR}/libtiff-${PDFIUM_LIBTIFF_COMMIT:0:10}-mkg3states.c" ||
 		die "Failed to build libtiff's mkg3states"
 	rm "${pdfium_tp}/libtiff/tif_fax3sm.c" || die
 	"${pdfium_gen}/mkg3states" -b -c const "${pdfium_tp}/libtiff/tif_fax3sm.c" || die "Failed to run mkg3states"
@@ -1669,7 +1677,7 @@ chromium_regenerate() {
 	popd >/dev/null || die
 	# sksllex is a standalone program; run_sksllex.py formats its output with clang-format (Skia's
 	# .clang-format). Without a system clang-format (USE=bundled-toolchain), only the layout differs.
-	$(tc-getBUILD_CXX) ${BUILD_CXXFLAGS} ${BUILD_CPPFLAGS} -std=c++17 -I"${skia}" ${BUILD_LDFLAGS} \
+	$(tc-getBUILD_CXX) ${CXXFLAGS} ${CPPFLAGS} -std=c++17 -I"${skia}" ${LDFLAGS} \
 		-o "${skia_gen}/sksllex" "${skia}"/src/sksl/lex/{Main,NFA,RegexNode,RegexParser,TransitionTable}.cpp ||
 		die "Failed to build sksllex"
 	if use bundled-toolchain; then
@@ -1683,6 +1691,9 @@ chromium_regenerate() {
 	# Only what sksl-minify needs; the host compiler, Skia's no-op raw_ptr.
 	local skia_args=(
 		is_official_build=true is_debug=false cc=\"$(tc-getBUILD_CC)\" cxx=\"$(tc-getBUILD_CXX)\"
+		extra_cflags_c="$(chromium_gn_list ${CFLAGS} ${CPPFLAGS})"
+		extra_cflags_cc="$(chromium_gn_list ${CXXFLAGS} ${CPPFLAGS})"
+		extra_ldflags="$(chromium_gn_list ${LDFLAGS})"
 		skia_compile_modules=true skia_lex=false skia_use_partition_alloc=false
 		skia_use_gl=false skia_use_vulkan=false skia_use_dawn=false skia_enable_ganesh=false
 		skia_enable_graphite=false skia_use_icu=false skia_use_harfbuzz=false skia_use_expat=false
@@ -1849,9 +1860,9 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 		# libwayland's include/config.h is the output of its Meson configure: regenerate it.
 		# Unlike the checked-in one, it finds glibc's gettid().
 		einfo "Regenerating libwayland's config.h ..."
-		CC="$(tc-getBUILD_CC)" CXX="$(tc-getBUILD_CXX)" \
-			meson setup "${WORKDIR}/wayland-config" third_party/wayland/src -Dlibraries=true -Dscanner=false \
-				-Ddocumentation=false -Dtests=false -Ddtd_validation=false > "${T}/wayland-meson.log" 2>&1 ||
+		( chromium_target_env && meson setup "${WORKDIR}/wayland-config" third_party/wayland/src \
+			-Dlibraries=true -Dscanner=false -Ddocumentation=false -Dtests=false -Ddtd_validation=false ) \
+			> "${T}/wayland-meson.log" 2>&1 ||
 			die "libwayland's Meson configure failed (see ${T}/wayland-meson.log)"
 		cp "${WORKDIR}/wayland-config/config.h" third_party/wayland/include/config.h || die
 	fi
@@ -1967,7 +1978,7 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 	printf 'print-perlreq:\n\t@echo $(PERLREQ_CLEANABLE)\n' > "${T}/nasm-print.mk" || die
 	(
 		export PERL_HASH_SEED=0 PERL_PERTURB_KEYS=0
-		sh autogen.sh && CC="$(tc-getBUILD_CC)" ./configure &&
+		chromium_target_env && sh autogen.sh && ./configure &&
 			mv config/config.h config/config-linux.h && cp "${T}/nasm-config.h" config/config.h &&
 			"${EPYTHON}" -B generate_nasm_configs.py &&
 			rm -f $(make -s -f Makefile -f "${T}/nasm-print.mk" print-perlreq) && make perlreq &&
@@ -1983,9 +1994,9 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 	printf 'void makefixed(void);\nint main(void) { makefixed(); return 0; }\n' > "${nasm_z}/makefixed.c" || die
 	(
 		cd "${nasm_z}" &&
-			$(tc-getBUILD_CC) ${BUILD_CFLAGS} ${BUILD_CPPFLAGS} -DMAKECRCH ${BUILD_LDFLAGS} -o mkcrch src/crc32.c &&
+			$(tc-getBUILD_CC) ${CFLAGS} ${CPPFLAGS} -DMAKECRCH ${LDFLAGS} -o mkcrch src/crc32.c &&
 			./mkcrch &&
-			$(tc-getBUILD_CC) ${BUILD_CFLAGS} ${BUILD_CPPFLAGS} -DMAKEFIXED -Isrc ${BUILD_LDFLAGS} -o makefixed \
+			$(tc-getBUILD_CC) ${CFLAGS} ${CPPFLAGS} -DMAKEFIXED -Isrc ${LDFLAGS} -o makefixed \
 				makefixed.c src/{inflate,inftrees,inffast,adler32,crc32,zutil}.c &&
 			./makefixed > inffixed.h
 	) > "${T}/nasm-zlib.log" 2>&1 || die "Failed to regenerate nasm's zlib tables (see ${T}/nasm-zlib.log)"
@@ -2002,9 +2013,9 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 	chmod +x "${spv_bin}/dos2unix" || die
 	for spv in third_party/spirv-headers/src third_party/swiftshader/third_party/SPIRV-Headers; do
 		local spv_tool="${spv}/tools/buildHeaders"
-		$(tc-getBUILD_CXX) ${BUILD_CXXFLAGS} -std=c++17 -I"${spv_tool}/jsoncpp/dist" -I"${spv_tool}" \
+		$(tc-getBUILD_CXX) ${CXXFLAGS} ${CPPFLAGS} -std=c++17 -I"${spv_tool}/jsoncpp/dist" -I"${spv_tool}" \
 			-o "${spv_bin}/buildSpvHeaders" "${spv_tool}"/{main,header,jsonToSpirv}.cpp \
-			"${spv_tool}/jsoncpp/dist/jsoncpp.cpp" ${BUILD_LDFLAGS} || die "Failed to build ${spv}'s buildHeaders"
+			"${spv_tool}/jsoncpp/dist/jsoncpp.cpp" ${LDFLAGS} || die "Failed to build ${spv}'s buildHeaders"
 		( cd "${spv_tool}" && PATH="${spv_bin}:${PATH}" "${EPYTHON}" -B bin/makeExtinstHeaders.py ) \
 			>> "${T}/spirv-headers.log" 2>&1 || die "makeExtinstHeaders.py failed for ${spv}"
 		( cd "${spv}/include/spirv/unified1" && "${spv_bin}/buildSpvHeaders" -H spirv.core.grammar.json &&
@@ -2082,7 +2093,7 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 			-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DLLVM_TARGETS_TO_BUILD=X86 -DLLVM_INCLUDE_TESTS=OFF \
 			-DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_INCLUDE_DOCS=OFF -DLLVM_ENABLE_TERMINFO=OFF \
 			-DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_LIBXML2=OFF \
-			"-DCMAKE_CXX_FLAGS=-include cstdint -include limits" > "${T}/llvm-subzero-cmake.log" 2>&1 ||
+			"-DCMAKE_CXX_FLAGS=${CXXFLAGS} -include cstdint -include limits" > "${T}/llvm-subzero-cmake.log" 2>&1 ||
 			die "Failed to configure LLVM r290449 (see ${T}/llvm-subzero-cmake.log)"
 		eninja -C "${WORKDIR}/llvm-subzero-build" llvm-tblgen
 		local sws_tg="${WORKDIR}/llvm-subzero-build/bin/llvm-tblgen" sws_td="${sws_llvm}/include/llvm/IR"
@@ -2415,9 +2426,9 @@ sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polym
 		else
 			ffmpeg_llvm="$(get_llvm_prefix -b)/bin"
 		fi
-		PATH="${ffmpeg_bin}:${ffmpeg_llvm}:${PATH}" "${EPYTHON}" -B "${FILESDIR}/chromium-ffmpeg-config.py" \
-			"${S}" "${WORKDIR}/ffmpeg-config" "${ffmpeg_branding}" "${ffmpeg_arch}" \
-			> "${T}/ffmpeg-config.log" 2>&1 || die "Failed to regenerate FFmpeg's configuration (see ${T}/ffmpeg-config.log)"
+		( chromium_target_env && PATH="${ffmpeg_bin}:${ffmpeg_llvm}:${PATH}" "${EPYTHON}" -B \
+			"${FILESDIR}/chromium-ffmpeg-config.py" "${S}" "${WORKDIR}/ffmpeg-config" "${ffmpeg_branding}" \
+			"${ffmpeg_arch}" ) > "${T}/ffmpeg-config.log" 2>&1 || die "Failed to regenerate FFmpeg's configuration (see ${T}/ffmpeg-config.log)"
 	fi
 	# libaom's configuration (source/config/linux/<arch>/config: aom_config.*, the *_rtcd.h headers)
 	# is the output of its CMake configure, as Chromium's cmake_update.sh runs it (for all
@@ -2445,7 +2456,7 @@ sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polym
 		# Configured where cmake_update.sh does: the command line ends up in aom_config.c.
 		mkdir -p third_party/libaom/build.gentoo || die
 		pushd third_party/libaom/build.gentoo >/dev/null || die
-		LC_ALL=C CC="$(tc-getBUILD_CC)" CXX="$(tc-getBUILD_CXX)" cmake ../source/libaom "${aom_args[@]}" \
+		( chromium_target_env && LC_ALL=C cmake ../source/libaom "${aom_args[@]}" ) \
 			> "${T}/libaom-cmake.log" 2>&1 || die "Failed to configure libaom (see ${T}/libaom-cmake.log)"
 		if [[ ${aom_cfg} == x64 ]]; then
 			grep -E "#define [A-Z0-9_]+ [01]" config/aom_config.h |
@@ -2473,7 +2484,7 @@ sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polym
 		else
 			dav1d_llvm="$(get_llvm_prefix -b)/bin"
 		fi
-		( cd third_party/dav1d && PATH="${dav1d_llvm}:${PATH}" "${EPYTHON}" -B -c \
+		( cd third_party/dav1d && chromium_target_env && PATH="${dav1d_llvm}:${PATH}" "${EPYTHON}" -B -c \
 			"import os, generate_configs as g; env = dict(os.environ); env['CC'] = 'clang'; g.GenerateConfig(${dav1d_args})" ) \
 			> "${T}/dav1d-config.log" 2>&1 || die "Failed to regenerate dav1d's configuration (see ${T}/dav1d-config.log)"
 	fi
@@ -2847,8 +2858,50 @@ chromium_unbundle() {
 	build/linux/unbundle/remove_bundled_libraries.py "${keeplibs[@]}" --do-remove || die
 }
 
+# The compilers and flags of the regeneration steps (chromium_regenerate_gn, chromium_regenerate),
+# set up in their scope with chromium_regen_env:
+# - Chromium's compiler (${CC}, ${CXX}: clang, see pkg_setup) and flags as its build uses them
+#   (chromium_filter_flags, and without those clang doesn't support), for the configure runs of
+#   code Chromium's build compiles (libvpx, FFmpeg, libaom, dav1d, nasm, libwayland), which run
+#   in a subshell with chromium_target_env;
+# - the user's own compiler and flags (GCC, unless the user's configuration uses another), as
+#   they were before pkg_setup and chromium_filter_flags, for everything else: the build tools
+#   the steps make. Only for clang, without the flags it doesn't support.
+# The flags are set up here for each phase, as the user's bashrc and env files set them again.
+chromium_regen_env() {
+	chromium_filter_flags
+	strip-unsupported-flags
+	chromium_target_vars=( CC="${CC}" CXX="${CXX}" CFLAGS="${CFLAGS}" CXXFLAGS="${CXXFLAGS}"
+		CPPFLAGS="${CPPFLAGS}" LDFLAGS="${LDFLAGS}" )
+	chromium_tool_env
+}
+
+# The user's own compiler and flags, for build tools (see chromium_regen_env), in the caller's
+# scope.
+chromium_tool_env() {
+	CC=${CHROMIUM_TOOL_CC} CXX=${CHROMIUM_TOOL_CXX}
+	CFLAGS=${CHROMIUM_TOOL_CFLAGS} CXXFLAGS=${CHROMIUM_TOOL_CXXFLAGS}
+	CPPFLAGS=${CHROMIUM_TOOL_CPPFLAGS} LDFLAGS=${CHROMIUM_TOOL_LDFLAGS}
+	if tc-is-clang; then
+		strip-unsupported-flags
+	fi
+}
+
+chromium_target_env() {
+	export "${chromium_target_vars[@]}"
+}
+
+# A GN list of the given strings.
+chromium_gn_list() {
+	local a l=()
+	for a in "$@"; do
+		l+=( "\"${a//\"/\\\"}\"" )
+	done
+	local IFS=,
+	echo "[${l[*]}]"
+}
+
 # The user's flags as Chromium's build uses them (USE=custom-cflags keeps them as they are).
-# Also used by the regeneration steps, which build host tools and run configure scripts.
 chromium_filter_flags() {
 	if use !custom-cflags; then
 		replace-flags "-Os" "-O2"
@@ -3380,16 +3433,20 @@ chromium_compile() {
 		# LiteRT's schema, where the generators include TensorFlow Lite's.
 		echo '#include "tflite/converter/schema/schema_generated.h"' \
 			> "${fb_gen}/litert/tensorflow/lite/schema/schema_generated.h" || die
-		for fb_g in builtin_ops_header builtin_ops_list; do
-			for fb_d in tflite litert; do
-				# shellcheck disable=SC2086
-				$(tc-getBUILD_CXX) ${BUILD_CXXFLAGS} ${BUILD_CPPFLAGS} -std=c++17 \
-					$([[ ${fb_d} == litert ]] && echo "-I${fb_gen}/litert -I${fb_lrt%/tflite}") \
-					-I"${fb_tfl%/tensorflow}" -Ithird_party/flatbuffers/src/include ${BUILD_LDFLAGS} \
-					-o "${fb_gen}/${fb_g}-${fb_d}" "${fb_tfl}/lite/schema/${fb_g}/generate.cc" \
-					"${fb_tfl}/lite/schema/${fb_g}/generator.cc" || die "Failed to build ${fb_g} (${fb_d})"
+		# Build tools: the user's compiler and flags (see chromium_regen_env).
+		(
+			chromium_tool_env
+			for fb_g in builtin_ops_header builtin_ops_list; do
+				for fb_d in tflite litert; do
+					# shellcheck disable=SC2086
+					$(tc-getBUILD_CXX) ${CXXFLAGS} ${CPPFLAGS} -std=c++17 \
+						$([[ ${fb_d} == litert ]] && echo "-I${fb_gen}/litert -I${fb_lrt%/tflite}") \
+						-I"${fb_tfl%/tensorflow}" -Ithird_party/flatbuffers/src/include ${LDFLAGS} \
+						-o "${fb_gen}/${fb_g}-${fb_d}" "${fb_tfl}/lite/schema/${fb_g}/generate.cc" \
+						"${fb_tfl}/lite/schema/${fb_g}/generator.cc" || die "Failed to build ${fb_g} (${fb_d})"
+				done
 			done
-		done
+		) || die
 		"${fb_gen}/builtin_ops_header-tflite" > "${fb_tfl}/lite/builtin_ops.h" &&
 			"${fb_gen}/builtin_ops_list-tflite" > "${fb_tfl}/lite/kernels/builtin_ops_list.inc" &&
 			"${fb_gen}/builtin_ops_header-litert" > "${fb_lrt}/builtin_ops.h" &&
