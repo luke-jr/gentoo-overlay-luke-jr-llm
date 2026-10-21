@@ -11,8 +11,8 @@ files as its `git cl format` step does.
 
 Inputs the release tarball doesn't have are passed in: the Khronos registries' XML files
 (ANGLE's DEPS revisions), perfect_hash (the version its built-in symbols generator is
-written for), and a glslang validator (the revision ANGLE's prebuilt one is built from, so
-the shaders come out the same), plus flex and bison.
+written for), and a glslang validator (the system's: the compiled shaders differ from
+upstream's, which a 2020 glslang made), plus flex and bison.
 
 usage: chromium-angle-regen.py SRC_ROOT XML_DIR PERFECT_HASH_DIR GLSLANG FLEX BISON CLANG_FORMAT GN
   SRC_ROOT: the Chromium tree; XML_DIR: gl.xml glx.xml wgl.xml egl.xml cl.xml vk.xml;

@@ -222,8 +222,8 @@ built-in terms dialog Linux builds show on a new profile's first run.
     built-in symbol tables, its Vulkan back-end's compiled internal shaders) is regenerated with its ~30
     code generators (`files/chromium-angle-regen.py`), from inputs the tarball lacks: Khronos' XML
     registries at ANGLE's DEPS revisions, `perfect-hash` 0.2.1 (the API its symbol-table generator
-    uses), and a glslang validator built from source at the revision ANGLE's prebuilt one comes from
-    (2020's), so the SPIR-V is the same as upstream's. Everything a Linux build uses comes out
+    uses), and the system's glslang validator (`dev-util/glslang`). The compiled shaders differ from
+    upstream's, which a 2020 glslang made; everything else a Linux build uses comes out
     byte-identical, except the two flex lexers, whose generated comments differ with Gentoo's flex.
     `src/common/Float16ToFloat32.cpp` is regenerated with the script next to it (byte-identical).
   - Chromium's own generated GPU code is regenerated in `src_prepare` with its generators: the command
