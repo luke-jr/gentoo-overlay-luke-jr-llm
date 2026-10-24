@@ -1,7 +1,15 @@
-# luke-jr-llm: Chromium 156 overlay
+# luke-jr-llm: Chromium overlay
 
-Gentoo overlay (repository name `luke-jr-llm`), maintained with an LLM; not an official Gentoo
-repository and not maintained by Gentoo developers. Example `/etc/portage/repos.conf/luke-jr-llm.conf`:
+> **Use at your own risk.** This overlay is maintained by an LLM (Claude), with only human
+> direction. No human has fully reviewed it: not a Gentoo developer, not anyone else, not even the
+> person directing it. It is not an official Gentoo repository. It patches and rebuilds a web
+> browser, which is security-sensitive software; its changes may have bugs that upstream Chromium or
+> `::gentoo` don't. Only amd64 has been built and tested, on one machine's configuration. There is
+> no warranty of any kind (see the GPL-2 the ebuilds are distributed under). Read what an ebuild
+> does before you build it.
+
+Gentoo overlay (repository name `luke-jr-llm`) for Chromium. Example
+`/etc/portage/repos.conf/luke-jr-llm.conf`:
 
 ```ini
 [luke-jr-llm]
