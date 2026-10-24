@@ -34,7 +34,7 @@ Goals:
 | Package | Why |
 |---|---|
 | `www-client/chromium-156.0.8078.47` | the browser: 156.0.8078.47, from Google's official "lite" source tarball (`chromium-linux-tarballs`, which `::gentoo` uses, has none for it), plus `files/chromium-156.0.8078.47-branch-fixes.patch` (the later changes of the 156 branch) and the CVE-2026-110914 fix 156 hasn't got yet. |
-| `www-client/chromium-157.0.8103.15` | the browser: 157.0.8103.15, from Google's official "lite" source tarball (it already has the CVE-2026-110914 fix). See "157" below for how it differs from 156. |
+| `www-client/chromium-157.0.8103.15` | the browser: 157.0.8103.15, **Beta** on Linux (Google's early stable release of it is for Windows and Mac only), so `SLOT="beta"`, as `::gentoo` slots channels: it installs beside stable as `chromium-browser-beta`, with its own profile directory. Built from Google's official "lite" source tarball (it already has the CVE-2026-110914 fix). See "157" below for how it differs from 156. |
 | `dev-util/ragel-6.10:6` | Ragel 6 in slot 6, installed as `ragel-6`, for systems that keep `::gentoo`'s Ragel 7 (`::gentoo` has 6 and 7 both in slot 0). Chromium's ebuild regenerates HarfBuzz's state machines with Ragel 6 (HarfBuzz requires 6.10): `::gentoo`'s `dev-util/ragel-6.10` when that is installed or nothing is, this slot when Ragel 7 is installed. |
 | `dev-util/esbuild-0.28.2` | DevTools needs exactly this version. `::gentoo` stops at 0.27.3, and deps.gentoo.zip has no vendor tarball, so this uses `EGO_SUM`. |
 | `dev-build/gn-0.2578`, `gn-0.2595` | 156's `.gn` needs gn ≥ 1b0f22ec, 157's needs 0.2595. Pinned to the commits Chromium's `DEPS` uses, via git-r3, because there is no tarball and gitiles archives aren't reproducible. |
