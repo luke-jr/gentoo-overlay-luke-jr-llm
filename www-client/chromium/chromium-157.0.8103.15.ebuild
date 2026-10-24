@@ -982,7 +982,7 @@ src_prepare() {
 
 		# Use the system Crubit (dev-util/crubit) with the prebuilt system Rust stdlib
 		# (generates the stdlib's C++ bindings from its .rmeta files); see the patch header.
-		PATCHES+=( "${FILESDIR}/chromium-156-system-crubit.patch" )
+		PATCHES+=( "${FILESDIR}/chromium-157-system-crubit.patch" )
 
 		remove_compiler_builtins
 
@@ -1042,9 +1042,13 @@ src_prepare() {
 	rm third_party/.clang-format-ignore || die
 
 	if use !bundled-toolchain; then
-		# As for bindgen above; these files are added/changed by chromium-156-system-crubit.patch.
-		sed -i "s|/bin/rustfmt|/bin/rustfmt${suffix}|g" build/rust/gni_impl/cpp_api_from_rust.gni \
-			build/rust/std/prebuilt_std_bindings.gni || die "Failed to update rustfmt path for Crubit"
+		# As for bindgen above; these files are added/changed by chromium-157-system-crubit.patch
+		# and cr152-fix-rust-2-oxidize-harder.patch.
+		local f
+		for f in build/rust/gni_impl/crubit_shared_args.gni build/rust/std/prebuilt_std_bindings.gni; do
+			sed -i "s|/rustfmt\"|/rustfmt${suffix}\"|" "${f}" && grep -q "/rustfmt${suffix}\"" "${f}" ||
+				die "Failed to update rustfmt path for Crubit in ${f}"
+		done
 	fi
 
 	# Generated code and data in the vendored Rust crates (syn's visitors, Unicode tables,
