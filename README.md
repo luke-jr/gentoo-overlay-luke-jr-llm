@@ -1,7 +1,15 @@
-# luke-jr-llm: Chromium 156 overlay
+# luke-jr-llm: Chromium overlay
 
-Gentoo overlay (repository name `luke-jr-llm`), maintained with an LLM; not an official Gentoo
-repository and not maintained by Gentoo developers. Example `/etc/portage/repos.conf/luke-jr-llm.conf`:
+> **Use at your own risk.** This overlay is maintained by an LLM (Claude), with only human
+> direction. No human has fully reviewed it: not a Gentoo developer, not anyone else, not even the
+> person directing it. It is not an official Gentoo repository. It patches and rebuilds a web
+> browser, which is security-sensitive software; its changes may have bugs that upstream Chromium or
+> `::gentoo` don't. Only amd64 has been built and tested, on one machine's configuration. There is
+> no warranty of any kind (see the GPL-2 the ebuilds are distributed under). Read what an ebuild
+> does before you build it.
+
+Gentoo overlay (repository name `luke-jr-llm`) for Chromium. Example
+`/etc/portage/repos.conf/luke-jr-llm.conf`:
 
 ```ini
 [luke-jr-llm]
@@ -10,8 +18,9 @@ masters = gentoo
 auto-sync = no
 ```
 
-`www-client/chromium-156.0.8078.47`, based on `::gentoo`'s `chromium-151.0.7922.169-r1`
-(`::gentoo` has masked Chromium for removal on 2026-10-24, bug #982204).
+`www-client/chromium-156.0.8078.47` and `157.0.8103.15`, based on `::gentoo`'s
+`chromium-151.0.7922.169-r1` (`::gentoo` has masked Chromium for removal on 2026-10-24, bug #982204).
+Both are built from Google's official "lite" source tarballs.
 
 Goals:
 - Build without any bundled or third-party prebuilt binaries.
@@ -25,17 +34,19 @@ Goals:
 | Package | Why |
 |---|---|
 | `www-client/chromium-156.0.8078.47` | the browser: 156.0.8078.47, from Google's official "lite" source tarball (`chromium-linux-tarballs`, which `::gentoo` uses, has none for it), plus `files/chromium-156.0.8078.47-branch-fixes.patch` (the later changes of the 156 branch) and the CVE-2026-110914 fix 156 hasn't got yet. |
+| `www-client/chromium-157.0.8103.15` | the browser: 157.0.8103.15, from Google's official "lite" source tarball (it already has the CVE-2026-110914 fix). See "157" below for how it differs from 156. |
 | `dev-util/ragel-6.10:6` | Ragel 6 in slot 6, installed as `ragel-6`, for systems that keep `::gentoo`'s Ragel 7 (`::gentoo` has 6 and 7 both in slot 0). Chromium's ebuild regenerates HarfBuzz's state machines with Ragel 6 (HarfBuzz requires 6.10): `::gentoo`'s `dev-util/ragel-6.10` when that is installed or nothing is, this slot when Ragel 7 is installed. |
 | `dev-util/esbuild-0.28.2` | DevTools needs exactly this version. `::gentoo` stops at 0.27.3, and deps.gentoo.zip has no vendor tarball, so this uses `EGO_SUM`. |
-| `dev-build/gn-0.2578` | 156's `.gn` needs gn ≥ 1b0f22ec. Pinned to the commit Chromium's `DEPS` uses, via git-r3, because there is no tarball and gitiles archives aren't reproducible. |
+| `dev-build/gn-0.2578`, `gn-0.2595` | 156's `.gn` needs gn ≥ 1b0f22ec, 157's needs 0.2595. Pinned to the commits Chromium's `DEPS` uses, via git-r3, because there is no tarball and gitiles archives aren't reproducible. |
 | `dev-lang/typescript:6.0.2` | TypeScript 6 (the JavaScript implementation: compiler, language server, JavaScript API) built from source the way upstream builds its npm package; `::gentoo`'s `dev-lang/typescript` installs the npm package's prebuilt bundles. DevTools' build uses its JavaScript API (`collect-ui-strings`). `lib*.d.ts`, `typesMap.json` and the localized messages are byte-identical to npm's; `typescript.d.ts` differs in formatting only (upstream formats it with dprint's prebuilt WebAssembly plugin). |
 | `dev-lang/typescript:7.0.2` | TypeScript 7 (the Go compiler, `tsgo`) built from source, slotted per exact version beside `::gentoo`'s TypeScript 6. Upstream compiles all WebUI/DevTools TypeScript with a prebuilt `tsgo`. The output was verified byte-identical to upstream's binary across all ~17k TypeScript outputs. |
-| `dev-util/crubit:1.98.1` | Crubit's `cc_bindings_from_rs`, built from source against the selected `dev-lang/rust`. It links the compiler's own crates (the `rustc-dev` component), which it unpacks at build time from the tarball `dev-lang/rust` builds with `USE=dist`; nothing extra is installed. Since M153–156, default-on code (Blink's FontFormatCheck, the Web Bundle parser, …) is Rust that C++ reaches only through Crubit-generated bindings. |
-| `dev-util/rollup:4.21.0` | The Rollup bundler built from source: its CLI (rollup's TypeScript plus the 17 npm packages its own build bundles in, each from its source, bundled with esbuild) and its JavaScript parser (Rust) as a native Node.js addon. Replaces `@rollup/wasm-node` (generated JavaScript and a prebuilt WebAssembly parser), used for WebUI bundling; chromium-bidi's own (newer) copy is replaced by the same one. WebUI bundles are byte-identical to the npm package's; the BiDi mapper only keeps a little more dead code. Replaces `dev-util/rollup-native` (parser only). |
-| `dev-util/chromium-node-modules:156` | Generated files of the npm packages in Chromium's tarball and of the JavaScript libraries DevTools vendors, built from the packages' git sources, installed at the paths of the files they replace (`tree/`; Chromium copies them over, after checking versions in `VERSIONS`) or as inputs for Chromium's own rebuild steps (`build/`). Built once per Chromium major version. Build tools: terser (WebUI/Mojo minification), chromium-bidi's three rollup plugins (31 packages, incl. moment and lodash), WebUI's `postcss-selector-parser`, ts-proto's protoc plugin (bootstrapped: its committed, self-generated descriptors are regenerated and must reach a fixpoint), DevTools' build tools (cssnano's and svgo's generated packages, yargs and its family, js-yaml, uuid, esbuild's JavaScript API). Shipped code: zod and mitt (BiDi mapper), `@bufbuild/protobuf`'s ES modules, WebUI's lit and DevTools' lit (with lit's own rollup configs), and DevTools' acorn, CodeMirror 5 runmode, `diff_match_patch`, intl-messageformat, json5, marked, wasmparser, Puppeteer and Puppeteer Replay (with mitt, parsel, rxjs, urlpattern-polyfill), the 41 packages of `codemirror.next` (Lezer parsers regenerated from their grammars), and Lighthouse 13.5.0 (`lighthouse-dt-bundle.js`, the report renderer and generator, legacy-javascript) with the ~40 npm packages its build bundles and axe-core 4.13.0 (Lighthouse's accessibility engine, with the ~25 packages it bundles; emoji-regex's pattern made from Unicode's `emoji-test.txt`). |
-| `dev-util/gnrt:156` | Chromium's own `gnrt` (`tools/crates/gnrt`), which writes the `BUILD.gn` files of the vendored Rust crates; the Chromium ebuild runs `gnrt gen` instead of using the checked-in ones (all 269 come out byte-identical). Built from the Chromium tarball (only that directory is unpacked) without its crate downloader (`files/gnrt-156-no-download.patch`), which drops 137 of its 268 crates (HTTP, TLS). |
-| `dev-util/chromium-rust-crates:156` | The generated code and data of the vendored Rust crates, regenerated with their upstream generators at the commits the crates were published from, and installed at the paths of the files they replace (Chromium copies them over, after checking versions). syn's visitors, the Unicode tables of regex-syntax (ucd-generate), unicode-ident and unicode-width, RustFFT's SIMD butterflies, fontations' table code (read-fonts, write-fonts, skrifa), ICU4X's baked data and `icu_capi`'s generated FFI code, temporal_rs' time zone data and `zoneinfo64.res` (ICU's `genrb`). The generators' 229 crates are fetched; the rest of their lockfiles are stubs. |
-| `media-video/ffmpeg-chromium-156` | for `USE=ffmpeg-chromium` (`::gentoo` stops at 154) |
+| `dev-util/crubit-1.98.1_p20260908`, `_p20260930` | One slot per version: each Chromium major pins its own Crubit commit (`CRUBIT_DATE`; 156: 20260908, 157: 20260930), built against Rust 1.98.1. Crubit's `cc_bindings_from_rs`, built from source against the selected `dev-lang/rust`. It links the compiler's own crates (the `rustc-dev` component), which it unpacks at build time from the tarball `dev-lang/rust` builds with `USE=dist`; nothing extra is installed. Since M153–156, default-on code (Blink's FontFormatCheck, the Web Bundle parser, …) is Rust that C++ reaches only through Crubit-generated bindings. |
+| `dev-util/rollup:4.21.0` | The Rollup bundler built from source: its CLI (rollup's TypeScript plus the 17 npm packages its own build bundles in, each from its source, bundled with esbuild) and its JavaScript parser (Rust) as a native Node.js addon. Replaces `@rollup/wasm-node` (generated JavaScript and a prebuilt WebAssembly parser), used for WebUI bundling; chromium-bidi's own (newer) copy is replaced by the same one. WebUI bundles are byte-identical to the npm package's; the BiDi mapper only keeps a little more dead code. |
+| `dev-util/chromium-node-modules:156`, `:157` | Generated files of the npm packages in Chromium's tarball and of the JavaScript libraries DevTools vendors, built from the packages' git sources, installed at the paths of the files they replace (`tree/`; Chromium copies them over, after checking versions in `VERSIONS`) or as inputs for Chromium's own rebuild steps (`build/`). Built once per Chromium major version. Build tools: terser (WebUI/Mojo minification), chromium-bidi's three rollup plugins (31 packages, incl. moment and lodash), WebUI's `postcss-selector-parser`, ts-proto's protoc plugin (bootstrapped: its committed, self-generated descriptors are regenerated and must reach a fixpoint), DevTools' build tools (cssnano's and svgo's generated packages, yargs and its family, js-yaml, uuid, esbuild's JavaScript API). Shipped code: zod and mitt (BiDi mapper), `@bufbuild/protobuf`'s ES modules, WebUI's lit and DevTools' lit (with lit's own rollup configs), and DevTools' acorn, CodeMirror 5 runmode, `diff_match_patch`, intl-messageformat, json5, marked, wasmparser, Puppeteer and Puppeteer Replay (with mitt, parsel, rxjs, urlpattern-polyfill), the 41 packages of `codemirror.next` (Lezer parsers regenerated from their grammars), and Lighthouse 13.5.0 (`lighthouse-dt-bundle.js`, the report renderer and generator, legacy-javascript) with the ~40 npm packages its build bundles and axe-core 4.13.0 (Lighthouse's accessibility engine, with the ~25 packages it bundles; emoji-regex's pattern made from Unicode's `emoji-test.txt`). |
+| `dev-util/gnrt:156`, `:157` | Chromium's own `gnrt` (`tools/crates/gnrt`), which writes the `BUILD.gn` files of the vendored Rust crates; the Chromium ebuild runs `gnrt gen` instead of using the checked-in ones (all 269 come out byte-identical). Built from the Chromium tarball (only that directory is unpacked) without its crate downloader (`files/gnrt-156-no-download.patch`), which drops 137 of its 268 crates (HTTP, TLS). |
+| `dev-util/chromium-rust-crates:156`, `:157` | The generated code and data of the vendored Rust crates, regenerated with their upstream generators at the commits the crates were published from, and installed at the paths of the files they replace (Chromium copies them over, after checking versions). syn's visitors, the Unicode tables of regex-syntax (ucd-generate), unicode-ident and unicode-width, RustFFT's SIMD butterflies, fontations' table code (read-fonts, write-fonts, skrifa), ICU4X's baked data and `icu_capi`'s generated FFI code, temporal_rs' time zone data and `zoneinfo64.res` (ICU's `genrb`). The generators' 229 crates are fetched; the rest of their lockfiles are stubs. |
+| `dev-util/cddlconv` (slots `0.1.7`, `0.1.10`, `0.1.12`, `0.2.0`) | The CDDL-to-TypeScript/Zod converter from the WebDriver BiDi tooling, built from source, one slot per version: chromium-bidi's protocol types (156: 0.1.12, 157: 0.2.0) and the `webdriver-bidi-protocol` types in `chromium-node-modules` (156: 0.1.7, 157: 0.1.10) are each regenerated with the version that made them. |
+| `media-video/ffmpeg-chromium-156` | for `USE=ffmpeg-chromium` with Chromium 156 (`::gentoo` stops at 154; there is no 157 yet) |
 
 All except `ffmpeg-chromium` are **build-time only** (`BDEPEND`) for Chromium. `ffmpeg-chromium` is a runtime
 dependency, and only with `USE=ffmpeg-chromium`; it builds and installs, but hasn't been tested in use.
@@ -60,8 +71,8 @@ ln -s /var/db/repos/luke-jr-llm/scripts/postsync.d/chromium-build-deps /etc/port
 emerge --noreplace @chromium-build-deps
 ```
 
-The hook regenerates the set after every `emerge --sync`; rerun the script after changing Chromium's
-USE flags. The file is only replaced after a successful evaluation, so a failure (e.g. Chromium
+The set is for the newest visible Chromium. The hook regenerates it after every `emerge --sync`;
+rerun the script after unmasking a new version or changing Chromium's USE flags. The file is only replaced after a successful evaluation, so a failure (e.g. Chromium
 masked) keeps the previous set and its packages.
 
 1. LLVM 22: `llvm-core/{llvm,clang,lld}:22` and `llvm-runtimes/compiler-rt-sanitizers:22[cfi]` (for
@@ -69,7 +80,7 @@ masked) keeps the previous set and its packages.
 2. `dev-lang/rust:1.98.1` with `USE="dist rustfmt"` (rustfmt is on by default). `dist`
    builds the `rustc-dev` component, which Crubit builds against. It must match *this* Rust
    build: it uses its exact `librustc_driver-<hash>.so`. Rebuilding Rust means rebuilding
-   `dev-util/crubit:1.98.1` (the Chromium ebuild checks this). If you installed
+   the installed `dev-util/crubit` versions (the Chromium ebuild checks this). If you installed
    `dev-lang/rustc-dev`, unmerge it: Crubit no longer uses it.
 3. Accept `~amd64` for the overlay's packages and unmask `www-client/chromium::luke-jr-llm`.
    `LLVM_COMPAT` is 22 only: LLVM 23 means Rust 1.99, which would need a `dev-util/crubit:1.99.0`.
@@ -169,14 +180,37 @@ No USE flags were removed. New ones:
   - With `USE=lto` and `USE=official`: CFI cast checks (`use_cfi_cast`), which upstream only uses on
     ChromeOS and Android.
 
-Also new, for all builds: `chromium-156-disable-tos-dialog.patch` (from ungoogled-chromium) skips the
-built-in terms dialog Linux builds show on a new profile's first run.
+Also new, for 156: `chromium-156-disable-tos-dialog.patch` (from ungoogled-chromium) skips the
+built-in terms dialog Linux builds show on a new profile's first run (157 does the same upstream).
 
 `chromium-156-crash-bubble-once.patch` fixes an upstream bug: after a crash and a restore from
 the "Restore pages?" bubble, a window opened later through the startup path (running `chromium`
 again, a launcher) offered to restore again. `HasPendingUncleanExit()` relied on
 `ProfileLaunchObserver`, which forgets the launched profiles once startup is done; it now also
 requires `ExitTypeService` to still be waiting for the user to acknowledge the crash.
+
+## 157
+
+The 157 ebuild is the 156 one with these differences:
+- Patches rebased for 157: `chromium-157-no-runtime-executable-downloads.patch`,
+  `chromium-157-system-crubit.patch` (157 moved Crubit's tool paths into
+  `build/rust/gni_impl/crubit_shared_args.gni`, and its bindings need a `std_bindings_crubit_metadata`
+  target, which the patch adds for the system stdlib), `chromium-157-v8-metagen-resource-dir.patch`,
+  and the Gentoo patchset as `files/chromium-patches-157/` (`cr149-bindgen-libclang-paths` and
+  `cr152-fix-rust-2-oxidize-harder` rebased).
+- Dropped, as 157 doesn't need them: the 156 branch fixes and the CVE-2026-110914 patch (in 157),
+  the terms dialog patch (upstream does the same), DrumBrake's `DeclaresLocals()` patch, and copium's
+  `cr143-libsync-__BEGIN_DECLS.patch` (no effect).
+- `third_party/sframe` is kept as a bundled source (157 builds it).
+- Bundled HarfBuzz's tables and `unicode-ident` are made from Unicode 18.0.0 (its zipped UCD isn't
+  published yet; the files come from Unicode's `unicodetools` repository). 157's checked-in HarfBuzz
+  USE table was made from 17.0.0's `DerivedCoreProperties.txt`, so that one table differs.
+- Newer pins: gn 0.2595, Crubit 20260930, Vulkan-Headers and Vulkan-Docs v1.4.365, cddlconv 0.2.0 (chromium-bidi) and
+  0.1.10 (`webdriver-bidi-protocol`), zod 4.6.5 and puppeteer-core 25.13.0 in
+  `dev-util/chromium-node-modules:157`, syn 3.0.6, unicode-ident 1.0.26 and fontations' newer crates
+  in `dev-util/chromium-rust-crates:157`.
+
+Built offline and runtime-tested like 156 (components, DevTools, WebDriver BiDi, translation, WebGL).
 
 ## Known issues / TODO
 
@@ -187,7 +221,8 @@ requires `ExitTypeService` to still be waiting for the user to acknowledge the c
   2. V8's Temporal code includes ICU-internal headers (`udatamem.h`) that system ICU doesn't install.
   3. Build-time generators expect `icudtl.dat`. A GN fix for this one is shelved, since it doesn't help
      without the other two.
-- **USE=bundled-toolchain** (Google's prebuilt clang/Rust) isn't adapted to the 156
+- **`USE=ffmpeg-chromium` with 157:** there is no `media-video/ffmpeg-chromium-157` yet.
+- **USE=bundled-toolchain** (Google's prebuilt clang/Rust) isn't adapted to the 156/157
   changes (e.g. its bundled clang-format is removed but referenced by Crubit). It's
   opt-in and by definition uses prebuilt binaries.
 - **gn ebuild:** uses git-r3 (pinned commit). A distfile tarball would need hosting.
@@ -513,6 +548,9 @@ requires `ExitTypeService` to still be waiting for the user to acknowledge the c
   - With `USE=prebuilt-chromedriver-atoms`, chromedriver uses upstream's Closure-compiled Selenium
     atoms instead of the ones built from source.
 - **Crubit notes:** see `NOTES-crubit.md`.
+- **New versions:** `scripts/chromium-delta/README.md` describes how upgrade patches are made and
+  checked (for a release without a tarball yet, and for later fixes on a release branch), and what
+  went wrong before.
 - **Metadata:** no package lists a maintainer: the `::gentoo` ones' Gentoo maintainers were removed, since
   they don't maintain this overlay. Add yourself if you like. The generated AppStream data uses upstream
   Chromium's contact and bug-report URL instead of Gentoo's. `metadata/md5-cache` isn't tracked in git; Portage
