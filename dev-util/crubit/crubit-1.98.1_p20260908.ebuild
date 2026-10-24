@@ -6,12 +6,14 @@ EAPI=8
 # Only `cc_bindings_from_rs` (Chromium's `cpp_api_from_rust`) is built, exactly
 # like Chromium's tools/rust/build_crubit.py does for M156.
 #
-# Version scheme: <dev-lang/rust version>_p<crubit commit date>.
-# - The Rust part is the SLOT. cc_bindings_from_rs is a rustc driver
+# Version scheme: <dev-lang/rust version>_p<crubit commit date>, and one SLOT per
+# version (installed in /usr/lib/crubit/${PV}):
+# - The Rust part: cc_bindings_from_rs is a rustc driver
 #   (#![feature(rustc_private)]) and links dynamically against the
 #   librustc_driver-<hash>.so of one specific dev-lang/rust build, and it must
-#   see the same compiler that builds Chromium's Rust code. One crubit slot per
-#   Rust slot.
+#   see the same compiler that builds Chromium's Rust code.
+# - The commit: each Chromium major version pins its own (its bindings must match
+#   the Crubit support library it ships), so several can be installed for one Rust.
 # - The commit must match CRUBIT_REVISION in Chromium's
 #   tools/rust/update_rust.py (156.0.8078.12: a355b02da81b..., 2026-09-08).
 CRUBIT_COMMIT="a355b02da81bc9f350925c73ec0322ce4d5140f1"
@@ -132,15 +134,17 @@ S="${WORKDIR}/${PN}-${CRUBIT_COMMIT}"
 LICENSE="Apache-2.0-with-LLVM-exceptions"
 # Dependent crate licenses (only the crates linked into cc_bindings_from_rs)
 LICENSE+=" Apache-2.0 MIT Unicode-3.0 || ( MIT Unlicense )"
-SLOT="$(ver_cut 1-3)"
+SLOT="${PV}"
+# The dev-lang/rust slot this is built against.
+CRUBIT_RUST_SLOT="$(ver_cut 1-3)"
 KEYWORDS="~amd64 ~arm64"
 # Crubit's tests need googletest + Bazel-only fixtures; Chromium doesn't run them either.
 RESTRICT="test"
 
 # Run time: the librustc_driver-<hash>.so this was linked against.
-RDEPEND="dev-lang/rust:${SLOT}"
+RDEPEND="dev-lang/rust:${CRUBIT_RUST_SLOT}"
 
-QA_FLAGS_IGNORED="usr/lib/crubit/${SLOT}/bin/cc_bindings_from_rs"
+QA_FLAGS_IGNORED="usr/lib/crubit/${PV}/bin/cc_bindings_from_rs"
 
 src_prepare() {
 	default
@@ -159,10 +163,10 @@ src_prepare() {
 	# If dev-lang/rust ever installs rustc-dev into the slot's sysroot itself,
 	# use that instead.
 	local triple=$(rust_abi)
-	local rustroot="${BROOT}/usr/lib/rust/${SLOT}"
-	local tarball="${rustroot}/dist/rustc-dev-${SLOT}-${triple}.tar.xz"
+	local rustroot="${BROOT}/usr/lib/rust/${CRUBIT_RUST_SLOT}"
+	local tarball="${rustroot}/dist/rustc-dev-${CRUBIT_RUST_SLOT}-${triple}.tar.xz"
 	[[ -f ${tarball} ]] ||
-		die "${tarball} not found; re-emerge dev-lang/rust:${SLOT} with USE=dist"
+		die "${tarball} not found; re-emerge dev-lang/rust:${CRUBIT_RUST_SLOT} with USE=dist"
 
 	local sr="${WORKDIR}/sysroot/lib/rustlib/${triple}/lib"
 	mkdir -p "${sr}" || die
@@ -170,10 +174,10 @@ src_prepare() {
 
 	einfo "Unpacking rustc-dev from ${tarball} ..."
 	tar -xJf "${tarball}" -C "${WORKDIR}" --wildcards \
-		"rustc-dev-${SLOT}-${triple}/rustc-dev/lib/rustlib/${triple}/lib/*" ||
+		"rustc-dev-${CRUBIT_RUST_SLOT}-${triple}/rustc-dev/lib/rustlib/${triple}/lib/*" ||
 		die "Failed to unpack rustc-dev"
 	local f
-	for f in "${WORKDIR}/rustc-dev-${SLOT}-${triple}/rustc-dev/lib/rustlib/${triple}/lib/"*; do
+	for f in "${WORKDIR}/rustc-dev-${CRUBIT_RUST_SLOT}-${triple}/rustc-dev/lib/rustlib/${triple}/lib/"*; do
 		# The tarball has an empty lib/self-contained/ (rust-std has one too).
 		[[ -d ${f} && -z $(ls -A "${f}") ]] && continue
 		[[ -e ${sr}/${f##*/} ]] && die "rustc-dev file ${f##*/} collides with the installed ${rustroot}/lib/rustlib/${triple}/lib"
@@ -188,7 +192,7 @@ src_prepare() {
 	[[ ${#drv[@]} -eq 1 && -f ${drv[0]} ]] || die "rustc-dev contains no single librustc_driver"
 	local installed="${rustroot}/lib/${drv[0]##*/}"
 	[[ -f ${installed} ]] ||
-		die "${tarball} does not match the installed rustc (${installed} missing); re-emerge dev-lang/rust:${SLOT}"
+		die "${tarball} does not match the installed rustc (${installed} missing); re-emerge dev-lang/rust:${CRUBIT_RUST_SLOT}"
 	ln -sf "${installed}" "${drv[0]}" || die
 }
 
@@ -203,7 +207,7 @@ src_compile() {
 	# global value (e.g. RUSTFLAGS from make.conf), which cargo would then use
 	# instead, without these flags. Phase functions don't leak variables anyway.
 	RUSTFLAGS+=" --sysroot=${WORKDIR}/sysroot"
-	RUSTFLAGS+=" -C link-arg=-Wl,-rpath,${EPREFIX}/usr/lib/rust/${SLOT}/lib"
+	RUSTFLAGS+=" -C link-arg=-Wl,-rpath,${EPREFIX}/usr/lib/rust/${CRUBIT_RUST_SLOT}/lib"
 	# librustc_driver links libLLVM-<major>.so of the system LLVM that
 	# dev-lang/rust was built against; it is found at runtime via LLVM's LDPATH,
 	# but the linker needs its directory.
@@ -223,7 +227,7 @@ src_compile() {
 src_install() {
 	# Same layout as Chromium's prebuilt toolchain package
 	# (tools/rust/build_crubit.py: InstallCrubit()), rooted per Rust slot.
-	local root="/usr/lib/crubit/${SLOT}"
+	local root="/usr/lib/crubit/${PV}"
 	exeinto "${root}/bin"
 	doexe "$(cargo_target_dir)"/cc_bindings_from_rs
 
@@ -234,8 +238,8 @@ src_install() {
 }
 
 pkg_postinst() {
-	elog "cc_bindings_from_rs is installed in ${EROOT}/usr/lib/crubit/${SLOT}/bin and is"
-	elog "tied to the exact dev-lang/rust:${SLOT} build installed now. If you rebuild"
-	elog "dev-lang/rust:${SLOT} (different flags can change its librustc_driver hash),"
+	elog "cc_bindings_from_rs is installed in ${EROOT}/usr/lib/crubit/${PV}/bin and is"
+	elog "tied to the exact dev-lang/rust:${CRUBIT_RUST_SLOT} build installed now. If you rebuild"
+	elog "dev-lang/rust:${CRUBIT_RUST_SLOT} (different flags can change its librustc_driver hash),"
 	elog "rebuild ${CATEGORY}/${PN}:${SLOT} as well."
 }
