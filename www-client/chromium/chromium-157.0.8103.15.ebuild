@@ -808,15 +808,6 @@ remove_compiler_builtins() {
 }
 
 src_prepare() {
-	# Fixes newer than ${PV}: the later changes of its release branch, and the CVE-2026-110914
-	# fix (from Stable 155.0.8059.84) 156 hasn't got yet. See the patch headers. Keep
-	# chrome/VERSION as is.
-	einfo "Applying the 156 branch's fixes after ${PV} ..."
-	local p
-	for p in chromium-${PV}-branch-fixes.patch chromium-156-cve-2026-110914.patch; do
-		git apply --whitespace=nowarn "${FILESDIR}/${p}" || die "Failed to apply ${p}"
-	done
-
 	# Calling this here supports resumption via FEATURES=keepwork
 	python_setup
 
@@ -829,8 +820,8 @@ src_prepare() {
 		# what web pages themselves load): Widevine CDM, Screen AI, SODA,
 		# TranslateKit, the WASM TTS engine, component-extension JS updates
 		# and the remote DevTools front-end.
-		"${FILESDIR}/chromium-156-no-runtime-executable-downloads.patch"
-		"${FILESDIR}/chromium-156-v8-metagen-resource-dir.patch"
+		"${FILESDIR}/chromium-157-no-runtime-executable-downloads.patch"
+		"${FILESDIR}/chromium-157-v8-metagen-resource-dir.patch"
 		# V8's keyword table generator, for the system gperf (see src_prepare).
 		"${FILESDIR}/chromium-156-v8-keywords-gperf.patch"
 		# OpenXR includes <vulkan/vulkan.h> without depending on Chromium's Vulkan headers.
@@ -847,8 +838,6 @@ src_prepare() {
 		"${FILESDIR}/chromium-156-devtools-natives-sorted.patch"
 		# GN arg angle_vulkan_mock_icd (see chromium_configure).
 		"${FILESDIR}/chromium-156-angle-mock-icd-arg.patch"
-		# No terms dialog on a new profile's first run (from ungoogled-chromium).
-		"${FILESDIR}/chromium-156-disable-tos-dialog.patch"
 		# "Restore pages?" only while the last session's crash is pending (see the patch).
 		"${FILESDIR}/chromium-156-crash-bubble-once.patch"
 		# BoringSSL's generators, run offline from the tarball (see below).
@@ -904,7 +893,6 @@ src_prepare() {
 
 		# Copium patches go here.
 		PATCHES+=(
-			"${WORKDIR}/copium/cr143-libsync-__BEGIN_DECLS.patch"
 			"${WORKDIR}/copium/cr145-iwyu-dev_t.patch"
 			"${WORKDIR}/copium/cr147-simdutf-8.0-base-char.patch"
 			"${WORKDIR}/copium/cr148-rust-1.95-bytemuck.patch"
@@ -982,7 +970,7 @@ src_prepare() {
 
 		# Use the system Crubit (dev-util/crubit) with the prebuilt system Rust stdlib
 		# (generates the stdlib's C++ bindings from its .rmeta files); see the patch header.
-		PATCHES+=( "${FILESDIR}/chromium-156-system-crubit.patch" )
+		PATCHES+=( "${FILESDIR}/chromium-157-system-crubit.patch" )
 
 		remove_compiler_builtins
 
@@ -1042,9 +1030,13 @@ src_prepare() {
 	rm third_party/.clang-format-ignore || die
 
 	if use !bundled-toolchain; then
-		# As for bindgen above; these files are added/changed by chromium-156-system-crubit.patch.
-		sed -i "s|/bin/rustfmt|/bin/rustfmt${suffix}|g" build/rust/gni_impl/cpp_api_from_rust.gni \
-			build/rust/std/prebuilt_std_bindings.gni || die "Failed to update rustfmt path for Crubit"
+		# As for bindgen above; these files are added/changed by chromium-157-system-crubit.patch
+		# and cr152-fix-rust-2-oxidize-harder.patch.
+		local f
+		for f in build/rust/gni_impl/crubit_shared_args.gni build/rust/std/prebuilt_std_bindings.gni; do
+			sed -i "s|/rustfmt\"|/rustfmt${suffix}\"|" "${f}" && grep -q "/rustfmt${suffix}\"" "${f}" ||
+				die "Failed to update rustfmt path for Crubit in ${f}"
+		done
 	fi
 
 	# Generated code and data in the vendored Rust crates (syn's visitors, Unicode tables,
