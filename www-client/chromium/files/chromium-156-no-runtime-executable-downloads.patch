@@ -377,9 +377,9 @@ index 5d638bb606..7f7585e1ed 100644
  bool IsSupportedLinux() {
 -#if defined(ARCH_CPU_X86_FAMILY)
 -  // Check if the CPU has the required instruction set to run the Speech
--  // On-Device API (SODA) library. SODA requires AVX support on x86.
--  static bool has_avx = base::CPU().has_avx();
--  return has_avx;
+-  // On-Device API (SODA) library.
+-  static bool has_sse41 = base::CPU().has_sse41();
+-  return has_sse41;
 -#else
 -  // Other architectures are not supported.
 +  // The Speech On-Device API (SODA) library is a native shared library that

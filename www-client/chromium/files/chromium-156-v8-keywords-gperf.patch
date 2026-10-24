@@ -1,0 +1,18 @@
+V8's tools/gen-keywords-gen-h.py rewrites gperf's output, and expects gperf 3.1's
+"return 0;" for the keyword-not-found case; gperf 3.3 (C++ mode) writes the null
+pointer as a static_cast. Accept both.
+
+--- a/v8/tools/gen-keywords-gen-h.py
++++ b/v8/tools/gen-keywords-gen-h.py
+@@ -167,7 +167,10 @@
+                     r'return kPerfectKeywordHashTable[key].value;', out)
+ 
+   # Change the return value when the keyword is not found
+-  out = checked_sub(r'return 0;', r'return Token::kIdentifier;', out)
++  # (newer gperf writes the null pointer as a static_cast.)
++  out = checked_sub(
++      r'return (?:0|static_cast<struct PerfectKeywordHashTableEntry \*> \(0\));',
++      r'return Token::kIdentifier;', out)
+ 
+   return out
+ 

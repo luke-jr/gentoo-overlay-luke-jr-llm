@@ -1,0 +1,29 @@
+ANGLE always builds the Vulkan mock ICD (VkICD_mock_icd, a fake Vulkan driver) as a
+data dependency of its bundled Vulkan loader, though it only uses it when asked for its
+mock/null Vulkan device (tests, --use-angle=vulkan-null). Add the GN arg
+angle_vulkan_mock_icd (default true, as before) to leave it out.
+
+--- a/third_party/angle/src/common/vulkan/BUILD.gn
++++ b/third_party/angle/src/common/vulkan/BUILD.gn
+@@ -12,6 +12,10 @@
+ declare_args() {
+   angle_use_custom_libvulkan = !is_android && !is_fuchsia
+ 
++  # Build the Vulkan mock ICD (a fake Vulkan driver), which ANGLE only loads when
++  # asked for its mock/null Vulkan device (tests, --use-angle=vulkan-null).
++  angle_vulkan_mock_icd = true
++
+   # On real CrOS devices, we should use the system Vulkan loader. On the
+   # ChromeOS-for-Linux build, we should use the built libvulkan because the
+   # build is used for MSAN tests. Mixing the non-MSAN system libvulkan with the
+@@ -109,7 +113,9 @@
+       } else {
+         public_deps = [ "$angle_vulkan_loader_dir:libvulkan" ]
+       }
+-      data_deps += [ "$angle_vulkan_tools_dir:VkICD_mock_icd" ]
++      if (angle_vulkan_mock_icd) {
++        data_deps += [ "$angle_vulkan_tools_dir:VkICD_mock_icd" ]
++      }
+     }
+   }
+ 
