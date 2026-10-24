@@ -829,7 +829,7 @@ src_prepare() {
 		# what web pages themselves load): Widevine CDM, Screen AI, SODA,
 		# TranslateKit, the WASM TTS engine, component-extension JS updates
 		# and the remote DevTools front-end.
-		"${FILESDIR}/chromium-156-no-runtime-executable-downloads.patch"
+		"${FILESDIR}/chromium-157-no-runtime-executable-downloads.patch"
 		"${FILESDIR}/chromium-157-v8-metagen-resource-dir.patch"
 		# V8's keyword table generator, for the system gperf (see src_prepare).
 		"${FILESDIR}/chromium-156-v8-keywords-gperf.patch"
