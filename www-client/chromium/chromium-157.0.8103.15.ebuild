@@ -893,7 +893,6 @@ src_prepare() {
 
 		# Copium patches go here.
 		PATCHES+=(
-			"${WORKDIR}/copium/cr143-libsync-__BEGIN_DECLS.patch"
 			"${WORKDIR}/copium/cr145-iwyu-dev_t.patch"
 			"${WORKDIR}/copium/cr147-simdutf-8.0-base-char.patch"
 			"${WORKDIR}/copium/cr148-rust-1.95-bytemuck.patch"
