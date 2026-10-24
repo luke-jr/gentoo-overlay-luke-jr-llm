@@ -60,7 +60,8 @@ PYTHON_COMPAT=( python3_{11..14} )
 PYTHON_REQ_USE="xml(+)"
 RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit build (rustc driver, tied to the Rust build)
 # The dev-util/crubit this version needs: <Rust version>_p<CRUBIT_DATE>, the commit date of
-# CRUBIT_REVISION in tools/rust/update_rust.py (each Crubit version has its own slot).
+# CRUBIT_REVISION in tools/rust/update_rust.py (each Crubit version has its own slot). BDEPEND
+# names the one for RUST_MIN_VER, the only Rust that goes with LLVM_COMPAT.
 CRUBIT_DATE="20260930"
 RUST_NEEDS_LLVM="yes please"
 RUST_OPTIONAL="yes" # Not actually optional, but we don't need system Rust (or LLVM) with USE=bundled-toolchain
@@ -475,7 +476,7 @@ BDEPEND="
 			!ppc64? ( llvm-runtimes/compiler-rt-sanitizers:${LLVM_SLOT}[cfi] )
 		) ')
 		${RUST_DEPEND}
-		dev-util/crubit
+		=dev-util/crubit-${RUST_MIN_VER}_p${CRUBIT_DATE}
 	)
 	pgo? (
 		>=dev-python/selenium-3.141.0
