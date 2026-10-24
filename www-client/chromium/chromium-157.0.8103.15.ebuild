@@ -27,8 +27,8 @@ GN_MIN_VER=0.2595
 # chromium-tools/get-chromium-toolchain-strings.py (or just use Chromicler)
 # Node for M145+ should be 24.12.0 but that's not packaged in Gentoo yet. See #969145
 TEST_FONT="9c07d19d9c5ee1ff94f717e6fb17e0c8c354e6f9"
-BUNDLED_CLANG_VER="llvmorg-24-init-7747-g62397f8b-53"
-BUNDLED_RUST_VER="1edd55dcfcd573872c727fa3e086369a71661ee0-2"
+BUNDLED_CLANG_VER="llvmorg-24-init-7747-g62397f8b-67"
+BUNDLED_RUST_VER="1edd55dcfcd573872c727fa3e086369a71661ee0-1125"
 RUST_SHORT_HASH=${BUNDLED_RUST_VER:0:10}-${BUNDLED_RUST_VER##*-}
 NODE_VER="24.12.0"
 GO_MIN_VER="1.25.0"
@@ -102,7 +102,7 @@ SRC_URI="https://commondatastorage.googleapis.com/chromium-browser-official/chro
 ANGLE_GL_REGISTRY_COMMIT=9cb90ca4902d588bef3c830fbb1da484893bd5fb
 ANGLE_EGL_REGISTRY_COMMIT=7dea2ed79187cd13f76183c4b9100159b9e3e071
 ANGLE_CL_DOCS_COMMIT=5b4ca15f0e5a5be87b56b99f652f728e05cab587
-VULKAN_HEADERS_COMMIT=3c65a01745e4a1134d32b9c2c456472212dba16d
+VULKAN_HEADERS_COMMIT=c46850864f4661461b0f6cb9922c058ffea4915e
 ANGLE_PERFECT_HASH_VER=0.2.1
 SRC_URI+="
 	https://raw.githubusercontent.com/KhronosGroup/OpenGL-Registry/${ANGLE_GL_REGISTRY_COMMIT}/xml/gl.xml
@@ -165,8 +165,8 @@ for _m in ${DAWN_GO_MODULES}; do
 done
 unset _m _e
 # Vulkan-Docs' header generator script, which Vulkan-Headers (third_party/vulkan-headers) doesn't
-# ship (its registry has the rest), at the tag of the headers' version (v1.4.364).
-VULKAN_DOCS_COMMIT="01aaacd99480487bf63830959513c5ca8ceb996d"
+# ship (its registry has the rest), at the tag of the headers' version (v1.4.365).
+VULKAN_DOCS_COMMIT="8c9361ba8180c1f4164c0bf79de2f6e817770b0d"
 for _f in genvk.py reflib.py extdependency.py; do
 	SRC_URI+=" https://raw.githubusercontent.com/KhronosGroup/Vulkan-Docs/${VULKAN_DOCS_COMMIT}/scripts/${_f}
 		-> vulkan-docs-${VULKAN_DOCS_COMMIT:0:10}-${_f}"
@@ -485,7 +485,7 @@ BDEPEND="
 	dev-util/chromium-node-modules:${PV%%.*}
 	dev-util/gnrt:${PV%%.*}
 	dev-util/chromium-rust-crates:${PV%%.*}
-	dev-util/cddlconv:0.1.12
+	dev-util/cddlconv:0.2.0
 	dev-libs/protobuf
 	dev-vcs/git
 	>=net-libs/nodejs-${NODE_VER}[inspector]
@@ -1866,7 +1866,7 @@ chromium_regenerate() {
 	done
 	# update_bidi_types.py runs `cddlconv` (the version it requires).
 	mkdir -p "${bidi_cddl}/bin" || die
-	ln -s "${BROOT}/usr/bin/cddlconv-0.1.12" "${bidi_cddl}/bin/cddlconv" || die
+	ln -s "${BROOT}/usr/bin/cddlconv-0.2.0" "${bidi_cddl}/bin/cddlconv" || die
 	PATH="${bidi_cddl}/bin:${PATH}" "${EPYTHON}" -B "${FILESDIR}/chromium-bidi-types.py" third_party/chromium-bidi \
 		"${bidi_cddl}" "${ug}/third_party/chromium-bidi" || die "Failed to regenerate chromium-bidi's protocol types"
 	# Skia's generated files: regenerate them with its generators. Its GL interface assembly and
