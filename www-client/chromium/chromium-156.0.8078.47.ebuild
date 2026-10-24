@@ -58,7 +58,10 @@ CHROMIUM_LANGS="af am ar bg bn ca cs da de el en-GB es es-419 et fa fi fil fr gu
 LLVM_COMPAT=( 22 )
 PYTHON_COMPAT=( python3_{11..14} )
 PYTHON_REQ_USE="xml(+)"
-RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit slot (rustc driver, tied to the Rust build)
+RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit build (rustc driver, tied to the Rust build)
+# The dev-util/crubit this version needs: <Rust version>_p<CRUBIT_DATE>, the commit date of
+# CRUBIT_REVISION in tools/rust/update_rust.py (each Crubit version has its own slot).
+CRUBIT_DATE="20260908"
 RUST_NEEDS_LLVM="yes please"
 RUST_OPTIONAL="yes" # Not actually optional, but we don't need system Rust (or LLVM) with USE=bundled-toolchain
 RUST_REQ_USE="rustfmt" # Upstream run rustfmt on bindgen output, so we need it to be available.
@@ -623,19 +626,21 @@ pkg_setup() {
 			# Crubit (cc_bindings_from_rs, upstream's C++ bindings generator for Rust code;
 			# needed by e.g. Blink's font format check and the Web Bundle parser) is a
 			# rustc driver: it must be linked against the very same dev-lang/rust build
-			# whose rustc and stdlib we use. dev-util/crubit is slotted by Rust slot.
+			# whose rustc and stdlib we use, and be the Crubit commit this version pins
+			# (dev-util/crubit-<Rust version>_p${CRUBIT_DATE}, each in its own slot).
 			if [[ ${RUST_TYPE} != source ]]; then
 				eerror "dev-util/crubit is built against dev-lang/rust, but Rust ${RUST_SLOT} (${RUST_TYPE}) was selected."
 				eerror "Install dev-lang/rust:${RUST_SLOT}, or select another Rust with ERUST_SLOT_OVERRIDE/ERUST_TYPE_OVERRIDE."
 				die "Crubit requires dev-lang/rust (not rust-bin)"
 			fi
-			if ! has_version -b "dev-util/crubit:${RUST_SLOT}"; then
-				eerror "dev-util/crubit:${RUST_SLOT} is required to build with Rust ${RUST_SLOT}."
+			CRUBIT_PV="${RUST_SLOT}_p${CRUBIT_DATE}"
+			if ! has_version -b "=dev-util/crubit-${CRUBIT_PV}"; then
+				eerror "dev-util/crubit-${CRUBIT_PV} is required to build with Rust ${RUST_SLOT}."
 				eerror "Install it, or select a Rust slot that has it with ERUST_SLOT_OVERRIDE."
-				die "dev-util/crubit:${RUST_SLOT} is not installed"
+				die "dev-util/crubit-${CRUBIT_PV} is not installed"
 			fi
-			"${BROOT}/usr/lib/crubit/${RUST_SLOT}/bin/cc_bindings_from_rs" --help >/dev/null ||
-				die "cc_bindings_from_rs does not run; rebuild dev-util/crubit:${RUST_SLOT} (dev-lang/rust:${RUST_SLOT} was probably rebuilt)"
+			"${BROOT}/usr/lib/crubit/${CRUBIT_PV}/bin/cc_bindings_from_rs" --help >/dev/null ||
+				die "cc_bindings_from_rs does not run; rebuild dev-util/crubit:${CRUBIT_PV} (dev-lang/rust:${RUST_SLOT} was probably rebuilt)"
 
 			if tc-ld-is-mold; then
 				ewarn "Mold is currently not supported, it will not be used"
@@ -3215,7 +3220,7 @@ chromium_configure() {
 			"rustc_version=\"${RUST_SLOT}\""
 			# Crubit (cpp_api_from_rust); checked in pkg_setup. Upstream formats its
 			# generated headers with a bundled clang-format, which we remove.
-			"rust_crubit_root=\"${BROOT}/usr/lib/crubit/${RUST_SLOT}\""
+			"rust_crubit_root=\"${BROOT}/usr/lib/crubit/${CRUBIT_PV}\""
 			"rust_crubit_clang_format=\"$(get_llvm_prefix -b)/bin/clang-format\""
 		)
 
