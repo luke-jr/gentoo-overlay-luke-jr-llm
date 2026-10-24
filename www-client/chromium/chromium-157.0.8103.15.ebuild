@@ -808,15 +808,6 @@ remove_compiler_builtins() {
 }
 
 src_prepare() {
-	# Fixes newer than ${PV}: the later changes of its release branch, and the CVE-2026-110914
-	# fix (from Stable 155.0.8059.84) 156 hasn't got yet. See the patch headers. Keep
-	# chrome/VERSION as is.
-	einfo "Applying the 156 branch's fixes after ${PV} ..."
-	local p
-	for p in chromium-${PV}-branch-fixes.patch chromium-156-cve-2026-110914.patch; do
-		git apply --whitespace=nowarn "${FILESDIR}/${p}" || die "Failed to apply ${p}"
-	done
-
 	# Calling this here supports resumption via FEATURES=keepwork
 	python_setup
 
