@@ -301,18 +301,24 @@ SRC_URI+=" https://raw.githubusercontent.com/pallets/jinja/${JINJA_COMMIT}/scrip
 
 # The inputs of bundled HarfBuzz's table generators (src/gen-*.py; used without
 # USE=system-harfbuzz): Unicode's data at the version they name, and packTab, which they use.
-HB_UNICODE_VER="17.0.0"
+# Unicode 18.0.0's zipped UCD isn't published (yet): the UCD files they read, one by one.
+HB_UNICODE_VER="18.0.0"
+HB_UCD_FILES="ArabicShaping Blocks DerivedCoreProperties IndicPositionalCategory IndicSyllabicCategory
+	Scripts UnicodeData emoji/emoji-data"
 HB_PACKTAB_VER="1.9.0"
 SRC_URI+="
 	!system-harfbuzz? (
-		https://unicode.org/Public/zipped/${HB_UNICODE_VER}/UCD.zip -> unicode-data-${HB_UNICODE_VER}-UCD.zip
 		https://www.unicode.org/Public/${HB_UNICODE_VER}/ucdxml/ucd.nounihan.grouped.zip
 			-> unicode-${HB_UNICODE_VER}-ucd.nounihan.grouped.zip
 		${UNICODETOOLS_DATA}/emoji/${HB_UNICODE_VER%.0}/emoji-test.txt
 			-> unicode-emoji-test-${HB_UNICODE_VER}.txt
 		https://files.pythonhosted.org/packages/source/p/packtab/packtab-${HB_PACKTAB_VER}.tar.gz
-	)
 "
+for _f in ${HB_UCD_FILES}; do
+	SRC_URI+=" ${UNICODETOOLS_DATA}/ucd/${HB_UNICODE_VER}/${_f}.txt -> unicode-${HB_UNICODE_VER}-${_f##*/}.txt"
+done
+unset _f
+SRC_URI+=" )"
 
 # Selenium's sources at the revision chromedriver's atoms (third_party/selenium-atoms) are built
 # from (its README.chromium), for building them without Closure Compiler (see src_prepare).
@@ -2143,9 +2149,12 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 		# table copied from the OpenType spec, not in the repository).
 		einfo "Regenerating HarfBuzz's Unicode tables ..."
 		local hb_ucd="${WORKDIR}/harfbuzz-ucd" hb_out f
-		"${EPYTHON}" -c 'import sys, zipfile; [zipfile.ZipFile(z).extractall(sys.argv[1]) for z in sys.argv[2:]]' \
-			"${hb_ucd}" "${DISTDIR}/unicode-data-${HB_UNICODE_VER}-UCD.zip" \
-			"${DISTDIR}/unicode-${HB_UNICODE_VER}-ucd.nounihan.grouped.zip" || die
+		"${EPYTHON}" -c 'import sys, zipfile; zipfile.ZipFile(sys.argv[2]).extractall(sys.argv[1])' \
+			"${hb_ucd}" "${DISTDIR}/unicode-${HB_UNICODE_VER}-ucd.nounihan.grouped.zip" || die
+		mkdir -p "${hb_ucd}/emoji" || die
+		for f in ${HB_UCD_FILES}; do
+			cp "${DISTDIR}/unicode-${HB_UNICODE_VER}-${f##*/}.txt" "${hb_ucd}/${f}.txt" || die
+		done
 		cp "${DISTDIR}/unicode-emoji-test-${HB_UNICODE_VER}.txt" "${hb_ucd}/emoji/emoji-test.txt" || die
 		pushd third_party/harfbuzz/src/src >/dev/null || die
 		while read -r hb_out f; do
