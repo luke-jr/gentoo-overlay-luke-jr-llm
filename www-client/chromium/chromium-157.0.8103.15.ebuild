@@ -2925,6 +2925,7 @@ chromium_unbundle() {
 		third_party/search_engines_data
 		third_party/securemessage
 		third_party/selenium-atoms
+		third_party/sframe
 		third_party/sentencepiece
 		third_party/sentencepiece/src/third_party/darts_clone
 		third_party/shell-encryption
