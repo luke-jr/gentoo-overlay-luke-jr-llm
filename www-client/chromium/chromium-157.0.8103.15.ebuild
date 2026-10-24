@@ -830,7 +830,7 @@ src_prepare() {
 		# TranslateKit, the WASM TTS engine, component-extension JS updates
 		# and the remote DevTools front-end.
 		"${FILESDIR}/chromium-156-no-runtime-executable-downloads.patch"
-		"${FILESDIR}/chromium-156-v8-metagen-resource-dir.patch"
+		"${FILESDIR}/chromium-157-v8-metagen-resource-dir.patch"
 		# V8's keyword table generator, for the system gperf (see src_prepare).
 		"${FILESDIR}/chromium-156-v8-keywords-gperf.patch"
 		# OpenXR includes <vulkan/vulkan.h> without depending on Chromium's Vulkan headers.
