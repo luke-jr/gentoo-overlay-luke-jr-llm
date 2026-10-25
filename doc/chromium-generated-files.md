@@ -1,0 +1,319 @@
+# Chromium: generated and prebuilt files
+
+Prebuilt JavaScript counts as a blob too, and so does any checked-in generated file: the ebuild
+regenerates them from their inputs, or replaces them, wherever that is possible.
+
+## Regenerated or rebuilt from source
+
+Unused npm packages are deleted (see `doc/chromium.md`), but 144 remain. Every generated file of
+theirs that the build uses or ships is now built from source (`dev-util/rollup`,
+`dev-util/chromium-node-modules`, and in the Chromium ebuild the steps that need Chromium's tree);
+the rest are hand-written sources identical to their git tags, type declarations, or data (caniuse,
+MDN, SPDX lists, Lighthouse's locales). Shipped code built from source: WebUI's and DevTools' lit,
+`@bufbuild/protobuf` (chrome://traces-internals), Polymer's `polymer_bundled.min.js`, the BiDi
+mapper's zod and mitt, and DevTools' vendored `front_end/third_party` libraries (Lighthouse and
+axe-core, CodeMirror 5 and 6, Puppeteer, acorn, marked, …). DevTools' `ClientVariations.js` is
+regenerated with the system `protoc` and its `update_client_variations.py`. What is left,
+deliberately:
+
+- Khronos' Vulkan validation layer (for Dawn's `--enable-dawn-backend-validation`) and mock driver
+  (for ANGLE's `--use-angle=vulkan-null`), mostly generated sources, are only built with
+  `USE=debug` (`chromium-156-angle-mock-icd-arg.patch` adds the GN arg for the latter); upstream
+  always builds and ships them, but only loads them on these debugging switches.
+- XNNPACK's ~9,400 checked-in micro-kernels (`src/*/gen/`, C and assembly) are deleted and made
+  again from its templates by its own `tools/xngen` and `gemm_compiler`, plus its
+  `build_identifier.c` (`files/chromium-xnnpack-regen.py`); byte-identical. The 4 that nothing
+  generates (RISC-V and Hexagon kernels, not built for Linux) are left out.
+- ANGLE's checked-in generated code (entry points, format and enum tables, shader lexers/parsers and
+  built-in symbol tables, its Vulkan back-end's compiled internal shaders) is regenerated with its ~30
+  code generators (`files/chromium-angle-regen.py`), from inputs the tarball lacks: Khronos' XML
+  registries at ANGLE's DEPS revisions, `perfect-hash` 0.2.1 (the API its symbol-table generator
+  uses), and the system's glslang validator (`dev-util/glslang`). The compiled shaders differ from
+  upstream's, which a 2020 glslang made; everything else a Linux build uses comes out
+  byte-identical, except the two flex lexers, whose generated comments differ with Gentoo's flex.
+  `src/common/Float16ToFloat32.cpp` is regenerated with the script next to it (byte-identical).
+- Chromium's own generated GPU code is regenerated in `src_prepare` with its generators: the command
+  buffer (`gpu/command_buffer/build_{gles2,raster,webgpu}_cmd_buffer.py`), the GL and Vulkan bindings
+  (`ui/gl/generate_bindings.py`, `gpu/vulkan/generate_bindings.py`, from `vk.xml`) and Vulkan's mojo
+  types (`gpu/ipc/common/generate_vulkan_types.py`); and the X11 protocol bindings at build time from
+  xcbproto's XML (`regenerate_x11_protos=true`). All byte-identical.
+- DevTools' checked-in generated TypeScript is regenerated in `src_prepare` with DevTools' own
+  scripts from the tarball's inputs: `front_end/generated/` (protocol, ARIA, CSS and deprecation
+  data, from the `.pdl` and `.json5` definitions; byte-identical) and
+  `models/javascript_metadata/NativeFunctions.ts` (from Blink's Web IDL; newer than DevTools'
+  copy, with its lists in a deterministic order, `chromium-156-devtools-natives-sorted.patch`).
+  `panels/timeline/components/MetricCompareStrings.ts` says it is generated, but its generator is
+  stale (the file has been edited by hand since), so it is kept as source.
+- BoringSSL's checked-in generated files are regenerated with its own generators, offline:
+  `util/pregenerate` (`gen/`: the assembly from its perlasm scripts with the system Perl, the
+  error-string table, the source lists; `chromium-156-boringssl-pregenerate-offline.patch`),
+  `make_tables.go` and `objects.go` (EC and OID tables), and `make_curve25519_tables.py`, which
+  `chromium-156-boringssl-curve25519-tables.patch` brings in line with the hand edits made to its
+  output when BoringSSL moved into the `bssl` namespace. All byte-identical (`gen/sources.*` lacks
+  the test files the tarball leaves out). `crypto/hrss/asm/poly_rq_mul.S` is kept as source: it is
+  the output of the HRSS authors' `poly_rq_mul.py` (in the NTRU repository), but BoringSSL has
+  edited it by hand since 2018 (its own scratch-space handling, CET, bug fixes). For the Fiat files
+  see the exceptions below.
+- `third_party/lottie/lottie_worker.js`: Chromium's own readable copy of lottie-web 5.5.2's player,
+  modified to run in a worker, reformatted, and maintained in place (minified at build time by
+  Chromium's script): source, with no upstream build to redo.
+- The vendored Rust crates' generated files are regenerated by `dev-util/chromium-rust-crates`
+  (316 files). All byte-identical except: regex-syntax's tables write two characters as `\u{…}`
+  escapes (today's Rust escapes them when printing), and RustFFT's butterflies have LF line
+  endings (the published crate has CRLF). Inputs: Unicode's UCD 16.0.0 and 17.0.0, CLDR's JSON
+  (`cldr-core`, `cldr-misc-full` 48.2.0) and ICU's export data (`icuexportdata` 78.1rc) for
+  ICU4X, IANA's tzdata 2025c, ICU's `zoneinfo64.txt` for 2025c. CLDR's JSON and ICU's export data
+  are themselves generated upstream (by Java tools that need ICU4J and Maven jars, whose own data is
+  generated from ICU's): Unicode's published release data counts as source. ICU4X's code point
+  tries are built with the system ICU4C instead of its prebuilt WebAssembly module. Kept as source:
+  pxfm's constants (computed once with SageMath, Sollya and Mathematica). skrifa's autohint styles
+  were edited by hand after they were generated (`pub(super)`): its script is patched to match.
+- The Babel passes that lower code for old browsers are left out (axe-core, and Puppeteer's
+  `es5-iife` bundle, which nothing loads); Chromium runs the modern code. axe-core's polyfills stay
+  in, but only apply where a feature is missing.
+- Chromium's bundled ICU: its generated files are regenerated in `src_prepare`
+  (`files/chromium-icu-regen.sh`), the way ICU's `unidata/generate.sh` and Chromium's
+  `make_data_all.sh` make them. ICU's preprocessed Unicode data (`ppucd.txt`, the normalization
+  inputs) from Unicode 17.0.0's release files (UCD, IDNA, security and emoji data) with ICU's
+  `preparseucd.py`; the property, normalization and collation data built from it (C headers and
+  the binary inputs of the data package) with `gennorm2` and ICU's `genprops` and `genuca` (13
+  files fetched from ICU's repository, which its releases leave out); `collunsafe.h`, the rule
+  parser tables and `urename.h` with ICU's tools; and `icudtl.dat` with Chromium's data filter.
+  All byte-identical except `collunsafe.h` (its version string) and `urename.h` (without the
+  names of ICU's layout engine, which isn't built; upstream copies them in by hand). The tools
+  are built with the checked-in data and regenerate it unchanged (a bootstrap, as for a
+  compiler). Kept as they are, as Unicode's published release data: the locale data ICU converts
+  from CLDR with its Java tools (`source/data/*/*.txt`, `FractionalUCA.txt`, `UCARules.txt`,
+  `localefallback_data.h`).
+- `third_party/material_web_components` (npm-built Material Web): used only by ChromeOS WebUI, not
+  by this build.
+- Dawn's and Tint's 114 generated `BUILD.gn` files are regenerated with Dawn's
+  `tools/src/cmd/gen` (Go, offline; the two Go modules it imports come from SRC_URI, checked
+  against Dawn's `go.sum`). Byte-identical (existing files keep their copyright year).
+- abseil's 25 generated `BUILD.gn` files are regenerated from its `BUILD.bazel` files with
+  Chromium's `convert_bazel_to_gn.py` (which parses them without Bazel). Byte-identical.
+- FFmpeg's checked-in configuration (`chromium/config/<branding>/linux/<arch>/`: `config.h`,
+  `config.asm`, the codec and format lists, ...) is the output of its `configure` as Chromium's
+  `build_ffmpeg.py` runs it: the one this build uses is regenerated
+  (`files/chromium-ffmpeg-config.py`, with system nasm on amd64). Identical but for the compiler
+  named in `CC_IDENT` and a path in a comment. The `autorename_*.c` wrappers (one `#include`
+  each) and `ffmpeg_generated.gni` are file lists, so they are left as they are.
+- The Vulkan headers (`third_party/vulkan-headers`: `vulkan_*.h` and `vk_video/`, 30 files) are
+  regenerated from the registry next to them with Vulkan-Docs' `genvk.py` (three files from
+  Vulkan-Docs, which Vulkan-Headers leaves out). Byte-identical.
+- nasm's generated files are regenerated: `config/config-linux.h` with its `configure` and
+  Chromium's `generate_nasm_configs.py` (the checked-in one came from an older `configure.ac`;
+  the new one also finds glibc's `iscntrl` and `stdbool.h`), and the instruction, register,
+  token and macro tables with its Perl scripts (`make perlreq`; identical but for the order of
+  flags in comments, which follows Perl's hash order). Its copy of zlib's `crc32.h` and `inffixed.h` are
+  regenerated with zlib's own table writers (byte-identical).
+- libc++'s generated headers (`<format>`'s four Unicode tables, from the UCD files libc++ keeps,
+  and `<version>`) are regenerated with libc++'s scripts. Byte-identical.
+- protobuf's bootstrap files (the C++ code of protoc's own protos, and the Python `_pb2` modules
+  and edition defaults the build's scripts use) are regenerated with the protoc built from them,
+  first thing in `src_compile`, as Chromium's `gen_extra_chromium_files.py` does; ninja then
+  rebuilds what changed. Regenerating again with the rebuilt protoc gives the same files. The
+  feature protos differ from the checked-in ones, made by upstream's unpatched protoc, only in
+  `[[nodiscard]]` and `Swap()` inlining (as Chromium's own regenerated `descriptor.pb.h`).
+- The SPIR-V headers (Chromium's `third_party/spirv-headers` and SwiftShader's copy) are
+  regenerated from the SPIR-V grammars with SPIRV-Headers' own tools (`makeExtinstHeaders.py`,
+  `buildHeaders`). Byte-identical.
+- SwiftShader's Vulkan headers are regenerated: the C headers with Vulkan-Docs' `genvk.py` from
+  the registry of their Vulkan-Headers releases (v1.4.355; the video headers v1.4.322), the C++
+  headers with Vulkan-Hpp v1.4.355's generator (byte-identical to Vulkan-Hpp's own output).
+  SwiftShader's copies differ only in whitespace (partly reformatted by hand) and, for the C++
+  headers (copied from Vulkan-Headers, made from another Vulkan-Hpp commit), in spelling (hex and
+  literal suffix case, a qualified name) and a macOS-only include. On amd64, Subzero's minimized
+  LLVM (`third_party/llvm-subzero`, a 2016 trunk snapshot) gets its `Attributes.gen`,
+  `Intrinsics.gen` and `DataTypes.h` from that revision's `llvm-tblgen` and configure, built here
+  (LLVM r290449, byte-identical); its `Config/*.h` were edited by hand since (glibc `mallinfo2`,
+  ABI checks) and are kept as source.
+  SwiftShader's copies of libxcb's headers (`include/xcb`, partly generated by libxcb's
+  `c_client.py`) are deleted; its X11 surface code uses the system's.
+- libvpx's configuration (`source/config/`, all platforms) is regenerated with Chromium's
+  `generate_gni.sh` (libvpx's `configure` and `rtcd.pl`), as the ebuild already did for ppc64.
+  Byte-identical; `vpx_version.h` (a `git describe` version stamp) is kept. libvpx's VP8
+  probability tables are constants computed long ago (no generator exists), kept as source.
+- libaom's configuration for this arch (`source/config/linux/<arch>/config`) is regenerated with
+  its CMake configure as Chromium's `cmake_update.sh` runs it, and `wedge_masks_data.inc` with
+  libaom's `gen_wedge_masks_data.py`. Byte-identical; `aom_version.h` (version stamp) is kept.
+- dav1d's configuration for this arch (`config/linux/<arch>/config.{h,asm}`) is regenerated with
+  Meson through Chromium's `generate_configs.py`. Byte-identical; `vcs_version.h` (version stamp)
+  is kept.
+- net's generated files are regenerated: the root certificate list (`root_cert_list_generated.h`)
+  from `root_stores.json` with `update_root_stores.py`, and `effective_tld_names.gperf` from the
+  Public Suffix List with `tld_cleanup`, built first in `src_compile`. Both byte-identical. (base's
+  `utf8_validator_tables.cc` is kept as source: its generator's data comes out the same, but the
+  file has been edited by hand since.)
+- libutf's rune type tables are regenerated from the `UnicodeData.txt` it ships with its
+  `mkrunetype.awk` (byte-identical); `isalpharune.c` was edited by hand since (crbug.com/1184370)
+  and is kept as source.
+- tools/metrics' `setup_modules.py` shims are regenerated with its `generate_setup_modules.py`
+  (the checked-in ones differ only in how a Python formatter wrapped one line).
+- The Khronos headers Chromium didn't modify (`third_party/khronos`: `GLES3/gl3*.h`, `EGL/egl.h`)
+  are regenerated with the `genheaders.py` and registry XML of the Khronos commits they came from
+  (generation date and commit stamps kept). `gl3.h` and `egl.h` are byte-identical; `gl31.h` and
+  `gl32.h` differ in comments (copyright years, URL) the 2017 generator writes differently from the
+  2016 one. Chromium's modified ones (`gl2.h`, `gl2ext.h`, `eglext.h`) are kept as source. ANGLE's
+  copies (`include/`: GLES2, GLES3, EGL, GLX, WGL) are regenerated the same way, keeping ANGLE's
+  includes of its own extension headers (`files/chromium-khronos-merge.py`); byte-identical. Its
+  GLES1 headers, which ANGLE edited, are kept as source.
+- The Vulkan loader's and Vulkan-Utility-Libraries' generated sources are regenerated from
+  `third_party/vulkan-headers`' registry with their `generate_source.py`, which formats them with
+  clang-format. Byte-identical.
+- OpenXR's generated headers and loader dispatch code are regenerated from its registry with
+  OpenXR-SDK-Source's generators (at the SDK's release). Byte-identical.
+- FreeType's `pstables.h` (and pdfium's copy of it) is regenerated with FreeType's `glnames.py`,
+  pdfium's OpenJPEG `t1_luts.h`/`t1_ht_luts.h` and libtiff `tif_fax3sm.c` with OpenJPEG's
+  `t1_generate_luts` and libtiff's `mkg3states`, fetched at the revisions pdfium bundles; libtiff's
+  `tiffconf.h` is a configure output edited by hand since and is kept as source.
+- FlatBuffers' `reflection_generated.h` and the FlatBuffers headers of TensorFlow Lite and LiteRT
+  (`schema_generated.h`, `conversion_metadata_generated.h`, `configuration_generated.h`, the
+  latter's schema made from its `.proto`) are regenerated in `src_compile` with the build's
+  `flatc`, with the options of upstream's rules; the builtin op lists (`builtin_ops.h`,
+  `builtin_ops_list.inc`) with TensorFlow Lite's generators, also for LiteRT, which only copies
+  them. The checked-in headers were made by an older `flatc` (and `conversion_metadata` from an
+  older schema, without `PYTORCH` and `model_hash`), so those differ.
+- chromium-bidi's protocol types and Zod schemas (`src/protocol{,-parser}/generated`) are
+  regenerated with its `tools/update_bidi_types.py` and `dev-util/cddlconv` from the CDDL in the
+  WebDriver BiDi specs, extracted with the spec's `generate.js` and parse5 (6, not compiled), at
+  the spec commits current when the checked-in types were made. Upstream's prettier/eslint
+  formatting pass is left out; with it, the output is byte-identical.
+- Skia's generated files are regenerated with its generators: the GL interface code
+  (`*Autogen.cpp`) with `tools/ganesh/gl/interface` (Go, offline), the SkSL lexer with `sksllex`,
+  and the minified SkSL modules with `sksl-minify`, built with Skia's standalone GN build (only
+  the SkSL compiler). All byte-identical. `src/sksl/spirv.h` is Khronos' SPIR-V 1.0 revision 4
+  header, published before its generator and grammar were: kept as source.
+- V8's keyword table (`src/parsing/keywords-gen.h`) is regenerated with its
+  `gen-keywords-gen-h.py` and the system gperf (`chromium-156-v8-keywords-gperf.patch` lets the
+  script accept newer gperf output; only the version comment differs). Its static roots
+  (`src/roots/static-roots-intl-wasm.h` and the values in `include/v8-internal.h` taken from them)
+  are regenerated at the start of `src_compile` with a `mksnapshot` built in a second build
+  directory with `v8_enable_static_roots_generation`, as V8's `gen-static-roots.py` does (about
+  3,400 extra build steps); only a comment's indentation differs.
+- SQLite's amalgamation (`sqlite3.c`, `sqlite3.h`, the shell and `rename_exports.h`) is
+  regenerated from SQLite's sources with Chromium's `generate_amalgamation.py`
+  (`files/chromium-sqlite-amalgamation.py`). Byte-identical, once `SQLITE_SOURCE_ID` (a version
+  stamp, which SQLite marks as modified because the tarball lacks its tests) is kept.
+- Wuffs' C library (`release/c/wuffs-v0.3.c`, Skia's GIF decoder) is regenerated from Wuffs'
+  sources with its own `wuffs gen`, built from the commit that made it (Wuffs' v0.3 branch).
+  Byte-identical once its version metadata, which comes from git, is kept.
+- simdutf's amalgamation (`simdutf.h`, `simdutf.cpp`) is regenerated from simdutf 7.7.0's sources
+  with its `amalgamate.py`. Byte-identical but for the generation timestamp, which is kept.
+- RE2's Unicode tables are regenerated from Unicode 15.1.0's data files (RE2's version) with its
+  `make_unicode_groups.py` and `make_unicode_casefold.py`, and its Perl classes with
+  `make_perl_groups.pl`. Byte-identical.
+- Bison and Ragel output is regenerated: Blink's XPath parser (`rule_bison.py`), the emoji
+  presentation scanner and HarfBuzz's state machines (Ragel 6.10). All byte-identical. Blink's
+  `css_group_config.json5` is kept as source: its generator (from CSS usage statistics) no longer
+  exists.
+- ipcz's message definitions (`node_messages.{cc,h}`) are regenerated from their
+  `*_messages_generator.h` with its `node_messages.py`. Byte-identical.
+- The IME character composer's table (`ui/base/ime/character_composer_data.h`) is regenerated
+  with `generate_character_composer_data.py`. Byte-identical.
+- The top domains' skeletons for the lookalike-URL check (`components/url_formatter/spoof_checks/
+  top_domains/*.skeletons`) are regenerated in `src_compile` with `make_top_domain_skeletons`,
+  built from the tree. Byte-identical. (Their input, `domains.list`, is Chrome UX Report data.)
+- zxcvbn's keyboard adjacency graphs are regenerated with its
+  `build_keyboard_adjacency_graphs.py`. Byte-identical.
+- libzip's error strings (`zip_err_str.c`) are regenerated with its CMake script. Byte-identical.
+  Its `zipconf.h` and `config.h` are configure output edited by hand since, kept as source.
+- libwayland's `include/config.h` is regenerated with its Meson configure (`USE=wayland`). It
+  finds glibc's `gettid()`, which the checked-in one doesn't; otherwise identical.
+- The extension APIs' TypeScript declarations that still match their schema (9 files) are
+  regenerated with `tools/json_schema_compiler` (`-g ts_definitions`); they differ only in the
+  copyright year, a trailing blank line and the command named in a comment. `storage`,
+  `extension_types`, `metrics_private` and `web_request` were edited by hand since or lag their
+  schema, and the partially generated ones were edited by hand: kept as source.
+- Glic's generated TypeScript API enums (`glic_api_generated.ts` and a block of `glic_api.ts`) are
+  regenerated from its mojom definitions with its `generate.py`. Byte-identical.
+- Jinja's identifier pattern (`third_party/jinja2/_identifier.py`) is regenerated with its
+  `generate_identifier_pattern.py`, from the build's Python's Unicode data (newer than the checked-in
+  one's; only non-ASCII template identifiers are affected).
+- Bundled HarfBuzz's Unicode tables (`USE=-system-harfbuzz`) are regenerated from Unicode 17.0.0's
+  data with its `gen-*.py` and packTab 1.9.0. Byte-identical. Kept as source: its OpenType language
+  tag table (from Microsoft's and IANA's registries, whose old versions aren't published) and its
+  OS/2 Unicode ranges (from a table copied from the OpenType spec).
+- chromedriver's Selenium atoms (`third_party/selenium-atoms`, minified JavaScript compiled by
+  Selenium's Bazel build with Closure Compiler, which isn't available from source) are built from
+  Selenium's sources without it (`files/chromium-selenium-atoms.py`): the Closure files each atom
+  needs, uncompiled, in dependency order, minified with esbuild, run in a scope of their own. They
+  give the same results, but are about 25 times larger, so element commands (find element, get
+  text, ...) take about four times as long. `USE=prebuilt-chromedriver-atoms` keeps upstream's.
+- DevTools' Puppeteer type declarations come from `dev-util/chromium-node-modules`' Puppeteer build
+  (with `devtools-protocol`'s declarations made from its `.pdl` definitions), byte-identical;
+  api-extractor's rollups of them (`types.d.ts`, `es5-iife/puppeteer-core-browser.d.ts`), which
+  nothing imports, are left out.
+
+## Where sources come from
+
+- Lighthouse's `@paulirish/trace_engine` (DevTools' trace engine, which is only published compiled)
+  is recompiled from the TypeScript its source maps hold (the original text of each file, shipped
+  in the npm package), so its ~144 sources aren't downloaded separately. That text is DevTools'
+  commit 845cad7, 25 minutes before the release, plus the edits of an unpublished packaging script
+  (`files/lighthouse-trace-engine-0.0.65-packaging.patch`): checked byte-identical for all 144 with
+  `files/lighthouse-trace-engine-sources.mjs verify`. `generated/protocol.ts` has no map (it compiles
+  to nothing, but its const enum values are inlined): it is generated with DevTools' generator at
+  that commit from the protocol's `.pdl` definitions (the `devtools-protocol` npm package, which
+  publishes them per Chromium revision) via inspector_protocol's `concatenate_protocols.py`.
+- Lighthouse's deprecation strings come from DevTools' `generated/Deprecation.ts`, generated here
+  with DevTools' `generate_deprecations.py` from Blink's `deprecation.json5` (`dev-python/json5`).
+- `http-link-header` 1.1.1 comes from a fork that still has its commit, since the original repository
+  is gone.
+- emoji-regex's pattern is generated with `files/emoji-test-regex-pattern.mjs`, not upstream's
+  downloaded PHP tool, from Unicode's `emoji-test.txt` as `app-i18n/unicode-emoji` installs it. It is 13.8 KB vs upstream's 14.1 KB, and matches the same on 210,452 test
+  strings.
+
+## Generated files used as is (exceptions)
+
+Every other generated file the build uses is regenerated from its inputs, or replaced (see above).
+These are not, by kind:
+
+- *Proofs and math constants.* BoringSSL's Fiat Cryptography code (`third_party/fiat/`:
+  `curve25519_64.h`, `p256_64.h`, `p256_field_64.br.c.inc`, `p256_point.br.c.inc`; extracted from
+  Coq proofs, so regenerating it means building Fiat Cryptography with Coq). Numeric tables computed
+  once with math software or by hand: pxfm's and llvm-libc's polynomial coefficients
+  (SageMath, Sollya, Mathematica), libc++'s Ryu tables, WebRTC's numpy/MATLAB tables, V8's CRC32
+  table, abseil's Randen round keys, libvpx's VP8 probability tables, and Opus' static CELT modes
+  (`celt/static_modes_float.h`: window and twiddle constants, which Opus keeps fixed; regenerating
+  them changes the codec's arithmetic in the last digit).
+- *Published data, used as input.* Unicode's release data (UCD, CLDR's JSON, ICU's
+  `icuexportdata`, ICU4C's locale data `.txt`; their converters are Java tools needing ICU4J), the
+  Public Suffix List, Chrome UX Report's top domain list, Chromium's root store definitions, and
+  `.proto` files (including copies exported from Google's internal repository).
+- *No public generator.* abseil's Gaussian distribution tables (its generator was never
+  published), libaddressinput's region metadata (from Google's address data service), CLD3's and
+  CED's script/encoding tables, `components/google/core/common/google_tld_list.h`,
+  `services/tracing/perfetto/privacy_filtered_fields-inl.h`, the QUICHE feature flag list and
+  Autofill's i18n model (Google-internal exports), the Linux syscall tables in
+  `sandbox/linux/system_headers`, Crubit's support `BUILD.gn` files (Google-internal
+  `bazel_to_builds`), Skia's `src/sksl/spirv.h` (SPIR-V 1.0 revision 4, published before its
+  generator and grammar were), HarfBuzz's OpenType language tag table (from Microsoft's and IANA's
+  registries, whose old versions aren't published) and OS/2 Unicode ranges (from a table copied from
+  the OpenType spec), and Blink's `css_group_config.json5` (its generator, from CSS usage
+  statistics, is gone).
+- *Edited by hand since they were generated* (their generators would undo the edits): DevTools'
+  `MetricCompareStrings.ts`, BoringSSL's `crypto/hrss/asm/poly_rq_mul.S`, llvm-subzero's
+  `Config/*.h`, libutf's `isalpharune.c`, the Khronos headers Chromium modified (`GLES2/gl2.h`,
+  `gl2ext.h`, `EGL/eglext.h`) and ANGLE's GLES1 headers, base's `utf8_validator_tables.cc`, V8's
+  `unicode.cc`, chromedriver's `network_list.cc`, the configure output edited for Chromium
+  (libtiff's `tiffconf.h`, libzip's `zipconf.h` and `config.h`, snappy's
+  `snappy-stubs-public.h`), the TypeScript declarations of the `storage`, `extension_types`,
+  `metrics_private` and `web_request` extension APIs (and the partially generated ones), and
+  Polymer's and the iron/paper elements' typings (hand-maintained upstream since 2020, or frozen
+  2018–2019 output, then patched by Chromium's `chromium_dts.patch`).
+- *Version stamps* in otherwise regenerated files are kept: libvpx's `vpx_version.h`, libaom's
+  `aom_version.h`, dav1d's `vcs_version.h`, Dawn's commit hash, `gpu_lists_version.h`, the Khronos
+  headers' date and commit lines, SQLite's `SQLITE_SOURCE_ID`, Wuffs' version metadata, simdutf's
+  generation timestamp.
+- *Lists of files*, which count as source: Skia's `gn/*.gni`, `.pydeps`/`.gritdeps`, FFmpeg's
+  `ffmpeg_generated.gni` and `autorename_*` wrappers, XNNPACK's `BUILD.gn` (exported from Bazel:
+  its micro-kernel lists and their flags).
+- *Not built or not used by default:* Khronos' Vulkan validation layer and mock driver (only with
+  `USE=debug`), catapult's telemetry `BUILD.gn` (test targets), perfetto's syntaqlite parser,
+  `third_party/material_web_components` (ChromeOS only).
+- *Binary assets* (images, icons, sounds; also the dino game's encrypted alternate images,
+  `components/error_page/common/alt_game_image_data.cc`) and *ML models* (Blink's dark mode
+  classifier, Opus' `mlp_data.c`) are out of scope.
+- With `USE=prebuilt-chromedriver-atoms`, chromedriver uses upstream's Closure-compiled Selenium
+  atoms instead of the ones built from source.
