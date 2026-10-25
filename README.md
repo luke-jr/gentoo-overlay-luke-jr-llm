@@ -1,4 +1,4 @@
-# luke-jr-llm: Chromium overlay
+# luke-jr-llm
 
 > **Use at your own risk.** This overlay is maintained by an LLM (Claude), with only human
 > direction. No human has fully reviewed it: not a Gentoo developer, not anyone else, not even the
@@ -8,8 +8,8 @@
 > no warranty of any kind (see the GPL-2 the ebuilds are distributed under). Read what an ebuild
 > does before you build it.
 
-Gentoo overlay (repository name `luke-jr-llm`) for Chromium. Example
-`/etc/portage/repos.conf/luke-jr-llm.conf`:
+Gentoo overlay (repository name `luke-jr-llm`): currently Chromium, built entirely from source, and
+the tools that build needs. Example `/etc/portage/repos.conf/luke-jr-llm.conf`:
 
 ```ini
 [luke-jr-llm]
@@ -22,12 +22,31 @@ auto-sync = no
 `chromium-151.0.7922.169-r1` (`::gentoo` has masked Chromium for removal on 2026-10-24, bug #982204).
 Both are built from Google's official "lite" source tarballs.
 
-Goals:
-- Build without any bundled or third-party prebuilt binaries.
-- Chromium must not download executable code at runtime, apart from
-  JavaScript/WebAssembly that web pages themselves load.
-- Keep upstream behaviour and features otherwise. In particular, the omnibox
-  **AI Mode** button stays.
+See `doc/chromium.md`.
+
+## Rules
+
+What the packages here follow, beyond Gentoo's own policies:
+
+- **No prebuilt binaries.** Everything is built from source; no bundled or third-party compiled code
+  is used, and the ebuilds delete what the source tarballs ship (and die if any is left). The only
+  exceptions are opt-in USE flags that say so (e.g. Chromium's `bundled-toolchain`).
+- **No executable code downloaded at runtime**, apart from the JavaScript and WebAssembly that web
+  pages themselves load. Data downloads (lists, dictionaries, certificates) are fine.
+- **Generated files are regenerated.** A checked-in generated file is not a source: it is made again
+  from its inputs with its upstream generator, or replaced by one built here, and the checked-in copy
+  is moved aside so the build cannot use it. Prebuilt JavaScript (minified, bundled or compiled) counts
+  as generated. What stays as is, and why, is documented per package. Output identical to upstream's
+  is a check that the regeneration is faithful, not a goal in itself.
+- **Builds are offline.** Everything comes from `SRC_URI`, at the revisions upstream pins.
+- **Ebuild phases:** `src_prepare` only applies patches and copies in files from installed packages;
+  generating happens in `src_configure` (files the build configuration reads) or `src_compile`.
+- **Your flags are used.** Tools built and run during the build are compiled with your own compiler and
+  flags (GCC unless your configuration says otherwise), filtered only where clang rejects them
+  (`strip-unsupported-flags`). The package's own code uses the compiler and flags its upstream build
+  uses, as before.
+- **Upstream behaviour and features stay** unless a rule above needs a change (Chromium's omnibox **AI
+  Mode** button stays, for example). USE flags are not removed; build-only tools are `BDEPEND`.
 
 ## Packages
 
