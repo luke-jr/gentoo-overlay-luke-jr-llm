@@ -86,6 +86,7 @@ anything does build it. `scripts/cargo-unused-crates.py` lists the candidates fr
 - `doc/chromium-runtime-downloads.md`: what Chromium downloads at runtime, and what the ebuild blocks.
 - `doc/crubit.md`: notes on Crubit (the C++/Rust bindings generator).
 - `scripts/chromium-delta/README.md`: upgrade patches for releases without a tarball yet.
+- `scripts/chromium-tests/README.md`: checks for a Chromium build.
 
 ## Metadata
 
