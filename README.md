@@ -230,7 +230,7 @@ Built offline and runtime-tested like 156 (components, DevTools, WebDriver BiDi,
 - **pkgcheck** reports a few inherited warnings: `llvm-r1` → `llvm-r2`, the deliberate
   `sys-libs/zlib` dependency (bug #930365), and the size of `files/`.
 - **Privacy:** Chromium still talks to Google about non-Google things in the
-  background. See `NOTES-runtime-downloads-and-privacy.md`; not addressed yet.
+  background. See `doc/chromium-runtime-downloads.md`; not addressed yet.
 - **Deferred: "Translate this page" on pages with JavaScript disabled.** Google's translate script runs
   in an isolated world (it sees the page's DOM, but not the page's own JavaScript). Blink runs
   isolated-world scripts, XHR and event callbacks on such pages, but its timers don't fire there:
@@ -547,7 +547,7 @@ Built offline and runtime-tested like 156 (components, DevTools, WebDriver BiDi,
     classifier, Opus' `mlp_data.c`) are out of scope.
   - With `USE=prebuilt-chromedriver-atoms`, chromedriver uses upstream's Closure-compiled Selenium
     atoms instead of the ones built from source.
-- **Crubit notes:** see `NOTES-crubit.md`.
+- **Crubit notes:** see `doc/crubit.md`.
 - **New versions:** `scripts/chromium-delta/README.md` describes how upgrade patches are made and
   checked (for a release without a tarball yet, and for later fixes on a release branch), and what
   went wrong before.
