@@ -82,6 +82,7 @@ anything does build it. `scripts/cargo-unused-crates.py` lists the candidates fr
 - `doc/chromium.md`: the Chromium ebuilds: build machine setup, changes from `::gentoo`, the 157
   differences, known issues.
 - `doc/chromium-generated-files.md`: what is regenerated, rebuilt from source, or used as is.
+- `doc/chromium-maintenance.md`: adding a new Chromium version, and checking it.
 - `doc/chromium-runtime-downloads.md`: what Chromium downloads at runtime, and what the ebuild blocks.
 - `doc/crubit.md`: notes on Crubit (the C++/Rust bindings generator).
 - `scripts/chromium-delta/README.md`: upgrade patches for releases without a tarball yet.
