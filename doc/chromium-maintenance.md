@@ -53,6 +53,26 @@ was added with (and 156 updated from .12 to .47).
    After the first successful build, regenerate it with `scripts/chromium-node-modules-used.py` (in
    `out/Release`, with the tarball's npm packages restored in the tree; see its usage).
 
+## A new release of the same major
+
+This is how 156 went from .47 to .73.
+
+1. **Rename the ebuild** (keep the `SLOT`, unless the release changed channel), and replace the
+   tarball's line in the `Manifest` (check the tarball against its `.hashes` first).
+2. **Branch fixes:** the old `files/chromium-<old>-branch-fixes.patch` goes once the new tag has
+   its commits (in the tag's log; the patch reverse-applies to the new tree, apart from version
+   files that moved on). If the branch has fixes after the new tag, make a new one with
+   `scripts/chromium-delta` (`filter.py --branch-fixes`), and check that every patched file is
+   byte-identical to its version at the branch head. A blobless git fetch is more reliable for that
+   than Gitiles, which often times out.
+3. **Other fixes** carried for this major (e.g. `chromium-156-cve-2026-110914.patch`): look for
+   them in the new tag's log; drop the ones it has, and update the date in the others' headers.
+4. **Per-major packages:** compare the two tarballs' files (hash each file of both). If the vendored
+   Rust crates (`third_party/rust`), the npm packages (`third_party/node`, DevTools'
+   `node_modules` and `front_end/third_party`) and `tools/crates` are unchanged, `gnrt`,
+   `chromium-rust-crates` and `chromium-node-modules` stay as they are.
+5. Build and check as below.
+
 ## Building and checking
 
 - Build offline (nothing may be downloaded during the build), with the flags you use, and with
