@@ -74,9 +74,10 @@ DESCRIPTION="Open-source version of Google Chrome web browser"
 HOMEPAGE="https://www.chromium.org/"
 PPC64_HASH="7aae8a84e327fc2078ce1625c9c70bfda77d626f"
 COPIUM_COMMIT="027d15ffdcd1816b7935cee9ea4a4f6bae0bbe60"
-# Google's official "lite" source tarball: chromium-linux-tarballs (which ::gentoo uses) has none
-# for 156.0.8078.47 (its build failed). For 156.0.8078.12, the two have the same content, apart
-# from one empty test file (chrome/test/data/webui/i18n_process_css_test.html).
+# Google's official "lite" source tarball: chromium-linux-tarballs (which ::gentoo uses) had none
+# for 156.0.8078.47 (its build failed), nor for 156.0.8078.73 on 2026-10-27. For 156.0.8078.12,
+# the two have the same content, apart from one empty test file
+# (chrome/test/data/webui/i18n_process_css_test.html).
 SRC_URI="https://commondatastorage.googleapis.com/chromium-browser-official/chromium-${PV}-lite.tar.xz
 	https://github.com/Polymer/polymer/archive/refs/tags/v${POLYMER_VER}.tar.gz
 		-> polymer-${POLYMER_VER}.gh.tar.gz
