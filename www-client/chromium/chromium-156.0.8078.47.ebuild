@@ -470,7 +470,7 @@ BDEPEND="
 			!ppc64? ( llvm-runtimes/compiler-rt-sanitizers:${LLVM_SLOT}[cfi] )
 		) ')
 		${RUST_DEPEND}
-		=dev-util/crubit-${RUST_MIN_VER}_p${CRUBIT_DATE}
+		~dev-util/crubit-${RUST_MIN_VER}_p${CRUBIT_DATE}
 	)
 	pgo? (
 		>=dev-python/selenium-3.141.0
@@ -635,13 +635,16 @@ pkg_setup() {
 				die "Crubit requires dev-lang/rust (not rust-bin)"
 			fi
 			CRUBIT_PV="${RUST_SLOT}_p${CRUBIT_DATE}"
-			if ! has_version -b "=dev-util/crubit-${CRUBIT_PV}"; then
+			if ! has_version -b "~dev-util/crubit-${CRUBIT_PV}"; then
 				eerror "dev-util/crubit-${CRUBIT_PV} is required to build with Rust ${RUST_SLOT}."
 				eerror "Install it, or select a Rust slot that has it with ERUST_SLOT_OVERRIDE."
 				die "dev-util/crubit-${CRUBIT_PV} is not installed"
 			fi
-			"${BROOT}/usr/lib/crubit/${CRUBIT_PV}/bin/cc_bindings_from_rs" --help >/dev/null ||
-				die "cc_bindings_from_rs does not run; rebuild dev-util/crubit:${CRUBIT_PV} (dev-lang/rust:${RUST_SLOT} was probably rebuilt)"
+			local crubit_bin="${BROOT}/usr/lib/crubit/${CRUBIT_PV}/bin/cc_bindings_from_rs"
+			[[ -x ${crubit_bin} ]] ||
+				die "${crubit_bin} is missing; reinstall dev-util/crubit:${CRUBIT_PV}"
+			"${crubit_bin}" --help >/dev/null ||
+				die "cc_bindings_from_rs does not run; rebuild dev-util/crubit:${CRUBIT_PV} (dev-lang/rust:${RUST_SLOT} was probably rebuilt; emerge @preserved-rebuild does it when preserve-libs is on)"
 
 			if tc-ld-is-mold; then
 				ewarn "Mold is currently not supported, it will not be used"
