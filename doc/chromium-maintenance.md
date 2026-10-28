@@ -53,6 +53,29 @@ was added with (and 156 updated from .12 to .47).
    After the first successful build, regenerate it with `scripts/chromium-node-modules-used.py` (in
    `out/Release`, with the tarball's npm packages restored in the tree; see its usage).
 
+## A new release of the same major
+
+This is how 156 went from .47 to .78_pre (on the .73 tarball).
+
+1. **Rename the ebuild** (keep the `SLOT`, unless the release changed channel), and replace the
+   tarball's line in the `Manifest` (check the tarball against its `.hashes` first).
+2. **Fixes after the release:** Google tags every candidate build on the release branch
+   (`refs/tags/<version>`, in the branch's log), but publishes a tarball only for releases. When
+   the branch has a newer tag than the newest tarball, build that tag as a `_pre` ebuild
+   (`chromium-<tag>_pre`, `CHROMIUM_TARBALL_PV` = the tarball's version): an upgrade patch
+   `files/chromium-<tarball>-to-<tag>.patch` made with `scripts/chromium-delta` (its README),
+   which also sets `chrome/VERSION` and the version stamps to the tag's. `_pre` sorts below the
+   real release, so a later tarball of that version replaces it. Check that every patched file is
+   byte-identical to its version at the tag; a blobless git fetch is more reliable for that than
+   Gitiles, which often times out.
+3. **Other fixes** carried for this major (e.g. `chromium-156-cve-2026-110914.patch`): look for
+   them in the new tag's log; drop the ones it has, and update the date in the others' headers.
+4. **Per-major packages:** compare the two tarballs' files (hash each file of both). If the vendored
+   Rust crates (`third_party/rust`), the npm packages (`third_party/node`, DevTools'
+   `node_modules` and `front_end/third_party`) and `tools/crates` are unchanged, `gnrt`,
+   `chromium-rust-crates` and `chromium-node-modules` stay as they are.
+5. Build and check as below.
+
 ## Building and checking
 
 - Build offline (nothing may be downloaded during the build), with the flags you use, and with
