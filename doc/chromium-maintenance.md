@@ -55,16 +55,19 @@ was added with (and 156 updated from .12 to .47).
 
 ## A new release of the same major
 
-This is how 156 went from .47 to .73.
+This is how 156 went from .47 to .78_pre (on the .73 tarball).
 
 1. **Rename the ebuild** (keep the `SLOT`, unless the release changed channel), and replace the
    tarball's line in the `Manifest` (check the tarball against its `.hashes` first).
-2. **Branch fixes:** the old `files/chromium-<old>-branch-fixes.patch` goes once the new tag has
-   its commits (in the tag's log; the patch reverse-applies to the new tree, apart from version
-   files that moved on). If the branch has fixes after the new tag, make a new one with
-   `scripts/chromium-delta` (`filter.py --branch-fixes`), and check that every patched file is
-   byte-identical to its version at the branch head. A blobless git fetch is more reliable for that
-   than Gitiles, which often times out.
+2. **Fixes after the release:** Google tags every candidate build on the release branch
+   (`refs/tags/<version>`, in the branch's log), but publishes a tarball only for releases. When
+   the branch has a newer tag than the newest tarball, build that tag as a `_pre` ebuild
+   (`chromium-<tag>_pre`, `CHROMIUM_TARBALL_PV` = the tarball's version): an upgrade patch
+   `files/chromium-<tarball>-to-<tag>.patch` made with `scripts/chromium-delta` (its README),
+   which also sets `chrome/VERSION` and the version stamps to the tag's. `_pre` sorts below the
+   real release, so a later tarball of that version replaces it. Check that every patched file is
+   byte-identical to its version at the tag; a blobless git fetch is more reliable for that than
+   Gitiles, which often times out.
 3. **Other fixes** carried for this major (e.g. `chromium-156-cve-2026-110914.patch`): look for
    them in the new tag's log; drop the ones it has, and update the date in the others' headers.
 4. **Per-major packages:** compare the two tarballs' files (hash each file of both). If the vendored
