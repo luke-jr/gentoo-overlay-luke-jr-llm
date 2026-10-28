@@ -18,7 +18,7 @@ masters = gentoo
 auto-sync = no
 ```
 
-`www-client/chromium-156.0.8078.73` and `157.0.8103.15`, based on `::gentoo`'s
+`www-client/chromium-156.0.8078.78_pre` and `157.0.8103.15`, based on `::gentoo`'s
 `chromium-151.0.7922.169-r1` (`::gentoo` has masked Chromium for removal on 2026-10-24, bug #982204).
 Both are built from Google's official "lite" source tarballs.
 
@@ -52,7 +52,7 @@ What the packages here follow, beyond Gentoo's own policies:
 
 | Package | Why |
 |---|---|
-| `www-client/chromium-156.0.8078.73` | the browser: 156.0.8078.73, from Google's official "lite" source tarball (`chromium-linux-tarballs`, which `::gentoo` uses, has none for it), plus `files/chromium-156.0.8078.73-branch-fixes.patch` (the later changes of the 156 branch) and the CVE-2026-110914 fix 156 hasn't got yet. |
+| `www-client/chromium-156.0.8078.78_pre` | the browser: 156.0.8078.78, the newest tag of the 156 branch, which has no release or source tarball: built from Google's official "lite" tarball of 156.0.8078.73 plus `files/chromium-156.0.8078.73-to-156.0.8078.78.patch` (the upstream changes that can affect a Linux build; see its header), and the CVE-2026-110914 fix 156 hasn't got yet. `_pre` sorts below a real 156.0.8078.78 release, which replaces it. |
 | `www-client/chromium-157.0.8103.15` | the browser: 157.0.8103.15, **Beta** on Linux (Google's early stable release of it is for Windows and Mac only), so `SLOT="beta"`, as `::gentoo` slots channels: it installs beside stable as `chromium-browser-beta`, with its own profile directory. Built from Google's official "lite" source tarball (it already has the CVE-2026-110914 fix). See "157" below for how it differs from 156. |
 | `dev-util/ragel-6.10:6` | Ragel 6 in slot 6, installed as `ragel-6`, for systems that keep `::gentoo`'s Ragel 7 (`::gentoo` has 6 and 7 both in slot 0). Chromium's ebuild regenerates HarfBuzz's state machines with Ragel 6 (HarfBuzz requires 6.10): `::gentoo`'s `dev-util/ragel-6.10` when that is installed or nothing is, this slot when Ragel 7 is installed. |
 | `dev-util/esbuild-0.28.2` | DevTools needs exactly this version. `::gentoo` stops at 0.27.3, and deps.gentoo.zip has no vendor tarball, so this uses `EGO_SUM`. |

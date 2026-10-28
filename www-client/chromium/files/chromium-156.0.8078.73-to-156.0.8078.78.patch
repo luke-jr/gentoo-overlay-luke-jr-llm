@@ -1,25 +1,29 @@
-Chromium 156.0.8078.73 + the later changes of its release branch, for the
-156.0.8078.73 tarball.
+Chromium 156.0.8078.73 -> 156.0.8078.78, for the 156.0.8078.73 release tarball.
 
-The 156 branch has gained fixes since 156.0.8078.73 (a use-after-free in
-MediaStream tracks; pointer events, error events, named items, highlights,
-the quota database and storage directories; V8's cppgc write barrier and
-TurboShaft's stack frame size), some of them likely security fixes that
-later release notes will credit.
+156.0.8078.78 is a tag on the 156 branch (refs/branch-heads/8078) that has
+no release or source tarball (as of 2026-10-28). It has fixes made after
+156.0.8078.73: a use-after-free in MediaStream tracks; pointer events, error
+events, named items, highlights, the quota database and storage
+directories; V8's cppgc write barrier and TurboShaft's stack frame size.
+Some are likely security fixes that later release notes will credit.
 
-Generated from the upstream diffs chromium/src
-refs/tags/156.0.8078.73..5185e9cb62c9a95b6a881075e8baa70d54d3d29b
-(refs/branch-heads/8078 on 2026-10-27) and v8 (the only dependency whose
-DEPS revision changed), as served by Gitiles, with
-scripts/chromium-delta/filter.py --branch-fixes: left out are files not in
-the release tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and
-docs, PGO/AFDO/orderfile pointers, ChromeOS LKGM, submodule pointer updates.
-chrome/VERSION, DEPS and the generated LASTCHANGE files stay at
-156.0.8078.73.
+Generated from the upstream diffs between the tags (chromium/src
+refs/tags/156.0.8078.73..156.0.8078.78, 53 commits) and v8 (the only
+dependency whose DEPS revision changed), as served by Gitiles, with
+scripts/chromium-delta/filter.py.
 
-Commits contributing to it (oldest first; "Roll commits from side projects"
-are the v8 updates: "[cppgc] Update the Steele-style barrier to always
-retrace" and "[turboshaft] Bound JS stack frame size to 4KB"):
+Left out, as they cannot affect a Linux build: files not in the release
+tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
+PGO/AFDO/orderfile pointers, ChromeOS LKGM, submodule pointer updates.
+
+Added: the tarball's stamp files for the new commit (stamps.py:
+build/util/LASTCHANGE{,.committime}, gpu/config/gpu_lists_version.h, commit
+964632094ae224e093aaf98969591a32bebd3475, refs/branch-heads/8078@{#1665});
+Skia's and Dawn's revisions are unchanged.
+
+Commits with changes for Linux (oldest first; "Roll commits from side
+projects" are the v8 updates: "[cppgc] Update the Steele-style barrier to
+always retrace" and "[turboshaft] Bound JS stack frame size to 4KB"):
   6442ebe52d91 [M156] [MediaStream] Fix UAF in MediaStream(Audio|Video)Track::StopAndNotify
   1557ab9e6afc [M156] [MenuSimplification] Prevent duplicate Reading Mode context menu entries
   398e6b2b2e2f [M156] [MenuSimplification] Restore Partial Translate guards in simplified context menus
@@ -35,6 +39,24 @@ retrace" and "[turboshaft] Bound JS stack frame size to 4KB"):
   93f574f14f95 [M156] Don't send a cross-origin relatedTarget on a PointerEvent boundary event, and add more general defense-in-depth for relatedTarget.
   d473602c676c [M156] Avoid re-entry when draining pending error events
 
+Checked: applies to the 156.0.8078.73 tarball; chrome/VERSION becomes
+156.0.8078.78; every patched source file is byte-identical to its version
+at the branch head the 156.0.8078.78 tag follows (5185e9cb62c9, which
+differs from the tag only by a Mac PGO profile pointer); the stamps are
+stamps.py's for the tag's commit.
+
+Apply with git apply.
+
+diff --git a/chrome/VERSION b/chrome/VERSION
+index a70fbd9..aee87832 100644
+--- a/chrome/VERSION
++++ b/chrome/VERSION
+@@ -1,4 +1,4 @@
+ MAJOR=156
+ MINOR=0
+ BUILD=8078
+-PATCH=73
++PATCH=78
 diff --git a/chrome/browser/renderer_context_menu/render_view_context_menu.cc b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 index abdfdada..b55c138d 100644
 --- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
@@ -1358,3 +1380,29 @@ index 06dd7c5..7423622 100644
    if (graph->tagged_stack_slots() + graph->untagged_stack_slots() >
        kMaxStackSlots) {
      return false;
+diff --git a/build/util/LASTCHANGE b/build/util/LASTCHANGE
+--- a/build/util/LASTCHANGE
++++ b/build/util/LASTCHANGE
+@@ -1,2 +1,2 @@
+-LASTCHANGE=2f9a11097447f226133bc1a31c787291a5eeab98-refs/branch-heads/8078@{#1612}
++LASTCHANGE=964632094ae224e093aaf98969591a32bebd3475-refs/branch-heads/8078@{#1665}
+ LASTCHANGE_YEAR=2026
+diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
+--- a/build/util/LASTCHANGE.committime
++++ b/build/util/LASTCHANGE.committime
+@@ -1 +1 @@
+-1793049193
+\ No newline at end of file
++1793145300
+\ No newline at end of file
+diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
+--- a/gpu/config/gpu_lists_version.h
++++ b/gpu/config/gpu_lists_version.h
+@@ -3,6 +3,6 @@
+ #ifndef GPU_CONFIG_GPU_LISTS_VERSION_H_
+ #define GPU_CONFIG_GPU_LISTS_VERSION_H_
+ 
+-#define GPU_LISTS_VERSION "2f9a11097447f226133bc1a31c787291a5eeab98"
++#define GPU_LISTS_VERSION "964632094ae224e093aaf98969591a32bebd3475"
+ 
+ #endif  // GPU_CONFIG_GPU_LISTS_VERSION_H_
