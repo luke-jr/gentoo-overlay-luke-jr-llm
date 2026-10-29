@@ -20,12 +20,11 @@ Work in a directory outside the overlay, e.g. `upstream/diff<NEW>`.
      or download the new one in the ebuild.
    - `gclient_gn_args` means `build/config/gclient_args.gni` (read by gn) changes:
      regenerate it.
-2. **The diffs:**
-   - chromium/src: `+/refs/tags/OLD..refs/tags/NEW/?format=TEXT` from Gitiles (base64).
-     Gitiles leaves out binary files, so check that none changed (`--stat`) or fetch it
-     like a dependency.
-   - Each changed dependency: `fetchdiff.sh NAME URL OLD NEW` (from a blobless depth-1
-     fetch, with git binary patches).
+2. **The diffs:** `fetchdiff.sh NAME URL OLD NEW` for chromium/src (`refs/tags/OLD`,
+   `refs/tags/NEW`) and each changed dependency. It takes Gitiles' diff (one request) and
+   fetches only the two trees (blobless, depth 1), to check that the diff has every changed
+   file. Gitiles leaves out binary files' contents: the script fails on one, which then
+   needs another source.
 3. **The base tree's file list:** the files of the tree the patch applies to. For a
    tarball, its listing. After earlier patches, a git index with them applied
    (`git read-tree`, `git apply --cached`, `git ls-tree -r`). The stamp files listed
@@ -46,8 +45,9 @@ Work in a directory outside the overlay, e.g. `upstream/diff<NEW>`.
    - It applies to the base tree (`git apply --cached` to the index of step 3, not in the
      build).
    - chrome/VERSION is NEW, except with `--branch-fixes`.
-   - A random sample of patched files (some from each dependency) is byte-identical to
-     Gitiles' versions at NEW.
+   - Every patched file is byte-identical to its version at NEW: its `git hash-object`
+     is the blob id in `repo-NAME`'s tree at `refs/x/new` (`git rev-parse
+     refs/x/new:PATH`, nothing downloaded).
 
 When the real tarball comes out:
 
@@ -115,3 +115,10 @@ Comparing the upgraded tree with the real tarball turned up 650 differences.
   from DEPS' `gclient_gn_args`. They didn't change from .12 to .47. `deps.py changed` now
   reports when they do. The other hook outputs (`.landmines`, siso's configuration,
   `chromeos/tast_control.gni`, `testing/location_tags.json`) aren't read by the Linux build.
+
+### 157.0.8103.32 (patch 157.0.8103.30 → .32)
+
+**Wrong:** `fetchdiff.sh` made the diff with `git diff` in the blobless fetch, so git
+downloaded every changed file's old and new contents, one request each: over 10 minutes
+for chromium/src's 59 files. Fix: the script takes Gitiles' diff instead, and fetches only
+trees. The byte checks use the trees' blob ids, so they download nothing either.

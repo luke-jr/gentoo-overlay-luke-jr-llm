@@ -823,6 +823,10 @@ remove_compiler_builtins() {
 }
 
 src_prepare() {
+	# The CVE-2026-118332 fix (from Stable 156.0.8078.73) 157 hasn't got yet. See the patch header.
+	git apply --whitespace=nowarn "${FILESDIR}/chromium-157-cve-2026-118332.patch" ||
+		die "Failed to apply chromium-157-cve-2026-118332.patch"
+
 	# Calling this here supports resumption via FEATURES=keepwork
 	python_setup
 

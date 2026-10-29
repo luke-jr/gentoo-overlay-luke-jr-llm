@@ -5,13 +5,19 @@ was added with (and 156 updated from .12 to .47).
 
 ## Which version, which slot
 
-- **Channel and `SLOT`:** look the version up for Linux, e.g.
-  `https://chromiumdash.appspot.com/fetch_releases?channel=Beta&platform=Linux`. As in `::gentoo`, the
-  `SLOT` is the channel: `stable`, `beta` or `unstable` (dev). It is not just a label: it decides the
-  install directory (`chromium-browser-<slot>`), the profile directory and the channel the browser
-  reports. Google's "Early Stable" releases are for Windows and Mac only; such a build is Beta on
-  Linux. When a version moves to another channel, it gets a new ebuild (a revision bump if the
-  version is the same), so installed copies move too.
+- **Channel, `SLOT` and `KEYWORDS`:** look the version up for Linux, e.g.
+  `https://chromiumdash.appspot.com/fetch_releases?channel=Stable&platform=Linux`. The `SLOT` is
+  the channel, as in `::gentoo`: `stable`, `beta` or `unstable` (dev). It is not just a label: it
+  decides the install directory (`chromium-browser-<slot>`), the profile directory and the channel
+  the browser reports. `KEYWORDS` say how far along the version is:
+  - Stable for Linux: `SLOT="stable"`, `KEYWORDS="amd64 ~arm64"` (with the `_pre` of the branch's
+    newest tag, which has the fixes made after the release);
+  - Google's "Early Stable" (Windows and Mac first, to some users): `SLOT="stable"`,
+    `KEYWORDS="~amd64 ~arm64"`. When Google releases it for Linux Stable, it gets `amd64`; no new
+    slot, so installed copies keep their profile;
+  - Beta: `SLOT="beta"`, `KEYWORDS="~amd64 ~arm64"`. The previous Beta stays until the next
+    major's ebuild replaces it.
+  `arm64` stays `~arm64`: nobody has built or run it.
 - **Source:** Google's official "lite" tarball,
   `https://commondatastorage.googleapis.com/chromium-browser-official/chromium-<version>-lite.tar.xz`;
   check it against the `.hashes` file next to it. For a version without a tarball yet, or for fixes
