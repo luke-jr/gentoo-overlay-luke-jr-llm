@@ -43,9 +43,9 @@ RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit build (rustc driver, ti
 CRUBIT_DATE="20260908"
 PPC64_HASH="7aae8a84e327fc2078ce1625c9c70bfda77d626f"
 COPIUM_COMMIT="027d15ffdcd1816b7935cee9ea4a4f6bae0bbe60"
-# 156.0.8078.78 is a tag without a release or tarball: built from the 156.0.8078.73 tarball plus
-# files/chromium-156.0.8078.73-to-156.0.8078.78.patch (see its header).
-CHROMIUM_TARBALL_PV="156.0.8078.73"
+# 156.0.8078.83 is a tag without a release or tarball: built from the 156.0.8078.79 tarball plus
+# files/chromium-156.0.8078.79-to-156.0.8078.83.patch (see its header).
+CHROMIUM_TARBALL_PV="156.0.8078.79"
 # Inputs of ANGLE's code generators that the tarball lacks (files/chromium-angle-regen.py):
 # Khronos' registries at ANGLE's (and, for Vulkan, Chromium's) DEPS revisions; perfect-hash,
 # the version its built-in symbols generator is written for. Its Vulkan back-end's shaders are
