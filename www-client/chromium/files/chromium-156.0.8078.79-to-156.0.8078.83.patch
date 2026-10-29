@@ -1,0 +1,668 @@
+Chromium 156.0.8078.79 -> 156.0.8078.83, for the 156.0.8078.79 release tarball.
+
+156.0.8078.83 is a tag on the 156 branch (refs/branch-heads/8078) that has
+no release or source tarball (as of 2026-10-29). It has fixes made after
+156.0.8078.79: retaining the SVGImage across
+SVGImageForContainer::CreateViewInfo (crbug 575312521), a use-after-free in
+the bookmarks side panel, and nested printing. Some are likely security
+fixes that later release notes will credit.
+
+Generated from the upstream diff between the tags (chromium/src
+refs/tags/156.0.8078.79..156.0.8078.83, 15 commits; no dependency changed
+in DEPS), as served by Gitiles, with scripts/chromium-delta.
+
+Left out, as they cannot affect a Linux build: files not in the release
+tarball, Android/Mac/Windows-only files, tests, PGO and orderfile pointers.
+
+Added: the tarball's stamp files for the new commit (stamps.py:
+build/util/LASTCHANGE{,.committime}, gpu/config/gpu_lists_version.h; commit
+fe60b80929194cd5557a585f7aac4aec03139e84, refs/branch-heads/8078@{#1719}).
+
+Checked: applies to the 156.0.8078.79 tarball; chrome/VERSION becomes
+156.0.8078.83; every patched source file is byte-identical to its version
+at the tag; the 156.0.8078.79 tarball's non-git files are all classified
+(tarball-generated.py with generated.conf).
+
+Apply with git apply.
+
+diff --git a/chrome/VERSION b/chrome/VERSION
+index da70505..50e050b 100644
+--- a/chrome/VERSION
++++ b/chrome/VERSION
+@@ -1,4 +1,4 @@
+ MAJOR=156
+ MINOR=0
+ BUILD=8078
+-PATCH=79
++PATCH=83
+diff --git a/chrome/browser/ui/webui/side_panel/bookmarks/BUILD.gn b/chrome/browser/ui/webui/side_panel/bookmarks/BUILD.gn
+index 5fa0f9d..42b570a2 100644
+--- a/chrome/browser/ui/webui/side_panel/bookmarks/BUILD.gn
++++ b/chrome/browser/ui/webui/side_panel/bookmarks/BUILD.gn
+@@ -86,6 +86,7 @@
+     "//base/test:test_support",
+     "//chrome/browser/bookmarks",
+     "//chrome/browser/bookmarks:test_support",
++    "//chrome/browser/ui/bookmarks",
+     "//chrome/browser/ui/tabs:test_support",
+     "//chrome/browser/ui/webui:webui_util",
+     "//chrome/browser/ui/webui/bookmarks",
+diff --git a/chrome/browser/ui/webui/side_panel/bookmarks/bookmarks_page_handler.cc b/chrome/browser/ui/webui/side_panel/bookmarks/bookmarks_page_handler.cc
+index 641c8057..d7a2c399 100644
+--- a/chrome/browser/ui/webui/side_panel/bookmarks/bookmarks_page_handler.cc
++++ b/chrome/browser/ui/webui/side_panel/bookmarks/bookmarks_page_handler.cc
+@@ -653,21 +653,27 @@
+     return;
+   }
+ 
++  // Opening a bookmark may synchronously close the side panel and destroy
++  // `this`, so record metrics prior to open.
++  // TODO(crbug.com/578519711): bookmarks::OpenAllIfAllowed sometimes open a
++  // confirmation dialog that may result in the bookmarks not opening. Ensure
++  // metrics are only logged when bookmarks are actually opened.
++  if (source != side_panel::mojom::ActionSource::kPriceTracking) {
++    base::RecordAction(
++        base::UserMetricsAction("SidePanel.Bookmarks.Navigation"));
++    RecordBookmarkLaunch(parent_folder_depth > 0
++                             ? BookmarkLaunchLocation::kSidePanelSubfolder
++                             : BookmarkLaunchLocation::kSidePanelFolder,
++                         profile_metrics::GetBrowserProfileType(
++                             browser_window_interface_->GetProfile()));
++  }
++
+   WindowOpenDisposition open_location = ui::DispositionFromClick(
+       click_modifiers->middle_button, click_modifiers->alt_key,
+       click_modifiers->ctrl_key, click_modifiers->meta_key,
+       click_modifiers->shift_key);
+   bookmarks::OpenAllIfAllowed(browser_window_interface_, {bookmark_node},
+                               open_location);
+-  if (source == side_panel::mojom::ActionSource::kPriceTracking) {
+-    return;
+-  }
+-  base::RecordAction(base::UserMetricsAction("SidePanel.Bookmarks.Navigation"));
+-  RecordBookmarkLaunch(parent_folder_depth > 0
+-                           ? BookmarkLaunchLocation::kSidePanelSubfolder
+-                           : BookmarkLaunchLocation::kSidePanelFolder,
+-                       profile_metrics::GetBrowserProfileType(
+-                           browser_window_interface_->GetProfile()));
+ }
+ 
+ void BookmarksPageHandler::Undo() {
+diff --git a/components/printing/renderer/print_render_frame_helper.cc b/components/printing/renderer/print_render_frame_helper.cc
+index c78be16..9018391 100644
+--- a/components/printing/renderer/print_render_frame_helper.cc
++++ b/components/printing/renderer/print_render_frame_helper.cc
+@@ -1227,6 +1227,10 @@
+   // diagnose latency.
+   TRACE_EVENT("latency", "PrintRenderFrameHelper::ScriptedPrint");
+ 
++  if (print_in_progress_ || print_with_params_callback_) {
++    return;
++  }
++
+   blink::WebLocalFrame* web_frame = render_frame()->GetWebFrame();
+   if (!IsScriptInitiatedPrintAllowed(web_frame, user_initiated))
+     return;
+@@ -1238,7 +1242,10 @@
+   if (!web_frame->GetDocument().GetFrame())
+     return;
+ 
+-  if (print_in_progress_) {
++  // Re-check after `IsScriptInitiatedPrintAllowed()`, which sends a synchronous
++  // `IsPrintingEnabled()` IPC that can pump incoming print IPCs while waiting
++  // for a reply and mutate the state.
++  if (print_in_progress_ || print_with_params_callback_) {
+     return;
+   }
+ 
+@@ -1301,7 +1308,7 @@
+     return;
+   }
+ 
+-  if (print_in_progress_ || render_frame_gone_) {
++  if (print_in_progress_ || print_with_params_callback_ || render_frame_gone_) {
+     return;
+   }
+ 
+@@ -1319,7 +1326,7 @@
+     return;
+   }
+ 
+-  if (!print_in_progress_) {
++  if (!print_in_progress_ || print_with_params_callback_) {
+     return;
+   }
+ 
+@@ -1366,7 +1373,8 @@
+ void PrintRenderFrameHelper::PrintRequestedPagesInternal(
+     bool already_notified_frame) {
+   ScopedIPC scoped_ipc(weak_ptr_factory_.GetWeakPtr());
+-  if (ipc_nesting_level_ > kAllowedIpcDepthForPrint) {
++  if (ipc_nesting_level_ > kAllowedIpcDepthForPrint ||
++      print_with_params_callback_) {
+     return;
+   }
+ 
+@@ -1428,23 +1436,23 @@
+     return;
+   }
+ 
+-  if (print_with_params_callback_) {
++  if (print_in_progress_ || print_with_params_callback_) {
+     std::move(callback).Run(
+         base::unexpected(mojom::PrintFailureReason::kPrintingInProgress));
+     return;
+   }
+ 
++  print_with_params_callback_ = std::move(callback);
++
+   blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
+   frame->DispatchBeforePrintEvent(/*print_client=*/nullptr);
+   // Don't print if the RenderFrame is gone.
+   if (render_frame_gone_) {
+-    std::move(callback).Run(
+-        base::unexpected(mojom::PrintFailureReason::kGeneralFailure));
++    std::move(print_with_params_callback_)
++        .Run(base::unexpected(mojom::PrintFailureReason::kGeneralFailure));
+     return;
+   }
+ 
+-  print_with_params_callback_ = std::move(callback);
+-
+   // If we are printing a frame with an internal PDF plugin element, find the
+   // plugin node and print that instead.
+   auto plugin_node = delegate_->GetPdfElement(frame);
+@@ -1474,10 +1482,18 @@
+ }
+ 
+ void PrintRenderFrameHelper::OnPrintWithParamsFinished() {
++  ScopedIPC scoped_ipc(weak_ptr_factory_.GetWeakPtr());
+   if (render_frame_gone_) {
++    if (print_with_params_callback_) {
++      std::move(print_with_params_callback_)
++          .Run(base::unexpected(mojom::PrintFailureReason::kGeneralFailure));
++    }
++    Reset();
+     return;
+   }
+ 
++  print_in_progress_ = true;
++
+   blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
+   const blink::WebNode plugin_node = delegate_->GetPdfElement(frame);
+ 
+@@ -1486,23 +1502,30 @@
+   prep_frame_view_->EnterPrintMode(*print_pages_params_->params,
+                                    /*ignore_css_margins=*/false);
+ 
++  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+   PrintPages();
+   FinishFramePrinting();
+-
+-  if (render_frame_gone_) {
++  if (!weak_this) {
+     return;
+   }
+ 
+-  frame->DispatchAfterPrintEvent();
+-  // WARNING: `this` may be gone at this point. Do not do any more work here and
+-  // just return.
++  if (!render_frame_gone_) {
++    frame->DispatchAfterPrintEvent();
++    if (!weak_this) {
++      return;
++    }
++  }
++
++  print_in_progress_ = false;
+ }
+ 
+ #if BUILDFLAG(ENABLE_PRINT_PREVIEW)
+ void PrintRenderFrameHelper::PrintForSystemDialog() {
+   ScopedIPC scoped_ipc(weak_ptr_factory_.GetWeakPtr());
+-  if (ipc_nesting_level_ > kAllowedIpcDepthForPrint)
++  if (ipc_nesting_level_ > kAllowedIpcDepthForPrint ||
++      print_with_params_callback_) {
+     return;
++  }
+ 
+   if (closures_for_mojo_responses_->HasScriptedPrintPreviewQuitClosure()) {
+     // If an in-progress print preview already created a nested loop, avoid
+@@ -1548,7 +1571,7 @@
+   if (ipc_nesting_level_ > kAllowedIpcDepthForPrint)
+     return;
+ 
+-  if (print_in_progress_) {
++  if (print_in_progress_ || print_with_params_callback_) {
+     return;
+   }
+ 
+@@ -1581,8 +1604,10 @@
+ 
+ void PrintRenderFrameHelper::PrintPreview(base::DictValue settings) {
+   ScopedIPC scoped_ipc(weak_ptr_factory_.GetWeakPtr());
+-  if (ipc_nesting_level_ > kAllowedIpcDepthForPrint)
++  if (ipc_nesting_level_ > kAllowedIpcDepthForPrint ||
++      print_with_params_callback_) {
+     return;
++  }
+ 
+   print_preview_context_.OnPrintPreview();
+ 
+@@ -1649,7 +1674,7 @@
+     return;
+ 
+   // If the last request is not finished yet, do not proceed.
+-  if (prep_frame_view_) {
++  if (prep_frame_view_ || print_with_params_callback_) {
+     DLOG(ERROR) << "Previous request is still ongoing";
+     return;
+   }
+@@ -1820,7 +1845,12 @@
+   }
+ #endif
+ 
+-  const mojom::PrintParams& print_params = *print_pages_params_->params;
++  // Clone `print_pages_params_->params` instead of holding a raw reference into
++  // `print_pages_params_`, which may be overwritten or reset if nested message
++  // loops or script execution re-enter `PrintRenderFrameHelper`.
++  const mojom::PrintParamsPtr print_params_clone =
++      print_pages_params_->params.Clone();
++  const mojom::PrintParams& print_params = *print_params_clone;
+ 
+   bool require_document_metafile =
+       print_params.printed_doc_type != mojom::SkiaDocumentType::kMSKP;
+@@ -1897,20 +1927,18 @@
+   }
+ #endif
+ 
+-  if (print_pages_params_->params->printed_doc_type ==
+-      mojom::SkiaDocumentType::kMSKP) {
++  if (print_params.printed_doc_type == mojom::SkiaDocumentType::kMSKP) {
+     // Want modifiable content of MSKP type to be collected into a document
+     // during individual page preview generation (to avoid separate document
+     // version for composition), notify to prepare to do this collection.
+-    preview_ui_->DidPrepareDocumentForPreview(
+-        print_pages_params_->params->document_cookie,
+-        print_params.preview_request_id);
++    preview_ui_->DidPrepareDocumentForPreview(print_params.document_cookie,
++                                              print_params.preview_request_id);
+   }
+ 
+   {
+     std::unique_ptr<HeaderAndFooterContext> header_footer_context;
+     blink::WebLocalFrame* header_footer_frame = nullptr;
+-    if (print_pages_params_->params->display_header_footer) {
++    if (print_params.display_header_footer) {
+       header_footer_context = std::make_unique<HeaderAndFooterContext>(
+           *print_preview_context_.prepared_frame());
+       header_footer_frame = header_footer_context->frame();
+@@ -1957,7 +1985,11 @@
+   TRACE_EVENT1("print", "PrintRenderFrameHelper::RenderPreviewPage",
+                "page_index", page_index);
+ 
+-  const mojom::PrintParams& print_params = *print_pages_params_->params;
++  // Clone `print_pages_params_->params` across `PrintPageInternal()`, which can
++  // spin a nested loop or run script that resets `print_pages_params_`.
++  const mojom::PrintParamsPtr print_params_clone =
++      print_pages_params_->params.Clone();
++  const mojom::PrintParams& print_params = *print_params_clone;
+   MetafileSkia* render_metafile = print_preview_context_.metafile();
+   std::unique_ptr<MetafileSkia> page_render_metafile;
+   if (!render_metafile) {
+@@ -1996,7 +2028,8 @@
+       // rendered.
+       page_render_metafile = render_metafile->GetMetafileForCurrentPage(
+           print_params.printed_doc_type);
+-      return PreviewPageRendered(page_index, std::move(page_render_metafile));
++      return PreviewPageRendered(print_params, page_index,
++                                 std::move(page_render_metafile));
+ 
+     case PrintPageInternalResult::kNoCanvas:
+       print_preview_context_.set_error(PrintPreviewErrorBuckets::kNoCanvas);
+@@ -2141,10 +2174,10 @@
+     return;
+   }
+ 
+-  if (print_in_progress_) {
++  if (print_in_progress_ || print_with_params_callback_) {
+     // This can happen as a result of processing sync messages when printing
+-    // from ppapi plugins. It's a rare case, so its OK to just fail here.
+-    // See http://crbug.com/159165.
++    // from PDF plugins, or when `PrintWithParams()` is already in progress.
++    // It's a rare case, so it's OK to just fail here. See crbug.com/40076541.
+     return;
+   }
+ 
+@@ -2380,8 +2413,11 @@
+     const std::vector<uint32_t>& printed_pages) {
+   DCHECK(!printed_pages.empty());
+ 
+-  const mojom::PrintPagesParams& params = *print_pages_params_;
+-  const mojom::PrintParams& print_params = *params.params;
++  // Clone `print_pages_params_->params` across `PrintPageInternal()`, which can
++  // spin a nested loop or run script that resets `print_pages_params_`.
++  const mojom::PrintParamsPtr print_params_clone =
++      print_pages_params_->params.Clone();
++  const mojom::PrintParams& print_params = *print_params_clone;
+ 
+   // Provide typeface and image context to use with serializing to the print
+   // compositor.
+@@ -2871,6 +2907,7 @@
+ }
+ 
+ bool PrintRenderFrameHelper::PreviewPageRendered(
++    const mojom::PrintParams& print_params,
+     uint32_t page_index,
+     std::unique_ptr<MetafileSkia> metafile) {
+   DCHECK_NE(page_index, kInvalidPageIndex);
+@@ -2894,8 +2931,8 @@
+     ui::AXTreeUpdate accessibility_tree;
+     snapshotter_->Snapshot(/* max_node_count= */ 0,
+                            /* timeout= */ {}, &accessibility_tree);
+-    GetPrintManagerHost()->SetAccessibilityTree(
+-        print_pages_params_->params->document_cookie, accessibility_tree);
++    GetPrintManagerHost()->SetAccessibilityTree(print_params.document_cookie,
++                                                accessibility_tree);
+   }
+ 
+   auto preview_page_params = mojom::DidPreviewPageParams::New();
+@@ -2909,13 +2946,11 @@
+   }
+ 
+   preview_page_params->page_index = page_index;
+-  preview_page_params->document_cookie =
+-      print_pages_params_->params->document_cookie;
++  preview_page_params->document_cookie = print_params.document_cookie;
+ 
+   if (preview_ui_) {
+-    preview_ui_->DidPreviewPage(
+-        std::move(preview_page_params),
+-        print_pages_params_->params->preview_request_id);
++    preview_ui_->DidPreviewPage(std::move(preview_page_params),
++                                print_params.preview_request_id);
+   }
+   return true;
+ }
+diff --git a/components/printing/renderer/print_render_frame_helper.h b/components/printing/renderer/print_render_frame_helper.h
+index d7a37a0..ea93f2f 100644
+--- a/components/printing/renderer/print_render_frame_helper.h
++++ b/components/printing/renderer/print_render_frame_helper.h
+@@ -160,6 +160,9 @@
+   friend class PrintRenderFrameHelperTestBase;
+   FRIEND_TEST_ALL_PREFIXES(PrintRenderFrameHelperPreviewTest,
+                            BlockScriptInitiatedPrinting);
++  FRIEND_TEST_ALL_PREFIXES(
++      PrintRenderFrameHelperPreviewTest,
++      PrintWithParamsBlocksConcurrentPrintPreviewAndScriptedPrint);
+   FRIEND_TEST_ALL_PREFIXES(MAYBE_PrintRenderFrameHelperTest,
+                            PrintRequestedPages);
+   FRIEND_TEST_ALL_PREFIXES(MAYBE_PrintRenderFrameHelperTest,
+@@ -421,7 +424,8 @@
+   // `page_index` is 0-based.
+   // `metafile` is the rendered page and should be valid.
+   // Returns true if print preview should continue, false on failure.
+-  bool PreviewPageRendered(uint32_t page_index,
++  bool PreviewPageRendered(const mojom::PrintParams& print_params,
++                           uint32_t page_index,
+                            std::unique_ptr<MetafileSkia> metafile);
+ 
+   // Called when the connection with the |preview_ui_| goes away.
+@@ -682,7 +686,9 @@
+   //   parameters so that it can be invoked after DidStopLoading.
+   base::OnceClosure on_stop_loading_closure_;
+ 
+-  // This is used to report PrintWithParams() call result.
++  // This is used to report the `PrintWithParams()` call result, and also
++  // serves as a flag indicating that `PrintWithParams()` is in progress to
++  // prevent concurrent print operations.
+   PrintWithParamsCallback print_with_params_callback_;
+ 
+   // Stores the quit closures of Mojo responses.
+diff --git a/third_party/blink/renderer/core/exported/web_element.cc b/third_party/blink/renderer/core/exported/web_element.cc
+index 1d885fc9c..d52d452a 100644
+--- a/third_party/blink/renderer/core/exported/web_element.cc
++++ b/third_party/blink/renderer/core/exported/web_element.cc
+@@ -570,7 +570,7 @@
+     return image->AsSkBitmapForCurrentFrame(kRespectImageOrientation);
+   }
+ 
+-  Image* image = GetImage();
++  scoped_refptr<Image> image = GetImage();
+   if (!image)
+     return {};
+   scoped_refptr<SVGImageForContainer> svg_image_for_container;
+diff --git a/third_party/blink/renderer/core/html/canvas/image_element_base.cc b/third_party/blink/renderer/core/html/canvas/image_element_base.cc
+index 921ac957e..919b872 100644
+--- a/third_party/blink/renderer/core/html/canvas/image_element_base.cc
++++ b/third_party/blink/renderer/core/html/canvas/image_element_base.cc
+@@ -105,8 +105,8 @@
+   ImageResourceContent* image_content = CachedImage();
+   if (!image_content || !image_content->HasImage())
+     return gfx::SizeF();
+-  Image* image = image_content->GetImage();
+-  if (auto* svg_image = DynamicTo<SVGImage>(image)) {
++  scoped_refptr<Image> image = image_content->GetImage();
++  if (auto* svg_image = DynamicTo<SVGImage>(image.get())) {
+     const SVGImageViewInfo* view_info =
+         SVGImageForContainer::CreateViewInfo(*svg_image, GetElement());
+     return SVGImageForContainer::ConcreteObjectSize(*svg_image, view_info,
+diff --git a/third_party/blink/renderer/core/html/html_image_element.cc b/third_party/blink/renderer/core/html/html_image_element.cc
+index fe433f750..a248f4b 100644
+--- a/third_party/blink/renderer/core/html/html_image_element.cc
++++ b/third_party/blink/renderer/core/html/html_image_element.cc
+@@ -947,8 +947,8 @@
+   if (!image_content || !image_content->HasImage())
+     return gfx::SizeF();
+ 
+-  Image* image = image_content->GetImage();
+-  if (auto* svg_image = DynamicTo<SVGImage>(image)) {
++  scoped_refptr<Image> image = image_content->GetImage();
++  if (auto* svg_image = DynamicTo<SVGImage>(image.get())) {
+     const SVGImageViewInfo* view_info =
+         SVGImageForContainer::CreateViewInfo(*svg_image, *this);
+     return SVGImageForContainer::ConcreteObjectSize(*svg_image, view_info,
+diff --git a/third_party/blink/renderer/core/input/event_handler.cc b/third_party/blink/renderer/core/input/event_handler.cc
+index 85ce219..f6bc3c2d 100644
+--- a/third_party/blink/renderer/core/input/event_handler.cc
++++ b/third_party/blink/renderer/core/input/event_handler.cc
+@@ -664,16 +664,15 @@
+       CHECK(style_image->CachedImage());
+ 
+       float scale = style_image->ImageScaleFactor();
+-      Image* image = style_image->CachedImage()->GetImage();
++      scoped_refptr<Image> image = style_image->CachedImage()->GetImage();
+ 
+       const float device_scale_factor =
+           page->GetChromeClient().GetScreenInfo(*frame_).device_scale_factor;
+ 
+-      scoped_refptr<Image> svg_image_holder;
+       // If the image is an SVG, then adjust the scale to reflect the device
+       // scale factor so that the SVG can be rasterized in the native
+       // resolution and scaled down to the correct size for the cursor.
+-      if (auto* svg_image = DynamicTo<SVGImage>(image)) {
++      if (auto* svg_image = DynamicTo<SVGImage>(image.get())) {
+         // Adjust the total scale factor. The image scale factor doesn't
+         // really affect SVG images though (as is evident below), so this
+         // should probably be dropped (scale should be set to the DPR).
+@@ -689,12 +688,11 @@
+             kRespectImageOrientation);
+ 
+         // TODO(fs): Should pass proper URL. Use StyleImage::GetImage.
+-        svg_image_holder = SVGImageForContainer::Create(
++        image = SVGImageForContainer::Create(
+             *svg_image, size_in_device_pixels, device_scale_factor, nullptr,
+             frame_->GetDocument()
+                 ->GetStyleEngine()
+                 .ResolveColorSchemeForEmbedding(&style));
+-        image = svg_image_holder.get();
+       }
+ 
+       // Reject empty and too large cursors.
+diff --git a/third_party/blink/renderer/core/layout/layout_image_resource.cc b/third_party/blink/renderer/core/layout/layout_image_resource.cc
+index 58bbb3ff..ec472ab 100644
+--- a/third_party/blink/renderer/core/layout/layout_image_resource.cc
++++ b/third_party/blink/renderer/core/layout/layout_image_resource.cc
+@@ -149,8 +149,8 @@
+     return NaturalSizingInfo::None();
+   }
+   NaturalSizingInfo sizing_info;
+-  Image& image = *cached_image_->GetImage();
+-  if (auto* svg_image = DynamicTo<SVGImage>(image)) {
++  scoped_refptr<Image> image = cached_image_->GetImage();
++  if (auto* svg_image = DynamicTo<SVGImage>(image.get())) {
+     const SVGImageViewInfo* view_info = SVGImageForContainer::CreateViewInfo(
+         *svg_image, layout_object_->GetNode());
+     sizing_info =
+@@ -158,9 +158,9 @@
+             .value_or(NaturalSizingInfo::None());
+   } else {
+     sizing_info = NaturalSizingInfo::MakeFixed(
+-        gfx::SizeF(image.Size(ImageOrientation())));
++        gfx::SizeF(image->Size(ImageOrientation())));
+   }
+-  if (multiplier != 1 && image.HasIntrinsicSize()) {
++  if (multiplier != 1 && image->HasIntrinsicSize()) {
+     sizing_info.size = ApplyClampedZoom(sizing_info.size, multiplier);
+   }
+   if (auto* layout_image = DynamicTo<LayoutImage>(*layout_object_)) {
+@@ -217,9 +217,9 @@
+   if (!cached_image_->HasImage())
+     return Image::NullImage();
+ 
+-  Image* image = cached_image_->GetImage();
++  scoped_refptr<Image> image = cached_image_->GetImage();
+ 
+-  auto* svg_image = DynamicTo<SVGImage>(image);
++  auto* svg_image = DynamicTo<SVGImage>(image.get());
+   if (!svg_image)
+     return image;
+ 
+diff --git a/third_party/blink/renderer/core/style/style_fetched_image.cc b/third_party/blink/renderer/core/style/style_fetched_image.cc
+index c63e1c8..8b7ccfc 100644
+--- a/third_party/blink/renderer/core/style/style_fetched_image.cc
++++ b/third_party/blink/renderer/core/style/style_fetched_image.cc
+@@ -144,9 +144,9 @@
+     RespectImageOrientationEnum respect_orientation) const {
+   multiplier = ApplyImageResolution(multiplier);
+ 
+-  Image& image = *image_->GetImage();
++  scoped_refptr<Image> image = image_->GetImage();
+   gfx::SizeF size;
+-  if (auto* svg_image = DynamicTo<SVGImage>(image)) {
++  if (auto* svg_image = DynamicTo<SVGImage>(image.get())) {
+     const SVGImageViewInfo* view_info =
+         SVGImageForContainer::CreateViewInfo(*svg_image, url_);
+     const gfx::SizeF unzoomed_default_object_size =
+@@ -155,7 +155,7 @@
+         *svg_image, view_info, unzoomed_default_object_size);
+   } else {
+     size = gfx::SizeF(
+-        image.Size(ForceOrientationIfNecessary(respect_orientation)));
++        image->Size(ForceOrientationIfNecessary(respect_orientation)));
+   }
+   return ApplyZoom(size, multiplier);
+ }
+@@ -163,9 +163,9 @@
+ NaturalSizingInfo StyleFetchedImage::GetNaturalSizingInfo(
+     float multiplier,
+     RespectImageOrientationEnum respect_orientation) const {
+-  Image& image = *image_->GetImage();
++  scoped_refptr<Image> image = image_->GetImage();
+   NaturalSizingInfo sizing_info;
+-  if (auto* svg_image = DynamicTo<SVGImage>(image)) {
++  if (auto* svg_image = DynamicTo<SVGImage>(image.get())) {
+     const SVGImageViewInfo* view_info =
+         SVGImageForContainer::CreateViewInfo(*svg_image, url_);
+     sizing_info =
+@@ -173,7 +173,7 @@
+             .value_or(NaturalSizingInfo::None());
+   } else {
+     gfx::SizeF size(
+-        image.Size(ForceOrientationIfNecessary(respect_orientation)));
++        image->Size(ForceOrientationIfNecessary(respect_orientation)));
+     sizing_info = NaturalSizingInfo::MakeFixed(size);
+   }
+ 
+@@ -183,15 +183,15 @@
+ }
+ 
+ bool StyleFetchedImage::HasIntrinsicSize() const {
+-  Image& image = *image_->GetImage();
+-  if (auto* svg_image = DynamicTo<SVGImage>(image)) {
++  scoped_refptr<Image> image = image_->GetImage();
++  if (auto* svg_image = DynamicTo<SVGImage>(image.get())) {
+     const SVGImageViewInfo* view_info =
+         SVGImageForContainer::CreateViewInfo(*svg_image, url_);
+     std::optional<NaturalSizingInfo> natural_sizing_info =
+         SVGImageForContainer::GetNaturalDimensions(*svg_image, view_info);
+     return natural_sizing_info && !natural_sizing_info->IsNone();
+   }
+-  return image.HasIntrinsicSize();
++  return image->HasIntrinsicSize();
+ }
+ 
+ void StyleFetchedImage::AddClient(ImageResourceObserver* observer) {
+@@ -232,8 +232,8 @@
+     const Node& node,
+     const ComputedStyle& style,
+     const gfx::SizeF& target_size) const {
+-  Image* image = image_->GetImage();
+-  auto* svg_image = DynamicTo<SVGImage>(image);
++  scoped_refptr<Image> image = image_->GetImage();
++  auto* svg_image = DynamicTo<SVGImage>(image.get());
+   if (!svg_image) {
+     return image;
+   }
+diff --git a/third_party/blink/renderer/core/svg/graphics/svg_image_for_container.cc b/third_party/blink/renderer/core/svg/graphics/svg_image_for_container.cc
+index 32591942..7ae6711 100644
+--- a/third_party/blink/renderer/core/svg/graphics/svg_image_for_container.cc
++++ b/third_party/blink/renderer/core/svg/graphics/svg_image_for_container.cc
+@@ -88,7 +88,7 @@
+                                            const gfx::SizeF& container_size,
+                                            float zoom,
+                                            const SVGImageViewInfo* viewinfo)
+-    : image_(image),
++    : image_(&image),
+       viewinfo_(viewinfo),
+       container_size_(container_size),
+       zoom_(zoom) {}
+diff --git a/third_party/blink/renderer/core/svg/graphics/svg_image_for_container.h b/third_party/blink/renderer/core/svg/graphics/svg_image_for_container.h
+index 8d1c8fb..0b45068 100644
+--- a/third_party/blink/renderer/core/svg/graphics/svg_image_for_container.h
++++ b/third_party/blink/renderer/core/svg/graphics/svg_image_for_container.h
+@@ -158,7 +158,7 @@
+ 
+   void DestroyDecodedData() override {}
+ 
+-  const raw_ref<SVGImage, UnprotectedInRelease | DanglingUntriaged> image_;
++  const scoped_refptr<SVGImage> image_;
+   Persistent<const SVGImageViewInfo> viewinfo_;
+   const gfx::SizeF container_size_;
+   const float zoom_;
+diff --git a/build/util/LASTCHANGE b/build/util/LASTCHANGE
+--- a/build/util/LASTCHANGE
++++ b/build/util/LASTCHANGE
+@@ -1,2 +1,2 @@
+-LASTCHANGE=a21ce95c24ce3964416f09ae1862f53f319eb4d0-refs/branch-heads/8078@{#1704}
++LASTCHANGE=fe60b80929194cd5557a585f7aac4aec03139e84-refs/branch-heads/8078@{#1719}
+ LASTCHANGE_YEAR=2026
+diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
+--- a/build/util/LASTCHANGE.committime
++++ b/build/util/LASTCHANGE.committime
+@@ -1 +1 @@
+-1793218802
+\ No newline at end of file
++1793234799
+\ No newline at end of file
+diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
+--- a/gpu/config/gpu_lists_version.h
++++ b/gpu/config/gpu_lists_version.h
+@@ -3,6 +3,6 @@
+ #ifndef GPU_CONFIG_GPU_LISTS_VERSION_H_
+ #define GPU_CONFIG_GPU_LISTS_VERSION_H_
+ 
+-#define GPU_LISTS_VERSION "a21ce95c24ce3964416f09ae1862f53f319eb4d0"
++#define GPU_LISTS_VERSION "fe60b80929194cd5557a585f7aac4aec03139e84"
+ 
+ #endif  // GPU_CONFIG_GPU_LISTS_VERSION_H_
