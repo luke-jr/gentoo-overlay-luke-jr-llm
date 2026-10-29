@@ -74,6 +74,11 @@ dependency, and only with `USE=ffmpeg-chromium`; it builds and installs, but has
 Everything is keyworded `~amd64 ~arm64`, except the Chromium version Google releases as Stable for
 Linux, which is `amd64` (see `doc/chromium-maintenance.md`). Only amd64 has been built and tested.
 
+`eclass/chromium-llm.eclass` is the Chromium build, shared by the `www-client/chromium` ebuilds;
+each ebuild has only what is particular to its version: upstream's pins, its patch lists and the
+fixes it carries. A change to the eclass must not change what the existing ebuilds do
+(`scripts/chromium-ebuild-env/` checks that).
+
 `eclass/cargo-stubs.eclass` keeps the Rust packages (`crubit`, `rollup`, `gnrt`, `chromium-rust-crates`) from fetching crates
 that Linux never builds (winapi, windows-sys, wasi, …): it writes a stub with the same
 name, version, checksum, dependencies and features in their place, which `compile_error!`s if
@@ -88,6 +93,8 @@ anything does build it. `scripts/cargo-unused-crates.py` lists the candidates fr
 - `doc/chromium-runtime-downloads.md`: what Chromium downloads at runtime, and what the ebuild blocks.
 - `doc/crubit.md`: notes on Crubit (the C++/Rust bindings generator).
 - `scripts/chromium-delta/README.md`: upgrade patches for releases without a tarball yet.
+- `scripts/chromium-ebuild-env/README.md`: checking that an eclass change leaves the existing
+  ebuilds alone.
 - `scripts/chromium-tests/README.md`: checks for a Chromium build.
 
 ## Metadata

@@ -26,7 +26,9 @@ was added with (and 156 updated from .12 to .47).
 
 ## A new major version
 
-1. **Start from the previous ebuild:** copy it, and set `SLOT` (above).
+1. **Start from the previous ebuild:** copy it, and set `SLOT` (above). An ebuild has only its
+   version's pins and lists (patches, carried fixes, extra bundled sources); the build is in
+   `eclass/chromium-llm.eclass` (see "Changing the eclass" below).
 2. **Patches:** copy `files/chromium-patches-<previous>/` to `files/chromium-patches-<major>/`, and
    check every patch (the Gentoo patchset, copium's selection, and the overlay's own
    `files/chromium-*.patch`) against the new tree:
@@ -81,6 +83,21 @@ This is how 156 went from .47 to .78_pre (on the .73 tarball).
    `node_modules` and `front_end/third_party`) and `tools/crates` are unchanged, `gnrt`,
    `chromium-rust-crates` and `chromium-node-modules` stay as they are.
 5. Build and check as below.
+
+## Changing the eclass
+
+`eclass/chromium-llm.eclass` is shared by every `www-client/chromium` ebuild in the tree, the
+older versions too. When a new version needs the build to change:
+
+- If it's data (a patch, a pin, a bundled source to keep), it goes in the new ebuild.
+- If it's code, it must not change what the existing ebuilds do. Make it opt-in: a variable,
+  array or function the existing ebuilds don't set, whose default is the old behaviour (as
+  `HB_UCD_FILES`, `CHROMIUM_KEEPLIBS` and `chromium_crubit_rustfmt` are for 157). The eclass's
+  description lists them.
+- Check it with `scripts/chromium-ebuild-env/`: snapshots of every ebuild before and after the
+  change must not differ for the ebuilds the change isn't meant for.
+
+When an old version is dropped, the opt-ins that only it needed can be folded in.
 
 ## Building and checking
 
