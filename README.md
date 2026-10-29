@@ -71,7 +71,8 @@ What the packages here follow, beyond Gentoo's own policies:
 All except `ffmpeg-chromium` are **build-time only** (`BDEPEND`) for Chromium. `ffmpeg-chromium` is a runtime
 dependency, and only with `USE=ffmpeg-chromium`; it builds and installs, but hasn't been tested in use.
 
-Everything is keyworded `~amd64 ~arm64`. Only amd64 has been built and tested.
+Everything is keyworded `~amd64 ~arm64`, except the Chromium version Google releases as Stable for
+Linux, which is `amd64` (see `doc/chromium-maintenance.md`). Only amd64 has been built and tested.
 
 `eclass/cargo-stubs.eclass` keeps the Rust packages (`crubit`, `rollup`, `gnrt`, `chromium-rust-crates`) from fetching crates
 that Linux never builds (winapi, windows-sys, wasi, …): it writes a stub with the same
