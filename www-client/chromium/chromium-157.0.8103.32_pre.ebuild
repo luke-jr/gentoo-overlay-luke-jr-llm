@@ -827,7 +827,8 @@ remove_compiler_builtins() {
 }
 
 src_prepare() {
-	# Upgrade the ${CHROMIUM_TARBALL_PV} tarball to ${PV%_pre} first (see SRC_URI and the patch's header).
+	# Upgrade the ${CHROMIUM_TARBALL_PV} tarball to ${PV%_pre} first (see SRC_URI), then the
+	# CVE-2026-118332 fix (from Stable 156.0.8078.73) 157 hasn't got yet. See the patch headers.
 	einfo "Upgrading the ${CHROMIUM_TARBALL_PV} sources to ${PV%_pre} ..."
 	git apply --whitespace=nowarn "${FILESDIR}/chromium-${CHROMIUM_TARBALL_PV}-to-${PV%_pre}.patch" ||
 		die "Failed to upgrade the sources to ${PV%_pre}"
@@ -835,6 +836,8 @@ src_prepare() {
 	version=$(source chrome/VERSION && echo "${MAJOR}.${MINOR}.${BUILD}.${PATCH}") ||
 		die "Failed to read chrome/VERSION"
 	[[ ${version} == "${PV%_pre}" ]] || die "chrome/VERSION says ${version} after upgrading, expected ${PV%_pre}"
+	git apply --whitespace=nowarn "${FILESDIR}/chromium-157-cve-2026-118332.patch" ||
+		die "Failed to apply chromium-157-cve-2026-118332.patch"
 
 	# Calling this here supports resumption via FEATURES=keepwork
 	python_setup
