@@ -1,0 +1,231 @@
+"Retain SVGImage across SVGImageForContainer::CreateViewInfo" (crbug
+575312521; the bug is restricted, and no
+CVE is listed for it yet), merged to the 156 branch on 2026-10-28 (first in
+the 156.0.8078.83 tag, after the 156.0.8078.79 release) and proposed for
+150. chromium/src main commit
+ae76c84a47e410f556dc10aa925e057216872cc4 (main@{#1726943}) landed after the
+157 branch point; its merge to the 157 branch (Gerrit CL 8672720) was still
+open on 2026-10-29. This is that merge's patch, without its test. Drop it
+once 157 has it.
+
+diff --git a/third_party/blink/renderer/core/exported/web_element.cc b/third_party/blink/renderer/core/exported/web_element.cc
+index b03bf1b..9c4abd31 100644
+--- a/third_party/blink/renderer/core/exported/web_element.cc
++++ b/third_party/blink/renderer/core/exported/web_element.cc
+@@ -570,7 +570,7 @@
+     return image->AsSkBitmapForCurrentFrame(kRespectImageOrientation);
+   }
+ 
+-  Image* image = GetImage();
++  scoped_refptr<Image> image = GetImage();
+   if (!image)
+     return {};
+   scoped_refptr<SVGImageForContainer> svg_image_for_container;
+diff --git a/third_party/blink/renderer/core/html/canvas/image_element_base.cc b/third_party/blink/renderer/core/html/canvas/image_element_base.cc
+index 921ac957e..919b872 100644
+--- a/third_party/blink/renderer/core/html/canvas/image_element_base.cc
++++ b/third_party/blink/renderer/core/html/canvas/image_element_base.cc
+@@ -105,8 +105,8 @@
+   ImageResourceContent* image_content = CachedImage();
+   if (!image_content || !image_content->HasImage())
+     return gfx::SizeF();
+-  Image* image = image_content->GetImage();
+-  if (auto* svg_image = DynamicTo<SVGImage>(image)) {
++  scoped_refptr<Image> image = image_content->GetImage();
++  if (auto* svg_image = DynamicTo<SVGImage>(image.get())) {
+     const SVGImageViewInfo* view_info =
+         SVGImageForContainer::CreateViewInfo(*svg_image, GetElement());
+     return SVGImageForContainer::ConcreteObjectSize(*svg_image, view_info,
+diff --git a/third_party/blink/renderer/core/html/html_image_element.cc b/third_party/blink/renderer/core/html/html_image_element.cc
+index 73846ae..be2e96c 100644
+--- a/third_party/blink/renderer/core/html/html_image_element.cc
++++ b/third_party/blink/renderer/core/html/html_image_element.cc
+@@ -956,8 +956,8 @@
+   if (!image_content || !image_content->HasImage())
+     return gfx::SizeF();
+ 
+-  Image* image = image_content->GetImage();
+-  if (auto* svg_image = DynamicTo<SVGImage>(image)) {
++  scoped_refptr<Image> image = image_content->GetImage();
++  if (auto* svg_image = DynamicTo<SVGImage>(image.get())) {
+     const SVGImageViewInfo* view_info =
+         SVGImageForContainer::CreateViewInfo(*svg_image, *this);
+     return SVGImageForContainer::ConcreteObjectSize(*svg_image, view_info,
+diff --git a/third_party/blink/renderer/core/input/event_handler.cc b/third_party/blink/renderer/core/input/event_handler.cc
+index 6437c29e..4f73f96c 100644
+--- a/third_party/blink/renderer/core/input/event_handler.cc
++++ b/third_party/blink/renderer/core/input/event_handler.cc
+@@ -664,16 +664,15 @@
+       CHECK(style_image->CachedImage());
+ 
+       float scale = style_image->ImageScaleFactor();
+-      Image* image = style_image->CachedImage()->GetImage();
++      scoped_refptr<Image> image = style_image->CachedImage()->GetImage();
+ 
+       const float device_scale_factor =
+           page->GetChromeClient().GetScreenInfo(*frame_).device_scale_factor;
+ 
+-      scoped_refptr<Image> svg_image_holder;
+       // If the image is an SVG, then adjust the scale to reflect the device
+       // scale factor so that the SVG can be rasterized in the native
+       // resolution and scaled down to the correct size for the cursor.
+-      if (auto* svg_image = DynamicTo<SVGImage>(image)) {
++      if (auto* svg_image = DynamicTo<SVGImage>(image.get())) {
+         // Adjust the total scale factor. The image scale factor doesn't
+         // really affect SVG images though (as is evident below), so this
+         // should probably be dropped (scale should be set to the DPR).
+@@ -689,12 +688,11 @@
+             kRespectImageOrientation);
+ 
+         // TODO(fs): Should pass proper URL. Use StyleImage::GetImage.
+-        svg_image_holder = SVGImageForContainer::Create(
++        image = SVGImageForContainer::Create(
+             *svg_image, size_in_device_pixels, device_scale_factor, nullptr,
+             frame_->GetDocument()
+                 ->GetStyleEngine()
+                 .ResolveColorSchemeForEmbedding(&style));
+-        image = svg_image_holder.get();
+       }
+ 
+       // Reject empty and too large cursors.
+diff --git a/third_party/blink/renderer/core/layout/layout_image_resource.cc b/third_party/blink/renderer/core/layout/layout_image_resource.cc
+index c82a44e..cf1f3a6 100644
+--- a/third_party/blink/renderer/core/layout/layout_image_resource.cc
++++ b/third_party/blink/renderer/core/layout/layout_image_resource.cc
+@@ -149,8 +149,8 @@
+     return NaturalSizingInfo::None();
+   }
+   NaturalSizingInfo sizing_info;
+-  Image& image = *cached_image_->GetImage();
+-  if (auto* svg_image = DynamicTo<SVGImage>(image)) {
++  scoped_refptr<Image> image = cached_image_->GetImage();
++  if (auto* svg_image = DynamicTo<SVGImage>(image.get())) {
+     const SVGImageViewInfo* view_info = SVGImageForContainer::CreateViewInfo(
+         *svg_image, layout_object_->GetNode());
+     sizing_info =
+@@ -158,9 +158,9 @@
+             .value_or(NaturalSizingInfo::None());
+   } else {
+     sizing_info = NaturalSizingInfo::MakeFixed(
+-        gfx::SizeF(image.Size(ImageOrientation())));
++        gfx::SizeF(image->Size(ImageOrientation())));
+   }
+-  if (multiplier != 1 && image.HasIntrinsicSize()) {
++  if (multiplier != 1 && image->HasIntrinsicSize()) {
+     sizing_info.size = ApplyClampedZoom(sizing_info.size, multiplier);
+   }
+   if (auto* layout_image = DynamicTo<LayoutImage>(*layout_object_)) {
+@@ -217,9 +217,9 @@
+   if (!cached_image_->HasImage())
+     return Image::NullImage();
+ 
+-  Image* image = cached_image_->GetImage();
++  scoped_refptr<Image> image = cached_image_->GetImage();
+ 
+-  auto* svg_image = DynamicTo<SVGImage>(image);
++  auto* svg_image = DynamicTo<SVGImage>(image.get());
+   if (!svg_image)
+     return image;
+ 
+diff --git a/third_party/blink/renderer/core/style/style_fetched_image.cc b/third_party/blink/renderer/core/style/style_fetched_image.cc
+index c63e1c8..8b7ccfc 100644
+--- a/third_party/blink/renderer/core/style/style_fetched_image.cc
++++ b/third_party/blink/renderer/core/style/style_fetched_image.cc
+@@ -144,9 +144,9 @@
+     RespectImageOrientationEnum respect_orientation) const {
+   multiplier = ApplyImageResolution(multiplier);
+ 
+-  Image& image = *image_->GetImage();
++  scoped_refptr<Image> image = image_->GetImage();
+   gfx::SizeF size;
+-  if (auto* svg_image = DynamicTo<SVGImage>(image)) {
++  if (auto* svg_image = DynamicTo<SVGImage>(image.get())) {
+     const SVGImageViewInfo* view_info =
+         SVGImageForContainer::CreateViewInfo(*svg_image, url_);
+     const gfx::SizeF unzoomed_default_object_size =
+@@ -155,7 +155,7 @@
+         *svg_image, view_info, unzoomed_default_object_size);
+   } else {
+     size = gfx::SizeF(
+-        image.Size(ForceOrientationIfNecessary(respect_orientation)));
++        image->Size(ForceOrientationIfNecessary(respect_orientation)));
+   }
+   return ApplyZoom(size, multiplier);
+ }
+@@ -163,9 +163,9 @@
+ NaturalSizingInfo StyleFetchedImage::GetNaturalSizingInfo(
+     float multiplier,
+     RespectImageOrientationEnum respect_orientation) const {
+-  Image& image = *image_->GetImage();
++  scoped_refptr<Image> image = image_->GetImage();
+   NaturalSizingInfo sizing_info;
+-  if (auto* svg_image = DynamicTo<SVGImage>(image)) {
++  if (auto* svg_image = DynamicTo<SVGImage>(image.get())) {
+     const SVGImageViewInfo* view_info =
+         SVGImageForContainer::CreateViewInfo(*svg_image, url_);
+     sizing_info =
+@@ -173,7 +173,7 @@
+             .value_or(NaturalSizingInfo::None());
+   } else {
+     gfx::SizeF size(
+-        image.Size(ForceOrientationIfNecessary(respect_orientation)));
++        image->Size(ForceOrientationIfNecessary(respect_orientation)));
+     sizing_info = NaturalSizingInfo::MakeFixed(size);
+   }
+ 
+@@ -183,15 +183,15 @@
+ }
+ 
+ bool StyleFetchedImage::HasIntrinsicSize() const {
+-  Image& image = *image_->GetImage();
+-  if (auto* svg_image = DynamicTo<SVGImage>(image)) {
++  scoped_refptr<Image> image = image_->GetImage();
++  if (auto* svg_image = DynamicTo<SVGImage>(image.get())) {
+     const SVGImageViewInfo* view_info =
+         SVGImageForContainer::CreateViewInfo(*svg_image, url_);
+     std::optional<NaturalSizingInfo> natural_sizing_info =
+         SVGImageForContainer::GetNaturalDimensions(*svg_image, view_info);
+     return natural_sizing_info && !natural_sizing_info->IsNone();
+   }
+-  return image.HasIntrinsicSize();
++  return image->HasIntrinsicSize();
+ }
+ 
+ void StyleFetchedImage::AddClient(ImageResourceObserver* observer) {
+@@ -232,8 +232,8 @@
+     const Node& node,
+     const ComputedStyle& style,
+     const gfx::SizeF& target_size) const {
+-  Image* image = image_->GetImage();
+-  auto* svg_image = DynamicTo<SVGImage>(image);
++  scoped_refptr<Image> image = image_->GetImage();
++  auto* svg_image = DynamicTo<SVGImage>(image.get());
+   if (!svg_image) {
+     return image;
+   }
+diff --git a/third_party/blink/renderer/core/svg/graphics/svg_image_for_container.cc b/third_party/blink/renderer/core/svg/graphics/svg_image_for_container.cc
+index 32591942..7ae6711 100644
+--- a/third_party/blink/renderer/core/svg/graphics/svg_image_for_container.cc
++++ b/third_party/blink/renderer/core/svg/graphics/svg_image_for_container.cc
+@@ -88,7 +88,7 @@
+                                            const gfx::SizeF& container_size,
+                                            float zoom,
+                                            const SVGImageViewInfo* viewinfo)
+-    : image_(image),
++    : image_(&image),
+       viewinfo_(viewinfo),
+       container_size_(container_size),
+       zoom_(zoom) {}
+diff --git a/third_party/blink/renderer/core/svg/graphics/svg_image_for_container.h b/third_party/blink/renderer/core/svg/graphics/svg_image_for_container.h
+index 8d1c8fb..0b45068 100644
+--- a/third_party/blink/renderer/core/svg/graphics/svg_image_for_container.h
++++ b/third_party/blink/renderer/core/svg/graphics/svg_image_for_container.h
+@@ -158,7 +158,7 @@
+ 
+   void DestroyDecodedData() override {}
+ 
+-  const raw_ref<SVGImage, UnprotectedInRelease | DanglingUntriaged> image_;
++  const scoped_refptr<SVGImage> image_;
+   Persistent<const SVGImageViewInfo> viewinfo_;
+   const gfx::SizeF container_size_;
+   const float zoom_;

@@ -177,6 +177,9 @@ KEYWORDS="~amd64 ~arm64"
 # Security fixes this version hasn't got yet, applied first (see their headers).
 CHROMIUM_FIXES=(
 	chromium-157-cve-2026-118332.patch
+	chromium-157-cve-2026-76026.patch
+	chromium-157-cve-2026-119270.patch
+	chromium-157-svg-image-retain.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
