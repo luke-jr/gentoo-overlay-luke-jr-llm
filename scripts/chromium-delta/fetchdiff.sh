@@ -22,20 +22,32 @@ done
 
 # Every changed path must be in the diff, with content (Gitiles leaves binary files' out).
 # --raw needs only the trees.
-git diff --raw --no-renames refs/x/old refs/x/new | cut -f2 | sort > "${out}/${name}.changed"
-python3 -I - "${out}/${name}.diff" "${out}/${name}.changed" <<'EOF'
-import re, sys
-diff, changed = open(sys.argv[1], encoding="utf-8", errors="surrogateescape").read(), sys.argv[2]
-sections = re.split(r"^(?=diff --git )", diff, flags=re.M)[1:]
+python3 -I - "${out}/${name}.diff" <<'EOF'
+import re, subprocess, sys
+diff = open(sys.argv[1], encoding="utf-8", errors="surrogateescape").read()
+raw = subprocess.run(["git", "diff", "--raw", "-z", "--no-renames", "refs/x/old", "refs/x/new"],
+                     check=True, capture_output=True).stdout.decode("utf-8", "surrogateescape").split("\0")
+changed = [raw[i + 1] for i in range(0, len(raw) - 1, 2)]   # ":modes ids status", path, ...
+
+def path(header):
+    """The b/ path of a "diff --git" line: plain (maybe with spaces) or C-quoted."""
+    rest = header[len("diff --git "):]
+    if rest.startswith('"'):
+        q = re.findall(r'"((?:[^"\\]|\\.)*)"', rest)[-1]
+        q = q.encode("latin-1", "backslashreplace").decode("unicode_escape").encode("latin-1").decode("utf-8", "surrogateescape")
+        return q[2:]
+    n = (len(rest) - 5) // 2           # "a/" X " b/" X
+    return rest[2:2 + n]
+
 paths, bad = set(), []
-for s in sections:
-    path = re.match(r"diff --git a/(\S+) b/", s).group(1)
-    paths.add(path)
+for s in re.split(r"^(?=diff --git )", diff, flags=re.M)[1:]:
+    p = path(s.split("\n", 1)[0])
+    paths.add(p)
     # A section without hunks is fine for an empty file added or deleted, or a mode change.
     empty = re.search(r"^index (0+\.\.e69de29|e69de29\w*\.\.0+)\b", s, re.M)
     if "\n@@ " not in s and "GIT binary patch" not in s and not empty and "\nold mode " not in s:
-        bad.append(path)
-missing = [p for p in open(changed).read().split("\n") if p and p not in paths]
+        bad.append(p)
+missing = [p for p in changed if p not in paths]
 for p in missing:
     print(f"missing from Gitiles' diff: {p}", file=sys.stderr)
 for p in bad:

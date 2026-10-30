@@ -98,7 +98,7 @@ def main():
             for p in re.split(r"(?m)^(?=diff --git )", text):
                 if not p.startswith("diff --git"):
                     continue
-                f = prefix + re.match(r"diff --git a/(\S+)", p).group(1)
+                f = prefix + header_path(p.split("\n", 1)[0])
                 keep, why = decide(f, p, tree, inputs, branch_fixes)
                 stats[("keep: " if keep else "drop: ") + why] += 1
                 report.write(f"{f}\t{'keep' if keep else 'drop'}\t{why}\n")
@@ -109,6 +109,17 @@ def main():
                 k.write("".join(kept))
     for k, v in sorted(stats.items()):
         print(f"{v:6}  {k}")
+
+
+def header_path(header):
+    """The b/ path of a "diff --git" line: plain (maybe with spaces) or C-quoted (git quotes paths
+    with unusual characters, e.g. infra/'s "Linux Builder (dbg)")."""
+    rest = header[len("diff --git "):]
+    if rest.startswith('"'):
+        q = re.findall(r'"((?:[^"\\]|\\.)*)"', rest)[-1]
+        q = q.encode("latin-1", "backslashreplace").decode("unicode_escape")
+        return q.encode("latin-1").decode("utf-8", "surrogateescape")[2:]
+    return rest[2:2 + (len(rest) - 5) // 2]   # "a/" X " b/" X
 
 
 if __name__ == "__main__":
