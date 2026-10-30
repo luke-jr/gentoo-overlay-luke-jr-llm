@@ -1,0 +1,142 @@
+"Force media controls pseudo-elements to be read-only" (crbug 578691880,
+restricted; no CVE listed yet): author CSS could set -webkit-user-modify:
+read-write on the media controls' pseudo-elements, making nodes of the UA
+shadow DOM editable. chromium/src main commit
+0282207e83eefc4074b6902b64951e73c663d15f (main@{#1729648}), merged on
+2026-10-30 to 158, to 157 as f1a1e4c6100fd7d8a4ee8f7a5be677550220bc50
+(refs/branch-heads/8103@{#988}, after the 157.0.8103.33 tag) and to 156.
+This is the 157 merge, without its test. Drop it once a 157 tag has it.
+
+diff --git a/third_party/blink/renderer/modules/media_controls/resources/mediaControls.css b/third_party/blink/renderer/modules/media_controls/resources/mediaControls.css
+index bfe8b6f0..88c6c7d 100644
+--- a/third_party/blink/renderer/modules/media_controls/resources/mediaControls.css
++++ b/third_party/blink/renderer/modules/media_controls/resources/mediaControls.css
+@@ -36,6 +36,7 @@
+   margin-left: env(safe-area-inset-left);
+   margin-right: env(safe-area-inset-right);
+   margin-bottom: env(safe-area-inset-bottom);
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ audio::-webkit-media-controls-enclosure,
+@@ -50,6 +51,7 @@
+   justify-content: flex-end;
+   flex: 1;
+   width: 100%;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ audio::-webkit-media-controls-panel,
+@@ -60,6 +62,7 @@
+   flex-direction: column;
+   justify-content: flex-end;
+   user-select: none;
++  -webkit-user-modify: read-only !important;
+   z-index: 0;
+   overflow: hidden;
+   bottom: auto;
+@@ -225,6 +228,7 @@
+ 
+   /* Cursor: pointer will cause a highlight when touch on it, this will disable it */
+   -webkit-tap-highlight-color: transparent;
++  -webkit-user-modify: read-only !important;
+ 
+   /* These buttons form the anchor for anchor positioning. */
+   /* TODO(crbug.com/341741271): Put this back when anchor pos is stable. */
+@@ -424,10 +428,12 @@
+ 
+ audio::-webkit-media-controls-toggle-closed-captions-button {
+   display: none;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ audio::-webkit-media-controls-toggle-audio-descriptions-button {
+   display: none;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ video::-webkit-media-controls-toggle-closed-captions-button {
+@@ -494,6 +500,7 @@
+   transition: opacity 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+   padding: 20px;
+   border: 0;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ /*
+@@ -509,6 +516,7 @@
+   /* 48(Mute button) + 52(Slider) + 16(Left padding) */
+   min-width: 116px;
+   transition: min-width .3s;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ audio::-webkit-media-controls-volume-control-container.closed,
+@@ -544,6 +552,7 @@
+   top: 6px;
+   right: 4px;
+   transition: width .3s ease, opacity .25s ease;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ /*
+@@ -674,6 +683,7 @@
+ 
+   /* This prevents layout issues in quirks mode */
+   box-sizing: unset !important;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ audio::-webkit-media-controls-timeline:disabled,
+@@ -857,6 +867,7 @@
+ 
+   /* This prevents layout issues in quirks mode. */
+   box-sizing: unset !important;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ audio::-webkit-media-controls-volume-slider.closed,
+@@ -896,6 +907,7 @@
+   color: light-dark(#000000, #ffffff);
+   letter-spacing: 0;
+   text-shadow: 0 0 10px light-dark(#ffffff, #3b3b3b);
++  -webkit-user-modify: read-only !important;
+ }
+ video::-webkit-media-controls:not(.audio-only) [pseudo="-webkit-media-controls-current-time-display"],
+ video::-webkit-media-controls:not(.audio-only) [pseudo="-webkit-media-controls-time-remaining-display"] {
+@@ -1201,6 +1213,7 @@
+   position: absolute;
+   width: 100%;
+   height: 100%;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ /**
+@@ -1210,6 +1223,7 @@
+ audio::-webkit-media-controls-overlay-enclosure,
+ video::-webkit-media-controls.audio-only [pseudo="-webkit-media-controls-overlay-enclosure"] {
+   display: none;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ audio::-webkit-media-controls-enclosure,
+@@ -1422,6 +1436,7 @@
+  */
+ audio::-webkit-media-text-track-container {
+     overflow: hidden;
++    -webkit-user-modify: read-only !important;
+ }
+ 
+ /**
+@@ -1446,6 +1461,11 @@
+     height: 48px;
+     padding: 0;
+     transition: opacity 0.3s;
++    -webkit-user-modify: read-only !important;
++}
++
++audio::-internal-media-controls-overlay-cast-button {
++    -webkit-user-modify: read-only !important;
+ }
+ 
+ video::-internal-media-controls-overlay-cast-button.on {
