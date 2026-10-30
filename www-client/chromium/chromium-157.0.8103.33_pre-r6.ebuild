@@ -187,6 +187,7 @@ CHROMIUM_FIXES=(
 	chromium-157-paste-svg-use-sanitize.patch
 	chromium-157-v8-template-object-writes.patch
 	chromium-157-webrtc-empty-network-manager.patch
+	chromium-157-length-calc-value-gc.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
