@@ -184,6 +184,7 @@ CHROMIUM_FIXES=(
 	chromium-157-skia-region-conic-oob.patch
 	chromium-157-fsa-block-dot-cache.patch
 	chromium-157-encoding-detector-tld-hint.patch
+	chromium-157-paste-svg-use-sanitize.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
