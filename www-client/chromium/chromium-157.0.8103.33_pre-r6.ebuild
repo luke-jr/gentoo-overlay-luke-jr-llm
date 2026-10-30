@@ -190,6 +190,7 @@ CHROMIUM_FIXES=(
 	chromium-157-length-calc-value-gc.patch
 	chromium-157-image-fetcher-no-symlinks.patch
 	chromium-157-skia-sksl-rp-branches.patch
+	chromium-157-skia-graphite-clip-inflation.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
