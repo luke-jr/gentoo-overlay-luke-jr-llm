@@ -1,0 +1,60 @@
+"Mark Opaque XR framebuffers as incomplete on session end" (crbug 578670966;
+no CVE listed yet): a WebXR opaque framebuffer stayed complete when the
+session ended during a frame, leaving orphaned shared image texture
+handles reachable through it; it is now marked incomplete and its color
+textures detached at the end of each frame. chromium/src main commit
+3897d801449d24a4247b38366d66dae9491ded08 (main@{#1729896}), merged on
+2026-10-30 to 157 as 67b1826c23115ecbaaaa47d96ff5e3e18f966ba1
+(refs/branch-heads/8103@{#1005}, after the 157.0.8103.33 tag); merges to 156
+and 158 proposed. This is the 157 merge, without its test. Drop it once a
+157 tag has it.
+
+diff --git a/third_party/blink/renderer/modules/xr/xr_webgl_layer.cc b/third_party/blink/renderer/modules/xr/xr_webgl_layer.cc
+index f8e5262..b45a9f54 100644
+--- a/third_party/blink/renderer/modules/xr/xr_webgl_layer.cc
++++ b/third_party/blink/renderer/modules/xr/xr_webgl_layer.cc
+@@ -350,17 +350,17 @@
+ }
+ 
+ void XRWebGLLayer::OnFrameEnd() {
+-  // The session might have ended in the middle of the frame. Only perform the
+-  // main work of OnFrameEnd if it's still valid. Otherwise, simply ensure the
+-  // shared image access is properly ended.
+-  if (session()->ended()) {
+-    DoneWithSharedBuffer();
+-    return;
+-  }
+-
+   if (framebuffer_) {
+     framebuffer_->MarkOpaqueBufferComplete(false);
+ 
++    // The session might have ended in the middle of the frame. Only perform the
++    // main work of OnFrameEnd if it's still valid. Otherwise, simply ensure the
++    // shared image access is properly ended.
++    if (session()->ended()) {
++      DoneWithSharedBuffer();
++      return;
++    }
++
+     // Submit the frame to the XR compositor.
+     if (session()->immersive()) {
+       bool framebuffer_dirty = framebuffer_->HaveContentsChanged();
+diff --git a/third_party/blink/renderer/platform/graphics/gpu/xr_webgl_drawing_buffer.cc b/third_party/blink/renderer/platform/graphics/gpu/xr_webgl_drawing_buffer.cc
+index 1470d471..1b844ff 100644
+--- a/third_party/blink/renderer/platform/graphics/gpu/xr_webgl_drawing_buffer.cc
++++ b/third_party/blink/renderer/platform/graphics/gpu/xr_webgl_drawing_buffer.cc
+@@ -337,6 +337,14 @@
+     gl->DiscardFramebufferEXT(GL_FRAMEBUFFER, 2, kAttachments);
+   }
+ 
++  // Detach the shared buffer from the framebuffer to prevent access to an
++  // orphaned attachment.
++  gl->BindFramebuffer(GL_FRAMEBUFFER, WantExplicitResolve()
++                                          ? resolved_framebuffer_
++                                          : framebuffer_);
++  gl->FramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
++                           0, 0);
++
+   // Always bind to the default framebuffer as a hint to the GPU to start
+   // rendering now.
+   gl->BindFramebuffer(GL_FRAMEBUFFER, 0);

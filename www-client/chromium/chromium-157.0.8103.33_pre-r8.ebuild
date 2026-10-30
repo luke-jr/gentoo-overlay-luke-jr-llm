@@ -193,6 +193,7 @@ CHROMIUM_FIXES=(
 	chromium-157-skia-graphite-clip-inflation.patch
 	chromium-157-background-fetch-cors-retry.patch
 	chromium-157-gpu-copy-shared-image-empty-rects.patch
+	chromium-157-xr-opaque-framebuffer-incomplete.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
