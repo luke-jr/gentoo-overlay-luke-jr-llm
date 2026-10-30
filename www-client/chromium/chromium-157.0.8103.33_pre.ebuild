@@ -182,6 +182,7 @@ CHROMIUM_FIXES=(
 	chromium-157-media-controls-read-only.patch
 	chromium-157-display-lock-trace.patch
 	chromium-157-skia-region-conic-oob.patch
+	chromium-157-fsa-block-dot-cache.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
