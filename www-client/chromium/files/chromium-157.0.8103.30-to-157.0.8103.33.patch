@@ -1,0 +1,3375 @@
+Chromium 157.0.8103.30 -> 157.0.8103.33, for the 157.0.8103.30 tarball.
+
+157.0.8103.33 is a tag on the 157 branch (refs/branch-heads/8103) that has
+no source tarball (as of 2026-10-30). It has fixes made after
+157.0.8103.30: use-after-frees in the bookmarks side panel, MojoCdm,
+chrome.windows.update (Extensions) and TransitionPseudoElementData; WebAudio's
+media element handler; HttpCache range responses; File System Access's
+sensitive paths; re-entry when draining error events; layer changes during a
+commit; nested printing; menu items deleted while being inserted;
+relatedTarget's cross-origin check; ImageContext access failure
+(CVE-2026-118332); V8's maps, prototypes, Maglev and deopt literals; Skia's
+SkSL parser, GL BGRA formats, Graphite's paint keys and Ganesh's subset clamp.
+Some are likely security fixes that later release notes will credit.
+
+Generated from the upstream diffs between the tags (chromium/src
+refs/tags/157.0.8103.30..157.0.8103.33), Skia and V8 (the only
+dependencies whose DEPS revisions changed; no CIPD/GCS package or gclient
+gn arg changed), as served by Gitiles, with scripts/chromium-delta.
+
+Left out, as they cannot affect a Linux build: files not in the release
+tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
+translations, CI configuration, PGO pointers, submodule pointer updates,
+DEPS.
+
+Added: the tarball's stamp files for the new commit (stamps.py:
+build/util/LASTCHANGE{,.committime}, gpu/config/gpu_lists_version.h and
+skia/ext/skia_commit_hash.h; commit
+40aa46194a841a35609fca1cbc7403808b104da0, refs/branch-heads/8103@{#986}).
+Dawn's stamps and build/util/MINIBRANCH don't change.
+
+Checked: applies to the 157.0.8103.30 tarball; chrome/VERSION becomes
+157.0.8103.33; every patched source file is byte-identical to its version
+at the tag; the 157.0.8103.30 tarball's non-git files are all classified
+(tarball-generated.py with generated.conf).
+
+Apply with git apply.
+
+diff --git a/cc/layers/layer.h b/cc/layers/layer.h
+index c88ec0b5..1c3c92b 100644
+--- a/cc/layers/layer.h
++++ b/cc/layers/layer.h
+@@ -785,6 +785,11 @@
+   // default layers are not snapped.
+   virtual bool IsSnappedToPixelGridInTarget() const;
+ 
++  // Disconnects any external client held by a subclass. When called while
++  // attached to a LayerTreeHost during `in_will_commit()`, subclasses must only
++  // clear their main-thread client pointer without modifying commit state.
++  virtual void ClearClient() {}
++
+   // Internal method that is called when a Layer is attached to a LayerTreeHost.
+   // This would happen when
+   // a) the Layer is added to an existing Layer tree that is attached to a
+diff --git a/cc/layers/picture_layer.cc b/cc/layers/picture_layer.cc
+index 7dbbbb7..8d79509 100644
+--- a/cc/layers/picture_layer.cc
++++ b/cc/layers/picture_layer.cc
+@@ -173,6 +173,9 @@
+ 
+ void PictureLayer::ClearClient() {
+   client_ = nullptr;
++  if (IsAttached() && layer_tree_host()->in_will_commit()) {
++    return;
++  }
+   UpdateDrawsContent();
+ }
+ 
+diff --git a/cc/layers/picture_layer.h b/cc/layers/picture_layer.h
+index 5299b3b..dd45078 100644
+--- a/cc/layers/picture_layer.h
++++ b/cc/layers/picture_layer.h
+@@ -28,7 +28,7 @@
+   PictureLayer(const PictureLayer&) = delete;
+   PictureLayer& operator=(const PictureLayer&) = delete;
+ 
+-  void ClearClient();
++  void ClearClient() override;
+ 
+   void SetIsBackdropFilterMask(bool is_backdrop_filter_mask);
+   bool is_backdrop_filter_mask() const { return is_backdrop_filter_mask_; }
+diff --git a/cc/layers/texture_layer.cc b/cc/layers/texture_layer.cc
+index 6e4d2d6..bfa1213 100644
+--- a/cc/layers/texture_layer.cc
++++ b/cc/layers/texture_layer.cc
+@@ -19,6 +19,7 @@
+ #include "cc/layers/texture_layer_client.h"
+ #include "cc/layers/texture_layer_impl.h"
+ #include "cc/paint/tone_map_util.h"
++#include "cc/trees/layer_tree_host.h"
+ #include "cc/trees/layer_tree_impl.h"
+ 
+ namespace cc {
+@@ -43,6 +44,9 @@
+ 
+ void TextureLayer::ClearClient() {
+   client_.Write(*this) = nullptr;
++  if (IsAttached() && layer_tree_host()->in_will_commit()) {
++    return;
++  }
+   ClearTexture();
+   UpdateDrawsContent();
+ }
+diff --git a/cc/layers/texture_layer.h b/cc/layers/texture_layer.h
+index bc8c38e5..9375a05 100644
+--- a/cc/layers/texture_layer.h
++++ b/cc/layers/texture_layer.h
+@@ -91,8 +91,10 @@
+   TextureLayer(const TextureLayer&) = delete;
+   TextureLayer& operator=(const TextureLayer&) = delete;
+ 
+-  // Resets the client, which also resets the texture.
+-  void ClearClient();
++  // Resets the client, which also resets the texture (unless called while
++  // attached during `LayerTreeHost::in_will_commit()`, in which case only the
++  // client pointer is cleared).
++  void ClearClient() override;
+ 
+   // Resets the texture.
+   void ClearTexture();
+diff --git a/cc/trees/layer_tree_host.cc b/cc/trees/layer_tree_host.cc
+index 658e65d8..71b1a7d 100644
+--- a/cc/trees/layer_tree_host.cc
++++ b/cc/trees/layer_tree_host.cc
+@@ -277,6 +277,7 @@
+   // Clear any references into the LayerTreeHost.
+   mutator_host()->SetMutatorHostDelegate(nullptr);
+ 
++  layers_to_dispose_.clear();
+   if (root_layer()) {
+     root_layer()->SetLayerTreeHost(nullptr);
+ 
+@@ -565,6 +566,7 @@
+   if (!in_commit()) {
+     mutator_host()->RemoveStaleTimelines();
+     mutator_host()->RemoveStaleTriggers();
++    DisposeLayersAfterCommit();
+   }
+   if (commit_completion_event_ && commit_completion_event_->IsSignaled())
+     WaitForCommitCompletion(/* for_protected_sequence */ false);
+@@ -576,6 +578,27 @@
+   }
+ }
+ 
++void LayerTreeHost::ScheduleLayerForPostCommitDisposal(
++    scoped_refptr<Layer> layer) {
++  DCHECK(IsMainThread());
++  CHECK(inside_will_commit_);
++  DCHECK(layer);
++  DCHECK_EQ(layer->layer_tree_host(), this);
++  layers_to_dispose_.push_back(std::move(layer));
++}
++
++void LayerTreeHost::DisposeLayersAfterCommit() {
++  DCHECK(IsMainThread());
++  CHECK(!inside_will_commit_);
++  if (layers_to_dispose_.empty()) {
++    return;
++  }
++  LayerList layers = std::move(layers_to_dispose_);
++  for (auto& layer : layers) {
++    layer->RemoveFromParent();
++  }
++}
++
+ void LayerTreeHost::NotifyImageDecodeFinished(int request_id,
+                                               bool decode_succeeded) {
+   DCHECK(IsMainThread());
+@@ -1302,6 +1325,7 @@
+ void LayerTreeHost::AnimateLayers(base::TimeTicks monotonic_time) {
+   mutator_host()->RemoveStaleTimelines();
+   mutator_host()->RemoveStaleTriggers();
++  DisposeLayersAfterCommit();
+ 
+   std::unique_ptr<MutatorEvents> events = mutator_host()->CreateEvents();
+ 
+diff --git a/cc/trees/layer_tree_host.h b/cc/trees/layer_tree_host.h
+index 478cd5e..21206a8 100644
+--- a/cc/trees/layer_tree_host.h
++++ b/cc/trees/layer_tree_host.h
+@@ -717,6 +717,8 @@
+ 
+   bool in_will_commit() const { return inside_will_commit_; }
+ 
++  void ScheduleLayerForPostCommitDisposal(scoped_refptr<Layer> layer);
++
+   bool in_commit() const {
+     return commit_completion_event_ && !commit_completion_event_->IsSignaled();
+   }
+@@ -1064,6 +1066,7 @@
+   bool DoUpdateLayers();
+   std::unique_ptr<CommitState> ActivateCommitState();
+   void WaitForCommitCompletion(bool for_protected_sequence) const;
++  void DisposeLayersAfterCommit();
+ 
+   void UpdateDeferMainFrameUpdateInternal();
+   void UpdatePauseRenderingInternal();
+@@ -1122,6 +1125,10 @@
+   // modified.
+   bool inside_will_commit_ = false;
+ 
++  // Layers queued during `WillCommit` to be detached and cleaned up once the
++  // commit completes.
++  LayerList layers_to_dispose_;
++
+   // Set to force a commit during BeginMainFrame even if there are no actual
+   // rendering changes, to ensure the bits in CommitState are propagated.
+   bool force_commit_for_propagation_ = true;
+diff --git a/chrome/VERSION b/chrome/VERSION
+index 3a363a4..29a96da 100644
+--- a/chrome/VERSION
++++ b/chrome/VERSION
+@@ -1,4 +1,4 @@
+ MAJOR=157
+ MINOR=0
+ BUILD=8103
+-PATCH=30
++PATCH=33
+diff --git a/chrome/app/resources/generated_resources_en-GB.xtb b/chrome/app/resources/generated_resources_en-GB.xtb
+index a97b92a..aece766 100644
+--- a/chrome/app/resources/generated_resources_en-GB.xtb
++++ b/chrome/app/resources/generated_resources_en-GB.xtb
+@@ -10819,7 +10819,7 @@
+ <translation id="9222839391870847423">Duration: <ph name="DURATION" /></translation>
+ <translation id="9223158240932249417">Not allowed to show text actions</translation>
+ <translation id="923306663772315007">Send to your &amp;device</translation>
+-<translation id="923467487918828349">Show All</translation>
++<translation id="923467487918828349">Show all</translation>
+ <translation id="923900195646492191">{NUM_EXTENSIONS,plural, =1{To manage it, open Extensions}other{To manage them, open Extensions}}</translation>
+ <translation id="924818813611903184">Manage languages in Chrome OS settings</translation>
+ <translation id="925575170771547168">This will delete <ph name="TOTAL_USAGE" /> of data stored by sites</translation>
+diff --git a/chrome/browser/extensions/api/tabs/tabs_api.cc b/chrome/browser/extensions/api/tabs/tabs_api.cc
+index e9ffa4e..2378fcd5 100644
+--- a/chrome/browser/extensions/api/tabs/tabs_api.cc
++++ b/chrome/browser/extensions/api/tabs/tabs_api.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "chrome/browser/extensions/api/tabs/tabs_api.h"
+ 
++#include "base/memory/weak_ptr.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/metrics/histogram_macros.h"
+ #include "base/notimplemented.h"
+@@ -1092,7 +1093,12 @@
+     return;
+   }
+ 
++  base::WeakPtr<BrowserWindowInterface> weak_browser = browser->GetWeakPtr();
+   browser->GetWindow()->Show();
++  if (!weak_browser) {
++    Respond(Error(ExtensionTabUtil::kNoCurrentWindowError));
++    return;
++  }
+ 
+   // Re-fetch the opener, if one was specified. This call might fail if the
+   // opener tab was destroyed while the window was being created. In that case,
+diff --git a/chrome/browser/extensions/api/tabs/windows_api.cc b/chrome/browser/extensions/api/tabs/windows_api.cc
+index 1163682..f61a28a 100644
+--- a/chrome/browser/extensions/api/tabs/windows_api.cc
++++ b/chrome/browser/extensions/api/tabs/windows_api.cc
+@@ -14,6 +14,7 @@
+ #include <vector>
+ 
+ #include "base/memory/raw_ref.h"
++#include "base/memory/weak_ptr.h"
+ #include "base/types/expected.h"
+ #include "base/types/optional_util.h"
+ #include "chrome/browser/devtools/devtools_window.h"
+@@ -895,6 +896,11 @@
+     focused = *create_data_->focused;
+   }
+ 
++  // Showing or transitioning the window state can spin a nested event loop on
++  // some platforms (e.g., macOS fullscreen transitions) and synchronously close
++  // the window, destroying `new_window`.
++  base::WeakPtr<BrowserWindowInterface> weak_window = new_window->GetWeakPtr();
++
+   if (focused) {
+     new_window->GetWindow()->Show();
+   } else {
+@@ -917,6 +923,9 @@
+     new_window->GetWindow()->ShowInactive();
+ #endif  // BUILDFLAG(IS_ANDROID)
+   }
++  if (!weak_window) {
++    return Error(ExtensionTabUtil::kNoCurrentWindowError);
++  }
+ 
+ // Despite creating the window with initial_show_state() ==
+ // ui::mojom::WindowShowState::kMinimized above, on Linux the window is not
+@@ -927,6 +936,9 @@
+   if (BrowserInitState::From(new_window)->initial_show_state() ==
+       ui::mojom::WindowShowState::kMinimized) {
+     new_window->GetWindow()->Minimize();
++    if (!weak_window) {
++      return Error(ExtensionTabUtil::kNoCurrentWindowError);
++    }
+   }
+ #endif  // BUILDFLAG(IS_LINUX) && BUILDFLAG(SUPPORTS_OZONE_X11)
+ 
+@@ -949,6 +961,9 @@
+         }
+       }
+     }
++    if (!weak_window) {
++      return Error(ExtensionTabUtil::kNoCurrentWindowError);
++    }
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+   }
+ 
+@@ -1110,17 +1125,28 @@
+   }
+ #endif
+ 
+-  // Parameters are valid. Now to perform the actual updates.
++  // Parameters are valid. Now to perform the actual updates. Platform window
++  // operations (such as entering or exiting fullscreen) may spin a nested event
++  // loop on some platforms (e.g. macOS) and synchronously close the window,
++  // destroying `browser` and `window_controller`.
+ #if BUILDFLAG(IS_CHROMEOS)
++  base::WeakPtr<BrowserWindowInterface> weak_browser = browser->GetWeakPtr();
++  base::WeakPtr<WindowController> weak_window_controller =
++      window_controller->GetWeakPtr();
+   if (base::expected<void, std::string> result =
+           MaybeSetLockedFullscreenState(*params, extension(), browser);
+       !result.has_value()) {
+     return RespondNow(Error(std::move(result.error())));
+   }
++  if (!weak_browser || !weak_window_controller) {
++    return RespondNow(Error(ExtensionTabUtil::kNoCurrentWindowError));
++  }
+ #endif
+ 
+-  UpdateWindowState(*params, browser, window_controller, show_state,
+-                    set_window_bounds, window_bounds);
++  if (!UpdateWindowState(*params, browser, window_controller, show_state,
++                         set_window_bounds, window_bounds)) {
++    return RespondNow(Error(ExtensionTabUtil::kNoCurrentWindowError));
++  }
+ 
+   return RespondNow(
+       WithArguments(window_controller->CreateWindowValueForExtension(
+@@ -1128,18 +1154,24 @@
+           source_context_type())));
+ }
+ 
+-void WindowsUpdateFunction::UpdateWindowState(
++bool WindowsUpdateFunction::UpdateWindowState(
+     const api::windows::Update::Params& params,
+     BrowserWindowInterface* browser,
+     WindowController* window_controller,
+     ui::mojom::WindowShowState show_state,
+     bool set_window_bounds,
+     const gfx::Rect& window_bounds) {
++  base::WeakPtr<BrowserWindowInterface> weak_browser = browser->GetWeakPtr();
++  base::WeakPtr<WindowController> weak_window_controller =
++      window_controller->GetWeakPtr();
+   ui::BaseWindow* browser_window = browser->GetWindow();
+ 
+   if (show_state != ui::mojom::WindowShowState::kFullscreen &&
+       show_state != ui::mojom::WindowShowState::kDefault) {
+     window_controller->SetFullscreenMode(false, extension()->url());
++    if (!weak_browser || !weak_window_controller) {
++      return false;
++    }
+   }
+ 
+   switch (show_state) {
+@@ -1152,6 +1184,9 @@
+     case ui::mojom::WindowShowState::kFullscreen:
+       if (browser_window->IsMinimized() || browser_window->IsMaximized()) {
+         browser_window->Restore();
++        if (!weak_browser || !weak_window_controller) {
++          return false;
++        }
+       }
+       window_controller->SetFullscreenMode(true, extension()->url());
+       break;
+@@ -1161,11 +1196,17 @@
+     default:
+       break;
+   }
++  if (!weak_browser || !weak_window_controller) {
++    return false;
++  }
+ 
+   if (set_window_bounds) {
+     // TODO(varkha): Updating bounds during a drag can cause problems and a more
+     // general solution is needed. See http://crbug.com/40322435 .
+     browser_window->SetBounds(window_bounds);
++    if (!weak_browser || !weak_window_controller) {
++      return false;
++    }
+   }
+ 
+   if (params.update_info.focused) {
+@@ -1174,11 +1215,16 @@
+     } else {
+       browser_window->Deactivate();
+     }
++    if (!weak_browser || !weak_window_controller) {
++      return false;
++    }
+   }
+ 
+   if (params.update_info.draw_attention) {
+     browser_window->FlashFrame(*params.update_info.draw_attention);
+   }
++
++  return weak_browser && weak_window_controller;
+ }
+ 
+ ExtensionFunction::ResponseAction WindowsRemoveFunction::Run() {
+diff --git a/chrome/browser/extensions/api/tabs/windows_api.h b/chrome/browser/extensions/api/tabs/windows_api.h
+index 04f3fe0..01b97ee 100644
+--- a/chrome/browser/extensions/api/tabs/windows_api.h
++++ b/chrome/browser/extensions/api/tabs/windows_api.h
+@@ -102,13 +102,16 @@
+   DECLARE_EXTENSION_FUNCTION("windows.update", WINDOWS_UPDATE)
+ 
+  private:
+-  // Applies the updates from `params` to the `browser` window.
+-  void UpdateWindowState(const api::windows::Update::Params& params,
+-                         BrowserWindowInterface* browser,
+-                         WindowController* window_controller,
+-                         ui::mojom::WindowShowState show_state,
+-                         bool set_window_bounds,
+-                         const gfx::Rect& window_bounds);
++  // Applies the updates from `params` to the `browser` window. Returns false if
++  // the `browser` or `window_controller` was synchronously destroyed during a
++  // platform window state transition.
++  [[nodiscard]] bool UpdateWindowState(
++      const api::windows::Update::Params& params,
++      BrowserWindowInterface* browser,
++      WindowController* window_controller,
++      ui::mojom::WindowShowState show_state,
++      bool set_window_bounds,
++      const gfx::Rect& window_bounds);
+ };
+ class WindowsRemoveFunction : public ExtensionFunction {
+   ~WindowsRemoveFunction() override = default;
+diff --git a/chrome/browser/extensions/open_tab_helper.cc b/chrome/browser/extensions/open_tab_helper.cc
+index 7ba90d5..46f1f81 100644
+--- a/chrome/browser/extensions/open_tab_helper.cc
++++ b/chrome/browser/extensions/open_tab_helper.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "chrome/browser/extensions/open_tab_helper.h"
+ 
++#include "base/memory/weak_ptr.h"
+ #include "base/strings/string_number_conversions.h"
+ #include "base/types/expected_macros.h"
+ #include "chrome/browser/extensions/api/tabs/tabs_constants.h"
+@@ -61,8 +62,9 @@
+     return nullptr;
+   }
+ 
++  base::WeakPtr<BrowserWindowInterface> weak_browser = browser->GetWeakPtr();
+   browser->GetWindow()->Show();
+-  return browser;
++  return weak_browser.get();
+ }
+ #endif  // !BUILDFLAG(IS_ANDROID)
+ 
+diff --git a/chrome/browser/extensions/window_controller.h b/chrome/browser/extensions/window_controller.h
+index 70c9a744..4df4953 100644
+--- a/chrome/browser/extensions/window_controller.h
++++ b/chrome/browser/extensions/window_controller.h
+@@ -12,6 +12,7 @@
+ #include <vector>
+ 
+ #include "base/memory/raw_ptr.h"
++#include "base/memory/weak_ptr.h"
+ #include "base/values.h"
+ #include "chrome/common/extensions/api/tabs.h"
+ #include "chrome/common/extensions/api/windows.h"
+@@ -75,6 +76,14 @@
+ 
+   Profile* profile() const { return profile_; }
+ 
++  // Returns a WeakPtr for synchronous liveness checks across re-entrant
++  // platform window operations (e.g., `SetFullscreenMode()`). Because
++  // `weak_ptr_factory_` lives on this base class, do not use this to bind
++  // asynchronous callbacks to subclass methods.
++  base::WeakPtr<WindowController> GetWeakPtr() {
++    return weak_ptr_factory_.GetWeakPtr();
++  }
++
+   // Return an id uniquely identifying the window.
+   virtual int GetWindowId() const = 0;
+ 
+@@ -84,6 +93,9 @@
+ 
+   // Sets the window's fullscreen state. `extension_url` provides the url
+   // associated with the extension (used by FullscreenController).
++  // Note: Transitioning fullscreen state may synchronously close the native
++  // window and destroy `this` (e.g., via nested event loops on macOS). Callers
++  // must check object liveness via `GetWeakPtr()` after calling this method.
+   virtual void SetFullscreenMode(bool is_fullscreen,
+                                  const GURL& extension_url) const = 0;
+ 
+@@ -158,6 +170,8 @@
+  private:
+   raw_ptr<ui::BaseWindow, DanglingUntriaged> window_;
+   raw_ptr<Profile, DanglingUntriaged> profile_;
++
++  base::WeakPtrFactory<WindowController> weak_ptr_factory_{this};
+ };
+ 
+ }  // namespace extensions
+diff --git a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
+index 112be22..cd682f0 100644
+--- a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
++++ b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
+@@ -280,8 +280,32 @@
+   return false;
+ }
+ 
++bool IsLocalUNCServer(base::FilePath::StringViewType server) {
++  if (server.size() > 1 && server.back() == FILE_PATH_LITERAL('.')) {
++    server.remove_suffix(1);
++  }
++  static constexpr base::FilePath::StringViewType kLocalServers[] = {
++      FILE_PATH_LITERAL("localhost"),
++      FILE_PATH_LITERAL("wsl.localhost"),
++      // Hypervisor host-share redirectors (Parallels, VMware, VirtualBox).
++      FILE_PATH_LITERAL("mac"),
++      FILE_PATH_LITERAL("psf"),
++      FILE_PATH_LITERAL("vmware-host"),
++      FILE_PATH_LITERAL(".host"),
++      FILE_PATH_LITERAL("vboxsvr"),
++      FILE_PATH_LITERAL("vboxsrv"),
++  };
++  for (const auto& candidate : kLocalServers) {
++    if (base::FilePath::CompareEqualIgnoreCase(server, candidate)) {
++      return true;
++    }
++  }
++  return false;
++}
++
+ // Returns true if the path is a Universal Naming Convention (UNC) path pointing
+-// to a local system path, device namespace, or WSL loopback redirector.
++// to a local system path, device namespace, WSL loopback redirector, or
++// hypervisor host-share namespace.
+ bool MaybeIsLocalUNCPath(const base::FilePath& path) {
+   if (!path.IsNetwork()) {
+     return false;
+@@ -290,16 +314,11 @@
+   const std::vector<base::FilePath::StringType> components =
+       path.GetComponents();
+ 
+-  // Check for server name that could represent a local system. We only
++  // Check for server name that could represent a local or host system. We only
+   // check for a very short list, as it is impossible to cover all different
+   // variants on Windows.
+   if (components.size() >= 2 &&
+-      (base::FilePath::CompareEqualIgnoreCase(components[1],
+-                                              FILE_PATH_LITERAL("localhost")) ||
+-       base::FilePath::CompareEqualIgnoreCase(
+-           components[1], FILE_PATH_LITERAL("wsl.localhost")) ||
+-       base::FilePath::CompareEqualIgnoreCase(
+-           components[1], FILE_PATH_LITERAL("wsl.localhost.")) ||
++      (IsLocalUNCServer(components[1]) ||
+        components[1] == FILE_PATH_LITERAL("127.0.0.1") ||
+        components[1] == FILE_PATH_LITERAL(".") ||
+        components[1] == FILE_PATH_LITERAL("?") ||
+@@ -441,10 +460,46 @@
+       // And limit access to ~/.gnupg as well.
+       BlockPath::CreateRelative(base::DIR_HOME, FILE_PATH_LITERAL(".gnupg"),
+                                 BlockType::kBlockAllChildren),
++      // ~/.config holds configuration for many cross-platform tools, so block
++      // it on all platforms, see crbug.com/569012015.
++      BlockPath::CreateRelative(base::DIR_HOME, FILE_PATH_LITERAL(".config"),
++                                BlockType::kBlockAllChildren),
++      // Shell startup files in the home directory, including the ones read by
++      // Git Bash on Windows, see crbug.com/558362029.
++      BlockPath::CreateRelative(base::DIR_HOME,
++                                FILE_PATH_LITERAL(".bash_profile"),
++                                BlockType::kBlockAllChildren),
++      BlockPath::CreateRelative(base::DIR_HOME,
++                                FILE_PATH_LITERAL(".bash_login"),
++                                BlockType::kBlockAllChildren),
++      BlockPath::CreateRelative(base::DIR_HOME, FILE_PATH_LITERAL(".bashrc"),
++                                BlockType::kBlockAllChildren),
++      BlockPath::CreateRelative(base::DIR_HOME, FILE_PATH_LITERAL(".profile"),
++                                BlockType::kBlockAllChildren),
++      BlockPath::CreateRelative(base::DIR_HOME, FILE_PATH_LITERAL(".zshenv"),
++                                BlockType::kBlockAllChildren),
++      BlockPath::CreateRelative(base::DIR_HOME, FILE_PATH_LITERAL(".zprofile"),
++                                BlockType::kBlockAllChildren),
++      BlockPath::CreateRelative(base::DIR_HOME, FILE_PATH_LITERAL(".zshrc"),
++                                BlockType::kBlockAllChildren),
++      BlockPath::CreateRelative(base::DIR_HOME, FILE_PATH_LITERAL(".zlogin"),
++                                BlockType::kBlockAllChildren),
+       // Block write access to */.git/hooks, see crbug.com/465668234 and
+       // crbug.com/553115714.
+       BlockPath::CreateSuffix(FILE_PATH_LITERAL(".git/hooks"),
+                               BlockType::kBlockWrite),
++      // Block write access to the repository config and to submodule git
++      // directories, which have their own hooks and config, see
++      // crbug.com/572269631 and crbug.com/571913154.
++      BlockPath::CreateSuffix(FILE_PATH_LITERAL(".git/config"),
++                              BlockType::kBlockWrite),
++      BlockPath::CreateSuffix(FILE_PATH_LITERAL(".git/modules"),
++                              BlockType::kBlockWrite),
++      // Block write access to */.mvn, which holds Maven project and JVM
++      // configuration (such as jvm.config, maven.config, and extensions.xml),
++      // see crbug.com/578500839.
++      BlockPath::CreateSuffix(FILE_PATH_LITERAL(".mvn"),
++                              BlockType::kBlockWrite),
+ #if BUILDFLAG(IS_WIN)
+       // Some Windows specific directories to block, basically all apps, the
+       // operating system itself, as well as configuration data for apps.
+@@ -475,6 +530,10 @@
+       // volumes).
+       BlockPath::CreateAbsolute(FILE_PATH_LITERAL("/System/Volumes"),
+                                 BlockType::kBlockAllChildren),
++      // Block access to devices via /dev, matching Linux, see
++      // crbug.com/569012543.
++      BlockPath::CreateAbsolute(FILE_PATH_LITERAL("/dev"),
++                                BlockType::kBlockAllChildren),
+       BlockPath::CreateRelative(base::DIR_APP_DATA,
+                                 BlockType::kBlockAllChildren),
+       // Block access to the current bundle directory.
+@@ -525,14 +584,25 @@
+                                 BlockType::kBlockAllChildren),
+       BlockPath::CreateAbsolute(FILE_PATH_LITERAL("/etc"),
+                                 BlockType::kBlockAllChildren),
+-      // And block all of ~/.config, matching the similar restrictions on mac
+-      // and windows.
+-      BlockPath::CreateRelative(base::DIR_HOME, FILE_PATH_LITERAL(".config"),
+-                                BlockType::kBlockAllChildren),
+       // Block ~/.dbus as well, just in case, although there probably isn't much
+       // a website can do with access to that directory and its contents.
+       BlockPath::CreateRelative(base::DIR_HOME, FILE_PATH_LITERAL(".dbus"),
+                                 BlockType::kBlockAllChildren),
++      // Block per-user application data, see crbug.com/561996724.
++      BlockPath::CreateRelative(base::DIR_HOME,
++                                FILE_PATH_LITERAL(".local/share"),
++                                BlockType::kBlockAllChildren),
++      // Block the legacy per-user fontconfig configuration, see
++      // crbug.com/559780982. The current location is under ~/.config.
++      BlockPath::CreateRelative(base::DIR_HOME,
++                                FILE_PATH_LITERAL(".fonts.conf"),
++                                BlockType::kBlockAllChildren),
++      BlockPath::CreateRelative(base::DIR_HOME,
++                                FILE_PATH_LITERAL(".fonts.conf.d"),
++                                BlockType::kBlockAllChildren),
++      // Block the per-user NSS database, see crbug.com/557367241.
++      BlockPath::CreateRelative(base::DIR_HOME, FILE_PATH_LITERAL(".pki"),
++                                BlockType::kBlockAllChildren),
+       // And block all of ~/.cache, matching the similar restrictions on mac
+       // and windows.
+       BlockPath::CreateRelative(base::DIR_CACHE, BlockType::kBlockAllChildren),
+diff --git a/chrome/browser/sessions/session_service_base.cc b/chrome/browser/sessions/session_service_base.cc
+index 75f43fb..ee887add6 100644
+--- a/chrome/browser/sessions/session_service_base.cc
++++ b/chrome/browser/sessions/session_service_base.cc
+@@ -37,6 +37,7 @@
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model_selection_state.h"
++#include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/window_feature_controller/window_feature_controller.h"
+ #include "chrome/browser/ui/window_metadata/window_metadata_controller.h"
+@@ -775,6 +776,20 @@
+     }
+   }
+ 
++  if (const auto* const controller =
++          tabs::VerticalTabStripStateController::From(browser)) {
++    command_storage_manager()->AppendRebuildCommand(
++        sessions::CreateAddWindowExtraDataCommand(
++            browser->GetSessionID(),
++            tabs::VerticalTabStripStateController::kCollapsedKey,
++            base::ToString(controller->IsCollapsed())));
++    command_storage_manager()->AppendRebuildCommand(
++        sessions::CreateAddWindowExtraDataCommand(
++            browser->GetSessionID(),
++            tabs::VerticalTabStripStateController::kUncollapsedWidthKey,
++            base::NumberToString(controller->GetUncollapsedWidth())));
++  }
++
+   int index = 0;
+   for (const tabs::TabInterface* tab_interface : *tab_strip) {
+     WebContents* tab = tab_interface->GetContents();
+diff --git a/chrome/browser/ui/views/app_menu/bookmarks_dynamic_menu.cc b/chrome/browser/ui/views/app_menu/bookmarks_dynamic_menu.cc
+index 270400f..b5e0ffff 100644
+--- a/chrome/browser/ui/views/app_menu/bookmarks_dynamic_menu.cc
++++ b/chrome/browser/ui/views/app_menu/bookmarks_dynamic_menu.cc
+@@ -219,10 +219,10 @@
+ void BookmarksDynamicMenu::BuildBookmarksActions(
+     actions::BaseAction* parent_item) {
+   CHECK(parent_item);
+-  bookmark_service_observation_.Reset();
+ 
+   BookmarkMergedSurfaceService* service = GetBookmarkMergedSurfaceService();
+   if (!service) {
++    bookmark_service_observation_.Reset();
+     return;
+   }
+ 
+@@ -244,7 +244,13 @@
+     dynamic_section_ = section->GetAsWeakPtr();
+   }
+ 
+-  if (!bookmark_service_observation_.IsObserving()) {
++  // Do not reset and re-add an existing observation: this method also runs
++  // from within `BookmarkMergedSurfaceServiceLoaded()`, and
++  // `base::ObserverList` notifies observers that are added during a
++  // notification. Re-adding here would re-enter this method indefinitely,
++  // rebuilding the bookmark actions each time and hanging the UI thread.
++  if (!bookmark_service_observation_.IsObservingSource(service)) {
++    bookmark_service_observation_.Reset();
+     bookmark_service_observation_.Observe(service);
+   }
+ 
+diff --git a/chrome/browser/ui/webui/side_panel/bookmarks/BUILD.gn b/chrome/browser/ui/webui/side_panel/bookmarks/BUILD.gn
+index 2e9e3638..6a19851 100644
+--- a/chrome/browser/ui/webui/side_panel/bookmarks/BUILD.gn
++++ b/chrome/browser/ui/webui/side_panel/bookmarks/BUILD.gn
+@@ -89,6 +89,7 @@
+     "//base/test:test_support",
+     "//chrome/browser/bookmarks",
+     "//chrome/browser/bookmarks:test_support",
++    "//chrome/browser/ui/bookmarks",
+     "//chrome/browser/ui/tabs:test_support",
+     "//chrome/browser/ui/webui:webui_util",
+     "//chrome/browser/ui/webui/bookmarks",
+diff --git a/chrome/browser/ui/webui/side_panel/bookmarks/bookmarks_page_handler.cc b/chrome/browser/ui/webui/side_panel/bookmarks/bookmarks_page_handler.cc
+index 641c8057..d7a2c399 100644
+--- a/chrome/browser/ui/webui/side_panel/bookmarks/bookmarks_page_handler.cc
++++ b/chrome/browser/ui/webui/side_panel/bookmarks/bookmarks_page_handler.cc
+@@ -653,21 +653,27 @@
+     return;
+   }
+ 
++  // Opening a bookmark may synchronously close the side panel and destroy
++  // `this`, so record metrics prior to open.
++  // TODO(crbug.com/578519711): bookmarks::OpenAllIfAllowed sometimes open a
++  // confirmation dialog that may result in the bookmarks not opening. Ensure
++  // metrics are only logged when bookmarks are actually opened.
++  if (source != side_panel::mojom::ActionSource::kPriceTracking) {
++    base::RecordAction(
++        base::UserMetricsAction("SidePanel.Bookmarks.Navigation"));
++    RecordBookmarkLaunch(parent_folder_depth > 0
++                             ? BookmarkLaunchLocation::kSidePanelSubfolder
++                             : BookmarkLaunchLocation::kSidePanelFolder,
++                         profile_metrics::GetBrowserProfileType(
++                             browser_window_interface_->GetProfile()));
++  }
++
+   WindowOpenDisposition open_location = ui::DispositionFromClick(
+       click_modifiers->middle_button, click_modifiers->alt_key,
+       click_modifiers->ctrl_key, click_modifiers->meta_key,
+       click_modifiers->shift_key);
+   bookmarks::OpenAllIfAllowed(browser_window_interface_, {bookmark_node},
+                               open_location);
+-  if (source == side_panel::mojom::ActionSource::kPriceTracking) {
+-    return;
+-  }
+-  base::RecordAction(base::UserMetricsAction("SidePanel.Bookmarks.Navigation"));
+-  RecordBookmarkLaunch(parent_folder_depth > 0
+-                           ? BookmarkLaunchLocation::kSidePanelSubfolder
+-                           : BookmarkLaunchLocation::kSidePanelFolder,
+-                       profile_metrics::GetBrowserProfileType(
+-                           browser_window_interface_->GetProfile()));
+ }
+ 
+ void BookmarksPageHandler::Undo() {
+diff --git a/components/facilitated_payments/core/browser/network_api/get_details_for_ewallet_account_linking_request.cc b/components/facilitated_payments/core/browser/network_api/get_details_for_ewallet_account_linking_request.cc
+index 58d81fe4..f8f7459 100644
+--- a/components/facilitated_payments/core/browser/network_api/get_details_for_ewallet_account_linking_request.cc
++++ b/components/facilitated_payments/core/browser/network_api/get_details_for_ewallet_account_linking_request.cc
+@@ -11,7 +11,6 @@
+ #include "base/base64.h"
+ #include "base/check.h"
+ #include "base/json/json_writer.h"
+-#include "base/strings/string_number_conversions.h"
+ #include "base/values.h"
+ #include "components/autofill/core/browser/payments/payments_autofill_client.h"
+ 
+@@ -58,19 +57,22 @@
+ }
+ 
+ std::string GetDetailsForEwalletAccountLinkingRequest::GetRequestContent() {
++  base::DictValue context =
++      base::DictValue()
++          .Set("language_code", app_locale_)
++          .Set("billable_service", kChromePaymentsBillableServiceNumber);
++  // A billing customer number of 0 means the user does not have a Google
++  // Payments customer profile yet, so the customer context is omitted.
++  if (billing_customer_number_ != 0) {
++    context.Set("customer_context",
++                BuildCustomerContextDictionary(billing_customer_number_));
++  }
++
+   base::DictValue request_dict =
+       base::DictValue()
+           .Set("chrome_user_context",
+                base::DictValue().Set("full_sync_enabled", full_sync_enabled_))
+-          .Set(
+-              "context",
+-              base::DictValue()
+-                  .Set("language_code", app_locale_)
+-                  .Set("billable_service", kChromePaymentsBillableServiceNumber)
+-                  .Set("customer_context",
+-                       base::DictValue().Set(
+-                           "external_customer_id",
+-                           base::NumberToString(billing_customer_number_))));
++          .Set("context", std::move(context));
+ 
+   const base::DictValue* ewallet_info =
+       account_linking_payload_.FindDict("ewallet_account_linking_info");
+diff --git a/components/facilitated_payments/core/browser/network_api/get_details_for_pix_account_linking_request.cc b/components/facilitated_payments/core/browser/network_api/get_details_for_pix_account_linking_request.cc
+index 08eeec9..12900b9 100644
+--- a/components/facilitated_payments/core/browser/network_api/get_details_for_pix_account_linking_request.cc
++++ b/components/facilitated_payments/core/browser/network_api/get_details_for_pix_account_linking_request.cc
+@@ -9,7 +9,6 @@
+ 
+ #include "base/base64.h"
+ #include "base/json/json_writer.h"
+-#include "base/strings/string_number_conversions.h"
+ #include "base/values.h"
+ #include "components/autofill/core/browser/payments/payments_autofill_client.h"
+ #include "components/facilitated_payments/core/browser/network_api/facilitated_payments_initiate_payment_request.h"
+@@ -54,19 +53,22 @@
+ }
+ 
+ std::string GetDetailsForPixAccountLinkingRequest::GetRequestContent() {
++  base::DictValue context =
++      base::DictValue()
++          .Set("language_code", app_locale_)
++          .Set("billable_service", kChromePaymentsBillableServiceNumber);
++  // A billing customer number of 0 means the user does not have a Google
++  // Payments customer profile yet, so the customer context is omitted.
++  if (billing_customer_number_ != 0) {
++    context.Set("customer_context",
++                BuildCustomerContextDictionary(billing_customer_number_));
++  }
++
+   base::DictValue request_dict =
+       base::DictValue()
+           .Set("chrome_user_context",
+                base::DictValue().Set("full_sync_enabled", full_sync_enabled_))
+-          .Set(
+-              "context",
+-              base::DictValue()
+-                  .Set("language_code", app_locale_)
+-                  .Set("billable_service", kChromePaymentsBillableServiceNumber)
+-                  .Set("customer_context",
+-                       base::DictValue().Set(
+-                           "external_customer_id",
+-                           base::NumberToString(billing_customer_number_))))
++          .Set("context", std::move(context))
+           // Set an empty dict for Pix account linking info to indicate that the
+           // request is for Pix account linking. No additional data is required
+           // within the dict.
+diff --git a/components/facilitated_payments/core/browser/pix_account_linking_manager.cc b/components/facilitated_payments/core/browser/pix_account_linking_manager.cc
+index 8065b08..d27eb64 100644
+--- a/components/facilitated_payments/core/browser/pix_account_linking_manager.cc
++++ b/components/facilitated_payments/core/browser/pix_account_linking_manager.cc
+@@ -209,16 +209,23 @@
+ }
+ 
+ void PixAccountLinkingManager::OnUiScreenEvent(UiEvent ui_event_type) {
++  // UI events from the bottom sheet are delivered asynchronously. The account
++  // linking UI may already have been dismissed by Chrome (e.g.
++  // `DismissPrompt()` sets `ui_state_` to `kHidden` before the bottom sheet
++  // finishes closing), so late events for a hidden UI are expected and are
++  // ignored.
++  if (ui_state_ == UiState::kHidden) {
++    return;
++  }
++
+   switch (ui_event_type) {
+     case UiEvent::kNewScreenShown: {
+-      CHECK(ui_state_ != UiState::kHidden);
+       if (ui_state_ == UiState::kPrompt) {
+         LogPixAccountLinkingPromptShown();
+       }
+       break;
+     }
+     case UiEvent::kScreenCouldNotBeShown: {
+-      CHECK(ui_state_ != UiState::kHidden);
+       if (ui_state_ == UiState::kPrompt) {
+         LogAccountLinkingFlowExitedReason(
+             kPixFopSuffix, AccountLinkingFlowExitedReason::kScreenNotShown);
+@@ -236,7 +243,6 @@
+       break;
+     }
+     case UiEvent::kScreenClosedByUser: {
+-      CHECK(ui_state_ != UiState::kHidden);
+       if (ui_state_ == UiState::kPrompt) {
+         LogAccountLinkingFlowExitedReason(
+             kPixFopSuffix, AccountLinkingFlowExitedReason::kScreenClosedByUser);
+diff --git a/components/policy/core/common/cloud/machine_level_user_cloud_policy_store.cc b/components/policy/core/common/cloud/machine_level_user_cloud_policy_store.cc
+index 225be74..71fc8bb9 100644
+--- a/components/policy/core/common/cloud/machine_level_user_cloud_policy_store.cc
++++ b/components/policy/core/common/cloud/machine_level_user_cloud_policy_store.cc
+@@ -218,11 +218,11 @@
+     const base::FilePath& policy_info_path) {
+   // Loads cached cloud policies by an external provider.
+   PolicyLoadResult policy_cache_load_result =
+-      DesktopCloudPolicyStore::LoadPolicyFromDisk(policy_cache_path,
+-                                                  base::FilePath());
++      DesktopCloudPolicyStore::LoadPolicyFromDisk(
++          policy_cache_path, base::FilePath(), POLICY_SCOPE_MACHINE);
+   PolicyLoadResult policy_info_load_result =
+-      DesktopCloudPolicyStore::LoadPolicyFromDisk(policy_info_path,
+-                                                  base::FilePath());
++      DesktopCloudPolicyStore::LoadPolicyFromDisk(
++          policy_info_path, base::FilePath(), std::nullopt);
+ 
+   // External policy source doesn't provide full components policies data hence
+   // browser will rely on the local cache which requires public key to verify
+diff --git a/components/policy/core/common/cloud/machine_level_user_cloud_policy_store.h b/components/policy/core/common/cloud/machine_level_user_cloud_policy_store.h
+index d4df0d7..58143ef9 100644
+--- a/components/policy/core/common/cloud/machine_level_user_cloud_policy_store.h
++++ b/components/policy/core/common/cloud/machine_level_user_cloud_policy_store.h
+@@ -8,6 +8,7 @@
+ #include <memory>
+ #include <string>
+ 
++#include "base/gtest_prod_util.h"
+ #include "base/task/sequenced_task_runner.h"
+ #include "components/policy/core/common/cloud/dm_token.h"
+ #include "components/policy/core/common/cloud/user_cloud_policy_store.h"
+@@ -77,6 +78,9 @@
+   const DMToken& machine_dm_token() const { return machine_dm_token_; }
+ 
+  private:
++  FRIEND_TEST_ALL_PREFIXES(MachineLevelUserCloudPolicyStoreTest,
++                           LoadExternalCachedPoliciesMetrics);
++
+   // Function used as a PolicyLoadFilter to use external policies if they are
+   // newer than the ones previously written by the browser.
+   static PolicyLoadResult MaybeUseExternalCachedPolicies(
+diff --git a/components/policy/core/common/cloud/reporting_job_configuration_base.cc b/components/policy/core/common/cloud/reporting_job_configuration_base.cc
+index 185a65c..4f24f4b 100644
+--- a/components/policy/core/common/cloud/reporting_job_configuration_base.cc
++++ b/components/policy/core/common/cloud/reporting_job_configuration_base.cc
+@@ -63,8 +63,7 @@
+   device_dictionary.Set(kOSVersion, GetOSVersion());
+   device_dictionary.Set(kOSPlatform, GetOSPlatform());
+   device_dictionary.Set(kName, GetDeviceName());
+-  if (base::FeatureList::IsEnabled(
+-          policy::features::kEnhancedSecurityEventFields)) {
++  if (policy::features::IsEnhancedSecurityEventFieldsEnabled()) {
+     device_dictionary.Set(kDeviceFqdn, GetDeviceFqdn());
+     device_dictionary.Set(kNetworkName, GetNetworkName());
+   }
+@@ -82,8 +81,7 @@
+   device.set_os_version(GetOSVersion());
+   device.set_os_platform(GetOSPlatform());
+   device.set_name(GetDeviceName());
+-  if (base::FeatureList::IsEnabled(
+-          policy::features::kEnhancedSecurityEventFields)) {
++  if (policy::features::IsEnhancedSecurityEventFieldsEnabled()) {
+     device.set_device_fqdn(GetDeviceFqdn());
+     device.set_network_name(GetNetworkName());
+   }
+diff --git a/components/policy/core/common/cloud/user_cloud_policy_store.cc b/components/policy/core/common/cloud/user_cloud_policy_store.cc
+index ad44625..291ae44 100644
+--- a/components/policy/core/common/cloud/user_cloud_policy_store.cc
++++ b/components/policy/core/common/cloud/user_cloud_policy_store.cc
+@@ -8,16 +8,19 @@
+ 
+ #include <utility>
+ 
++#include "base/feature_list.h"
+ #include "base/files/file_util.h"
+ #include "base/functional/bind.h"
+ #include "base/location.h"
+ #include "base/logging.h"
+ #include "base/memory/ptr_util.h"
+ #include "base/metrics/histogram_functions.h"
++#include "base/numerics/safe_conversions.h"
+ #include "base/sequence_checker.h"
+ #include "base/task/sequenced_task_runner.h"
+ #include "components/policy/core/common/cloud/cloud_policy_constants.h"
+ #include "components/policy/core/common/cloud/cloud_policy_util.h"
++#include "components/policy/core/common/features.h"
+ #include "components/policy/core/common/policy_logger.h"
+ #include "components/policy/proto/cloud_policy.pb.h"
+ #include "components/policy/proto/device_management_backend.pb.h"
+@@ -55,8 +58,17 @@
+     FILE_PATH_LITERAL("User Extension Install Signing Key");
+ // Maximum policy and key size that will be loaded, in bytes.
+ const size_t kPolicySizeLimit = 1024 * 1024;
++constexpr size_t kPolicySizeLimit2MB = 2 * 1024 * 1024;
+ const size_t kKeySizeLimit = 16 * 1024;
+ 
++size_t GetPolicySizeLimit() {
++  if (base::FeatureList::GetInstance() &&
++      base::FeatureList::IsEnabled(features::kUserPolicyCacheSizeLimit2MB)) {
++    return kPolicySizeLimit2MB;
++  }
++  return kPolicySizeLimit;
++}
++
+ bool WriteStringToFile(const base::FilePath path, const std::string& data) {
+   if (!base::CreateDirectory(path.DirName())) {
+     DLOG_POLICY(WARNING, POLICY_FETCHING)
+@@ -177,8 +189,8 @@
+   // Cancel any pending Load/Store/Validate operations.
+   weak_factory_.InvalidateWeakPtrs();
+   // Load the policy from disk...
+-  PolicyLoadResult result =
+-      LoadAndFilterPolicyFromDisk(policy_path_, key_path_, policy_load_filter_);
++  PolicyLoadResult result = LoadAndFilterPolicyFromDisk(
++      policy_path_, key_path_, policy_load_filter_, policy_scope());
+   // ...and install it, reporting success/failure to any observers.
+   PolicyLoaded(false, std::move(result));
+ }
+@@ -211,7 +223,8 @@
+   background_task_runner()->PostTaskAndReplyWithResult(
+       FROM_HERE,
+       base::BindOnce(&DesktopCloudPolicyStore::LoadAndFilterPolicyFromDisk,
+-                     policy_path_, key_path_, policy_load_filter_),
++                     policy_path_, key_path_, policy_load_filter_,
++                     policy_scope()),
+       base::BindOnce(&DesktopCloudPolicyStore::PolicyLoaded,
+                      weak_factory_.GetWeakPtr(), true));
+ }
+@@ -220,9 +233,10 @@
+ PolicyLoadResult DesktopCloudPolicyStore::LoadAndFilterPolicyFromDisk(
+     const base::FilePath& policy_path,
+     const base::FilePath& key_path,
+-    const PolicyLoadFilter& policy_load_filter) {
+-  policy::PolicyLoadResult result =
+-      DesktopCloudPolicyStore::LoadPolicyFromDisk(policy_path, key_path);
++    const PolicyLoadFilter& policy_load_filter,
++    PolicyScope policy_scope) {
++  policy::PolicyLoadResult result = DesktopCloudPolicyStore::LoadPolicyFromDisk(
++      policy_path, key_path, policy_scope);
+   return policy_load_filter ? policy_load_filter.Run(std::move(result))
+                             : result;
+ }
+@@ -230,7 +244,8 @@
+ // static
+ PolicyLoadResult DesktopCloudPolicyStore::LoadPolicyFromDisk(
+     const base::FilePath& policy_path,
+-    const base::FilePath& key_path) {
++    const base::FilePath& key_path,
++    std::optional<PolicyScope> policy_scope) {
+   policy::PolicyLoadResult result;
+   // If the backing file does not exist, just return. We don't verify the key
+   // path here, because the key is optional (the validation code will fail if
+@@ -239,10 +254,22 @@
+     result.status = policy::LOAD_RESULT_NO_POLICY_FILE;
+     return result;
+   }
++
++  if (policy_scope.has_value()) {
++    std::optional<int64_t> file_size = base::GetFileSize(policy_path);
++    if (file_size.has_value()) {
++      base::UmaHistogramCounts10000(
++          policy_scope.value() == POLICY_SCOPE_MACHINE
++              ? "Enterprise.CloudPolicy.LocalCacheSize.Machine"
++              : "Enterprise.CloudPolicy.LocalCacheSize.User",
++          base::saturated_cast<int>(file_size.value() / 1024));
++    }
++  }
++
+   std::string data;
+ 
+   if (!base::ReadFileToStringWithMaxSize(policy_path, &data,
+-                                         kPolicySizeLimit) ||
++                                         GetPolicySizeLimit()) ||
+       !result.policy.ParseFromString(data)) {
+     LOG_POLICY(WARNING, POLICY_FETCHING)
+         << "Failed to read or parse policy data from " << policy_path.value();
+diff --git a/components/policy/core/common/cloud/user_cloud_policy_store.h b/components/policy/core/common/cloud/user_cloud_policy_store.h
+index 63f501b..0145d894 100644
+--- a/components/policy/core/common/cloud/user_cloud_policy_store.h
++++ b/components/policy/core/common/cloud/user_cloud_policy_store.h
+@@ -6,6 +6,7 @@
+ #define COMPONENTS_POLICY_CORE_COMMON_CLOUD_USER_CLOUD_POLICY_STORE_H_
+ 
+ #include <memory>
++#include <optional>
+ #include <string>
+ 
+ #include "base/files/file_path.h"
+@@ -108,9 +109,12 @@
+  protected:
+   // Loads cloud policies that have been written on the disk at |policy_path|
+   // for caching purposes. Reads the optional |key_path| to load the signing key
+-  // for those policies.
+-  static PolicyLoadResult LoadPolicyFromDisk(const base::FilePath& policy_path,
+-                                             const base::FilePath& key_path);
++  // for those policies. If |policy_scope| is provided, records the cache size
++  // metric for that scope.
++  static PolicyLoadResult LoadPolicyFromDisk(
++      const base::FilePath& policy_path,
++      const base::FilePath& key_path,
++      std::optional<PolicyScope> policy_scope = std::nullopt);
+ 
+   // Callback invoked when a new policy has been loaded from disk. If
+   // |validate_in_background| is true, then policy is validated via a background
+@@ -155,7 +159,8 @@
+   static PolicyLoadResult LoadAndFilterPolicyFromDisk(
+       const base::FilePath& policy_path,
+       const base::FilePath& key_path,
+-      const PolicyLoadFilter& policy_load_filter);
++      const PolicyLoadFilter& policy_load_filter,
++      PolicyScope policy_scope = POLICY_SCOPE_USER);
+ 
+   // The current key used to verify signatures of policy. This value is
+   // eventually consistent with the one persisted in the key cache file. This
+diff --git a/components/policy/core/common/cloud/user_cloud_policy_store_base.h b/components/policy/core/common/cloud/user_cloud_policy_store_base.h
+index 3e72cb1c..987f130 100644
+--- a/components/policy/core/common/cloud/user_cloud_policy_store_base.h
++++ b/components/policy/core/common/cloud/user_cloud_policy_store_base.h
+@@ -37,6 +37,8 @@
+     return background_task_runner_;
+   }
+ 
++  PolicyScope policy_scope() const { return policy_scope_; }
++
+  protected:
+   // Creates a validator configured to validate a user policy. The caller owns
+   // the resulting object until StartValidation() is invoked.
+diff --git a/components/policy/core/common/features.cc b/components/policy/core/common/features.cc
+index daf5371..85f34c9 100644
+--- a/components/policy/core/common/features.cc
++++ b/components/policy/core/common/features.cc
+@@ -11,6 +11,10 @@
+ #include "build/build_config.h"
+ #include "extensions/buildflags/buildflags.h"
+ 
++#if BUILDFLAG(IS_WIN)
++#include "base/win/windows_version.h"
++#endif
++
+ namespace policy::features {
+ 
+ BASE_FEATURE(kPolicyBlocklistProceedUntilResponse,
+@@ -26,8 +30,24 @@
+              base::FEATURE_ENABLED_BY_DEFAULT);
+ #endif
+ 
++bool IsEnhancedSecurityEventFieldsEnabled() {
++  if (!base::FeatureList::IsEnabled(kEnhancedSecurityEventFields)) {
++    return false;
++  }
++#if BUILDFLAG(IS_WIN)
++  // TODO(crbug.com/577109904): Re-enable once network name query is made
++  // asynchronous to avoid UI thread hangs during WLAN queries.
++  if (base::win::GetVersion() >= base::win::Version::WIN11_24H2) {
++    return false;
++  }
++#endif
++  return true;
++}
++
+ BASE_FEATURE(kUseCECFlagInPolicyData, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
++BASE_FEATURE(kUserPolicyCacheSizeLimit2MB, base::FEATURE_ENABLED_BY_DEFAULT);
++
+ #if BUILDFLAG(IS_ANDROID)
+ BASE_FEATURE(kInitializePoliciesForSignedInUserInNewEntryPoints,
+              base::FEATURE_ENABLED_BY_DEFAULT);
+diff --git a/components/policy/core/common/features.h b/components/policy/core/common/features.h
+index 0079c0a..fcedc28 100644
+--- a/components/policy/core/common/features.h
++++ b/components/policy/core/common/features.h
+@@ -26,9 +26,20 @@
+ // Enables the addition of new security fields for SecOps.
+ POLICY_EXPORT BASE_DECLARE_FEATURE(kEnhancedSecurityEventFields);
+ 
++// Returns true if `kEnhancedSecurityEventFields` is enabled and supported on
++// the current platform. On Windows 11 24H2+, this returns false due to hangs
++// during synchronous WLAN API queries.
++// TODO(crbug.com/577109904): Re-enable once network name query is asynchronous.
++POLICY_EXPORT bool IsEnhancedSecurityEventFieldsEnabled();
++
+ // Controls if we can use the cec flag in PolicyData.
+ POLICY_EXPORT BASE_DECLARE_FEATURE(kUseCECFlagInPolicyData);
+ 
++// When enabled, increases the maximum cloud policy cache size limit read from
++// disk (for both user and machine level caches) from 1 MB to 2 MB to
++// accommodate large enterprise policy sets.
++POLICY_EXPORT BASE_DECLARE_FEATURE(kUserPolicyCacheSizeLimit2MB);
++
+ #if BUILDFLAG(IS_ANDROID)
+ // Enables policy initialization for signed-in users in new entry points.
+ POLICY_EXPORT BASE_DECLARE_FEATURE(
+diff --git a/components/printing/renderer/print_render_frame_helper.cc b/components/printing/renderer/print_render_frame_helper.cc
+index da96939c..86c085fc 100644
+--- a/components/printing/renderer/print_render_frame_helper.cc
++++ b/components/printing/renderer/print_render_frame_helper.cc
+@@ -1228,6 +1228,10 @@
+   // diagnose latency.
+   TRACE_EVENT("latency", "PrintRenderFrameHelper::ScriptedPrint");
+ 
++  if (print_in_progress_ || print_with_params_callback_) {
++    return;
++  }
++
+   blink::WebLocalFrame* web_frame = render_frame()->GetWebFrame();
+   if (!IsScriptInitiatedPrintAllowed(web_frame, user_initiated))
+     return;
+@@ -1239,7 +1243,10 @@
+   if (!web_frame->GetDocument().GetFrame())
+     return;
+ 
+-  if (print_in_progress_) {
++  // Re-check after `IsScriptInitiatedPrintAllowed()`, which sends a synchronous
++  // `IsPrintingEnabled()` IPC that can pump incoming print IPCs while waiting
++  // for a reply and mutate the state.
++  if (print_in_progress_ || print_with_params_callback_) {
+     return;
+   }
+ 
+@@ -1302,7 +1309,7 @@
+     return;
+   }
+ 
+-  if (print_in_progress_ || render_frame_gone_) {
++  if (print_in_progress_ || print_with_params_callback_ || render_frame_gone_) {
+     return;
+   }
+ 
+@@ -1320,7 +1327,7 @@
+     return;
+   }
+ 
+-  if (!print_in_progress_) {
++  if (!print_in_progress_ || print_with_params_callback_) {
+     return;
+   }
+ 
+@@ -1367,7 +1374,8 @@
+ void PrintRenderFrameHelper::PrintRequestedPagesInternal(
+     bool already_notified_frame) {
+   ScopedIPC scoped_ipc(weak_ptr_factory_.GetWeakPtr());
+-  if (ipc_nesting_level_ > kAllowedIpcDepthForPrint) {
++  if (ipc_nesting_level_ > kAllowedIpcDepthForPrint ||
++      print_with_params_callback_) {
+     return;
+   }
+ 
+@@ -1429,23 +1437,23 @@
+     return;
+   }
+ 
+-  if (print_with_params_callback_) {
++  if (print_in_progress_ || print_with_params_callback_) {
+     std::move(callback).Run(
+         base::unexpected(mojom::PrintFailureReason::kPrintingInProgress));
+     return;
+   }
+ 
++  print_with_params_callback_ = std::move(callback);
++
+   blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
+   frame->DispatchBeforePrintEvent(/*print_client=*/nullptr);
+   // Don't print if the RenderFrame is gone.
+   if (render_frame_gone_) {
+-    std::move(callback).Run(
+-        base::unexpected(mojom::PrintFailureReason::kGeneralFailure));
++    std::move(print_with_params_callback_)
++        .Run(base::unexpected(mojom::PrintFailureReason::kGeneralFailure));
+     return;
+   }
+ 
+-  print_with_params_callback_ = std::move(callback);
+-
+   // If we are printing a frame with an internal PDF plugin element, find the
+   // plugin node and print that instead.
+   auto plugin_node = delegate_->GetPdfElement(frame);
+@@ -1475,10 +1483,18 @@
+ }
+ 
+ void PrintRenderFrameHelper::OnPrintWithParamsFinished() {
++  ScopedIPC scoped_ipc(weak_ptr_factory_.GetWeakPtr());
+   if (render_frame_gone_) {
++    if (print_with_params_callback_) {
++      std::move(print_with_params_callback_)
++          .Run(base::unexpected(mojom::PrintFailureReason::kGeneralFailure));
++    }
++    Reset();
+     return;
+   }
+ 
++  print_in_progress_ = true;
++
+   blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
+   const blink::WebNode plugin_node = delegate_->GetPdfElement(frame);
+ 
+@@ -1487,23 +1503,30 @@
+   prep_frame_view_->EnterPrintMode(*print_pages_params_->params,
+                                    /*ignore_css_margins=*/false);
+ 
++  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+   PrintPages();
+   FinishFramePrinting();
+-
+-  if (render_frame_gone_) {
++  if (!weak_this) {
+     return;
+   }
+ 
+-  frame->DispatchAfterPrintEvent();
+-  // WARNING: `this` may be gone at this point. Do not do any more work here and
+-  // just return.
++  if (!render_frame_gone_) {
++    frame->DispatchAfterPrintEvent();
++    if (!weak_this) {
++      return;
++    }
++  }
++
++  print_in_progress_ = false;
+ }
+ 
+ #if BUILDFLAG(ENABLE_PRINT_PREVIEW)
+ void PrintRenderFrameHelper::PrintForSystemDialog() {
+   ScopedIPC scoped_ipc(weak_ptr_factory_.GetWeakPtr());
+-  if (ipc_nesting_level_ > kAllowedIpcDepthForPrint)
++  if (ipc_nesting_level_ > kAllowedIpcDepthForPrint ||
++      print_with_params_callback_) {
+     return;
++  }
+ 
+   if (closures_for_mojo_responses_->HasScriptedPrintPreviewQuitClosure()) {
+     // If an in-progress print preview already created a nested loop, avoid
+@@ -1549,7 +1572,7 @@
+   if (ipc_nesting_level_ > kAllowedIpcDepthForPrint)
+     return;
+ 
+-  if (print_in_progress_) {
++  if (print_in_progress_ || print_with_params_callback_) {
+     return;
+   }
+ 
+@@ -1582,8 +1605,10 @@
+ 
+ void PrintRenderFrameHelper::PrintPreview(base::DictValue settings) {
+   ScopedIPC scoped_ipc(weak_ptr_factory_.GetWeakPtr());
+-  if (ipc_nesting_level_ > kAllowedIpcDepthForPrint)
++  if (ipc_nesting_level_ > kAllowedIpcDepthForPrint ||
++      print_with_params_callback_) {
+     return;
++  }
+ 
+   print_preview_context_.OnPrintPreview();
+ 
+@@ -1650,7 +1675,7 @@
+     return;
+ 
+   // If the last request is not finished yet, do not proceed.
+-  if (prep_frame_view_) {
++  if (prep_frame_view_ || print_with_params_callback_) {
+     DLOG(ERROR) << "Previous request is still ongoing";
+     return;
+   }
+@@ -1821,7 +1846,12 @@
+   }
+ #endif
+ 
+-  const mojom::PrintParams& print_params = *print_pages_params_->params;
++  // Clone `print_pages_params_->params` instead of holding a raw reference into
++  // `print_pages_params_`, which may be overwritten or reset if nested message
++  // loops or script execution re-enter `PrintRenderFrameHelper`.
++  const mojom::PrintParamsPtr print_params_clone =
++      print_pages_params_->params.Clone();
++  const mojom::PrintParams& print_params = *print_params_clone;
+ 
+   bool require_document_metafile =
+       print_params.printed_doc_type != mojom::SkiaDocumentType::kMSKP;
+@@ -1898,20 +1928,18 @@
+   }
+ #endif
+ 
+-  if (print_pages_params_->params->printed_doc_type ==
+-      mojom::SkiaDocumentType::kMSKP) {
++  if (print_params.printed_doc_type == mojom::SkiaDocumentType::kMSKP) {
+     // Want modifiable content of MSKP type to be collected into a document
+     // during individual page preview generation (to avoid separate document
+     // version for composition), notify to prepare to do this collection.
+-    preview_ui_->DidPrepareDocumentForPreview(
+-        print_pages_params_->params->document_cookie,
+-        print_params.preview_request_id);
++    preview_ui_->DidPrepareDocumentForPreview(print_params.document_cookie,
++                                              print_params.preview_request_id);
+   }
+ 
+   {
+     std::unique_ptr<HeaderAndFooterContext> header_footer_context;
+     blink::WebLocalFrame* header_footer_frame = nullptr;
+-    if (print_pages_params_->params->display_header_footer) {
++    if (print_params.display_header_footer) {
+       header_footer_context = std::make_unique<HeaderAndFooterContext>(
+           *print_preview_context_.prepared_frame());
+       header_footer_frame = header_footer_context->frame();
+@@ -1958,7 +1986,11 @@
+   TRACE_EVENT1("print", "PrintRenderFrameHelper::RenderPreviewPage",
+                "page_index", page_index);
+ 
+-  const mojom::PrintParams& print_params = *print_pages_params_->params;
++  // Clone `print_pages_params_->params` across `PrintPageInternal()`, which can
++  // spin a nested loop or run script that resets `print_pages_params_`.
++  const mojom::PrintParamsPtr print_params_clone =
++      print_pages_params_->params.Clone();
++  const mojom::PrintParams& print_params = *print_params_clone;
+   MetafileSkia* render_metafile = print_preview_context_.metafile();
+   std::unique_ptr<MetafileSkia> page_render_metafile;
+   if (!render_metafile) {
+@@ -1997,7 +2029,8 @@
+       // rendered.
+       page_render_metafile = render_metafile->GetMetafileForCurrentPage(
+           print_params.printed_doc_type);
+-      return PreviewPageRendered(page_index, std::move(page_render_metafile));
++      return PreviewPageRendered(print_params, page_index,
++                                 std::move(page_render_metafile));
+ 
+     case PrintPageInternalResult::kNoCanvas:
+       print_preview_context_.set_error(PrintPreviewErrorBuckets::kNoCanvas);
+@@ -2142,10 +2175,10 @@
+     return;
+   }
+ 
+-  if (print_in_progress_) {
++  if (print_in_progress_ || print_with_params_callback_) {
+     // This can happen as a result of processing sync messages when printing
+-    // from ppapi plugins. It's a rare case, so its OK to just fail here.
+-    // See http://crbug.com/159165.
++    // from PDF plugins, or when `PrintWithParams()` is already in progress.
++    // It's a rare case, so it's OK to just fail here. See crbug.com/40076541.
+     return;
+   }
+ 
+@@ -2381,8 +2414,11 @@
+     const std::vector<uint32_t>& printed_pages) {
+   DCHECK(!printed_pages.empty());
+ 
+-  const mojom::PrintPagesParams& params = *print_pages_params_;
+-  const mojom::PrintParams& print_params = *params.params;
++  // Clone `print_pages_params_->params` across `PrintPageInternal()`, which can
++  // spin a nested loop or run script that resets `print_pages_params_`.
++  const mojom::PrintParamsPtr print_params_clone =
++      print_pages_params_->params.Clone();
++  const mojom::PrintParams& print_params = *print_params_clone;
+ 
+   // Provide typeface and image context to use with serializing to the print
+   // compositor.
+@@ -2872,6 +2908,7 @@
+ }
+ 
+ bool PrintRenderFrameHelper::PreviewPageRendered(
++    const mojom::PrintParams& print_params,
+     uint32_t page_index,
+     std::unique_ptr<MetafileSkia> metafile) {
+   DCHECK_NE(page_index, kInvalidPageIndex);
+@@ -2895,8 +2932,8 @@
+     ui::AXTreeUpdate accessibility_tree;
+     snapshotter_->Snapshot(/* max_node_count= */ 0,
+                            /* timeout= */ {}, &accessibility_tree);
+-    GetPrintManagerHost()->SetAccessibilityTree(
+-        print_pages_params_->params->document_cookie, accessibility_tree);
++    GetPrintManagerHost()->SetAccessibilityTree(print_params.document_cookie,
++                                                accessibility_tree);
+   }
+ 
+   auto preview_page_params = mojom::DidPreviewPageParams::New();
+@@ -2910,13 +2947,11 @@
+   }
+ 
+   preview_page_params->page_index = page_index;
+-  preview_page_params->document_cookie =
+-      print_pages_params_->params->document_cookie;
++  preview_page_params->document_cookie = print_params.document_cookie;
+ 
+   if (preview_ui_) {
+-    preview_ui_->DidPreviewPage(
+-        std::move(preview_page_params),
+-        print_pages_params_->params->preview_request_id);
++    preview_ui_->DidPreviewPage(std::move(preview_page_params),
++                                print_params.preview_request_id);
+   }
+   return true;
+ }
+diff --git a/components/printing/renderer/print_render_frame_helper.h b/components/printing/renderer/print_render_frame_helper.h
+index d7a37a0..ea93f2f 100644
+--- a/components/printing/renderer/print_render_frame_helper.h
++++ b/components/printing/renderer/print_render_frame_helper.h
+@@ -160,6 +160,9 @@
+   friend class PrintRenderFrameHelperTestBase;
+   FRIEND_TEST_ALL_PREFIXES(PrintRenderFrameHelperPreviewTest,
+                            BlockScriptInitiatedPrinting);
++  FRIEND_TEST_ALL_PREFIXES(
++      PrintRenderFrameHelperPreviewTest,
++      PrintWithParamsBlocksConcurrentPrintPreviewAndScriptedPrint);
+   FRIEND_TEST_ALL_PREFIXES(MAYBE_PrintRenderFrameHelperTest,
+                            PrintRequestedPages);
+   FRIEND_TEST_ALL_PREFIXES(MAYBE_PrintRenderFrameHelperTest,
+@@ -421,7 +424,8 @@
+   // `page_index` is 0-based.
+   // `metafile` is the rendered page and should be valid.
+   // Returns true if print preview should continue, false on failure.
+-  bool PreviewPageRendered(uint32_t page_index,
++  bool PreviewPageRendered(const mojom::PrintParams& print_params,
++                           uint32_t page_index,
+                            std::unique_ptr<MetafileSkia> metafile);
+ 
+   // Called when the connection with the |preview_ui_| goes away.
+@@ -682,7 +686,9 @@
+   //   parameters so that it can be invoked after DidStopLoading.
+   base::OnceClosure on_stop_loading_closure_;
+ 
+-  // This is used to report PrintWithParams() call result.
++  // This is used to report the `PrintWithParams()` call result, and also
++  // serves as a flag indicating that `PrintWithParams()` is in progress to
++  // prevent concurrent print operations.
+   PrintWithParamsCallback print_with_params_callback_;
+ 
+   // Stores the quit closures of Mojo responses.
+diff --git a/components/viz/service/display_embedder/image_context_impl.cc b/components/viz/service/display_embedder/image_context_impl.cc
+index 533684a..bffd71c 100644
+--- a/components/viz/service/display_embedder/image_context_impl.cc
++++ b/components/viz/service/display_embedder/image_context_impl.cc
+@@ -135,6 +135,9 @@
+       is_for_render_pass_(true) {}
+ 
+ ImageContextImpl::~ImageContextImpl() {
++  // Destroy the SkImage before `representation_` as it's a view of the
++  // representation.
++  clear_image();
+   DeleteFallbackTextures();
+ }
+ 
+@@ -395,8 +398,6 @@
+   representation_scoped_read_access_ =
+       representation_->BeginScopedReadAccess(begin_semaphores, end_semaphores);
+   if (!representation_scoped_read_access_) {
+-    clear_image();
+-    representation_ = nullptr;
+     DLOG(ERROR) << "Failed to fulfill the promise texture - SharedImage "
+                    "begin read access failed..";
+     return false;
+diff --git a/components/viz/service/display_embedder/image_context_impl.h b/components/viz/service/display_embedder/image_context_impl.h
+index 582280e..627539e 100644
+--- a/components/viz/service/display_embedder/image_context_impl.h
++++ b/components/viz/service/display_embedder/image_context_impl.h
+@@ -119,7 +119,7 @@
+   // from the renderer.
+   const bool is_for_render_pass_ = false;
+ 
+-  // Fallback in case we cannot produce a |representation_|.
++  // Fallback in case we cannot produce or access `representation_`.
+   raw_ptr<gpu::SharedContextState> fallback_context_state_ = nullptr;
+   std::vector<GrBackendTexture> fallback_textures_;
+   // Fallback textures used for fulfilling Graphite promise images. Owned by the
+diff --git a/media/mojo/clients/mojo_cdm.cc b/media/mojo/clients/mojo_cdm.cc
+index b454815..3bfbf574 100644
+--- a/media/mojo/clients/mojo_cdm.cc
++++ b/media/mojo/clients/mojo_cdm.cc
+@@ -123,6 +123,11 @@
+ 
+   remote_cdm_.reset();
+ 
++  // Keep `this` alive in case rejecting a promise or closing a session drops
++  // what would otherwise be the last reference to `this` while in the middle
++  // of looping through the remaining promises/sessions.
++  scoped_refptr<MojoCdm> self(this);
++
+   // As communication with the remote CDM is broken, reject any outstanding
+   // promises and close all the existing sessions.
+   cdm_promise_adapter_.Clear(CdmPromiseAdapter::ClearReason::kConnectionError);
+diff --git a/net/http/http_cache_transaction.cc b/net/http/http_cache_transaction.cc
+index 63696e4..2a1028c 100644
+--- a/net/http/http_cache_transaction.cc
++++ b/net/http/http_cache_transaction.cc
+@@ -2574,6 +2574,10 @@
+ int HttpCache::Transaction::DoPartialNetworkReadCompleted(int result) {
+   DCHECK(partial_);
+ 
++  if (result > 0 && handling_206_ && !partial_->IsNetworkReadOK(result)) {
++    result = ERR_CONTENT_LENGTH_MISMATCH;
++  }
++
+   // Go to the next range if nothing returned or return the result.
+   // TODO(shivanisha) Simplify this condition if possible. It was introduced
+   // in https://codereview.chromium.org/545101
+diff --git a/net/http/http_cache_writers.cc b/net/http/http_cache_writers.cc
+index 5a8ae428..804b2ba2 100644
+--- a/net/http/http_cache_writers.cc
++++ b/net/http/http_cache_writers.cc
+@@ -398,6 +398,18 @@
+ HttpCache::Writers::WaitingForRead::~WaitingForRead() = default;
+ HttpCache::Writers::WaitingForRead::WaitingForRead(WaitingForRead&&) = default;
+ 
++PartialData* HttpCache::Writers::GetPartial() const {
++  // The active transaction must be alive if this is a partial request, as
++  // partial requests are exclusive and hence will always be the active
++  // transaction.
++  // TODO(shivanisha): When partial requests support parallel writing, this
++  // assumption will not be true.
++  if (active_transaction_) {
++    return all_writers_.find(active_transaction_)->second.partial;
++  }
++  return nullptr;
++}
++
+ int HttpCache::Writers::DoLoop(int result) {
+   DCHECK_NE(State::UNSET, next_state_);
+   DCHECK_NE(State::NONE, next_state_);
+@@ -480,6 +492,11 @@
+ }
+ 
+ int HttpCache::Writers::DoNetworkReadComplete(int result) {
++  PartialData* partial = GetPartial();
++  if (result > 0 && partial && !partial->IsNetworkReadOK(result)) {
++    result = ERR_CONTENT_LENGTH_MISMATCH;
++  }
++
+   if (result < 0) {
+     next_state_ = State::NONE;
+     OnNetworkReadFailure(result);
+@@ -521,15 +538,7 @@
+ 
+   int rv = 0;
+ 
+-  PartialData* partial = nullptr;
+-  // The active transaction must be alive if this is a partial request, as
+-  // partial requests are exclusive and hence will always be the active
+-  // transaction.
+-  // TODO(shivanisha): When partial requests support parallel writing, this
+-  // assumption will not be true.
+-  if (active_transaction_) {
+-    partial = all_writers_.find(active_transaction_)->second.partial;
+-  }
++  PartialData* partial = GetPartial();
+ 
+   if (!partial) {
+     last_disk_cache_access_start_time_ = base::TimeTicks::Now();
+diff --git a/net/http/http_cache_writers.h b/net/http/http_cache_writers.h
+index f4bfa4cd..7847baf 100644
+--- a/net/http/http_cache_writers.h
++++ b/net/http/http_cache_writers.h
+@@ -200,6 +200,8 @@
+ 
+   using TransactionMap = std::map<Transaction*, TransactionInfo>;
+ 
++  PartialData* GetPartial() const;
++
+   // Runs the state transition loop. Resets and calls |callback_| on exit,
+   // unless the return value is ERR_IO_PENDING.
+   int DoLoop(int result);
+diff --git a/net/http/partial_data.cc b/net/http/partial_data.cc
+index 9c34bb17..2a76735 100644
+--- a/net/http/partial_data.cc
++++ b/net/http/partial_data.cc
+@@ -433,11 +433,26 @@
+   return rv;
+ }
+ 
++bool PartialData::IsNetworkReadOK(int data_len) const {
++  // Check to see if the network has overrun the range.
++  if (data_len) {
++    base::CheckedNumeric<int64_t> write_end_inclusive = current_range_start_;
++    write_end_inclusive += (data_len - 1);
++    int64_t write_end_inclusive_extracted;
++    if (!write_end_inclusive.AssignIfValid(&write_end_inclusive_extracted) ||
++        write_end_inclusive_extracted > current_range_end_) {
++      return false;
++    }
++  }
++  return true;
++}
++
+ int PartialData::CacheWrite(disk_cache::Entry* entry,
+                             IOBuffer* data,
+                             int data_len,
+                             CompletionOnceCallback callback) {
+   DVLOG(3) << "To write: " << data_len;
++
+   if (sparse_entry_) {
+     return entry->WriteSparseData(current_range_start_, data, data_len,
+                                   std::move(callback));
+diff --git a/net/http/partial_data.h b/net/http/partial_data.h
+index 4094fcf..d220e569e 100644
+--- a/net/http/partial_data.h
++++ b/net/http/partial_data.h
+@@ -109,6 +109,11 @@
+                 int data_len,
+                 CompletionOnceCallback callback);
+ 
++  // Returns true if the returned length from network is reasonable.
++  // Expected to be called before deciding to transition towards cache
++  // writing.
++  bool IsNetworkReadOK(int data_len) const;
++
+   // Writes |data_len| bytes to cache. This is basically a wrapper around the
+   // API of the cache that provides the right arguments for the current range.
+   int CacheWrite(disk_cache::Entry* entry,
+@@ -137,7 +142,7 @@
+ 
+   // The portion we're trying to get, either from cache or network.
+   int64_t current_range_start_ = 0;
+-  int64_t current_range_end_ = 0;
++  int64_t current_range_end_ = 0;  // Inclusive.
+ 
+   // Next portion available in the cache --- this may be what's currently being
+   // read, or the next thing that will be read if the current network portion
+diff --git a/remoting/host/input_monitor/local_input_monitor.cc b/remoting/host/input_monitor/local_input_monitor.cc
+index 50f383a..0b2f692 100644
+--- a/remoting/host/input_monitor/local_input_monitor.cc
++++ b/remoting/host/input_monitor/local_input_monitor.cc
+@@ -21,7 +21,6 @@
+ class LocalInputMonitorImpl : public LocalInputMonitor {
+  public:
+   LocalInputMonitorImpl(
+-      scoped_refptr<base::SingleThreadTaskRunner> caller_task_runner,
+       scoped_refptr<base::SingleThreadTaskRunner> input_task_runner,
+       scoped_refptr<base::SingleThreadTaskRunner> ui_task_runner);
+ 
+@@ -53,14 +52,17 @@
+ };
+ 
+ LocalInputMonitorImpl::LocalInputMonitorImpl(
+-    scoped_refptr<base::SingleThreadTaskRunner> caller_task_runner,
+     scoped_refptr<base::SingleThreadTaskRunner> input_task_runner,
+     scoped_refptr<base::SingleThreadTaskRunner> ui_task_runner)
+-    : caller_task_runner_(caller_task_runner),
+-      input_task_runner_(input_task_runner),
+-      ui_task_runner_(ui_task_runner) {}
++    : input_task_runner_(std::move(input_task_runner)),
++      ui_task_runner_(std::move(ui_task_runner)) {}
+ 
+ LocalInputMonitorImpl::~LocalInputMonitorImpl() {
++  if (!monitoring_) {
++    return;
++  }
++
++  DCHECK(caller_task_runner_);
+   // LocalInputMonitor sub-classes expect to be torn down on the caller thread.
+   if (!caller_task_runner_->BelongsToCurrentThread()) {
+     if (hotkey_input_monitor_) {
+@@ -82,6 +84,7 @@
+ void LocalInputMonitorImpl::StartMonitoringForClientSession(
+     base::WeakPtr<ClientSessionControl> client_session_control) {
+   DCHECK(!monitoring_);
++  caller_task_runner_ = base::SingleThreadTaskRunner::GetCurrentDefault();
+ 
+   hotkey_input_monitor_ = LocalHotkeyInputMonitor::Create(
+       caller_task_runner_, input_task_runner_, ui_task_runner_,
+@@ -115,6 +118,7 @@
+   DCHECK(!monitoring_);
+   DCHECK(on_error);
+   DCHECK(on_pointer_input || on_keyboard_input);
++  caller_task_runner_ = base::SingleThreadTaskRunner::GetCurrentDefault();
+ 
+   if (on_pointer_input) {
+     pointer_input_monitor_ = LocalPointerInputMonitor::Create(
+@@ -143,11 +147,10 @@
+ }  // namespace
+ 
+ std::unique_ptr<LocalInputMonitor> LocalInputMonitor::Create(
+-    scoped_refptr<base::SingleThreadTaskRunner> caller_task_runner,
+     scoped_refptr<base::SingleThreadTaskRunner> input_task_runner,
+     scoped_refptr<base::SingleThreadTaskRunner> ui_task_runner) {
+-  return std::make_unique<LocalInputMonitorImpl>(
+-      caller_task_runner, input_task_runner, ui_task_runner);
++  return std::make_unique<LocalInputMonitorImpl>(std::move(input_task_runner),
++                                                 std::move(ui_task_runner));
+ }
+ 
+ }  // namespace remoting
+diff --git a/remoting/host/input_monitor/local_input_monitor.h b/remoting/host/input_monitor/local_input_monitor.h
+index ad1b955..bdaddae6 100644
+--- a/remoting/host/input_monitor/local_input_monitor.h
++++ b/remoting/host/input_monitor/local_input_monitor.h
+@@ -36,9 +36,9 @@
+   virtual ~LocalInputMonitor() = default;
+ 
+   // Creates a platform-specific instance of LocalInputMonitor.
+-  // |caller_task_runner| is used for all callbacks and notifications.
++  // Callbacks and notifications are invoked on the sequence that calls
++  // StartMonitoring() or StartMonitoringForClientSession().
+   static std::unique_ptr<LocalInputMonitor> Create(
+-      scoped_refptr<base::SingleThreadTaskRunner> caller_task_runner,
+       scoped_refptr<base::SingleThreadTaskRunner> input_task_runner,
+       scoped_refptr<base::SingleThreadTaskRunner> ui_task_runner);
+ 
+diff --git a/remoting/host/legacy_interaction_strategy.cc b/remoting/host/legacy_interaction_strategy.cc
+index 4204248..af260b65 100644
+--- a/remoting/host/legacy_interaction_strategy.cc
++++ b/remoting/host/legacy_interaction_strategy.cc
+@@ -207,8 +207,7 @@
+ LegacyInteractionStrategy::CreateLocalInputMonitor() {
+   DCHECK(caller_task_runner_->BelongsToCurrentThread());
+ 
+-  return LocalInputMonitor::Create(caller_task_runner_, input_task_runner_,
+-                                   ui_task_runner_);
++  return LocalInputMonitor::Create(input_task_runner_, ui_task_runner_);
+ }
+ 
+ std::unique_ptr<CurtainMode> LegacyInteractionStrategy::CreateCurtainMode(
+diff --git a/testing/variations/fieldtrial_testing_config.json b/testing/variations/fieldtrial_testing_config.json
+index 8d38484..0f26dd2 100644
+--- a/testing/variations/fieldtrial_testing_config.json
++++ b/testing/variations/fieldtrial_testing_config.json
+@@ -6867,6 +6867,21 @@
+             ]
+         }
+     ],
++    "EnableContactInfoForChromeOSCustomPassphraseUsers": [
++        {
++            "platforms": [
++                "chromeos"
++            ],
++            "experiments": [
++                {
++                    "name": "Enabled",
++                    "enable_features": [
++                        "SyncEnableContactInfoDataTypeForCustomPassphraseUsers"
++                    ]
++                }
++            ]
++        }
++    ],
+     "EnableCustomInputStreamBufferSize": [
+         {
+             "platforms": [
+diff --git a/third_party/blink/renderer/core/dom/element.cc b/third_party/blink/renderer/core/dom/element.cc
+index 45c7ba4d..755950af 100644
+--- a/third_party/blink/renderer/core/dom/element.cc
++++ b/third_party/blink/renderer/core/dom/element.cc
+@@ -12251,7 +12251,7 @@
+ 
+ inline void Element::UpdateName(const AtomicString& old_name,
+                                 const AtomicString& new_name) {
+-  if (!IsInDocumentTree()) {
++  if (!IsInDocumentTree() || IsPseudoElement()) {
+     return;
+   }
+ 
+@@ -12267,7 +12267,7 @@
+ 
+ inline void Element::UpdateId(const AtomicString& old_id,
+                               const AtomicString& new_id) {
+-  if (!IsInTreeScope()) {
++  if (!IsInTreeScope() || IsPseudoElement()) {
+     return;
+   }
+ 
+@@ -12282,6 +12282,9 @@
+ inline void Element::UpdateId(TreeScope& scope,
+                               const AtomicString& old_id,
+                               const AtomicString& new_id) {
++  if (IsPseudoElement()) {
++    return;
++  }
+   DCHECK(IsInTreeScope() || scope.RootNode().IsInShadowTree());
+   DCHECK_NE(old_id, new_id);
+ 
+@@ -13579,6 +13582,13 @@
+     return;
+   }
+ 
++  if (ChildStyleRecalcBlockedByDisplayLock()) {
++    GetDisplayLockContext()->NotifyChildStyleRecalcWasBlocked(
++        style_recalc_change.EnsureAtLeast(
++            StyleRecalcChange::kUpdatePseudoElements));
++    return;
++  }
++
+   switch (GetPseudoId()) {
+     case kPseudoIdViewTransition: {
+       for (const AtomicString& name :
+diff --git a/third_party/blink/renderer/core/dom/pseudo_element_data.h b/third_party/blink/renderer/core/dom/pseudo_element_data.h
+index 530d36c9..6f43c47b 100644
+--- a/third_party/blink/renderer/core/dom/pseudo_element_data.h
++++ b/third_party/blink/renderer/core/dom/pseudo_element_data.h
+@@ -163,15 +163,15 @@
+   SetPseudoElement(kPseudoIdScrollButtonInlineEnd, nullptr);
+   SetPseudoElement(kPseudoIdScrollButtonBlockEnd, nullptr);
+   SetPseudoElement(kPseudoIdOverscrollAreaParent, nullptr);
+-  if (column_pseudo_elements_) {
+-    for (ColumnPseudoElement* column_pseudo_element : *column_pseudo_elements_) {
++  if (ColumnPseudoElementsVector* columns = column_pseudo_elements_.Release()) {
++    for (ColumnPseudoElement* column_pseudo_element : *columns) {
+       column_pseudo_element->Dispose();
+     }
+-    column_pseudo_elements_->clear();
++    columns->clear();
+   }
+-  if (transition_data_) {
+-    transition_data_->ClearPseudoElements();
+-    transition_data_ = nullptr;
++  if (TransitionPseudoElementData* transition_data =
++          transition_data_.Release()) {
++    transition_data->ClearPseudoElements();
+   }
+ }
+ 
+diff --git a/third_party/blink/renderer/core/dom/transition_pseudo_element_data.h b/third_party/blink/renderer/core/dom/transition_pseudo_element_data.h
+index 480c7f0..10e6aba9 100644
+--- a/third_party/blink/renderer/core/dom/transition_pseudo_element_data.h
++++ b/third_party/blink/renderer/core/dom/transition_pseudo_element_data.h
+@@ -75,9 +75,11 @@
+                        ? transition_incoming_image_->GetPseudoArgument()
+                        : g_null_atom);
+ 
+-  for (auto& entry : transition_containers_)
++  HeapHashMap<AtomicString, Member<PseudoElement>> containers;
++  std::swap(containers, transition_containers_);
++  for (auto& entry : containers) {
+     entry.value->Dispose();
+-  transition_containers_.clear();
++  }
+ }
+ 
+ inline void TransitionPseudoElementData::SetPseudoElement(
+diff --git a/third_party/blink/renderer/core/events/focus_event.cc b/third_party/blink/renderer/core/events/focus_event.cc
+index e843393dd..7d574f67 100644
+--- a/third_party/blink/renderer/core/events/focus_event.cc
++++ b/third_party/blink/renderer/core/events/focus_event.cc
+@@ -72,7 +72,7 @@
+ }
+ 
+ DispatchEventResult FocusEvent::DispatchEvent(EventDispatcher& dispatcher) {
+-  ClearCrossOriginRelatedTarget(dispatcher.GetNode(), related_target_);
++  CheckCrossOriginRelatedTarget(dispatcher.GetNode(), related_target_);
+   GetEventPath().AdjustForRelatedTarget(dispatcher.GetNode(), relatedTarget());
+   return dispatcher.Dispatch();
+ }
+diff --git a/third_party/blink/renderer/core/events/mouse_event.cc b/third_party/blink/renderer/core/events/mouse_event.cc
+index 8323d76..7f9b51bb 100644
+--- a/third_party/blink/renderer/core/events/mouse_event.cc
++++ b/third_party/blink/renderer/core/events/mouse_event.cc
+@@ -389,7 +389,7 @@
+ }
+ 
+ DispatchEventResult MouseEvent::DispatchEvent(EventDispatcher& dispatcher) {
+-  ClearCrossOriginRelatedTarget(dispatcher.GetNode(), related_target_);
++  CheckCrossOriginRelatedTarget(dispatcher.GetNode(), related_target_);
+   // TODO(mustaq): Move click-specific code to `PointerEvent::DispatchEvent`.
+   GetEventPath().AdjustForRelatedTarget(dispatcher.GetNode(), relatedTarget());
+ 
+diff --git a/third_party/blink/renderer/core/events/pointer_event.cc b/third_party/blink/renderer/core/events/pointer_event.cc
+index d738ef6f..8595c9b7 100644
+--- a/third_party/blink/renderer/core/events/pointer_event.cc
++++ b/third_party/blink/renderer/core/events/pointer_event.cc
+@@ -193,7 +193,7 @@
+ 
+   DCHECK(!RawTarget() || RawTarget() != relatedTarget());
+ 
+-  ClearCrossOriginRelatedTarget(dispatcher.GetNode(), related_target_);
++  CheckCrossOriginRelatedTarget(dispatcher.GetNode(), related_target_);
+   GetEventPath().AdjustForRelatedTarget(dispatcher.GetNode(), relatedTarget());
+ 
+   return dispatcher.Dispatch();
+diff --git a/third_party/blink/renderer/core/events/ui_event.cc b/third_party/blink/renderer/core/events/ui_event.cc
+index 1876415..4cc3a5a2 100644
+--- a/third_party/blink/renderer/core/events/ui_event.cc
++++ b/third_party/blink/renderer/core/events/ui_event.cc
+@@ -22,6 +22,7 @@
+ 
+ #include "third_party/blink/renderer/core/events/ui_event.h"
+ 
++#include "base/check.h"
+ #include "third_party/blink/renderer/core/dom/node.h"
+ #include "third_party/blink/renderer/core/event_interface_names.h"
+ #include "third_party/blink/renderer/core/execution_context/execution_context.h"
+@@ -105,9 +106,8 @@
+   Event::Trace(visitor);
+ }
+ 
+-void UIEvent::ClearCrossOriginRelatedTarget(
+-    const Node& target,
+-    Member<EventTarget>& related_target) {
++void UIEvent::CheckCrossOriginRelatedTarget(const Node& target,
++                                            EventTarget* related_target) {
+   if (!RuntimeEnabledFeatures::ClearCrossOriginRelatedTargetEnabled() ||
+       !related_target) {
+     return;
+@@ -115,12 +115,11 @@
+   const ExecutionContext* target_context = target.GetExecutionContext();
+   const ExecutionContext* related_context =
+       related_target->GetExecutionContext();
+-  if (target_context && related_context && target_context != related_context) {
++  CHECK_EQ(!target_context, !related_context);
++  if (target_context != related_context) {
+     const SecurityOrigin* target_origin = target_context->GetSecurityOrigin();
+     const SecurityOrigin* related_origin = related_context->GetSecurityOrigin();
+-    if (!target_origin->CanAccess(related_origin)) {
+-      related_target = nullptr;
+-    }
++    CHECK(target_origin->CanAccess(related_origin));
+   }
+ }
+ 
+diff --git a/third_party/blink/renderer/core/events/ui_event.h b/third_party/blink/renderer/core/events/ui_event.h
+index 67b3a6d..7aad9c36e 100644
+--- a/third_party/blink/renderer/core/events/ui_event.h
++++ b/third_party/blink/renderer/core/events/ui_event.h
+@@ -95,8 +95,8 @@
+  protected:
+   // Defense in depth: an event must never hand an EventTarget of a
+   // cross-origin ExecutionContext to the target's context via `relatedTarget`.
+-  void ClearCrossOriginRelatedTarget(const Node& target,
+-                                     Member<EventTarget>& related_target);
++  void CheckCrossOriginRelatedTarget(const Node& target,
++                                     EventTarget* related_target);
+ 
+  private:
+   Member<AbstractView> view_;
+diff --git a/third_party/blink/renderer/core/execution_context/execution_context.cc b/third_party/blink/renderer/core/execution_context/execution_context.cc
+index 88c6218..00531d46 100644
+--- a/third_party/blink/renderer/core/execution_context/execution_context.cc
++++ b/third_party/blink/renderer/core/execution_context/execution_context.cc
+@@ -27,6 +27,7 @@
+ 
+ #include "third_party/blink/renderer/core/execution_context/execution_context.h"
+ 
++#include "base/auto_reset.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/tracing/protos/chrome_track_event.pbzero.h"
+ #include "build/build_config.h"
+@@ -277,20 +278,30 @@
+ void ExecutionContext::DispatchErrorEvent(
+     ErrorEvent* error_event,
+     SanitizeScriptErrors sanitize_script_errors) {
++  if (is_draining_pending_exceptions_) {
++    // Disregard errors reported while draining pending exceptions. This would
++    // help to avoid potential infinite recursion and, given this only
++    // happens with with inspector Runtime domain enabled, somewhat reduces
++    // devtools side effects.
++    return;
++  }
+   if (in_dispatch_error_event_) {
+     pending_exceptions_.push_back(error_event);
+     return;
+   }
+ 
+   // First report the original exception and only then all the nested ones.
+-  if (!DispatchErrorEventInternal(error_event, sanitize_script_errors))
++  if (!DispatchErrorEventInternal(error_event, sanitize_script_errors)) {
++    base::AutoReset auto_reset(&is_draining_pending_exceptions_, true);
+     ExceptionThrown(error_event);
+-
+-  if (pending_exceptions_.empty())
+-    return;
+-  for (ErrorEvent* e : pending_exceptions_)
++  }
++  base::AutoReset auto_reset(&is_draining_pending_exceptions_, true);
++  auto pending_exceptions = std::move(pending_exceptions_);
++  for (ErrorEvent* e : pending_exceptions) {
+     ExceptionThrown(e);
+-  pending_exceptions_.clear();
++  }
++  // Assure handling pending exceptions doesn't add more pending exceptions.
++  CHECK(pending_exceptions_.empty());
+ }
+ 
+ bool ExecutionContext::DispatchErrorEventInternal(
+diff --git a/third_party/blink/renderer/core/execution_context/execution_context.h b/third_party/blink/renderer/core/execution_context/execution_context.h
+index b17173ab..2b779e1 100644
+--- a/third_party/blink/renderer/core/execution_context/execution_context.h
++++ b/third_party/blink/renderer/core/execution_context/execution_context.h
+@@ -540,6 +540,7 @@
+   unsigned circular_sequential_id_;
+ 
+   bool in_dispatch_error_event_;
++  bool is_draining_pending_exceptions_ = false;
+   HeapVector<Member<ErrorEvent> > pending_exceptions_;
+ 
+   mojom::FrameLifecycleState lifecycle_state_;
+diff --git a/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc b/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
+index 13c0ced1..3da40c38 100644
+--- a/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
++++ b/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
+@@ -1776,7 +1776,14 @@
+ }
+ 
+ void HTMLCanvasElement::DiscardResources() {
+-  ResetLayer();
++  if (auto* host = cc_layer_ ? cc_layer_->layer_tree_host() : nullptr;
++      disposing_ && host && host->in_will_commit()) {
++    host->ScheduleLayerForPostCommitDisposal(cc_layer_);
++    cc_layer_->ClearClient();
++    cc_layer_ = nullptr;
++  } else {
++    ResetLayer();
++  }
+   UpdateMemoryUsage();
+   dirty_rect_ = gfx::Rect();
+ }
+diff --git a/third_party/blink/renderer/core/html/forms/resources/list_picker.js b/third_party/blink/renderer/core/html/forms/resources/list_picker.js
+index af58a03..83aa0a8 100644
+--- a/third_party/blink/renderer/core/html/forms/resources/list_picker.js
++++ b/third_party/blink/renderer/core/html/forms/resources/list_picker.js
+@@ -95,7 +95,9 @@
+     this.trackingTouchId_ = null;
+ 
+     this.applyInitialLayout_();
+-    this.selectElement_.focus();
++    // The popup has no size yet, so scrolling on focus would center the select
++    // horizontally and hide option starts if the popup ends up narrower.
++    this.selectElement_.focus({preventScroll: true});
+     this.selectElement_.value = this.config_.selectedIndex;
+   }
+ 
+diff --git a/third_party/blink/renderer/core/input/boundary_event_dispatcher.cc b/third_party/blink/renderer/core/input/boundary_event_dispatcher.cc
+index af2f952..4a9a651 100644
+--- a/third_party/blink/renderer/core/input/boundary_event_dispatcher.cc
++++ b/third_party/blink/renderer/core/input/boundary_event_dispatcher.cc
+@@ -91,6 +91,10 @@
+     EventTarget* exited_target,
+     bool original_exited_target_removed,
+     EventTarget* entered_target) {
++  if (exited_target == entered_target && !original_exited_target_removed) {
++    return;
++  }
++
+   // An EventTarget must never be exposed to a cross-origin ExecutionContext
+   // through `relatedTarget` (e.g. the touch pointer stream is owned by the
+   // local-root frame's PointerEventManager, which hit-tests through every
+@@ -106,26 +110,35 @@
+         exited_target->GetExecutionContext();
+     const ExecutionContext* entered_context =
+         entered_target->GetExecutionContext();
+-    if (exited_context && entered_context &&
+-        exited_context != entered_context) {
+-      const SecurityOrigin* exited_origin = exited_context->GetSecurityOrigin();
+-      const SecurityOrigin* entered_origin =
+-          entered_context->GetSecurityOrigin();
+-      if (!exited_origin->CanAccess(entered_origin) ||
+-          !entered_origin->CanAccess(exited_origin)) {
+-        EventTarget* exited_related_target =
+-            FindFrameOwnerIfNested(*exited_context, *entered_context);
+-        EventTarget* entered_related_target =
+-            FindFrameOwnerIfNested(*entered_context, *exited_context);
+-        SendBoundaryEventsSameOrigin(exited_target,
+-                                     original_exited_target_removed,
+-                                     exited_related_target);
+-        SendBoundaryEventsSameOrigin(entered_related_target,
+-                                     /*original_exited_target_removed=*/false,
+-                                     entered_target);
+-        return;
++    bool is_same_origin = false;
++    if (exited_context && entered_context) {
++      if (exited_context == entered_context) {
++        is_same_origin = true;
++      } else {
++        const SecurityOrigin* exited_origin =
++            exited_context->GetSecurityOrigin();
++        const SecurityOrigin* entered_origin =
++            entered_context->GetSecurityOrigin();
++        is_same_origin = exited_origin->CanAccess(entered_origin) &&
++                         entered_origin->CanAccess(exited_origin);
+       }
+     }
++    if (!is_same_origin) {
++      EventTarget* exited_related_target =
++          (exited_context && entered_context)
++              ? FindFrameOwnerIfNested(*exited_context, *entered_context)
++              : nullptr;
++      EventTarget* entered_related_target =
++          (exited_context && entered_context)
++              ? FindFrameOwnerIfNested(*entered_context, *exited_context)
++              : nullptr;
++      SendBoundaryEventsSameOrigin(
++          exited_target, original_exited_target_removed, exited_related_target);
++      SendBoundaryEventsSameOrigin(entered_related_target,
++                                   /*original_exited_target_removed=*/false,
++                                   entered_target);
++      return;
++    }
+   }
+ 
+   SendBoundaryEventsSameOrigin(exited_target, original_exited_target_removed,
+diff --git a/third_party/blink/renderer/core/layout/hit_test_result.cc b/third_party/blink/renderer/core/layout/hit_test_result.cc
+index 0a04c9b..879807c 100644
+--- a/third_party/blink/renderer/core/layout/hit_test_result.cc
++++ b/third_party/blink/renderer/core/layout/hit_test_result.cc
+@@ -218,8 +218,13 @@
+   // the node as the position. This is because we don't paint contents of the
+   // element. Furthermore, any caret adjustments below can access layout-dirty
+   // state in the subtree of this object.
+-  if (layout_object->ChildPaintBlockedByDisplayLock())
+-    return PositionWithAffinity(Position(*node, 0), TextAffinity::kDefault);
++  if (layout_object->ChildPaintBlockedByDisplayLock()) {
++    const Node* anchor = node;
++    if (const auto* pseudo = DynamicTo<PseudoElement>(node)) {
++      anchor = &pseudo->UltimateOriginatingElement();
++    }
++    return PositionWithAffinity(Position(*anchor, 0), TextAffinity::kDefault);
++  }
+ 
+   if (node->IsPseudoElement()) {
+     // Pseudo-elements can't serve as caret anchors.
+@@ -270,12 +275,19 @@
+   // the node as the position. This is because we don't paint contents of the
+   // element. Furthermore, any caret adjustments below can access layout-dirty
+   // state in the subtree of this object.
+-  if (layout_object->ChildPaintBlockedByDisplayLock())
+-    return PositionWithAffinity(Position(*node, 0), TextAffinity::kDefault);
++  if (layout_object->ChildPaintBlockedByDisplayLock()) {
++    const Node* anchor = node;
++    if (const auto* pseudo = DynamicTo<PseudoElement>(node)) {
++      anchor = &pseudo->UltimateOriginatingElement();
++    }
++    return PositionWithAffinity(Position(*anchor, 0), TextAffinity::kDefault);
++  }
+ 
+   PositionWithAffinity position = layout_object->PositionForPoint(LocalPoint());
+-  if (position.IsNull())
+-    return PositionWithAffinity(FirstPositionInOrBeforeNode(*node));
++  if (position.IsNull()) {
++    return PositionWithAffinity(
++        FirstPositionInOrBeforeNode(*InnerNodeOrImageMapImage()));
++  }
+   return position;
+ }
+ 
+diff --git a/third_party/blink/renderer/core/paint/paint_property_tree_builder.cc b/third_party/blink/renderer/core/paint/paint_property_tree_builder.cc
+index 0125247b..83d55ed 100644
+--- a/third_party/blink/renderer/core/paint/paint_property_tree_builder.cc
++++ b/third_party/blink/renderer/core/paint/paint_property_tree_builder.cc
+@@ -2218,6 +2218,8 @@
+   // deferred update
+   object_.GetFrameView()->RemovePendingOpacityUpdate(object_);
+   const ComputedStyle& style = object_.Style();
++  const bool was_canvas_drawable =
++      properties_->Effect() && properties_->Effect()->HasCanvasDrawableState();
+ 
+   if (NeedsPaintPropertyUpdate()) {
+     if (NeedsEffect()) {
+@@ -2423,6 +2425,16 @@
+     }
+   }
+ 
++  // Descendant effect nodes bake `is_in_drawable_canvas_subtree` into their
++  // state, so a change to canvas-drawable state must pierce isolation
++  // boundaries.
++  const bool is_canvas_drawable =
++      properties_->Effect() && properties_->Effect()->HasCanvasDrawableState();
++  if (was_canvas_drawable != is_canvas_drawable) {
++    full_context_.force_subtree_update_reasons |=
++        PaintPropertyTreeBuilderContext::kSubtreeUpdateIsolationPiercing;
++  }
++
+   if (const auto* effect = properties_->Effect()) {
+     context_.current_effect = effect;
+     context_.this_or_ancestor_opacity_is_zero |= effect->Opacity() == 0;
+@@ -4655,6 +4667,11 @@
+                            PaintPropertyChangeType::kNodeAddedOrRemoved);
+     }
+     if (properties->HasNode<EffectPaintPropertyNodeOrAlias>()) {
++      if (properties->Effect() &&
++          properties->Effect()->HasCanvasDrawableState()) {
++        context_.force_subtree_update_reasons |=
++            PaintPropertyTreeBuilderContext::kSubtreeUpdateIsolationPiercing;
++      }
+       UpdatePropertyChange(properties_changed_.effect_changed,
+                            PaintPropertyChangeType::kNodeAddedOrRemoved);
+     }
+diff --git a/third_party/blink/renderer/modules/webaudio/media_element_audio_source_handler.cc b/third_party/blink/renderer/modules/webaudio/media_element_audio_source_handler.cc
+index b1605ea..abd4ca3 100644
+--- a/third_party/blink/renderer/modules/webaudio/media_element_audio_source_handler.cc
++++ b/third_party/blink/renderer/modules/webaudio/media_element_audio_source_handler.cc
+@@ -4,12 +4,19 @@
+ 
+ #include "third_party/blink/renderer/modules/webaudio/media_element_audio_source_handler.h"
+ 
++#include <array>
+ #include <memory>
++#include <utility>
+ 
++#include "base/containers/span.h"
++#include "base/numerics/safe_conversions.h"
+ #include "base/synchronization/lock.h"
+ #include "media/base/audio_bus.h"
++#include "media/base/limits.h"
+ #include "media/base/sinc_resampler.h"
+ #include "third_party/blink/public/platform/task_type.h"
++#include "third_party/blink/public/platform/web_audio_source_provider_impl.h"
++#include "third_party/blink/public/platform/web_media_player.h"
+ #include "third_party/blink/renderer/bindings/modules/v8/v8_media_element_audio_source_options.h"
+ #include "third_party/blink/renderer/core/frame/deprecation/deprecation.h"
+ #include "third_party/blink/renderer/core/html/media/html_media_element.h"
+@@ -17,6 +24,7 @@
+ #include "third_party/blink/renderer/modules/webaudio/audio_context.h"
+ #include "third_party/blink/renderer/modules/webaudio/audio_graph_tracer.h"
+ #include "third_party/blink/renderer/modules/webaudio/audio_node_output.h"
++#include "third_party/blink/renderer/modules/webaudio/media_element_audio_source_node.h"
+ #include "third_party/blink/renderer/platform/audio/audio_utilities.h"
+ #include "third_party/blink/renderer/platform/bindings/exception_state.h"
+ #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+@@ -34,15 +42,16 @@
+ 
+ }  // namespace
+ 
+-
+-
+ MediaElementAudioSourceHandler::MediaElementAudioSourceHandler(
+     AudioNode& node,
+     HTMLMediaElement& media_element)
+     : AudioHandler(NodeType::kNodeTypeMediaElementAudioSource,
+                    node,
+                    node.context()->sampleRate()),
+-      media_element_(media_element) {
++      audio_source_provider_(
++          media_element.GetWebMediaPlayer()
++              ? media_element.GetWebMediaPlayer()->GetAudioSourceProvider()
++              : nullptr) {
+   DCHECK(IsMainThread());
+ 
+   AddOutput(kDefaultNumberOfOutputChannels);
+@@ -66,12 +75,13 @@
+   Uninitialize();
+ }
+ 
+-CrossThreadPersistent<HTMLMediaElement>
+-MediaElementAudioSourceHandler::MediaElement() const {
+-  return media_element_.Lock();
+-}
+-
+ void MediaElementAudioSourceHandler::Dispose() {
++  DCHECK(IsMainThread());
++  {
++    base::AutoLock locker(process_lock_);
++    audio_source_provider_.reset();
++    multi_channel_resampler_.reset();
++  }
+   if (GetDeferredTaskHandler().GetActiveSourceHandlers()->Contains(this)) {
+     GetDeferredTaskHandler().GetActiveSourceHandlers()->erase(this);
+     BreakConnectionWithLock();
+@@ -79,73 +89,103 @@
+   AudioHandler::Dispose();
+ }
+ 
++HTMLMediaElement* MediaElementAudioSourceHandler::GetMediaElement() {
++  DCHECK(IsMainThread());
++  if (AudioNode* node = GetNode()) {
++    return static_cast<MediaElementAudioSourceNode*>(node)->mediaElement();
++  }
++  return nullptr;
++}
++
+ void MediaElementAudioSourceHandler::SetFormat(uint32_t number_of_channels,
+                                                float source_sample_rate) {
+-  DCHECK(MediaElement());
++  DCHECK(IsMainThread());
++  HTMLMediaElement* media_element = GetMediaElement();
++  if (!media_element) {
++    return;
++  }
+   bool is_tainted = WouldTaintOrigin();
+ 
+   if (is_tainted) {
+-    PrintCorsMessage(MediaElement()->currentSrc().GetString());
++    PrintCorsMessage(media_element->currentSrc().GetString());
+   }
+ 
+-  bool format_changed = false;
++  WebMediaPlayer* player = media_element->GetWebMediaPlayer();
++  scoped_refptr<WebAudioSourceProviderImpl> provider =
++      player ? player->GetAudioSourceProvider() : nullptr;
++
++  const bool is_format_valid =
++      number_of_channels > 0 &&
++      number_of_channels <= BaseAudioContext::MaxNumberOfChannels() &&
++      audio_utilities::IsValidAudioBufferSampleRate(source_sample_rate);
++  if (!is_format_valid) {
++    DLOG(ERROR) << "setFormat(" << number_of_channels << ", "
++                << source_sample_rate << ") - unhandled format change";
++  }
++
+   {
+     base::AutoLock locker(process_lock_);
+-    is_origin_tainted_ = is_tainted;
+-    if (number_of_channels != source_number_of_channels_ ||
+-        source_sample_rate != source_sample_rate_) {
+-      format_changed = true;
+-    }
+-  }
+-
+-  if (format_changed) {
+-    if (!number_of_channels ||
+-        number_of_channels > BaseAudioContext::MaxNumberOfChannels() ||
+-        !audio_utilities::IsValidAudioBufferSampleRate(source_sample_rate)) {
++    if (!is_format_valid) {
+       // `Process()` will generate silence for these uninitialized values.
+-      DLOG(ERROR) << "setFormat(" << number_of_channels << ", "
+-                  << source_sample_rate << ") - unhandled format change";
+-      base::AutoLock locker(process_lock_);
+       source_number_of_channels_ = 0;
+       source_sample_rate_ = 0;
++      audio_source_provider_.reset();
++      multi_channel_resampler_.reset();
++      is_origin_tainted_ = is_tainted;
+       return;
+     }
+ 
+-    std::unique_ptr<MediaMultiChannelResampler> new_resampler;
+-    if (source_sample_rate != Context()->sampleRate()) {
+-      double scale_factor = source_sample_rate / Context()->sampleRate();
+-      const size_t resampler_request_frames =
+-          audio_utilities::RoundUpToMultiple(
+-              media::SincResampler::kMinRequestSize,
+-              GetDeferredTaskHandler().RenderQuantumFrames());
+-      new_resampler = std::make_unique<MediaMultiChannelResampler>(
+-          number_of_channels, scale_factor, resampler_request_frames,
+-          CrossThreadBindRepeating(
+-              &MediaElementAudioSourceHandler::ProvideResamplerInput,
+-              CrossThreadUnretained(this)));
++    if (number_of_channels == source_number_of_channels_ &&
++        source_sample_rate == source_sample_rate_) {
++      if (provider) {
++        audio_source_provider_ = std::move(provider);
++      }
++      is_origin_tainted_ = is_tainted;
++      return;
+     }
++  }
+ 
+-    {
+-      base::AutoLock locker(process_lock_);
+-      source_number_of_channels_ = number_of_channels;
+-      source_sample_rate_ = source_sample_rate;
+-      multi_channel_resampler_ = std::move(new_resampler);
++  std::unique_ptr<MediaMultiChannelResampler> new_resampler;
++  if (source_sample_rate != Context()->sampleRate()) {
++    double scale_factor = source_sample_rate / Context()->sampleRate();
++    const size_t resampler_request_frames = audio_utilities::RoundUpToMultiple(
++        media::SincResampler::kMinRequestSize,
++        GetDeferredTaskHandler().RenderQuantumFrames());
++    new_resampler = std::make_unique<MediaMultiChannelResampler>(
++        number_of_channels, scale_factor, resampler_request_frames,
++        CrossThreadBindRepeating(
++            &MediaElementAudioSourceHandler::ProvideResamplerInput,
++            CrossThreadUnretained(this)));
++  }
++
++  {
++    base::AutoLock locker(process_lock_);
++    if (provider) {
++      audio_source_provider_ = std::move(provider);
+     }
++    source_number_of_channels_ = number_of_channels;
++    source_sample_rate_ = source_sample_rate;
++    multi_channel_resampler_ = std::move(new_resampler);
++    is_origin_tainted_ = is_tainted;
++  }
+ 
+-    {
+-      // The context must be locked when changing the number of output channels.
+-      DeferredTaskHandler::GraphAutoLocker context_locker(
+-          Context()->GetDeferredTaskHandler());
++  {
++    // The context must be locked when changing the number of output channels.
++    DeferredTaskHandler::GraphAutoLocker context_locker(
++        Context()->GetDeferredTaskHandler());
+ 
+-      // Do any necessary re-configuration to the output's number of channels.
+-      Output(0).SetNumberOfChannels(number_of_channels);
+-    }
++    // Do any necessary re-configuration to the output's number of channels.
++    Output(0).SetNumberOfChannels(number_of_channels);
+   }
+ }
+ 
+ bool MediaElementAudioSourceHandler::WouldTaintOrigin() {
+-  DCHECK(MediaElement());
+-  WebMediaPlayer* player = MediaElement()->GetWebMediaPlayer();
++  DCHECK(IsMainThread());
++  HTMLMediaElement* media_element = GetMediaElement();
++  if (!media_element) {
++    return true;
++  }
++  WebMediaPlayer* player = media_element->GetWebMediaPlayer();
+   return player ? player->WouldTaintOrigin() : false;
+ }
+ 
+@@ -161,14 +201,37 @@
+   }
+ }
+ 
++void MediaElementAudioSourceHandler::ProvideInput(AudioBus* bus,
++                                                  int frames_to_process) {
++  DCHECK(bus);
++  if (!audio_source_provider_) {
++    bus->Zero();
++    return;
++  }
++
++  const unsigned num_channels = bus->NumberOfChannels();
++  if (num_channels == 0 ||
++      num_channels > static_cast<unsigned>(media::limits::kMaxChannels)) {
++    bus->Zero();
++    return;
++  }
++
++  std::array<base::span<float>, media::limits::kMaxChannels> web_audio_data;
++  const size_t frames = base::checked_cast<size_t>(frames_to_process);
++  for (unsigned i = 0; i < num_channels; ++i) {
++    web_audio_data[i] = bus->Channel(i)->MutableSpan().first(frames);
++  }
++
++  audio_source_provider_->ProvideInput(
++      base::span(web_audio_data).first(num_channels), frames_to_process);
++}
++
+ void MediaElementAudioSourceHandler::ProvideResamplerInput(
+     int resampler_frame_delay,
+     AudioBus* dest) {
+   DCHECK(Context()->IsAudioThread());
+-  DCHECK(MediaElement());
+   DCHECK(dest);
+-  MediaElement()->GetAudioSourceProvider().ProvideInput(
+-      dest, base::checked_cast<int>(dest->length()));
++  ProvideInput(dest, base::checked_cast<int>(dest->length()));
+ }
+ 
+ void MediaElementAudioSourceHandler::Process(uint32_t number_of_frames) {
+@@ -180,7 +243,7 @@
+   // case.
+   base::AutoTryLock try_locker(process_lock_);
+   if (try_locker.is_acquired()) {
+-    if (!MediaElement() || !source_sample_rate_) {
++    if (!audio_source_provider_ || !source_sample_rate_) {
+       output_bus->Zero();
+       return;
+     }
+@@ -193,7 +256,6 @@
+       return;
+     }
+ 
+-    AudioSourceProvider& provider = MediaElement()->GetAudioSourceProvider();
+     // Grab data from the provider so that the element continues to make
+     // progress, even if we're going to output silence anyway.
+     const int frames_int = base::checked_cast<int>(number_of_frames);
+@@ -204,7 +266,7 @@
+       // Bypass the resampler completely if the source is at the context's
+       // sample-rate.
+       DCHECK_EQ(source_sample_rate_, Context()->sampleRate());
+-      provider.ProvideInput(output_bus, frames_int);
++      ProvideInput(output_bus, frames_int);
+     }
+     // Output silence if we don't have access to the element.
+     if (is_origin_tainted_) {
+@@ -230,6 +292,7 @@
+   source_number_of_channels_ = 0;
+   source_sample_rate_ = 0;
+   is_origin_tainted_ = true;
++  audio_source_provider_.reset();
+   multi_channel_resampler_.reset();
+ }
+ 
+@@ -252,4 +315,22 @@
+   return WouldTaintOrigin();
+ }
+ 
++bool MediaElementAudioSourceHandler::HasAudioSourceProviderForTesting() {
++  base::AutoLock locker(process_lock_);
++  return audio_source_provider_ != nullptr;
++}
++
++void MediaElementAudioSourceHandler::SetAudioSourceProviderForTesting(
++    scoped_refptr<WebAudioSourceProviderImpl> provider) {
++  base::AutoLock locker(process_lock_);
++  audio_source_provider_ = std::move(provider);
++}
++
++void MediaElementAudioSourceHandler::ProvideResamplerInputForTesting(
++    int resampler_frame_delay,
++    AudioBus* dest) {
++  base::AutoLock locker(process_lock_);
++  ProvideResamplerInput(resampler_frame_delay, dest);
++}
++
+ }  // namespace blink
+diff --git a/third_party/blink/renderer/modules/webaudio/media_element_audio_source_handler.h b/third_party/blink/renderer/modules/webaudio/media_element_audio_source_handler.h
+index 4ee7df1..8c4fec2 100644
+--- a/third_party/blink/renderer/modules/webaudio/media_element_audio_source_handler.h
++++ b/third_party/blink/renderer/modules/webaudio/media_element_audio_source_handler.h
+@@ -16,7 +16,6 @@
+ #include "third_party/blink/renderer/modules/webaudio/audio_node.h"
+ #include "third_party/blink/renderer/platform/audio/audio_source_provider_client.h"
+ #include "third_party/blink/renderer/platform/audio/media_multi_channel_resampler.h"
+-#include "third_party/blink/renderer/platform/heap/cross_thread_persistent.h"
+ 
+ namespace blink {
+ 
+@@ -24,6 +23,7 @@
+ class HTMLMediaElement;
+ class KURL;
+ class MediaElementAudioSourceOptions;
++class WebAudioSourceProviderImpl;
+ 
+ class MODULES_EXPORT MediaElementAudioSourceHandler final
+     : public AudioHandler {
+@@ -33,8 +33,6 @@
+       HTMLMediaElement&);
+   ~MediaElementAudioSourceHandler() override;
+ 
+-  CrossThreadPersistent<HTMLMediaElement> MediaElement() const;
+-
+   // AudioHandler
+   void Dispose() override;
+   void Process(uint32_t frames_to_process) override;
+@@ -54,6 +52,11 @@
+   double SourceSampleRateForTesting();
+   bool IsOriginTaintedForTesting();
+   bool WouldTaintOriginForTesting();
++  bool HasAudioSourceProviderForTesting();
++  void SetAudioSourceProviderForTesting(
++      scoped_refptr<WebAudioSourceProviderImpl> provider);
++  void ProvideResamplerInputForTesting(int resampler_frame_delay,
++                                       AudioBus* dest);
+ 
+   // For thread safety analysis only.  Does not actually return mu.
+   base::Lock* GetProcessLock() LOCK_RETURNED(process_lock_) { NOTREACHED(); }
+@@ -65,6 +68,8 @@
+   // As an audio source, we will never propagate silence.
+   bool PropagatesSilence() const override { return false; }
+ 
++  HTMLMediaElement* GetMediaElement();
++
+   // Returns true if the origin of the media element is tainted so that the
+   // audio should be muted when playing through WebAudio.
+   bool WouldTaintOrigin();
+@@ -73,19 +78,19 @@
+   // zeroes.
+   void PrintCorsMessage(const String& message);
+ 
+-  // Provide input to the resampler (if used).
+-  void ProvideResamplerInput(int resampler_frame_delay, AudioBus* dest);
++  // Pulls rendered audio frames from `audio_source_provider_` into `bus`.
++  void ProvideInput(AudioBus* bus, int frames_to_process)
++      EXCLUSIVE_LOCKS_REQUIRED(process_lock_);
+ 
+-  // The HTMLMediaElement is held alive by MediaElementAudioSourceNode which is
+-  // an AudioNode. AudioNode uses pre-finalizers to dispose the handler, so
+-  // holding a weak reference is ok here and will not interfer with garbage
+-  // collection.
+-  //
+-  // It is accessed by both audio and main thread. TODO: we really should
+-  // try to minimize or avoid the audio thread touching this element.
+-  CrossThreadWeakPersistent<HTMLMediaElement> media_element_;
++  // Provide input to the resampler (if used).
++  void ProvideResamplerInput(int resampler_frame_delay, AudioBus* dest)
++      EXCLUSIVE_LOCKS_REQUIRED(process_lock_);
++
+   base::Lock process_lock_;
+ 
++  scoped_refptr<WebAudioSourceProviderImpl> audio_source_provider_
++      GUARDED_BY(process_lock_);
++
+   unsigned source_number_of_channels_ GUARDED_BY(process_lock_) = 0;
+   double source_sample_rate_ GUARDED_BY(process_lock_) = 0;
+ 
+diff --git a/third_party/blink/renderer/modules/xr/xr_session.cc b/third_party/blink/renderer/modules/xr/xr_session.cc
+index 8591823d..ea33e05 100644
+--- a/third_party/blink/renderer/modules/xr/xr_session.cc
++++ b/third_party/blink/renderer/modules/xr/xr_session.cc
+@@ -2307,9 +2307,12 @@
+       }
+     }
+ 
+-    // If baseLayer is used, bind the shared image with its layer ID.
+-    layer_shared_image_manager_.SetSharedImages(render_state_->baseLayer(),
+-                                                std::move(shared_images));
++    // If baseLayer is used or LayerManager is not available, bind the shared
++    // image with the first layer's ID.
++    layer_shared_image_manager_.SetSharedImages(
++        LayerManager() ? render_state_->baseLayer()
++                       : render_state_->GetFirstLayer(),
++        std::move(shared_images));
+ 
+     // Dispatch the "redraw" event for layers that should be updated.
+     if (layers_enabled_) {
+diff --git a/third_party/blink/renderer/platform/media/web_audio_source_provider_impl.cc b/third_party/blink/renderer/platform/media/web_audio_source_provider_impl.cc
+index 74d24e43..c9c1b19 100644
+--- a/third_party/blink/renderer/platform/media/web_audio_source_provider_impl.cc
++++ b/third_party/blink/renderer/platform/media/web_audio_source_provider_impl.cc
+@@ -203,15 +203,13 @@
+ 
+   // Use a try lock to avoid contention in the real-time audio thread.
+   base::AutoTryLock auto_try_lock(sink_lock_);
+-  if (!auto_try_lock.is_acquired() || state_ != kPlaying) {
+-    // Provide silence if we failed to acquire the lock or the source is not
+-    // running.
++  if (!auto_try_lock.is_acquired() || state_ != kPlaying || !client_) {
++    // Provide silence if we failed to acquire the lock, the source is not
++    // running, or the client has been disconnected.
+     bus_wrapper_->Zero();
+     return;
+   }
+ 
+-  DCHECK(client_);
+-
+   // It may be the case that the given |audio_data| doesn't have the same number
+   // of channels as we were expecting, due to a race condition. In that case,
+   // simply output silence.
+diff --git a/tools/metrics/histograms/metadata/enterprise/histograms.xml b/tools/metrics/histograms/metadata/enterprise/histograms.xml
+index 04626fc..adbf3c3f 100644
+--- a/tools/metrics/histograms/metadata/enterprise/histograms.xml
++++ b/tools/metrics/histograms/metadata/enterprise/histograms.xml
+@@ -1041,6 +1041,20 @@
+   </summary>
+ </histogram>
+ 
++<histogram name="Enterprise.CloudPolicy.LocalCacheSize.{StoreType}" units="KB"
++    expires_after="2027-04-01">
++  <owner>ydago@chromium.org</owner>
++  <owner>cbe-eng@google.com</owner>
++  <summary>
++    Recorded when reading {StoreType} cloud policy cache from disk on browser
++    startup. Logs the size of the cached policy file in kilobytes.
++  </summary>
++  <token key="StoreType">
++    <variant name="Machine" summary="machine-level (CBCM/CEC)"/>
++    <variant name="User" summary="user-level"/>
++  </token>
++</histogram>
++
+ <histogram name="Enterprise.CloudPolicy.LocalCacheWriteStatus"
+     enum="EnterpriseCloudPolicyLocalCacheWriteStatus"
+     expires_after="2027-06-01">
+diff --git a/ui/views/controls/menu/menu_item_view.cc b/ui/views/controls/menu/menu_item_view.cc
+index 0bee2e87..692f584 100644
+--- a/ui/views/controls/menu/menu_item_view.cc
++++ b/ui/views/controls/menu/menu_item_view.cc
+@@ -132,6 +132,10 @@
+                    delegate) {}
+ 
+ MenuItemView::~MenuItemView() {
++  CHECK(!inserting_into_menu_)
++      << "A menu item was synchronously destroyed while being inserted into a "
++         "menu, possibly by some consumer of the accessibility API. This "
++         "should never happen.";
+   SetAnchorView(nullptr);
+   // Only the root item holds `controller_`, so walk up to the root to also
+   // cover destruction of a non-root subtree (e.g. via RemoveMenuItem()). This
+@@ -467,6 +471,7 @@
+     item->SetVisible(false);
+   }
+ 
++  base::AutoReset inserting_auto_reset(&item->inserting_into_menu_, true);
+   auto* added_item = submenu_->AddChildViewAt(std::move(item), insert_index);
+ 
+   added_item->UpdateTooltipText();
+diff --git a/ui/views/controls/menu/menu_item_view.h b/ui/views/controls/menu/menu_item_view.h
+index e15fb7d..7a76ba7 100644
+--- a/ui/views/controls/menu/menu_item_view.h
++++ b/ui/views/controls/menu/menu_item_view.h
+@@ -839,6 +839,12 @@
+   // and SetIconView() explicitly calls UpdateSelectionBasedStateIfChanged().
+   bool update_selection_based_state_in_view_herarchy_changed_ = true;
+ 
++  // There are cases where menu insertions can lead to synchronous accessibility
++  // events, which can in turn lead to a miscalibrated or malicious
++  // accessibility tool attempting to close the menu mid-insertion. Guard
++  // against the item being destroyed while it is being added.
++  bool inserting_into_menu_ = false;
++
+   std::optional<ui::ColorId> foreground_color_id_;
+   std::optional<MenuItemBackground> menu_item_background_;
+   std::optional<ui::ColorId> selected_color_id_;
+diff --git a/third_party/skia/gn/sksl_tests.gni b/third_party/skia/gn/sksl_tests.gni
+index cbce6d7..ab4dccb 100644
+--- a/third_party/skia/gn/sksl_tests.gni
++++ b/third_party/skia/gn/sksl_tests.gni
+@@ -547,6 +547,7 @@
+   "runtime_errors/InvalidColorFilterFeatures.rtcf",
+   "runtime_errors/InvalidColorFilterMain.rtcf",
+   "runtime_errors/InvalidShaderMain.rts",
++  "runtime_errors/InvalidTypeInStruct.rts",
+   "runtime_errors/InvalidUniformTypes.rts",
+   "runtime_errors/InvalidUniformTypesES3.rts",
+   "runtime_errors/LoopConditionErrors.rts",
+diff --git a/third_party/skia/resources/sksl/BUILD.bazel b/third_party/skia/resources/sksl/BUILD.bazel
+index e937158..7c32781 100644
+--- a/third_party/skia/resources/sksl/BUILD.bazel
++++ b/third_party/skia/resources/sksl/BUILD.bazel
+@@ -703,6 +703,7 @@
+         "runtime_errors/InvalidColorFilterFeatures.rtcf",
+         "runtime_errors/InvalidColorFilterMain.rtcf",
+         "runtime_errors/InvalidShaderMain.rts",
++        "runtime_errors/InvalidTypeInStruct.rts",
+         "runtime_errors/InvalidUniformTypes.rts",
+         "runtime_errors/InvalidUniformTypesES3.rts",
+         "runtime_errors/LoopConditionErrors.rts",
+diff --git a/third_party/skia/resources/sksl/errors/Ossfuzz56373.sksl b/third_party/skia/resources/sksl/errors/Ossfuzz56373.sksl
+index f369f9d..276b355 100644
+--- a/third_party/skia/resources/sksl/errors/Ossfuzz56373.sksl
++++ b/third_party/skia/resources/sksl/errors/Ossfuzz56373.sksl
+@@ -4,5 +4,4 @@
+ 
+ /*%%*
+ expected a type, found 'bufferThree'
+-invalid type
+ *%%*/
+diff --git a/third_party/skia/resources/sksl/runtime_errors/InvalidTypeInStruct.rts b/third_party/skia/resources/sksl/runtime_errors/InvalidTypeInStruct.rts
+new file mode 100644
+index 0000000..5cae8b8
+--- /dev/null
++++ b/third_party/skia/resources/sksl/runtime_errors/InvalidTypeInStruct.rts
+@@ -0,0 +1,11 @@
++// In runtime effects, private types like sampler2D are aliases of the invalid type.
++// See kPrivateTypes in SkSLModuleLoader.cpp for the exhaustive list.
++struct S { sampler2D x; };
++struct T { texture2D x; };
++
++void main() {}
++
++/*%%*
++invalid type
++invalid type
++*%%*/
+diff --git a/third_party/skia/src/gpu/ganesh/Device_drawTexture.cpp b/third_party/skia/src/gpu/ganesh/Device_drawTexture.cpp
+index f8dfe8f..bbddd7a 100644
+--- a/third_party/skia/src/gpu/ganesh/Device_drawTexture.cpp
++++ b/third_party/skia/src/gpu/ganesh/Device_drawTexture.cpp
+@@ -188,9 +188,10 @@
+     // rect would access pixels outside the proxy's content area without the constraint.
+     if (constraint != SkCanvas::kStrict_SrcRectConstraint && !proxy->isFunctionallyExact()) {
+         // Conservative estimate of how much a coord could be outset from src rect:
+-        // 1/2 pixel for AA and 1/2 pixel for linear filtering
+-        float buffer = 0.5f * (aaFlags != GrQuadAAFlags::kNone) +
+-                       GrTextureEffect::kLinearInset * (filter == GrSamplerState::Filter::kLinear);
++        // 1/2 pixel for AA and 1/2 pixel for filtering. Linear filtering uses a 1/2 pixel kernel,
++        // and nearest filtering under high magnification can snap onto the texel just outside the
++        // subset due to limited sub-texel precision (e.g. Vulkan: subTexelPrecisionBits >= 4).
++        float buffer = 0.5f * (aaFlags != GrQuadAAFlags::kNone) + GrTextureEffect::kLinearInset;
+         SkRect safeBounds = proxy->getBoundsRect();
+         safeBounds.inset(buffer, buffer);
+         if (!safeBounds.contains(srcRect)) {
+diff --git a/third_party/skia/src/gpu/ganesh/effects/GrTextureEffect.cpp b/third_party/skia/src/gpu/ganesh/effects/GrTextureEffect.cpp
+index a5aba6b..d0708fb 100644
+--- a/third_party/skia/src/gpu/ganesh/effects/GrTextureEffect.cpp
++++ b/third_party/skia/src/gpu/ganesh/effects/GrTextureEffect.cpp
+@@ -146,18 +146,15 @@
+         bool domainIsSafe = false;
+         if (filter == Filter::kNearest) {
+             Span isubset{std::floor(subset.fA), std::ceil(subset.fB)};
+-            if (domain.fA > isubset.fA && domain.fB < isubset.fB) {
+-                domainIsSafe = true;
+-            }
+             // This inset prevents sampling neighboring texels that could occur when
+             // texture coords fall exactly at texel boundaries (depending on precision
+             // and GPU-specific snapping at the boundary).
+             r.fShaderClamp = isubset.makeInset(0.5f + kInsetEpsilon);
+         } else {
+             r.fShaderClamp = subset.makeInset(linearFilterInset + kInsetEpsilon);
+-            if (r.fShaderClamp.contains(domain)) {
+-                domainIsSafe = true;
+-            }
++        }
++        if (r.fShaderClamp.contains(domain)) {
++            domainIsSafe = true;
+         }
+         if (!alwaysUseShaderTileMode && domainIsSafe) {
+             // The domain of coords that will be used won't access texels outside of the subset.
+diff --git a/third_party/skia/src/gpu/ganesh/gl/GrGLCaps.cpp b/third_party/skia/src/gpu/ganesh/gl/GrGLCaps.cpp
+index 7232d90..0a185ea 100644
+--- a/third_party/skia/src/gpu/ganesh/gl/GrGLCaps.cpp
++++ b/third_party/skia/src/gpu/ganesh/gl/GrGLCaps.cpp
+@@ -2196,7 +2196,7 @@
+                     auto& ioFormat = ctInfo.fExternalIOFormats[ioIdx++];
+                     ioFormat.fColorType = GrColorType::kRGB_888x;
+                     ioFormat.fExternalType = GR_GL_UNSIGNED_BYTE;
+-                    ioFormat.fExternalTexImageFormat = GR_GL_RGBA;
++                    ioFormat.fExternalTexImageFormat = 0;
+                     ioFormat.fExternalReadFormat = GR_GL_RGBA;
+                 }
+             }
+diff --git a/third_party/skia/src/gpu/ganesh/ops/TextureOp.cpp b/third_party/skia/src/gpu/ganesh/ops/TextureOp.cpp
+index cf2287e..75101a8 100644
+--- a/third_party/skia/src/gpu/ganesh/ops/TextureOp.cpp
++++ b/third_party/skia/src/gpu/ganesh/ops/TextureOp.cpp
+@@ -194,18 +194,47 @@
+ 
+ bool safe_to_ignore_subset_rect(GrAAType aaType, GrSamplerState::Filter filter,
+                                 const DrawQuad& quad, const SkRect& subsetRect) {
+-    // If both the device and local quad are both axis-aligned, and filtering is off, the local quad
+-    // can push all the way up to the edges of the the subset rect and the sampler shouldn't
+-    // overshoot. Unfortunately, antialiasing adds enough jitter that we can only rely on this in
+-    // the non-antialiased case.
+     SkRect localBounds = quad.fLocal.bounds();
++
++    // If both the device and local quad are axis-aligned, filtering is off, the local quad
++    // is contained within the subset, and the mapping between device and local coordinates
++    // is a 1:1 integer translation (including 90/180/270 degree rotations and flips),
++    // fragment sample centers are guaranteed to land on exact half-integers in texel space
++    // (at least 0.5 texels away from any subset edge), so nearest-neighbor sampling cannot
++    // overshoot.
+     if (aaType == GrAAType::kNone &&
+         filter == GrSamplerState::Filter::kNearest &&
+         quad.fDevice.quadType() == GrQuad::Type::kAxisAligned &&
+         quad.fLocal.quadType() == GrQuad::Type::kAxisAligned &&
+         subsetRect.contains(localBounds)) {
++        float locDx = quad.fLocal.x(2) - quad.fLocal.x(0);
++        float locDy = quad.fLocal.y(1) - quad.fLocal.y(0);
++        if (locDx != 0.f && locDy != 0.f) {
++            auto is1to1 = [](float dev0, float devD, float loc0, float locD) {
++                return (locD ==  devD && SkScalarIsInt(dev0 - loc0)) ||
++                       (locD == -devD && SkScalarIsInt(dev0 + loc0));
++            };
+ 
+-        return true;
++            // Check non-rotated or 180-degree rotated (with or without flip)
++            float devDx = quad.fDevice.x(2) - quad.fDevice.x(0);
++            float devDy = quad.fDevice.y(1) - quad.fDevice.y(0);
++            if (devDx != 0.f && devDy != 0.f) {
++                if (is1to1(quad.fDevice.x(0), devDx, quad.fLocal.x(0), locDx) &&
++                    is1to1(quad.fDevice.y(0), devDy, quad.fLocal.y(0), locDy)) {
++                    return true;
++                }
++            } else {
++                // Check 90 or 270 degree rotation (axes swapped)
++                devDx = quad.fDevice.x(1) - quad.fDevice.x(0);
++                devDy = quad.fDevice.y(2) - quad.fDevice.y(0);
++                if (devDx != 0.f && devDy != 0.f) {
++                    if (is1to1(quad.fDevice.y(0), devDy, quad.fLocal.x(0), locDx) &&
++                        is1to1(quad.fDevice.x(0), devDx, quad.fLocal.y(0), locDy)) {
++                        return true;
++                    }
++                }
++            }
++        }
+     }
+ 
+     // If the local quad is inset by at least 0.5 pixels into the subset rect's bounds, the
+@@ -454,18 +483,11 @@
+                                    &aaType, &quad->fEdgeFlags);
+         fMetadata.fAAType = static_cast<uint16_t>(aaType);
+ 
+-        // We expect our caller to have already caught this optimization.
++        // We expect our caller to have already caught these optimizations.
+         SkASSERT(!subsetRect ||
+                  !subsetRect->contains(proxyView.proxy()->backingStoreBoundsRect()));
+-
+-        // We may have had a strict constraint with nearest filter solely due to possible AA bloat.
+-        // Try to identify cases where the subsetting isn't actually necessary, and skip it.
+-        if (subsetRect) {
+-            if (safe_to_ignore_subset_rect(aaType, filter, *quad, *subsetRect)) {
+-                subsetRect = nullptr;
+-                fMetadata.fSubset = static_cast<uint16_t>(Subset::kNo);
+-            }
+-        }
++        SkASSERT(!subsetRect ||
++                 !safe_to_ignore_subset_rect(aaType, filter, *quad, *subsetRect));
+ 
+         // Normalize src coordinates and the subset (if set)
+         NormalizationParams params = proxy_normalization_params(proxyView.proxy(),
+@@ -1203,6 +1225,13 @@
+         }
+     }
+ 
++    GrQuadUtils::ResolveAAType(aaType, quad->fEdgeFlags, quad->fDevice,
++                               &aaType, &quad->fEdgeFlags);
++
++    if (subset && safe_to_ignore_subset_rect(aaType, filter, *quad, *subset)) {
++        subset = nullptr;
++    }
++
+     if (blendMode == SkBlendMode::kSrcOver) {
+         return TextureOpImpl::Make(context, std::move(proxyView), std::move(textureXform), filter,
+                                    mm, color, saturate, aaType, std::move(quad), subset);
+diff --git a/third_party/skia/src/gpu/graphite/PaintParamsKey.h b/third_party/skia/src/gpu/graphite/PaintParamsKey.h
+index 8eefefc..d2e9fea 100644
+--- a/third_party/skia/src/gpu/graphite/PaintParamsKey.h
++++ b/third_party/skia/src/gpu/graphite/PaintParamsKey.h
+@@ -142,7 +142,7 @@
+ 
+     bool operator==(const PaintParamsKey& that) const {
+         return fData.size() == that.fData.size() &&
+-               SK_UNSAFE_TODO(!memcmp(fData.data(), that.fData.data(), fData.size()));
++               SK_UNSAFE_TODO(!memcmp(fData.data(), that.fData.data(), fData.size_bytes()));
+     }
+     bool operator!=(const PaintParamsKey& that) const { return !(*this == that); }
+ 
+diff --git a/third_party/skia/src/sksl/SkSLParser.cpp b/third_party/skia/src/sksl/SkSLParser.cpp
+index 49d801d..7860963 100644
+--- a/third_party/skia/src/sksl/SkSLParser.cpp
++++ b/third_party/skia/src/sksl/SkSLParser.cpp
+@@ -1292,6 +1292,12 @@
+         this->error(type, "expected a type, found '" + std::string(this->text(type)) + "'");
+         return fCompiler.context().fTypes.fInvalid.get();
+     }
++    if (result->matches(*fCompiler.context().fTypes.fInvalid)) {
++        // In runtime effects, reserved type names (e.g. sampler2D and texture2D) are aliases of the
++        // invalid type. Reject the type whenever it is used.
++        this->error(type, "invalid type");
++        return result;
++    }
+     Token bracket;
+     while (this->checkNext(Token::Kind::TK_LBRACKET, &bracket)) {
+         if (this->checkNext(Token::Kind::TK_RBRACKET)) {
+diff --git a/third_party/skia/src/sksl/ir/SkSLVarDeclarations.cpp b/third_party/skia/src/sksl/ir/SkSLVarDeclarations.cpp
+index 0d49ea3..8d83473 100644
+--- a/third_party/skia/src/sksl/ir/SkSLVarDeclarations.cpp
++++ b/third_party/skia/src/sksl/ir/SkSLVarDeclarations.cpp
+@@ -303,7 +303,8 @@
+                                          const Type* baseType,
+                                          std::unique_ptr<Expression>& value) {
+     if (baseType->matches(*context.fTypes.fInvalid)) {
+-        context.fErrors->error(var.fPosition, "invalid type");
++        // Parser::type() has already reported the error (e.g. a reserved type name like sampler2D
++        // in a runtime effect). Skip the declaration so it doesn't cause further errors.
+         return false;
+     }
+     if (baseType->isVoid()) {
+diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
+index 9481dc1..683b3eb 100644
+--- a/v8/include/v8-version.h
++++ b/v8/include/v8-version.h
+@@ -11,7 +11,7 @@
+ #define V8_MAJOR_VERSION 15
+ #define V8_MINOR_VERSION 7
+ #define V8_BUILD_NUMBER 112
+-#define V8_PATCH_LEVEL 12
++#define V8_PATCH_LEVEL 17
+ 
+ // Use 1 for candidates and 0 otherwise.
+ // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/compiler/backend/code-generator.cc b/v8/src/compiler/backend/code-generator.cc
+index cc55103..cce8ced 100644
+--- a/v8/src/compiler/backend/code-generator.cc
++++ b/v8/src/compiler/backend/code-generator.cc
+@@ -1720,8 +1720,8 @@
+       default:
+         UNREACHABLE();
+     }
+-    if (literal.object().equals(info()->closure()) &&
+-        info()->function_context_specializing()) {
++    if (info()->function_context_specializing() &&
++        literal.IsObject(info()->closure())) {
+       translations_.StoreJSFrameFunction();
+     } else {
+       int literal_id = DefineDeoptimizationLiteral(literal);
+diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
+index e62bf0d..2e28fd7 100644
+--- a/v8/src/maglev/maglev-graph-builder.cc
++++ b/v8/src/maglev/maglev-graph-builder.cc
+@@ -6371,6 +6371,7 @@
+   while (iterator_.current_offset() < continuation.last_continuation) {
+     iterator_.Advance();
+     UpdateSourceAndBytecodePosition(iterator_.current_offset());
++    PrewalkBytecode();
+   }
+ }
+ 
+diff --git a/v8/src/objects/deoptimization-data.h b/v8/src/objects/deoptimization-data.h
+index fccbe10..b3269ca9 100644
+--- a/v8/src/objects/deoptimization-data.h
++++ b/v8/src/objects/deoptimization-data.h
+@@ -85,7 +85,10 @@
+   explicit DeoptimizationLiteral(Tagged<Smi> smi)
+       : kind_(DeoptimizationLiteralKind::kWasmI31Ref), int32_(smi.value()) {}
+ 
+-  IndirectHandle<Object> object() const { return object_; }
++  bool IsObject(IndirectHandle<Object> object) const {
++    return kind_ == DeoptimizationLiteralKind::kObject &&
++           object_.equals(object);
++  }
+ 
+   bool operator==(const DeoptimizationLiteral& other) const {
+     if (kind_ != other.kind_) {
+diff --git a/v8/src/objects/js-function.cc b/v8/src/objects/js-function.cc
+index 585d97d..310ed57 100644
+--- a/v8/src/objects/js-function.cc
++++ b/v8/src/objects/js-function.cc
+@@ -991,8 +991,9 @@
+   // system.
+   // TODO(leszeks): Figure out if this CHECK is needed.
+   CHECK(IsJSReceiver(*prototype));
+-  JSFunction::SetInitialMap(isolate, function, map, prototype);
++  // Initialize slack tracking before publishing the map to concurrent readers.
+   map->StartInobjectSlackTracking();
++  JSFunction::SetInitialMap(isolate, function, map, prototype);
+ }
+ 
+ namespace {
+@@ -1183,11 +1184,12 @@
+       Map::CopyInitialMap(isolate, constructor_initial_map, instance_size,
+                           in_object_properties, unused_property_fields);
+   map->set_new_target_is_base(false);
++  // Initialize slack tracking before publishing the map to concurrent readers.
++  map->set_construction_counter(Map::kNoSlackTracking);
++  map->StartInobjectSlackTracking();
+   DirectHandle<JSReceiver> prototype(new_target->instance_prototype(), isolate);
+   JSFunction::SetInitialMap(isolate, new_target, map, prototype, constructor);
+   DCHECK(IsJSReceiver(new_target->instance_prototype()));
+-  map->set_construction_counter(Map::kNoSlackTracking);
+-  map->StartInobjectSlackTracking();
+   return true;
+ }
+ 
+diff --git a/v8/src/objects/map-inl.h b/v8/src/objects/map-inl.h
+index 74202ec..978009f 100644
+--- a/v8/src/objects/map-inl.h
++++ b/v8/src/objects/map-inl.h
+@@ -1254,9 +1254,12 @@
+   DCHECK(IsUndefined(GetBackPointer()));
+   if (!this->IsInobjectSlackTrackingInProgress()) return;
+   int counter = construction_counter();
+-  set_construction_counter(counter - 1);
+   if (counter == kSlackTrackingCounterEnd) {
++    // The last decrement must happen under the map_updater_access mutex,
++    // together with the instance size changes.
+     MapUpdater::CompleteInobjectSlackTracking(isolate, this);
++  } else {
++    set_construction_counter(counter - 1);
+   }
+ }
+ 
+diff --git a/v8/src/objects/map-updater.cc b/v8/src/objects/map-updater.cc
+index f143735..84999a3 100644
+--- a/v8/src/objects/map-updater.cc
++++ b/v8/src/objects/map-updater.cc
+@@ -400,7 +400,9 @@
+   ElementsKind to_kind = old_map->elements_kind();
+ 
+   IntegrityLevelTransitionInfo info(old_map);
+-  if (root_map->is_extensible() != old_map->is_extensible()) {
++  if (!root_map->is_extensible() && old_map != root_map) {
++    return {};
++  } else if (root_map->is_extensible() != old_map->is_extensible()) {
+     DCHECK(!old_map->is_extensible());
+     DCHECK(root_map->is_extensible());
+     info = DetectIntegrityLevelTransitions(old_map, isolate, &no_gc, cmode);
+@@ -412,7 +414,7 @@
+     DCHECK(to_kind == DICTIONARY_ELEMENTS ||
+            to_kind == SLOW_STRING_WRAPPER_ELEMENTS ||
+            IsTypedArrayOrRabGsabTypedArrayElementsKind(to_kind) ||
+-           IsAnyHoleyNonextensibleElementsKind(to_kind));
++           IsAnyNonextensibleElementsKind(to_kind));
+     to_kind = info.integrity_level_source_map->elements_kind();
+   }
+   if (from_kind != to_kind) {
+@@ -622,6 +624,8 @@
+           direct_handle(root_map_->prototype(), isolate_),
+           root_map_->instance_type())) {
+     return Normalize("Normalize_NotEquivalent");
++  } else if (!root_map_->is_extensible() && *old_map_ != *root_map_) {
++    return Normalize("Normalize_PrivateSymbolsOnNonExtensible");
+   } else if (old_map_->is_extensible() != root_map_->is_extensible()) {
+     DCHECK(!old_map_->is_extensible());
+     DCHECK(root_map_->is_extensible());
+diff --git a/v8/src/objects/map.cc b/v8/src/objects/map.cc
+index 83c3f82..cfeebea 100644
+--- a/v8/src/objects/map.cc
++++ b/v8/src/objects/map.cc
+@@ -608,10 +608,7 @@
+   MaybeObjectDirectHandle wrapped_type = WrapFieldType(type);
+   Descriptor d = Descriptor::DataField(name, offset, attributes, constness,
+                                        representation, wrapped_type);
+-  Handle<Map> new_map = Map::CopyAddDescriptor(isolate, map, &d, flag);
+-
+-  new_map->AccountAddedPropertyField();
+-  return new_map;
++  return Map::CopyAddDescriptor(isolate, map, &d, flag);
+ }
+ 
+ MaybeHandle<Map> Map::CopyWithConstant(Isolate* isolate, DirectHandle<Map> map,
+@@ -1622,6 +1619,10 @@
+     DisallowGarbageCollection no_gc;
+     descriptors->Append(descriptor);
+     result->InitializeDescriptors(*descriptors);
++    // Account for the field before publishing the transition.
++    if (descriptor->GetDetails().location() == PropertyLocation::kField) {
++      result->AccountAddedPropertyField();
++    }
+   }
+ 
+   DCHECK(result->NumberOfOwnDescriptors() == map->NumberOfOwnDescriptors() + 1);
+@@ -2305,7 +2306,12 @@
+       DescriptorArray::CopyUpTo(isolate, descriptors, nof, 1);
+   new_descriptors->Append(descriptor);
+ 
+-  return CopyReplaceDescriptors(isolate, map, new_descriptors, flag,
++  auto InitMap = [&](DirectHandle<Map> new_map) {
++    if (descriptor->GetDetails().location() == PropertyLocation::kField) {
++      new_map->AccountAddedPropertyField();
++    }
++  };
++  return CopyReplaceDescriptors(isolate, map, new_descriptors, flag, InitMap,
+                                 descriptor->GetKey(), "CopyAddDescriptor",
+                                 SIMPLE_PROPERTY_TRANSITION);
+ }
+diff --git a/v8/src/runtime/runtime-literals.cc b/v8/src/runtime/runtime-literals.cc
+index a850501..c594525 100644
+--- a/v8/src/runtime/runtime-literals.cc
++++ b/v8/src/runtime/runtime-literals.cc
+@@ -861,6 +861,14 @@
+   // Object function prototype's map.
+   Tagged<Map> proto_map = js_proto->map();
+ 
++  // Check that the prototype is a plain JSObject with no elements.
++  if (proto_map->instance_type() != JS_OBJECT_TYPE) {
++    return false;
++  }
++  if (js_proto->elements() != ReadOnlyRoots(isolate).empty_fixed_array()) {
++    return false;
++  }
++
+   // Check that given function.prototype object has a default initial state:
+   // it's extensible.
+   if (!proto_map->is_extensible()) {
+@@ -873,13 +881,24 @@
+   }
+ 
+   // it has exactly one "constructor" property installed.
+-  if (js_proto->property_dictionary()->NumberOfElements() != 1) {
+-    return false;
+-  }
+-  if (js_proto->property_dictionary()
+-          ->FindEntry(isolate, isolate->factory()->constructor_string())
+-          .is_not_found()) {
+-    return false;
++  if constexpr (V8_ENABLE_SWISS_NAME_DICTIONARY_BOOL) {
++    if (js_proto->property_dictionary_swiss()->NumberOfElements() != 1) {
++      return false;
++    }
++    if (js_proto->property_dictionary_swiss()
++            ->FindEntry(isolate, isolate->factory()->constructor_string())
++            .is_not_found()) {
++      return false;
++    }
++  } else {
++    if (js_proto->property_dictionary()->NumberOfElements() != 1) {
++      return false;
++    }
++    if (js_proto->property_dictionary()
++            ->FindEntry(isolate, isolate->factory()->constructor_string())
++            .is_not_found()) {
++      return false;
++    }
+   }
+ 
+   // its prototype is the original and unmodified Object.prototype object.
+@@ -912,7 +931,7 @@
+   }
+ 
+   DirectHandle<JSFunction> acc_fun = Cast<JSFunction>(obj);
+-  if (!acc_fun->has_prototype_slot()) {
++  if (!acc_fun->has_prototype_slot() || !acc_fun->has_prototype_property()) {
+     RETURN_RESULT_OR_FAILURE(
+         isolate, SetPrototypePropertiesSlow(isolate, context, obj,
+                                             object_boilerplate_description,
+@@ -942,18 +961,21 @@
+                                             feedback_cell_array, current_slot));
+   }
+ 
+-  if (IsSpecialReceiverMap(js_proto->map())) {
+-    RETURN_RESULT_OR_FAILURE(
+-        isolate, SetPrototypePropertiesSlow(isolate, context, obj,
+-                                            object_boilerplate_description,
+-                                            feedback_cell_array, current_slot));
+-  }
+-
+-  if (!JSObject::IsExtensible(isolate, js_proto)) {
+-    RETURN_RESULT_OR_FAILURE(
+-        isolate, SetPrototypePropertiesSlow(isolate, context, obj,
+-                                            object_boilerplate_description,
+-                                            feedback_cell_array, current_slot));
++  // Use the slow path for exotic receivers, interceptors, or access checks.
++  {
++    Tagged<Map> js_proto_map = js_proto->map();
++    if (IsCustomElementsReceiverMap(js_proto_map) ||
++        IsJSTypedArrayMap(js_proto_map) ||
++        IsAlwaysSharedSpaceJSObjectMap(js_proto_map) ||
++        js_proto_map->is_access_check_needed() ||
++        js_proto_map->has_named_interceptor() ||
++        js_proto_map->has_indexed_interceptor() ||
++        !JSObject::IsExtensible(isolate, js_proto)) {
++      RETURN_RESULT_OR_FAILURE(
++          isolate, SetPrototypePropertiesSlow(
++                       isolate, context, obj, object_boilerplate_description,
++                       feedback_cell_array, current_slot));
++    }
+   }
+ 
+   bool is_default_func_prototype =
+@@ -982,13 +1004,14 @@
+         DirectHandle<AccessorInfo> accessor_info =
+             isolate->factory()->lazy_closure_accessor();
+ 
+-        JSObject::SetAccessor(js_proto, name, accessor_info,
+-                              PropertyAttributes::NONE)
+-            .Check();
++        RETURN_FAILURE_ON_EXCEPTION(
++            isolate, JSObject::SetAccessor(js_proto, name, accessor_info,
++                                           PropertyAttributes::NONE));
+       } else {
+-        Object::TransitionAndWriteDataProperty(
+-            &it, value, NONE, Just(kDontThrow), StoreOrigin::kNamed)
+-            .Check();
++        MAYBE_RETURN(
++            Object::TransitionAndWriteDataProperty(
++                &it, value, NONE, Just(kDontThrow), StoreOrigin::kNamed),
++            ReadOnlyRoots(isolate).exception());
+       }
+       result = value;
+     }
+@@ -1034,7 +1057,8 @@
+           current_slot++;
+         }
+         it.UpdateProtector();
+-        Object::SetDataProperty(&it, value).Check();
++        MAYBE_RETURN(Object::SetDataProperty(&it, value),
++                     ReadOnlyRoots(isolate).exception());
+       } else {
+         value = InstantiateIfSharedFunctionInfo(
+             context, isolate, js_proto, value, feedback_cell_array,
+@@ -1047,13 +1071,15 @@
+           // doesn't invalidate protectors, so do it here for e.g. `then` or
+           // `next` added to a watched prototype.
+           it.UpdateProtector();
+-          JSObject::SetAccessor(js_proto, Cast<Name>(key), accessor_info,
+-                                PropertyAttributes::NONE)
+-              .Check();
++          RETURN_FAILURE_ON_EXCEPTION(
++              isolate,
++              JSObject::SetAccessor(js_proto, Cast<Name>(key), accessor_info,
++                                    PropertyAttributes::NONE));
+         } else {
+-          Object::TransitionAndWriteDataProperty(
+-              &it, value, NONE, Just(kDontThrow), StoreOrigin::kNamed)
+-              .Check();
++          MAYBE_RETURN(
++              Object::TransitionAndWriteDataProperty(
++                  &it, value, NONE, Just(kDontThrow), StoreOrigin::kNamed),
++              ReadOnlyRoots(isolate).exception());
+         }
+       }
+       result = value;
+diff --git a/build/util/LASTCHANGE b/build/util/LASTCHANGE
+--- a/build/util/LASTCHANGE
++++ b/build/util/LASTCHANGE
+@@ -1,2 +1,2 @@
+-LASTCHANGE=638dd0ef2fd334b657efb909d06d0164ea4d9443-refs/branch-heads/8103@{#943}
++LASTCHANGE=40aa46194a841a35609fca1cbc7403808b104da0-refs/branch-heads/8103@{#986}
+ LASTCHANGE_YEAR=2026
+diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
+--- a/build/util/LASTCHANGE.committime
++++ b/build/util/LASTCHANGE.committime
+@@ -1 +1 @@
+-1793133444
+\ No newline at end of file
++1793315042
+\ No newline at end of file
+diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
+--- a/gpu/config/gpu_lists_version.h
++++ b/gpu/config/gpu_lists_version.h
+@@ -3,6 +3,6 @@
+ #ifndef GPU_CONFIG_GPU_LISTS_VERSION_H_
+ #define GPU_CONFIG_GPU_LISTS_VERSION_H_
+ 
+-#define GPU_LISTS_VERSION "638dd0ef2fd334b657efb909d06d0164ea4d9443"
++#define GPU_LISTS_VERSION "40aa46194a841a35609fca1cbc7403808b104da0"
+ 
+ #endif  // GPU_CONFIG_GPU_LISTS_VERSION_H_
+diff --git a/skia/ext/skia_commit_hash.h b/skia/ext/skia_commit_hash.h
+--- a/skia/ext/skia_commit_hash.h
++++ b/skia/ext/skia_commit_hash.h
+@@ -3,6 +3,6 @@
+ #ifndef SKIA_EXT_SKIA_COMMIT_HASH_H_
+ #define SKIA_EXT_SKIA_COMMIT_HASH_H_
+ 
+-#define SKIA_COMMIT_HASH "fa428e2b9c671ce8e57b3823536b4a1f648d178d"
++#define SKIA_COMMIT_HASH "e67fbd8c35cda931cb224edc8566304e603a6458"
+ 
+ #endif  // SKIA_EXT_SKIA_COMMIT_HASH_H_

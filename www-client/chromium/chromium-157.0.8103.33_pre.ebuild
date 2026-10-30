@@ -43,8 +43,8 @@ RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit build (rustc driver, ti
 CRUBIT_DATE="20260930"
 PPC64_HASH="7aae8a84e327fc2078ce1625c9c70bfda77d626f"
 COPIUM_COMMIT="027d15ffdcd1816b7935cee9ea4a4f6bae0bbe60"
-# 157.0.8103.32 is a tag without a tarball: built from the 157.0.8103.30 tarball plus
-# files/chromium-157.0.8103.30-to-157.0.8103.32.patch (see its header).
+# 157.0.8103.33 is a tag without a tarball: built from the 157.0.8103.30 tarball plus
+# files/chromium-157.0.8103.30-to-157.0.8103.33.patch (see its header).
 CHROMIUM_TARBALL_PV="157.0.8103.30"
 # Inputs of ANGLE's code generators that the tarball lacks (files/chromium-angle-regen.py):
 # Khronos' registries at ANGLE's (and, for Vulkan, Chromium's) DEPS revisions; perfect-hash,
@@ -176,7 +176,6 @@ KEYWORDS="~amd64 ~arm64"
 
 # Security fixes this version hasn't got yet, applied first (see their headers).
 CHROMIUM_FIXES=(
-	chromium-157-cve-2026-118332.patch
 	chromium-157-cve-2026-76026.patch
 	chromium-157-cve-2026-119270.patch
 	chromium-157-svg-image-retain.patch
