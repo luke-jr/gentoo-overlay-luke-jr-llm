@@ -191,6 +191,7 @@ CHROMIUM_FIXES=(
 	chromium-157-image-fetcher-no-symlinks.patch
 	chromium-157-skia-sksl-rp-branches.patch
 	chromium-157-skia-graphite-clip-inflation.patch
+	chromium-157-background-fetch-cors-retry.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
