@@ -1,0 +1,67 @@
+"gpu: Reject empty rects in CopySharedImageHelper" (crbug 574376940; no CVE
+listed yet): CopySharedImage() with an empty source rect drew nothing but
+still marked the destination as cleared, exposing uninitialized GPU memory
+to later readers. chromium/src main commit
+295fab38e752ddea60f45ad85a48513657749749, merged on 2026-10-30 to 158 and to
+157 as 0ce4835c3b4693e396ee743e28388b8285c6ed25 (refs/branch-heads/8103@{#1004},
+after the 157.0.8103.33 tag); merges to 156 and LTS proposed. This is the
+157 merge, without its tests. Drop it once a 157 tag has it.
+
+diff --git a/gpu/command_buffer/service/copy_shared_image_helper.cc b/gpu/command_buffer/service/copy_shared_image_helper.cc
+index 02bf7476..e3dd634 100644
+--- a/gpu/command_buffer/service/copy_shared_image_helper.cc
++++ b/gpu/command_buffer/service/copy_shared_image_helper.cc
+@@ -168,7 +168,7 @@
+ 
+   gfx::Size source_size = source_shared_image->size();
+   gfx::Rect source_rect(x, y, width, height);
+-  if (!gfx::Rect(source_size).Contains(source_rect)) {
++  if (source_rect.IsEmpty() || !gfx::Rect(source_size).Contains(source_rect)) {
+     return false;
+   }
+ 
+@@ -280,7 +280,7 @@
+ 
+   gfx::Size dest_size = dest_shared_image->size();
+   gfx::Rect dest_rect(xoffset, yoffset, dst_width, dst_height);
+-  if (!gfx::Rect(dest_size).Contains(dest_rect)) {
++  if (dest_rect.IsEmpty() || !gfx::Rect(dest_size).Contains(dest_rect)) {
+     return base::unexpected(GLError(GL_INVALID_VALUE, "CopySharedImage",
+                                     "destination texture bad dimensions."));
+   }
+@@ -401,7 +401,7 @@
+ 
+   gfx::Size source_size = source_shared_image->size();
+   gfx::Rect source_rect(x, y, src_width, src_height);
+-  if (!gfx::Rect(source_size).Contains(source_rect)) {
++  if (source_rect.IsEmpty() || !gfx::Rect(source_size).Contains(source_rect)) {
+     return base::unexpected(GLError(GL_INVALID_VALUE, "CopySharedImage",
+                                     "source texture bad dimensions."));
+   }
+@@ -576,7 +576,7 @@
+ 
+   gfx::Size source_size = source_shared_image->size();
+   gfx::Rect source_rect(src_x, src_y, width, height);
+-  if (!gfx::Rect(source_size).Contains(source_rect)) {
++  if (source_rect.IsEmpty() || !gfx::Rect(source_size).Contains(source_rect)) {
+     return base::unexpected<GLError>(GLError(GL_INVALID_VALUE,
+                                              "CopySharedImageToGLTexture",
+                                              "source texture bad dimensions."));
+@@ -648,7 +648,7 @@
+                              size_t row_bytes) {
+   gfx::Rect src_rect(src_x, src_y, dst_info.width(), dst_info.height());
+   gfx::Rect src_image_bounds(sk_image->width(), sk_image->height());
+-  CHECK(src_image_bounds.Contains(src_rect));
++  CHECK(!src_rect.IsEmpty() && src_image_bounds.Contains(src_rect));
+ 
+   CHECK(graphite_shared_context);
+   ReadPixelsContext context;
+@@ -735,7 +735,7 @@
+ 
+   gfx::Rect src_rect(src_x, src_y, dst_info.width(), dst_info.height());
+   gfx::Rect src_image_bounds(sk_image->width(), sk_image->height());
+-  if (!src_image_bounds.Contains(src_rect)) {
++  if (src_rect.IsEmpty() || !src_image_bounds.Contains(src_rect)) {
+     source_scoped_access->ApplyBackendSurfaceEndState();
+     shared_context_state_->SubmitIfNecessary(
+         std::move(end_semaphores),
