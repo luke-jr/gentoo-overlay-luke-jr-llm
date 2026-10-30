@@ -179,6 +179,14 @@ CHROMIUM_FIXES=(
 	chromium-157-cve-2026-76026.patch
 	chromium-157-cve-2026-119270.patch
 	chromium-157-svg-image-retain.patch
+	chromium-157-media-controls-read-only.patch
+	chromium-157-display-lock-trace.patch
+	chromium-157-skia-region-conic-oob.patch
+	chromium-157-fsa-block-dot-cache.patch
+	chromium-157-encoding-detector-tld-hint.patch
+	chromium-157-paste-svg-use-sanitize.patch
+	chromium-157-v8-template-object-writes.patch
+	chromium-157-webrtc-empty-network-manager.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.

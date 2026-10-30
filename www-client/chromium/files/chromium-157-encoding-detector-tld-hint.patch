@@ -1,0 +1,71 @@
+"Pass extracted TLD to CompactEncDet::DetectEncoding()" (crbug 578671521;
+no CVE listed yet): text encoding detection took its TLD hint from the full
+URL, and a colon in the userinfo ("http://a.jp:x@example.com/") let a page
+spoof it, steering the detected charset. chromium/src main commit
+3d786246808bf5db19af9953395db3ceaad62a71, merged on 2026-10-30 to 158 and
+to 157 as ceee4f5c20ca0cd40531ecd140b9ec16375ee0ff
+(refs/branch-heads/8103@{#991}, after the 157.0.8103.33 tag). This is the
+157 merge, without its test; it adds a kill switch,
+TextEncodingDetectorTldHint (enabled). Drop it once a 157 tag has it.
+
+diff --git a/third_party/blink/renderer/platform/runtime_enabled_features.json5 b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+index 8f5b96aa..2fc1e18 100644
+--- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
++++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+@@ -6634,6 +6634,11 @@
+       status: "experimental",
+     },
+     {
++      // https://crbug.com/578671521
++      name: "TextEncodingDetectorTldHint",
++      status: "stable",
++    },
++    {
+       name: "TextFragmentAPI",
+       status: "experimental",
+     },
+diff --git a/third_party/blink/renderer/platform/text/text_encoding_detector.cc b/third_party/blink/renderer/platform/text/text_encoding_detector.cc
+index 4b4a9b5..0434d2b 100644
+--- a/third_party/blink/renderer/platform/text/text_encoding_detector.cc
++++ b/third_party/blink/renderer/platform/text/text_encoding_detector.cc
+@@ -31,10 +31,13 @@
+ #include "third_party/blink/renderer/platform/text/text_encoding_detector.h"
+ 
+ #include <algorithm>
++#include <string>
+ 
+ #include "base/numerics/safe_conversions.h"
+ #include "build/build_config.h"
++#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ #include "third_party/blink/renderer/platform/weborigin/kurl.h"
++#include "third_party/blink/renderer/platform/wtf/text/string_view.h"
+ #include "third_party/blink/renderer/platform/wtf/text/text_encoding.h"
+ #include "third_party/ced/src/compact_enc_det/compact_enc_det.h"
+ #include "url/url_util.h"
+@@ -71,12 +74,25 @@
+   if (is_local_resource) {
+     LanguageFromCode(hint_user_language, &language);
+   }
++
++  // crbug.com/578671521: We'd like to pass only TLD rather than the full URL to
++  // avoid spoofing.
++  std::string url_or_tld_hint;
++  if (RuntimeEnabledFeatures::TextEncodingDetectorTldHintEnabled()) {
++    StringView host = hint_url.Host();
++    if (wtf_size_t dot_index = host.rfind('.'); dot_index != kNotFound) {
++      url_or_tld_hint = host.substr(dot_index + 1).Utf8();
++    }
++  } else {
++    url_or_tld_hint = hint_url.GetString().Ascii();
++  }
++
+   int consumed_bytes;
+   bool is_reliable;
+   auto chars = base::as_chars(bytes);
+   Encoding encoding = CompactEncDet::DetectEncoding(
+       chars.data(), base::checked_cast<int>(chars.size()),
+-      hint_url.GetString().Ascii().c_str(), nullptr, nullptr,
++      url_or_tld_hint.c_str(), nullptr, nullptr,
+       EncodingNameAliasToEncoding(hint_encoding_name), language,
+       CompactEncDet::WEB_CORPUS,
+       false,  // Include 7-bit encodings to detect ISO-2022-JP

@@ -1,0 +1,23 @@
+"Traverse children of kept SVG <use> in StripSvgUseNonLocalHrefs()" (crbug
+578083806; no CVE listed yet): paste sanitization stopped looking inside a
+kept SVG <use>, so nested <use> elements with non-local or data: hrefs
+survived it. chromium/src main commit
+43ca9470bceab975eccaec80b0627459b99575cb, merged on 2026-10-30 to 158 and to
+157 as 523084293beb0ca661f642bb1dcb583c85466872
+(refs/branch-heads/8103@{#992}, after the 157.0.8103.33 tag). This is the
+157 merge (a one-line move), without its tests. Drop it once a 157 tag has it.
+
+diff --git a/third_party/blink/renderer/core/editing/serializers/serialization.cc b/third_party/blink/renderer/core/editing/serializers/serialization.cc
+index 8821f5da..edb529b 100644
+--- a/third_party/blink/renderer/core/editing/serializers/serialization.cc
++++ b/third_party/blink/renderer/core/editing/serializers/serialization.cc
+@@ -848,8 +848,8 @@
+     SVGURLReferenceResolver resolver(use->HrefString(), use->GetDocument());
+     if (!resolver.IsLocal() || resolver.AbsoluteUrl().ProtocolIsData()) {
+       node.remove();
++      return true;
+     }
+-    return true;
+   }
+   bool stripped = false;
+   for (Node* child = node.firstChild(); child;) {
