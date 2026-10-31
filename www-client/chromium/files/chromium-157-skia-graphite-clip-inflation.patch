@@ -1,0 +1,60 @@
+Skia: "[graphite] Include hairline and subpixel strokes in inflation radius"
+(Skia bug 577352772; no CVE listed yet): Graphite's ClipStack computed draw
+bounds that could be too small for hairlines and strokes thinner than a
+pixel, so their rendering could reach past the bounds used for clipping.
+Not described as a security fix; carried as GPU rendering robustness,
+cherry-picked by Skia to every Stable milestone. Skia main commit
+0b6488a8123559cb72c03b987c2d717047bcac21, cut down to the ClipStack part for
+older milestones and merged on 2026-10-30 to chrome/m157
+(ca84ce0a6f1659748188469a89361ccea71e3a64) and m158; the m156 merge (Skia
+Gerrit CL 1411518) was still open. This is the m157 merge, at third_party/skia.
+Drop it once a 157 tag's Skia has it.
+
+diff --git a/third_party/skia/src/gpu/graphite/ClipStack.cpp b/third_party/skia/src/gpu/graphite/ClipStack.cpp
+index 5e8d407..784b264 100644
+--- a/third_party/skia/src/gpu/graphite/ClipStack.cpp
++++ b/third_party/skia/src/gpu/graphite/ClipStack.cpp
+@@ -1369,9 +1369,22 @@
+         fLocalToDevice = Transform::Identity();
+         fShapeMatchesGeometry = false;
+     } else {
+-        // SkStrokeRec::GetInflationRadius() returns a device-space inflation for hairlines.
+         float localOutset = 0.f;
+-        if (!style.isFillStyle() && !style.isHairlineStyle()) {
++        if (style.isFillStyle()) {
++            // If the shape projects to a subpixel shape, expand the local bounds by the AA radius
++            // to create a conservative clip query that preserves the oriented bounding box.
++            if (!fShape.inverted() && any(origSize < localAAOutset)) {
++                localOutset = 0.5f * localAAOutset;
++            }
++        } else {
++            // getInflationRadius() does not handle device-space inflation for hairlines, but to
++            // preserve the bounding box in local space for as long as possible, use the
++            // `localAAOutset` as a conservative estimate for the local stroke radius that would
++            // cover the hairline.
++            //
++            // For local strokes that project to a subpixel shape, clamp to the localAAOutset as
++            // well to handle rendering that pads beyond the 1/2px outset in the subpixel case.
++            const float effectiveStrokeWidth = std::max(localAAOutset, style.getWidth());
+             // Rectangles, rounded rectangles, and lines do not produce miters so don't count the
+             // pessimistic limit against their draw bounds.
+             const float effectiveMiterLimit = fShape.isPath() ? style.getMiter() : 1.f;
+@@ -1383,17 +1396,7 @@
+             localOutset = SkStrokeRec::GetInflationRadius(style.getJoin(),
+                                                           effectiveMiterLimit,
+                                                           effectiveCap,
+-                                                          style.getWidth());
+-        }
+-
+-        if (style.isHairlineStyle() ||
+-            (!style.isFillStyle() && style.getWidth() < localAAOutset) ||
+-            (style.isFillStyle() && !fShape.inverted() && any(origSize < localAAOutset))) {
+-            // The geometry is a hairline or projects to a subpixel shape, so rendering will not
+-            // follow the typical 1/2px outset anti-aliasing that is compatible with clipping.
+-            // In this case, apply the local AA radius to the shape to have a conservative clip
+-            // query while preserving the oriented bounding box.
+-            localOutset += localAAOutset;
++                                                          effectiveStrokeWidth);
+         }
+ 
+         if (localOutset > 0.f) {

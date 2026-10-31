@@ -1,0 +1,368 @@
+"[Background Fetch] Preserve CORS parameters on download retry and fix null
+response crash" (crbug 574059465; no CVE listed yet): when a Background
+Fetch download was interrupted and resumed, its fetch mode, credentials
+mode, initiator, isolation info and URL loader factory were lost, so a
+cross-origin retry reverted to navigation mode and bypassed CORS; and a
+download failing before its response headers crashed on a null response.
+chromium/src main commit 40142acee843ca4531d1cb2851a311ca8f64e478
+(main@{#1730715}), merged on 2026-10-30 to 158 and to 157 as
+40158475f2b69b773f4d29a8f4fb79c30c1af9ca (refs/branch-heads/8103@{#1003},
+after the 157.0.8103.33 tag); not proposed for 156. This is the 157 merge,
+without its tests. Drop it once a 157 tag has it.
+
+diff --git a/chrome/browser/background_fetch/background_fetch_delegate_impl.cc b/chrome/browser/background_fetch/background_fetch_delegate_impl.cc
+index 3acb51a..b9bc808 100644
+--- a/chrome/browser/background_fetch/background_fetch_delegate_impl.cc
++++ b/chrome/browser/background_fetch/background_fetch_delegate_impl.cc
+@@ -22,6 +22,7 @@
+ #include "components/background_fetch/job_details.h"
+ #include "components/download/public/background_service/background_download_service.h"
+ #include "components/download/public/common/download_features.h"
++#include "components/offline_items_collection/core/fail_state.h"
+ #include "components/offline_items_collection/core/offline_content_aggregator.h"
+ #include "components/offline_items_collection/core/offline_item.h"
+ #include "content/public/browser/background_fetch_description.h"
+@@ -314,6 +315,8 @@
+   switch (job_details->job_state) {
+     case JobState::kCancelled:
+       offline_item->state = OfflineItemState::CANCELLED;
++      offline_item->fail_state =
++          offline_items_collection::FailState::USER_CANCELED;
+       break;
+     case JobState::kDownloadsComplete:
+       // This includes cases when the download failed, or completed but the
+diff --git a/chrome/browser/download/deferred_client_wrapper.cc b/chrome/browser/download/deferred_client_wrapper.cc
+index 2e96327..c38e5f0d 100644
+--- a/chrome/browser/download/deferred_client_wrapper.cc
++++ b/chrome/browser/download/deferred_client_wrapper.cc
+@@ -123,6 +123,10 @@
+   RunDeferredClosures(true /*force_inflate*/);
+ }
+ 
++bool DeferredClientWrapper::RequiresCustomRequestParameters() const {
++  return wrapped_client_ && wrapped_client_->RequiresCustomRequestParameters();
++}
++
+ void DeferredClientWrapper::ForwardOnServiceInitialized(
+     bool state_lost,
+     const std::vector<DownloadMetaData>& downloads) {
+diff --git a/chrome/browser/download/deferred_client_wrapper.h b/chrome/browser/download/deferred_client_wrapper.h
+index f163261..4d5c7185 100644
+--- a/chrome/browser/download/deferred_client_wrapper.h
++++ b/chrome/browser/download/deferred_client_wrapper.h
+@@ -50,6 +50,7 @@
+                                       bool force_delete) override;
+   void GetUploadData(const std::string& guid,
+                      GetUploadDataCallback callback) override;
++  bool RequiresCustomRequestParameters() const override;
+ 
+  private:
+   // Forwarding functions
+diff --git a/components/download/content/internal/download_driver_impl.cc b/components/download/content/internal/download_driver_impl.cc
+index acad457b..112c5c4 100644
+--- a/components/download/content/internal/download_driver_impl.cc
++++ b/components/download/content/internal/download_driver_impl.cc
+@@ -295,7 +295,9 @@
+ 
+ void DownloadDriverImpl::ResumeWithFactory(
+     const std::string& guid,
+-    scoped_refptr<network::SharedURLLoaderFactory> factory) {
++    scoped_refptr<network::SharedURLLoaderFactory> factory,
++    const std::optional<url::Origin>& request_initiator,
++    const std::optional<net::IsolationInfo>& isolation_info) {
+   if (!download_manager_coordinator_)
+     return;
+   DownloadItem* item = download_manager_coordinator_->GetDownloadByGuid(guid);
+@@ -303,6 +305,12 @@
+     if (factory) {
+       item->SetURLLoaderFactory(std::move(factory));
+     }
++    if (request_initiator) {
++      item->SetRequestInitiator(request_initiator);
++    }
++    if (isolation_info) {
++      item->SetIsolationInfo(isolation_info);
++    }
+     item->Resume(true);
+   }
+ }
+diff --git a/components/download/content/internal/download_driver_impl.h b/components/download/content/internal/download_driver_impl.h
+index af648e0..df7d993 100644
+--- a/components/download/content/internal/download_driver_impl.h
++++ b/components/download/content/internal/download_driver_impl.h
+@@ -55,7 +55,9 @@
+   void Pause(const std::string& guid) override;
+   void ResumeWithFactory(
+       const std::string& guid,
+-      scoped_refptr<network::SharedURLLoaderFactory> factory) override;
++      scoped_refptr<network::SharedURLLoaderFactory> factory,
++      const std::optional<url::Origin>& request_initiator,
++      const std::optional<net::IsolationInfo>& isolation_info) override;
+   std::optional<DriverEntry> Find(const std::string& guid) override;
+   std::set<std::string> GetActiveDownloads() override;
+   size_t EstimateMemoryUsage() const override;
+diff --git a/components/download/database/in_progress/download_entry.h b/components/download/database/in_progress/download_entry.h
+index c702d84..7ca71c8 100644
+--- a/components/download/database/in_progress/download_entry.h
++++ b/components/download/database/in_progress/download_entry.h
+@@ -10,6 +10,7 @@
+ #include "components/download/public/common/download_source.h"
+ #include "components/download/public/common/download_url_parameters.h"
+ #include "services/metrics/public/cpp/ukm_source_id.h"
++#include "services/network/public/mojom/fetch_api.mojom-shared.h"
+ 
+ namespace download {
+ 
+@@ -52,6 +53,14 @@
+   // True if a Service Worker fetch handler produced the original response.
+   bool fetched_via_service_worker = false;
+ 
++  // The credentials mode of the request.
++  ::network::mojom::CredentialsMode credentials_mode =
++      ::network::mojom::CredentialsMode::kInclude;
++
++  // The fetch request mode of the request.
++  ::network::mojom::RequestMode fetch_request_mode =
++      ::network::mojom::RequestMode::kNavigate;
++
+   // Request header key/value pairs that will be added to the download HTTP
+   // request.
+   DownloadUrlParameters::RequestHeadersType request_headers;
+diff --git a/components/download/internal/background_service/controller_impl.cc b/components/download/internal/background_service/controller_impl.cc
+index 9d0374f7..25337448 100644
+--- a/components/download/internal/background_service/controller_impl.cc
++++ b/components/download/internal/background_service/controller_impl.cc
+@@ -1042,7 +1042,10 @@
+         !guids_with_custom_request_params_.contains(entry->guid);
+ 
+     if (driver_entry.has_value() && !requires_custom_params) {
+-      driver_->Resume(entry->guid);
++      driver_->ResumeWithFactory(entry->guid,
++                                 entry->request_params.url_loader_factory,
++                                 entry->request_params.initiator,
++                                 entry->request_params.isolation_info);
+     } else {
+       if (driver_entry.has_value() && entry->has_upload_data) {
+         // HTTP POST requests cannot be resumed, they must be restarted.
+@@ -1117,8 +1120,9 @@
+   auto driver_entry = driver_->Find(guid);
+   if (driver_entry.has_value()) {
+     DVLOG(1) << "Download already exists. Resuming.";
+-    driver_->ResumeWithFactory(entry->guid,
+-                               entry->request_params.url_loader_factory);
++    driver_->ResumeWithFactory(
++        entry->guid, entry->request_params.url_loader_factory,
++        entry->request_params.initiator, entry->request_params.isolation_info);
+     return;
+   }
+ 
+diff --git a/components/download/internal/background_service/download_driver.h b/components/download/internal/background_service/download_driver.h
+index 2dd84d7..d7b67db 100644
+--- a/components/download/internal/background_service/download_driver.h
++++ b/components/download/internal/background_service/download_driver.h
+@@ -12,8 +12,10 @@
+ #include <string>
+ 
+ #include "components/download/internal/background_service/driver_entry.h"
++#include "net/base/isolation_info.h"
+ #include "net/traffic_annotation/network_traffic_annotation.h"
+ #include "services/network/public/cpp/shared_url_loader_factory.h"
++#include "url/origin.h"
+ 
+ namespace base {
+ class FilePath;
+@@ -108,14 +110,18 @@
+   virtual void Pause(const std::string& guid) = 0;
+ 
+   // Resumes the download
+-  void Resume(const std::string& guid) { ResumeWithFactory(guid, nullptr); }
++  void Resume(const std::string& guid) {
++    ResumeWithFactory(guid, nullptr, std::nullopt, std::nullopt);
++  }
+ 
+   // Resumes a paused/interrupted download while providing a brand new
+-  // URLLoaderFactory. Used by clients that need to repopulate the factory
+-  // during repreparation.
++  // URLLoaderFactory, request initiator, and isolation info. Used by clients
++  // that need to repopulate these parameters during repreparation.
+   virtual void ResumeWithFactory(
+       const std::string& guid,
+-      scoped_refptr<network::SharedURLLoaderFactory> factory) = 0;
++      scoped_refptr<network::SharedURLLoaderFactory> factory,
++      const std::optional<url::Origin>& request_initiator,
++      const std::optional<net::IsolationInfo>& isolation_info) = 0;
+ 
+   // Finds a download record from low level download library.
+   virtual std::optional<DriverEntry> Find(const std::string& guid) = 0;
+diff --git a/components/download/internal/background_service/in_memory_download_driver.cc b/components/download/internal/background_service/in_memory_download_driver.cc
+index d0725e9..f6f744a8 100644
+--- a/components/download/internal/background_service/in_memory_download_driver.cc
++++ b/components/download/internal/background_service/in_memory_download_driver.cc
+@@ -144,7 +144,9 @@
+ 
+ void InMemoryDownloadDriver::ResumeWithFactory(
+     const std::string& guid,
+-    scoped_refptr<network::SharedURLLoaderFactory> factory) {
++    scoped_refptr<network::SharedURLLoaderFactory> factory,
++    const std::optional<url::Origin>& request_initiator,
++    const std::optional<net::IsolationInfo>& isolation_info) {
+   auto it = downloads_.find(guid);
+   if (it != downloads_.end()) {
+     it->second->Resume();
+diff --git a/components/download/internal/background_service/in_memory_download_driver.h b/components/download/internal/background_service/in_memory_download_driver.h
+index 63c98d5..8a10daf 100644
+--- a/components/download/internal/background_service/in_memory_download_driver.h
++++ b/components/download/internal/background_service/in_memory_download_driver.h
+@@ -71,7 +71,9 @@
+   void Pause(const std::string& guid) override;
+   void ResumeWithFactory(
+       const std::string& guid,
+-      scoped_refptr<network::SharedURLLoaderFactory> factory) override;
++      scoped_refptr<network::SharedURLLoaderFactory> factory,
++      const std::optional<url::Origin>& request_initiator,
++      const std::optional<net::IsolationInfo>& isolation_info) override;
+   std::optional<DriverEntry> Find(const std::string& guid) override;
+   std::set<std::string> GetActiveDownloads() override;
+   size_t EstimateMemoryUsage() const override;
+diff --git a/components/download/internal/common/download_item_impl.cc b/components/download/internal/common/download_item_impl.cc
+index 09c37cd..91eb2937 100644
+--- a/components/download/internal/common/download_item_impl.cc
++++ b/components/download/internal/common/download_item_impl.cc
+@@ -445,6 +445,8 @@
+     bytes_wasted_ = download_entry->bytes_wasted;
+     request_info_.fetched_via_service_worker =
+         download_entry->fetched_via_service_worker;
++    request_info_.credentials_mode = download_entry->credentials_mode;
++    request_info_.fetch_request_mode = download_entry->fetch_request_mode;
+   } else {
+     ukm_download_id_ = ukm::NoURLSourceId();
+   }
+@@ -983,6 +985,11 @@
+   return request_info_.request_initiator;
+ }
+ 
++void DownloadItemImpl::SetRequestInitiator(
++    const std::optional<url::Origin>& request_initiator) {
++  request_info_.request_initiator = request_initiator;
++}
++
+ std::string DownloadItemImpl::GetSuggestedFilename() const {
+   return request_info_.suggested_filename;
+ }
+@@ -1296,6 +1303,11 @@
+   return request_info_.isolation_info;
+ }
+ 
++void DownloadItemImpl::SetIsolationInfo(
++    const std::optional<net::IsolationInfo>& isolation_info) {
++  request_info_.isolation_info = isolation_info;
++}
++
+ void DownloadItemImpl::OnContentCheckCompleted(DownloadDangerType danger_type,
+                                                DownloadInterruptReason reason) {
+   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+@@ -2681,6 +2693,14 @@
+   download_params->set_hash_of_partial_file(GetHash());
+   download_params->set_hash_state(std::exchange(hash_state_, std::nullopt));
+   download_params->set_guid(guid_);
++  download_params->set_fetch_request_mode(request_info_.fetch_request_mode);
++  download_params->set_credentials_mode(request_info_.credentials_mode);
++  if (request_info_.request_initiator.has_value()) {
++    download_params->set_initiator(*request_info_.request_initiator);
++  }
++  if (request_info_.isolation_info.has_value()) {
++    download_params->set_isolation_info(*request_info_.isolation_info);
++  }
+ 
+   if (url_loader_factory_) {
+     download_params->set_url_loader_factory(url_loader_factory_->Clone());
+diff --git a/components/download/internal/common/download_utils.cc b/components/download/internal/common/download_utils.cc
+index 14c1a6b..320e2ea 100644
+--- a/components/download/internal/common/download_utils.cc
++++ b/components/download/internal/common/download_utils.cc
+@@ -674,6 +674,8 @@
+       ukm_info->ukm_download_id);
+   download_entry->fetched_via_service_worker =
+       in_progress_info->fetched_via_service_worker;
++  download_entry->credentials_mode = in_progress_info->credentials_mode;
++  download_entry->fetch_request_mode = in_progress_info->fetch_request_mode;
+   return download_entry;
+ }
+ 
+diff --git a/components/download/public/common/download_item.cc b/components/download/public/common/download_item.cc
+index 540af6e4..99d93cb 100644
+--- a/components/download/public/common/download_item.cc
++++ b/components/download/public/common/download_item.cc
+@@ -26,5 +26,10 @@
+ void DownloadItem::SetURLLoaderFactory(
+     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory) {}
+ 
++void DownloadItem::SetRequestInitiator(
++    const std::optional<url::Origin>& request_initiator) {}
++
++void DownloadItem::SetIsolationInfo(
++    const std::optional<net::IsolationInfo>& isolation_info) {}
+ 
+ }  // namespace download
+diff --git a/components/download/public/common/download_item.h b/components/download/public/common/download_item.h
+index 459b304..32ed6e1 100644
+--- a/components/download/public/common/download_item.h
++++ b/components/download/public/common/download_item.h
+@@ -321,6 +321,8 @@
+ 
+   // Origin of the original originator of this download, before redirects, etc.
+   virtual const std::optional<url::Origin>& GetRequestInitiator() const = 0;
++  virtual void SetRequestInitiator(
++      const std::optional<url::Origin>& request_initiator);
+ 
+   // For downloads initiated via <a download>, this is the suggested download
+   // filename from the download attribute.
+@@ -373,6 +375,8 @@
+ 
+   // The isolation mode of the request.
+   virtual const std::optional<net::IsolationInfo>& GetIsolationInfo() const = 0;
++  virtual void SetIsolationInfo(
++      const std::optional<net::IsolationInfo>& isolation_info);
+ 
+   //    Destination State accessors --------------------------------------------
+ 
+diff --git a/components/download/public/common/download_item_impl.h b/components/download/public/common/download_item_impl.h
+index c769b0b..7d227ae 100644
+--- a/components/download/public/common/download_item_impl.h
++++ b/components/download/public/common/download_item_impl.h
+@@ -302,6 +302,8 @@
+   const GURL& GetTabUrl() const override;
+   const GURL& GetTabReferrerUrl() const override;
+   const std::optional<url::Origin>& GetRequestInitiator() const override;
++  void SetRequestInitiator(
++      const std::optional<url::Origin>& request_initiator) override;
+   std::string GetSuggestedFilename() const override;
+   const scoped_refptr<const net::HttpResponseHeaders>& GetResponseHeaders()
+       const override;
+@@ -361,6 +363,8 @@
+   ::network::mojom::CredentialsMode GetCredentialsMode() const override;
+   ::network::mojom::RequestMode GetFetchRequestMode() const override;
+   const std::optional<net::IsolationInfo>& GetIsolationInfo() const override;
++  void SetIsolationInfo(
++      const std::optional<net::IsolationInfo>& isolation_info) override;
+   void OnContentCheckCompleted(DownloadDangerType danger_type,
+                                DownloadInterruptReason reason) override;
+   void OnAsyncScanningCompleted(DownloadDangerType danger_type) override;
+diff --git a/content/browser/background_fetch/background_fetch_request_info.cc b/content/browser/background_fetch/background_fetch_request_info.cc
+index 190e8b56..ed7fb38 100644
+--- a/content/browser/background_fetch/background_fetch_request_info.cc
++++ b/content/browser/background_fetch/background_fetch_request_info.cc
+@@ -106,10 +106,11 @@
+   // The BackgroundFetchResponse was extracted when the download started.
+   // This is sent over again when the download was complete in case the
+   // browser was restarted.
+-  if (response_headers_.empty())
++  if (response_headers_.empty() && result_->response) {
+     PopulateWithResponse(std::move(result_->response));
+-  else
++  } else {
+     result_->response.reset();
++  }
+ 
+   // Get the response size.
+   if (result_->blob_handle)
