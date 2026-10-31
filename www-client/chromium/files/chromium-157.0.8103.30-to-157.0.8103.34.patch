@@ -1,19 +1,22 @@
-Chromium 157.0.8103.30 -> 157.0.8103.33, for the 157.0.8103.30 tarball.
+Chromium 157.0.8103.30 -> 157.0.8103.34, for the 157.0.8103.30 tarball.
 
-157.0.8103.33 is a tag on the 157 branch (refs/branch-heads/8103) that has
-no source tarball (as of 2026-10-30). It has fixes made after
-157.0.8103.30: use-after-frees in the bookmarks side panel, MojoCdm,
-chrome.windows.update (Extensions) and TransitionPseudoElementData; WebAudio's
-media element handler; HttpCache range responses; File System Access's
-sensitive paths; re-entry when draining error events; layer changes during a
-commit; nested printing; menu items deleted while being inserted;
-relatedTarget's cross-origin check; ImageContext access failure
-(CVE-2026-118332); V8's maps, prototypes, Maglev and deopt literals; Skia's
-SkSL parser, GL BGRA formats, Graphite's paint keys and Ganesh's subset clamp.
-Some are likely security fixes that later release notes will credit.
+157.0.8103.34 is a tag on the 157 branch (refs/branch-heads/8103) that has
+no source tarball (as of 2026-10-31). It has the fixes made after
+157.0.8103.30 up to it: those of 157.0.8103.32 and .33 (use-after-frees in
+the bookmarks side panel, MojoCdm, chrome.windows.update and
+TransitionPseudoElementData; HttpCache range responses; File System Access's
+sensitive paths; ...), and since .33: media controls made read-only; the
+display lock and Length/CalculationValue tracing fixes; ~/.cache in the File
+System Access blocklist; encoding detection's TLD hint; paste sanitization of
+SVG <use>; WebRTC's EmptyNetworkManager; the image cache not following
+symlinks; Background Fetch keeping CORS on retry; CopySharedImage rejecting
+empty rects; WebXR opaque framebuffers on session end; V8's
+JSGetTemplateObject, maps, prototypes and Maglev; Skia's SkRgnBuilder heap
+out-of-bounds write, SkSL raster pipeline branches and Graphite's clip
+inflation and paint keys; a DevTools lit fix.
 
 Generated from the upstream diffs between the tags (chromium/src
-refs/tags/157.0.8103.30..157.0.8103.33), Skia and V8 (the only
+refs/tags/157.0.8103.30..157.0.8103.34), DevTools, Skia and V8 (the only
 dependencies whose DEPS revisions changed; no CIPD/GCS package or gclient
 gn arg changed), as served by Gitiles, with scripts/chromium-delta.
 
@@ -25,11 +28,11 @@ DEPS.
 Added: the tarball's stamp files for the new commit (stamps.py:
 build/util/LASTCHANGE{,.committime}, gpu/config/gpu_lists_version.h and
 skia/ext/skia_commit_hash.h; commit
-40aa46194a841a35609fca1cbc7403808b104da0, refs/branch-heads/8103@{#986}).
+67b1826c23115ecbaaaa47d96ff5e3e18f966ba1, refs/branch-heads/8103@{#1005}).
 Dawn's stamps and build/util/MINIBRANCH don't change.
 
 Checked: applies to the 157.0.8103.30 tarball; chrome/VERSION becomes
-157.0.8103.33; every patched source file is byte-identical to its version
+157.0.8103.34; every patched source file is byte-identical to its version
 at the tag; the 157.0.8103.30 tarball's non-git files are all classified
 (tarball-generated.py with generated.conf).
 
@@ -206,7 +209,7 @@ index 478cd5e..21206a8 100644
    // rendering changes, to ensure the bits in CommitState are propagated.
    bool force_commit_for_propagation_ = true;
 diff --git a/chrome/VERSION b/chrome/VERSION
-index 3a363a4..29a96da 100644
+index 3a363a4..69a86e7 100644
 --- a/chrome/VERSION
 +++ b/chrome/VERSION
 @@ -1,4 +1,4 @@
@@ -214,7 +217,7 @@ index 3a363a4..29a96da 100644
  MINOR=0
  BUILD=8103
 -PATCH=30
-+PATCH=33
++PATCH=34
 diff --git a/chrome/app/resources/generated_resources_en-GB.xtb b/chrome/app/resources/generated_resources_en-GB.xtb
 index a97b92a..aece766 100644
 --- a/chrome/app/resources/generated_resources_en-GB.xtb
@@ -228,6 +231,54 @@ index a97b92a..aece766 100644
  <translation id="923900195646492191">{NUM_EXTENSIONS,plural, =1{To manage it, open Extensions}other{To manage them, open Extensions}}</translation>
  <translation id="924818813611903184">Manage languages in Chrome OS settings</translation>
  <translation id="925575170771547168">This will delete <ph name="TOTAL_USAGE" /> of data stored by sites</translation>
+diff --git a/chrome/browser/background_fetch/background_fetch_delegate_impl.cc b/chrome/browser/background_fetch/background_fetch_delegate_impl.cc
+index 3acb51a..b9bc808 100644
+--- a/chrome/browser/background_fetch/background_fetch_delegate_impl.cc
++++ b/chrome/browser/background_fetch/background_fetch_delegate_impl.cc
+@@ -22,6 +22,7 @@
+ #include "components/background_fetch/job_details.h"
+ #include "components/download/public/background_service/background_download_service.h"
+ #include "components/download/public/common/download_features.h"
++#include "components/offline_items_collection/core/fail_state.h"
+ #include "components/offline_items_collection/core/offline_content_aggregator.h"
+ #include "components/offline_items_collection/core/offline_item.h"
+ #include "content/public/browser/background_fetch_description.h"
+@@ -314,6 +315,8 @@
+   switch (job_details->job_state) {
+     case JobState::kCancelled:
+       offline_item->state = OfflineItemState::CANCELLED;
++      offline_item->fail_state =
++          offline_items_collection::FailState::USER_CANCELED;
+       break;
+     case JobState::kDownloadsComplete:
+       // This includes cases when the download failed, or completed but the
+diff --git a/chrome/browser/download/deferred_client_wrapper.cc b/chrome/browser/download/deferred_client_wrapper.cc
+index 2e96327..c38e5f0d 100644
+--- a/chrome/browser/download/deferred_client_wrapper.cc
++++ b/chrome/browser/download/deferred_client_wrapper.cc
+@@ -123,6 +123,10 @@
+   RunDeferredClosures(true /*force_inflate*/);
+ }
+ 
++bool DeferredClientWrapper::RequiresCustomRequestParameters() const {
++  return wrapped_client_ && wrapped_client_->RequiresCustomRequestParameters();
++}
++
+ void DeferredClientWrapper::ForwardOnServiceInitialized(
+     bool state_lost,
+     const std::vector<DownloadMetaData>& downloads) {
+diff --git a/chrome/browser/download/deferred_client_wrapper.h b/chrome/browser/download/deferred_client_wrapper.h
+index f163261..4d5c7185 100644
+--- a/chrome/browser/download/deferred_client_wrapper.h
++++ b/chrome/browser/download/deferred_client_wrapper.h
+@@ -50,6 +50,7 @@
+                                       bool force_delete) override;
+   void GetUploadData(const std::string& guid,
+                      GetUploadDataCallback callback) override;
++  bool RequiresCustomRequestParameters() const override;
+ 
+  private:
+   // Forwarding functions
 diff --git a/chrome/browser/extensions/api/tabs/tabs_api.cc b/chrome/browser/extensions/api/tabs/tabs_api.cc
 index e9ffa4e..2378fcd5 100644
 --- a/chrome/browser/extensions/api/tabs/tabs_api.cc
@@ -508,7 +559,7 @@ index 70c9a744..4df4953 100644
  
  }  // namespace extensions
 diff --git a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
-index 112be22..cd682f0 100644
+index 112be22..a952735e 100644
 --- a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
 +++ b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
 @@ -280,8 +280,32 @@
@@ -564,13 +615,17 @@ index 112be22..cd682f0 100644
         components[1] == FILE_PATH_LITERAL("127.0.0.1") ||
         components[1] == FILE_PATH_LITERAL(".") ||
         components[1] == FILE_PATH_LITERAL("?") ||
-@@ -441,10 +460,46 @@
+@@ -441,10 +460,50 @@
        // And limit access to ~/.gnupg as well.
        BlockPath::CreateRelative(base::DIR_HOME, FILE_PATH_LITERAL(".gnupg"),
                                  BlockType::kBlockAllChildren),
 +      // ~/.config holds configuration for many cross-platform tools, so block
 +      // it on all platforms, see crbug.com/569012015.
 +      BlockPath::CreateRelative(base::DIR_HOME, FILE_PATH_LITERAL(".config"),
++                                BlockType::kBlockAllChildren),
++      // ~/.cache holds caches and virtual environments for cross-platform
++      // tools, so block it on all platforms, see crbug.com/577400245.
++      BlockPath::CreateRelative(base::DIR_HOME, FILE_PATH_LITERAL(".cache"),
 +                                BlockType::kBlockAllChildren),
 +      // Shell startup files in the home directory, including the ones read by
 +      // Git Bash on Windows, see crbug.com/558362029.
@@ -611,7 +666,7 @@ index 112be22..cd682f0 100644
  #if BUILDFLAG(IS_WIN)
        // Some Windows specific directories to block, basically all apps, the
        // operating system itself, as well as configuration data for apps.
-@@ -475,6 +530,10 @@
+@@ -475,6 +534,10 @@
        // volumes).
        BlockPath::CreateAbsolute(FILE_PATH_LITERAL("/System/Volumes"),
                                  BlockType::kBlockAllChildren),
@@ -622,7 +677,7 @@ index 112be22..cd682f0 100644
        BlockPath::CreateRelative(base::DIR_APP_DATA,
                                  BlockType::kBlockAllChildren),
        // Block access to the current bundle directory.
-@@ -525,14 +584,25 @@
+@@ -525,16 +588,27 @@
                                  BlockType::kBlockAllChildren),
        BlockPath::CreateAbsolute(FILE_PATH_LITERAL("/etc"),
                                  BlockType::kBlockAllChildren),
@@ -634,6 +689,8 @@ index 112be22..cd682f0 100644
        // a website can do with access to that directory and its contents.
        BlockPath::CreateRelative(base::DIR_HOME, FILE_PATH_LITERAL(".dbus"),
                                  BlockType::kBlockAllChildren),
+-      // And block all of ~/.cache, matching the similar restrictions on mac
+-      // and windows.
 +      // Block per-user application data, see crbug.com/561996724.
 +      BlockPath::CreateRelative(base::DIR_HOME,
 +                                FILE_PATH_LITERAL(".local/share"),
@@ -649,9 +706,11 @@ index 112be22..cd682f0 100644
 +      // Block the per-user NSS database, see crbug.com/557367241.
 +      BlockPath::CreateRelative(base::DIR_HOME, FILE_PATH_LITERAL(".pki"),
 +                                BlockType::kBlockAllChildren),
-       // And block all of ~/.cache, matching the similar restrictions on mac
-       // and windows.
++      // Also block base::DIR_CACHE to cover $XDG_CACHE_HOME overrides on Linux
++      // and ChromeOS, and the app cache directory on Android.
        BlockPath::CreateRelative(base::DIR_CACHE, BlockType::kBlockAllChildren),
+ #endif
+ #if BUILDFLAG(IS_ANDROID)
 diff --git a/chrome/browser/sessions/session_service_base.cc b/chrome/browser/sessions/session_service_base.cc
 index 75f43fb..ee887add6 100644
 --- a/chrome/browser/sessions/session_service_base.cc
@@ -685,6 +744,257 @@ index 75f43fb..ee887add6 100644
    int index = 0;
    for (const tabs::TabInterface* tab_interface : *tab_strip) {
      WebContents* tab = tab_interface->GetContents();
+diff --git a/chrome/browser/ui/hats/survey_config.cc b/chrome/browser/ui/hats/survey_config.cc
+index 7399778..6a42a9b 100644
+--- a/chrome/browser/ui/hats/survey_config.cc
++++ b/chrome/browser/ui/hats/survey_config.cc
+@@ -574,6 +574,13 @@
+ 
+   // Performance Controls surveys.
+   survey_configs.emplace_back(
++      &performance_manager::features::kPerformanceControlsPerformanceSurvey,
++      kHatsSurveyTriggerPerformanceControlsPerformance,
++      /*presupplied_trigger_id=*/std::nullopt,
++      std::vector<std::string>{"Memory Saver Mode Enabled",
++                               "Battery Saver Mode Enabled"},
++      std::vector<std::string>{});
++  survey_configs.emplace_back(
+       &performance_manager::features::kPerformanceControlsPPMSurvey,
+       kHatsSurveyTriggerPerformanceControlsPPM,
+       /*presupplied_trigger_id=*/std::nullopt,
+@@ -586,6 +593,22 @@
+           "Performance Characteristics (OS and Total Memory)"},
+       /*log_responses_to_uma=*/true,
+       /*log_responses_to_ukm=*/true);
++  survey_configs.emplace_back(
++      &performance_manager::features::
++          kPerformanceControlsBatteryPerformanceSurvey,
++      kHatsSurveyTriggerPerformanceControlsBatteryPerformance,
++      /*presupplied_trigger_id=*/std::nullopt,
++      std::vector<std::string>{"Memory Saver Mode Enabled",
++                               "Battery Saver Mode Enabled"},
++      std::vector<std::string>{});
++  survey_configs.emplace_back(
++      &performance_manager::features::
++          kPerformanceControlsMemorySaverOptOutSurvey,
++      kHatsSurveyTriggerPerformanceControlsMemorySaverOptOut);
++  survey_configs.emplace_back(
++      &performance_manager::features::
++          kPerformanceControlsBatterySaverOptOutSurvey,
++      kHatsSurveyTriggerPerformanceControlsBatterySaverOptOut);
+ 
+   // Red Warning surveys.
+   survey_configs.emplace_back(
+diff --git a/chrome/browser/ui/hats/survey_config.h b/chrome/browser/ui/hats/survey_config.h
+index 5b3fc474..7bbaa12 100644
+--- a/chrome/browser/ui/hats/survey_config.h
++++ b/chrome/browser/ui/hats/survey_config.h
+@@ -110,8 +110,18 @@
+ inline constexpr char kHatsSurveyTriggerNextPanel[] = "next-panel";
+ inline constexpr char kHatsSurveyTriggerNtpPhotosModuleOptOut[] =
+     "ntp-photos-module-opt-out";
++inline constexpr char kHatsSurveyTriggerPerformanceControlsPerformance[] =
++    "performance-general";
+ inline constexpr char kHatsSurveyTriggerPerformanceControlsPPM[] =
+     "performance-ppm";
++inline constexpr char
++    kHatsSurveyTriggerPerformanceControlsBatteryPerformance[] =
++        "performance-battery";
++inline constexpr char kHatsSurveyTriggerPerformanceControlsMemorySaverOptOut[] =
++    "performance-high-efficiency-opt-out";
++inline constexpr char
++    kHatsSurveyTriggerPerformanceControlsBatterySaverOptOut[] =
++        "performance-battery-saver-opt-out";
+ inline constexpr char kHatsSurveyTriggerPrivacyGuide[] = "privacy-guide";
+ inline constexpr char kHatsSurveyTriggerRedWarning[] = "red-warning";
+ inline constexpr char kHatsSurveyTriggerSettings[] = "settings";
+diff --git a/chrome/browser/ui/performance_controls/performance_controls_hats_service.cc b/chrome/browser/ui/performance_controls/performance_controls_hats_service.cc
+index 4f9d8f8..faad39c 100644
+--- a/chrome/browser/ui/performance_controls/performance_controls_hats_service.cc
++++ b/chrome/browser/ui/performance_controls/performance_controls_hats_service.cc
+@@ -43,6 +43,38 @@
+           base::RandTimeDelta(kPerformanceControlsPPMSurveyMinDelay.Get(),
+                               kPerformanceControlsPPMSurveyMaxDelay.Get())) {
+   CHECK(delay_before_ppm_survey_.is_positive());
++  if (base::FeatureList::IsEnabled(
++          performance_manager::features::
++              kPerformanceControlsMemorySaverOptOutSurvey)) {
++    performance_manager::user_tuning::UserPerformanceTuningManager::
++        GetInstance()
++            ->AddObserver(this);
++  }
++
++  if (base::FeatureList::IsEnabled(
++          performance_manager::features::
++              kPerformanceControlsBatterySaverOptOutSurvey)) {
++    performance_manager::user_tuning::BatterySaverModeManager::GetInstance()
++        ->AddObserver(this);
++  }
++}
++
++PerformanceControlsHatsService::~PerformanceControlsHatsService() {
++  // Can't used ScopedObservation because sometimes the
++  // UserPerformanceTuningManager or BatterySaverModeManager are destroyed
++  // before this service.
++  if (performance_manager::user_tuning::UserPerformanceTuningManager::
++          HasInstance()) {
++    performance_manager::user_tuning::UserPerformanceTuningManager::
++        GetInstance()
++            ->RemoveObserver(this);
++  }
++
++  if (performance_manager::user_tuning::BatterySaverModeManager::
++          HasInstance()) {
++    performance_manager::user_tuning::BatterySaverModeManager::GetInstance()
++        ->RemoveObserver(this);
++  }
+ }
+ 
+ void PerformanceControlsHatsService::OpenedNewTabPage() {
+@@ -76,6 +108,11 @@
+         }
+       };
+ 
++  // A general performance survey for all users.
++  launch_survey_if_enabled(
++      performance_manager::features::kPerformanceControlsPerformanceSurvey,
++      kHatsSurveyTriggerPerformanceControlsPerformance);
++
+   // Survey to correlate UMA metrics with Poor Performance Moments.
+   if (auto ppm_segment_name = GetPPMSurveySegmentName();
+       !ppm_segment_name.empty() && MayLaunchPPMSurvey()) {
+@@ -88,6 +125,60 @@
+         {{kPerformanceSegmentPSDName, ppm_segment_name},
+          {kChannelPSDName, channel.empty() ? "stable" : channel}});
+   }
++
++// ChromeOS defaults to the OS battery saver so this survey isn't relevant.
++#if !BUILDFLAG(IS_CHROMEOS)
++  if (base::FeatureList::IsEnabled(
++          performance_manager::features::
++              kPerformanceControlsBatteryPerformanceSurvey)) {
++    base::Time last_battery_timestamp =
++        performance_manager::user_tuning::BatterySaverModeManager::GetInstance()
++            ->GetLastBatteryUsageTimestamp();
++
++    // A battery performance survey for users with a battery-powered device.
++    if (base::Time::Now() - last_battery_timestamp <=
++        performance_manager::features::kPerformanceControlsBatterySurveyLookback
++            .Get()) {
++      launch_survey_if_enabled(
++          performance_manager::features::
++              kPerformanceControlsBatteryPerformanceSurvey,
++          kHatsSurveyTriggerPerformanceControlsBatteryPerformance);
++    }
++  }
++#endif
++}
++
++void PerformanceControlsHatsService::OnBatterySaverModeChanged(
++    bool is_enabled) {
++  HatsService* hats_service = HatsServiceFactory::GetForProfile(profile_, true);
++  if (!hats_service) {
++    return;
++  }
++
++  auto* manager =
++      performance_manager::user_tuning::BatterySaverModeManager::GetInstance();
++  // A survey for users who have turned off battery saver.
++  if (!is_enabled && !manager->IsBatterySaverModeManaged()) {
++    hats_service->LaunchDelayedSurvey(
++        kHatsSurveyTriggerPerformanceControlsBatterySaverOptOut, 10000);
++  }
++}
++
++void PerformanceControlsHatsService::OnMemorySaverModeChanged() {
++  HatsService* hats_service = HatsServiceFactory::GetForProfile(profile_, true);
++  if (!hats_service) {
++    return;
++  }
++
++  auto* manager = performance_manager::user_tuning::
++      UserPerformanceTuningManager::GetInstance();
++  // A survey for users who have turned off memory saver mode.
++  if (!manager->IsMemorySaverModeActive() &&
++      !manager->IsMemorySaverModeManaged() &&
++      !manager->IsMemorySaverModeDefault()) {
++    hats_service->LaunchDelayedSurvey(
++        kHatsSurveyTriggerPerformanceControlsMemorySaverOptOut, 10000);
++  }
+ }
+ 
+ bool PerformanceControlsHatsService::MayLaunchPPMSurvey() const {
+diff --git a/chrome/browser/ui/performance_controls/performance_controls_hats_service.h b/chrome/browser/ui/performance_controls/performance_controls_hats_service.h
+index 7eff57c..95e025aa 100644
+--- a/chrome/browser/ui/performance_controls/performance_controls_hats_service.h
++++ b/chrome/browser/ui/performance_controls/performance_controls_hats_service.h
+@@ -11,10 +11,17 @@
+ #include "base/byte_size.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/time/time.h"
++#include "chrome/browser/performance_manager/public/user_tuning/battery_saver_mode_manager.h"
++#include "chrome/browser/performance_manager/public/user_tuning/user_performance_tuning_manager.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "components/keyed_service/core/keyed_service.h"
+ 
+-class PerformanceControlsHatsService : public KeyedService {
++class PerformanceControlsHatsService
++    : public KeyedService,
++      public performance_manager::user_tuning::UserPerformanceTuningManager::
++          Observer,
++      public performance_manager::user_tuning::BatterySaverModeManager::
++          Observer {
+  public:
+   // Names of Product Specific Data bit entries.
+   static constexpr char kBatterySaverPSDName[] = "Battery Saver Mode Enabled";
+@@ -27,11 +34,22 @@
+       "Performance Characteristics (OS and Total Memory)";
+ 
+   explicit PerformanceControlsHatsService(Profile* profile);
++  ~PerformanceControlsHatsService() override;
+ 
+   // Called when the user opens an NTP. This allows the service to check if one
+   // of the performance controls surveys should be shown.
+   void OpenedNewTabPage();
+ 
++  // BatterySaverModeManager::Observer:
++  // Called in response to a change in the battery saver mode pref to check
++  // whether a HaTS survey should be shown.
++  void OnBatterySaverModeChanged(bool is_active) override;
++
++  // performance_manager::user_tuning::UserPerformanceTuningManager::Observer:
++  // Called in response to a change in the memory saver mode pref to check
++  // whether a HaTS survey should be shown.
++  void OnMemorySaverModeChanged() override;
++
+   // Returns the delay that must pass after the session starts before showing
+   // the PPM survey.
+   base::TimeDelta delay_before_ppm_survey() const {
+diff --git a/chrome/browser/ui/performance_controls/performance_controls_hats_service_factory.cc b/chrome/browser/ui/performance_controls/performance_controls_hats_service_factory.cc
+index d619b15..24d4e33 100644
+--- a/chrome/browser/ui/performance_controls/performance_controls_hats_service_factory.cc
++++ b/chrome/browser/ui/performance_controls/performance_controls_hats_service_factory.cc
+@@ -43,7 +43,19 @@
+ // static
+ bool PerformanceControlsHatsServiceFactory::IsAnySurveyFeatureEnabled() {
+   return base::FeatureList::IsEnabled(
+-      performance_manager::features::kPerformanceControlsPPMSurvey);
++             performance_manager::features::
++                 kPerformanceControlsPerformanceSurvey) ||
++         base::FeatureList::IsEnabled(
++             performance_manager::features::kPerformanceControlsPPMSurvey) ||
++         base::FeatureList::IsEnabled(
++             performance_manager::features::
++                 kPerformanceControlsBatteryPerformanceSurvey) ||
++         base::FeatureList::IsEnabled(
++             performance_manager::features::
++                 kPerformanceControlsMemorySaverOptOutSurvey) ||
++         base::FeatureList::IsEnabled(
++             performance_manager::features::
++                 kPerformanceControlsBatterySaverOptOutSurvey);
+ }
+ 
+ std::unique_ptr<KeyedService>
 diff --git a/chrome/browser/ui/views/app_menu/bookmarks_dynamic_menu.cc b/chrome/browser/ui/views/app_menu/bookmarks_dynamic_menu.cc
 index 270400f..b5e0ffff 100644
 --- a/chrome/browser/ui/views/app_menu/bookmarks_dynamic_menu.cc
@@ -769,6 +1079,296 @@ index 641c8057..d7a2c399 100644
  }
  
  void BookmarksPageHandler::Undo() {
+diff --git a/components/download/content/internal/download_driver_impl.cc b/components/download/content/internal/download_driver_impl.cc
+index acad457b..112c5c4 100644
+--- a/components/download/content/internal/download_driver_impl.cc
++++ b/components/download/content/internal/download_driver_impl.cc
+@@ -295,7 +295,9 @@
+ 
+ void DownloadDriverImpl::ResumeWithFactory(
+     const std::string& guid,
+-    scoped_refptr<network::SharedURLLoaderFactory> factory) {
++    scoped_refptr<network::SharedURLLoaderFactory> factory,
++    const std::optional<url::Origin>& request_initiator,
++    const std::optional<net::IsolationInfo>& isolation_info) {
+   if (!download_manager_coordinator_)
+     return;
+   DownloadItem* item = download_manager_coordinator_->GetDownloadByGuid(guid);
+@@ -303,6 +305,12 @@
+     if (factory) {
+       item->SetURLLoaderFactory(std::move(factory));
+     }
++    if (request_initiator) {
++      item->SetRequestInitiator(request_initiator);
++    }
++    if (isolation_info) {
++      item->SetIsolationInfo(isolation_info);
++    }
+     item->Resume(true);
+   }
+ }
+diff --git a/components/download/content/internal/download_driver_impl.h b/components/download/content/internal/download_driver_impl.h
+index af648e0..df7d993 100644
+--- a/components/download/content/internal/download_driver_impl.h
++++ b/components/download/content/internal/download_driver_impl.h
+@@ -55,7 +55,9 @@
+   void Pause(const std::string& guid) override;
+   void ResumeWithFactory(
+       const std::string& guid,
+-      scoped_refptr<network::SharedURLLoaderFactory> factory) override;
++      scoped_refptr<network::SharedURLLoaderFactory> factory,
++      const std::optional<url::Origin>& request_initiator,
++      const std::optional<net::IsolationInfo>& isolation_info) override;
+   std::optional<DriverEntry> Find(const std::string& guid) override;
+   std::set<std::string> GetActiveDownloads() override;
+   size_t EstimateMemoryUsage() const override;
+diff --git a/components/download/database/in_progress/download_entry.h b/components/download/database/in_progress/download_entry.h
+index c702d84..7ca71c8 100644
+--- a/components/download/database/in_progress/download_entry.h
++++ b/components/download/database/in_progress/download_entry.h
+@@ -10,6 +10,7 @@
+ #include "components/download/public/common/download_source.h"
+ #include "components/download/public/common/download_url_parameters.h"
+ #include "services/metrics/public/cpp/ukm_source_id.h"
++#include "services/network/public/mojom/fetch_api.mojom-shared.h"
+ 
+ namespace download {
+ 
+@@ -52,6 +53,14 @@
+   // True if a Service Worker fetch handler produced the original response.
+   bool fetched_via_service_worker = false;
+ 
++  // The credentials mode of the request.
++  ::network::mojom::CredentialsMode credentials_mode =
++      ::network::mojom::CredentialsMode::kInclude;
++
++  // The fetch request mode of the request.
++  ::network::mojom::RequestMode fetch_request_mode =
++      ::network::mojom::RequestMode::kNavigate;
++
+   // Request header key/value pairs that will be added to the download HTTP
+   // request.
+   DownloadUrlParameters::RequestHeadersType request_headers;
+diff --git a/components/download/internal/background_service/controller_impl.cc b/components/download/internal/background_service/controller_impl.cc
+index 9d0374f7..25337448 100644
+--- a/components/download/internal/background_service/controller_impl.cc
++++ b/components/download/internal/background_service/controller_impl.cc
+@@ -1042,7 +1042,10 @@
+         !guids_with_custom_request_params_.contains(entry->guid);
+ 
+     if (driver_entry.has_value() && !requires_custom_params) {
+-      driver_->Resume(entry->guid);
++      driver_->ResumeWithFactory(entry->guid,
++                                 entry->request_params.url_loader_factory,
++                                 entry->request_params.initiator,
++                                 entry->request_params.isolation_info);
+     } else {
+       if (driver_entry.has_value() && entry->has_upload_data) {
+         // HTTP POST requests cannot be resumed, they must be restarted.
+@@ -1117,8 +1120,9 @@
+   auto driver_entry = driver_->Find(guid);
+   if (driver_entry.has_value()) {
+     DVLOG(1) << "Download already exists. Resuming.";
+-    driver_->ResumeWithFactory(entry->guid,
+-                               entry->request_params.url_loader_factory);
++    driver_->ResumeWithFactory(
++        entry->guid, entry->request_params.url_loader_factory,
++        entry->request_params.initiator, entry->request_params.isolation_info);
+     return;
+   }
+ 
+diff --git a/components/download/internal/background_service/download_driver.h b/components/download/internal/background_service/download_driver.h
+index 2dd84d7..d7b67db 100644
+--- a/components/download/internal/background_service/download_driver.h
++++ b/components/download/internal/background_service/download_driver.h
+@@ -12,8 +12,10 @@
+ #include <string>
+ 
+ #include "components/download/internal/background_service/driver_entry.h"
++#include "net/base/isolation_info.h"
+ #include "net/traffic_annotation/network_traffic_annotation.h"
+ #include "services/network/public/cpp/shared_url_loader_factory.h"
++#include "url/origin.h"
+ 
+ namespace base {
+ class FilePath;
+@@ -108,14 +110,18 @@
+   virtual void Pause(const std::string& guid) = 0;
+ 
+   // Resumes the download
+-  void Resume(const std::string& guid) { ResumeWithFactory(guid, nullptr); }
++  void Resume(const std::string& guid) {
++    ResumeWithFactory(guid, nullptr, std::nullopt, std::nullopt);
++  }
+ 
+   // Resumes a paused/interrupted download while providing a brand new
+-  // URLLoaderFactory. Used by clients that need to repopulate the factory
+-  // during repreparation.
++  // URLLoaderFactory, request initiator, and isolation info. Used by clients
++  // that need to repopulate these parameters during repreparation.
+   virtual void ResumeWithFactory(
+       const std::string& guid,
+-      scoped_refptr<network::SharedURLLoaderFactory> factory) = 0;
++      scoped_refptr<network::SharedURLLoaderFactory> factory,
++      const std::optional<url::Origin>& request_initiator,
++      const std::optional<net::IsolationInfo>& isolation_info) = 0;
+ 
+   // Finds a download record from low level download library.
+   virtual std::optional<DriverEntry> Find(const std::string& guid) = 0;
+diff --git a/components/download/internal/background_service/in_memory_download_driver.cc b/components/download/internal/background_service/in_memory_download_driver.cc
+index d0725e9..f6f744a8 100644
+--- a/components/download/internal/background_service/in_memory_download_driver.cc
++++ b/components/download/internal/background_service/in_memory_download_driver.cc
+@@ -144,7 +144,9 @@
+ 
+ void InMemoryDownloadDriver::ResumeWithFactory(
+     const std::string& guid,
+-    scoped_refptr<network::SharedURLLoaderFactory> factory) {
++    scoped_refptr<network::SharedURLLoaderFactory> factory,
++    const std::optional<url::Origin>& request_initiator,
++    const std::optional<net::IsolationInfo>& isolation_info) {
+   auto it = downloads_.find(guid);
+   if (it != downloads_.end()) {
+     it->second->Resume();
+diff --git a/components/download/internal/background_service/in_memory_download_driver.h b/components/download/internal/background_service/in_memory_download_driver.h
+index 63c98d5..8a10daf 100644
+--- a/components/download/internal/background_service/in_memory_download_driver.h
++++ b/components/download/internal/background_service/in_memory_download_driver.h
+@@ -71,7 +71,9 @@
+   void Pause(const std::string& guid) override;
+   void ResumeWithFactory(
+       const std::string& guid,
+-      scoped_refptr<network::SharedURLLoaderFactory> factory) override;
++      scoped_refptr<network::SharedURLLoaderFactory> factory,
++      const std::optional<url::Origin>& request_initiator,
++      const std::optional<net::IsolationInfo>& isolation_info) override;
+   std::optional<DriverEntry> Find(const std::string& guid) override;
+   std::set<std::string> GetActiveDownloads() override;
+   size_t EstimateMemoryUsage() const override;
+diff --git a/components/download/internal/common/download_item_impl.cc b/components/download/internal/common/download_item_impl.cc
+index 09c37cd..91eb2937 100644
+--- a/components/download/internal/common/download_item_impl.cc
++++ b/components/download/internal/common/download_item_impl.cc
+@@ -445,6 +445,8 @@
+     bytes_wasted_ = download_entry->bytes_wasted;
+     request_info_.fetched_via_service_worker =
+         download_entry->fetched_via_service_worker;
++    request_info_.credentials_mode = download_entry->credentials_mode;
++    request_info_.fetch_request_mode = download_entry->fetch_request_mode;
+   } else {
+     ukm_download_id_ = ukm::NoURLSourceId();
+   }
+@@ -983,6 +985,11 @@
+   return request_info_.request_initiator;
+ }
+ 
++void DownloadItemImpl::SetRequestInitiator(
++    const std::optional<url::Origin>& request_initiator) {
++  request_info_.request_initiator = request_initiator;
++}
++
+ std::string DownloadItemImpl::GetSuggestedFilename() const {
+   return request_info_.suggested_filename;
+ }
+@@ -1296,6 +1303,11 @@
+   return request_info_.isolation_info;
+ }
+ 
++void DownloadItemImpl::SetIsolationInfo(
++    const std::optional<net::IsolationInfo>& isolation_info) {
++  request_info_.isolation_info = isolation_info;
++}
++
+ void DownloadItemImpl::OnContentCheckCompleted(DownloadDangerType danger_type,
+                                                DownloadInterruptReason reason) {
+   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+@@ -2681,6 +2693,14 @@
+   download_params->set_hash_of_partial_file(GetHash());
+   download_params->set_hash_state(std::exchange(hash_state_, std::nullopt));
+   download_params->set_guid(guid_);
++  download_params->set_fetch_request_mode(request_info_.fetch_request_mode);
++  download_params->set_credentials_mode(request_info_.credentials_mode);
++  if (request_info_.request_initiator.has_value()) {
++    download_params->set_initiator(*request_info_.request_initiator);
++  }
++  if (request_info_.isolation_info.has_value()) {
++    download_params->set_isolation_info(*request_info_.isolation_info);
++  }
+ 
+   if (url_loader_factory_) {
+     download_params->set_url_loader_factory(url_loader_factory_->Clone());
+diff --git a/components/download/internal/common/download_utils.cc b/components/download/internal/common/download_utils.cc
+index 14c1a6b..320e2ea 100644
+--- a/components/download/internal/common/download_utils.cc
++++ b/components/download/internal/common/download_utils.cc
+@@ -674,6 +674,8 @@
+       ukm_info->ukm_download_id);
+   download_entry->fetched_via_service_worker =
+       in_progress_info->fetched_via_service_worker;
++  download_entry->credentials_mode = in_progress_info->credentials_mode;
++  download_entry->fetch_request_mode = in_progress_info->fetch_request_mode;
+   return download_entry;
+ }
+ 
+diff --git a/components/download/public/common/download_item.cc b/components/download/public/common/download_item.cc
+index 540af6e4..99d93cb 100644
+--- a/components/download/public/common/download_item.cc
++++ b/components/download/public/common/download_item.cc
+@@ -26,5 +26,10 @@
+ void DownloadItem::SetURLLoaderFactory(
+     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory) {}
+ 
++void DownloadItem::SetRequestInitiator(
++    const std::optional<url::Origin>& request_initiator) {}
++
++void DownloadItem::SetIsolationInfo(
++    const std::optional<net::IsolationInfo>& isolation_info) {}
+ 
+ }  // namespace download
+diff --git a/components/download/public/common/download_item.h b/components/download/public/common/download_item.h
+index 459b304..32ed6e1 100644
+--- a/components/download/public/common/download_item.h
++++ b/components/download/public/common/download_item.h
+@@ -321,6 +321,8 @@
+ 
+   // Origin of the original originator of this download, before redirects, etc.
+   virtual const std::optional<url::Origin>& GetRequestInitiator() const = 0;
++  virtual void SetRequestInitiator(
++      const std::optional<url::Origin>& request_initiator);
+ 
+   // For downloads initiated via <a download>, this is the suggested download
+   // filename from the download attribute.
+@@ -373,6 +375,8 @@
+ 
+   // The isolation mode of the request.
+   virtual const std::optional<net::IsolationInfo>& GetIsolationInfo() const = 0;
++  virtual void SetIsolationInfo(
++      const std::optional<net::IsolationInfo>& isolation_info);
+ 
+   //    Destination State accessors --------------------------------------------
+ 
+diff --git a/components/download/public/common/download_item_impl.h b/components/download/public/common/download_item_impl.h
+index c769b0b..7d227ae 100644
+--- a/components/download/public/common/download_item_impl.h
++++ b/components/download/public/common/download_item_impl.h
+@@ -302,6 +302,8 @@
+   const GURL& GetTabUrl() const override;
+   const GURL& GetTabReferrerUrl() const override;
+   const std::optional<url::Origin>& GetRequestInitiator() const override;
++  void SetRequestInitiator(
++      const std::optional<url::Origin>& request_initiator) override;
+   std::string GetSuggestedFilename() const override;
+   const scoped_refptr<const net::HttpResponseHeaders>& GetResponseHeaders()
+       const override;
+@@ -361,6 +363,8 @@
+   ::network::mojom::CredentialsMode GetCredentialsMode() const override;
+   ::network::mojom::RequestMode GetFetchRequestMode() const override;
+   const std::optional<net::IsolationInfo>& GetIsolationInfo() const override;
++  void SetIsolationInfo(
++      const std::optional<net::IsolationInfo>& isolation_info) override;
+   void OnContentCheckCompleted(DownloadDangerType danger_type,
+                                DownloadInterruptReason reason) override;
+   void OnAsyncScanningCompleted(DownloadDangerType danger_type) override;
 diff --git a/components/facilitated_payments/core/browser/network_api/get_details_for_ewallet_account_linking_request.cc b/components/facilitated_payments/core/browser/network_api/get_details_for_ewallet_account_linking_request.cc
 index 58d81fe4..f8f7459 100644
 --- a/components/facilitated_payments/core/browser/network_api/get_details_for_ewallet_account_linking_request.cc
@@ -895,6 +1495,171 @@ index 8065b08..d27eb64 100644
        if (ui_state_ == UiState::kPrompt) {
          LogAccountLinkingFlowExitedReason(
              kPixFopSuffix, AccountLinkingFlowExitedReason::kScreenClosedByUser);
+diff --git a/components/image_fetcher/core/cache/image_data_store_disk.cc b/components/image_fetcher/core/cache/image_data_store_disk.cc
+index 5d04953..0d54ebe 100644
+--- a/components/image_fetcher/core/cache/image_data_store_disk.cc
++++ b/components/image_fetcher/core/cache/image_data_store_disk.cc
+@@ -7,9 +7,12 @@
+ #include <utility>
+ #include <vector>
+ 
++#include "base/containers/span.h"
++#include "base/files/file.h"
+ #include "base/files/file_enumerator.h"
+ #include "base/files/file_path.h"
+ #include "base/files/file_util.h"
++#include "base/files/scoped_file.h"
+ #include "base/functional/bind.h"
+ #include "base/logging.h"
+ #include "base/strings/utf_string_conversions.h"
+@@ -30,11 +33,17 @@
+ const FilePath::CharType kPathPostfix[] =
+     FILE_PATH_LITERAL("image_data_storage");
+ 
++bool IsStoragePathLink(const FilePath& storage_path) {
++  return base::IsLink(storage_path) || base::IsLink(storage_path.DirName());
++}
++
+ InitializationStatus InitializeImpl(FilePath storage_path) {
+   // TODO(wylieb): Report errors if they occur.
+   File::Error error;
+-  // This will check if the directory exists first.
+-  if (base::CreateDirectoryAndGetError(storage_path, &error)) {
++  // CreateDirectoryAndGetError() succeeds if `storage_path` is a symlink to an
++  // existing directory, so check for links after it runs.
++  if (base::CreateDirectoryAndGetError(storage_path, &error) &&
++      !IsStoragePathLink(storage_path)) {
+     return InitializationStatus::INITIALIZED;
+   }
+ 
+@@ -54,10 +63,22 @@
+                    const std::string& key,
+                    std::string data,
+                    bool needs_transcoding) {
++  if (IsStoragePathLink(storage_path)) {
++    DVLOG(1) << "Storage path is a symbolic link.";
++    return;
++  }
++
+   FilePath file_path = BuildFilePath(storage_path, key, needs_transcoding);
+ 
+-  if (!base::WriteFile(file_path, data)) {
++  // FLAG_NO_FOLLOW maps to O_NOFOLLOW on POSIX (Android, ChromeOS, Linux,
++  // Mac, iOS) and is ignored on Windows.
++  File file(file_path,
++            File::FLAG_CREATE_ALWAYS | File::FLAG_WRITE | File::FLAG_NO_FOLLOW);
++  if (!file.IsValid() || !file.WriteAndCheck(0, base::as_byte_span(data))) {
+     DVLOG(1) << "WriteFile failed.";
++    file.Close();
++    base::DeleteFile(file_path);
++    return;
+   }
+ 
+   if (!needs_transcoding) {
+@@ -73,18 +94,33 @@
+ std::string LoadImageImpl(FilePath storage_path,
+                           const std::string& key,
+                           bool needs_transcoding) {
+-  FilePath file_path = BuildFilePath(storage_path, key, needs_transcoding);
+-
+-  if (!base::PathExists(file_path)) {
+-    return "";
++  if (IsStoragePathLink(storage_path)) {
++    return std::string();
+   }
+ 
++  FilePath file_path = BuildFilePath(storage_path, key, needs_transcoding);
++
++  // FLAG_NO_FOLLOW maps to O_NOFOLLOW on POSIX and is ignored on Windows.
++  File file(file_path,
++            File::FLAG_OPEN | File::FLAG_READ | File::FLAG_NO_FOLLOW);
++  if (!file.IsValid()) {
++    return std::string();
++  }
++
++  base::ScopedFILE stream(base::FileToFILE(std::move(file), "rb"));
+   std::string data;
+-  base::ReadFileToString(file_path, &data);
++  if (!stream || !base::ReadStreamToString(stream.get(), &data)) {
++    return std::string();
++  }
++
+   return data;
+ }
+ 
+ void DeleteImageImpl(FilePath storage_path, const std::string& key) {
++  if (IsStoragePathLink(storage_path)) {
++    return;
++  }
++
+   FilePath file_path =
+       BuildFilePath(storage_path, key, /* needs_transcoding */ false);
+   bool success = base::DeleteFile(file_path);
+@@ -102,6 +138,10 @@
+ }
+ 
+ std::vector<std::string> GetAllKeysImpl(FilePath storage_path) {
++  if (IsStoragePathLink(storage_path)) {
++    return {};
++  }
++
+   std::vector<std::string> keys;
+   FileEnumerator file_enumerator(storage_path, false, FileEnumerator::FILES);
+   for (FilePath name = file_enumerator.Next(); !name.empty();
+diff --git a/components/performance_manager/features.cc b/components/performance_manager/features.cc
+index 0d6d185..5667f91 100644
+--- a/components/performance_manager/features.cc
++++ b/components/performance_manager/features.cc
+@@ -15,9 +15,27 @@
+ namespace performance_manager::features {
+ 
+ #if !BUILDFLAG(IS_ANDROID)
++BASE_FEATURE(kPerformanceControlsPerformanceSurvey,
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
++BASE_FEATURE(kPerformanceControlsBatteryPerformanceSurvey,
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
++BASE_FEATURE(kPerformanceControlsMemorySaverOptOutSurvey,
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
++BASE_FEATURE(kPerformanceControlsBatterySaverOptOutSurvey,
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
+ BASE_FEATURE(kPerformanceControlsPPMSurvey, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ BASE_FEATURE_PARAM(base::TimeDelta,
++                   kPerformanceControlsBatterySurveyLookback,
++                   &kPerformanceControlsBatteryPerformanceSurvey,
++                   "battery_lookback",
++                   base::Days(8));
++
++BASE_FEATURE_PARAM(base::TimeDelta,
+                    kPerformanceControlsPPMSurveyMinDelay,
+                    &kPerformanceControlsPPMSurvey,
+                    "ppm_survey_min_delay",
+diff --git a/components/performance_manager/public/features.h b/components/performance_manager/public/features.h
+index 267905f..6170e163 100644
+--- a/components/performance_manager/public/features.h
++++ b/components/performance_manager/public/features.h
+@@ -36,8 +36,17 @@
+ BASE_DECLARE_FEATURE(kBatterySaverModeAvailable);
+ 
+ // Flags to control HaTS surveys about Chrome performance.
++BASE_DECLARE_FEATURE(kPerformanceControlsPerformanceSurvey);
++BASE_DECLARE_FEATURE(kPerformanceControlsBatteryPerformanceSurvey);
++BASE_DECLARE_FEATURE(kPerformanceControlsMemorySaverOptOutSurvey);
++BASE_DECLARE_FEATURE(kPerformanceControlsBatterySaverOptOutSurvey);
+ BASE_DECLARE_FEATURE(kPerformanceControlsPPMSurvey);
+ 
++// Defines the time delta to look back when checking if a device has used
++// battery.
++BASE_DECLARE_FEATURE_PARAM(base::TimeDelta,
++                           kPerformanceControlsBatterySurveyLookback);
++
+ // Defines the minimum and maximum delay before showing the PPM survey. It will
+ // be shown the next time the user opens the New Tab Page after a random time in
+ // this range.
 diff --git a/components/policy/core/common/cloud/machine_level_user_cloud_policy_store.cc b/components/policy/core/common/cloud/machine_level_user_cloud_policy_store.cc
 index 225be74..71fc8bb9 100644
 --- a/components/policy/core/common/cloud/machine_level_user_cloud_policy_store.cc
@@ -1555,6 +2320,82 @@ index 582280e..627539e 100644
    raw_ptr<gpu::SharedContextState> fallback_context_state_ = nullptr;
    std::vector<GrBackendTexture> fallback_textures_;
    // Fallback textures used for fulfilling Graphite promise images. Owned by the
+diff --git a/content/browser/background_fetch/background_fetch_request_info.cc b/content/browser/background_fetch/background_fetch_request_info.cc
+index 190e8b56..ed7fb38 100644
+--- a/content/browser/background_fetch/background_fetch_request_info.cc
++++ b/content/browser/background_fetch/background_fetch_request_info.cc
+@@ -106,10 +106,11 @@
+   // The BackgroundFetchResponse was extracted when the download started.
+   // This is sent over again when the download was complete in case the
+   // browser was restarted.
+-  if (response_headers_.empty())
++  if (response_headers_.empty() && result_->response) {
+     PopulateWithResponse(std::move(result_->response));
+-  else
++  } else {
+     result_->response.reset();
++  }
+ 
+   // Get the response size.
+   if (result_->blob_handle)
+diff --git a/gpu/command_buffer/service/copy_shared_image_helper.cc b/gpu/command_buffer/service/copy_shared_image_helper.cc
+index 02bf7476..e3dd634 100644
+--- a/gpu/command_buffer/service/copy_shared_image_helper.cc
++++ b/gpu/command_buffer/service/copy_shared_image_helper.cc
+@@ -168,7 +168,7 @@
+ 
+   gfx::Size source_size = source_shared_image->size();
+   gfx::Rect source_rect(x, y, width, height);
+-  if (!gfx::Rect(source_size).Contains(source_rect)) {
++  if (source_rect.IsEmpty() || !gfx::Rect(source_size).Contains(source_rect)) {
+     return false;
+   }
+ 
+@@ -280,7 +280,7 @@
+ 
+   gfx::Size dest_size = dest_shared_image->size();
+   gfx::Rect dest_rect(xoffset, yoffset, dst_width, dst_height);
+-  if (!gfx::Rect(dest_size).Contains(dest_rect)) {
++  if (dest_rect.IsEmpty() || !gfx::Rect(dest_size).Contains(dest_rect)) {
+     return base::unexpected(GLError(GL_INVALID_VALUE, "CopySharedImage",
+                                     "destination texture bad dimensions."));
+   }
+@@ -401,7 +401,7 @@
+ 
+   gfx::Size source_size = source_shared_image->size();
+   gfx::Rect source_rect(x, y, src_width, src_height);
+-  if (!gfx::Rect(source_size).Contains(source_rect)) {
++  if (source_rect.IsEmpty() || !gfx::Rect(source_size).Contains(source_rect)) {
+     return base::unexpected(GLError(GL_INVALID_VALUE, "CopySharedImage",
+                                     "source texture bad dimensions."));
+   }
+@@ -576,7 +576,7 @@
+ 
+   gfx::Size source_size = source_shared_image->size();
+   gfx::Rect source_rect(src_x, src_y, width, height);
+-  if (!gfx::Rect(source_size).Contains(source_rect)) {
++  if (source_rect.IsEmpty() || !gfx::Rect(source_size).Contains(source_rect)) {
+     return base::unexpected<GLError>(GLError(GL_INVALID_VALUE,
+                                              "CopySharedImageToGLTexture",
+                                              "source texture bad dimensions."));
+@@ -648,7 +648,7 @@
+                              size_t row_bytes) {
+   gfx::Rect src_rect(src_x, src_y, dst_info.width(), dst_info.height());
+   gfx::Rect src_image_bounds(sk_image->width(), sk_image->height());
+-  CHECK(src_image_bounds.Contains(src_rect));
++  CHECK(!src_rect.IsEmpty() && src_image_bounds.Contains(src_rect));
+ 
+   CHECK(graphite_shared_context);
+   ReadPixelsContext context;
+@@ -735,7 +735,7 @@
+ 
+   gfx::Rect src_rect(src_x, src_y, dst_info.width(), dst_info.height());
+   gfx::Rect src_image_bounds(sk_image->width(), sk_image->height());
+-  if (!src_image_bounds.Contains(src_rect)) {
++  if (src_rect.IsEmpty() || !src_image_bounds.Contains(src_rect)) {
+     source_scoped_access->ApplyBackendSurfaceEndState();
+     shared_context_state_->SubmitIfNecessary(
+         std::move(end_semaphores),
 diff --git a/media/mojo/clients/mojo_cdm.cc b/media/mojo/clients/mojo_cdm.cc
 index b454815..3bfbf574 100644
 --- a/media/mojo/clients/mojo_cdm.cc
@@ -1827,6 +2668,108 @@ index 8d38484..0f26dd2 100644
      "EnableCustomInputStreamBufferSize": [
          {
              "platforms": [
+diff --git a/third_party/blink/renderer/core/display_lock/display_lock_document_state.cc b/third_party/blink/renderer/core/display_lock/display_lock_document_state.cc
+index d05d2c2..4a242af1 100644
+--- a/third_party/blink/renderer/core/display_lock/display_lock_document_state.cc
++++ b/third_party/blink/renderer/core/display_lock/display_lock_document_state.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "third_party/blink/renderer/core/display_lock/display_lock_document_state.h"
+ 
++#include "base/check.h"
++#include "base/check_op.h"
+ #include "base/trace_event/trace_event.h"
+ #include "third_party/blink/renderer/core/css/style_engine.h"
+ #include "third_party/blink/renderer/core/display_lock/display_lock_context.h"
+@@ -375,11 +377,15 @@
+ 
+ // ScopedForcedActivatableDisplayLocks implementation -----------
+ DisplayLockDocumentState::ScopedForceActivatableDisplayLocks::
+-    ScopedForceActivatableDisplayLocks(DisplayLockDocumentState* state)
+-    : state_(state) {
+-  if (++state_->activatable_display_locks_forced_ == 1) {
++    ScopedForceActivatableDisplayLocks() = default;
++
++DisplayLockDocumentState::ScopedForceActivatableDisplayLocks::
++    ScopedForceActivatableDisplayLocks(DisplayLockDocumentState* state) {
++  CHECK(state);
++  states_.push_back(state);
++  if (++state->activatable_display_locks_forced_ == 1) {
+     HeapVector<Member<DisplayLockContext>> contexts(
+-        state_->display_lock_contexts_);
++        state->display_lock_contexts_);
+     for (auto& context : contexts) {
+       if (context->HasElement()) {
+         context->DidForceActivatableDisplayLocks();
+@@ -398,25 +404,21 @@
+ 
+ DisplayLockDocumentState::ScopedForceActivatableDisplayLocks::
+     ScopedForceActivatableDisplayLocks(
+-        ScopedForceActivatableDisplayLocks&& other)
+-    : state_(other.state_) {
+-  other.state_ = nullptr;
+-}
++        ScopedForceActivatableDisplayLocks&& other) = default;
+ 
+-DisplayLockDocumentState::ScopedForceActivatableDisplayLocks&
+-DisplayLockDocumentState::ScopedForceActivatableDisplayLocks::operator=(
++void DisplayLockDocumentState::ScopedForceActivatableDisplayLocks::Add(
+     ScopedForceActivatableDisplayLocks&& other) {
+-  state_ = other.state_;
+-  other.state_ = nullptr;
+-  return *this;
++  CHECK_NE(&other, this);
++  states_.append_range(other.states_);
++  other.states_.clear();
+ }
+ 
+ DisplayLockDocumentState::ScopedForceActivatableDisplayLocks::
+     ~ScopedForceActivatableDisplayLocks() {
+-  if (!state_)
+-    return;
+-  DCHECK(state_->activatable_display_locks_forced_);
+-  --state_->activatable_display_locks_forced_;
++  for (DisplayLockDocumentState* state : states_) {
++    CHECK_GT(state->activatable_display_locks_forced_, 0);
++    --state->activatable_display_locks_forced_;
++  }
+ }
+ 
+ void DisplayLockDocumentState::NotifyPrintingOrPreviewChanged() {
+diff --git a/third_party/blink/renderer/core/display_lock/display_lock_document_state.h b/third_party/blink/renderer/core/display_lock/display_lock_document_state.h
+index a6f885f..82bde37 100644
+--- a/third_party/blink/renderer/core/display_lock/display_lock_document_state.h
++++ b/third_party/blink/renderer/core/display_lock/display_lock_document_state.h
+@@ -68,17 +68,26 @@
+     STACK_ALLOCATED();
+ 
+    public:
++    ScopedForceActivatableDisplayLocks();
+     ScopedForceActivatableDisplayLocks(ScopedForceActivatableDisplayLocks&&);
++    ScopedForceActivatableDisplayLocks& operator=(
++        ScopedForceActivatableDisplayLocks&&) = delete;
+     ~ScopedForceActivatableDisplayLocks();
+ 
+-    ScopedForceActivatableDisplayLocks& operator=(
+-        ScopedForceActivatableDisplayLocks&&);
++    // Transfers the locks held by `other` into this scope, leaving `other`
++    // empty.
++    void Add(ScopedForceActivatableDisplayLocks&& other);
+ 
+    private:
+     friend DisplayLockDocumentState;
+     explicit ScopedForceActivatableDisplayLocks(DisplayLockDocumentState*);
+ 
+-    DisplayLockDocumentState* state_;
++    // Inline capacity 1 handles the common single-document case on the stack,
++    // while multi-frame callers can merge additional states via `Add()`.
++    // Elements use `Member` so Oilpan traces the backing buffer if the vector
++    // spills to the heap (while the scope itself stays `STACK_ALLOCATED()` for
++    // deterministic RAII destruction).
++    HeapVector<Member<DisplayLockDocumentState>, 1> states_;
+   };
+ 
+   ScopedForceActivatableDisplayLocks GetScopedForceActivatableLocks();
 diff --git a/third_party/blink/renderer/core/dom/element.cc b/third_party/blink/renderer/core/dom/element.cc
 index 45c7ba4d..755950af 100644
 --- a/third_party/blink/renderer/core/dom/element.cc
@@ -1917,6 +2860,43 @@ index 480c7f0..10e6aba9 100644
  }
  
  inline void TransitionPseudoElementData::SetPseudoElement(
+diff --git a/third_party/blink/renderer/core/editing/commands/editor_command.cc b/third_party/blink/renderer/core/editing/commands/editor_command.cc
+index a19467e..741d08a 100644
+--- a/third_party/blink/renderer/core/editing/commands/editor_command.cc
++++ b/third_party/blink/renderer/core/editing/commands/editor_command.cc
+@@ -2201,13 +2201,12 @@
+   // We need to force unlock activatable DisplayLocks for Editor::FindString
+   // before the following call to UpdateStyleAndLayout. Otherwise,
+   // ExecuteFindString/Editor::FindString will hit bad style/layout data.
+-  std::optional<DisplayLockDocumentState::ScopedForceActivatableDisplayLocks>
+-      forced_locks;
++  DisplayLockDocumentState::ScopedForceActivatableDisplayLocks forced_locks;
+   if (command_->command_type == EditingCommandType::kFindString) {
+-    forced_locks = GetFrame()
+-                       .GetDocument()
+-                       ->GetDisplayLockDocumentState()
+-                       .GetScopedForceActivatableLocks();
++    forced_locks.Add(GetFrame()
++                         .GetDocument()
++                         ->GetDisplayLockDocumentState()
++                         .GetScopedForceActivatableLocks());
+   }
+ 
+   GetFrame().GetDocument()->UpdateStyleAndLayout(
+diff --git a/third_party/blink/renderer/core/editing/serializers/serialization.cc b/third_party/blink/renderer/core/editing/serializers/serialization.cc
+index 8821f5da..edb529b 100644
+--- a/third_party/blink/renderer/core/editing/serializers/serialization.cc
++++ b/third_party/blink/renderer/core/editing/serializers/serialization.cc
+@@ -848,8 +848,8 @@
+     SVGURLReferenceResolver resolver(use->HrefString(), use->GetDocument());
+     if (!resolver.IsLocal() || resolver.AbsoluteUrl().ProtocolIsData()) {
+       node.remove();
++      return true;
+     }
+-    return true;
+   }
+   bool stripped = false;
+   for (Node* child = node.firstChild(); child;) {
 diff --git a/third_party/blink/renderer/core/events/focus_event.cc b/third_party/blink/renderer/core/events/focus_event.cc
 index e843393dd..7d574f67 100644
 --- a/third_party/blink/renderer/core/events/focus_event.cc
@@ -2262,6 +3242,177 @@ index 0125247b..83d55ed 100644
        UpdatePropertyChange(properties_changed_.effect_changed,
                             PaintPropertyChangeType::kNodeAddedOrRemoved);
      }
+diff --git a/third_party/blink/renderer/modules/content_extraction/ai_page_content_agent.cc b/third_party/blink/renderer/modules/content_extraction/ai_page_content_agent.cc
+index 3b27801..5b5ec18 100644
+--- a/third_party/blink/renderer/modules/content_extraction/ai_page_content_agent.cc
++++ b/third_party/blink/renderer/modules/content_extraction/ai_page_content_agent.cc
+@@ -2438,26 +2438,24 @@
+   //
+   // TODO(crbug.com/387355768): Consider limiting the lock to nodes with
+   // activation reason of FindInPage.
+-  std::vector<DisplayLockDocumentState::ScopedForceActivatableDisplayLocks>
++  DisplayLockDocumentState::ScopedForceActivatableDisplayLocks
+       forced_activatable_locks;
+ 
+   // If we're doing this extraction as a part of the document lifecycle, we
+   // can't invalidate style/layout.
+   if (!document.InvalidationDisallowed()) {
+-    forced_activatable_locks.emplace_back(
+-        document.GetDisplayLockDocumentState()
+-            .GetScopedForceActivatableLocks());
++    forced_activatable_locks.Add(document.GetDisplayLockDocumentState()
++                                     .GetScopedForceActivatableLocks());
+     document.View()->ForAllChildLocalFrameViews(
+         [&](LocalFrameView& frame_view) {
+           if (!frame_view.GetFrame().GetDocument()) {
+             return;
+           }
+ 
+-          forced_activatable_locks.emplace_back(
+-              frame_view.GetFrame()
+-                  .GetDocument()
+-                  ->GetDisplayLockDocumentState()
+-                  .GetScopedForceActivatableLocks());
++          forced_activatable_locks.Add(frame_view.GetFrame()
++                                           .GetDocument()
++                                           ->GetDisplayLockDocumentState()
++                                           .GetScopedForceActivatableLocks());
+         });
+   }
+ 
+diff --git a/third_party/blink/renderer/modules/media_controls/resources/mediaControls.css b/third_party/blink/renderer/modules/media_controls/resources/mediaControls.css
+index bfe8b6f0..88c6c7d 100644
+--- a/third_party/blink/renderer/modules/media_controls/resources/mediaControls.css
++++ b/third_party/blink/renderer/modules/media_controls/resources/mediaControls.css
+@@ -36,6 +36,7 @@
+   margin-left: env(safe-area-inset-left);
+   margin-right: env(safe-area-inset-right);
+   margin-bottom: env(safe-area-inset-bottom);
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ audio::-webkit-media-controls-enclosure,
+@@ -50,6 +51,7 @@
+   justify-content: flex-end;
+   flex: 1;
+   width: 100%;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ audio::-webkit-media-controls-panel,
+@@ -60,6 +62,7 @@
+   flex-direction: column;
+   justify-content: flex-end;
+   user-select: none;
++  -webkit-user-modify: read-only !important;
+   z-index: 0;
+   overflow: hidden;
+   bottom: auto;
+@@ -225,6 +228,7 @@
+ 
+   /* Cursor: pointer will cause a highlight when touch on it, this will disable it */
+   -webkit-tap-highlight-color: transparent;
++  -webkit-user-modify: read-only !important;
+ 
+   /* These buttons form the anchor for anchor positioning. */
+   /* TODO(crbug.com/341741271): Put this back when anchor pos is stable. */
+@@ -424,10 +428,12 @@
+ 
+ audio::-webkit-media-controls-toggle-closed-captions-button {
+   display: none;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ audio::-webkit-media-controls-toggle-audio-descriptions-button {
+   display: none;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ video::-webkit-media-controls-toggle-closed-captions-button {
+@@ -494,6 +500,7 @@
+   transition: opacity 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+   padding: 20px;
+   border: 0;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ /*
+@@ -509,6 +516,7 @@
+   /* 48(Mute button) + 52(Slider) + 16(Left padding) */
+   min-width: 116px;
+   transition: min-width .3s;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ audio::-webkit-media-controls-volume-control-container.closed,
+@@ -544,6 +552,7 @@
+   top: 6px;
+   right: 4px;
+   transition: width .3s ease, opacity .25s ease;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ /*
+@@ -674,6 +683,7 @@
+ 
+   /* This prevents layout issues in quirks mode */
+   box-sizing: unset !important;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ audio::-webkit-media-controls-timeline:disabled,
+@@ -857,6 +867,7 @@
+ 
+   /* This prevents layout issues in quirks mode. */
+   box-sizing: unset !important;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ audio::-webkit-media-controls-volume-slider.closed,
+@@ -896,6 +907,7 @@
+   color: light-dark(#000000, #ffffff);
+   letter-spacing: 0;
+   text-shadow: 0 0 10px light-dark(#ffffff, #3b3b3b);
++  -webkit-user-modify: read-only !important;
+ }
+ video::-webkit-media-controls:not(.audio-only) [pseudo="-webkit-media-controls-current-time-display"],
+ video::-webkit-media-controls:not(.audio-only) [pseudo="-webkit-media-controls-time-remaining-display"] {
+@@ -1201,6 +1213,7 @@
+   position: absolute;
+   width: 100%;
+   height: 100%;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ /**
+@@ -1210,6 +1223,7 @@
+ audio::-webkit-media-controls-overlay-enclosure,
+ video::-webkit-media-controls.audio-only [pseudo="-webkit-media-controls-overlay-enclosure"] {
+   display: none;
++  -webkit-user-modify: read-only !important;
+ }
+ 
+ audio::-webkit-media-controls-enclosure,
+@@ -1422,6 +1436,7 @@
+  */
+ audio::-webkit-media-text-track-container {
+     overflow: hidden;
++    -webkit-user-modify: read-only !important;
+ }
+ 
+ /**
+@@ -1446,6 +1461,11 @@
+     height: 48px;
+     padding: 0;
+     transition: opacity 0.3s;
++    -webkit-user-modify: read-only !important;
++}
++
++audio::-internal-media-controls-overlay-cast-button {
++    -webkit-user-modify: read-only !important;
+ }
+ 
+ video::-internal-media-controls-overlay-cast-button.on {
 diff --git a/third_party/blink/renderer/modules/webaudio/media_element_audio_source_handler.cc b/third_party/blink/renderer/modules/webaudio/media_element_audio_source_handler.cc
 index b1605ea..abd4ca3 100644
 --- a/third_party/blink/renderer/modules/webaudio/media_element_audio_source_handler.cc
@@ -2678,6 +3829,55 @@ index 8591823d..ea33e05 100644
  
      // Dispatch the "redraw" event for layers that should be updated.
      if (layers_enabled_) {
+diff --git a/third_party/blink/renderer/modules/xr/xr_webgl_layer.cc b/third_party/blink/renderer/modules/xr/xr_webgl_layer.cc
+index f8e5262..b45a9f54 100644
+--- a/third_party/blink/renderer/modules/xr/xr_webgl_layer.cc
++++ b/third_party/blink/renderer/modules/xr/xr_webgl_layer.cc
+@@ -350,17 +350,17 @@
+ }
+ 
+ void XRWebGLLayer::OnFrameEnd() {
+-  // The session might have ended in the middle of the frame. Only perform the
+-  // main work of OnFrameEnd if it's still valid. Otherwise, simply ensure the
+-  // shared image access is properly ended.
+-  if (session()->ended()) {
+-    DoneWithSharedBuffer();
+-    return;
+-  }
+-
+   if (framebuffer_) {
+     framebuffer_->MarkOpaqueBufferComplete(false);
+ 
++    // The session might have ended in the middle of the frame. Only perform the
++    // main work of OnFrameEnd if it's still valid. Otherwise, simply ensure the
++    // shared image access is properly ended.
++    if (session()->ended()) {
++      DoneWithSharedBuffer();
++      return;
++    }
++
+     // Submit the frame to the XR compositor.
+     if (session()->immersive()) {
+       bool framebuffer_dirty = framebuffer_->HaveContentsChanged();
+diff --git a/third_party/blink/renderer/platform/graphics/gpu/xr_webgl_drawing_buffer.cc b/third_party/blink/renderer/platform/graphics/gpu/xr_webgl_drawing_buffer.cc
+index 1470d471..1b844ff 100644
+--- a/third_party/blink/renderer/platform/graphics/gpu/xr_webgl_drawing_buffer.cc
++++ b/third_party/blink/renderer/platform/graphics/gpu/xr_webgl_drawing_buffer.cc
+@@ -337,6 +337,14 @@
+     gl->DiscardFramebufferEXT(GL_FRAMEBUFFER, 2, kAttachments);
+   }
+ 
++  // Detach the shared buffer from the framebuffer to prevent access to an
++  // orphaned attachment.
++  gl->BindFramebuffer(GL_FRAMEBUFFER, WantExplicitResolve()
++                                          ? resolved_framebuffer_
++                                          : framebuffer_);
++  gl->FramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
++                           0, 0);
++
+   // Always bind to the default framebuffer as a hint to the GPU to start
+   // rendering now.
+   gl->BindFramebuffer(GL_FRAMEBUFFER, 0);
 diff --git a/third_party/blink/renderer/platform/media/web_audio_source_provider_impl.cc b/third_party/blink/renderer/platform/media/web_audio_source_provider_impl.cc
 index 74d24e43..c9c1b19 100644
 --- a/third_party/blink/renderer/platform/media/web_audio_source_provider_impl.cc
@@ -2701,6 +3901,81 @@ index 74d24e43..c9c1b19 100644
    // It may be the case that the given |audio_data| doesn't have the same number
    // of channels as we were expecting, due to a race condition. In that case,
    // simply output silence.
+diff --git a/third_party/blink/renderer/platform/p2p/empty_network_manager.cc b/third_party/blink/renderer/platform/p2p/empty_network_manager.cc
+index d742aaf..6b316d7 100644
+--- a/third_party/blink/renderer/platform/p2p/empty_network_manager.cc
++++ b/third_party/blink/renderer/platform/p2p/empty_network_manager.cc
+@@ -30,7 +30,8 @@
+ 
+ EmptyNetworkManager::~EmptyNetworkManager() {
+   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+-  if (network_manager_for_signaling_thread_) {
++  if (network_manager_for_signaling_thread_ != nullptr &&
++      subscribe_networks_changed_called_) {
+     network_manager_for_signaling_thread_->UnsubscribeNetworksChanged(this);
+   }
+ }
+diff --git a/third_party/blink/renderer/platform/runtime_enabled_features.json5 b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+index 8f5b96aa..2fc1e18 100644
+--- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
++++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+@@ -6634,6 +6634,11 @@
+       status: "experimental",
+     },
+     {
++      // https://crbug.com/578671521
++      name: "TextEncodingDetectorTldHint",
++      status: "stable",
++    },
++    {
+       name: "TextFragmentAPI",
+       status: "experimental",
+     },
+diff --git a/third_party/blink/renderer/platform/text/text_encoding_detector.cc b/third_party/blink/renderer/platform/text/text_encoding_detector.cc
+index 4b4a9b5..0434d2b 100644
+--- a/third_party/blink/renderer/platform/text/text_encoding_detector.cc
++++ b/third_party/blink/renderer/platform/text/text_encoding_detector.cc
+@@ -31,10 +31,13 @@
+ #include "third_party/blink/renderer/platform/text/text_encoding_detector.h"
+ 
+ #include <algorithm>
++#include <string>
+ 
+ #include "base/numerics/safe_conversions.h"
+ #include "build/build_config.h"
++#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ #include "third_party/blink/renderer/platform/weborigin/kurl.h"
++#include "third_party/blink/renderer/platform/wtf/text/string_view.h"
+ #include "third_party/blink/renderer/platform/wtf/text/text_encoding.h"
+ #include "third_party/ced/src/compact_enc_det/compact_enc_det.h"
+ #include "url/url_util.h"
+@@ -71,12 +74,25 @@
+   if (is_local_resource) {
+     LanguageFromCode(hint_user_language, &language);
+   }
++
++  // crbug.com/578671521: We'd like to pass only TLD rather than the full URL to
++  // avoid spoofing.
++  std::string url_or_tld_hint;
++  if (RuntimeEnabledFeatures::TextEncodingDetectorTldHintEnabled()) {
++    StringView host = hint_url.Host();
++    if (wtf_size_t dot_index = host.rfind('.'); dot_index != kNotFound) {
++      url_or_tld_hint = host.substr(dot_index + 1).Utf8();
++    }
++  } else {
++    url_or_tld_hint = hint_url.GetString().Ascii();
++  }
++
+   int consumed_bytes;
+   bool is_reliable;
+   auto chars = base::as_chars(bytes);
+   Encoding encoding = CompactEncDet::DetectEncoding(
+       chars.data(), base::checked_cast<int>(chars.size()),
+-      hint_url.GetString().Ascii().c_str(), nullptr, nullptr,
++      url_or_tld_hint.c_str(), nullptr, nullptr,
+       EncodingNameAliasToEncoding(hint_encoding_name), language,
+       CompactEncDet::WEB_CORPUS,
+       false,  // Include 7-bit encodings to detect ISO-2022-JP
 diff --git a/tools/metrics/histograms/metadata/enterprise/histograms.xml b/tools/metrics/histograms/metadata/enterprise/histograms.xml
 index 04626fc..adbf3c3f 100644
 --- a/tools/metrics/histograms/metadata/enterprise/histograms.xml
@@ -2766,6 +4041,211 @@ index e15fb7d..7a76ba7 100644
    std::optional<ui::ColorId> foreground_color_id_;
    std::optional<MenuItemBackground> menu_item_background_;
    std::optional<ui::ColorId> selected_color_id_;
+diff --git a/third_party/devtools-frontend/src/front_end/ui/lit/Directives.test.ts b/third_party/devtools-frontend/src/front_end/ui/lit/Directives.test.ts
+index 512f54a..e7618b0 100644
+--- a/third_party/devtools-frontend/src/front_end/ui/lit/Directives.test.ts
++++ b/third_party/devtools-frontend/src/front_end/ui/lit/Directives.test.ts
+@@ -115,19 +115,28 @@
+     sinon.assert.calledOnce(clickHandler2);
+   });
+ 
+-  it('registers and removes listeners with registerListeners', () => {
+-    const element = document.createElement('div');
+-    const clickHandler = sinon.spy();
+-    CustomDirectives.InterceptBindingDirective.registerListeners(element, {click: clickHandler});
++  it('updates event handlers on clones when re-rendered', () => {
++    const container = document.createElement('div');
++    const clickHandler1 = sinon.spy();
++    const clickHandler2 = sinon.spy();
++    const renderButton = (handler: CustomDirectives.BindingEventListener): void => {
++      render(html`<button @click=${interceptBinding(handler)}></button>`, container);
++    };
+ 
+-    const targetElement = document.createElement('div');
+-    CustomDirectives.InterceptBindingDirective.setEventListeners([element], targetElement);
+-    targetElement.click();
+-    sinon.assert.calledOnce(clickHandler);
++    renderButton(clickHandler1);
++    const templateButton = container.firstElementChild;
++    assert.instanceOf(templateButton, HTMLButtonElement);
+ 
+-    CustomDirectives.InterceptBindingDirective.registerListeners(element, undefined);
+-    CustomDirectives.InterceptBindingDirective.setEventListeners([element], targetElement);
+-    targetElement.click();
+-    sinon.assert.calledOnce(clickHandler);
++    const clonedButton = cloneNodeWithListeners(templateButton);
++    assert.instanceOf(clonedButton, HTMLButtonElement);
++
++    clonedButton.click();
++    sinon.assert.calledOnce(clickHandler1);
++    sinon.assert.notCalled(clickHandler2);
++
++    renderButton(clickHandler2);
++    clonedButton.click();
++    sinon.assert.calledOnce(clickHandler1);
++    sinon.assert.calledOnce(clickHandler2);
+   });
+ });
+diff --git a/third_party/devtools-frontend/src/front_end/ui/lit/Directives.ts b/third_party/devtools-frontend/src/front_end/ui/lit/Directives.ts
+index 2f17e0f..c07a21d 100644
+--- a/third_party/devtools-frontend/src/front_end/ui/lit/Directives.ts
++++ b/third_party/devtools-frontend/src/front_end/ui/lit/Directives.ts
+@@ -2,13 +2,15 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
++import * as Platform from '../../core/platform/platform.js';
+ import * as Lit from '../../third_party/lit/lit.js';
+ 
+ /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+ export type BindingEventListener = (arg: any) => any;
+ 
+ export class InterceptBindingDirective extends Lit.Directive.Directive {
+-  static readonly #interceptedBindings = new WeakMap<Element, Map<string, BindingEventListener>>();
++  static readonly #interceptedBindings =
++      new WeakMap<Element, {bindings: Map<string, BindingEventListener>, lastAttachment?: WeakRef<Element>}>();
+   static readonly #attachedBindings = new WeakMap<Element, Map<string, Set<BindingEventListener>>>();
+ 
+   override update(part: Lit.Directive.Part, [listener]: [BindingEventListener]): unknown {
+@@ -17,14 +19,42 @@
+     }
+     let eventListeners = InterceptBindingDirective.#interceptedBindings.get(part.element);
+     if (!eventListeners) {
+-      eventListeners = new Map();
++      eventListeners = {bindings: new Map()};
+       InterceptBindingDirective.#interceptedBindings.set(part.element, eventListeners);
+     }
+-    eventListeners.set(part.name, listener);
++
++    InterceptBindingDirective.#updateAttachedListener(part.element, part.name, listener);
++    eventListeners.bindings.set(part.name, listener);
+ 
+     return this.render(listener);
+   }
+ 
++  static #updateAttachedListener(templateElement: Element, name: string, listener: BindingEventListener): void {
++    const binding = this.#interceptedBindings.get(templateElement);
++    if (!binding) {
++      return;
++    }
++    const lastAttachment = binding.lastAttachment?.deref();
++    if (!lastAttachment) {
++      return;
++    }
++    const oldListener = binding.bindings.get(name);
++    if (oldListener === listener) {
++      return;
++    }
++    const attachedBindings = this.#attachedBindings.get(lastAttachment);
++    if (!attachedBindings) {
++      return;
++    }
++    const attachedListeners = Platform.MapUtilities.getWithDefault(attachedBindings, name, () => new Set());
++    if (oldListener) {
++      lastAttachment.removeEventListener(name, oldListener);
++      attachedListeners.delete(oldListener);
++    }
++    lastAttachment.addEventListener(name, listener);
++    attachedListeners.add(listener);
++  }
++
+   /* eslint-disable-next-line @typescript-eslint/no-unsafe-function-type */
+   render(listener: Function): Function {
+     return listener;
+@@ -45,7 +75,8 @@
+     for (const templateElement of elements) {
+       const newListeners = InterceptBindingDirective.#interceptedBindings.get(templateElement);
+       if (newListeners) {
+-        for (const [name, listener] of newListeners) {
++        newListeners.lastAttachment = new WeakRef(renderedElement);
++        for (const [name, listener] of newListeners.bindings) {
+           renderedElement.addEventListener(name, listener);
+           let listenersSet = newAttachedListeners.get(name);
+           if (!listenersSet) {
+@@ -63,18 +94,4 @@
+       InterceptBindingDirective.#attachedBindings.delete(renderedElement);
+     }
+   }
+-
+-  static registerListeners(element: Element, listeners?: Record<string, EventListenerOrEventListenerObject>): void {
+-    if (!listeners) {
+-      InterceptBindingDirective.#interceptedBindings.delete(element);
+-      return;
+-    }
+-    const map = new Map<string, BindingEventListener>();
+-    for (const [name, listener] of Object.entries(listeners)) {
+-      map.set(name,
+-              typeof listener === 'function' ? listener as BindingEventListener :
+-                                               listener.handleEvent.bind(listener) as BindingEventListener);
+-    }
+-    InterceptBindingDirective.#interceptedBindings.set(element, map);
+-  }
+ }
+diff --git a/third_party/devtools-frontend/src/front_end/ui/lit/render.test.ts b/third_party/devtools-frontend/src/front_end/ui/lit/render.test.ts
+index 107e6fc..637ba33 100644
+--- a/third_party/devtools-frontend/src/front_end/ui/lit/render.test.ts
++++ b/third_party/devtools-frontend/src/front_end/ui/lit/render.test.ts
+@@ -3,11 +3,10 @@
+ // found in the LICENSE file.
+ 
+ import {assert} from 'chai';
+-import * as sinon from 'sinon';
+ 
+ import {renderElementIntoDOM} from '../../testing/DOMHelpers.js';
+ 
+-import {CustomDirectives, html, render} from './lit.js';
++import {html, render} from './lit.js';
+ 
+ describe('render', () => {
+   let container: HTMLElement;
+@@ -101,17 +100,6 @@
+     assert.strictEqual(clicked2, 1);
+   });
+ 
+-  it('updates interceptedListeners on the container using InterceptBindingDirective', () => {
+-    const stub = sinon.stub(CustomDirectives.InterceptBindingDirective, 'registerListeners');
+-
+-    const listener1 = () => {};
+-    render(html`<span>Content</span>`, container, {container: {interceptedListeners: {click: listener1}}});
+-    sinon.assert.calledOnceWithExactly(stub, container, {click: listener1});
+-
+-    render(html`<span>Content</span>`, container, {container: {interceptedListeners: undefined}});
+-    sinon.assert.calledWithExactly(stub, container, undefined);
+-  });
+-
+   it('applies options to the host when rendering into a ShadowRoot', () => {
+     const shadowRoot = container.attachShadow({mode: 'open'});
+ 
+diff --git a/third_party/devtools-frontend/src/front_end/ui/lit/render.ts b/third_party/devtools-frontend/src/front_end/ui/lit/render.ts
+index c4727fa..44c38f1 100644
+--- a/third_party/devtools-frontend/src/front_end/ui/lit/render.ts
++++ b/third_party/devtools-frontend/src/front_end/ui/lit/render.ts
+@@ -5,14 +5,11 @@
+ 
+ import * as Lit from '../../third_party/lit/lit.js';
+ 
+-import {InterceptBindingDirective} from './Directives.js';
+-
+ export interface RenderOptions extends Lit.RenderOptions {
+   container?: {
+     attributes?: Record<string, string|null|boolean|undefined|{toString(): string}>,
+     classes?: string[],
+     listeners?: Record<string, EventListenerOrEventListenerObject>,
+-    interceptedListeners?: Record<string, EventListenerOrEventListenerObject>,
+   };
+ }
+ 
+@@ -116,10 +113,6 @@
+     }
+   }
+ 
+-  if (host instanceof Element) {
+-    InterceptBindingDirective.registerListeners(host, options?.container?.interceptedListeners);
+-  }
+-
+   renderOptions.set(container, options);
+   return Lit.render(template, container, options);
+ }
 diff --git a/third_party/skia/gn/sksl_tests.gni b/third_party/skia/gn/sksl_tests.gni
 index cbce6d7..ab4dccb 100644
 --- a/third_party/skia/gn/sksl_tests.gni
@@ -2817,6 +4297,102 @@ index 0000000..5cae8b8
 +invalid type
 +invalid type
 +*%%*/
+diff --git a/third_party/skia/src/core/SkGeometry.cpp b/third_party/skia/src/core/SkGeometry.cpp
+index 2248fb7..9752915 100644
+--- a/third_party/skia/src/core/SkGeometry.cpp
++++ b/third_party/skia/src/core/SkGeometry.cpp
+@@ -1482,9 +1482,6 @@
+     return (x * x + y * y) <= tol * tol;
+ }
+ 
+-// Limit the number of suggested quads to approximate a conic
+-#define kMaxConicToQuadPOW2     5
+-
+ static inline bool bad_conic_w(float w) {
+     return w < 0 || !SkIsFinite(w);
+ }
+diff --git a/third_party/skia/src/core/SkGeometry.h b/third_party/skia/src/core/SkGeometry.h
+index d9d6ddd..2c45b59 100644
+--- a/third_party/skia/src/core/SkGeometry.h
++++ b/third_party/skia/src/core/SkGeometry.h
+@@ -372,6 +372,9 @@
+     void computeAsQuadError(SkVector* err) const;
+     bool asQuadTol(SkScalar tol) const;
+ 
++    // Limit the number of suggested quads to approximate a conic
++    static constexpr int kMaxConicToQuadPOW2 = 5;
++
+     /**
+      *  return the power-of-2 number of quads needed to approximate this conic
+      *  with a sequence of quads. Will be >= 0.
+diff --git a/third_party/skia/src/core/SkRegion_path.cpp b/third_party/skia/src/core/SkRegion_path.cpp
+index e65daff..011fe56 100644
+--- a/third_party/skia/src/core/SkRegion_path.cpp
++++ b/third_party/skia/src/core/SkRegion_path.cpp
+@@ -21,6 +21,7 @@
+ #include "include/private/SkTFitsIn.h"
+ #include "include/private/SkTo.h"
+ #include "src/core/SkBlitter.h"
++#include "src/core/SkGeometry.h"
+ #include "src/core/SkPathPriv.h"
+ #include "src/core/SkRegionPriv.h"
+ #include "src/core/SkSafeMath.h"
+@@ -281,7 +282,14 @@
+         0,  //  kMove_Verb
+         1,  //  kLine_Verb
+         2,  //  kQuad_VerbB
+-        2,  //  kConic_VerbB
++        // While a true conic section crosses a horizontal scanline at most twice, SkEdgeBuilder/
++        // SkEdgeClipper approximate each conic by subdividing it into up to 2^kMaxConicToQuadPOW2
++        // quads, each of which can be chopped at its Y-extremum into up to 2 monotonic edges. When
++        // a non-monotonic conic is subdivided near a scanline center, floating-point rounding and
++        // the conic-to-quad approximation can cause the subdivided quads to oscillate above and
++        // below that scanline, producing up to 2 * 2^kMaxConicToQuadPOW2 active edges on a single
++        // scanline.
++        2 << SkConic::kMaxConicToQuadPOW2,  //  kConic_VerbB
+         3,  //  kCubic_Verb
+         0,  //  kClose_Verb
+     });
+@@ -290,8 +298,9 @@
+     return gPathVerbToMaxEdges[index];
+ }
+ 
+-// If returns 0, ignore itop and ibot
++// If returns <= 0, ignore itop and ibot
+ static int count_path_runtype_values(const SkPath& path, int* itop, int* ibot) {
++    SkSafeMath safe;
+     int maxEdges = 0;
+     SkScalar    top = SkIntToScalar(SK_MaxS16);
+     SkScalar    bot = SkIntToScalar(SK_MinS16);
+@@ -301,7 +310,7 @@
+         const SkPathVerb verb = rec->fVerb;
+         const SkSpan<const SkPoint> pts = rec->fPoints;
+ 
+-        maxEdges += verb_to_max_edges(verb);
++        maxEdges = safe.addInt(maxEdges, verb_to_max_edges(verb));
+ 
+         int lastIndex = verb_to_initial_last_index(verb);
+         if (lastIndex > 0) {
+@@ -320,6 +329,9 @@
+             }
+         }
+     }
++    if (!safe) {
++        return -1;
++    }
+     if (0 == maxEdges) {
+         return 0;   // we have only moves+closes
+     }
+@@ -422,6 +434,9 @@
+     //  compute worst-case rgn-size for the path
+     int pathTop, pathBot;
+     int pathTransitions = count_path_runtype_values(path, &pathTop, &pathBot);
++    if (pathTransitions < 0) {
++        return this->setEmpty();
++    }
+     if (0 == pathTransitions) {
+         return check_inverse_on_empty_return(this, path, clip);
+     }
 diff --git a/third_party/skia/src/gpu/ganesh/Device_drawTexture.cpp b/third_party/skia/src/gpu/ganesh/Device_drawTexture.cpp
 index f8dfe8f..bbddd7a 100644
 --- a/third_party/skia/src/gpu/ganesh/Device_drawTexture.cpp
@@ -2967,6 +4543,54 @@ index cf2287e..75101a8 100644
      if (blendMode == SkBlendMode::kSrcOver) {
          return TextureOpImpl::Make(context, std::move(proxyView), std::move(textureXform), filter,
                                     mm, color, saturate, aaType, std::move(quad), subset);
+diff --git a/third_party/skia/src/gpu/graphite/ClipStack.cpp b/third_party/skia/src/gpu/graphite/ClipStack.cpp
+index 5e8d407..784b264 100644
+--- a/third_party/skia/src/gpu/graphite/ClipStack.cpp
++++ b/third_party/skia/src/gpu/graphite/ClipStack.cpp
+@@ -1369,9 +1369,22 @@
+         fLocalToDevice = Transform::Identity();
+         fShapeMatchesGeometry = false;
+     } else {
+-        // SkStrokeRec::GetInflationRadius() returns a device-space inflation for hairlines.
+         float localOutset = 0.f;
+-        if (!style.isFillStyle() && !style.isHairlineStyle()) {
++        if (style.isFillStyle()) {
++            // If the shape projects to a subpixel shape, expand the local bounds by the AA radius
++            // to create a conservative clip query that preserves the oriented bounding box.
++            if (!fShape.inverted() && any(origSize < localAAOutset)) {
++                localOutset = 0.5f * localAAOutset;
++            }
++        } else {
++            // getInflationRadius() does not handle device-space inflation for hairlines, but to
++            // preserve the bounding box in local space for as long as possible, use the
++            // `localAAOutset` as a conservative estimate for the local stroke radius that would
++            // cover the hairline.
++            //
++            // For local strokes that project to a subpixel shape, clamp to the localAAOutset as
++            // well to handle rendering that pads beyond the 1/2px outset in the subpixel case.
++            const float effectiveStrokeWidth = std::max(localAAOutset, style.getWidth());
+             // Rectangles, rounded rectangles, and lines do not produce miters so don't count the
+             // pessimistic limit against their draw bounds.
+             const float effectiveMiterLimit = fShape.isPath() ? style.getMiter() : 1.f;
+@@ -1383,17 +1396,7 @@
+             localOutset = SkStrokeRec::GetInflationRadius(style.getJoin(),
+                                                           effectiveMiterLimit,
+                                                           effectiveCap,
+-                                                          style.getWidth());
+-        }
+-
+-        if (style.isHairlineStyle() ||
+-            (!style.isFillStyle() && style.getWidth() < localAAOutset) ||
+-            (style.isFillStyle() && !fShape.inverted() && any(origSize < localAAOutset))) {
+-            // The geometry is a hairline or projects to a subpixel shape, so rendering will not
+-            // follow the typical 1/2px outset anti-aliasing that is compatible with clipping.
+-            // In this case, apply the local AA radius to the shape to have a conservative clip
+-            // query while preserving the oriented bounding box.
+-            localOutset += localAAOutset;
++                                                          effectiveStrokeWidth);
+         }
+ 
+         if (localOutset > 0.f) {
 diff --git a/third_party/skia/src/gpu/graphite/PaintParamsKey.h b/third_party/skia/src/gpu/graphite/PaintParamsKey.h
 index 8eefefc..d2e9fea 100644
 --- a/third_party/skia/src/gpu/graphite/PaintParamsKey.h
@@ -2980,6 +4604,34 @@ index 8eefefc..d2e9fea 100644
      }
      bool operator!=(const PaintParamsKey& that) const { return !(*this == that); }
  
+diff --git a/third_party/skia/src/shaders/SkShaderBase.h b/third_party/skia/src/shaders/SkShaderBase.h
+index f346da4..e95ddfd 100644
+--- a/third_party/skia/src/shaders/SkShaderBase.h
++++ b/third_party/skia/src/shaders/SkShaderBase.h
+@@ -356,7 +356,8 @@
+      * in r,g MatrixRec::apply() must be called (unless the shader doesn't require it's input
+      * coords). The default impl creates shadercontext and calls that (not very efficient).
+      */
+-    virtual bool appendStages(const SkStageRec&, const SkShaders::MatrixRec&) const = 0;
++    [[nodiscard]] virtual bool appendStages(const SkStageRec&,
++                                            const SkShaders::MatrixRec&) const = 0;
+ 
+     virtual SkImage* onIsAImage(SkMatrix*, SkTileMode[2]) const {
+         return nullptr;
+diff --git a/third_party/skia/src/shaders/SkTransformShader.cpp b/third_party/skia/src/shaders/SkTransformShader.cpp
+index d4656a1..4480f8b 100644
+--- a/third_party/skia/src/shaders/SkTransformShader.cpp
++++ b/third_party/skia/src/shaders/SkTransformShader.cpp
+@@ -50,6 +50,7 @@
+                                   : SkRasterPipelineOp::matrix_2x3;
+     rec.fPipeline->append(type, fMatrixStorage);
+ 
+-    fShader.appendStages(rec, *childMRec);
+-    return true;
++    // Propagate the wrapped shader's failure: a pipeline that is only partially
++    // appended must never be compiled and executed.
++    return fShader.appendStages(rec, *childMRec);
+ }
 diff --git a/third_party/skia/src/sksl/SkSLParser.cpp b/third_party/skia/src/sksl/SkSLParser.cpp
 index 49d801d..7860963 100644
 --- a/third_party/skia/src/sksl/SkSLParser.cpp
@@ -2997,6 +4649,73 @@ index 49d801d..7860963 100644
      Token bracket;
      while (this->checkNext(Token::Kind::TK_LBRACKET, &bracket)) {
          if (this->checkNext(Token::Kind::TK_RBRACKET)) {
+diff --git a/third_party/skia/src/sksl/codegen/SkSLRasterPipelineBuilder.cpp b/third_party/skia/src/sksl/codegen/SkSLRasterPipelineBuilder.cpp
+index 686c5e1..002505f 100644
+--- a/third_party/skia/src/sksl/codegen/SkSLRasterPipelineBuilder.cpp
++++ b/third_party/skia/src/sksl/codegen/SkSLRasterPipelineBuilder.cpp
+@@ -1766,6 +1766,20 @@
+         pipeline->append(SkRasterPipelineOp::set_base_pointer, (*slotData).values.data());
+     };
+ 
++    // Branch contexts temporarily hold an *absolute* pipeline index (see the branch case below)
++    // until every stage has been appended and the fix-up loop at the end rewrites them into
++    // relative offsets. If we bail out part-way through, the stages that were already appended to
++    // the caller's pipeline still reference those contexts. Callers should treat a `false` return
++    // as fatal, but if one of them runs the partial pipeline anyway, an absolute offset would make
++    // the branch stage dispatch past the end of the compiled program. Rewrite every pending branch
++    // into a harmless fall-through (+1) before returning failure.
++    auto failAndNeutralizeBranches = [&]() -> bool {
++        for (SkRasterPipelineContexts::BranchCtx* branchCtx : branchContexts) {
++            branchCtx->offset = 1;
++        }
++        return false;
++    };
++
+     resetBasePointer();
+ 
+     for (const Stage& stage : stages) {
+@@ -1776,28 +1790,28 @@
+ 
+             case ProgramOp::invoke_shader:
+                 if (!callbacks || !callbacks->appendShader(sk_bit_cast<intptr_t>(stage.ctx))) {
+-                    return false;
++                    return failAndNeutralizeBranches();
+                 }
+                 resetBasePointer();
+                 break;
+ 
+             case ProgramOp::invoke_color_filter:
+                 if (!callbacks || !callbacks->appendColorFilter(sk_bit_cast<intptr_t>(stage.ctx))) {
+-                    return false;
++                    return failAndNeutralizeBranches();
+                 }
+                 resetBasePointer();
+                 break;
+ 
+             case ProgramOp::invoke_blender:
+                 if (!callbacks || !callbacks->appendBlender(sk_bit_cast<intptr_t>(stage.ctx))) {
+-                    return false;
++                    return failAndNeutralizeBranches();
+                 }
+                 resetBasePointer();
+                 break;
+ 
+             case ProgramOp::invoke_to_linear_srgb:
+                 if (!callbacks) {
+-                    return false;
++                    return failAndNeutralizeBranches();
+                 }
+                 callbacks->toLinearSrgb(stage.ctx);
+                 // A ColorSpaceXform shouldn't ever alter the base pointer, so we don't need to call
+@@ -1806,7 +1820,7 @@
+ 
+             case ProgramOp::invoke_from_linear_srgb:
+                 if (!callbacks) {
+-                    return false;
++                    return failAndNeutralizeBranches();
+                 }
+                 callbacks->fromLinearSrgb(stage.ctx);
+                 // A ColorSpaceXform shouldn't ever alter the base pointer, so we don't need to call
 diff --git a/third_party/skia/src/sksl/ir/SkSLVarDeclarations.cpp b/third_party/skia/src/sksl/ir/SkSLVarDeclarations.cpp
 index 0d49ea3..8d83473 100644
 --- a/third_party/skia/src/sksl/ir/SkSLVarDeclarations.cpp
@@ -3012,7 +4731,7 @@ index 0d49ea3..8d83473 100644
      }
      if (baseType->isVoid()) {
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index 9481dc1..683b3eb 100644
+index 9481dc1..1327c76 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -3020,7 +4739,7 @@ index 9481dc1..683b3eb 100644
  #define V8_MINOR_VERSION 7
  #define V8_BUILD_NUMBER 112
 -#define V8_PATCH_LEVEL 12
-+#define V8_PATCH_LEVEL 17
++#define V8_PATCH_LEVEL 18
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
@@ -3039,6 +4758,33 @@ index cc55103..cce8ced 100644
        translations_.StoreJSFrameFunction();
      } else {
        int literal_id = DefineDeoptimizationLiteral(literal);
+diff --git a/v8/src/compiler/js-generic-lowering.cc b/v8/src/compiler/js-generic-lowering.cc
+index 8742d1b..151099e 100644
+--- a/v8/src/compiler/js-generic-lowering.cc
++++ b/v8/src/compiler/js-generic-lowering.cc
+@@ -760,9 +760,6 @@
+   SharedFunctionInfoRef shared = p.shared();
+   TemplateObjectDescriptionRef description = p.description();
+ 
+-  DCHECK_EQ(node->op()->ControlInputCount(), 1);
+-  node->RemoveInput(NodeProperties::FirstControlIndex(node));
+-
+   static_assert(JSGetTemplateObjectNode::FeedbackVectorIndex() == 0);
+   node->InsertInput(zone(), 0, jsgraph()->ConstantNoHole(shared, broker()));
+   node->InsertInput(zone(), 1,
+diff --git a/v8/src/compiler/js-operator.cc b/v8/src/compiler/js-operator.cc
+index 5aec87c..75810fa 100644
+--- a/v8/src/compiler/js-operator.cc
++++ b/v8/src/compiler/js-operator.cc
+@@ -1614,7 +1614,7 @@
+   GetTemplateObjectParameters parameters(description, shared, feedback);
+   return zone()->New<Operator1<GetTemplateObjectParameters>>(  // --
+       IrOpcode::kJSGetTemplateObject,                          // opcode
+-      Operator::kEliminatable,                                 // properties
++      Operator::kNoDeopt | Operator::kNoThrow,                 // properties
+       "JSGetTemplateObject",                                   // name
+       1, 1, 1, 1, 1, 0,                                        // counts
+       parameters);                                             // parameter
 diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
 index e62bf0d..2e28fd7 100644
 --- a/v8/src/maglev/maglev-graph-builder.cc
@@ -3341,7 +5087,7 @@ diff --git a/build/util/LASTCHANGE b/build/util/LASTCHANGE
 +++ b/build/util/LASTCHANGE
 @@ -1,2 +1,2 @@
 -LASTCHANGE=638dd0ef2fd334b657efb909d06d0164ea4d9443-refs/branch-heads/8103@{#943}
-+LASTCHANGE=40aa46194a841a35609fca1cbc7403808b104da0-refs/branch-heads/8103@{#986}
++LASTCHANGE=67b1826c23115ecbaaaa47d96ff5e3e18f966ba1-refs/branch-heads/8103@{#1005}
  LASTCHANGE_YEAR=2026
 diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 --- a/build/util/LASTCHANGE.committime
@@ -3349,7 +5095,7 @@ diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 @@ -1 +1 @@
 -1793133444
 \ No newline at end of file
-+1793315042
++1793399771
 \ No newline at end of file
 diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
 --- a/gpu/config/gpu_lists_version.h
@@ -3359,7 +5105,7 @@ diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
  #define GPU_CONFIG_GPU_LISTS_VERSION_H_
  
 -#define GPU_LISTS_VERSION "638dd0ef2fd334b657efb909d06d0164ea4d9443"
-+#define GPU_LISTS_VERSION "40aa46194a841a35609fca1cbc7403808b104da0"
++#define GPU_LISTS_VERSION "67b1826c23115ecbaaaa47d96ff5e3e18f966ba1"
  
  #endif  // GPU_CONFIG_GPU_LISTS_VERSION_H_
 diff --git a/skia/ext/skia_commit_hash.h b/skia/ext/skia_commit_hash.h
@@ -3370,6 +5116,6 @@ diff --git a/skia/ext/skia_commit_hash.h b/skia/ext/skia_commit_hash.h
  #define SKIA_EXT_SKIA_COMMIT_HASH_H_
  
 -#define SKIA_COMMIT_HASH "fa428e2b9c671ce8e57b3823536b4a1f648d178d"
-+#define SKIA_COMMIT_HASH "e67fbd8c35cda931cb224edc8566304e603a6458"
++#define SKIA_COMMIT_HASH "ca84ce0a6f1659748188469a89361ccea71e3a64"
  
  #endif  // SKIA_EXT_SKIA_COMMIT_HASH_H_
