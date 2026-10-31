@@ -1,0 +1,155 @@
+"[MediaSource] Match GOP keyframe PTS in FreeBuffers()" (crbug 577402416;
+no CVE listed yet): evicting a merged GOP that shared the last-appended
+GOP's timestamps desynchronised SourceBufferStream's append state, so a
+later split and non-keyframe append could create a keyframe-less
+SourceBufferRange. chromium/src main commit
+807547c7e98e0e82c5e074210adf92b65d33b89e, merged on 2026-10-31 to 158 and to
+157 as 7c5b52579205a69b15f50263cf85c70c1162c6ed (after the 157.0.8103.34
+tag). This is the 157 merge, without its tests. Drop it once a 157 tag has
+it.
+
+diff --git a/media/filters/source_buffer_range.cc b/media/filters/source_buffer_range.cc
+index c1e444ed..0503717e 100644
+--- a/media/filters/source_buffer_range.cc
++++ b/media/filters/source_buffer_range.cc
+@@ -29,7 +29,7 @@
+   DVLOG(3) << __func__;
+   DCHECK(interbuffer_distance_cb_);
+   CHECK(!new_buffers.empty());
+-  DCHECK(new_buffers.front()->is_key_frame());
++  CHECK(new_buffers.front()->is_key_frame());
+   AppendBuffersToEnd(new_buffers, range_start_pts_);
+ }
+ 
+@@ -107,8 +107,12 @@
+   DVLOG(1) << __func__;
+   DVLOG(4) << ToStringForDebugging();
+ 
+-  CHECK(buffers_.empty() ||
+-        CanAppendBuffersToEnd(new_buffers, new_buffers_group_start_pts));
++  if (buffers_.empty()) {
++    CHECK(!new_buffers.empty());
++    CHECK(new_buffers.front()->is_key_frame());
++  } else {
++    CHECK(CanAppendBuffersToEnd(new_buffers, new_buffers_group_start_pts));
++  }
+ 
+   DCHECK(new_buffers_group_start_pts == kNoTimestamp ||
+          new_buffers.front()->is_key_frame())
+@@ -373,7 +377,7 @@
+ 
+   // Remove the last GOP's keyframe from the |keyframe_map_|.
+   KeyframeMap::const_iterator back = keyframe_map_.end();
+-  DCHECK_GT(keyframe_map_.size(), 0u);
++  CHECK(!keyframe_map_.empty());
+   --back;
+ 
+   // The index of the first buffer in the last GOP is equal to the new size of
+@@ -452,6 +456,7 @@
+   DVLOG(1) << __func__;
+   DVLOG(4) << ToStringForDebugging();
+ 
++  CHECK(!keyframe_map_.empty());
+   if (keyframe_map_.size() == 1u)
+     return (GetBufferedEndTimestamp() <= media_time);
+ 
+@@ -468,6 +473,7 @@
+     return false;
+ 
+   // If there is only one GOP, it must contain the next buffer position.
++  CHECK(!keyframe_map_.empty());
+   if (keyframe_map_.size() == 1u)
+     return true;
+ 
+@@ -484,6 +490,7 @@
+     return false;
+ 
+   // If there is only one GOP, it must contain the next buffer position.
++  CHECK(!keyframe_map_.empty());
+   if (keyframe_map_.size() == 1u)
+     return true;
+ 
+@@ -526,6 +533,14 @@
+   return highest_frame_->timestamp();
+ }
+ 
++base::TimeDelta SourceBufferRange::GetLastGOPKeyframeTimestamp() const {
++  DVLOG(1) << __func__;
++  DVLOG(4) << ToStringForDebugging();
++
++  CHECK(!keyframe_map_.empty());
++  return keyframe_map_.rbegin()->first;
++}
++
+ base::TimeDelta SourceBufferRange::GetBufferedEndTimestamp() const {
+   DVLOG(1) << __func__;
+   DVLOG(4) << ToStringForDebugging();
+diff --git a/media/filters/source_buffer_range.h b/media/filters/source_buffer_range.h
+index 916d189..2734c7c 100644
+--- a/media/filters/source_buffer_range.h
++++ b/media/filters/source_buffer_range.h
+@@ -209,6 +209,9 @@
+   // range.
+   base::TimeDelta GetEndTimestamp() const;
+ 
++  // Returns the keyframe presentation timestamp of the last GOP in the range.
++  base::TimeDelta GetLastGOPKeyframeTimestamp() const;
++
+   // Returns the timestamp for the end of the buffered region in this range.
+   // This is an approximation if the duration for the buffer with highest PTS in
+   // the last GOP in the range is unset.
+diff --git a/media/filters/source_buffer_stream.cc b/media/filters/source_buffer_stream.cc
+index 3cde3512..6eff528 100644
+--- a/media/filters/source_buffer_stream.cc
++++ b/media/filters/source_buffer_stream.cc
+@@ -297,6 +297,8 @@
+     last_appended_buffer_is_keyframe_ = buffers.back()->is_key_frame();
+     last_appended_buffer_decode_timestamp_ =
+         buffers.back()->GetDecodeTimestamp();
++    last_appended_gop_keyframe_timestamp_ =
++        (*range_for_next_append_)->GetLastGOPKeyframeTimestamp();
+     highest_timestamp_in_append_sequence_ =
+         (*range_for_next_append_)->GetEndTimestamp();
+     highest_buffered_end_time_in_append_sequence_ =
+@@ -359,6 +361,8 @@
+         buffers_for_new_range->back()->is_key_frame();
+     last_appended_buffer_decode_timestamp_ =
+         buffers_for_new_range->back()->GetDecodeTimestamp();
++    last_appended_gop_keyframe_timestamp_ =
++        (*range_for_next_append_)->GetLastGOPKeyframeTimestamp();
+     highest_timestamp_in_append_sequence_ =
+         (*range_for_next_append_)->GetEndTimestamp();
+     highest_buffered_end_time_in_append_sequence_ =
+@@ -630,6 +634,7 @@
+   last_appended_buffer_duration_ = kNoTimestamp;
+   last_appended_buffer_is_keyframe_ = false;
+   last_appended_buffer_decode_timestamp_ = kNoDecodeTimestamp;
++  last_appended_gop_keyframe_timestamp_ = kNoTimestamp;
+   highest_timestamp_in_append_sequence_ = kNoTimestamp;
+   highest_buffered_end_time_in_append_sequence_ = kNoTimestamp;
+ }
+@@ -1009,10 +1014,12 @@
+     base::TimeDelta end_timestamp = buffers.back()->timestamp();
+     if (range_for_next_append_ != ranges_.end() &&
+         current_range == range_for_next_append_->get() &&
++        buffers.front()->timestamp() == last_appended_gop_keyframe_timestamp_ &&
+         end_timestamp == last_appended_buffer_timestamp_ &&
+         buffers.back()->GetDecodeTimestamp() ==
+             last_appended_buffer_decode_timestamp_) {
+       DCHECK(last_appended_buffer_timestamp_ != kNoTimestamp);
++      DCHECK(last_appended_gop_keyframe_timestamp_ != kNoTimestamp);
+       DCHECK(!new_range_for_append);
+ 
+       // Create a new range containing these buffers.
+diff --git a/media/filters/source_buffer_stream.h b/media/filters/source_buffer_stream.h
+index 5a715b25a..c374916 100644
+--- a/media/filters/source_buffer_stream.h
++++ b/media/filters/source_buffer_stream.h
+@@ -455,6 +455,7 @@
+   base::TimeDelta last_appended_buffer_timestamp_ = kNoTimestamp;
+   base::TimeDelta last_appended_buffer_duration_ = kNoTimestamp;
+   bool last_appended_buffer_is_keyframe_ = false;
++  base::TimeDelta last_appended_gop_keyframe_timestamp_ = kNoTimestamp;
+ 
+   // When buffering GOPs by keyframe PTS and intra-gop by nonkeyframe DTS, to
+   // verify monotonically increasing intra-GOP DTS sequence and to update max

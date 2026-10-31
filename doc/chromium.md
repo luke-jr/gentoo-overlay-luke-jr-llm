@@ -103,6 +103,12 @@ masked) keeps the previous set and its packages.
   - Dead GN args removed (`v8_use_libm_trig_functions`, `devtools_skip_typecheck`).
 
 No USE flags were removed. New ones:
+- **`USE=openxr`** (off by default): WebXR's immersive sessions (VR headsets) through an OpenXR
+  runtime such as Monado. Upstream builds OpenXR and the XR device service on Linux
+  (`enable_openxr`, `enable_vr`) but turns OpenXR on at runtime only on Windows
+  (`chrome://flags/#openxr` elsewhere), and Gentoo has no OpenXR runtime packaged; OpenXR is the
+  only XR runtime on Linux. Without the flag neither is built, and the OpenXR SDK (for
+  regenerating its generated files) isn't fetched. Inline WebXR, which needs no device, stays.
 - **`USE=hardened`** adds:
   - Vanadium's seccomp W^X restriction (0178, 0183) and the wasm-interpreter-without-JIT fix (0212).
   - `v8_enable_drumbrake=true`: V8's WebAssembly interpreter. 0212 only passes `--wasm-jitless`, which

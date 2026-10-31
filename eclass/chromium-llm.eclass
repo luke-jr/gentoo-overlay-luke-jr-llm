@@ -218,8 +218,10 @@ done
 unset _k _p _f
 
 SRC_URI+="
-	https://github.com/KhronosGroup/OpenXR-SDK-Source/archive/refs/tags/release-${OPENXR_VER}.tar.gz
-		-> OpenXR-SDK-Source-${OPENXR_VER}.tar.gz
+	openxr? (
+		https://github.com/KhronosGroup/OpenXR-SDK-Source/archive/refs/tags/release-${OPENXR_VER}.tar.gz
+			-> OpenXR-SDK-Source-${OPENXR_VER}.tar.gz
+	)
 "
 
 SRC_URI+="
@@ -281,7 +283,7 @@ SRC_URI+=" !prebuilt-chromedriver-atoms? (
 IUSE_SYSTEM_LIBS="+system-harfbuzz +system-icu +system-zstd"
 IUSE="+X ${IUSE_SYSTEM_LIBS} bindist bundled-toolchain cups debug ffmpeg-chromium gtk4 +hangouts headless kerberos +lto +official pax-kernel pgo"
 IUSE+=" +proprietary-codecs pulseaudio qt6 +rar +screencast selinux test +vaapi +wayland +widevine cpu_flags_ppc_vsx3"
-IUSE+=" hardened prebuilt-chromedriver-atoms"
+IUSE+=" hardened openxr prebuilt-chromedriver-atoms"
 RESTRICT="
 	!bindist? ( bindist )
 	!test? ( test )
@@ -662,7 +664,7 @@ chromium-llm_src_unpack() {
 	unpack Vulkan-Headers-${SWS_VULKAN_HEADERS_COMMIT}.gh.tar.gz Vulkan-Headers-${SWS_VIDEO_HEADERS_COMMIT}.gh.tar.gz \
 		Vulkan-Hpp-${SWS_VULKAN_HPP_COMMIT}.gh.tar.gz tinyxml2-${SWS_TINYXML2_COMMIT}.gh.tar.gz
 	use amd64 && unpack llvm-mirror-${SWS_LLVM_COMMIT}.gh.tar.gz
-	unpack OpenXR-SDK-Source-${OPENXR_VER}.tar.gz
+	use openxr && unpack OpenXR-SDK-Source-${OPENXR_VER}.tar.gz
 	unpack wuffs-${WUFFS_COMMIT}.gh.tar.gz
 	unpack simdutf-${SIMDUTF_COMMIT}.gh.tar.gz
 	use system-harfbuzz || unpack packtab-${HB_PACKTAB_VER}.tar.gz
@@ -2271,20 +2273,23 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 
 	# OpenXR's headers and loader dispatch code (third_party/openxr) are generated from its registry
 	# (xr.xml, which the SDK ships) by OpenXR-SDK-Source's genxr.py and src_genxr.py (SRC_URI):
-	# regenerate them. Their reflection templates use jinja2 (Chromium's).
-	einfo "Regenerating OpenXR's generated headers and sources ..."
-	local oxr_src="${WORKDIR}/OpenXR-SDK-Source-release-${OPENXR_VER}" oxr="${S}/third_party/openxr/src" oxr_f
-	local -a oxr_env=( PYTHONPATH="${oxr_src}/specification/scripts:${oxr_src}/src/scripts:${S}/third_party" )
-	for oxr_f in "${oxr}"/include/openxr/openxr{,_platform,_loader_negotiation,_reflection,_reflection_structs,_reflection_parent_structs}.h; do
-		env "${oxr_env[@]}" "${EPYTHON}" -B "${oxr_src}/specification/scripts/genxr.py" \
-			-registry "${oxr}/specification/registry/xr.xml" -o "${oxr}/include/openxr" -quiet "${oxr_f##*/}" \
-			>> "${T}/openxr.log" 2>&1 || die "genxr.py ${oxr_f##*/} failed"
-	done
-	for oxr_f in "${oxr}"/src/xr_generated_dispatch_table{,_core}.{c,h} "${oxr}"/src/loader/xr_generated_loader.{cpp,hpp}; do
-		( cd "${oxr_f%/*}" && env "${oxr_env[@]}" "${EPYTHON}" -B "${oxr_src}/src/scripts/src_genxr.py" \
-			-registry "${oxr}/specification/registry/xr.xml" -quiet "${oxr_f##*/}" ) \
-			>> "${T}/openxr.log" 2>&1 || die "src_genxr.py ${oxr_f##*/} failed"
-	done
+	# regenerate them. Their reflection templates use jinja2 (Chromium's). Without USE=openxr
+	# nothing uses them (enable_openxr=false); the checked-in copies stay moved aside.
+	if use openxr; then
+		einfo "Regenerating OpenXR's generated headers and sources ..."
+		local oxr_src="${WORKDIR}/OpenXR-SDK-Source-release-${OPENXR_VER}" oxr="${S}/third_party/openxr/src" oxr_f
+		local -a oxr_env=( PYTHONPATH="${oxr_src}/specification/scripts:${oxr_src}/src/scripts:${S}/third_party" )
+		for oxr_f in "${oxr}"/include/openxr/openxr{,_platform,_loader_negotiation,_reflection,_reflection_structs,_reflection_parent_structs}.h; do
+			env "${oxr_env[@]}" "${EPYTHON}" -B "${oxr_src}/specification/scripts/genxr.py" \
+				-registry "${oxr}/specification/registry/xr.xml" -o "${oxr}/include/openxr" -quiet "${oxr_f##*/}" \
+				>> "${T}/openxr.log" 2>&1 || die "genxr.py ${oxr_f##*/} failed"
+		done
+		for oxr_f in "${oxr}"/src/xr_generated_dispatch_table{,_core}.{c,h} "${oxr}"/src/loader/xr_generated_loader.{cpp,hpp}; do
+			( cd "${oxr_f%/*}" && env "${oxr_env[@]}" "${EPYTHON}" -B "${oxr_src}/src/scripts/src_genxr.py" \
+				-registry "${oxr}/specification/registry/xr.xml" -quiet "${oxr_f##*/}" ) \
+				>> "${T}/openxr.log" 2>&1 || die "src_genxr.py ${oxr_f##*/} failed"
+		done
+	fi
 
 	# DevTools checks in files generated from Blink's and V8's definitions: front_end/generated/
 	# (the protocol, ARIA, CSS and deprecation data) and models/javascript_metadata/
@@ -3224,6 +3229,11 @@ chromium_configure() {
 		# remoting/, whose pkg-config probe made PipeWire a mandatory build dependency since M149;
 		# chrome/chromedriver/chrome_sandbox are unchanged (identical ninja commands and inputs).
 		"enable_remoting=false"
+		# WebXR's immersive sessions (VR) on Linux need an OpenXR runtime; without USE=openxr,
+		# neither OpenXR nor the XR device service is built (upstream builds both, but enables
+		# OpenXR at runtime only on Windows).
+		"enable_openxr=$(usex openxr true false)"
+		"enable_vr=$(usex openxr true false)"
 		# ESLint/Stylelint checks of WebUI sources (chromium-156-webui-lint-arg.patch): they don't
 		# change the build output, and their npm packages are deleted in src_prepare.
 		"enable_webui_lint=false"
