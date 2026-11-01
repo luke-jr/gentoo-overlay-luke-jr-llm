@@ -3,8 +3,10 @@
 
 EAPI=8
 
-# Only `cc_bindings_from_rs` (Chromium's `cpp_api_from_rust`) is built, exactly
-# like Chromium's tools/rust/build_crubit.py does for M158.
+# Only `cc_bindings_from_rs` (Chromium's `cpp_api_from_rust`) is built, as
+# Chromium's tools/rust/build_crubit.py builds it for M158. That script also
+# builds `rs_bindings_from_cc` (`rust_api_from_cpp`), which Chromium 158 doesn't
+# use (build/config/rust.gni: enable_rust_api_from_cpp = false).
 #
 # Version scheme: <dev-lang/rust version>_p<crubit commit date>, and one SLOT per
 # version (installed in /usr/lib/crubit/${PV}):
