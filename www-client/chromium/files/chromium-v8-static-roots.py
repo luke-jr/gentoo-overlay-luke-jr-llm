@@ -4,7 +4,8 @@
 #
 # Regenerates V8's static roots for Chromium's configuration (intl, WebAssembly) the way
 # its tools/dev/gen-static-roots.py does, with a mksnapshot already built with
-# v8_enable_static_roots_generation=true: writes src/roots/static-roots-intl-wasm.h, then
+# v8_enable_static_roots_generation=true: writes src/roots/static-roots-intl-wasm.h (since 158:
+# src/gen/intl-wasm/static-roots.h), then
 # updates the values include/v8-internal.h takes from the static roots files
 # (update_v8_internal_h(), which checks them against the other configurations' files).
 #
@@ -18,8 +19,11 @@ from pathlib import Path
 
 v8, mksnapshot = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
 
-subprocess.run([mksnapshot, "--static-roots-src", v8 / "src" / "roots" / "static-roots-intl-wasm.h"],
-               check=True)
+if (v8 / "src" / "gen" / "intl-wasm").is_dir():
+    static_roots = v8 / "src" / "gen" / "intl-wasm" / "static-roots.h"
+else:
+    static_roots = v8 / "src" / "roots" / "static-roots-intl-wasm.h"
+subprocess.run([mksnapshot, "--static-roots-src", static_roots], check=True)
 
 # The script's definitions, without its main part (which builds every configuration).
 script = v8 / "tools" / "dev" / "gen-static-roots.py"
