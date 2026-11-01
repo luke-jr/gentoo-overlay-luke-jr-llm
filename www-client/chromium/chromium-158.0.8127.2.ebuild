@@ -235,6 +235,8 @@ CHROMIUM_HARDENED_PATCHES=(
 	chromium-156-hardened-0178-seccomp-restrict-dynamic-code.patch
 	chromium-156-hardened-0183-seccomp-restrict-dynamic-code-support.patch
 	chromium-156-hardened-0212-wasm-interpreter-without-jit.patch
+	# DrumBrake (v8_enable_drumbrake, below) doesn't build in 158 without these V8 main fixes.
+	chromium-158-hardened-v8-drumbrake-build-fixes.patch
 	# Page info bubble toggles for the JavaScript JIT and optimizer site
 	# settings (JIT off makes the above apply to that site).
 	chromium-156-hardened-page-info-jsjit.patch
