@@ -63,6 +63,20 @@
 # Entries of the eclass's list of kept bundled sources that this version no longer has (158:
 # third_party/khronos).
 
+# @ECLASS_VARIABLE: CHROMIUM_TS_DEFINITIONS_KEPT
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# Extension API TypeScript declarations of the eclass's regenerated ones that this version keeps
+# as source (158: tools/typescript/definitions/wallpaper.d.ts, whose schema it removed).
+
+# @ECLASS_VARIABLE: CHROMIUM_RUST_STDLIB_ADDED
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# With the system Rust: crates of its prebuilt stdlib that Chromium's list of them
+# (build/rust/std/BUILD.gn) lacks, as Chromium's list follows its own, newer Rust (158 dropped
+# addr2line, adler2, gimli and miniz_oxide, which Rust 1.98's std still links). Passed as
+# added_rust_stdlib_libs.
+
 # @ECLASS_VARIABLE: CDDLCONV_VER
 # @REQUIRED
 # @DESCRIPTION:
@@ -1216,6 +1230,17 @@ print(version)
 #   hand since (see the steps), and files of which a step regenerates only a part (glic_api.ts'
 #   generated block, the values in V8's include/v8-internal.h, nasm's config-mac.h, the target
 #   lists in abseil's root BUILD.gn).
+# The extension API TypeScript declarations that are regenerated (see chromium_regenerate).
+_chromium_ts_definitions() {
+	local tsd
+	for tsd in tools/typescript/definitions/{chromeos_info_private,command_line_private,i18n}.d.ts \
+		tools/typescript/definitions/{metrics_private_individual_apis,networking_private,offscreen,wallpaper}.d.ts \
+		chrome/browser/resources/glic/extension/glic_private.d.ts \
+		chrome/browser/resources/contextual_tasks/extension/contextual_tasks_private.d.ts; do
+		has "${tsd}" "${CHROMIUM_TS_DEFINITIONS_KEPT[@]}" || echo "${tsd}"
+	done
+}
+
 chromium_regenerated_outputs() {
 	# --- chromium_regenerate_gn ---
 	# Jinja's identifier pattern
@@ -1300,11 +1325,7 @@ chromium_regenerated_outputs() {
 		third_party/zxcvbn-cpp/native-src/zxcvbn/adjacency_graphs.{cpp,hpp} third_party/libzip/src/zip_err_str.c
 	use wayland && echo third_party/wayland/include/config.h
 	# Extension API TypeScript declarations, Glic's API enums
-	echo tools/typescript/definitions/{chromeos_info_private,command_line_private,i18n}.d.ts \
-		tools/typescript/definitions/{metrics_private_individual_apis,networking_private,offscreen,wallpaper}.d.ts \
-		chrome/browser/resources/glic/extension/glic_private.d.ts \
-		chrome/browser/resources/contextual_tasks/extension/contextual_tasks_private.d.ts \
-		chrome/browser/resources/glic/glic_api/glic_api_generated.ts
+	echo $(_chromium_ts_definitions) chrome/browser/resources/glic/glic_api/glic_api_generated.ts
 	if use !system-harfbuzz; then
 		echo third_party/harfbuzz/src/src/hb-ot-shaper-{arabic-joining-list,arabic-pua,arabic-table,use-table}.hh \
 			third_party/harfbuzz/src/src/hb-{ucd-table,unicode-emoji-table}.hh \
@@ -2026,10 +2047,7 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 	# partially generated: those are kept as source.
 	einfo "Regenerating extension API TypeScript declarations ..."
 	local tsd tsd_src tsd_out="${T}/ts-definitions"
-	for tsd in tools/typescript/definitions/{chromeos_info_private,command_line_private,i18n}.d.ts \
-		tools/typescript/definitions/{metrics_private_individual_apis,networking_private,offscreen,wallpaper}.d.ts \
-		chrome/browser/resources/glic/extension/glic_private.d.ts \
-		chrome/browser/resources/contextual_tasks/extension/contextual_tasks_private.d.ts; do
+	for tsd in $(_chromium_ts_definitions); do
 		tsd_src=$(sed -n 's/^ \* Generated from: \([^ ]*\).*/\1/p' "${ug}/${tsd}") || die
 		[[ -f ${tsd_src} ]] || die "${tsd} names no schema"
 		"${EPYTHON}" -B tools/json_schema_compiler/compiler.py "${tsd_src}" -g ts_definitions --root=. \
@@ -3160,6 +3178,9 @@ chromium_configure() {
 			# Crubit (cpp_api_from_rust); checked in pkg_setup.
 			"rust_crubit_root=\"${BROOT}/usr/lib/crubit/${CRUBIT_PV}\""
 		)
+		if [[ ${#CHROMIUM_RUST_STDLIB_ADDED[@]} -gt 0 ]]; then
+			myconf_gn+=( "added_rust_stdlib_libs=[$(printf '"%s",' "${CHROMIUM_RUST_STDLIB_ADDED[@]}")]" )
+		fi
 		# Upstream formats its generated headers with a bundled clang-format, which we remove.
 		[[ -n ${CHROMIUM_UPSTREAM_CRUBIT} ]] ||
 			myconf_gn+=( "rust_crubit_clang_format=\"$(get_llvm_prefix -b)/bin/clang-format\"" )
