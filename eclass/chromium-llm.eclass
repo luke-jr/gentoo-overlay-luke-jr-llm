@@ -10,7 +10,7 @@
 # scope uses: toolchain and tool versions, the commits of the generators' inputs, ...; see an
 # ebuild), and LLVM_COMPAT and RUST_MIN_VER. After inheriting it, it sets DESCRIPTION,
 # HOMEPAGE, LICENSE, SLOT and KEYWORDS, the patch lists below, and defines
-# chromium_crubit_rustfmt.
+# chromium_crubit_rustfmt (unless CHROMIUM_UPSTREAM_CRUBIT is set).
 #
 # Changing this eclass: every ebuild in the tree uses it, the older versions too. A change
 # made for a new version must not change what the existing ebuilds do: make it opt-in (a
@@ -57,6 +57,26 @@
 # @DESCRIPTION:
 # Bundled sources the unbundling keeps besides the eclass's list (new ones the build uses).
 
+# @ECLASS_VARIABLE: CHROMIUM_KEEPLIBS_DROP
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# Entries of the eclass's list of kept bundled sources that this version no longer has (158:
+# third_party/khronos).
+
+# @ECLASS_VARIABLE: CHROMIUM_TS_DEFINITIONS_KEPT
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# Extension API TypeScript declarations of the eclass's regenerated ones that this version keeps
+# as source (158: tools/typescript/definitions/wallpaper.d.ts, whose schema it removed).
+
+# @ECLASS_VARIABLE: CHROMIUM_RUST_STDLIB_ADDED
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# With the system Rust: crates of its prebuilt stdlib that Chromium's list of them
+# (build/rust/std/BUILD.gn) lacks, as Chromium's list follows its own, newer Rust (158 dropped
+# addr2line, adler2, gimli and miniz_oxide, which Rust 1.98's std still links). Passed as
+# added_rust_stdlib_libs.
+
 # @ECLASS_VARIABLE: CDDLCONV_VER
 # @REQUIRED
 # @DESCRIPTION:
@@ -68,11 +88,27 @@
 # HarfBuzz's Unicode data, file by file (from unicodetools), for a Unicode version whose zipped
 # UCD isn't published. Unset: the zipped UCD.
 
+# @ECLASS_VARIABLE: CHROMIUM_UPSTREAM_CRUBIT
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# Set (158 and later) when Chromium itself supports a system Crubit (its rust_crubit_root GN
+# argument, with bindings of the prebuilt stdlib), so the ebuild has no Crubit patch: no
+# chromium_crubit_rustfmt, and no rust_crubit_clang_format GN argument (the patch's; upstream
+# formats Crubit's output only with its own toolchain). Unset: the ebuild's Crubit patch.
+
+# @ECLASS_VARIABLE: CHROMIUM_PDFIUM_SRC_SUBDIR
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# The subdirectory of pdfium's third_party/libopenjpeg and third_party/libtiff that has their
+# upstream sources ("src" since 158, where pdfium's own files stay one level up). Unset: the
+# sources are in those directories themselves.
+
 # @FUNCTION: chromium_crubit_rustfmt
 # @USAGE: <suffix>
 # @DESCRIPTION:
-# Defined by the ebuild. Points the files its Crubit patch adds or changes at the selected
-# Rust's rustfmt (rustfmt<suffix>). Called by src_prepare with the system toolchain.
+# Defined by the ebuild, unless CHROMIUM_UPSTREAM_CRUBIT is set. Points the files its Crubit
+# patch adds or changes at the selected Rust's rustfmt (rustfmt<suffix>). Called by
+# src_prepare with the system toolchain.
 
 case ${EAPI} in
 	8) ;;
@@ -934,7 +970,7 @@ chromium-llm_src_prepare() {
 	rm third_party/.clang-format-ignore || die
 
 	# The ebuild's, for the files its Crubit patch adds or changes.
-	use bundled-toolchain || chromium_crubit_rustfmt "${suffix}"
+	use bundled-toolchain || [[ -n ${CHROMIUM_UPSTREAM_CRUBIT} ]] || chromium_crubit_rustfmt "${suffix}"
 
 	# Generated code and data in the vendored Rust crates (syn's visitors, Unicode tables,
 	# fontations' table code, ICU4X's baked data, time zone data, ...): dev-util/chromium-rust-crates
@@ -1194,6 +1230,17 @@ print(version)
 #   hand since (see the steps), and files of which a step regenerates only a part (glic_api.ts'
 #   generated block, the values in V8's include/v8-internal.h, nasm's config-mac.h, the target
 #   lists in abseil's root BUILD.gn).
+# The extension API TypeScript declarations that are regenerated (see chromium_regenerate).
+_chromium_ts_definitions() {
+	local tsd
+	for tsd in tools/typescript/definitions/{chromeos_info_private,command_line_private,i18n}.d.ts \
+		tools/typescript/definitions/{metrics_private_individual_apis,networking_private,offscreen,wallpaper}.d.ts \
+		chrome/browser/resources/glic/extension/glic_private.d.ts \
+		chrome/browser/resources/contextual_tasks/extension/contextual_tasks_private.d.ts; do
+		has "${tsd}" "${CHROMIUM_TS_DEFINITIONS_KEPT[@]}" || echo "${tsd}"
+	done
+}
+
 chromium_regenerated_outputs() {
 	# --- chromium_regenerate_gn ---
 	# Jinja's identifier pattern
@@ -1252,7 +1299,8 @@ chromium_regenerated_outputs() {
 	echo 'third_party/vulkan-headers/src/include/vulkan/vulkan_*.h' third_party/vulkan-headers/src/include/vk_video/
 	# FreeType's, OpenJPEG's and libtiff's tables
 	echo third_party/freetype/src/src/psnames/pstables.h third_party/pdfium/third_party/freetype/include/pstables.h \
-		third_party/pdfium/third_party/libopenjpeg/t1_{,ht_}luts.h third_party/pdfium/third_party/libtiff/tif_fax3sm.c
+		third_party/pdfium/third_party/libopenjpeg${CHROMIUM_PDFIUM_SRC_SUBDIR:+/${CHROMIUM_PDFIUM_SRC_SUBDIR}}/t1_{,ht_}luts.h \
+		third_party/pdfium/third_party/libtiff${CHROMIUM_PDFIUM_SRC_SUBDIR:+/${CHROMIUM_PDFIUM_SRC_SUBDIR}}/tif_fax3sm.c
 	# chromium-bidi's protocol types
 	echo third_party/chromium-bidi/src/protocol/generated/ third_party/chromium-bidi/src/protocol-parser/generated/
 	# Skia's GL interface code, SkSL lexer and SkSL modules
@@ -1277,11 +1325,7 @@ chromium_regenerated_outputs() {
 		third_party/zxcvbn-cpp/native-src/zxcvbn/adjacency_graphs.{cpp,hpp} third_party/libzip/src/zip_err_str.c
 	use wayland && echo third_party/wayland/include/config.h
 	# Extension API TypeScript declarations, Glic's API enums
-	echo tools/typescript/definitions/{chromeos_info_private,command_line_private,i18n}.d.ts \
-		tools/typescript/definitions/{metrics_private_individual_apis,networking_private,offscreen,wallpaper}.d.ts \
-		chrome/browser/resources/glic/extension/glic_private.d.ts \
-		chrome/browser/resources/contextual_tasks/extension/contextual_tasks_private.d.ts \
-		chrome/browser/resources/glic/glic_api/glic_api_generated.ts
+	echo $(_chromium_ts_definitions) chrome/browser/resources/glic/glic_api/glic_api_generated.ts
 	if use !system-harfbuzz; then
 		echo third_party/harfbuzz/src/src/hb-ot-shaper-{arabic-joining-list,arabic-pua,arabic-table,use-table}.hh \
 			third_party/harfbuzz/src/src/hb-{ucd-table,unicode-emoji-table}.hh \
@@ -1370,7 +1414,12 @@ chromium_regenerated_outputs() {
 		third_party/tflite/src/tensorflow/lite/{builtin_ops.h,kernels/builtin_ops_list.inc} \
 		third_party/litert/src/tflite/{builtin_ops.h,kernels/builtin_ops_list.inc}
 	# V8's static roots
-	echo v8/src/roots/static-roots-intl-wasm.h
+	# (V8 moved its checked-in generated files to src/gen/ in 158)
+	if [[ -d v8/src/gen/intl-wasm ]]; then
+		echo v8/src/gen/intl-wasm/static-roots.h
+	else
+		echo v8/src/roots/static-roots-intl-wasm.h
+	fi
 	# The top domains' skeletons
 	echo 'components/url_formatter/spoof_checks/top_domains/*.skeletons'
 }
@@ -1708,27 +1757,33 @@ chromium_regenerate() {
 	# edited by hand since (it uses Chromium's build_config.h), so it is kept as source.
 	einfo "Regenerating FreeType's, OpenJPEG's and libtiff's tables ..."
 	local pdfium_tp=third_party/pdfium/third_party pdfium_gen="${T}/pdfium-gen"
+	# Their upstream sources (pdfium's own files, such as opj_config.h, are one level up).
+	local pdfium_ojp="${pdfium_tp}/libopenjpeg" pdfium_tif="${pdfium_tp}/libtiff" pdfium_inc=()
+	if [[ -n ${CHROMIUM_PDFIUM_SRC_SUBDIR} ]]; then
+		pdfium_ojp+="/${CHROMIUM_PDFIUM_SRC_SUBDIR}" pdfium_tif+="/${CHROMIUM_PDFIUM_SRC_SUBDIR}"
+		pdfium_inc=( -I"${pdfium_tp}/libopenjpeg" -I"${pdfium_tp}/libtiff" )
+	fi
 	mkdir -p "${pdfium_gen}/include" || die
 	"${EPYTHON}" -B third_party/freetype/src/src/tools/glnames.py \
 		third_party/freetype/src/src/psnames/pstables.h || die "Failed to regenerate pstables.h"
 	cp third_party/freetype/src/src/psnames/pstables.h "${pdfium_tp}/freetype/include/pstables.h" || die
-	$(tc-getBUILD_CC) ${CFLAGS} ${CPPFLAGS} -I"${pdfium_tp}/libopenjpeg" ${LDFLAGS} \
-		-o "${pdfium_gen}/t1_generate_luts" "${pdfium_tp}/libopenjpeg/t1_generate_luts.c" \
+	$(tc-getBUILD_CC) ${CFLAGS} ${CPPFLAGS} -I"${pdfium_ojp}" "${pdfium_inc[@]}" ${LDFLAGS} \
+		-o "${pdfium_gen}/t1_generate_luts" "${pdfium_ojp}/t1_generate_luts.c" \
 		"${DISTDIR}/openjpeg-${PDFIUM_OPENJPEG_COMMIT:0:10}-t1_ht_generate_luts.c" -lm ||
 		die "Failed to build OpenJPEG's t1_generate_luts"
 	"${pdfium_gen}/t1_generate_luts" > "${pdfium_gen}/luts.h" || die "Failed to run t1_generate_luts"
 	# Its output is t1_luts.h followed by t1_ht_luts.h, which starts with vlc_tbl0.
-	sed '/^static const OPJ_UINT16 vlc_tbl0\[/,$d' "${pdfium_gen}/luts.h" > "${pdfium_tp}/libopenjpeg/t1_luts.h" &&
+	sed '/^static const OPJ_UINT16 vlc_tbl0\[/,$d' "${pdfium_gen}/luts.h" > "${pdfium_ojp}/t1_luts.h" &&
 		sed -n '/^static const OPJ_UINT16 vlc_tbl0\[/,$p' "${pdfium_gen}/luts.h" \
-		> "${pdfium_tp}/libopenjpeg/t1_ht_luts.h" || die
-	[[ -s ${pdfium_tp}/libopenjpeg/t1_ht_luts.h ]] || die "No vlc_tbl0 in the output of t1_generate_luts"
+		> "${pdfium_ojp}/t1_ht_luts.h" || die
+	[[ -s ${pdfium_ojp}/t1_ht_luts.h ]] || die "No vlc_tbl0 in the output of t1_generate_luts"
 	# mkg3states.c includes libtiff's libport.h (unused here) and tif_config.h for HAVE_UNISTD_H.
 	: > "${pdfium_gen}/include/libport.h" || die
 	echo "#define HAVE_UNISTD_H 1" > "${pdfium_gen}/include/tif_config.h" || die
-	$(tc-getBUILD_CC) ${CFLAGS} ${CPPFLAGS} -I"${pdfium_gen}/include" -I"${pdfium_tp}/libtiff" -I. \
+	$(tc-getBUILD_CC) ${CFLAGS} ${CPPFLAGS} -I"${pdfium_gen}/include" -I"${pdfium_tif}" "${pdfium_inc[@]}" -I. \
 		${LDFLAGS} -o "${pdfium_gen}/mkg3states" "${DISTDIR}/libtiff-${PDFIUM_LIBTIFF_COMMIT:0:10}-mkg3states.c" ||
 		die "Failed to build libtiff's mkg3states"
-	"${pdfium_gen}/mkg3states" -b -c const "${pdfium_tp}/libtiff/tif_fax3sm.c" || die "Failed to run mkg3states"
+	"${pdfium_gen}/mkg3states" -b -c const "${pdfium_tif}/tif_fax3sm.c" || die "Failed to run mkg3states"
 	# chromium-bidi's protocol types and Zod schemas (src/protocol{,-parser}/generated) are made by
 	# its tools/update_bidi_types.py with cddlconv from the CDDL in the WebDriver BiDi specs, which
 	# the WebDriver BiDi spec's scripts/cddl/generate.js extracts (with parse5): regenerate them from
@@ -1992,10 +2047,7 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 	# partially generated: those are kept as source.
 	einfo "Regenerating extension API TypeScript declarations ..."
 	local tsd tsd_src tsd_out="${T}/ts-definitions"
-	for tsd in tools/typescript/definitions/{chromeos_info_private,command_line_private,i18n}.d.ts \
-		tools/typescript/definitions/{metrics_private_individual_apis,networking_private,offscreen,wallpaper}.d.ts \
-		chrome/browser/resources/glic/extension/glic_private.d.ts \
-		chrome/browser/resources/contextual_tasks/extension/contextual_tasks_private.d.ts; do
+	for tsd in $(_chromium_ts_definitions); do
 		tsd_src=$(sed -n 's/^ \* Generated from: \([^ ]*\).*/\1/p' "${ug}/${tsd}") || die
 		[[ -f ${tsd_src} ]] || die "${tsd} names no schema"
 		"${EPYTHON}" -B tools/json_schema_compiler/compiler.py "${tsd_src}" -g ts_definitions --root=. \
@@ -2920,6 +2972,14 @@ chromium_unbundle() {
 	if use arm64 || use ppc64 ; then
 		keeplibs+=( third_party/swiftshader/third_party/llvm-10.0 )
 	fi
+	if [[ ${#CHROMIUM_KEEPLIBS_DROP[@]} -gt 0 ]]; then
+		local kl_kept=()
+		for lib in "${keeplibs[@]}"; do
+			has "${lib}" "${CHROMIUM_KEEPLIBS_DROP[@]}" || kl_kept+=( "${lib}" )
+		done
+		keeplibs=( "${kl_kept[@]}" )
+	fi
+
 	# Sanity check keeplibs, on major version bumps it is often necessary to update this list
 	# and this enables us to hit them all at once.
 	# There are some entries that need to be whitelisted (TODO: Why? The file is understandable, the rest seem odd)
@@ -3115,11 +3175,15 @@ chromium_configure() {
 			"rust_bindgen_root=\"${EPREFIX}/usr/\""
 			"rust_sysroot_absolute=\"$(get_rust_prefix)\""
 			"rustc_version=\"${RUST_SLOT}\""
-			# Crubit (cpp_api_from_rust); checked in pkg_setup. Upstream formats its
-			# generated headers with a bundled clang-format, which we remove.
+			# Crubit (cpp_api_from_rust); checked in pkg_setup.
 			"rust_crubit_root=\"${BROOT}/usr/lib/crubit/${CRUBIT_PV}\""
-			"rust_crubit_clang_format=\"$(get_llvm_prefix -b)/bin/clang-format\""
 		)
+		if [[ ${#CHROMIUM_RUST_STDLIB_ADDED[@]} -gt 0 ]]; then
+			myconf_gn+=( "added_rust_stdlib_libs=[$(printf '"%s",' "${CHROMIUM_RUST_STDLIB_ADDED[@]}")]" )
+		fi
+		# Upstream formats its generated headers with a bundled clang-format, which we remove.
+		[[ -n ${CHROMIUM_UPSTREAM_CRUBIT} ]] ||
+			myconf_gn+=( "rust_crubit_clang_format=\"$(get_llvm_prefix -b)/bin/clang-format\"" )
 
 		# Currently disabled, runtime issues with mold
 		#if tc-ld-is-mold; then
@@ -3381,6 +3445,11 @@ chromium_configure() {
 
 	# Odds and ends
 
+	# V8 158 can use checked-in copies of some of its generated headers (src/gen/intl-wasm),
+	# checking them against its generators' output: generate them instead.
+	grep -q '^  v8_use_checked_in_generated_headers =' v8/BUILD.gn &&
+		myconf_gn+=( "v8_use_checked_in_generated_headers=false" )
+
 	# Disable external code space for V8 for ppc64. It is disabled for ppc64
 	# by default, but cross-compiling on amd64 enables it again.
 	if tc-is-cross-compiler && use ppc64; then
@@ -3553,7 +3622,8 @@ chromium_compile() {
 		touch "${WORKDIR}/.flatbuffers-regenerated" || die
 	fi
 
-	# V8's static roots (src/roots/static-roots-intl-wasm.h, and the values include/v8-internal.h
+	# V8's static roots (src/roots/static-roots-intl-wasm.h, src/gen/intl-wasm/static-roots.h since
+	# 158, and the values include/v8-internal.h
 	# takes from them) are the read-only heap layout that a mksnapshot built with
 	# v8_enable_static_roots_generation writes: build one in a second build directory with this
 	# build's arguments plus that (V8's tools/dev/gen-static-roots.py), regenerate them with it

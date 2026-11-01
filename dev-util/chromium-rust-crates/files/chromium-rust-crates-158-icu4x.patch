@@ -1,0 +1,147 @@
+Build only ICU4X's bakeddata and codegen tools. bakeddata reads local source
+data (ICU4X_CLDR_DIR, ICU4X_ICUEXPORT_DIR, ICU4X_UNICODE_DIR) instead of
+downloading it. (ICU4X 2.4 builds its code point tries in Rust, and its codegen
+no longer needs compiled data.)
+
+diff --git a/Cargo.toml b/Cargo.toml
+index 16c9da0..33939a1 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -5,98 +5,8 @@
+ [workspace]
+ resolver = "2"
+ members = [
+-    # KEEP IN SYNC WITH workspace.dependencies and examples/.cargo/config.toml
+-
+-    # ICU4X core
+-    "components/locale_core",
+-    "provider/core",
+-
+-    # Components
+-    "components/calendar",
+-    "components/casemap",
+-    "components/collator",
+-    "components/collections",
+-    "components/collections/codepointtrie_builder",
+-    "components/datetime",
+-    "components/decimal",
+-    "components/experimental",
+-    "components/icu",
+-    "components/list",
+-    "components/locale",
+-    "components/locale_fallback",
+-    "components/normalizer",
+-    "components/pattern",
+-    "components/plurals",
+-    "components/properties",
+-    "components/segmenter",
+-    "components/time",
+-
+-    # FFI
+-    "ffi/capi",
+-    "ffi/ecma402",
+-    "ffi/freertos",
+-
+-    # Provider
+-    "provider/adapters",
+-    "provider/baked",
+-    "provider/source",
+-    "provider/blob",
+-    "provider/export",
+-    "provider/fs",
+-    "provider/registry",
+-    "provider/icu4x-datagen",
+-
+-    # Baked data
+-    "provider/data/calendar",
+-    "provider/data/casemap",
+-    "provider/data/collator",
+-    "provider/data/datetime",
+-    "provider/data/decimal",
+-    "provider/data/list",
+-    "provider/data/locale",
+-    "provider/data/locale_fallback",
+-    "provider/data/normalizer",
+-    "provider/data/plurals",
+-    "provider/data/properties",
+-    "provider/data/segmenter",
+-    "provider/data/time",
+-
+-    # Utils
+-    "utils/calendrical_calculations",
+-    "utils/crlify",
+-    "utils/databake",
+-    "utils/databake/derive",
+-    "utils/fixed_decimal",
+-    "utils/host_info",
+-    "utils/ixdtf",
+-    "utils/litemap",
+-    "utils/resb",
+-    "utils/tinystr",
+-    "utils/tzif",
+-    "utils/potential_utf",
+-    "utils/writeable",
+-    "utils/yoke",
+-    "utils/yoke/derive",
+-    "utils/zerofrom",
+-    "utils/zerofrom/derive",
+-    "utils/zerotrie",
+-    "utils/zerovec",
+-    "utils/zerovec/derive",
+-    "utils/zoneinfo64",
+-
+-    # Tools
+-    "tools/benchmark/binsize",
+-    "tools/benchmark/macros",
+-    "tools/benchmark/memory",
+-    "tools/changelog",
+-    "tools/dump-json",
+     "tools/make/bakeddata",
+     "tools/make/codegen",
+-    "tools/make/depcheck",
+-    "tools/make/diplomat-coverage",
+-    "tools/make/diplomat-gen",
+-    "tools/md-tests",
+-    "tools/noalloctest",
+ ]
+ # Note: Workspaces in subdirectories, such as components/collator/fuzz, are
+ # implicitly excluded from the main workspace.
+diff --git a/tools/make/bakeddata/Cargo.toml b/tools/make/bakeddata/Cargo.toml
+index 3f414bd..4fafb6c 100644
+--- a/tools/make/bakeddata/Cargo.toml
++++ b/tools/make/bakeddata/Cargo.toml
+@@ -12,7 +12,7 @@ edition.workspace = true
+ icu = { workspace = true, features = ["unstable"] }
+ icu_provider = { workspace = true, features = ["deserialize_postcard_1"] }
+ icu_provider_export = { workspace = true, features = ["baked_exporter", "rayon"] }
+-icu_provider_source = { workspace = true, features = ["networking", "unstable"] }
++icu_provider_source = { workspace = true, features = ["unstable"] }
+ icu_provider_registry = { workspace = true }
+ 
+ log = { workspace = true }
+diff --git a/tools/make/bakeddata/src/main.rs b/tools/make/bakeddata/src/main.rs
+index 922abe0..b2b0f07 100644
+--- a/tools/make/bakeddata/src/main.rs
++++ b/tools/make/bakeddata/src/main.rs
+@@ -81,7 +81,20 @@ fn main() {
+             .collect()
+     };
+ 
+-    let source = SourceDataProvider::new();
++    // Local sources instead of downloads: a CLDR JSON directory (with the
++    // cldr-* packages it needs), ICU's export data, Unicode's character data
++    // (a directory as unicode.org/Public/<version>/ has it), and the tzdb the
++    // tests use.
++    let source_dir = |var: &str| std::env::var_os(var).unwrap_or_else(|| panic!("{var} is not set"));
++    let source = SourceDataProvider::new_custom()
++        .with_cldr(Path::new(&source_dir("ICU4X_CLDR_DIR")))
++        .unwrap()
++        .with_icuexport(Path::new(&source_dir("ICU4X_ICUEXPORT_DIR")))
++        .unwrap()
++        .with_unicode_rscd(Path::new(&source_dir("ICU4X_UNICODE_DIR")))
++        .unwrap()
++        .with_tzdb(Path::new("provider/source/tests/data/tzdb"))
++        .unwrap();
+ 
+     let driver = ExportDriver::new(
+         source
