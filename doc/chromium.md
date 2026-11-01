@@ -165,6 +165,46 @@ The 157 ebuild is the 156 one with these differences:
 
 Built offline and runtime-tested like 156 (components, DevTools, WebDriver BiDi, translation, WebGL).
 
+## 158
+
+The 158 ebuild (`158.0.8127.2`, the Linux Beta: `SLOT="beta"`) is the 157 one with these
+differences:
+- No Crubit patch: 158 supports a system Crubit itself (its `rust_crubit_root` GN argument, and
+  C++ bindings of the prebuilt stdlib from its `.rmeta` files), which the ebuild says with
+  `CHROMIUM_UPSTREAM_CRUBIT`. 158 lists fewer crates of the prebuilt stdlib than Rust 1.98's
+  std links (its list follows its own, newer Rust): `CHROMIUM_RUST_STDLIB_ADDED` adds
+  `addr2line`, `adler2`, `gimli` and `miniz_oxide` back.
+- Patches rebased for 158: `chromium-158-no-runtime-executable-downloads.patch` (AIM
+  Eligibility's installer became `component_extension_installer.cc`, which also registers a new
+  New Tab Page component extension: both uninstalled; Screen AI's gate and the DevTools remote
+  front-end's host changed), and the Gentoo patchset as `files/chromium-patches-158/`
+  (`cr149-bindgen-libclang-paths` rebased, `cr152-fix-rust-2-oxidize-harder` reduced to
+  clippy-driver's path, `cr149-fix-rust` dropped: 158 does both itself).
+- New patches: `chromium-158-abseil-gn-no-strict-includes.patch` (abseil's BUILD.gn converter
+  would write an enum the pinned gn doesn't know, and that upstream's checked-in files don't
+  have) and, with `USE=hardened`, `chromium-158-hardened-v8-drumbrake-build-fixes.patch` (V8
+  main's fixes for its WebAssembly interpreter, which doesn't build in V8 158).
+- Dropped: the BoringSSL curve25519 tables script patch (BoringSSL updated the script).
+- Layout: `third_party/khronos` and `third_party/libsecret` are gone (`CHROMIUM_KEEPLIBS_DROP`);
+  pdfium's OpenJPEG and libtiff sources are in `src/` (`CHROMIUM_PDFIUM_SRC_SUBDIR`); V8's static
+  roots are in `src/gen/intl-wasm/`. V8 158 can use checked-in copies of a few generated headers
+  (`src/gen/intl-wasm`); the ebuild generates them (`v8_use_checked_in_generated_headers=false`).
+  `tools/typescript/definitions/wallpaper.d.ts` is kept as source: 158 removed its schema.
+  `third_party/oak/src/oak_session/tls` is kept as a bundled source (158 builds it).
+- Newer pins: gn 0.2603 (158's `.gn` sets `check_includes_strict_exceptions`), Crubit 20261015,
+  Vulkan-Headers v1.4.366 (Vulkan-Docs at its tag), Wuffs 0.3.6, copium 84aa29c73d11, and
+  chromium-bidi's new autofill-event spec. `dev-util/chromium-node-modules:158`: puppeteer-core
+  25.16.0 (its devtools-protocol types are made with Chromium's generator, where it moved), and
+  WebUI's lit cache directive. `dev-util/chromium-rust-crates:158`: ICU4X 2.4.0 (CLDR 49.0.0,
+  ICU export data 79.1rc, Unicode 18.0.0's character data), with the new
+  `icu_locale_fallback_data`. `dev-util/gnrt:158` (its new `replace_with`).
+
+Built offline with `USE=hardened` and runtime-tested like 157 (components, DevTools, WebDriver
+BiDi, WebGL, "Restore pages?"): the same results, but for the components list (158 drops Related
+Website Sets and adds an optimization guide model). The same 28 checked-in generated files as 157's
+are not made again (unused: ANGLE's unused Vulkan shader variants, codemirror.next's stale chunks,
+OpenXR's with `USE=-openxr`, XNNPACK's RISC-V kernels).
+
 ## Known issues / TODO
 
 - **`USE=system-icu` doesn't work, and `::gentoo` masks it** (`profiles/base/package.use.mask`, bug #943216),
