@@ -57,6 +57,12 @@
 # @DESCRIPTION:
 # Bundled sources the unbundling keeps besides the eclass's list (new ones the build uses).
 
+# @ECLASS_VARIABLE: CHROMIUM_KEEPLIBS_DROP
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# Entries of the eclass's list of kept bundled sources that this version no longer has (158:
+# third_party/khronos).
+
 # @ECLASS_VARIABLE: CDDLCONV_VER
 # @REQUIRED
 # @DESCRIPTION:
@@ -75,6 +81,13 @@
 # argument, with bindings of the prebuilt stdlib), so the ebuild has no Crubit patch: no
 # chromium_crubit_rustfmt, and no rust_crubit_clang_format GN argument (the patch's; upstream
 # formats Crubit's output only with its own toolchain). Unset: the ebuild's Crubit patch.
+
+# @ECLASS_VARIABLE: CHROMIUM_PDFIUM_SRC_SUBDIR
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# The subdirectory of pdfium's third_party/libopenjpeg and third_party/libtiff that has their
+# upstream sources ("src" since 158, where pdfium's own files stay one level up). Unset: the
+# sources are in those directories themselves.
 
 # @FUNCTION: chromium_crubit_rustfmt
 # @USAGE: <suffix>
@@ -1261,7 +1274,8 @@ chromium_regenerated_outputs() {
 	echo 'third_party/vulkan-headers/src/include/vulkan/vulkan_*.h' third_party/vulkan-headers/src/include/vk_video/
 	# FreeType's, OpenJPEG's and libtiff's tables
 	echo third_party/freetype/src/src/psnames/pstables.h third_party/pdfium/third_party/freetype/include/pstables.h \
-		third_party/pdfium/third_party/libopenjpeg/t1_{,ht_}luts.h third_party/pdfium/third_party/libtiff/tif_fax3sm.c
+		third_party/pdfium/third_party/libopenjpeg${CHROMIUM_PDFIUM_SRC_SUBDIR:+/${CHROMIUM_PDFIUM_SRC_SUBDIR}}/t1_{,ht_}luts.h \
+		third_party/pdfium/third_party/libtiff${CHROMIUM_PDFIUM_SRC_SUBDIR:+/${CHROMIUM_PDFIUM_SRC_SUBDIR}}/tif_fax3sm.c
 	# chromium-bidi's protocol types
 	echo third_party/chromium-bidi/src/protocol/generated/ third_party/chromium-bidi/src/protocol-parser/generated/
 	# Skia's GL interface code, SkSL lexer and SkSL modules
@@ -1379,7 +1393,12 @@ chromium_regenerated_outputs() {
 		third_party/tflite/src/tensorflow/lite/{builtin_ops.h,kernels/builtin_ops_list.inc} \
 		third_party/litert/src/tflite/{builtin_ops.h,kernels/builtin_ops_list.inc}
 	# V8's static roots
-	echo v8/src/roots/static-roots-intl-wasm.h
+	# (V8 moved its checked-in generated files to src/gen/ in 158)
+	if [[ -d v8/src/gen/intl-wasm ]]; then
+		echo v8/src/gen/intl-wasm/static-roots.h
+	else
+		echo v8/src/roots/static-roots-intl-wasm.h
+	fi
 	# The top domains' skeletons
 	echo 'components/url_formatter/spoof_checks/top_domains/*.skeletons'
 }
@@ -1717,27 +1736,33 @@ chromium_regenerate() {
 	# edited by hand since (it uses Chromium's build_config.h), so it is kept as source.
 	einfo "Regenerating FreeType's, OpenJPEG's and libtiff's tables ..."
 	local pdfium_tp=third_party/pdfium/third_party pdfium_gen="${T}/pdfium-gen"
+	# Their upstream sources (pdfium's own files, such as opj_config.h, are one level up).
+	local pdfium_ojp="${pdfium_tp}/libopenjpeg" pdfium_tif="${pdfium_tp}/libtiff" pdfium_inc=()
+	if [[ -n ${CHROMIUM_PDFIUM_SRC_SUBDIR} ]]; then
+		pdfium_ojp+="/${CHROMIUM_PDFIUM_SRC_SUBDIR}" pdfium_tif+="/${CHROMIUM_PDFIUM_SRC_SUBDIR}"
+		pdfium_inc=( -I"${pdfium_tp}/libopenjpeg" -I"${pdfium_tp}/libtiff" )
+	fi
 	mkdir -p "${pdfium_gen}/include" || die
 	"${EPYTHON}" -B third_party/freetype/src/src/tools/glnames.py \
 		third_party/freetype/src/src/psnames/pstables.h || die "Failed to regenerate pstables.h"
 	cp third_party/freetype/src/src/psnames/pstables.h "${pdfium_tp}/freetype/include/pstables.h" || die
-	$(tc-getBUILD_CC) ${CFLAGS} ${CPPFLAGS} -I"${pdfium_tp}/libopenjpeg" ${LDFLAGS} \
-		-o "${pdfium_gen}/t1_generate_luts" "${pdfium_tp}/libopenjpeg/t1_generate_luts.c" \
+	$(tc-getBUILD_CC) ${CFLAGS} ${CPPFLAGS} -I"${pdfium_ojp}" "${pdfium_inc[@]}" ${LDFLAGS} \
+		-o "${pdfium_gen}/t1_generate_luts" "${pdfium_ojp}/t1_generate_luts.c" \
 		"${DISTDIR}/openjpeg-${PDFIUM_OPENJPEG_COMMIT:0:10}-t1_ht_generate_luts.c" -lm ||
 		die "Failed to build OpenJPEG's t1_generate_luts"
 	"${pdfium_gen}/t1_generate_luts" > "${pdfium_gen}/luts.h" || die "Failed to run t1_generate_luts"
 	# Its output is t1_luts.h followed by t1_ht_luts.h, which starts with vlc_tbl0.
-	sed '/^static const OPJ_UINT16 vlc_tbl0\[/,$d' "${pdfium_gen}/luts.h" > "${pdfium_tp}/libopenjpeg/t1_luts.h" &&
+	sed '/^static const OPJ_UINT16 vlc_tbl0\[/,$d' "${pdfium_gen}/luts.h" > "${pdfium_ojp}/t1_luts.h" &&
 		sed -n '/^static const OPJ_UINT16 vlc_tbl0\[/,$p' "${pdfium_gen}/luts.h" \
-		> "${pdfium_tp}/libopenjpeg/t1_ht_luts.h" || die
-	[[ -s ${pdfium_tp}/libopenjpeg/t1_ht_luts.h ]] || die "No vlc_tbl0 in the output of t1_generate_luts"
+		> "${pdfium_ojp}/t1_ht_luts.h" || die
+	[[ -s ${pdfium_ojp}/t1_ht_luts.h ]] || die "No vlc_tbl0 in the output of t1_generate_luts"
 	# mkg3states.c includes libtiff's libport.h (unused here) and tif_config.h for HAVE_UNISTD_H.
 	: > "${pdfium_gen}/include/libport.h" || die
 	echo "#define HAVE_UNISTD_H 1" > "${pdfium_gen}/include/tif_config.h" || die
-	$(tc-getBUILD_CC) ${CFLAGS} ${CPPFLAGS} -I"${pdfium_gen}/include" -I"${pdfium_tp}/libtiff" -I. \
+	$(tc-getBUILD_CC) ${CFLAGS} ${CPPFLAGS} -I"${pdfium_gen}/include" -I"${pdfium_tif}" "${pdfium_inc[@]}" -I. \
 		${LDFLAGS} -o "${pdfium_gen}/mkg3states" "${DISTDIR}/libtiff-${PDFIUM_LIBTIFF_COMMIT:0:10}-mkg3states.c" ||
 		die "Failed to build libtiff's mkg3states"
-	"${pdfium_gen}/mkg3states" -b -c const "${pdfium_tp}/libtiff/tif_fax3sm.c" || die "Failed to run mkg3states"
+	"${pdfium_gen}/mkg3states" -b -c const "${pdfium_tif}/tif_fax3sm.c" || die "Failed to run mkg3states"
 	# chromium-bidi's protocol types and Zod schemas (src/protocol{,-parser}/generated) are made by
 	# its tools/update_bidi_types.py with cddlconv from the CDDL in the WebDriver BiDi specs, which
 	# the WebDriver BiDi spec's scripts/cddl/generate.js extracts (with parse5): regenerate them from
@@ -2929,6 +2954,14 @@ chromium_unbundle() {
 	if use arm64 || use ppc64 ; then
 		keeplibs+=( third_party/swiftshader/third_party/llvm-10.0 )
 	fi
+	if [[ ${#CHROMIUM_KEEPLIBS_DROP[@]} -gt 0 ]]; then
+		local kl_kept=()
+		for lib in "${keeplibs[@]}"; do
+			has "${lib}" "${CHROMIUM_KEEPLIBS_DROP[@]}" || kl_kept+=( "${lib}" )
+		done
+		keeplibs=( "${kl_kept[@]}" )
+	fi
+
 	# Sanity check keeplibs, on major version bumps it is often necessary to update this list
 	# and this enables us to hit them all at once.
 	# There are some entries that need to be whitelisted (TODO: Why? The file is understandable, the rest seem odd)
@@ -3391,6 +3424,11 @@ chromium_configure() {
 
 	# Odds and ends
 
+	# V8 158 can use checked-in copies of some of its generated headers (src/gen/intl-wasm),
+	# checking them against its generators' output: generate them instead.
+	grep -q '^  v8_use_checked_in_generated_headers =' v8/BUILD.gn &&
+		myconf_gn+=( "v8_use_checked_in_generated_headers=false" )
+
 	# Disable external code space for V8 for ppc64. It is disabled for ppc64
 	# by default, but cross-compiling on amd64 enables it again.
 	if tc-is-cross-compiler && use ppc64; then
@@ -3563,7 +3601,8 @@ chromium_compile() {
 		touch "${WORKDIR}/.flatbuffers-regenerated" || die
 	fi
 
-	# V8's static roots (src/roots/static-roots-intl-wasm.h, and the values include/v8-internal.h
+	# V8's static roots (src/roots/static-roots-intl-wasm.h, src/gen/intl-wasm/static-roots.h since
+	# 158, and the values include/v8-internal.h
 	# takes from them) are the read-only heap layout that a mksnapshot built with
 	# v8_enable_static_roots_generation writes: build one in a second build directory with this
 	# build's arguments plus that (V8's tools/dev/gen-static-roots.py), regenerate them with it
