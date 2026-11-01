@@ -261,6 +261,7 @@ CHROMIUM_HARDENED_PATCHES=(
 
 # Bundled sources kept besides the eclass's list.
 CHROMIUM_KEEPLIBS=(
+	third_party/oak/src/oak_session/tls
 	third_party/sframe
 )
 # 158 removed the schema of this extension API TypeScript declaration (ChromeOS' wallpaper API):
