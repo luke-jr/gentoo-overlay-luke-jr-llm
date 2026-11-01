@@ -66,7 +66,8 @@ was added with (and 156 updated from .12 to .47).
 ### Files shared between versions
 
 A per-major file (in `files/`, named or placed by major) that is the same as an older major's is a
-relative symlink to the oldest copy, not a second copy (Portage's `FILESDIR` points at the
+relative symlink to the oldest copy, not a second copy; that includes one that differs only in
+comments (or a patch's description), whose comments are then made to fit all the versions (Portage's `FILESDIR` points at the
 repository's `files/`, so the links resolve). A file that changes for the new major replaces its
 symlink. When the oldest major is dropped, move each of its files that newer majors link to into
 the oldest of those, and point the other links there.
