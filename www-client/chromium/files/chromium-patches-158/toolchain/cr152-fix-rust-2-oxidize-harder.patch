@@ -24,38 +24,10 @@ GN (build/rust/gni_impl/crubit_shared_args.gni; run_rs_bindings_from_cc.py and
 rs_bindings_from_cc.gni became rust_api_from_cpp_wrapper.py and rust_api_from_cpp.gni), so only
 that file's toolchain bin path changes to rust_sysroot; the Python part is gone.
 
-diff --git a/build/config/rust.gni b/build/config/rust.gni
-index 3df7506..d187320 100644
---- a/build/config/rust.gni
-+++ b/build/config/rust.gni
-@@ -453,7 +453,7 @@ rustc_wrapper_inputs = [
- ]
- 
- if (host_os == "win") {
--  rustc_wrapper_inputs += [ "//third_party/rust-toolchain/bin/rustc.exe" ]
-+  rustc_wrapper_inputs += [ "$rust_sysroot/bin/rustc.exe" ]
- } else {
--  rustc_wrapper_inputs += [ "//third_party/rust-toolchain/bin/rustc" ]
-+  rustc_wrapper_inputs += [ "$rust_sysroot/bin/rustc" ]
- }
-diff --git a/build/rust/gni_impl/crubit_shared_args.gni b/build/rust/gni_impl/crubit_shared_args.gni
-index 99756c2..9867fba 100644
---- a/build/rust/gni_impl/crubit_shared_args.gni
-+++ b/build/rust/gni_impl/crubit_shared_args.gni
-@@ -5,10 +5,12 @@
- # This `.gni` file defines constants that are shared / reused across
- # `cpp_api_from_rust.gni` and `rust_api_from_cpp.gni`.
- 
-+import("//build/config/rust.gni")
-+
- crubit_support_path_format = "\"third_party/crubit/support/{header}\""
- rustfmt_config_path = "//.rustfmt.toml"
- 
--_toolchain_bin_path = "//third_party/rust-toolchain/bin"
-+_toolchain_bin_path = "${rust_sysroot}/bin"
- cpp_api_from_rust_exe_path = "${_toolchain_bin_path}/cc_bindings_from_rs"
- rust_api_from_cpp_exe_path = "${_toolchain_bin_path}/rs_bindings_from_cc"
- rustfmt_exe_path = "${_toolchain_bin_path}/rustfmt"
+Rebased for 158: 158 does the rest itself (build/config/rust.gni's rustc_exe_path for
+rustc_wrapper_inputs; the Crubit executables from the new rust_crubit_root argument, and
+rustfmt only with Chromium's own toolchain), so only clippy-driver's path is left.
+
 diff --git a/build/rust/gni_impl/rust_target.gni b/build/rust/gni_impl/rust_target.gni
 index dcf2f47..4f34b87 100644
 --- a/build/rust/gni_impl/rust_target.gni
