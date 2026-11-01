@@ -183,6 +183,7 @@ CHROMIUM_FIXES=(
 	chromium-157-ntp-background-no-symlinks.patch
 	chromium-157-mse-gop-keyframe-pts.patch
 	chromium-157-v8-promise-any-reject-once.patch
+	chromium-157-gtk-file-dialog-accept.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
