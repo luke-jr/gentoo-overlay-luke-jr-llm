@@ -19,7 +19,11 @@ auto-sync = no
 ```
 
 `www-client/chromium-156.0.8078.83_pre` and `157.0.8103.34_pre-r2`, based on `::gentoo`'s
-`chromium-151.0.7922.169-r1` (`::gentoo` has masked Chromium for removal on 2026-10-24, bug #982204).
+`chromium-151.0.7922.169-r1`. `::gentoo` masked `www-client/chromium` on 2026-09-24 for removal
+on 2026-10-24 (bug #982204); as of 2026-11-01 it is still in the tree, masked. That mask covers
+this overlay's `www-client/chromium` too, so unmask it (see `doc/chromium.md`). Only the package is
+going: the `chromium-2` eclass the build inherits from `::gentoo` stays, since `google-chrome`,
+`vivaldi`, `opera` and `microsoft-edge` use it.
 All are built from Google's official "lite" source tarballs.
 
 See `doc/chromium.md`.
