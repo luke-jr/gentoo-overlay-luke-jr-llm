@@ -90,14 +90,11 @@ SWS_TINYXML2_COMMIT="ff61650517cc32d524689366f977716e73d4f924"
 # SwiftShader's minimized LLVM for Subzero (third_party/llvm-subzero), on amd64: its TableGen'd
 # files come from LLVM trunk r290449 (llvm-mirror's 759dd39, per SwiftShader's history).
 SWS_LLVM_COMMIT="759dd39154f0bbf1adc87bf613c95f9564f64aa8"
-# The Khronos registries the copies of Khronos' generated headers in third_party/khronos and
-# ANGLE's include/ were generated from (their registries' api/ copies at these commits):
+# The Khronos registries the copies of Khronos' generated headers in ANGLE's include/ were
+# generated from (158 removed third_party/khronos) (their registries' api/ copies at these commits):
 # "repository:commit:directory:registry:destination:headers", headers as genheaders.py names
 # them, "=path" where the copy is elsewhere under the destination.
 KHRONOS_HEADERS="
-	OpenGL-Registry:f37a01b810c6b02dd22979352df995555b51ae50:xml:gl.xml:third_party/khronos:../api/GLES3/gl31.h,../api/GLES3/gl32.h
-	OpenGL-Registry:accf5ad3cd89ddb5cd6e09b6823bf28bce444c3d:xml:gl.xml:third_party/khronos:../api/GLES3/gl3.h
-	EGL-Registry:992aa3914f8fea801b1034c992db389911d9f3c3:api:egl.xml:third_party/khronos:EGL/egl.h
 	OpenGL-Registry:9cb90ca4902d588bef3c830fbb1da484893bd5fb:xml:gl.xml:third_party/angle/include:../api/GLES2/gl2.h,../api/GLES2/gl2ext.h,../api/GLES3/gl3.h,../api/GLES3/gl31.h,../api/GLES3/gl32.h
 	OpenGL-Registry:08549e96bd581527e38b492e92f6fbdb965b5d77:xml:glx.xml:third_party/angle/include:../api/GL/glxext.h=GLX/glxext.h
 	OpenGL-Registry:89acc93eaa6acd97159fb069e66acb92f12d7b87:xml:wgl.xml:third_party/angle/include:../api/GL/wgl.h=WGL/wgl.h
@@ -108,7 +105,9 @@ KHRONOS_HEADERS="
 OPENXR_VER="1.1.53"
 
 # The generators of pdfium's OpenJPEG and libtiff tables, which pdfium doesn't bundle, at the
-# revisions in their README.pdfium (see the eclass's src_prepare).
+# revisions in their README.pdfium (see the eclass's src_prepare). Since 158 their upstream
+# sources are in a src/ subdirectory.
+CHROMIUM_PDFIUM_SRC_SUBDIR=src
 PDFIUM_OPENJPEG_COMMIT="6c4a29b00211eb0430fa0e5e890f1ce5c80f409f"
 PDFIUM_LIBTIFF_COMMIT="d01a94be176f5f6a87f7ee1c0b32e65416aa2b4d"
 
@@ -203,6 +202,8 @@ CHROMIUM_PATCHES=(
 	chromium-156-boringssl-pregenerate-offline.patch
 	# A reproducible header for ICU's generated rbbirpt.h (see the eclass).
 	chromium-156-icu-rbbicst-header.patch
+	# abseil's BUILD.gn converter without gn features 158's gn lacks (see the patch).
+	chromium-158-abseil-gn-no-strict-includes.patch
 )
 
 # Copium's patches (with the system toolchain).
@@ -256,4 +257,9 @@ CHROMIUM_HARDENED_PATCHES=(
 # Bundled sources kept besides the eclass's list.
 CHROMIUM_KEEPLIBS=(
 	third_party/sframe
+)
+# Those of the eclass's list that 158 no longer has.
+CHROMIUM_KEEPLIBS_DROP=(
+	third_party/khronos
+	third_party/libsecret
 )
