@@ -30,8 +30,8 @@ was added with (and 156 updated from .12 to .47).
 1. **Start from the previous ebuild:** copy it, and set `SLOT` (above). An ebuild has only its
    version's pins and lists (patches, carried fixes, extra bundled sources); the build is in
    `eclass/chromium-llm.eclass` (see "Changing the eclass" below).
-2. **Patches:** copy `files/chromium-patches-<previous>/` to `files/chromium-patches-<major>/`, and
-   check every patch (the Gentoo patchset, copium's selection, and the overlay's own
+2. **Patches:** copy `files/chromium-patches-<previous>/` to `files/chromium-patches-<major>/`
+   (with `cp -a`: see "Files shared between versions" below), and check every patch (the Gentoo patchset, copium's selection, and the overlay's own
    `files/chromium-*.patch`) against the new tree:
    - one that no longer applies is rebased (as `chromium-<major>-<name>.patch` when it differs);
    - one that reverse-applies is upstream now, and is dropped;
@@ -58,9 +58,18 @@ was added with (and 156 updated from .12 to .47).
    `scripts/chromium-delta/tarball-generated.py`; new checked-in generated sources need a
    regeneration step and a pattern in `chromium_regenerated_outputs`, or an entry in
    `doc/chromium-generated-files.md`'s exceptions.
-7. **npm keep list:** `files/chromium-<major>-node-modules.txt` starts as the previous version's.
-   After the first successful build, regenerate it with `scripts/chromium-node-modules-used.py` (in
-   `out/Release`, with the tarball's npm packages restored in the tree; see its usage).
+7. **npm keep list:** `files/chromium-<major>-node-modules.txt` starts as a symlink to the previous
+   version's. After the first successful build, regenerate it with
+   `scripts/chromium-node-modules-used.py` (in `out/Release`, with the tarball's npm packages
+   restored in the tree; see its usage), and replace the symlink only if the list changed.
+
+### Files shared between versions
+
+A per-major file (in `files/`, named or placed by major) that is the same as an older major's is a
+relative symlink to the oldest copy, not a second copy (Portage's `FILESDIR` points at the
+repository's `files/`, so the links resolve). A file that changes for the new major replaces its
+symlink. When the oldest major is dropped, move each of its files that newer majors link to into
+the oldest of those, and point the other links there.
 
 ## A new release of the same major
 
