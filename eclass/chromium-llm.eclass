@@ -10,7 +10,7 @@
 # scope uses: toolchain and tool versions, the commits of the generators' inputs, ...; see an
 # ebuild), and LLVM_COMPAT and RUST_MIN_VER. After inheriting it, it sets DESCRIPTION,
 # HOMEPAGE, LICENSE, SLOT and KEYWORDS, the patch lists below, and defines
-# chromium_crubit_rustfmt.
+# chromium_crubit_rustfmt (unless CHROMIUM_UPSTREAM_CRUBIT is set).
 #
 # Changing this eclass: every ebuild in the tree uses it, the older versions too. A change
 # made for a new version must not change what the existing ebuilds do: make it opt-in (a
@@ -68,11 +68,20 @@
 # HarfBuzz's Unicode data, file by file (from unicodetools), for a Unicode version whose zipped
 # UCD isn't published. Unset: the zipped UCD.
 
+# @ECLASS_VARIABLE: CHROMIUM_UPSTREAM_CRUBIT
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# Set (158 and later) when Chromium itself supports a system Crubit (its rust_crubit_root GN
+# argument, with bindings of the prebuilt stdlib), so the ebuild has no Crubit patch: no
+# chromium_crubit_rustfmt, and no rust_crubit_clang_format GN argument (the patch's; upstream
+# formats Crubit's output only with its own toolchain). Unset: the ebuild's Crubit patch.
+
 # @FUNCTION: chromium_crubit_rustfmt
 # @USAGE: <suffix>
 # @DESCRIPTION:
-# Defined by the ebuild. Points the files its Crubit patch adds or changes at the selected
-# Rust's rustfmt (rustfmt<suffix>). Called by src_prepare with the system toolchain.
+# Defined by the ebuild, unless CHROMIUM_UPSTREAM_CRUBIT is set. Points the files its Crubit
+# patch adds or changes at the selected Rust's rustfmt (rustfmt<suffix>). Called by
+# src_prepare with the system toolchain.
 
 case ${EAPI} in
 	8) ;;
@@ -934,7 +943,7 @@ chromium-llm_src_prepare() {
 	rm third_party/.clang-format-ignore || die
 
 	# The ebuild's, for the files its Crubit patch adds or changes.
-	use bundled-toolchain || chromium_crubit_rustfmt "${suffix}"
+	use bundled-toolchain || [[ -n ${CHROMIUM_UPSTREAM_CRUBIT} ]] || chromium_crubit_rustfmt "${suffix}"
 
 	# Generated code and data in the vendored Rust crates (syn's visitors, Unicode tables,
 	# fontations' table code, ICU4X's baked data, time zone data, ...): dev-util/chromium-rust-crates
@@ -3115,11 +3124,12 @@ chromium_configure() {
 			"rust_bindgen_root=\"${EPREFIX}/usr/\""
 			"rust_sysroot_absolute=\"$(get_rust_prefix)\""
 			"rustc_version=\"${RUST_SLOT}\""
-			# Crubit (cpp_api_from_rust); checked in pkg_setup. Upstream formats its
-			# generated headers with a bundled clang-format, which we remove.
+			# Crubit (cpp_api_from_rust); checked in pkg_setup.
 			"rust_crubit_root=\"${BROOT}/usr/lib/crubit/${CRUBIT_PV}\""
-			"rust_crubit_clang_format=\"$(get_llvm_prefix -b)/bin/clang-format\""
 		)
+		# Upstream formats its generated headers with a bundled clang-format, which we remove.
+		[[ -n ${CHROMIUM_UPSTREAM_CRUBIT} ]] ||
+			myconf_gn+=( "rust_crubit_clang_format=\"$(get_llvm_prefix -b)/bin/clang-format\"" )
 
 		# Currently disabled, runtime issues with mold
 		#if tc-ld-is-mold; then
