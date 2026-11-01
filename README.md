@@ -18,7 +18,7 @@ masters = gentoo
 auto-sync = no
 ```
 
-`www-client/chromium-156.0.8078.83_pre`, `157.0.8103.34_pre-r2` and `157.0.8103.15`, based on `::gentoo`'s
+`www-client/chromium-156.0.8078.83_pre` and `157.0.8103.34_pre-r2`, based on `::gentoo`'s
 `chromium-151.0.7922.169-r1` (`::gentoo` has masked Chromium for removal on 2026-10-24, bug #982204).
 All are built from Google's official "lite" source tarballs.
 
@@ -54,7 +54,6 @@ What the packages here follow, beyond Gentoo's own policies:
 |---|---|
 | `www-client/chromium-156.0.8078.83_pre` | the browser: 156.0.8078.83, the newest tag of the 156 branch, which has no release or source tarball: built from Google's official "lite" tarball of 156.0.8078.79 (Linux Stable) plus `files/chromium-156.0.8078.79-to-156.0.8078.83.patch` (the upstream changes that can affect a Linux build; see its header), and the CVE-2026-110914 fix 156 hasn't got yet. `_pre` sorts below a real 156.0.8078.83 release, which replaces it. |
 | `www-client/chromium-157.0.8103.34_pre-r2` | the browser: 157.0.8103.34, the newest tag of the 157 branch, which has no source tarball: built from Google's official "lite" tarball of 157.0.8103.30 (the newest 157 tarball) plus `files/chromium-157.0.8103.30-to-157.0.8103.34.patch` (see its header), and the fixes not in a 157 tag yet: CVE-2026-76026, CVE-2026-119270, the SVGImage and Length GC fixes, and the NTP background, MediaSource and V8 Promise.any fixes merged after .34, and the GTK file dialog double-click fix from main (see their headers). 157 is Google's early stable release (Windows and Mac only so far), so `SLOT="stable"` with `~amd64`: it replaces 156 for `~amd64` users, and becomes `amd64` when Google releases 157 for Linux Stable. |
-| `www-client/chromium-157.0.8103.15` | the browser: 157.0.8103.15, **Beta** on Linux (Google's early stable release of it is for Windows and Mac only), so `SLOT="beta"`, as `::gentoo` slots channels: it installs beside stable as `chromium-browser-beta`, with its own profile directory. Built from Google's official "lite" source tarball (it already has the CVE-2026-110914 fix), plus the CVE-2026-118332 fix 157 hasn't got yet. See "157" below for how it differs from 156. |
 | `dev-util/ragel-6.10:6` | Ragel 6 in slot 6, installed as `ragel-6`, for systems that keep `::gentoo`'s Ragel 7 (`::gentoo` has 6 and 7 both in slot 0). Chromium's ebuild regenerates HarfBuzz's state machines with Ragel 6 (HarfBuzz requires 6.10): `::gentoo`'s `dev-util/ragel-6.10` when that is installed or nothing is, this slot when Ragel 7 is installed. |
 | `dev-util/esbuild-0.28.2` | DevTools needs exactly this version. `::gentoo` stops at 0.27.3, and deps.gentoo.zip has no vendor tarball, so this uses `EGO_SUM`. |
 | `dev-build/gn-0.2578`, `gn-0.2595` | 156's `.gn` needs gn ≥ 1b0f22ec, 157's needs 0.2595. Pinned to the commits Chromium's `DEPS` uses, via git-r3, because there is no tarball and gitiles archives aren't reproducible. |

@@ -15,8 +15,8 @@ was added with (and 156 updated from .12 to .47).
   - Google's "Early Stable" (Windows and Mac first, to some users): `SLOT="stable"`,
     `KEYWORDS="~amd64 ~arm64"`. When Google releases it for Linux Stable, it gets `amd64`; no new
     slot, so installed copies keep their profile;
-  - Beta: `SLOT="beta"`, `KEYWORDS="~amd64 ~arm64"`. The previous Beta stays until the next
-    major's ebuild replaces it.
+  - Beta: not kept (the overlay has Stable, Early Stable and the `_pre` of the newest Early
+    Stable tag only); a Beta ebuild would get `SLOT="beta"`, `KEYWORDS="~amd64 ~arm64"`.
   `arm64` stays `~arm64`: nobody has built or run it.
 - **Source:** Google's official "lite" tarball,
   `https://commondatastorage.googleapis.com/chromium-browser-official/chromium-<version>-lite.tar.xz`;
