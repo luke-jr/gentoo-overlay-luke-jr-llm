@@ -221,6 +221,9 @@ CHROMIUM_COPIUM_PATCHES=(
 # 158 supports a system Crubit (dev-util/crubit, rust_crubit_root) with the prebuilt system
 # Rust stdlib itself: no Crubit patch.
 CHROMIUM_UPSTREAM_CRUBIT=1
+# 158's list of the prebuilt stdlib's crates follows its newer Rust; Rust 1.98's std still links
+# these.
+CHROMIUM_RUST_STDLIB_ADDED=( addr2line adler2 gimli miniz_oxide )
 
 # With USE=hardened.
 CHROMIUM_HARDENED_PATCHES=(
@@ -257,6 +260,11 @@ CHROMIUM_HARDENED_PATCHES=(
 # Bundled sources kept besides the eclass's list.
 CHROMIUM_KEEPLIBS=(
 	third_party/sframe
+)
+# 158 removed the schema of this extension API TypeScript declaration (ChromeOS' wallpaper API):
+# kept as source.
+CHROMIUM_TS_DEFINITIONS_KEPT=(
+	tools/typescript/definitions/wallpaper.d.ts
 )
 # Those of the eclass's list that 158 no longer has.
 CHROMIUM_KEEPLIBS_DROP=(
