@@ -184,6 +184,13 @@ CHROMIUM_FIXES=(
 	chromium-157-mse-gop-keyframe-pts.patch
 	chromium-157-v8-promise-any-reject-once.patch
 	chromium-157-gtk-file-dialog-accept.patch
+	chromium-157-css-unparsed-value-tostring.patch
+	chromium-157-v8-module-star-exports-cache.patch
+	chromium-157-v8-fastapi-uncatchable-deopt.patch
+	chromium-157-v8-wasm-debug-break-defer.patch
+	chromium-157-backdrop-filter-reference-no-composite.patch
+	chromium-157-v8-enum-cache-leak.patch
+	chromium-157-glic-hotkey-notreached.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
