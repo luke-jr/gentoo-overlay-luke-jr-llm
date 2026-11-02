@@ -192,6 +192,8 @@ CHROMIUM_FIXES=(
 	chromium-157-v8-enum-cache-leak.patch
 	chromium-157-glic-hotkey-notreached.patch
 	chromium-157-keyframe-snapshot-uaf.patch
+	chromium-157-angle-vulkan-disabled-attribs-uaf.patch
+	chromium-157-gainmap-decode-overwrite.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.

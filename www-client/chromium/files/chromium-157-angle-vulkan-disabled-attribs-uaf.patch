@@ -1,0 +1,30 @@
+"Vulkan: Sync dirty disabled active attributes" (crbugs 573933450,
+571059182 and 580173680, not public; no CVE listed yet): ANGLE's Vulkan
+back-end left a vertex attribute that was disabled while still active in the
+program pointing at its old buffer when a zero-count multidraw skipped the
+deferred cleanup, so a later draw could read the freed buffer (use after
+free). Disabled attributes, active or not, are now always reset to the empty
+buffer. ANGLE main commit e473507a8a86fa7c0aa6e419e2a8fd81283e1bfa
+(2026-10-29), merged on 2026-11-02 to 157
+(751417514a521b2e92d6928260c62122138824d3, after the 157.0.8103.37 tag; also
+proposed for 156). This is the 157 merge, without its tests. Drop it once a
+157 tag has it.
+
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/VertexArrayVk.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/VertexArrayVk.cpp
+index 1a238eb..87f627b 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/VertexArrayVk.cpp
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/VertexArrayVk.cpp
+@@ -1115,11 +1115,8 @@
+            prevEnabledNowDisabledAttribBits);
+     if (prevEnabledNowDisabledAttribBits.any())
+     {
+-        // disabled attributes maybe active or inactive. We only need to set to empty buffer for
+-        // inactive ones.
+-        const gl::AttributesMask disabledInactiveAttribBits =
+-            prevEnabledNowDisabledAttribBits & ~context->getActiveDefaultAttribsMask();
+-        syncDirtyDisabledAttribs(contextVk, disabledInactiveAttribBits);
++        // Sync the disabled attributes, active or inactive.
++        syncDirtyDisabledAttribs(contextVk, prevEnabledNowDisabledAttribBits);
+ 
+         // default attributes handler will update active attributes.
+         const gl::AttributesMask defaultAttribBits =

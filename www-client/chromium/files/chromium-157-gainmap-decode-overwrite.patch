@@ -1,0 +1,38 @@
+"Overwrite gainmap pixels in SoftwareImageDecodeCacheUtils" (crbugs
+574762568 and 579236414, not public; no CVE listed yet): the software image
+decode cache drew a scaled HDR gainmap into newly allocated memory with the
+default source-over blending, so a non-opaque gainmap left uninitialized
+bytes in the image. It is now drawn with kSrc, and the decoded gainmap is
+marked opaque. chromium/src main commit
+fec1aa23fb09be1b8bd33e4d88bbe6c95fb63b52 (2026-10-28), merged on 2026-11-02
+to 157 (3eda99961fcc2a3bd0316f8a91d2fa82049c982f, after the 157.0.8103.37
+tag; also proposed for 7871). This is the 157 merge, without its test. Drop it
+once a 157 tag has it.
+
+diff --git a/cc/tiles/software_image_decode_cache_utils.cc b/cc/tiles/software_image_decode_cache_utils.cc
+index 7ad4ed1..84fbf50d 100644
+--- a/cc/tiles/software_image_decode_cache_utils.cc
++++ b/cc/tiles/software_image_decode_cache_utils.cc
+@@ -130,7 +130,7 @@
+   if (paint_image.HasGainmapInfo()) {
+     target_gainmap_info = SkImageInfo::Make(
+         paint_image.GetSupportedDecodeSize(target_size, AuxImage::kGainmap),
+-        color_type, kPremul_SkAlphaType);
++        color_type, kOpaque_SkAlphaType);
+   }
+ 
+   sk_sp<SkImage> target_image;
+@@ -270,10 +270,12 @@
+     auto canvas = SkCanvas::MakeRasterDirect(
+         target_gainmap_pixmap.info(), target_gainmap_pixmap.writable_addr(),
+         target_gainmap_pixmap.rowBytes());
++    SkPaint paint;
++    paint.setBlendMode(SkBlendMode::kSrc);
+     canvas->drawImageRect(
+         decoded_gainmap_image, src_gainmap_rect,
+         SkRect::MakeSize(SkSize::Make(target_gainmap_info.dimensions())),
+-        SkSamplingOptions(SkFilterMode::kLinear), nullptr,
++        SkSamplingOptions(SkFilterMode::kLinear), &paint,
+         SkCanvas::kStrict_SrcRectConstraint);
+   }
+ 
