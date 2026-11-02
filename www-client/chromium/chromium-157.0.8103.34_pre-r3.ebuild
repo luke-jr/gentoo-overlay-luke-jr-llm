@@ -190,6 +190,7 @@ CHROMIUM_FIXES=(
 	chromium-157-v8-wasm-debug-break-defer.patch
 	chromium-157-backdrop-filter-reference-no-composite.patch
 	chromium-157-v8-enum-cache-leak.patch
+	chromium-157-glic-hotkey-notreached.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
