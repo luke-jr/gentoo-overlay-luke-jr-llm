@@ -187,6 +187,7 @@ CHROMIUM_FIXES=(
 	chromium-157-css-unparsed-value-tostring.patch
 	chromium-157-v8-module-star-exports-cache.patch
 	chromium-157-v8-fastapi-uncatchable-deopt.patch
+	chromium-157-v8-wasm-debug-break-defer.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.

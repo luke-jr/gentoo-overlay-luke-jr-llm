@@ -1,0 +1,134 @@
+V8: "[debug][wasm] Defer debugger break in optimized Wasm frames" (crbugs
+577352626 and 579732262, not public; no CVE listed yet): a debug break
+taken inside an optimized (Turboshaft) WebAssembly frame left that frame
+optimized while the debugger paused, so JavaScript run during the pause
+could change Wasm tables or state the frame's compiled code assumes. The
+break is now deferred to the next JS or Liftoff function. V8 main commit
+afd4fd529a4bf40bd832fc525802c40d049cedad, merged on 2026-11-02 to 15.7
+(8f9f248ddcccca4feb4d510b8ede9b333139019e, for 157; not yet rolled into the
+157 branch) and proposed for 15.6. This is the 15.7 merge, at v8/, without
+its tests. Drop it once a 157 tag's V8 has it.
+
+diff --git a/v8/src/debug/debug.cc b/v8/src/debug/debug.cc
+index a0e316c..f28f615 100644
+--- a/v8/src/debug/debug.cc
++++ b/v8/src/debug/debug.cc
+@@ -40,6 +40,7 @@
+ #include "src/snapshot/embedded/embedded-data.h"
+ 
+ #if V8_ENABLE_WEBASSEMBLY
++#include "src/wasm/wasm-code-manager.h"
+ #include "src/wasm/wasm-debug.h"
+ #include "src/wasm/wasm-objects-inl.h"
+ #endif  // V8_ENABLE_WEBASSEMBLY
+@@ -3048,6 +3049,60 @@
+           return;
+         }
+       }
++#if V8_ENABLE_WEBASSEMBLY
++    } else if (!it.done() && it.frame()->is_wasm()) {
++#if V8_ENABLE_DRUMBRAKE
++      if (!it.frame()->is_wasm_interpreter_entry())
++#endif  // V8_ENABLE_DRUMBRAKE
++      {
++        WasmFrame* wasm_frame = WasmFrame::cast(it.frame());
++        wasm::WasmCodeRefScope code_ref_scope;
++        // Optimized Wasm frames cannot be deoptimized on-stack at loop stack
++        // checks. Defer the pause to the next function call (or return to a
++        // debuggable caller frame) so that JavaScript executed during the
++        // pause cannot invalidate load-eliminated state in the optimized Wasm
++        // frame.
++        if (!wasm_frame->wasm_code()->is_liftoff()) {
++          if (ignore_events()) return;
++          thread_local_.scheduled_break_on_next_function_call_.Add(
++              break_reasons);
++          SetBreakOnNextFunctionCall();
++          for (it.Advance(); !it.done(); it.Advance()) {
++            if (it.frame()->is_wasm()) {
++#if V8_ENABLE_DRUMBRAKE
++              if (it.frame()->is_wasm_interpreter_entry()) continue;
++#endif  // V8_ENABLE_DRUMBRAKE
++              WasmFrame* caller_wasm = WasmFrame::cast(it.frame());
++              if (!caller_wasm->wasm_code()->is_inspectable()) continue;
++              wasm::DebugInfo* debug_info =
++                  caller_wasm->native_module()->GetDebugInfo();
++              if (debug_info->IsFrameBlackboxed(caller_wasm)) continue;
++              debug_info->PrepareStepOutTo(caller_wasm);
++              break;
++            }
++            JavaScriptFrame* js_frame = JavaScriptFrame::cast(it.frame());
++            if (js_frame->is_optimized()) {
++              Deoptimizer::DeoptimizeFunction(js_frame->function(),
++                                              LazyDeoptimizeReason::kDebugger,
++                                              js_frame->LookupCode());
++            }
++            HandleScope inner_scope(isolate_);
++            std::vector<Handle<SharedFunctionInfo>> infos;
++            js_frame->GetFunctions(&infos);
++            bool flooded = false;
++            for (; !infos.empty(); infos.pop_back()) {
++              Handle<SharedFunctionInfo> info = infos.back();
++              if (IsBlackboxed(info)) continue;
++              FloodWithOneShot(info);
++              flooded = true;
++              break;
++            }
++            if (flooded) break;
++          }
++          return;
++        }
++      }
++#endif  // V8_ENABLE_WEBASSEMBLY
+     }
+   }
+ 
+diff --git a/v8/src/debug/debug.h b/v8/src/debug/debug.h
+index bb0f1b6..cf2b8fc 100644
+--- a/v8/src/debug/debug.h
++++ b/v8/src/debug/debug.h
+@@ -480,6 +480,9 @@
+   bool scheduled_break_on_function_call() const {
+     return !thread_local_.scheduled_break_on_next_function_call_.empty();
+   }
++  v8::debug::BreakReasons scheduled_break_on_next_function_call() const {
++    return thread_local_.scheduled_break_on_next_function_call_;
++  }
+ 
+   bool IsRestartFrameScheduled() const {
+     return thread_local_.restart_frame_id_ != StackFrameId::NO_ID;
+diff --git a/v8/src/runtime/runtime-wasm.cc b/v8/src/runtime/runtime-wasm.cc
+index b17d38b..e09b0ac 100644
+--- a/v8/src/runtime/runtime-wasm.cc
++++ b/v8/src/runtime/runtime-wasm.cc
+@@ -1033,10 +1033,12 @@
+   if (debug_info->IsStepping(frame) && !debug_info->IsFrameBlackboxed(frame)) {
+     debug_info->ClearStepping(isolate);
+     StepAction step_action = isolate->debug()->last_step_action();
++    v8::debug::BreakReasons break_reasons =
++        isolate->debug()->scheduled_break_on_next_function_call();
+     isolate->debug()->ClearStepping();
+     if (isolate->debug()->ContinueSteppingIfSkipped(step_action)) return true;
+     isolate->debug()->OnDebugBreak(isolate->factory()->empty_fixed_array(),
+-                                   step_action);
++                                   step_action, break_reasons);
+     return true;
+   }
+ 
+diff --git a/v8/src/wasm/wasm-debug.cc b/v8/src/wasm/wasm-debug.cc
+index a9101df..7db05dd 100644
+--- a/v8/src/wasm/wasm-debug.cc
++++ b/v8/src/wasm/wasm-debug.cc
+@@ -513,7 +513,12 @@
+ 
+   bool IsStepping(WasmFrame* frame) {
+     Isolate* isolate = frame->isolate();
+-    if (isolate->debug()->last_step_action() == StepInto) return true;
++    if (isolate->debug()->last_step_action() == StepInto ||
++        isolate->debug()->break_on_next_function_call() ||
++        isolate->debug()->scheduled_break_on_function_call()) {
++      return true;
++    }
++    if (isolate->debug()->last_step_action() == StepNone) return false;
+     base::MutexGuard guard(&mutex_);
+     auto it = per_isolate_data_.find(isolate);
+     return it != per_isolate_data_.end() &&
