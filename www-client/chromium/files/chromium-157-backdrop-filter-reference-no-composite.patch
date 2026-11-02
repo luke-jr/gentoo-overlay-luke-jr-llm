@@ -1,0 +1,39 @@
+"Do not composite backdrop-filter animations with reference filters"
+(crbugs 575318807 and 580175365, not public; no CVE listed yet):
+backdrop-filter animations with url(#...) reference filters ran on the
+compositor, whose keyframe setup can synchronously paint the referenced SVG
+resources during the post-paint animation update. They now fall back to the
+main thread, as filter animations do. chromium/src main commit
+4a06eebbc999c22ef5d7bbc7ab602a68c21c3dd2 (2026-10-30), merged on 2026-11-02
+to 157 (28a31c03a5f96ac6c861d7a6095ce65987a82367, after the 157.0.8103.37
+tag). This is the 157 merge, without its test. Drop it once a 157 tag has it.
+
+diff --git a/third_party/blink/renderer/core/animation/compositor_animations.cc b/third_party/blink/renderer/core/animation/compositor_animations.cc
+index 90725e8..ca661f3 100644
+--- a/third_party/blink/renderer/core/animation/compositor_animations.cc
++++ b/third_party/blink/renderer/core/animation/compositor_animations.cc
+@@ -416,7 +416,15 @@
+           break;
+         case CSSPropertyID::kBackdropFilter:
+           // Backdrop-filter pixel moving filters do not change the layer bounds
+-          // like regular filters do, so they can still be composited.
++          // like regular filters do, so they can still be composited. However,
++          // reference filters cannot be interpolated or composited.
++          if (keyframe->GetCompositorKeyframeValue() &&
++              To<CompositorKeyframeFilterOperations>(
++                  keyframe->GetCompositorKeyframeValue())
++                  ->Operations()
++                  .HasReferenceFilter()) {
++            DefaultToUnsupportedProperty(state, property);
++          }
+           break;
+         case CSSPropertyID::kBackgroundColor:
+         case CSSPropertyID::kClipPath:
+@@ -887,6 +895,7 @@
+   CompositorFilterOperations operations = builder.BuildFilterOperations(
+       To<CompositorKeyframeFilterOperations>(value)->Operations(),
+       is_backdrop_filter);
++  DCHECK(!operations.HasReferenceFilter());
+   std::unique_ptr<cc::FilterKeyframe> filter_keyframe =
+       cc::FilterKeyframe::Create(base::Seconds(keyframe->Offset()),
+                                  operations.ReleaseCcFilterOperations(),
