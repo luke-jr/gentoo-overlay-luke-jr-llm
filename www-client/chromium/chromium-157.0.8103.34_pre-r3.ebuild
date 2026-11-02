@@ -184,6 +184,9 @@ CHROMIUM_FIXES=(
 	chromium-157-mse-gop-keyframe-pts.patch
 	chromium-157-v8-promise-any-reject-once.patch
 	chromium-157-gtk-file-dialog-accept.patch
+	chromium-157-css-unparsed-value-tostring.patch
+	chromium-157-v8-module-star-exports-cache.patch
+	chromium-157-v8-fastapi-uncatchable-deopt.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
