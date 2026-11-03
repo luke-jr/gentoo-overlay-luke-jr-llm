@@ -43,8 +43,8 @@ RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit build (rustc driver, ti
 CRUBIT_DATE="20260930"
 PPC64_HASH="7aae8a84e327fc2078ce1625c9c70bfda77d626f"
 COPIUM_COMMIT="027d15ffdcd1816b7935cee9ea4a4f6bae0bbe60"
-# 157.0.8103.34 is a tag without a tarball: built from the 157.0.8103.30 tarball plus
-# files/chromium-157.0.8103.30-to-157.0.8103.34.patch (see its header).
+# 157.0.8103.42 is a tag without a tarball: built from the 157.0.8103.30 tarball plus
+# files/chromium-157.0.8103.30-to-157.0.8103.42.patch (see its header).
 CHROMIUM_TARBALL_PV="157.0.8103.30"
 # Inputs of ANGLE's code generators that the tarball lacks (files/chromium-angle-regen.py):
 # Khronos' registries at ANGLE's (and, for Vulkan, Chromium's) DEPS revisions; perfect-hash,
@@ -177,23 +177,10 @@ KEYWORDS="~amd64 ~arm64"
 # Security fixes this version hasn't got yet, applied first (see their headers).
 CHROMIUM_FIXES=(
 	chromium-157-cve-2026-76026.patch
-	chromium-157-cve-2026-119270.patch
 	chromium-157-svg-image-retain.patch
 	chromium-157-length-calc-value-gc.patch
-	chromium-157-ntp-background-no-symlinks.patch
-	chromium-157-mse-gop-keyframe-pts.patch
-	chromium-157-v8-promise-any-reject-once.patch
 	chromium-157-gtk-file-dialog-accept.patch
-	chromium-157-css-unparsed-value-tostring.patch
-	chromium-157-v8-module-star-exports-cache.patch
-	chromium-157-v8-fastapi-uncatchable-deopt.patch
-	chromium-157-v8-wasm-debug-break-defer.patch
-	chromium-157-backdrop-filter-reference-no-composite.patch
-	chromium-157-v8-enum-cache-leak.patch
-	chromium-157-glic-hotkey-notreached.patch
-	chromium-157-keyframe-snapshot-uaf.patch
-	chromium-157-angle-vulkan-disabled-attribs-uaf.patch
-	chromium-157-gainmap-decode-overwrite.patch
+	chromium-157-capability-element-icon-only-flag.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.

@@ -1,24 +1,31 @@
-Chromium 157.0.8103.30 -> 157.0.8103.34, for the 157.0.8103.30 tarball.
+Chromium 157.0.8103.30 -> 157.0.8103.42, for the 157.0.8103.30 tarball.
 
-157.0.8103.34 is a tag on the 157 branch (refs/branch-heads/8103) that has
-no source tarball (as of 2026-10-31). It has the fixes made after
-157.0.8103.30 up to it: those of 157.0.8103.32 and .33 (use-after-frees in
+157.0.8103.42 is a tag on the 157 branch (refs/branch-heads/8103) that has
+no source tarball (as of 2026-11-03). It has the fixes made after
+157.0.8103.30 up to it: those of 157.0.8103.32 to .34 (use-after-frees in
 the bookmarks side panel, MojoCdm, chrome.windows.update and
 TransitionPseudoElementData; HttpCache range responses; File System Access's
-sensitive paths; ...), and since .33: media controls made read-only; the
-display lock and Length/CalculationValue tracing fixes; ~/.cache in the File
-System Access blocklist; encoding detection's TLD hint; paste sanitization of
-SVG <use>; WebRTC's EmptyNetworkManager; the image cache not following
-symlinks; Background Fetch keeping CORS on retry; CopySharedImage rejecting
-empty rects; WebXR opaque framebuffers on session end; V8's
-JSGetTemplateObject, maps, prototypes and Maglev; Skia's SkRgnBuilder heap
-out-of-bounds write, SkSL raster pipeline branches and Graphite's clip
-inflation and paint keys; a DevTools lit fix.
+sensitive paths and ~/.cache; the display lock and Length/CalculationValue
+tracing fixes; paste sanitization of SVG <use>; Background Fetch keeping CORS
+on retry; V8's JSGetTemplateObject, maps, prototypes and Maglev; Skia's
+SkRgnBuilder heap out-of-bounds write, SkSL raster pipeline branches and
+Graphite's clip inflation and paint keys; ...), and since .34: the NTP
+background files written via a temporary file; MediaSource's GOP keyframe
+PTS; CacheStorage's legacy cache_dir migration removed; CSSUnparsedValue's
+toString; backdrop-filter animations with reference filters not composited;
+the Glic hotkey NOTREACHED; the keyframe snapshot use-after-free; the
+gainmap decode cache's uninitialized pixels; WebUSB's reset configuration
+invalidation turned off by default again (it broke devices after reset);
+V8's Promise.any, module star exports, fast API termination, Wasm debug
+break and enum cache fixes; ANGLE's Vulkan disabled attributes
+use-after-free; and since .41: Blink's CSSSelector rare data marking
+barrier; the Sync tab delegate's dependencies outliving it (a
+use-after-free); the app menu's zoom announcements.
 
 Generated from the upstream diffs between the tags (chromium/src
-refs/tags/157.0.8103.30..157.0.8103.34), DevTools, Skia and V8 (the only
-dependencies whose DEPS revisions changed; no CIPD/GCS package or gclient
-gn arg changed), as served by Gitiles, with scripts/chromium-delta.
+refs/tags/157.0.8103.30..157.0.8103.42), ANGLE, DevTools, Skia and V8 (the
+only dependencies whose DEPS revisions changed; no CIPD/GCS package or
+gclient gn arg changed), as served by Gitiles, with scripts/chromium-delta.
 
 Left out, as they cannot affect a Linux build: files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -28,13 +35,15 @@ DEPS.
 Added: the tarball's stamp files for the new commit (stamps.py:
 build/util/LASTCHANGE{,.committime}, gpu/config/gpu_lists_version.h and
 skia/ext/skia_commit_hash.h; commit
-67b1826c23115ecbaaaa47d96ff5e3e18f966ba1, refs/branch-heads/8103@{#1005}).
+91eedbc98a63dbe843bc2b0431f46f5c3b85f4c0, refs/branch-heads/8103@{#1042}).
 Dawn's stamps and build/util/MINIBRANCH don't change.
 
 Checked: applies to the 157.0.8103.30 tarball; chrome/VERSION becomes
-157.0.8103.34; every patched source file is byte-identical to its version
-at the tag; the 157.0.8103.30 tarball's non-git files are all classified
-(tarball-generated.py with generated.conf).
+157.0.8103.42; every patched source file is byte-identical to its version
+at the tag; the one new file (Skia's
+resources/sksl/runtime_errors/InvalidTypeInStruct.rts) is an SkSL test
+source, not generated; the 157.0.8103.30 tarball's non-git files are all
+classified (tarball-generated.py with generated.conf).
 
 Apply with git apply.
 
@@ -120,6 +129,33 @@ index bc8c38e5..9375a05 100644
  
    // Resets the texture.
    void ClearTexture();
+diff --git a/cc/tiles/software_image_decode_cache_utils.cc b/cc/tiles/software_image_decode_cache_utils.cc
+index 7ad4ed1..84fbf50d 100644
+--- a/cc/tiles/software_image_decode_cache_utils.cc
++++ b/cc/tiles/software_image_decode_cache_utils.cc
+@@ -130,7 +130,7 @@
+   if (paint_image.HasGainmapInfo()) {
+     target_gainmap_info = SkImageInfo::Make(
+         paint_image.GetSupportedDecodeSize(target_size, AuxImage::kGainmap),
+-        color_type, kPremul_SkAlphaType);
++        color_type, kOpaque_SkAlphaType);
+   }
+ 
+   sk_sp<SkImage> target_image;
+@@ -270,10 +270,12 @@
+     auto canvas = SkCanvas::MakeRasterDirect(
+         target_gainmap_pixmap.info(), target_gainmap_pixmap.writable_addr(),
+         target_gainmap_pixmap.rowBytes());
++    SkPaint paint;
++    paint.setBlendMode(SkBlendMode::kSrc);
+     canvas->drawImageRect(
+         decoded_gainmap_image, src_gainmap_rect,
+         SkRect::MakeSize(SkSize::Make(target_gainmap_info.dimensions())),
+-        SkSamplingOptions(SkFilterMode::kLinear), nullptr,
++        SkSamplingOptions(SkFilterMode::kLinear), &paint,
+         SkCanvas::kStrict_SrcRectConstraint);
+   }
+ 
 diff --git a/cc/trees/layer_tree_host.cc b/cc/trees/layer_tree_host.cc
 index 658e65d8..71b1a7d 100644
 --- a/cc/trees/layer_tree_host.cc
@@ -209,7 +245,7 @@ index 478cd5e..21206a8 100644
    // rendering changes, to ensure the bits in CommitState are propagated.
    bool force_commit_for_propagation_ = true;
 diff --git a/chrome/VERSION b/chrome/VERSION
-index 3a363a4..69a86e7 100644
+index 3a363a4..f401ce5 100644
 --- a/chrome/VERSION
 +++ b/chrome/VERSION
 @@ -1,4 +1,4 @@
@@ -217,7 +253,7 @@ index 3a363a4..69a86e7 100644
  MINOR=0
  BUILD=8103
 -PATCH=30
-+PATCH=34
++PATCH=42
 diff --git a/chrome/app/resources/generated_resources_en-GB.xtb b/chrome/app/resources/generated_resources_en-GB.xtb
 index a97b92a..aece766 100644
 --- a/chrome/app/resources/generated_resources_en-GB.xtb
@@ -559,7 +595,7 @@ index 70c9a744..4df4953 100644
  
  }  // namespace extensions
 diff --git a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
-index 112be22..a952735e 100644
+index 112be22..0764246 100644
 --- a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
 +++ b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
 @@ -280,8 +280,32 @@
@@ -615,7 +651,55 @@ index 112be22..a952735e 100644
         components[1] == FILE_PATH_LITERAL("127.0.0.1") ||
         components[1] == FILE_PATH_LITERAL(".") ||
         components[1] == FILE_PATH_LITERAL("?") ||
-@@ -441,10 +460,50 @@
+@@ -340,6 +359,47 @@
+ 
+   return false;
+ }
++
++// Kill switch for the WSL home exemption below, see crbug.com/573422635.
++BASE_FEATURE(kFileSystemAccessAllowWslHomeSubfolders,
++             base::FEATURE_ENABLED_BY_DEFAULT);
++
++// Returns true if `path` is inside a home directory of a WSL distribution, such
++// as \\wsl.localhost\Ubuntu\home\user\src, and not inside one of the home
++// directory's dot entries, such as .ssh or .bashrc, or its bin directory. The
++// home-relative rules resolve to drive-letter paths and cannot match WSL paths,
++// so `ShouldBlockAccessToPath()` rejects all other WSL paths through
++// `MaybeIsLocalUNCPath()`.
++bool IsAllowedWslHomePath(const base::FilePath& path) {
++  if (!base::FeatureList::IsEnabled(kFileSystemAccessAllowWslHomeSubfolders) ||
++      !path.IsNetwork() || path.ReferencesParent()) {
++    return false;
++  }
++
++  // {\\, wsl.localhost, <distro>, home, <user>, <child>, ...}. Linux paths are
++  // case-sensitive, so "home" must match exactly.
++  const std::vector<base::FilePath::StringType> components =
++      path.GetComponents();
++  if (components.size() < 6 ||
++      !base::FilePath::CompareEqualIgnoreCase(
++          components[1], FILE_PATH_LITERAL("wsl.localhost")) ||
++      components[3] != FILE_PATH_LITERAL("home")) {
++    return false;
++  }
++
++  // Rejects dot entries, and names that Windows path normalization can drop
++  // (".", " .", " "), which could make the path resolve to a home directory.
++  const auto is_plain_name = [](base::FilePath::StringViewType name) {
++    return !name.empty() && name.front() != FILE_PATH_LITERAL('.') &&
++           name.back() != FILE_PATH_LITERAL('.') &&
++           name.back() != FILE_PATH_LITERAL(' ');
++  };
++  // ~/bin is on the default PATH, and files created from Windows in WSL can be
++  // executable.
++  return is_plain_name(components[2]) && is_plain_name(components[4]) &&
++         is_plain_name(components[5]) &&
++         components[5] != FILE_PATH_LITERAL("bin");
++}
+ #endif
+ 
+ #if BUILDFLAG(IS_MAC)
+@@ -441,10 +501,50 @@
        // And limit access to ~/.gnupg as well.
        BlockPath::CreateRelative(base::DIR_HOME, FILE_PATH_LITERAL(".gnupg"),
                                  BlockType::kBlockAllChildren),
@@ -666,7 +750,7 @@ index 112be22..a952735e 100644
  #if BUILDFLAG(IS_WIN)
        // Some Windows specific directories to block, basically all apps, the
        // operating system itself, as well as configuration data for apps.
-@@ -475,6 +534,10 @@
+@@ -475,6 +575,10 @@
        // volumes).
        BlockPath::CreateAbsolute(FILE_PATH_LITERAL("/System/Volumes"),
                                  BlockType::kBlockAllChildren),
@@ -677,7 +761,7 @@ index 112be22..a952735e 100644
        BlockPath::CreateRelative(base::DIR_APP_DATA,
                                  BlockType::kBlockAllChildren),
        // Block access to the current bundle directory.
-@@ -525,16 +588,27 @@
+@@ -525,16 +629,27 @@
                                  BlockType::kBlockAllChildren),
        BlockPath::CreateAbsolute(FILE_PATH_LITERAL("/etc"),
                                  BlockType::kBlockAllChildren),
@@ -711,6 +795,244 @@ index 112be22..a952735e 100644
        BlockPath::CreateRelative(base::DIR_CACHE, BlockType::kBlockAllChildren),
  #endif
  #if BUILDFLAG(IS_ANDROID)
+@@ -628,7 +743,7 @@
+ #if BUILDFLAG(IS_WIN)
+   // On Windows, local UNC paths are rejected, as UNC path can be written in a
+   // way that can bypass the blocklist.
+-  if (MaybeIsLocalUNCPath(path)) {
++  if (MaybeIsLocalUNCPath(path) && !IsAllowedWslHomePath(path)) {
+     return true;
+   }
+ #endif
+diff --git a/chrome/browser/glic/common/local_hotkey_manager.cc b/chrome/browser/glic/common/local_hotkey_manager.cc
+index d68230c..0e9f878 100644
+--- a/chrome/browser/glic/common/local_hotkey_manager.cc
++++ b/chrome/browser/glic/common/local_hotkey_manager.cc
+@@ -205,9 +205,11 @@
+   return accelerator;
+ }
+ 
+-LocalHotkeyManager::Command LocalHotkeyManager::GetCommand(
+-    ui::Accelerator accelerator) {
+-  CHECK(event_handler_);
++std::optional<LocalHotkeyManager::Command> LocalHotkeyManager::GetCommand(
++    const ui::Accelerator& accelerator) const {
++  if (!event_handler_ || accelerator.IsEmpty()) {
++    return std::nullopt;
++  }
+ 
+   for (Command command : supported_commands_) {
+     if (auto iter = kCommandToStaticAcceleratorsMap.find(command);
+@@ -222,7 +224,7 @@
+     }
+   }
+ 
+-  NOTREACHED() << accelerator.GetShortcutText() << " isn't a supported command";
++  return std::nullopt;
+ }
+ 
+ void LocalHotkeyManager::InitializeAccelerators() {
+@@ -237,8 +239,11 @@
+   if (!event_handler_) {
+     return false;
+   }
+-  auto command = GetCommand(accelerator);
+-  return event_handler_->AcceleratorPressed(command, accelerator);
++  std::optional<Command> command = GetCommand(accelerator);
++  if (!command.has_value()) {
++    return false;
++  }
++  return event_handler_->AcceleratorPressed(*command, accelerator);
+ }
+ 
+ bool LocalHotkeyManager::EventHandler::AcceleratorPressed(
+@@ -256,14 +261,7 @@
+ 
+ bool LocalHotkeyManager::IsRegisteredAccelerator(
+     const ui::Accelerator& accelerator) const {
+-  for (Command command : supported_commands_) {
+-    for (const ui::Accelerator& registered_accel : GetAccelerators(command)) {
+-      if (registered_accel == accelerator) {
+-        return true;
+-      }
+-    }
+-  }
+-  return false;
++  return GetCommand(accelerator).has_value();
+ }
+ 
+ std::vector<ui::Accelerator> LocalHotkeyManager::GetAccelerators(
+diff --git a/chrome/browser/glic/common/local_hotkey_manager.h b/chrome/browser/glic/common/local_hotkey_manager.h
+index 2350fbaf5..bffe508 100644
+--- a/chrome/browser/glic/common/local_hotkey_manager.h
++++ b/chrome/browser/glic/common/local_hotkey_manager.h
+@@ -5,6 +5,10 @@
+ #ifndef CHROME_BROWSER_GLIC_COMMON_LOCAL_HOTKEY_MANAGER_H_
+ #define CHROME_BROWSER_GLIC_COMMON_LOCAL_HOTKEY_MANAGER_H_
+ 
++#include <memory>
++#include <optional>
++#include <vector>
++
+ #include "base/containers/flat_map.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/weak_ptr.h"
+@@ -164,9 +168,9 @@
+   // command is not defined as configurable.
+   static ui::Accelerator GetConfigurableAccelerator(Command command);
+ 
+-  // Returns the Command enum value corresponding to the given accelerator.
+-  // CHECKs if the accelerator is not supported by this manager.
+-  Command GetCommand(ui::Accelerator accelerator);
++  // Returns the Command enum value corresponding to the given accelerator,
++  // or std::nullopt if the accelerator is not supported by this manager.
++  std::optional<Command> GetCommand(const ui::Accelerator& accelerator) const;
+ 
+   void InitializeAccelerators();
+ 
+diff --git a/chrome/browser/search/background/ntp_custom_background_service.cc b/chrome/browser/search/background/ntp_custom_background_service.cc
+index 1b7ba05f..b5cb731 100644
+--- a/chrome/browser/search/background/ntp_custom_background_service.cc
++++ b/chrome/browser/search/background/ntp_custom_background_service.cc
+@@ -6,10 +6,12 @@
+ 
+ #include <optional>
+ #include <string>
++#include <utility>
+ 
+ #include "base/barrier_callback.h"
+ #include "base/files/file_path.h"
+ #include "base/files/file_util.h"
++#include "base/files/important_file_writer.h"
+ #include "base/functional/bind.h"
+ #include "base/metrics/histogram_macros.h"
+ #include "base/strings/strcat.h"
+@@ -49,16 +51,22 @@
+ 
+ constexpr char kSidePanelSnapshotImageOptions[] = "=w320-h180-p-k-no-nd-mv";
+ 
+-void CopyFileToProfilePath(const base::FilePath& from_path,
+-                           const base::FilePath& profile_path) {
+-  base::CopyFile(from_path,
+-                 profile_path.AppendASCII(
+-                     chrome::kChromeUIUntrustedNewTabPageBackgroundFilename));
+-}
+-
+-std::string ReadFileToString(const base::FilePath& path) {
++// Copies the image at `from_path` into the profile directory and returns its
++// bytes, or std::nullopt on failure. Writes via temp file + rename so a
++// symlink at the fixed destination name is replaced rather than followed.
++std::optional<std::string> CopyFileToProfilePath(
++    const base::FilePath& from_path,
++    const base::FilePath& profile_path) {
+   std::string image_data;
+-  base::ReadFileToString(path, &image_data);
++  if (!base::ReadFileToString(from_path, &image_data)) {
++    return std::nullopt;
++  }
++  if (!base::ImportantFileWriter::WriteFileAtomically(
++          profile_path.AppendASCII(
++              chrome::kChromeUIUntrustedNewTabPageBackgroundFilename),
++          image_data)) {
++    return std::nullopt;
++  }
+   return image_data;
+ }
+ 
+@@ -248,7 +256,7 @@
+   if (IsCustomBackgroundDisabledByPolicy()) {
+     return;
+   }
+-  base::ThreadPool::PostTaskAndReply(
++  base::ThreadPool::PostTaskAndReplyWithResult(
+       FROM_HERE, {base::TaskPriority::USER_VISIBLE, base::MayBlock()},
+       base::BindOnce(&CopyFileToProfilePath, path, profile_->GetPath()),
+       base::BindOnce(&NtpCustomBackgroundService::SetBackgroundToLocalResource,
+@@ -394,7 +402,11 @@
+   }
+ }
+ 
+-void NtpCustomBackgroundService::SetBackgroundToLocalResource() {
++void NtpCustomBackgroundService::SetBackgroundToLocalResource(
++    std::optional<std::string> image_data) {
++  if (!image_data.has_value()) {
++    return;
++  }
+   background_updated_timestamp_ = base::TimeTicks::Now();
+   // If these conditions are true, a wallpaper search image is set so it must
+   // be removed.
+@@ -412,13 +424,7 @@
+           ntp_features::kCustomizeChromeWallpaperSearch) &&
+       base::FeatureList::IsEnabled(
+           optimization_guide::features::kOptimizationGuideModelExecution)) {
+-    base::FilePath path = profile_->GetPath().AppendASCII(
+-        chrome::kChromeUIUntrustedNewTabPageBackgroundFilename);
+-    base::ThreadPool::PostTaskAndReplyWithResult(
+-        FROM_HERE, {base::TaskPriority::USER_VISIBLE, base::MayBlock()},
+-        base::BindOnce(&ReadFileToString, path),
+-        base::BindOnce(&NtpCustomBackgroundService::ProcessLocalImageData,
+-                       weak_ptr_factory_.GetWeakPtr()));
++    ProcessLocalImageData(std::move(*image_data));
+   }
+ }
+ 
+diff --git a/chrome/browser/search/background/ntp_custom_background_service.h b/chrome/browser/search/background/ntp_custom_background_service.h
+index 7ad44bf..3146503 100644
+--- a/chrome/browser/search/background/ntp_custom_background_service.h
++++ b/chrome/browser/search/background/ntp_custom_background_service.h
+@@ -5,6 +5,8 @@
+ #ifndef CHROME_BROWSER_SEARCH_BACKGROUND_NTP_CUSTOM_BACKGROUND_SERVICE_H_
+ #define CHROME_BROWSER_SEARCH_BACKGROUND_NTP_CUSTOM_BACKGROUND_SERVICE_H_
+ 
++#include <optional>
++
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/weak_ptr.h"
+ #include "base/scoped_observation.h"
+@@ -97,8 +99,10 @@
+       const GURL& fetch_url);
+ 
+  private:
+-  // Set bool pref for local background and clear id.
+-  void SetBackgroundToLocalResource();
++  // Set bool pref for local background and clear id. `image_data` holds the
++  // bytes of the image that was just copied into the profile directory, or
++  // std::nullopt if the copy failed, in which case nothing changes.
++  void SetBackgroundToLocalResource(std::optional<std::string> image_data);
+ 
+   void ForceRefreshBackground();
+ 
+diff --git a/chrome/browser/search/background/wallpaper_search/wallpaper_search_background_manager.cc b/chrome/browser/search/background/wallpaper_search/wallpaper_search_background_manager.cc
+index 7703db14..23e2bed 100644
+--- a/chrome/browser/search/background/wallpaper_search/wallpaper_search_background_manager.cc
++++ b/chrome/browser/search/background/wallpaper_search/wallpaper_search_background_manager.cc
+@@ -9,9 +9,11 @@
+ 
+ #include "base/files/file_path.h"
+ #include "base/files/file_util.h"
++#include "base/files/important_file_writer.h"
+ #include "base/functional/bind.h"
+ #include "base/memory/weak_ptr.h"
+ #include "base/metrics/histogram_functions.h"
++#include "base/strings/string_view_util.h"
+ #include "base/task/thread_pool.h"
+ #include "base/timer/elapsed_timer.h"
+ #include "base/token.h"
+@@ -218,10 +220,12 @@
+       base::ThreadPool::PostTaskAndReply(
+           FROM_HERE, {base::TaskPriority::USER_VISIBLE, base::MayBlock()},
+           base::BindOnce(
+-              // Resolve ambiguous base::WriteFile call with inline lambda.
+               [](const base::FilePath& filename,
+                  base::span<const uint8_t> data) {
+-                base::WriteFile(filename, data);
++                // Atomic temp + rename so a symlink planted at this
++                // predictable name is replaced rather than followed.
++                base::ImportantFileWriter::WriteFileAtomically(
++                    filename, base::as_string_view(data));
+               },
+               profile_->GetPath().AppendASCII(
+                   id.ToString() +
 diff --git a/chrome/browser/sessions/session_service_base.cc b/chrome/browser/sessions/session_service_base.cc
 index 75f43fb..ee887add6 100644
 --- a/chrome/browser/sessions/session_service_base.cc
@@ -744,6 +1066,21 @@ index 75f43fb..ee887add6 100644
    int index = 0;
    for (const tabs::TabInterface* tab_interface : *tab_strip) {
      WebContents* tab = tab_interface->GetContents();
+diff --git a/chrome/browser/sync/glue/web_contents_state_synced_tab_delegate.cc b/chrome/browser/sync/glue/web_contents_state_synced_tab_delegate.cc
+index b1b680c..101bafb 100644
+--- a/chrome/browser/sync/glue/web_contents_state_synced_tab_delegate.cc
++++ b/chrome/browser/sync/glue/web_contents_state_synced_tab_delegate.cc
+@@ -24,7 +24,9 @@
+   if (web_contents_) {
+     web_contents_->SetOwnerLocationForDebug(FROM_HERE);
+   }
+-  TabContentsSyncedTabDelegate::SetWebContents(web_contents_.get());
++  TabContentsSyncedTabDelegate::SetWebContents(
++      web_contents_.get(), /*task_tab_helper=*/nullptr,
++      /*supervised_user_navigation_observer=*/nullptr);
+ }
+ 
+ WebContentsStateSyncedTabDelegate::~WebContentsStateSyncedTabDelegate() =
 diff --git a/chrome/browser/ui/hats/survey_config.cc b/chrome/browser/ui/hats/survey_config.cc
 index 7399778..6a42a9b 100644
 --- a/chrome/browser/ui/hats/survey_config.cc
@@ -995,6 +1332,348 @@ index d619b15..24d4e33 100644
  }
  
  std::unique_ptr<KeyedService>
+diff --git a/chrome/browser/ui/sync/browser_synced_tab_delegate.cc b/chrome/browser/ui/sync/browser_synced_tab_delegate.cc
+index 5a5b92a..ac41d293 100644
+--- a/chrome/browser/ui/sync/browser_synced_tab_delegate.cc
++++ b/chrome/browser/ui/sync/browser_synced_tab_delegate.cc
+@@ -13,9 +13,12 @@
+ 
+ BrowserSyncedTabDelegate::BrowserSyncedTabDelegate(
+     tabs::TabInterface& tab,
+-    content::WebContents* web_contents)
++    content::WebContents* web_contents,
++    tasks::TaskTabHelper* task_tab_helper,
++    SupervisedUserNavigationObserver* supervised_user_navigation_observer)
+     : scoped_unowned_user_data_(tab.GetUnownedUserDataHost(), *this) {
+-  SetWebContents(web_contents);
++  SetWebContents(web_contents, task_tab_helper,
++                 supervised_user_navigation_observer);
+ }
+ 
+ // static
+diff --git a/chrome/browser/ui/sync/browser_synced_tab_delegate.h b/chrome/browser/ui/sync/browser_synced_tab_delegate.h
+index 5fa4a593..3fc8a4c5 100644
+--- a/chrome/browser/ui/sync/browser_synced_tab_delegate.h
++++ b/chrome/browser/ui/sync/browser_synced_tab_delegate.h
+@@ -13,6 +13,8 @@
+ class WebContents;
+ }
+ 
++class SupervisedUserNavigationObserver;
++
+ namespace sync_sessions {
+ class SyncedTabDelegate;
+ }
+@@ -21,6 +23,10 @@
+ class TabInterface;
+ }
+ 
++namespace tasks {
++class TaskTabHelper;
++}
++
+ // A BrowserSyncedTabDelegate is the desktop implementation for
+ // SyncedTabDelegate, which essentially reads session IDs from
+ // SessionTabHelper. It is owned by the tab's TabFeatures.
+@@ -31,8 +37,11 @@
+   // `web_contents` is passed explicitly because during a discard the helper
+   // is recreated for the incoming WebContents before `tab` swaps its
+   // contents.
+-  BrowserSyncedTabDelegate(tabs::TabInterface& tab,
+-                           content::WebContents* web_contents);
++  BrowserSyncedTabDelegate(
++      tabs::TabInterface& tab,
++      content::WebContents* web_contents,
++      tasks::TaskTabHelper* task_tab_helper,
++      SupervisedUserNavigationObserver* supervised_user_navigation_observer);
+ 
+   BrowserSyncedTabDelegate(const BrowserSyncedTabDelegate&) = delete;
+   BrowserSyncedTabDelegate& operator=(const BrowserSyncedTabDelegate&) = delete;
+diff --git a/chrome/browser/ui/sync/tab_contents_synced_tab_delegate.cc b/chrome/browser/ui/sync/tab_contents_synced_tab_delegate.cc
+index 747cfdb..a0de5ae 100644
+--- a/chrome/browser/ui/sync/tab_contents_synced_tab_delegate.cc
++++ b/chrome/browser/ui/sync/tab_contents_synced_tab_delegate.cc
+@@ -13,7 +13,6 @@
+ #include "components/sync_sessions/sync_sessions_client.h"
+ #include "components/sync_sessions/synced_window_delegate.h"
+ #include "components/sync_sessions/synced_window_delegates_getter.h"
+-#include "components/tabs/public/tab_interface.h"
+ #include "content/public/browser/favicon_status.h"
+ #include "content/public/browser/navigation_controller.h"
+ #include "content/public/browser/navigation_entry.h"
+@@ -123,22 +122,10 @@
+ 
+ const std::vector<std::unique_ptr<const sessions::SerializedNavigationEntry>>*
+ TabContentsSyncedTabDelegate::GetBlockedNavigations() const {
+-  tabs::TabInterface* const tab =
+-      tabs::TabInterface::MaybeGetFromContents(web_contents_);
+-  SupervisedUserNavigationObserver* navigation_observer =
+-      tab ? SupervisedUserNavigationObserver::From(tab) : nullptr;
+-#if BUILDFLAG(IS_ANDROID)
+-  // TabHelpers::AttachTabHelpers() will not be called for a placeholder tab's
+-  // WebContents that is temporarily created from a serialized state in
+-  // SyncedTabDelegateAndroid::ReadPlaceholderTabSnapshotIfItShouldSync(). When
+-  // this occurs, early-out and return a nullptr.
+-  if (!navigation_observer) {
++  if (!supervised_user_navigation_observer_) {
+     return nullptr;
+   }
+-#endif  // BUILDFLAG(IS_ANDROID)
+-  DCHECK(navigation_observer);
+-
+-  return &navigation_observer->blocked_navigations();
++  return &supervised_user_navigation_observer_->blocked_navigations();
+ }
+ 
+ bool TabContentsSyncedTabDelegate::ShouldSync(
+@@ -149,16 +136,10 @@
+   }
+ 
+   if (ProfileHasChildAccount()) {
+-#if BUILDFLAG(IS_ANDROID)
+     auto* blocked_navigations = GetBlockedNavigations();
+     if (blocked_navigations && !blocked_navigations->empty()) {
+       return true;
+     }
+-#else
+-    if (!GetBlockedNavigations()->empty()) {
+-      return true;
+-    }
+-#endif  // BUILDFLAG(IS_ANDROID)
+   }
+ 
+   if (IsInitialBlankNavigation()) {
+@@ -184,30 +165,27 @@
+ 
+ int64_t TabContentsSyncedTabDelegate::GetTaskIdForNavigationId(
+     int nav_id) const {
+-  const tasks::TaskTabHelper* task_tab_helper = this->task_tab_helper();
+-  if (task_tab_helper &&
+-      task_tab_helper->get_task_id_for_navigation(nav_id) != nullptr) {
+-    return task_tab_helper->get_task_id_for_navigation(nav_id)->id();
++  if (task_tab_helper_ &&
++      task_tab_helper_->get_task_id_for_navigation(nav_id) != nullptr) {
++    return task_tab_helper_->get_task_id_for_navigation(nav_id)->id();
+   }
+   return -1;
+ }
+ 
+ int64_t TabContentsSyncedTabDelegate::GetParentTaskIdForNavigationId(
+     int nav_id) const {
+-  const tasks::TaskTabHelper* task_tab_helper = this->task_tab_helper();
+-  if (task_tab_helper &&
+-      task_tab_helper->get_task_id_for_navigation(nav_id) != nullptr) {
+-    return task_tab_helper->get_task_id_for_navigation(nav_id)->parent_id();
++  if (task_tab_helper_ &&
++      task_tab_helper_->get_task_id_for_navigation(nav_id) != nullptr) {
++    return task_tab_helper_->get_task_id_for_navigation(nav_id)->parent_id();
+   }
+   return -1;
+ }
+ 
+ int64_t TabContentsSyncedTabDelegate::GetRootTaskIdForNavigationId(
+     int nav_id) const {
+-  const tasks::TaskTabHelper* task_tab_helper = this->task_tab_helper();
+-  if (task_tab_helper &&
+-      task_tab_helper->get_task_id_for_navigation(nav_id) != nullptr) {
+-    return task_tab_helper->get_task_id_for_navigation(nav_id)->root_id();
++  if (task_tab_helper_ &&
++      task_tab_helper_->get_task_id_for_navigation(nav_id) != nullptr) {
++    return task_tab_helper_->get_task_id_for_navigation(nav_id)->root_id();
+   }
+   return -1;
+ }
+@@ -221,15 +199,10 @@
+ }
+ 
+ void TabContentsSyncedTabDelegate::SetWebContents(
+-    content::WebContents* web_contents) {
++    content::WebContents* web_contents,
++    tasks::TaskTabHelper* task_tab_helper,
++    SupervisedUserNavigationObserver* supervised_user_navigation_observer) {
+   web_contents_ = web_contents;
+-}
+-
+-const tasks::TaskTabHelper* TabContentsSyncedTabDelegate::task_tab_helper()
+-    const {
+-  if (web_contents_ == nullptr) {
+-    return nullptr;
+-  }
+-  return tasks::TaskTabHelper::From(
+-      tabs::TabInterface::MaybeGetFromContents(web_contents_));
++  task_tab_helper_ = task_tab_helper;
++  supervised_user_navigation_observer_ = supervised_user_navigation_observer;
+ }
+diff --git a/chrome/browser/ui/sync/tab_contents_synced_tab_delegate.h b/chrome/browser/ui/sync/tab_contents_synced_tab_delegate.h
+index 4e97463..c71ef05 100644
+--- a/chrome/browser/ui/sync/tab_contents_synced_tab_delegate.h
++++ b/chrome/browser/ui/sync/tab_contents_synced_tab_delegate.h
+@@ -18,6 +18,8 @@
+ class WebContents;
+ }
+ 
++class SupervisedUserNavigationObserver;
++
+ namespace tasks {
+ class TaskTabHelper;
+ }
+@@ -60,12 +62,16 @@
+  protected:
+   const content::WebContents* web_contents() const;
+   content::WebContents* web_contents();
+-  void SetWebContents(content::WebContents* web_contents);
++  void SetWebContents(
++      content::WebContents* web_contents,
++      tasks::TaskTabHelper* task_tab_helper,
++      SupervisedUserNavigationObserver* supervised_user_navigation_observer);
+ 
+  private:
+-  const tasks::TaskTabHelper* task_tab_helper() const;
+-
+   raw_ptr<content::WebContents, DanglingUntriaged> web_contents_ = nullptr;
++  raw_ptr<tasks::TaskTabHelper> task_tab_helper_ = nullptr;
++  raw_ptr<SupervisedUserNavigationObserver>
++      supervised_user_navigation_observer_ = nullptr;
+ 
+   // Cached value of last_active_time_ticks and last_active_time, sometimes
+   // returned instead of the last_active_time from the WebContents.
+diff --git a/chrome/browser/ui/tabs/public/tab_features.h b/chrome/browser/ui/tabs/public/tab_features.h
+index a22dcb9e..d66a041 100644
+--- a/chrome/browser/ui/tabs/public/tab_features.h
++++ b/chrome/browser/ui/tabs/public/tab_features.h
+@@ -597,13 +597,6 @@
+   // form-submission UKM).
+   std::unique_ptr<SecurityStateEventObserver> security_state_event_observer_;
+ 
+-  // Forwards tab-related events to sync.
+-  std::unique_ptr<sync_sessions::SyncSessionsRouterTabHelper>
+-      sync_sessions_router_;
+-
+-  // Provides this tab's session identity to sync.
+-  std::unique_ptr<BrowserSyncedTabDelegate> browser_synced_tab_delegate_;
+-
+   // Responsible for keeping a tab within a tab group in sync with its remote
+   // tab counterpart from sync.
+   std::unique_ptr<tab_groups::SavedTabGroupWebContentsListener>
+@@ -1030,6 +1023,18 @@
+   std::unique_ptr<SupervisedUserNavigationObserver>
+       supervised_user_navigation_observer_;
+ 
++  // Provides this tab's session identity to sync. Declared after
++  // `task_tab_helper_` and `supervised_user_navigation_observer_` so those
++  // dependencies outlive it.
++  std::unique_ptr<BrowserSyncedTabDelegate> browser_synced_tab_delegate_;
++
++  // Forwards tab-related events to sync. Declared after
++  // `browser_synced_tab_delegate_` and `sad_tab_helper_` so it is destroyed
++  // before teardown side effects (such as `~SadTabHelper` visibility changes)
++  // or `browser_synced_tab_delegate_` destruction.
++  std::unique_ptr<sync_sessions::SyncSessionsRouterTabHelper>
++      sync_sessions_router_;
++
+ #if BUILDFLAG(ENABLE_OFFLINE_PAGES)
+   std::unique_ptr<offline_pages::OfflinePageTabHelper> offline_page_tab_helper_;
+   std::unique_ptr<offline_pages::RecentTabHelper> recent_tab_helper_;
+diff --git a/chrome/browser/ui/tabs/tab_features.cc b/chrome/browser/ui/tabs/tab_features.cc
+index b8826e9c..b623a61 100644
+--- a/chrome/browser/ui/tabs/tab_features.cc
++++ b/chrome/browser/ui/tabs/tab_features.cc
+@@ -816,18 +816,6 @@
+   security_state_event_observer_ =
+       std::make_unique<SecurityStateEventObserver>(tab.GetContents());
+ 
+-  sync_sessions_router_ =
+-      std::make_unique<sync_sessions::SyncSessionsRouterTabHelper>(
+-          tab.GetContents(),
+-          sync_sessions::SyncSessionsWebContentsRouterFactory::GetForProfile(
+-              profile),
+-          ChromeTranslateClient::FromWebContents(tab.GetContents()),
+-          favicon::ContentFaviconDriver::FromWebContents(tab.GetContents()));
+-
+-  browser_synced_tab_delegate_ =
+-      GetUserDataFactory().CreateInstance<BrowserSyncedTabDelegate>(
+-          tab, tab, tab.GetContents());
+-
+   focus_tab_after_navigation_helper_ =
+       std::make_unique<FocusTabAfterNavigationHelper>(tab.GetContents());
+ 
+@@ -1293,6 +1281,19 @@
+   }
+ #endif
+ 
++  browser_synced_tab_delegate_ =
++      GetUserDataFactory().CreateInstance<BrowserSyncedTabDelegate>(
++          tab, tab, tab.GetContents(), task_tab_helper_.get(),
++          supervised_user_navigation_observer_.get());
++
++  sync_sessions_router_ =
++      std::make_unique<sync_sessions::SyncSessionsRouterTabHelper>(
++          tab.GetContents(),
++          sync_sessions::SyncSessionsWebContentsRouterFactory::GetForProfile(
++              profile),
++          ChromeTranslateClient::FromWebContents(tab.GetContents()),
++          favicon::ContentFaviconDriver::FromWebContents(tab.GetContents()));
++
+ #if BUILDFLAG(ENABLE_OFFLINE_PAGES)
+   offline_page_tab_helper_ =
+       GetUserDataFactory().CreateInstance<offline_pages::OfflinePageTabHelper>(
+@@ -1642,23 +1643,6 @@
+         new_contents, contextual_cueing_service);
+   }
+ 
+-  sync_sessions_router_.reset();
+-  sync_sessions_router_ =
+-      std::make_unique<sync_sessions::SyncSessionsRouterTabHelper>(
+-          new_contents,
+-          sync_sessions::SyncSessionsWebContentsRouterFactory::GetForProfile(
+-              profile),
+-          ChromeTranslateClient::FromWebContents(new_contents),
+-          favicon::ContentFaviconDriver::FromWebContents(new_contents));
+-
+-  // The reset() must happen first so that the old instance deregisters
+-  // itself from the UnownedUserDataHost before the new instance registers
+-  // itself.
+-  browser_synced_tab_delegate_.reset();
+-  browser_synced_tab_delegate_ =
+-      GetUserDataFactory().CreateInstance<BrowserSyncedTabDelegate>(
+-          *tab, *tab, new_contents);
+-
+   if (permission_indicators_tab_data_) {
+     permission_indicators_tab_data_ =
+         std::make_unique<permissions::PermissionIndicatorsTabData>(
+@@ -1911,6 +1895,12 @@
+       GetUserDataFactory().CreateInstance<SoundContentSettingObserver>(
+           *tab, *tab, new_contents);
+ 
++  // Reset `sync_sessions_router_` and `browser_synced_tab_delegate_` before
++  // resetting `task_tab_helper_` and `supervised_user_navigation_observer_` so
++  // `browser_synced_tab_delegate_` never holds dangling pointers to them.
++  sync_sessions_router_.reset();
++  browser_synced_tab_delegate_.reset();
++
+   task_tab_helper_.reset();
+   task_tab_helper_ = GetUserDataFactory().CreateInstance<tasks::TaskTabHelper>(
+       *tab, *tab, new_contents);
+@@ -1961,6 +1951,19 @@
+             *tab, *tab, new_contents);
+   }
+ 
++  browser_synced_tab_delegate_ =
++      GetUserDataFactory().CreateInstance<BrowserSyncedTabDelegate>(
++          *tab, *tab, new_contents, task_tab_helper_.get(),
++          supervised_user_navigation_observer_.get());
++
++  sync_sessions_router_ =
++      std::make_unique<sync_sessions::SyncSessionsRouterTabHelper>(
++          new_contents,
++          sync_sessions::SyncSessionsWebContentsRouterFactory::GetForProfile(
++              profile),
++          ChromeTranslateClient::FromWebContents(new_contents),
++          favicon::ContentFaviconDriver::FromWebContents(new_contents));
++
+ #if BUILDFLAG(ENABLE_OFFLINE_PAGES)
+   offline_page_tab_helper_.reset();
+   offline_page_tab_helper_ =
 diff --git a/chrome/browser/ui/views/app_menu/bookmarks_dynamic_menu.cc b/chrome/browser/ui/views/app_menu/bookmarks_dynamic_menu.cc
 index 270400f..b5e0ffff 100644
 --- a/chrome/browser/ui/views/app_menu/bookmarks_dynamic_menu.cc
@@ -1026,6 +1705,94 @@ index 270400f..b5e0ffff 100644
      bookmark_service_observation_.Observe(service);
    }
  
+diff --git a/chrome/browser/ui/views/toolbar/app_menu.cc b/chrome/browser/ui/views/toolbar/app_menu.cc
+index 0d5179c..820463a 100644
+--- a/chrome/browser/ui/views/toolbar/app_menu.cc
++++ b/chrome/browser/ui/views/toolbar/app_menu.cc
+@@ -884,6 +884,13 @@
+       if (zoom_controller) {
+         zoom = zoom_controller->GetZoomPercent();
+       }
++    }
++    if (!on_construction && zoom_percent_ == zoom) {
++      return;
++    }
++    zoom_percent_ = zoom;
++
++    if (contents) {
+       increment_button_->SetEnabled(zoom < contents->GetMaximumZoomPercent());
+       decrement_button_->SetEnabled(zoom > contents->GetMinimumZoomPercent());
+     }
+@@ -955,6 +962,9 @@
+   // instead. This value is cached because is depends on multiple calls to
+   // gfx::GetStringWidth(...) which are expensive.
+   mutable std::optional<int> zoom_label_max_width_;
++
++  // Current zoom percent for the active tab.
++  std::optional<int> zoom_percent_;
+ };
+ 
+ BEGIN_METADATA(AppMenu, ZoomView)
+diff --git a/chrome/browser/ui/views/toolbar/reload_button.cc b/chrome/browser/ui/views/toolbar/reload_button.cc
+index a86b7ba..12c91699 100644
+--- a/chrome/browser/ui/views/toolbar/reload_button.cc
++++ b/chrome/browser/ui/views/toolbar/reload_button.cc
+@@ -63,7 +63,8 @@
+                                         base::Unretained(this)),
+                     CreateMenuModel(),
+                     nullptr),
+-      metrics_recorder_(std::make_unique<WaapUIMetricsRecorder>(profile)),
++      metrics_recorder_(
++          profile ? std::make_unique<WaapUIMetricsRecorder>(profile) : nullptr),
+       command_updater_(command_updater),
+       reload_icon_(features::IsRoundedIconsEnabled()
+                        ? vector_icons::kRefreshIcon
+@@ -322,7 +323,9 @@
+ 
+   ClearPendingMenu();
+ 
+-  metrics_recorder_->OnButtonPressedStart(event);
++  if (metrics_recorder_) {
++    metrics_recorder_->OnButtonPressedStart(event);
++  }
+ 
+   if (visible_mode_ == Mode::kStop) {
+     if (command_updater_) {
+@@ -359,7 +362,9 @@
+     animate_transitions_ = true;
+ 
+     ExecuteBrowserCommand(command, flags);
+-    metrics_recorder_->DidExecuteReloadCommand(base::TimeTicks::Now());
++    if (metrics_recorder_) {
++      metrics_recorder_->DidExecuteReloadCommand(base::TimeTicks::Now());
++    }
+     ++testing_reload_count_;
+   }
+ }
+diff --git a/chrome/browser/ui/views/toolbar/reload_button.h b/chrome/browser/ui/views/toolbar/reload_button.h
+index 735b1d5..cd231ce 100644
+--- a/chrome/browser/ui/views/toolbar/reload_button.h
++++ b/chrome/browser/ui/views/toolbar/reload_button.h
+@@ -38,6 +38,9 @@
+   METADATA_HEADER(ReloadButton, ToolbarButton)
+ 
+  public:
++  // `profile` is null when the button is hosted outside a browser window, for
++  // example in the ChromeOS login screen captive portal dialog. No WaaP UI
++  // metrics are recorded in that case.
+   ReloadButton(Profile* profile,
+                CommandUpdater* command_updater,
+                InitialWebUIWindowMetricsManager* window_metrics_manager);
+@@ -110,8 +113,7 @@
+   // Timer to delay switching between reload and stop states.
+   base::OneShotTimer mode_switch_timer_;
+ 
+-  // This can't be null. But it may not record anything if the feature is
+-  // disabled or if profile is missing.
++  // Null when the button has no profile, i.e. it is not in a browser window.
+   const std::unique_ptr<WaapUIMetricsRecorder> metrics_recorder_;
+ 
+   // This may be NULL when testing.
 diff --git a/chrome/browser/ui/webui/side_panel/bookmarks/BUILD.gn b/chrome/browser/ui/webui/side_panel/bookmarks/BUILD.gn
 index 2e9e3638..6a19851 100644
 --- a/chrome/browser/ui/webui/side_panel/bookmarks/BUILD.gn
@@ -2338,6 +3105,238 @@ index 190e8b56..ed7fb38 100644
  
    // Get the response size.
    if (result_->blob_handle)
+diff --git a/content/browser/cache_storage/cache_storage.cc b/content/browser/cache_storage/cache_storage.cc
+index e0b6f1b..b2b433c 100644
+--- a/content/browser/cache_storage/cache_storage.cc
++++ b/content/browser/cache_storage/cache_storage.cc
+@@ -19,14 +19,12 @@
+ #include "base/files/memory_mapped_file.h"
+ #include "base/functional/bind.h"
+ #include "base/functional/callback_helpers.h"
+-#include "base/hash/sha1.h"
+ #include "base/location.h"
+ #include "base/memory/ptr_util.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/ref_counted.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/numerics/safe_conversions.h"
+-#include "base/strings/string_number_conversions.h"
+ #include "base/strings/string_util.h"
+ #include "base/strings/string_view_util.h"
+ #include "base/strings/utf_string_conversions.h"
+@@ -62,11 +60,6 @@
+ 
+ namespace {
+ 
+-std::string HexedHash(const std::string& value) {
+-  std::string value_hash = base::SHA1HashString(value);
+-  return base::HexEncodeLower(value_hash);
+-}
+-
+ void SizeRetrievedFromAllCaches(std::unique_ptr<int64_t> accumulator,
+                                 CacheStorage::SizeCallback callback) {
+   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+@@ -530,7 +523,6 @@
+   }
+ 
+  private:
+-  friend class MigratedLegacyCacheDirectoryNameTest;
+   ~SimpleCacheLoader() override = default;
+ 
+   // Iterates over the caches and deletes any directory not found in
+@@ -574,50 +566,28 @@
+       index_last_modified = file_info.last_modified;
+     bool index_modified = false;
+ 
+-    // Look for caches that have no cache_dir. Give any such caches a directory
+-    // with a random name and move them there. Then, rewrite the index file.
+-    // Additionally invalidate the size of any index entries where the cache was
+-    // modified after the index (making it out-of-date). We'll assume that any
+-    // unmigrated index files predate the buckets integration and leave them in
+-    // the directory for first-party Cache Storage instances in the default
+-    // bucket.
++    // Invalidate the size of any index entries where the cache was modified
++    // after the index (making it out-of-date). We'll assume that any unmigrated
++    // index files predate the buckets integration and leave them in the
++    // directory for first-party Cache Storage instances in the default bucket.
+ 
+     for (int i = 0, max = index.cache_size(); i < max; ++i) {
+       const proto::CacheStorageIndex::Cache& cache = index.cache(i);
+-      if (cache.has_cache_dir()) {
+-        if (cache.has_size()) {
+-          base::FilePath cache_dir =
+-              directory_path.AppendASCII(cache.cache_dir());
+-          if (!GetFileInfo(cache_dir, &file_info) ||
+-              index_last_modified <= file_info.last_modified) {
+-            // Index is older than this cache, so invalidate index entries that
+-            // may change as a result of cache operations.
+-            index.mutable_cache(i)->clear_size();
+-          }
++      if (!cache.has_cache_dir()) {
++        // If `cache_dir` is missing, the index is in a bad state. Return an
++        // empty index so that the `CacheStorage` can start fresh. The
++        // unreferenced caches will be discarded later in initialization.
++        return proto::CacheStorageIndex();
++      }
++      if (cache.has_size()) {
++        base::FilePath cache_dir =
++            directory_path.AppendASCII(cache.cache_dir());
++        if (!GetFileInfo(cache_dir, &file_info) ||
++            index_last_modified <= file_info.last_modified) {
++          // Index is older than this cache, so invalidate index entries that
++          // may change as a result of cache operations.
++          index.mutable_cache(i)->clear_size();
+         }
+-      } else {
+-        // Find a new home for the caches that don't have a directory (legacy
+-        // caches) since they predate the change where u16string `cache_names`
+-        // were added.
+-        base::FilePath legacy_cache_path =
+-            directory_path.AppendASCII(HexedHash(cache.name()));
+-        std::string cache_dir;
+-        base::FilePath cache_path;
+-        do {
+-          cache_dir = base::Uuid::GenerateRandomV4().AsLowercaseString();
+-          cache_path = directory_path.AppendASCII(cache_dir);
+-        } while (base::PathExists(cache_path));
+-
+-        if (!base::Move(legacy_cache_path, cache_path)) {
+-          // If the move fails then the cache is in a bad state. Return an empty
+-          // index so that the CacheStorage can start fresh. The unreferenced
+-          // caches will be discarded later in initialization.
+-          return proto::CacheStorageIndex();
+-        }
+-
+-        index.mutable_cache(i)->set_cache_dir(cache_dir);
+-        index.mutable_cache(i)->clear_size();
+-        index_modified = true;
+       }
+     }
+ 
+diff --git a/content/browser/web_contents/web_contents_impl.cc b/content/browser/web_contents/web_contents_impl.cc
+index 9cef5210..a270421 100644
+--- a/content/browser/web_contents/web_contents_impl.cc
++++ b/content/browser/web_contents/web_contents_impl.cc
+@@ -1223,6 +1223,28 @@
+   observers_.RemoveObserver(observer);
+ }
+ 
++void WebContentsImpl::WebContentsObserverList::
++    NotifyObserversUntilNavigationDeleted(
++        NavigationObserverMethod observer_method,
++        NavigationHandle* navigation_handle) {
++  TRACE_EVENT0(
++      TRACE_DISABLED_BY_DEFAULT("content.verbose"),
++      "WebContentsObserverList::NotifyObserversUntilNavigationDeleted");
++  base::AutoReset<bool> scope(&is_notifying_observers_, true);
++  base::WeakPtr<NavigationRequest> weak_navigation_request =
++      NavigationRequest::From(navigation_handle)->GetWeakPtr();
++  for (WebContentsObserver& observer : observers_) {
++    TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("content.verbose"),
++                 "Dispatching WebContentsObserver callback");
++    (observer.*observer_method)(navigation_handle);
++    if (!weak_navigation_request) {
++      // An observer deleted the NavigationRequest. Don't notify the remaining
++      // observers, as they would get a dangling NavigationHandle.
++      return;
++    }
++  }
++}
++
+ // WebContentsImpl -------------------------------------------------------------
+ 
+ namespace {
+@@ -8083,8 +8105,10 @@
+   const GURL url = navigation_handle->GetURL();
+ 
+   base::ElapsedTimer duration;
+-  observers_.NotifyObservers(&WebContentsObserver::DidStartNavigation,
+-                             navigation_handle);
++  // On Android, a WebView app can delete the NavigationRequest here, e.g. by
++  // calling stopLoading() from onNavigationStarted().
++  observers_.NotifyObserversUntilNavigationDeleted(
++      &WebContentsObserver::DidStartNavigation, navigation_handle);
+   // WARNING: DO NOT use |navigation_handle| after this point. An observer may
+   // have destroyed the NavigationRequest, rendering the pointer invalid. See
+   // crbug.com/504574017. We set `navigation_handle` to nullptr here to prevent
+@@ -8135,8 +8159,10 @@
+ 
+   {
+     SCOPED_UMA_HISTOGRAM_TIMER("WebContentsObserver.DidRedirectNavigation");
+-    observers_.NotifyObservers(&WebContentsObserver::DidRedirectNavigation,
+-                               navigation_handle);
++    // On Android, a WebView app can delete the NavigationRequest here, e.g. by
++    // calling stopLoading() from onNavigationRedirected().
++    observers_.NotifyObserversUntilNavigationDeleted(
++        &WebContentsObserver::DidRedirectNavigation, navigation_handle);
+   }
+   // WARNING: DO NOT use |navigation_handle| after this point. An observer may
+   // have destroyed the NavigationRequest, rendering the pointer invalid. See
+@@ -8181,8 +8207,12 @@
+     }
+   }
+ 
+-  observers_.NotifyObservers(&WebContentsObserver::ReadyToCommitNavigation,
+-                             navigation_handle);
++  // Observers can also delete the NavigationRequest at this point on Android
++  // (which lacks `is_safe_to_delete_` protections), so use
++  // NotifyObserversUntilNavigationDeleted() instead of NotifyObservers() here
++  // as well.
++  observers_.NotifyObserversUntilNavigationDeleted(
++      &WebContentsObserver::ReadyToCommitNavigation, navigation_handle);
+   // WARNING: DO NOT use |navigation_handle| after this point. An observer may
+   // have destroyed the NavigationRequest, rendering the pointer invalid. See
+   // crbug.com/504574017. We set `navigation_handle` to nullptr here to prevent
+@@ -8274,6 +8304,10 @@
+ 
+   {
+     SCOPED_UMA_HISTOGRAM_TIMER("WebContentsObserver.DidFinishNavigation");
++    // All observers need this to clean up. Unlike in DidStartNavigation(), an
++    // observer can't delete the NavigationRequest here (even from
++    // onNavigationCompleted() in Android WebView apps), since this
++    // NavigationRequest's owner has already released it.
+     observers_.NotifyObservers(&WebContentsObserver::DidFinishNavigation,
+                                navigation_handle);
+   }
+diff --git a/content/browser/web_contents/web_contents_impl.h b/content/browser/web_contents/web_contents_impl.h
+index 877d6172..c8ebc2e 100644
+--- a/content/browser/web_contents/web_contents_impl.h
++++ b/content/browser/web_contents/web_contents_impl.h
+@@ -1914,6 +1914,11 @@
+   // observer set.
+   class WebContentsObserverList {
+    public:
++    // A WebContentsObserver method that takes a NavigationHandle, e.g.
++    // &WebContentsObserver::DidStartNavigation.
++    using NavigationObserverMethod =
++        void (WebContentsObserver::*)(NavigationHandle*);
++
+     WebContentsObserverList();
+     ~WebContentsObserverList();
+ 
+@@ -1935,6 +1940,22 @@
+ 
+     bool is_notifying_observers() { return is_notifying_observers_; }
+ 
++    // Like NotifyObservers(), but stops if an observer deletes the
++    // NavigationRequest for `navigation_handle` (e.g. a WebView app calling
++    // stopLoading() from its navigation callback on Android), since the
++    // remaining observers would get a dangling NavigationHandle.
++    //
++    // Note that the remaining observers still get DidFinishNavigation() when
++    // the NavigationRequest is deleted, so they see DidFinishNavigation()
++    // without e.g. DidStartNavigation(). Before this was added, they got
++    // DidFinishNavigation() first and then this call with a dangling
++    // NavigationHandle, so the ordering was already broken in this case.
++    // TODO(crbug.com/577957421): Remove this once observers can't delete the
++    // NavigationRequest synchronously.
++    void NotifyObserversUntilNavigationDeleted(
++        NavigationObserverMethod observer_method,
++        NavigationHandle* navigation_handle);
++
+     // Exposed to deal with IPC message handlers which need to stop iteration
+     // early.
+     const base::ObserverList<
 diff --git a/gpu/command_buffer/service/copy_shared_image_helper.cc b/gpu/command_buffer/service/copy_shared_image_helper.cc
 index 02bf7476..e3dd634 100644
 --- a/gpu/command_buffer/service/copy_shared_image_helper.cc
@@ -2396,6 +3395,151 @@ index 02bf7476..e3dd634 100644
      source_scoped_access->ApplyBackendSurfaceEndState();
      shared_context_state_->SubmitIfNecessary(
          std::move(end_semaphores),
+diff --git a/media/filters/source_buffer_range.cc b/media/filters/source_buffer_range.cc
+index c1e444ed..0503717e 100644
+--- a/media/filters/source_buffer_range.cc
++++ b/media/filters/source_buffer_range.cc
+@@ -29,7 +29,7 @@
+   DVLOG(3) << __func__;
+   DCHECK(interbuffer_distance_cb_);
+   CHECK(!new_buffers.empty());
+-  DCHECK(new_buffers.front()->is_key_frame());
++  CHECK(new_buffers.front()->is_key_frame());
+   AppendBuffersToEnd(new_buffers, range_start_pts_);
+ }
+ 
+@@ -107,8 +107,12 @@
+   DVLOG(1) << __func__;
+   DVLOG(4) << ToStringForDebugging();
+ 
+-  CHECK(buffers_.empty() ||
+-        CanAppendBuffersToEnd(new_buffers, new_buffers_group_start_pts));
++  if (buffers_.empty()) {
++    CHECK(!new_buffers.empty());
++    CHECK(new_buffers.front()->is_key_frame());
++  } else {
++    CHECK(CanAppendBuffersToEnd(new_buffers, new_buffers_group_start_pts));
++  }
+ 
+   DCHECK(new_buffers_group_start_pts == kNoTimestamp ||
+          new_buffers.front()->is_key_frame())
+@@ -373,7 +377,7 @@
+ 
+   // Remove the last GOP's keyframe from the |keyframe_map_|.
+   KeyframeMap::const_iterator back = keyframe_map_.end();
+-  DCHECK_GT(keyframe_map_.size(), 0u);
++  CHECK(!keyframe_map_.empty());
+   --back;
+ 
+   // The index of the first buffer in the last GOP is equal to the new size of
+@@ -452,6 +456,7 @@
+   DVLOG(1) << __func__;
+   DVLOG(4) << ToStringForDebugging();
+ 
++  CHECK(!keyframe_map_.empty());
+   if (keyframe_map_.size() == 1u)
+     return (GetBufferedEndTimestamp() <= media_time);
+ 
+@@ -468,6 +473,7 @@
+     return false;
+ 
+   // If there is only one GOP, it must contain the next buffer position.
++  CHECK(!keyframe_map_.empty());
+   if (keyframe_map_.size() == 1u)
+     return true;
+ 
+@@ -484,6 +490,7 @@
+     return false;
+ 
+   // If there is only one GOP, it must contain the next buffer position.
++  CHECK(!keyframe_map_.empty());
+   if (keyframe_map_.size() == 1u)
+     return true;
+ 
+@@ -526,6 +533,14 @@
+   return highest_frame_->timestamp();
+ }
+ 
++base::TimeDelta SourceBufferRange::GetLastGOPKeyframeTimestamp() const {
++  DVLOG(1) << __func__;
++  DVLOG(4) << ToStringForDebugging();
++
++  CHECK(!keyframe_map_.empty());
++  return keyframe_map_.rbegin()->first;
++}
++
+ base::TimeDelta SourceBufferRange::GetBufferedEndTimestamp() const {
+   DVLOG(1) << __func__;
+   DVLOG(4) << ToStringForDebugging();
+diff --git a/media/filters/source_buffer_range.h b/media/filters/source_buffer_range.h
+index 916d189..2734c7c 100644
+--- a/media/filters/source_buffer_range.h
++++ b/media/filters/source_buffer_range.h
+@@ -209,6 +209,9 @@
+   // range.
+   base::TimeDelta GetEndTimestamp() const;
+ 
++  // Returns the keyframe presentation timestamp of the last GOP in the range.
++  base::TimeDelta GetLastGOPKeyframeTimestamp() const;
++
+   // Returns the timestamp for the end of the buffered region in this range.
+   // This is an approximation if the duration for the buffer with highest PTS in
+   // the last GOP in the range is unset.
+diff --git a/media/filters/source_buffer_stream.cc b/media/filters/source_buffer_stream.cc
+index 3cde3512..6eff528 100644
+--- a/media/filters/source_buffer_stream.cc
++++ b/media/filters/source_buffer_stream.cc
+@@ -297,6 +297,8 @@
+     last_appended_buffer_is_keyframe_ = buffers.back()->is_key_frame();
+     last_appended_buffer_decode_timestamp_ =
+         buffers.back()->GetDecodeTimestamp();
++    last_appended_gop_keyframe_timestamp_ =
++        (*range_for_next_append_)->GetLastGOPKeyframeTimestamp();
+     highest_timestamp_in_append_sequence_ =
+         (*range_for_next_append_)->GetEndTimestamp();
+     highest_buffered_end_time_in_append_sequence_ =
+@@ -359,6 +361,8 @@
+         buffers_for_new_range->back()->is_key_frame();
+     last_appended_buffer_decode_timestamp_ =
+         buffers_for_new_range->back()->GetDecodeTimestamp();
++    last_appended_gop_keyframe_timestamp_ =
++        (*range_for_next_append_)->GetLastGOPKeyframeTimestamp();
+     highest_timestamp_in_append_sequence_ =
+         (*range_for_next_append_)->GetEndTimestamp();
+     highest_buffered_end_time_in_append_sequence_ =
+@@ -630,6 +634,7 @@
+   last_appended_buffer_duration_ = kNoTimestamp;
+   last_appended_buffer_is_keyframe_ = false;
+   last_appended_buffer_decode_timestamp_ = kNoDecodeTimestamp;
++  last_appended_gop_keyframe_timestamp_ = kNoTimestamp;
+   highest_timestamp_in_append_sequence_ = kNoTimestamp;
+   highest_buffered_end_time_in_append_sequence_ = kNoTimestamp;
+ }
+@@ -1009,10 +1014,12 @@
+     base::TimeDelta end_timestamp = buffers.back()->timestamp();
+     if (range_for_next_append_ != ranges_.end() &&
+         current_range == range_for_next_append_->get() &&
++        buffers.front()->timestamp() == last_appended_gop_keyframe_timestamp_ &&
+         end_timestamp == last_appended_buffer_timestamp_ &&
+         buffers.back()->GetDecodeTimestamp() ==
+             last_appended_buffer_decode_timestamp_) {
+       DCHECK(last_appended_buffer_timestamp_ != kNoTimestamp);
++      DCHECK(last_appended_gop_keyframe_timestamp_ != kNoTimestamp);
+       DCHECK(!new_range_for_append);
+ 
+       // Create a new range containing these buffers.
+diff --git a/media/filters/source_buffer_stream.h b/media/filters/source_buffer_stream.h
+index 5a715b25a..c374916 100644
+--- a/media/filters/source_buffer_stream.h
++++ b/media/filters/source_buffer_stream.h
+@@ -455,6 +455,7 @@
+   base::TimeDelta last_appended_buffer_timestamp_ = kNoTimestamp;
+   base::TimeDelta last_appended_buffer_duration_ = kNoTimestamp;
+   bool last_appended_buffer_is_keyframe_ = false;
++  base::TimeDelta last_appended_gop_keyframe_timestamp_ = kNoTimestamp;
+ 
+   // When buffering GOPs by keyframe PTS and intra-gop by nonkeyframe DTS, to
+   // verify monotonically increasing intra-GOP DTS sequence and to update max
 diff --git a/media/mojo/clients/mojo_cdm.cc b/media/mojo/clients/mojo_cdm.cc
 index b454815..3bfbf574 100644
 --- a/media/mojo/clients/mojo_cdm.cc
@@ -2548,6 +3692,39 @@ index 4094fcf..d220e569e 100644
  
    // Next portion available in the cache --- this may be what's currently being
    // read, or the next thing that will be read if the current network portion
+diff --git a/remoting/host/BUILD.gn b/remoting/host/BUILD.gn
+index ef4d9e8..0efb6c3 100644
+--- a/remoting/host/BUILD.gn
++++ b/remoting/host/BUILD.gn
+@@ -1052,8 +1052,14 @@
+   }
+ 
+   if (is_mac) {
+-    sources += [ "input_injector_mac_unittest.cc" ]
+-    deps += [ "//remoting/host/mac:unit_tests" ]
++    sources += [
++      "input_injector_mac_unittest.cc",
++      "input_monitor/local_keyboard_input_monitor_mac_unittest.cc",
++    ]
++    deps += [
++      "//remoting/host/mac:unit_tests",
++      "//ui/events:dom_keycode_converter",
++    ]
+   }
+ 
+   if (remoting_use_x11) {
+diff --git a/remoting/host/input_monitor/BUILD.gn b/remoting/host/input_monitor/BUILD.gn
+index 7a6c892..def953c 100644
+--- a/remoting/host/input_monitor/BUILD.gn
++++ b/remoting/host/input_monitor/BUILD.gn
+@@ -41,6 +41,7 @@
+   }
+ 
+   if (is_mac) {
++    public += [ "local_keyboard_input_monitor_mac.h" ]
+     sources += [
+       "local_hotkey_input_monitor_mac.mm",
+       "local_keyboard_input_monitor_mac.mm",
 diff --git a/remoting/host/input_monitor/local_input_monitor.cc b/remoting/host/input_monitor/local_input_monitor.cc
 index 50f383a..0b2f692 100644
 --- a/remoting/host/input_monitor/local_input_monitor.cc
@@ -2642,6 +3819,19 @@ index 4204248..af260b65 100644
  }
  
  std::unique_ptr<CurtainMode> LegacyInteractionStrategy::CreateCurtainMode(
+diff --git a/services/device/public/cpp/device_features.cc b/services/device/public/cpp/device_features.cc
+index a0dba66..e2313bd 100644
+--- a/services/device/public/cpp/device_features.cc
++++ b/services/device/public/cpp/device_features.cc
+@@ -72,7 +72,7 @@
+ // 0 (unconfigured) and clears claimed interfaces, endpoints, and detached
+ // interface state.
+ BASE_FEATURE(kWebUsbResetInvalidatesConfiguration,
+-             base::FEATURE_ENABLED_BY_DEFAULT);
++             base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ // When enabled, accessing the navigator.hid attribute does not prevent the
+ // frame from entering the back forward cache.
 diff --git a/testing/variations/fieldtrial_testing_config.json b/testing/variations/fieldtrial_testing_config.json
 index 8d38484..0f26dd2 100644
 --- a/testing/variations/fieldtrial_testing_config.json
@@ -2668,6 +3858,424 @@ index 8d38484..0f26dd2 100644
      "EnableCustomInputStreamBufferSize": [
          {
              "platforms": [
+diff --git a/third_party/blink/renderer/core/animation/animation.cc b/third_party/blink/renderer/core/animation/animation.cc
+index 19437be0..196e85b 100644
+--- a/third_party/blink/renderer/core/animation/animation.cc
++++ b/third_party/blink/renderer/core/animation/animation.cc
+@@ -1472,7 +1472,8 @@
+   if (new_effect == old_effect)
+     return;
+ 
+-  if (old_effect) {
++  if (old_effect &&
++      !RuntimeEnabledFeatures::SyncCrossDocumentAnimationTimingEnabled()) {
+     Element* old_target = nullptr;
+     Element* new_target = nullptr;
+     if (auto* keyframe_effect = DynamicTo<KeyframeEffect>(new_effect)) {
+@@ -2480,11 +2481,19 @@
+   outdated_ = true;
+   if (timeline_) {
+     timeline_->SetOutdatedAnimation(this);
+-  } else {
+-    // Animations without a timeline will not be ticked on a subsequent frame.
+-    // Synchronously update so that the animation is not left in an outdated
+-    // state, which could trigger a style invalidation post-style and layout,
+-    // e.g. mid-paint (see crbug.com/567645136).
++  }
++  KeyframeEffect* keyframe_effect = DynamicTo<KeyframeEffect>(content_.Get());
++  Element* target = keyframe_effect ? keyframe_effect->EffectTarget() : nullptr;
++  bool cross_document_target =
++      RuntimeEnabledFeatures::SyncCrossDocumentAnimationTimingEnabled() &&
++      target && timeline_ && timeline_->GetDocument() != &target->GetDocument();
++  if (!timeline_ || cross_document_target) {
++    // Animations without a timeline or targeting an element in a different
++    // document from the timeline will not be ticked when the target document
++    // updates its animation timing. Synchronously update so that the animation
++    // is not left in an outdated state, which could trigger a style
++    // invalidation post-style and layout, e.g. mid-paint (see
++    // crbug.com/567645136).
+     Update(kTimingUpdateOnDemand);
+   }
+ }
+diff --git a/third_party/blink/renderer/core/animation/compositor_animation_curve.cc b/third_party/blink/renderer/core/animation/compositor_animation_curve.cc
+index f54e43f8..364a686 100644
+--- a/third_party/blink/renderer/core/animation/compositor_animation_curve.cc
++++ b/third_party/blink/renderer/core/animation/compositor_animation_curve.cc
+@@ -107,9 +107,12 @@
+ 
+ scoped_refptr<CompositorAnimationCurve>
+ CompositorAnimationCurve::UpdateKeyframeSnapshot(Animation* animation) {
++  scoped_refptr<CompositorAnimationCurve> scoped_ref =
++      base::WrapRefCounted(this);
++
+ #if !EXPENSIVE_DCHECKS_ARE_ON()
+   if (!HasStyleDependency()) {
+-    return base::WrapRefCounted(this);
++    return scoped_ref;
+   }
+ #endif
+ 
+@@ -132,7 +135,7 @@
+     return maybe_copy;
+   }
+ 
+-  return base::WrapRefCounted(this);
++  return scoped_ref;
+ }
+ 
+ wtf_size_t CompositorAnimationCurve::ComputeKeyframeIndex(double progress) {
+diff --git a/third_party/blink/renderer/core/animation/compositor_animations.cc b/third_party/blink/renderer/core/animation/compositor_animations.cc
+index 90725e8..ca661f3 100644
+--- a/third_party/blink/renderer/core/animation/compositor_animations.cc
++++ b/third_party/blink/renderer/core/animation/compositor_animations.cc
+@@ -416,7 +416,15 @@
+           break;
+         case CSSPropertyID::kBackdropFilter:
+           // Backdrop-filter pixel moving filters do not change the layer bounds
+-          // like regular filters do, so they can still be composited.
++          // like regular filters do, so they can still be composited. However,
++          // reference filters cannot be interpolated or composited.
++          if (keyframe->GetCompositorKeyframeValue() &&
++              To<CompositorKeyframeFilterOperations>(
++                  keyframe->GetCompositorKeyframeValue())
++                  ->Operations()
++                  .HasReferenceFilter()) {
++            DefaultToUnsupportedProperty(state, property);
++          }
+           break;
+         case CSSPropertyID::kBackgroundColor:
+         case CSSPropertyID::kClipPath:
+@@ -887,6 +895,7 @@
+   CompositorFilterOperations operations = builder.BuildFilterOperations(
+       To<CompositorKeyframeFilterOperations>(value)->Operations(),
+       is_backdrop_filter);
++  DCHECK(!operations.HasReferenceFilter());
+   std::unique_ptr<cc::FilterKeyframe> filter_keyframe =
+       cc::FilterKeyframe::Create(base::Seconds(keyframe->Offset()),
+                                  operations.ReleaseCcFilterOperations(),
+diff --git a/third_party/blink/renderer/core/animation/keyframe_effect.cc b/third_party/blink/renderer/core/animation/keyframe_effect.cc
+index c436be1..3cca5576 100644
+--- a/third_party/blink/renderer/core/animation/keyframe_effect.cc
++++ b/third_party/blink/renderer/core/animation/keyframe_effect.cc
+@@ -49,6 +49,8 @@
+ #include "third_party/blink/renderer/core/dom/element.h"
+ #include "third_party/blink/renderer/core/dom/pseudo_element.h"
+ #include "third_party/blink/renderer/core/dom/shadow_root.h"
++#include "third_party/blink/renderer/core/execution_context/agent.h"
++#include "third_party/blink/renderer/core/frame/local_frame.h"
+ #include "third_party/blink/renderer/core/frame/web_feature.h"
+ #include "third_party/blink/renderer/core/paint/paint_layer.h"
+ #include "third_party/blink/renderer/core/style/computed_style.h"
+@@ -57,7 +59,10 @@
+ #include "third_party/blink/renderer/platform/animation/compositor_animation.h"
+ #include "third_party/blink/renderer/platform/bindings/exception_state.h"
+ #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
++#include "third_party/blink/renderer/platform/heap/persistent.h"
+ #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
++#include "third_party/blink/renderer/platform/scheduler/public/event_loop.h"
++#include "third_party/blink/renderer/platform/wtf/functional.h"
+ #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
+ 
+ namespace blink {
+@@ -738,7 +743,7 @@
+   }
+ 
+   if (changed) {
+-    effect_target_->SetNeedsAnimationStyleRecalc();
++    InvalidateEffectTargetStyle();
+   }
+ }
+ 
+@@ -750,12 +755,51 @@
+   sampled_effect_ = nullptr;
+   if (GetAnimation())
+     GetAnimation()->RestartAnimationOnCompositor();
+-  if (!effect_target_->GetDocument().Lifecycle().InDetach()) {
+-    effect_target_->SetNeedsAnimationStyleRecalc();
+-  }
++  InvalidateEffectTargetStyle();
+   Invalidate();
+ }
+ 
++void KeyframeEffect::InvalidateEffectTargetStyle() {
++  if (!effect_target_) {
++    return;
++  }
++  Document& target_document = effect_target_->GetDocument();
++  if (target_document.Lifecycle().InDetach()) {
++    return;
++  }
++  if (!RuntimeEnabledFeatures::SyncCrossDocumentAnimationTimingEnabled()) {
++    effect_target_->SetNeedsAnimationStyleRecalc();
++    return;
++  }
++
++  // Guard against a change in a child document synchronously invalidating the style of an
++  // ancestor document, as it would create a lifecycle violation. If the ancestor is already
++  // marked as having a clean style, then defer dirtying the style bit until the next
++  // update cycle. This is similar to how we don't allow script execution during style and
++  // layout, as the script could invaldiate the lifecycle state (crbug.com/574193110).
++  auto is_upstream = [&target_document](const Document* doc) {
++    return doc && doc != &target_document && doc->GetFrame() &&
++           target_document.GetFrame() &&
++           doc->GetFrame()->Tree().IsDescendantOf(target_document.GetFrame());
++  };
++  Animation* animation = GetAnimation();
++  const Document* animation_document =
++      animation ? animation->GetDocument() : nullptr;
++  const Document* owning_document =
++      (animation && animation->OwningElement())
++          ? &animation->OwningElement()->GetDocument()
++          : nullptr;
++  if (target_document.Lifecycle().GetState() >=
++          DocumentLifecycle::kStyleClean &&
++      (is_upstream(animation_document) || is_upstream(owning_document))) {
++    target_document.GetAgent().event_loop()->EnqueueMicrotask(
++        BindOnce(&Element::SetNeedsAnimationStyleRecalc,
++                 WrapWeakPersistent(effect_target_.Get())));
++    return;
++  }
++  effect_target_->SetNeedsAnimationStyleRecalc();
++}
++
+ void KeyframeEffect::UpdateChildrenAndEffects() const {
+   if (!model_->HasFrames())
+     return;
+@@ -782,12 +826,22 @@
+   if (!effect_target_ || !animation)
+     return;
+   effect_target_->EnsureElementAnimations().Animations().insert(animation);
+-  effect_target_->SetNeedsAnimationStyleRecalc();
++  InvalidateEffectTargetStyle();
+ }
+ 
+ void KeyframeEffect::DetachTarget(Animation* animation) {
+-  if (effect_target_ && animation)
+-    effect_target_->GetElementAnimations()->Animations().erase(animation);
++  if (effect_target_ && animation) {
++    ElementAnimations* element_animations =
++        effect_target_->GetElementAnimations();
++    element_animations->Animations().erase(animation);
++    if (RuntimeEnabledFeatures::SyncCrossDocumentAnimationTimingEnabled() &&
++        animation->GetNativePaintWorkletReasons() !=
++            Animation::kNoPaintWorklet) {
++      element_animations->RecalcCompositedStatus(
++          effect_target_,
++          Animation::CompositorPendingReason::kPendingEffectChange);
++    }
++  }
+   // If we have sampled this effect previously, we need to purge that state.
+   // ClearEffects takes care of clearing the cached sampled effect, informing
+   // the target that it needs to refresh its style, and doing any necessary
+diff --git a/third_party/blink/renderer/core/animation/keyframe_effect.h b/third_party/blink/renderer/core/animation/keyframe_effect.h
+index 6454c51b..f478586 100644
+--- a/third_party/blink/renderer/core/animation/keyframe_effect.h
++++ b/third_party/blink/renderer/core/animation/keyframe_effect.h
+@@ -162,6 +162,7 @@
+ 
+   void ApplyEffects();
+   void ClearEffects();
++  void InvalidateEffectTargetStyle();
+   void UpdateChildrenAndEffects() const override;
+   void Attach(AnimationEffectOwner*) override;
+   void Detach() override;
+diff --git a/third_party/blink/renderer/core/css/css_selector.cc b/third_party/blink/renderer/core/css/css_selector.cc
+index ea599fc6..a2df9611 100644
+--- a/third_party/blink/renderer/core/css/css_selector.cc
++++ b/third_party/blink/renderer/core/css/css_selector.cc
+@@ -175,6 +175,14 @@
+   // destruction of the old member followed by placement new of |rare_data_|.
+   // A straight-assignment will compile and may kinda work, but will be
+   // undefined behavior.
++  //
++  // The new Member is placement-new'ed empty and then *assigned*, rather
++  // than constructed from the pointer: Member's initializing constructor
++  // deliberately skips the marking write barrier (a freshly constructed
++  // object is always white), but this CSSSelector may already live inside a
++  // HeapVector backing that incremental marking has traced (the parser
++  // mutates selectors in its arena in place), in which case only the
++  // assigning barrier gets the new RareData marked.
+   if (HasInlineSelectorList()) {
+     CSSSelectorList* selector_list = data_.selector_list_.Get();
+     auto* rare_data = MakeGarbageCollected<RareData>(
+@@ -187,13 +195,15 @@
+     // (conservative scanning) meanwhile.
+     bits_.set<HasInlineSelectorListField>(false);
+     data_.selector_list_.~Member<CSSSelectorList>();
+-    new (&data_.rare_data_) Member<RareData>(rare_data);
++    new (&data_.rare_data_) Member<RareData>();
++    data_.rare_data_ = rare_data;
+     bits_.set<HasRareDataField>(true);
+     return;
+   }
+   auto* rare_data = MakeGarbageCollected<RareData>(data_.value_);
+   data_.value_.~AtomicString();
+-  new (&data_.rare_data_) Member<RareData>(rare_data);
++  new (&data_.rare_data_) Member<RareData>();
++  data_.rare_data_ = rare_data;
+   bits_.set<HasRareDataField>(true);
+ }
+ 
+@@ -1699,9 +1709,11 @@
+   if (!HasRareData() && Match() == kPseudoClass &&
+       CanStoreSelectorListInline(GetPseudoType()) &&
+       data_.value_ == NameForInlineSelectorListPseudo(GetPseudoType())) {
+-    // Same care as in CreateRareData(): switch the active union member.
++    // Same care as in CreateRareData(): switch the active union member, and
++    // assign rather than construct so the marking write barrier runs.
+     data_.value_.~AtomicString();
+-    new (&data_.selector_list_) Member<CSSSelectorList>(selector_list);
++    new (&data_.selector_list_) Member<CSSSelectorList>();
++    data_.selector_list_ = selector_list;
+     bits_.set<HasInlineSelectorListField>(true);
+     return;
+   }
+diff --git a/third_party/blink/renderer/core/css/css_selector.h b/third_party/blink/renderer/core/css/css_selector.h
+index 52b68cdd..bd6c2511 100644
+--- a/third_party/blink/renderer/core/css/css_selector.h
++++ b/third_party/blink/renderer/core/css/css_selector.h
+@@ -30,6 +30,7 @@
+ 
+ #include "base/check_op.h"
+ #include "base/compiler_specific.h"
++#include "base/gtest_prod_util.h"
+ #include "third_party/blink/renderer/core/core_export.h"
+ #include "third_party/blink/renderer/core/css/parser/css_nesting_type.h"
+ #include "third_party/blink/renderer/core/css/parser/css_parser_mode.h"
+@@ -784,6 +785,9 @@
+   static String FormatPseudoTypeForDebugging(PseudoType);
+ 
+  private:
++  FRIEND_TEST_ALL_PREFIXES(CSSSelectorGCTest,
++                           InlineSelectorListToRareDataDuringMarking);
++
+   // Trace() branches on the match/pseudo_type flags,
+   // RuleData bucketing sets is_covered_by_bucketing,
+   // and these could happen concurrently. This trips up TSan,
+@@ -868,7 +872,7 @@
+   template <bool expand_pseudo_references>
+   String SelectorTextInternal(uintptr_t scope_id) const;
+ 
+-  struct RareData : public GarbageCollected<RareData> {
++  struct CORE_EXPORT RareData : public GarbageCollected<RareData> {
+     explicit RareData(const AtomicString& value);
+     // Does not deep copy `selector_list_`.
+     RareData(const RareData&);
+diff --git a/third_party/blink/renderer/core/css/cssom/css_unparsed_value.cc b/third_party/blink/renderer/core/css/cssom/css_unparsed_value.cc
+index d4e0189..083cdcb 100644
+--- a/third_party/blink/renderer/core/css/cssom/css_unparsed_value.cc
++++ b/third_party/blink/renderer/core/css/cssom/css_unparsed_value.cc
+@@ -15,6 +15,7 @@
+ #include "third_party/blink/renderer/core/css_value_keywords.h"
+ #include "third_party/blink/renderer/platform/bindings/exception_messages.h"
+ #include "third_party/blink/renderer/platform/bindings/exception_state.h"
++#include "third_party/blink/renderer/platform/wtf/wtf.h"
+ 
+ namespace blink {
+ 
+@@ -140,13 +141,14 @@
+ }
+ 
+ bool CSSUnparsedValue::IsValidDeclarationValue() const {
+-  return IsValidDeclarationValue(ToStringInternal());
++  return IsValidDeclarationValue(toString());
+ }
+ 
+ const CSSValue* CSSUnparsedValue::ToCSSValue() const {
+-  String unparsed_string = ToStringInternal();
++  CHECK(IsMainThread());
++  String unparsed_string = toString();
+ 
+-  if (unparsed_string.IsNull()) {
++  if (unparsed_string.empty()) {
+     return MakeGarbageCollected<CSSUnparsedDeclarationValue>(
+         MakeGarbageCollected<CSSVariableData>());
+   }
+@@ -186,7 +188,7 @@
+       *StrictCSSParserContext(SecureContextMode::kInsecureContext));
+ }
+ 
+-String CSSUnparsedValue::ToStringInternal() const {
++String CSSUnparsedValue::toString() const {
+   String serialized = SerializeSegments();
+ 
+   // The serialization above defensively inserted /**/ between segments
+@@ -206,7 +208,7 @@
+   StringBuilder builder;
+   CSSParserTokenStream stream(serialized);
+   if (stream.AtEnd()) {
+-    return g_null_atom;
++    return g_empty_atom;
+   }
+   CSSParserToken token = stream.ConsumeRaw();
+   token.Serialize(builder);
+diff --git a/third_party/blink/renderer/core/css/cssom/css_unparsed_value.h b/third_party/blink/renderer/core/css/cssom/css_unparsed_value.h
+index 7fd66ae..f0169f00 100644
+--- a/third_party/blink/renderer/core/css/cssom/css_unparsed_value.h
++++ b/third_party/blink/renderer/core/css/cssom/css_unparsed_value.h
+@@ -55,7 +55,8 @@
+   // https://github.com/w3c/csswg-drafts/issues/13547
+   bool IsValidDeclarationValue() const;
+ 
+-  // Requires IsValidDeclarationValue()==true.
++  // Requires IsValidDeclarationValue()==true. Must only be called on the main
++  // thread.
+   const CSSValue* ToCSSValue() const override;
+ 
+   StyleValueType GetType() const override { return kUnparsedType; }
+@@ -70,6 +71,8 @@
+ 
+   wtf_size_t length() const { return segments_.size(); }
+ 
++  String toString() const override;
++
+   void Trace(Visitor* visitor) const override {
+     visitor->Trace(segments_);
+     CSSStyleValue::Trace(visitor);
+@@ -77,7 +80,6 @@
+ 
+  private:
+   static bool IsValidDeclarationValue(const String&);
+-  String ToStringInternal() const;
+   String SerializeSegments() const;
+   // Return 'false' if there is a cycle in the serialization.
+   bool AppendUnparsedString(
+diff --git a/third_party/blink/renderer/core/css/parser/css_variable_parser.cc b/third_party/blink/renderer/core/css/parser/css_variable_parser.cc
+index 2eca9b6b..b02ab6a4 100644
+--- a/third_party/blink/renderer/core/css/parser/css_variable_parser.cc
++++ b/third_party/blink/renderer/core/css/parser/css_variable_parser.cc
+@@ -25,6 +25,7 @@
+ #include "third_party/blink/renderer/core/frame/web_feature.h"
+ #include "third_party/blink/renderer/core/html/parser/html_parser_idioms.h"
+ #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
++#include "third_party/blink/renderer/platform/wtf/wtf.h"
+ 
+ namespace blink {
+ 
+@@ -693,6 +694,10 @@
+     bool comma_ends_declaration,
+     bool& important,
+     const CSSParserContext& context) {
++  // ConsumeUnparsedValue() may parse arbitrary CSS properties or selectors via
++  // if(supports(...)), which relies on main-thread-only state.
++  CHECK(IsMainThread());
++
+   // Consume leading whitespace and comments, as required by the spec.
+   stream.ConsumeWhitespace();
+   stream.EnsureLookAhead();
+diff --git a/third_party/blink/renderer/core/css/parser/css_variable_parser.h b/third_party/blink/renderer/core/css/parser/css_variable_parser.h
+index a9cff3ce..e6e58cc4 100644
+--- a/third_party/blink/renderer/core/css/parser/css_variable_parser.h
++++ b/third_party/blink/renderer/core/css/parser/css_variable_parser.h
+@@ -56,6 +56,8 @@
+   // will simply consume until AtEnd(), unless an error is encountered.
+   //
+   // [1] https://github.com/w3c/csswg-drafts/issues/9317
++  //
++  // Must only be called on the main thread.
+   static CSSVariableData* ConsumeUnparsedDeclaration(
+       CSSParserTokenStream& stream,
+       bool allow_important_annotation,
 diff --git a/third_party/blink/renderer/core/display_lock/display_lock_document_state.cc b/third_party/blink/renderer/core/display_lock/display_lock_document_state.cc
 index d05d2c2..4a242af1 100644
 --- a/third_party/blink/renderer/core/display_lock/display_lock_document_state.cc
@@ -3916,10 +5524,21 @@ index d742aaf..6b316d7 100644
    }
  }
 diff --git a/third_party/blink/renderer/platform/runtime_enabled_features.json5 b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-index 8f5b96aa..2fc1e18 100644
+index 8f5b96aa..812e963 100644
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -6634,6 +6634,11 @@
+@@ -6490,6 +6490,10 @@
+       status: "stable",
+     },
+     {
++      name: "SyncCrossDocumentAnimationTiming",
++      status: "stable",
++    },
++    {
+       name: "SynthesizedKeyboardEventsForAccessibilityActions",
+       status: "experimental",
+     },
+@@ -6634,6 +6638,11 @@
        status: "experimental",
      },
      {
@@ -4001,6 +5620,189 @@ index 04626fc..adbf3c3f 100644
  <histogram name="Enterprise.CloudPolicy.LocalCacheWriteStatus"
      enum="EnterpriseCloudPolicyLocalCacheWriteStatus"
      expires_after="2027-06-01">
+diff --git a/ui/accessibility/ax_node.cc b/ui/accessibility/ax_node.cc
+index 99fb186..1a7b3566 100644
+--- a/ui/accessibility/ax_node.cc
++++ b/ui/accessibility/ax_node.cc
+@@ -782,6 +782,12 @@
+   return ui::IsText(GetRole());
+ }
+ 
++const AXNode* AXNode::GetTextAnchor() const {
++  const AXNode* text_anchor =
++      GetRole() == ax::mojom::Role::kInlineTextBox ? GetParent() : this;
++  return text_anchor && text_anchor->IsText() ? text_anchor : nullptr;
++}
++
+ bool AXNode::IsLineBreak() const {
+   // The last condition captures inline text nodes whose only content is an '\n'
+   // character.
+diff --git a/ui/accessibility/ax_node.h b/ui/accessibility/ax_node.h
+index c170537b..2fd318d7 100644
+--- a/ui/accessibility/ax_node.h
++++ b/ui/accessibility/ax_node.h
+@@ -253,6 +253,11 @@
+   // include any text field roles.
+   bool IsText() const;
+ 
++  // Returns the text node that holds this node's text-level attributes, or
++  // nullptr for non-text nodes. Inline text boxes use their text parent.
++  // Ignored nodes are not skipped.
++  const AXNode* GetTextAnchor() const;
++
+   // Returns true if the node has any line break related roles or is the child
+   // of a node with line break related roles.
+   bool IsLineBreak() const;
+diff --git a/ui/accessibility/ax_position.h b/ui/accessibility/ax_position.h
+index 0a17f78..c796e1c 100644
+--- a/ui/accessibility/ax_position.h
++++ b/ui/accessibility/ax_position.h
+@@ -1457,6 +1457,34 @@
+     return ancestor_position;
+   }
+ 
++  // Returns this position's text offset in `ancestor_anchor`, or nullopt if
++  // the position cannot be represented on that ancestor.
++  std::optional<int> GetTextOffsetInAncestor(
++      const AXNode* ancestor_anchor,
++      ax::mojom::MoveDirection move_direction) const {
++    AXPositionInstance ancestor_position =
++        AsTextPosition()->CreateAncestorPosition(ancestor_anchor,
++                                                 move_direction);
++    if (ancestor_position->IsNullPosition()) {
++      return std::nullopt;
++    }
++    return ancestor_position->text_offset();
++  }
++
++  // Returns the static-text parent if this position is anchored to a nonempty,
++  // unignored inline text box, or nullptr otherwise.
++  const AXNode* GetNonemptyInlineTextBoxParent() const {
++    const AXNode* anchor = GetAnchor();
++    if (!anchor || anchor->GetRole() != ax::mojom::Role::kInlineTextBox ||
++        anchor->IsIgnored() || MaxTextOffset() <= 0) {
++      return nullptr;
++    }
++    const AXNode* parent = anchor->GetParent();
++    return parent && parent->GetRole() == ax::mojom::Role::kStaticText
++               ? parent
++               : nullptr;
++  }
++
+   // If the position is not valid, we return a new valid position that is
+   // closest to the original position if possible, or a null position otherwise.
+   AXPositionInstance AsValidPosition() const {
+@@ -4199,6 +4227,32 @@
+         base::BindRepeating(&DefaultAbortMovePredicate));
+   }
+ 
++  // Returns true if the positions resolve to ordered, disjoint, unignored text
++  // leaves with content after this position and before `other`. This proves
++  // that they are not equivalent without translating offsets to a common
++  // ancestor. A false result does not imply equivalence; boundary positions,
++  // ignored content and overlapping anchors still require full comparison.
++  bool IsBeforeInDisjointTextAnchors(const AXPosition& other) const {
++    const AXPositionInstance start_leaf = AsLeafTextPosition();
++    const AXPositionInstance end_leaf = other.AsLeafTextPosition();
++    if (start_leaf->IsNullPosition() || end_leaf->IsNullPosition() ||
++        start_leaf->IsIgnored() || end_leaf->IsIgnored() ||
++        start_leaf->AtEndOfAnchor() || end_leaf->AtStartOfAnchor()) {
++      return false;
++    }
++
++    const AXNode* start_anchor = start_leaf->GetAnchor();
++    const AXNode* end_anchor = end_leaf->GetAnchor();
++    const AXNode* parent = start_anchor->GetParent();
++    if (parent && parent == end_anchor->GetParent()) {
++      return start_anchor->GetIndexInParent() < end_anchor->GetIndexInParent();
++    }
++    const std::optional<int> anchor_order =
++        start_anchor->CompareTo(*end_anchor);
++    return anchor_order && *anchor_order < 0 &&
++           !end_anchor->IsDescendantOfCrossingTreeBoundary(start_anchor);
++  }
++
+   // Returns an optional integer indicating the logical order of this position
+   // compared to another position or returns an empty optional if the positions
+   // are not comparable. Any text position at the same character location is
+diff --git a/ui/gl/dc_layer_tree.cc b/ui/gl/dc_layer_tree.cc
+index aba7357..eaf7e35 100644
+--- a/ui/gl/dc_layer_tree.cc
++++ b/ui/gl/dc_layer_tree.cc
+@@ -637,41 +637,12 @@
+     // update. No visual changes are needed in this case.
+   }
+ 
+-  if (quad_rect_changed || background_color_content_changed ||
+-      background_color_changed) {
++  if (background_color_content_changed || background_color_changed) {
+     if (!background_color_content_ || background_color.fA == 0.0) {
+       // A fully transparent color is the same as no background fill.
+       hr = background_color_visual_->SetContent(nullptr);
+       CHECK_EQ(hr, S_OK);
+     } else {
+-      if (quad_rect_changed) {
+-        const bool needs_scale =
+-            quad_rect_.width() != kSolidColorSurfaceSize.width() ||
+-            quad_rect_.height() != kSolidColorSurfaceSize.height();
+-        if (needs_scale) {
+-          const float scale_x =
+-              static_cast<float>(quad_rect_.width()) /
+-              static_cast<float>(kSolidColorSurfaceSize.width());
+-          const float scale_y =
+-              static_cast<float>(quad_rect_.height()) /
+-              static_cast<float>(kSolidColorSurfaceSize.height());
+-          const D2D_MATRIX_3X2_F matrix =
+-              D2D1::Matrix3x2F::Scale(scale_x, scale_y);
+-          hr = Microsoft::WRL::ComPtr<IDCompositionVisual>(
+-                   background_color_visual_)
+-                   ->SetTransform(matrix);
+-          CHECK_EQ(hr, S_OK);
+-        } else {
+-          hr = background_color_visual_->SetTransform(nullptr);
+-          CHECK_EQ(hr, S_OK);
+-        }
+-
+-        hr = background_color_visual_->SetOffsetX(quad_rect_.x());
+-        CHECK_EQ(hr, S_OK);
+-        hr = background_color_visual_->SetOffsetY(quad_rect_.y());
+-        CHECK_EQ(hr, S_OK);
+-      }
+-
+       hr =
+           background_color_visual_->SetContent(background_color_content_.Get());
+       CHECK_EQ(hr, S_OK);
+@@ -682,6 +653,30 @@
+     }
+   }
+ 
++  if (quad_rect_changed) {
++    const bool needs_scale =
++        quad_rect_.width() != kSolidColorSurfaceSize.width() ||
++        quad_rect_.height() != kSolidColorSurfaceSize.height();
++    if (needs_scale) {
++      const float scale_x = static_cast<float>(quad_rect_.width()) /
++                            static_cast<float>(kSolidColorSurfaceSize.width());
++      const float scale_y = static_cast<float>(quad_rect_.height()) /
++                            static_cast<float>(kSolidColorSurfaceSize.height());
++      const D2D_MATRIX_3X2_F matrix = D2D1::Matrix3x2F::Scale(scale_x, scale_y);
++      hr = Microsoft::WRL::ComPtr<IDCompositionVisual>(background_color_visual_)
++               ->SetTransform(matrix);
++      CHECK_EQ(hr, S_OK);
++    } else {
++      hr = background_color_visual_->SetTransform(nullptr);
++      CHECK_EQ(hr, S_OK);
++    }
++
++    hr = background_color_visual_->SetOffsetX(quad_rect_.x());
++    CHECK_EQ(hr, S_OK);
++    hr = background_color_visual_->SetOffsetY(quad_rect_.y());
++    CHECK_EQ(hr, S_OK);
++  }
++
+   if (quad_to_root_transform_changed || quad_rect_changed ||
+       allow_antialiasing_changed) {
+     const float kNeedsSoftBorderTolerance = 0.001;
 diff --git a/ui/views/controls/menu/menu_item_view.cc b/ui/views/controls/menu/menu_item_view.cc
 index 0bee2e87..692f584 100644
 --- a/ui/views/controls/menu/menu_item_view.cc
@@ -4731,7 +6533,7 @@ index 0d49ea3..8d83473 100644
      }
      if (baseType->isVoid()) {
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index 9481dc1..1327c76 100644
+index 9481dc1..61c3b48 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -4739,10 +6541,110 @@ index 9481dc1..1327c76 100644
  #define V8_MINOR_VERSION 7
  #define V8_BUILD_NUMBER 112
 -#define V8_PATCH_LEVEL 12
-+#define V8_PATCH_LEVEL 18
++#define V8_PATCH_LEVEL 23
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/builtins/promise-any.tq b/v8/src/builtins/promise-any.tq
+index 427d31c..6f3d91f 100644
+--- a/v8/src/builtins/promise-any.tq
++++ b/v8/src/builtins/promise-any.tq
+@@ -26,9 +26,7 @@
+ // together with the errors array. Since all closures for a single Promise.any
+ // call use the same context, we need to store the indices for the individual
+ // closures somewhere else (we put them into the identity hash field of the
+-// closures), and we also need to have a separate marker for when the closure
+-// was called already (we slap the native context onto the closure in that
+-// case to mark it's done). See Promise.all which uses the same approach.
++// closures).
+ transitioning macro CreatePromiseAnyRejectElementContext(
+     implicit context: Context)(capability: PromiseCapability,
+     nativeContext: NativeContext): PromiseAnyRejectElementContext {
+@@ -75,36 +73,30 @@
+     js-implicit context: Context, receiver: JSAny, target: JSFunction)(
+     value: JSAny): JSAny {
+   // 1. Let F be the active function object.
+-
+-  // 2. Let alreadyCalled be F.[[AlreadyCalled]].
+-
+-  // 3. If alreadyCalled.[[Value]] is true, return undefined.
+-
+-  // We use the function's context as the marker to remember whether this
+-  // reject element closure was already called. It points to the reject
+-  // element context (which is a FunctionContext) until it was called the
+-  // first time, in which case we make it point to the native context here
+-  // to mark this reject element closure as done.
+-  if (IsNativeContext(context)) deferred {
+-      return Undefined;
+-    }
+-
+   dcheck(
+       context.length ==
+       SmiTag(
+           PromiseAnyRejectElementContextSlots::kPromiseAnyRejectElementLength));
+   const context = %RawDownCast<PromiseAnyRejectElementContext>(context);
+ 
+-  // 4. Set alreadyCalled.[[Value]] to true.
+-  const nativeContext = LoadNativeContext(context);
+-  target.context = nativeContext;
+-
+   // 5. Let index be F.[[Index]].
+   dcheck(kPropertyArrayNoHashSentinel == 0);
+   const identityHash = LoadJSReceiverIdentityHash(target) otherwise unreachable;
+   dcheck(ChangeUint32ToWord(identityHash) < kSmiMaxValue);
+   const index = Signed(ChangeUint32ToWord(identityHash)) - 1;
+ 
++  // 8. Let remainingElementsCount be F.[[RemainingElements]].
++  let remainingElementsCount = *ContextSlot(
++      context,
++      PromiseAnyRejectElementContextSlots::
++          kPromiseAnyRejectElementRemainingSlot);
++
++  // If all promises were already rejected, the remaining count will already be
++  // 0.
++  if (remainingElementsCount == 0) deferred {
++      return Undefined;
++    }
++
+   // 6. Let errors be F.[[Errors]].
+   let errorsRef:&FixedArray = ContextSlot(
+       context,
+@@ -113,12 +105,6 @@
+ 
+   // 7. Let promiseCapability be F.[[Capability]].
+ 
+-  // 8. Let remainingElementsCount be F.[[RemainingElements]].
+-  let remainingElementsCount = *ContextSlot(
+-      context,
+-      PromiseAnyRejectElementContextSlots::
+-          kPromiseAnyRejectElementRemainingSlot);
+-
+   // 9. Set errors[index] to x.
+ 
+   // The max computation below is an optimization to avoid excessive allocations
+@@ -138,11 +124,22 @@
+           errors, 0, errors.length_intptr, newCapacity, PromiseHole);
+       *errorsRef = errors;
+     }
++
++  // 2. Let alreadyCalled be F.[[AlreadyCalled]].
++  // 3. If alreadyCalled.[[Value]] is true, return undefined.
++  // 4. Set alreadyCalled.[[Value]] to true.
++  if (errors.objects[index] != PromiseHole) deferred {
++      return Undefined;
++    }
++
++  // Make sure that we never see the PromiseHole here as a result.
++  check(value != PromiseHole);
+   errors.objects[index] = value;
+ 
+   // 10. Set remainingElementsCount.[[Value]] to
+   // remainingElementsCount.[[Value]] - 1.
+   remainingElementsCount = remainingElementsCount - 1;
++  check(remainingElementsCount >= 0);
+   *ContextSlot(
+       context,
+       PromiseAnyRejectElementContextSlots::
 diff --git a/v8/src/compiler/backend/code-generator.cc b/v8/src/compiler/backend/code-generator.cc
 index cc55103..cce8ced 100644
 --- a/v8/src/compiler/backend/code-generator.cc
@@ -4785,6 +6687,129 @@ index 5aec87c..75810fa 100644
        "JSGetTemplateObject",                                   // name
        1, 1, 1, 1, 1, 0,                                        // counts
        parameters);                                             // parameter
+diff --git a/v8/src/debug/debug.cc b/v8/src/debug/debug.cc
+index a0e316c..f28f615 100644
+--- a/v8/src/debug/debug.cc
++++ b/v8/src/debug/debug.cc
+@@ -40,6 +40,7 @@
+ #include "src/snapshot/embedded/embedded-data.h"
+ 
+ #if V8_ENABLE_WEBASSEMBLY
++#include "src/wasm/wasm-code-manager.h"
+ #include "src/wasm/wasm-debug.h"
+ #include "src/wasm/wasm-objects-inl.h"
+ #endif  // V8_ENABLE_WEBASSEMBLY
+@@ -3048,6 +3049,60 @@
+           return;
+         }
+       }
++#if V8_ENABLE_WEBASSEMBLY
++    } else if (!it.done() && it.frame()->is_wasm()) {
++#if V8_ENABLE_DRUMBRAKE
++      if (!it.frame()->is_wasm_interpreter_entry())
++#endif  // V8_ENABLE_DRUMBRAKE
++      {
++        WasmFrame* wasm_frame = WasmFrame::cast(it.frame());
++        wasm::WasmCodeRefScope code_ref_scope;
++        // Optimized Wasm frames cannot be deoptimized on-stack at loop stack
++        // checks. Defer the pause to the next function call (or return to a
++        // debuggable caller frame) so that JavaScript executed during the
++        // pause cannot invalidate load-eliminated state in the optimized Wasm
++        // frame.
++        if (!wasm_frame->wasm_code()->is_liftoff()) {
++          if (ignore_events()) return;
++          thread_local_.scheduled_break_on_next_function_call_.Add(
++              break_reasons);
++          SetBreakOnNextFunctionCall();
++          for (it.Advance(); !it.done(); it.Advance()) {
++            if (it.frame()->is_wasm()) {
++#if V8_ENABLE_DRUMBRAKE
++              if (it.frame()->is_wasm_interpreter_entry()) continue;
++#endif  // V8_ENABLE_DRUMBRAKE
++              WasmFrame* caller_wasm = WasmFrame::cast(it.frame());
++              if (!caller_wasm->wasm_code()->is_inspectable()) continue;
++              wasm::DebugInfo* debug_info =
++                  caller_wasm->native_module()->GetDebugInfo();
++              if (debug_info->IsFrameBlackboxed(caller_wasm)) continue;
++              debug_info->PrepareStepOutTo(caller_wasm);
++              break;
++            }
++            JavaScriptFrame* js_frame = JavaScriptFrame::cast(it.frame());
++            if (js_frame->is_optimized()) {
++              Deoptimizer::DeoptimizeFunction(js_frame->function(),
++                                              LazyDeoptimizeReason::kDebugger,
++                                              js_frame->LookupCode());
++            }
++            HandleScope inner_scope(isolate_);
++            std::vector<Handle<SharedFunctionInfo>> infos;
++            js_frame->GetFunctions(&infos);
++            bool flooded = false;
++            for (; !infos.empty(); infos.pop_back()) {
++              Handle<SharedFunctionInfo> info = infos.back();
++              if (IsBlackboxed(info)) continue;
++              FloodWithOneShot(info);
++              flooded = true;
++              break;
++            }
++            if (flooded) break;
++          }
++          return;
++        }
++      }
++#endif  // V8_ENABLE_WEBASSEMBLY
+     }
+   }
+ 
+diff --git a/v8/src/debug/debug.h b/v8/src/debug/debug.h
+index bb0f1b6..cf2b8fc 100644
+--- a/v8/src/debug/debug.h
++++ b/v8/src/debug/debug.h
+@@ -480,6 +480,9 @@
+   bool scheduled_break_on_function_call() const {
+     return !thread_local_.scheduled_break_on_next_function_call_.empty();
+   }
++  v8::debug::BreakReasons scheduled_break_on_next_function_call() const {
++    return thread_local_.scheduled_break_on_next_function_call_;
++  }
+ 
+   bool IsRestartFrameScheduled() const {
+     return thread_local_.restart_frame_id_ != StackFrameId::NO_ID;
+diff --git a/v8/src/execution/isolate.cc b/v8/src/execution/isolate.cc
+index e72b8f8..b76289f 100644
+--- a/v8/src/execution/isolate.cc
++++ b/v8/src/execution/isolate.cc
+@@ -3302,6 +3302,7 @@
+         break;
+       }
+       case StackFrame::INTERNAL: {
++        if (!catchable_by_js) break;
+         auto code = frame->GcSafeLookupCode();
+         if (code->builtin_id() ==
+             Builtin::kDeoptimizationEntry_LazyAfterFastCall) {
+diff --git a/v8/src/heap/factory.cc b/v8/src/heap/factory.cc
+index 51e8fd3..94f42f6 100644
+--- a/v8/src/heap/factory.cc
++++ b/v8/src/heap/factory.cc
+@@ -3916,15 +3916,15 @@
+       New(source_text_module_map(), AllocationType::kOld));
+   DisallowGarbageCollection no_gc;
+   module->set_code(*sfi);
++  module->set_status(Module::kUnlinked);
++  module->set_module_namespace(roots.undefined_value(), SKIP_WRITE_BARRIER);
++  module->set_deferred_module_namespace(roots.undefined_value(),
++                                        SKIP_WRITE_BARRIER);
+   module->set_exports(*exports);
+   module->set_regular_exports(*regular_exports);
+   module->set_regular_imports(*regular_imports);
+   module->set_hash(isolate()->GenerateIdentityHash(Smi::kMaxValue));
+-  module->set_module_namespace(roots.undefined_value(), SKIP_WRITE_BARRIER);
+-  module->set_deferred_module_namespace(roots.undefined_value(),
+-                                        SKIP_WRITE_BARRIER);
+   module->set_requested_modules(*requested_modules);
+-  module->set_status(Module::kUnlinked);
+   module->set_exception(roots.the_hole_value(), SKIP_WRITE_BARRIER);
+   module->set_top_level_capability(roots.undefined_value(), SKIP_WRITE_BARRIER);
+   module->set_import_meta(roots.the_hole_value(), kReleaseStore,
 diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
 index e62bf0d..2e28fd7 100644
 --- a/v8/src/maglev/maglev-graph-builder.cc
@@ -4843,6 +6868,363 @@ index 585d97d..310ed57 100644
    return true;
  }
  
+diff --git a/v8/src/objects/keys.cc b/v8/src/objects/keys.cc
+index 6d2305a..fab2975 100644
+--- a/v8/src/objects/keys.cc
++++ b/v8/src/objects/keys.cc
+@@ -104,7 +104,15 @@
+     bool skip_indices) {
+   FastKeyAccumulator accumulator(isolate, object, mode, filter, is_for_in,
+                                  skip_indices);
+-  return accumulator.GetKeys(keys_conversion);
++  bool is_from_enum_cache = false;
++  MaybeHandle<FixedArray> maybe_keys =
++      accumulator.GetKeys(keys_conversion, is_from_enum_cache);
++  Handle<FixedArray> keys;
++  ASSIGN_RETURN_ON_EXCEPTION(isolate, keys, maybe_keys);
++  if (is_from_enum_cache) {
++    keys = isolate->factory()->CopyFixedArray(keys);
++  }
++  return keys;
+ }
+ 
+ Handle<FixedArray> KeyAccumulator::GetKeys(GetKeysConversion convert) {
+@@ -350,7 +358,7 @@
+   // Directly go for the fast path for OWN_ONLY keys.
+   if (mode_ == KeyCollectionMode::kOwnOnly) return;
+   // Fully walk the prototype chain and find the last prototype with keys.
+-  is_receiver_simple_enum_ = false;
++  has_initialized_and_usable_enum_cache_ = false;
+   has_empty_prototype_ = true;
+   only_own_has_simple_elements_ =
+       !IsCustomElementsReceiverMap(receiver_->map());
+@@ -374,9 +382,9 @@
+   try_prototype_info_cache_ = TryPrototypeInfoCache(receiver_);
+   if (has_prototype_info_cache_) return;
+   if (has_empty_prototype_) {
+-    is_receiver_simple_enum_ =
++    has_initialized_and_usable_enum_cache_ =
+         receiver_->map()->EnumLength() != kInvalidEnumCacheSentinel &&
+-        !Cast<JSObject>(*receiver_)->HasEnumerableElements();
++        !may_have_elements_;
+   } else if (!last_prototype.is_null()) {
+     last_non_empty_prototype_ = direct_handle(last_prototype, isolate_);
+   }
+@@ -385,18 +393,23 @@
+ namespace {
+ 
+ Handle<FixedArray> ReduceFixedArrayTo(Isolate* isolate,
+-                                      Handle<FixedArray> array,
+-                                      uint32_t length) {
++                                      Handle<FixedArray> array, uint32_t length,
++                                      bool& used_same_array) {
+   const uint32_t array_len = array->ulength().value();
+   DCHECK_LE(length, array_len);
+-  if (array_len == length) return array;
++  if (array_len == length) {
++    used_same_array = true;
++    return array;
++  }
+   return isolate->factory()->CopyFixedArrayUpTo(array, length);
+ }
+ 
+ // Initializes and directly returns the enum cache. Users of this function
+-// have to make sure to never directly leak the enum cache.
++// have to make sure to never directly leak the enum cache (check the value
++// of the out parameter is_from_enum_cache).
+ Handle<FixedArray> GetFastEnumPropertyKeys(Isolate* isolate,
+-                                           DirectHandle<JSObject> object) {
++                                           DirectHandle<JSObject> object,
++                                           bool& is_from_enum_cache) {
+   DirectHandle<Map> map(object->map(), isolate);
+   Handle<FixedArray> keys(map->instance_descriptors()->enum_cache()->keys(),
+                           isolate);
+@@ -410,7 +423,7 @@
+     DCHECK_LE(static_cast<uint32_t>(enum_length), keys->ulength().value());
+     DCHECK_EQ(enum_length, map->NumberOfEnumerableProperties());
+     isolate->counters()->enum_cache_hits()->Increment();
+-    return ReduceFixedArrayTo(isolate, keys, enum_length);
++    return ReduceFixedArrayTo(isolate, keys, enum_length, is_from_enum_cache);
+   }
+ 
+   // Determine the actual number of enumerable properties of the {map}.
+@@ -422,10 +435,11 @@
+   if (static_cast<uint32_t>(enum_length) <= keys->ulength().value()) {
+     if (map->OnlyHasSimpleProperties()) map->SetEnumLength(enum_length);
+     isolate->counters()->enum_cache_hits()->Increment();
+-    return ReduceFixedArrayTo(isolate, keys,
+-                              static_cast<uint32_t>(enum_length));
++    return ReduceFixedArrayTo(isolate, keys, static_cast<uint32_t>(enum_length),
++                              is_from_enum_cache);
+   }
+ 
++  is_from_enum_cache = true;
+   return FastKeyAccumulator::InitializeFastPropertyEnumCache(isolate, map,
+                                                              enum_length);
+ }
+@@ -434,13 +448,15 @@
+ MaybeHandle<FixedArray> GetOwnKeysWithElements(Isolate* isolate,
+                                                DirectHandle<JSObject> object,
+                                                GetKeysConversion convert,
+-                                               bool skip_indices) {
++                                               bool skip_indices,
++                                               bool& is_from_enum_cache) {
+   Handle<FixedArray> keys;
+   if (fast_properties) {
+-    keys = GetFastEnumPropertyKeys(isolate, object);
++    keys = GetFastEnumPropertyKeys(isolate, object, is_from_enum_cache);
+   } else {
+     // TODO(cbruni): preallocate big enough array to also hold elements.
+-    keys = KeyAccumulator::GetOwnEnumPropertyKeys(isolate, object);
++    keys = KeyAccumulator::GetOwnEnumPropertyKeys(isolate, object,
++                                                  is_from_enum_cache);
+   }
+ 
+   MaybeHandle<FixedArray> result;
+@@ -450,6 +466,8 @@
+     ElementsAccessor* accessor = object->GetElementsAccessor();
+     result = accessor->PrependElementIndices(isolate, object, keys, convert,
+                                              ONLY_ENUMERABLE);
++    // PrependElementIndices always returns a new array.
++    is_from_enum_cache = false;
+   }
+ 
+   if (v8_flags.trace_for_in_enumerate) {
+@@ -464,7 +482,7 @@
+ }  // namespace
+ 
+ MaybeHandle<FixedArray> FastKeyAccumulator::GetKeys(
+-    GetKeysConversion keys_conversion) {
++    GetKeysConversion keys_conversion, bool& is_from_enum_cache) {
+   // TODO(v8:9401): We should extend the fast path of KeyAccumulator::GetKeys to
+   // also use fast path even when filter = SKIP_SYMBOLS. We used to pass wrong
+   // filter to use fast path in cases where we tried to verify all properties
+@@ -472,7 +490,7 @@
+   // filter led to wrong behaviour.
+   if (filter_ == ENUMERABLE_STRINGS) {
+     Handle<FixedArray> keys;
+-    if (GetKeysFast(keys_conversion).ToHandle(&keys)) {
++    if (GetKeysFast(keys_conversion, is_from_enum_cache).ToHandle(&keys)) {
+       return keys;
+     }
+     if (isolate_->has_exception()) return MaybeHandle<FixedArray>();
+@@ -481,7 +499,7 @@
+   }
+ 
+   if (try_prototype_info_cache_) {
+-    return GetKeysWithPrototypeInfoCache(keys_conversion);
++    return GetKeysWithPrototypeInfoCache(keys_conversion, is_from_enum_cache);
+   }
+   return GetKeysSlow(keys_conversion);
+ }
+@@ -515,7 +533,7 @@
+ }
+ 
+ MaybeHandle<FixedArray> FastKeyAccumulator::GetKeysFast(
+-    GetKeysConversion keys_conversion) {
++    GetKeysConversion keys_conversion, bool& is_from_enum_cache) {
+   bool own_only = has_empty_prototype_ || mode_ == KeyCollectionMode::kOwnOnly;
+   Tagged<Map> map = receiver_->map();
+   if (!own_only || IsCustomElementsReceiverMap(map)) {
+@@ -529,18 +547,20 @@
+   // Do not try to use the enum-cache for dict-mode objects.
+   if (map->is_dictionary_map()) {
+     return GetOwnKeysWithElements<false>(isolate_, object, keys_conversion,
+-                                         skip_indices_ || !may_have_elements_);
++                                         skip_indices_ || !may_have_elements_,
++                                         is_from_enum_cache);
+   }
+   int enum_length = receiver_->map()->EnumLength();
+   if (enum_length == kInvalidEnumCacheSentinel) {
+     Handle<FixedArray> keys;
+     // Try initializing the enum cache and return own properties.
+-    if (GetOwnKeysWithUninitializedEnumLength().ToHandle(&keys)) {
++    if (GetOwnKeysWithUninitializedEnumLength(is_from_enum_cache)
++            .ToHandle(&keys)) {
+       if (v8_flags.trace_for_in_enumerate) {
+         PrintF("| strings=%d symbols=0 elements=0 || prototypes>=1 ||\n",
+                keys->ulength().value());
+       }
+-      is_receiver_simple_enum_ =
++      has_initialized_and_usable_enum_cache_ =
+           object->map()->EnumLength() != kInvalidEnumCacheSentinel;
+       return keys;
+     }
+@@ -548,7 +568,8 @@
+   // The properties-only case failed because there were probably elements on the
+   // receiver.
+   return GetOwnKeysWithElements<true>(isolate_, object, keys_conversion,
+-                                      skip_indices_ || !may_have_elements_);
++                                      skip_indices_ || !may_have_elements_,
++                                      is_from_enum_cache);
+ }
+ 
+ // static
+@@ -616,11 +637,13 @@
+ }
+ 
+ MaybeHandle<FixedArray>
+-FastKeyAccumulator::GetOwnKeysWithUninitializedEnumLength() {
++FastKeyAccumulator::GetOwnKeysWithUninitializedEnumLength(
++    bool& is_from_enum_cache) {
+   auto object = Cast<JSObject>(receiver_);
+   // Uninitialized enum length
+   Tagged<Map> map = object->map();
+-  if (object->elements() != ReadOnlyRoots(isolate_).empty_fixed_array() &&
++  if (may_have_elements_ &&
++      object->elements() != ReadOnlyRoots(isolate_).empty_fixed_array() &&
+       object->elements() !=
+           ReadOnlyRoots(isolate_).empty_slow_element_dictionary()) {
+     // Assume that there are elements.
+@@ -633,10 +656,7 @@
+   }
+   // We have no elements but possibly enumerable property keys, hence we can
+   // directly initialize the enum cache.
+-  Handle<FixedArray> keys = GetFastEnumPropertyKeys(isolate_, object);
+-  if (is_for_in_) return keys;
+-  // Do not leak the enum cache as it might end up as an elements backing store.
+-  return isolate_->factory()->CopyFixedArray(keys);
++  return GetFastEnumPropertyKeys(isolate_, object, is_from_enum_cache);
+ }
+ 
+ MaybeHandle<FixedArray> FastKeyAccumulator::GetKeysSlow(
+@@ -655,21 +675,24 @@
+ }
+ 
+ MaybeHandle<FixedArray> FastKeyAccumulator::GetKeysWithPrototypeInfoCache(
+-    GetKeysConversion keys_conversion) {
++    GetKeysConversion keys_conversion, bool& is_from_enum_cache) {
+   Handle<FixedArray> own_keys;
++  bool own_keys_is_from_enum_cache = false;
+   if (may_have_elements_) {
+     MaybeHandle<FixedArray> maybe_own_keys;
+     if (receiver_->map()->is_dictionary_map()) {
+       maybe_own_keys = GetOwnKeysWithElements<false>(
+-          isolate_, Cast<JSObject>(receiver_), keys_conversion, skip_indices_);
++          isolate_, Cast<JSObject>(receiver_), keys_conversion, skip_indices_,
++          own_keys_is_from_enum_cache);
+     } else {
+       maybe_own_keys = GetOwnKeysWithElements<true>(
+-          isolate_, Cast<JSObject>(receiver_), keys_conversion, skip_indices_);
++          isolate_, Cast<JSObject>(receiver_), keys_conversion, skip_indices_,
++          own_keys_is_from_enum_cache);
+     }
+     ASSIGN_RETURN_ON_EXCEPTION(isolate_, own_keys, maybe_own_keys);
+   } else {
+     own_keys = KeyAccumulator::GetOwnEnumPropertyKeys(
+-        isolate_, Cast<JSObject>(receiver_));
++        isolate_, Cast<JSObject>(receiver_), own_keys_is_from_enum_cache);
+   }
+   Handle<FixedArray> prototype_chain_keys;
+   if (has_prototype_info_cache_) {
+@@ -693,12 +716,8 @@
+   }
+   Handle<FixedArray> result = CombineKeys(
+       isolate_, own_keys, prototype_chain_keys, receiver_, may_have_elements_);
+-  if (is_for_in_ && own_keys.is_identical_to(result)) {
+-    // Don't leak the enumeration cache without the receiver since it might get
+-    // trimmed otherwise.
+-    return isolate_->factory()->CopyFixedArrayUpTo(result,
+-                                                   result->ulength().value());
+-  }
++  is_from_enum_cache =
++      own_keys_is_from_enum_cache && own_keys.is_identical_to(result);
+   return result;
+ }
+ 
+@@ -1064,8 +1083,10 @@
+     DirectHandle<JSObject> object) {
+   if (filter_ == ENUMERABLE_STRINGS) {
+     DirectHandle<FixedArray> enum_keys;
++    bool is_from_enum_cache = false;
+     if (object->HasFastProperties()) {
+-      enum_keys = KeyAccumulator::GetOwnEnumPropertyKeys(isolate_, object);
++      enum_keys = KeyAccumulator::GetOwnEnumPropertyKeys(isolate_, object,
++                                                         is_from_enum_cache);
+       // If the number of properties equals the length of enumerable properties
+       // we do not have to filter out non-enumerable ones
+       Tagged<Map> map = object->map();
+@@ -1107,6 +1128,8 @@
+         }
+       }
+     }
++    // This won't leak the enum cache FixedArray even if is_from_enum_cache is
++    // true.
+     RETURN_NOTHING_IF_NOT_SUCCESSFUL(AddKeys(enum_keys, DO_NOT_CONVERT));
+   } else {
+     if (object->HasFastProperties()) {
+@@ -1241,9 +1264,9 @@
+ 
+ // static
+ Handle<FixedArray> KeyAccumulator::GetOwnEnumPropertyKeys(
+-    Isolate* isolate, DirectHandle<JSObject> object) {
++    Isolate* isolate, DirectHandle<JSObject> object, bool& is_from_enum_cache) {
+   if (object->HasFastProperties()) {
+-    return GetFastEnumPropertyKeys(isolate, object);
++    return GetFastEnumPropertyKeys(isolate, object, is_from_enum_cache);
+   } else if (IsJSGlobalObject(*object)) {
+     return GetOwnEnumPropertyDictionaryKeys(
+         isolate, KeyCollectionMode::kOwnOnly, nullptr, object,
+diff --git a/v8/src/objects/keys.h b/v8/src/objects/keys.h
+index 9c33937..ca3cad5 100644
+--- a/v8/src/objects/keys.h
++++ b/v8/src/objects/keys.h
+@@ -73,7 +73,8 @@
+   // Does not throw for uninitialized exports in module namespace objects, so
+   // this has to be checked separately.
+   static Handle<FixedArray> GetOwnEnumPropertyKeys(
+-      Isolate* isolate, DirectHandle<JSObject> object);
++      Isolate* isolate, DirectHandle<JSObject> object,
++      bool& is_from_enum_cache);
+ 
+   V8_WARN_UNUSED_RESULT ExceptionStatus
+   AddKey(Tagged<Object> key, AddKeyConversion convert = DO_NOT_CONVERT);
+@@ -191,13 +192,15 @@
+   FastKeyAccumulator(const FastKeyAccumulator&) = delete;
+   FastKeyAccumulator& operator=(const FastKeyAccumulator&) = delete;
+ 
+-  bool is_receiver_simple_enum() { return is_receiver_simple_enum_; }
++  bool has_initialized_and_usable_enum_cache() {
++    return has_initialized_and_usable_enum_cache_;
++  }
+   bool has_empty_prototype() { return has_empty_prototype_; }
+   bool may_have_elements() { return may_have_elements_; }
+   bool MayHaveSymbols();
+ 
+-  MaybeHandle<FixedArray> GetKeys(
+-      GetKeysConversion convert = GetKeysConversion::kKeepNumbers);
++  MaybeHandle<FixedArray> GetKeys(GetKeysConversion convert,
++                                  bool& is_from_enum_cache);
+ 
+   // Initialize the enum cache for a map with all of the following:
+   //   - uninitialized enum length
+@@ -214,12 +217,14 @@
+ 
+  private:
+   void Prepare();
+-  MaybeHandle<FixedArray> GetKeysFast(GetKeysConversion convert);
++  MaybeHandle<FixedArray> GetKeysFast(GetKeysConversion convert,
++                                      bool& is_from_enum_cache);
+   MaybeHandle<FixedArray> GetKeysSlow(GetKeysConversion convert);
+   MaybeHandle<FixedArray> GetKeysWithPrototypeInfoCache(
+-      GetKeysConversion convert);
++      GetKeysConversion convert, bool& is_from_enum_cache);
+ 
+-  MaybeHandle<FixedArray> GetOwnKeysWithUninitializedEnumLength();
++  MaybeHandle<FixedArray> GetOwnKeysWithUninitializedEnumLength(
++      bool& is_from_enum_cache);
+ 
+   bool MayHaveElements(Tagged<JSReceiver> receiver);
+   bool TryPrototypeInfoCache(DirectHandle<JSReceiver> receiver);
+@@ -233,7 +238,7 @@
+   PropertyFilter filter_;
+   bool is_for_in_ = false;
+   bool skip_indices_ = false;
+-  bool is_receiver_simple_enum_ = false;
++  bool has_initialized_and_usable_enum_cache_ = false;
+   bool has_empty_prototype_ = false;
+   bool may_have_elements_ = true;
+   bool has_prototype_info_cache_ = false;
 diff --git a/v8/src/objects/map-inl.h b/v8/src/objects/map-inl.h
 index 74202ec..978009f 100644
 --- a/v8/src/objects/map-inl.h
@@ -4935,6 +7317,130 @@ index 83c3f82..cfeebea 100644
                                  descriptor->GetKey(), "CopyAddDescriptor",
                                  SIMPLE_PROPERTY_TRANSITION);
  }
+diff --git a/v8/src/objects/module-inl.h b/v8/src/objects/module-inl.h
+index 7e18f75..c7ca8938 100644
+--- a/v8/src/objects/module-inl.h
++++ b/v8/src/objects/module-inl.h
+@@ -8,6 +8,7 @@
+ #include "src/objects/module.h"
+ // Include the non-inl header before the rest of the headers.
+ 
++#include "src/objects/cell-inl.h"
+ #include "src/objects/js-promise-inl.h"
+ #include "src/objects/oddball-predicates-inl.h"
+ #include "src/objects/scope-info.h"
+@@ -167,6 +168,7 @@
+ 
+ Tagged<ObjectHashTable> Module::exports() const { return exports_.load(); }
+ void Module::set_exports(Tagged<ObjectHashTable> value, WriteBarrierMode mode) {
++  CHECK(!ExportsFinalized());
+   exports_.store(this, value, mode);
+ }
+ 
+@@ -192,6 +194,16 @@
+   deferred_module_namespace_.store(this, value, mode);
+ }
+ 
++bool Module::ExportsFinalized() const {
++  bool res =
++      (!IsUndefined(module_namespace()) &&
++       IsJSModuleNamespace(Cast<Cell>(module_namespace())->value())) ||
++      (!IsUndefined(deferred_module_namespace()) &&
++       IsJSModuleNamespace(Cast<Cell>(deferred_module_namespace())->value()));
++  DCHECK_IMPLIES(res, status() >= kLinking);
++  return res;
++}
++
+ Tagged<Module> JSModuleNamespace::module() const { return module_.load(); }
+ 
+ void JSModuleNamespace::set_module(Tagged<Module> value,
+diff --git a/v8/src/objects/module.h b/v8/src/objects/module.h
+index 925b7d3..43118f6 100644
+--- a/v8/src/objects/module.h
++++ b/v8/src/objects/module.h
+@@ -110,6 +110,11 @@
+   inline void set_exception(Tagged<Object> value,
+                             WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
+ 
++  // Once a module namespace (normal or deferred) has been created in
++  // GetModuleNamespace, all star exports have been fetched and {exports} is
++  // finalized (must not be mutated or rehashed as ICs index into it).
++  inline bool ExportsFinalized() const;
++
+   inline Tagged<UnionOf<JSPromise, Undefined>> top_level_capability() const;
+   inline void set_top_level_capability(
+       Tagged<UnionOf<JSPromise, Undefined>> value,
+diff --git a/v8/src/objects/source-text-module.cc b/v8/src/objects/source-text-module.cc
+index 0c50a51..8a9cb6c 100644
+--- a/v8/src/objects/source-text-module.cc
++++ b/v8/src/objects/source-text-module.cc
+@@ -371,11 +371,14 @@
+ 
+     if (!unique_cell.is_null()) {
+       // Found a unique star export for this name.
+-      Handle<ObjectHashTable> exports(module->exports(), isolate);
+-      DCHECK(IsTheHole(exports->Lookup(export_name)));
+-      exports =
+-          ObjectHashTable::Put(isolate, exports, export_name, unique_cell);
+-      module->set_exports(*exports);
++      if (module->status() <= kLinking) {
++        DCHECK(!module->ExportsFinalized());
++        Handle<ObjectHashTable> exports(module->exports(), isolate);
++        DCHECK(IsTheHole(exports->Lookup(export_name)));
++        exports =
++            ObjectHashTable::Put(isolate, exports, export_name, unique_cell);
++        module->set_exports(*exports);
++      }
+       return unique_cell;
+     }
+   }
+@@ -773,8 +776,7 @@
+   DCHECK_GE(module->status(), Module::kLinking);
+ 
+   // Shortcut.
+-  if (!IsUndefined(module->module_namespace()) &&
+-      IsJSModuleNamespace(Cast<Cell>(module->module_namespace())->value())) {
++  if (module->ExportsFinalized()) {
+     return;
+   }
+ 
+diff --git a/v8/src/runtime/runtime-forin.cc b/v8/src/runtime/runtime-forin.cc
+index 7fa6bbe..2ab60ba 100644
+--- a/v8/src/runtime/runtime-forin.cc
++++ b/v8/src/runtime/runtime-forin.cc
+@@ -87,20 +87,28 @@
+                                  KeyCollectionMode::kIncludePrototypes,
+                                  ENUMERABLE_STRINGS, true);
+   // Test if we have an enum cache for {receiver}.
+-  if (!accumulator.is_receiver_simple_enum()) {
++  if (!accumulator.has_initialized_and_usable_enum_cache()) {
+     if (DirectHandle<ForInEnumeratorHolder> holder;
+         TryCreateEnumeratorHolder(isolate, receiver, &accumulator)
+             .ToHandle(&holder)) {
+       return holder;
+     }
+-    DirectHandle<FixedArray> keys;
++    Handle<FixedArray> keys;
++    bool is_from_enum_cache = false;
+     ASSIGN_RETURN_ON_EXCEPTION(
+         isolate, keys,
+         accumulator.GetKeys(accumulator.may_have_elements()
+                                 ? GetKeysConversion::kConvertToString
+-                                : GetKeysConversion::kNoNumbers));
++                                : GetKeysConversion::kNoNumbers,
++                            is_from_enum_cache));
+     // Test again, since cache may have been built by GetKeys() calls above.
+-    if (!accumulator.is_receiver_simple_enum()) return keys;
++    if (!accumulator.has_initialized_and_usable_enum_cache()) {
++      if (is_from_enum_cache) {
++        // Don't leak the enum cache.
++        keys = isolate->factory()->CopyFixedArray(keys);
++      }
++      return keys;
++    }
+   }
+   DCHECK(!IsJSModuleNamespace(*receiver));
+   return direct_handle(receiver->map(), isolate);
 diff --git a/v8/src/runtime/runtime-literals.cc b/v8/src/runtime/runtime-literals.cc
 index a850501..c594525 100644
 --- a/v8/src/runtime/runtime-literals.cc
@@ -5082,12 +7588,66 @@ index a850501..c594525 100644
          }
        }
        result = value;
+diff --git a/v8/src/runtime/runtime-wasm.cc b/v8/src/runtime/runtime-wasm.cc
+index b17d38b..e09b0ac 100644
+--- a/v8/src/runtime/runtime-wasm.cc
++++ b/v8/src/runtime/runtime-wasm.cc
+@@ -1033,10 +1033,12 @@
+   if (debug_info->IsStepping(frame) && !debug_info->IsFrameBlackboxed(frame)) {
+     debug_info->ClearStepping(isolate);
+     StepAction step_action = isolate->debug()->last_step_action();
++    v8::debug::BreakReasons break_reasons =
++        isolate->debug()->scheduled_break_on_next_function_call();
+     isolate->debug()->ClearStepping();
+     if (isolate->debug()->ContinueSteppingIfSkipped(step_action)) return true;
+     isolate->debug()->OnDebugBreak(isolate->factory()->empty_fixed_array(),
+-                                   step_action);
++                                   step_action, break_reasons);
+     return true;
+   }
+ 
+diff --git a/v8/src/wasm/wasm-debug.cc b/v8/src/wasm/wasm-debug.cc
+index a9101df..7db05dd 100644
+--- a/v8/src/wasm/wasm-debug.cc
++++ b/v8/src/wasm/wasm-debug.cc
+@@ -513,7 +513,12 @@
+ 
+   bool IsStepping(WasmFrame* frame) {
+     Isolate* isolate = frame->isolate();
+-    if (isolate->debug()->last_step_action() == StepInto) return true;
++    if (isolate->debug()->last_step_action() == StepInto ||
++        isolate->debug()->break_on_next_function_call() ||
++        isolate->debug()->scheduled_break_on_function_call()) {
++      return true;
++    }
++    if (isolate->debug()->last_step_action() == StepNone) return false;
+     base::MutexGuard guard(&mutex_);
+     auto it = per_isolate_data_.find(isolate);
+     return it != per_isolate_data_.end() &&
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/VertexArrayVk.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/VertexArrayVk.cpp
+index 1a238eb..87f627b 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/VertexArrayVk.cpp
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/VertexArrayVk.cpp
+@@ -1115,11 +1115,8 @@
+            prevEnabledNowDisabledAttribBits);
+     if (prevEnabledNowDisabledAttribBits.any())
+     {
+-        // disabled attributes maybe active or inactive. We only need to set to empty buffer for
+-        // inactive ones.
+-        const gl::AttributesMask disabledInactiveAttribBits =
+-            prevEnabledNowDisabledAttribBits & ~context->getActiveDefaultAttribsMask();
+-        syncDirtyDisabledAttribs(contextVk, disabledInactiveAttribBits);
++        // Sync the disabled attributes, active or inactive.
++        syncDirtyDisabledAttribs(contextVk, prevEnabledNowDisabledAttribBits);
+ 
+         // default attributes handler will update active attributes.
+         const gl::AttributesMask defaultAttribBits =
 diff --git a/build/util/LASTCHANGE b/build/util/LASTCHANGE
 --- a/build/util/LASTCHANGE
 +++ b/build/util/LASTCHANGE
 @@ -1,2 +1,2 @@
 -LASTCHANGE=638dd0ef2fd334b657efb909d06d0164ea4d9443-refs/branch-heads/8103@{#943}
-+LASTCHANGE=67b1826c23115ecbaaaa47d96ff5e3e18f966ba1-refs/branch-heads/8103@{#1005}
++LASTCHANGE=91eedbc98a63dbe843bc2b0431f46f5c3b85f4c0-refs/branch-heads/8103@{#1042}
  LASTCHANGE_YEAR=2026
 diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 --- a/build/util/LASTCHANGE.committime
@@ -5095,7 +7655,7 @@ diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 @@ -1 +1 @@
 -1793133444
 \ No newline at end of file
-+1793399771
++1793667663
 \ No newline at end of file
 diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
 --- a/gpu/config/gpu_lists_version.h
@@ -5105,7 +7665,7 @@ diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
  #define GPU_CONFIG_GPU_LISTS_VERSION_H_
  
 -#define GPU_LISTS_VERSION "638dd0ef2fd334b657efb909d06d0164ea4d9443"
-+#define GPU_LISTS_VERSION "67b1826c23115ecbaaaa47d96ff5e3e18f966ba1"
++#define GPU_LISTS_VERSION "91eedbc98a63dbe843bc2b0431f46f5c3b85f4c0"
  
  #endif  // GPU_CONFIG_GPU_LISTS_VERSION_H_
 diff --git a/skia/ext/skia_commit_hash.h b/skia/ext/skia_commit_hash.h
