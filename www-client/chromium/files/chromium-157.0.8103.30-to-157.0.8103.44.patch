@@ -1,6 +1,6 @@
-Chromium 157.0.8103.30 -> 157.0.8103.42, for the 157.0.8103.30 tarball.
+Chromium 157.0.8103.30 -> 157.0.8103.44, for the 157.0.8103.30 tarball.
 
-157.0.8103.42 is a tag on the 157 branch (refs/branch-heads/8103) that has
+157.0.8103.44 is a tag on the 157 branch (refs/branch-heads/8103) that has
 no source tarball (as of 2026-11-03). It has the fixes made after
 157.0.8103.30 up to it: those of 157.0.8103.32 to .34 (use-after-frees in
 the bookmarks side panel, MojoCdm, chrome.windows.update and
@@ -20,10 +20,14 @@ V8's Promise.any, module star exports, fast API termination, Wasm debug
 break and enum cache fixes; ANGLE's Vulkan disabled attributes
 use-after-free; and since .41: Blink's CSSSelector rare data marking
 barrier; the Sync tab delegate's dependencies outliving it (a
-use-after-free); the app menu's zoom announcements.
+use-after-free); the app menu's zoom announcements; and since .42: the capability
+element's icon-only styles gated behind their feature flag; V8's private
+name resolution in catch scopes and class heritage eval (two fixes);
+SimpleCache's cleanup on key collision; ANGLE's rejection of overlapping
+framebuffer layers (and D3D11 fixes).
 
 Generated from the upstream diffs between the tags (chromium/src
-refs/tags/157.0.8103.30..157.0.8103.42), ANGLE, DevTools, Skia and V8 (the
+refs/tags/157.0.8103.30..157.0.8103.44), ANGLE, DevTools, Skia and V8 (the
 only dependencies whose DEPS revisions changed; no CIPD/GCS package or
 gclient gn arg changed), as served by Gitiles, with scripts/chromium-delta.
 
@@ -35,11 +39,11 @@ DEPS.
 Added: the tarball's stamp files for the new commit (stamps.py:
 build/util/LASTCHANGE{,.committime}, gpu/config/gpu_lists_version.h and
 skia/ext/skia_commit_hash.h; commit
-91eedbc98a63dbe843bc2b0431f46f5c3b85f4c0, refs/branch-heads/8103@{#1042}).
+f37af91d818ffa034fc2d8f1028dd190dab034ed, refs/branch-heads/8103@{#1090}).
 Dawn's stamps and build/util/MINIBRANCH don't change.
 
 Checked: applies to the 157.0.8103.30 tarball; chrome/VERSION becomes
-157.0.8103.42; every patched source file is byte-identical to its version
+157.0.8103.44; every patched source file is byte-identical to its version
 at the tag; the one new file (Skia's
 resources/sksl/runtime_errors/InvalidTypeInStruct.rts) is an SkSL test
 source, not generated; the 157.0.8103.30 tarball's non-git files are all
@@ -245,7 +249,7 @@ index 478cd5e..21206a8 100644
    // rendering changes, to ensure the bits in CommitState are propagated.
    bool force_commit_for_propagation_ = true;
 diff --git a/chrome/VERSION b/chrome/VERSION
-index 3a363a4..f401ce5 100644
+index 3a363a4..d7331261 100644
 --- a/chrome/VERSION
 +++ b/chrome/VERSION
 @@ -1,4 +1,4 @@
@@ -253,7 +257,7 @@ index 3a363a4..f401ce5 100644
  MINOR=0
  BUILD=8103
 -PATCH=30
-+PATCH=42
++PATCH=44
 diff --git a/chrome/app/resources/generated_resources_en-GB.xtb b/chrome/app/resources/generated_resources_en-GB.xtb
 index a97b92a..aece766 100644
 --- a/chrome/app/resources/generated_resources_en-GB.xtb
@@ -3213,6 +3217,29 @@ index e0b6f1b..b2b433c 100644
        }
      }
  
+diff --git a/content/browser/file_system_access/file_system_access_file_handle_impl.cc b/content/browser/file_system_access/file_system_access_file_handle_impl.cc
+index e4b3716..8eb1387 100644
+--- a/content/browser/file_system_access/file_system_access_file_handle_impl.cc
++++ b/content/browser/file_system_access/file_system_access_file_handle_impl.cc
+@@ -133,6 +133,18 @@
+ // already exists. Must be called on a sequence which allows blocking.
+ base::File::Error CreateCowSwapFile(const storage::FileSystemURL& source_url,
+                                     const storage::FileSystemURL& swap_url) {
++  // `clonefile()` operates directly on raw paths and follows symlinks when
++  // `flags` is 0, whereas `LocalFileUtil` hides symlinks by mapping them to
++  // `FILE_ERROR_NOT_FOUND`. Reject symlinks on `source_url` as not found, and
++  // treat a symlink (including a dangling symlink) at `swap_url` as an
++  // existing file so swap creation advances to the next candidate swap name
++  // instead of creating the clone at the symlink's target.
++  if (base::IsLink(source_url.path())) {
++    return base::File::Error::FILE_ERROR_NOT_FOUND;
++  }
++  if (base::IsLink(swap_url.path())) {
++    return base::File::Error::FILE_ERROR_EXISTS;
++  }
+   return clonefile(source_url.path().value().c_str(),
+                    swap_url.path().value().c_str(),
+                    /*flags=*/0) == 0
 diff --git a/content/browser/web_contents/web_contents_impl.cc b/content/browser/web_contents/web_contents_impl.cc
 index 9cef5210..a270421 100644
 --- a/content/browser/web_contents/web_contents_impl.cc
@@ -3556,6 +3583,157 @@ index b454815..3bfbf574 100644
    // As communication with the remote CDM is broken, reject any outstanding
    // promises and close all the existing sessions.
    cdm_promise_adapter_.Clear(CdmPromiseAdapter::ClearReason::kConnectionError);
+diff --git a/net/disk_cache/simple/simple_backend_impl.h b/net/disk_cache/simple/simple_backend_impl.h
+index 72456eb2..e74aebd 100644
+--- a/net/disk_cache/simple/simple_backend_impl.h
++++ b/net/disk_cache/simple/simple_backend_impl.h
+@@ -85,6 +85,10 @@
+   void SetTaskRunnerForTesting(
+       scoped_refptr<base::SequencedTaskRunner> task_runner);
+ 
++  size_t GetNumActiveEntriesForTesting() const {
++    return active_entries_.size();
++  }
++
+   // Finishes initialization. Always asynchronous.
+   void Init(CompletionOnceCallback completion_callback);
+ 
+diff --git a/net/disk_cache/simple/simple_entry_impl.cc b/net/disk_cache/simple/simple_entry_impl.cc
+index 22715f3..21b3305 100644
+--- a/net/disk_cache/simple/simple_entry_impl.cc
++++ b/net/disk_cache/simple/simple_entry_impl.cc
+@@ -1411,7 +1411,8 @@
+     prioritized_task_runner_->PostTaskAndReplyWithResult(
+         FROM_HERE,
+         base::BindOnce(&SimpleSynchronousEntry::Doom,
+-                       base::Unretained(synchronous_entry_)),
++                       base::Unretained(synchronous_entry_),
++                       /*sparse_file_may_be_unchecked=*/false),
+         base::BindOnce(&SimpleEntryImpl::DoomOperationComplete, this,
+                        std::move(callback), state_),
+         entry_priority_);
+diff --git a/net/disk_cache/simple/simple_synchronous_entry.cc b/net/disk_cache/simple/simple_synchronous_entry.cc
+index a0260d4..7c352146 100644
+--- a/net/disk_cache/simple/simple_synchronous_entry.cc
++++ b/net/disk_cache/simple/simple_synchronous_entry.cc
+@@ -398,7 +398,7 @@
+         out_results->stream_prefetch_data);
+   }
+   if (out_results->result != net::OK) {
+-    sync_entry->Doom();
++    sync_entry->Doom(/*sparse_file_may_be_unchecked=*/true);
+     sync_entry->CloseFiles();
+     out_results->sync_entry = nullptr;
+     out_results->unbound_file_operations =
+@@ -437,7 +437,7 @@
+   }
+   if (out_results->result != net::OK) {
+     if (out_results->result != net::ERR_FILE_EXISTS)
+-      sync_entry->Doom();
++      sync_entry->Doom(/*sparse_file_may_be_unchecked=*/true);
+     sync_entry->CloseFiles();
+     out_results->unbound_file_operations =
+         std::move(sync_entry->unbound_file_operations_);
+@@ -486,7 +486,7 @@
+         if (optimistic_create) {
+           // In this case, ::OpenOrCreateEntry already returned claiming it made
+           // a new entry. Try extra-hard to make that the actual case.
+-          sync_entry->Doom();
++          sync_entry->Doom(/*sparse_file_may_be_unchecked=*/true);
+           sync_entry->CloseFiles();
+           file_operations = std::move(sync_entry->unbound_file_operations_);
+           sync_entry = nullptr;
+@@ -498,7 +498,7 @@
+         break;
+       default:
+         // Trouble. Fail this time.
+-        sync_entry->Doom();
++        sync_entry->Doom(/*sparse_file_may_be_unchecked=*/true);
+         sync_entry->CloseFiles();
+         out_results->unbound_file_operations =
+             std::move(sync_entry->unbound_file_operations_);
+@@ -545,14 +545,14 @@
+   return deleted_well ? net::OK : net::ERR_FAILED;
+ }
+ 
+-int SimpleSynchronousEntry::Doom() {
++int SimpleSynchronousEntry::Doom(bool sparse_file_may_be_unchecked) {
+   BackendFileOperations* file_operations = nullptr;
+   ScopedFileOperationsBinding binding(this, &file_operations);
+-  return DoomInternal(file_operations);
++  return DoomInternal(file_operations, sparse_file_may_be_unchecked);
+ }
+ 
+-int SimpleSynchronousEntry::DoomInternal(
+-    BackendFileOperations* file_operations) {
++int SimpleSynchronousEntry::DoomInternal(BackendFileOperations* file_operations,
++                                         bool sparse_file_may_be_unchecked) {
+   if (entry_file_key_.doom_generation != 0u) {
+     // Already doomed.
+     return true;
+@@ -582,6 +582,13 @@
+       FilePath new_name =
+           path_.AppendASCII(GetSparseFilenameFromEntryFileKey(entry_file_key_));
+       ok = file_operations->ReplaceFile(old_name, new_name, &out_error) && ok;
++    } else if (sparse_file_may_be_unchecked) {
++      FilePath to_delete =
++          path_.AppendASCII(GetSparseFilenameFromEntryFileKey(orig_key));
++      ok = file_operations->DeleteFile(to_delete,
++                                       BackendFileOperations::DeleteFileMode::
++                                           kEnsureImmediateAvailability) &&
++           ok;
+     }
+ 
+     SIMPLE_CACHE_UMA(TIMES, "DiskDoomLatency", cache_type_,
+@@ -1518,8 +1525,9 @@
+       // knowing what our key is. We must therefore read the header immediately
+       // to discover it, so SimpleEntryImpl can make it available to
+       // disk_cache::Entry::GetKey().
+-      if (!file.IsOK() || !CheckHeaderAndKey(file.get(), i))
++      if (!file.IsOK() || !CheckHeaderAndKey(file.get(), i)) {
+         return net::ERR_FAILED;
++      }
+     } else {
+       // If we do know which key were are looking for, we still need to
+       // check that the file actually has it (rather than just being a hash
+@@ -1535,8 +1543,9 @@
+       int ret_value_stream_0 = ReadAndValidateStream0AndMaybe1(
+           file_operations, out_entry_stat->data_size(1), out_entry_stat,
+           stream_prefetch_data);
+-      if (ret_value_stream_0 != net::OK)
++      if (ret_value_stream_0 != net::OK) {
+         return ret_value_stream_0;
++      }
+     } else {
+       out_entry_stat->set_data_size(
+           2, GetDataSizeFromFileSize(key_size, out_entry_stat->data_size(2)));
+diff --git a/net/disk_cache/simple/simple_synchronous_entry.h b/net/disk_cache/simple/simple_synchronous_entry.h
+index 3e2a227..828915f 100644
+--- a/net/disk_cache/simple/simple_synchronous_entry.h
++++ b/net/disk_cache/simple/simple_synchronous_entry.h
+@@ -231,7 +231,11 @@
+   // it again, but allowing operations to continue to be executed through that
+   // instance. The renamed file will be removed once the entry is closed.
+   // Returns a net error code.
+-  int Doom();
++  //
++  // `sparse_file_may_be_unchecked` should be set to true if there was problem
++  // during initialization, which may result in sparse file not being open
++  // despite existing.
++  int Doom(bool sparse_file_may_be_unchecked);
+ 
+   // Deletes an entry from the file system.  This variant should only be used
+   // if there is no actual open instance around, as it doesn't account for
+@@ -482,7 +486,8 @@
+                                         uint64_t entry_hash,
+                                         BackendFileOperations* file_operations);
+ 
+-  int DoomInternal(BackendFileOperations* file_operations);
++  int DoomInternal(BackendFileOperations* file_operations,
++                   bool sparse_file_may_be_unchecked = false);
+ 
+   base::FilePath GetFilenameFromFileIndex(int file_index) const;
+ 
 diff --git a/net/http/http_cache_transaction.cc b/net/http/http_cache_transaction.cc
 index 63696e4..2a1028c 100644
 --- a/net/http/http_cache_transaction.cc
@@ -4695,6 +4873,35 @@ index af58a03..83aa0a8 100644
      this.selectElement_.value = this.config_.selectedIndex;
    }
  
+diff --git a/third_party/blink/renderer/core/html/resources/capability_element.css b/third_party/blink/renderer/core/html/resources/capability_element.css
+index fe99687..83ab0c9 100644
+--- a/third_party/blink/renderer/core/html/resources/capability_element.css
++++ b/third_party/blink/renderer/core/html/resources/capability_element.css
+@@ -76,14 +76,16 @@
+   margin-inline-start: 0px !important;
+ }
+ 
+-permission[displaymode="icon-only" i]::-internal-permission-text, geolocation[displaymode="icon-only" i]::-internal-permission-text, camera[displaymode="icon-only" i]::-internal-permission-text, microphone[displaymode="icon-only" i]::-internal-permission-text {
+-  display: none !important;
+-}
++@supports blink-feature(CapabilityElementIconOnlyMode) {
++  permission[displaymode="icon-only" i]::-internal-permission-text, geolocation[displaymode="icon-only" i]::-internal-permission-text, camera[displaymode="icon-only" i]::-internal-permission-text, microphone[displaymode="icon-only" i]::-internal-permission-text {
++    display: none !important;
++  }
+ 
+-permission[displaymode="icon-only" i]::permission-icon, geolocation[displaymode="icon-only" i]::permission-icon, camera[displaymode="icon-only" i]::permission-icon, microphone[displaymode="icon-only" i]::permission-icon {
+-  margin-inline-end: 0px !important;
+-}
++  permission[displaymode="icon-only" i]::permission-icon, geolocation[displaymode="icon-only" i]::permission-icon, camera[displaymode="icon-only" i]::permission-icon, microphone[displaymode="icon-only" i]::permission-icon {
++    margin-inline-end: 0px !important;
++  }
+ 
+-permission[displaymode="icon-only" i], geolocation[displaymode="icon-only" i], camera[displaymode="icon-only" i], microphone[displaymode="icon-only" i] {
+-  padding: 8px;
++  permission[displaymode="icon-only" i], geolocation[displaymode="icon-only" i], camera[displaymode="icon-only" i], microphone[displaymode="icon-only" i] {
++    padding: 8px;
++  }
+ }
 diff --git a/third_party/blink/renderer/core/input/boundary_event_dispatcher.cc b/third_party/blink/renderer/core/input/boundary_event_dispatcher.cc
 index af2f952..4a9a651 100644
 --- a/third_party/blink/renderer/core/input/boundary_event_dispatcher.cc
@@ -6533,7 +6740,7 @@ index 0d49ea3..8d83473 100644
      }
      if (baseType->isVoid()) {
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index 9481dc1..61c3b48 100644
+index 9481dc1..51f418e 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -6541,10 +6748,146 @@ index 9481dc1..61c3b48 100644
  #define V8_MINOR_VERSION 7
  #define V8_BUILD_NUMBER 112
 -#define V8_PATCH_LEVEL 12
-+#define V8_PATCH_LEVEL 23
++#define V8_PATCH_LEVEL 25
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/ast/scopes.cc b/v8/src/ast/scopes.cc
+index ae94e82..8189c72 100644
+--- a/v8/src/ast/scopes.cc
++++ b/v8/src/ast/scopes.cc
+@@ -118,9 +118,11 @@
+   DCHECK(!is_script_scope());
+   SetDefaults();
+   set_language_mode(outer_scope->language_mode());
+-  set_private_name_lookup_skips_outer_class(
+-      outer_scope->is_class_scope() &&
+-      outer_scope->AsClassScope()->IsParsingHeritage());
++  if (outer_scope->is_class_scope() &&
++      outer_scope->AsClassScope()->IsParsingHeritage()) {
++    set_private_name_lookup_skips_outer_class(true);
++    outer_scope->GetClosureScope()->RecordNeedsPrivateNameContextChainRecalc();
++  }
+   outer_scope_->AddInnerScope(this);
+ }
+ 
+@@ -180,6 +182,9 @@
+       params_(4, zone) {
+   DCHECK(!is_script_scope());
+   SetDefaults();
++  if (V8_UNLIKELY(private_name_lookup_skips_outer_class())) {
++    RecordNeedsPrivateNameContextChainRecalc();
++  }
+ }
+ 
+ ModuleScope::ModuleScope(DeclarationScope* script_scope,
+@@ -305,18 +310,14 @@
+     DCHECK(IsClassConstructor(function_kind()));
+     set_class_scope_has_private_brand(true);
+   }
++  if (V8_UNLIKELY(private_name_lookup_skips_outer_class())) {
++    RecordNeedsPrivateNameContextChainRecalc();
++  }
+ }
+ 
+ Scope::Scope(Zone* zone, const AstRawString* catch_variable_name,
+              MaybeAssignedFlag maybe_assigned, Handle<ScopeInfo> scope_info)
+-    : outer_scope_(nullptr),
+-      variables_(zone),
+-      scope_info_(scope_info),
+-      scope_type_(CATCH_SCOPE) {
+-  SetDefaults();
+-#ifdef DEBUG
+-  already_resolved_ = true;
+-#endif
++    : Scope(zone, CATCH_SCOPE, nullptr, scope_info) {
+   // Cache the catch variable, even though it's also available via the
+   // scope_info, as the parser expects that a catch scope always has the catch
+   // variable as first and only variable.
+@@ -326,7 +327,6 @@
+               kCreatedInitialized, maybe_assigned, &was_added);
+   DCHECK(was_added);
+   AllocateHeapSlot(variable);
+-  set_is_hoisted_in_context(scope_info->is_hoisted_in_context());
+ }
+ 
+ void DeclarationScope::SetDefaults() {
+@@ -454,9 +454,14 @@
+       eval_scope->set_start_position(position);
+       eval_scope->set_end_position(position);
+       eval_scope->set_eval_position(position);
+-
+       if (current_scope != nullptr) {
++        eval_scope->set_private_name_lookup_skips_outer_class(
++            current_scope->private_name_lookup_skips_outer_class());
++        current_scope->set_private_name_lookup_skips_outer_class(false);
+         eval_scope->AddInnerScope(current_scope);
++      } else if (parse_info != nullptr) {
++        eval_scope->set_private_name_lookup_skips_outer_class(
++            parse_info->flags().private_name_lookup_skips_outer_class());
+       }
+       current_scope = eval_scope;
+       if (innermost_scope == nullptr) innermost_scope = current_scope;
+@@ -943,6 +948,7 @@
+       scope->outer_scope_ = outer_scope();
+       if (private_name_lookup_skips_outer_class()) {
+         scope->set_private_name_lookup_skips_outer_class(true);
++        scope->GetClosureScope()->RecordNeedsPrivateNameContextChainRecalc();
+       }
+       if (scope->is_function_scope()) {
+         scope->set_is_hoisted_in_context(false);
+@@ -1000,12 +1006,14 @@
+     for (; inner_scope->sibling() != top_inner_scope_;
+          inner_scope = inner_scope->sibling()) {
+       inner_scope->outer_scope_ = new_parent;
++      inner_scope->set_private_name_lookup_skips_outer_class(false);
+       if (inner_scope->inner_scope_calls_eval()) {
+         new_parent->set_inner_scope_calls_eval(true);
+       }
+       DCHECK_NE(inner_scope, new_parent);
+     }
+     inner_scope->outer_scope_ = new_parent;
++    inner_scope->set_private_name_lookup_skips_outer_class(false);
+     if (inner_scope->inner_scope_calls_eval()) {
+       new_parent->set_inner_scope_calls_eval(true);
+     }
+@@ -1476,7 +1484,12 @@
+   }
+ 
+   // Don't allocate variables of preparsed scopes.
+-  if (!was_lazily_parsed()) AllocateVariablesRecursively();
++  if (!was_lazily_parsed()) {
++    AllocateVariablesRecursively();
++    if (needs_private_name_context_chain_recalc()) {
++      RecalcPrivateNameContextChain();
++    }
++  }
+ 
+   return true;
+ }
+@@ -2954,10 +2967,6 @@
+     }
+   }
+ 
+-  if (scope->needs_private_name_context_chain_recalc()) {
+-    scope->RecalcPrivateNameContextChain();
+-  }
+-
+   Tagged<WeakFixedArray> infos = script->infos();
+   std::unordered_map<int, Handle<ScopeInfo>> scope_infos_to_reuse;
+   if (infos->ulength().value() != 0) {
+diff --git a/v8/src/ast/scopes.h b/v8/src/ast/scopes.h
+index fe27120..98fae69 100644
+--- a/v8/src/ast/scopes.h
++++ b/v8/src/ast/scopes.h
+@@ -1515,6 +1515,7 @@
+     GetDeclarationScope()->RecordDeclarationScopeEvalCall();
+   }
+   RecordInnerScopeEvalCall();
++  GetClosureScope()->RecordNeedsPrivateNameContextChainRecalc();
+   // The eval contents might access "super" (if it's inside a function that
+   // binds super).
+   DeclarationScope* receiver_scope = GetReceiverScope();
 diff --git a/v8/src/builtins/promise-any.tq b/v8/src/builtins/promise-any.tq
 index 427d31c..6f3d91f 100644
 --- a/v8/src/builtins/promise-any.tq
@@ -6645,6 +6988,43 @@ index 427d31c..6f3d91f 100644
    *ContextSlot(
        context,
        PromiseAnyRejectElementContextSlots::
+diff --git a/v8/src/codegen/compiler.cc b/v8/src/codegen/compiler.cc
+index 8c7a436..4c2fb30 100644
+--- a/v8/src/codegen/compiler.cc
++++ b/v8/src/codegen/compiler.cc
+@@ -3353,7 +3353,8 @@
+     DirectHandle<SharedFunctionInfo> outer_info, DirectHandle<Context> context,
+     LanguageMode language_mode, ParseRestriction restriction,
+     int parameters_end_pos, int eval_position,
+-    ParsingWhileDebugging parsing_while_debugging) {
++    ParsingWhileDebugging parsing_while_debugging,
++    bool private_name_lookup_skips_outer_class) {
+   // The cache lookup key needs to be aware of the separation between the
+   // parameters and the body to prevent this valid invocation:
+   //   Function("", "function anonymous(\n/**/) {\n}");
+@@ -3409,6 +3410,8 @@
+         v8_flags.lazy_eval);
+     flags.set_is_eval(true);
+     flags.set_parsing_while_debugging(parsing_while_debugging);
++    flags.set_private_name_lookup_skips_outer_class(
++        private_name_lookup_skips_outer_class);
+     DCHECK(!flags.is_module());
+     flags.set_parse_restriction(restriction);
+ 
+diff --git a/v8/src/codegen/compiler.h b/v8/src/codegen/compiler.h
+index 003b30a..38c342d 100644
+--- a/v8/src/codegen/compiler.h
++++ b/v8/src/codegen/compiler.h
+@@ -166,7 +166,8 @@
+                       ParseRestriction restriction, int parameters_end_pos,
+                       int eval_position,
+                       ParsingWhileDebugging parsing_while_debugging =
+-                          ParsingWhileDebugging::kNo);
++                          ParsingWhileDebugging::kNo,
++                      bool private_name_lookup_skips_outer_class = false);
+ 
+   // Create a function that results from wrapping |source| in a function,
+   // with |arguments| being a list of parameters for that function.
 diff --git a/v8/src/compiler/backend/code-generator.cc b/v8/src/compiler/backend/code-generator.cc
 index cc55103..cce8ced 100644
 --- a/v8/src/compiler/backend/code-generator.cc
@@ -6810,6 +7190,76 @@ index 51e8fd3..94f42f6 100644
    module->set_exception(roots.the_hole_value(), SKIP_WRITE_BARRIER);
    module->set_top_level_capability(roots.undefined_value(), SKIP_WRITE_BARRIER);
    module->set_import_meta(roots.the_hole_value(), kReleaseStore,
+diff --git a/v8/src/interpreter/bytecode-flags-and-tokens.h b/v8/src/interpreter/bytecode-flags-and-tokens.h
+index 0adacdc..d9956be 100644
+--- a/v8/src/interpreter/bytecode-flags-and-tokens.h
++++ b/v8/src/interpreter/bytecode-flags-and-tokens.h
+@@ -97,6 +97,23 @@
+   DISALLOW_IMPLICIT_CONSTRUCTORS(StoreLookupSlotFlags);
+ };
+ 
++class ResolveEvalFlags {
++ public:
++  using LanguageModeBit = base::BitField<LanguageMode, 0, 1>;
++  using PrivateNameLookupSkipsOuterClassBit = LanguageModeBit::Next<bool, 1>;
++  static_assert(LanguageModeSize <= LanguageModeBit::kNumValues);
++
++  static int Encode(LanguageMode language_mode,
++                    bool private_name_lookup_skips_outer_class) {
++    return LanguageModeBit::encode(language_mode) |
++           PrivateNameLookupSkipsOuterClassBit::encode(
++               private_name_lookup_skips_outer_class);
++  }
++
++ private:
++  DISALLOW_IMPLICIT_CONSTRUCTORS(ResolveEvalFlags);
++};
++
+ enum class TryFinallyContinuationToken: int {
+   // Fixed value tokens for paths we know we need.
+   // Fallthrough is set to -1 to make it the fallthrough case of the jump table,
+diff --git a/v8/src/interpreter/bytecode-generator.cc b/v8/src/interpreter/bytecode-generator.cc
+index 87c3091..29095e0 100644
+--- a/v8/src/interpreter/bytecode-generator.cc
++++ b/v8/src/interpreter/bytecode-generator.cc
+@@ -3693,7 +3693,10 @@
+     DCHECK_EQ(ClassBoilerplate::kFirstDynamicArgumentIndex,
+               args.register_count());
+ 
+-    VisitForAccumulatorValueOrTheHole(expr->extends());
++    {
++      ClassScope::HeritageParsingScope heritage(expr->scope());
++      VisitForAccumulatorValueOrTheHole(expr->extends());
++    }
+     builder()->StoreAccumulatorInRegister(super_class);
+ 
+     VisitFunctionLiteral(expr->constructor());
+@@ -7065,16 +7068,24 @@
+       builder()->MoveRegister(args[receiver_arg_count], runtime_call_args[1]);
+     }
+     Scope* scope_with_context = current_scope();
++    bool private_name_lookup_skips_outer_class = false;
+     if (!scope_with_context->NeedsContext()) {
++      private_name_lookup_skips_outer_class =
++          scope_with_context->private_name_lookup_skips_outer_class();
+       scope_with_context = scope_with_context->GetOuterScopeWithContext();
++    } else if (scope_with_context->is_class_scope()) {
++      private_name_lookup_skips_outer_class =
++          scope_with_context->AsClassScope()->IsParsingHeritage();
+     }
+     if (scope_with_context) {
+       eval_calls_.emplace_back(expr, scope_with_context);
+     }
++    int eval_flags = ResolveEvalFlags::Encode(
++        language_mode(), private_name_lookup_skips_outer_class);
+     builder()
+         ->MoveRegister(callee, runtime_call_args[0])
+         .MoveRegister(Register::function_closure(), runtime_call_args[2])
+-        .LoadLiteral(Smi::FromEnum(language_mode()))
++        .LoadLiteral(Smi::FromInt(eval_flags))
+         .StoreAccumulatorInRegister(runtime_call_args[3])
+         .LoadLiteral(Smi::FromInt(expr->eval_scope_info_index()))
+         .StoreAccumulatorInRegister(runtime_call_args[4])
 diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
 index e62bf0d..2e28fd7 100644
 --- a/v8/src/maglev/maglev-graph-builder.cc
@@ -7404,6 +7854,94 @@ index 0c50a51..8a9cb6c 100644
      return;
    }
  
+diff --git a/v8/src/parsing/parser.cc b/v8/src/parsing/parser.cc
+index 1aeb61f..583b716 100644
+--- a/v8/src/parsing/parser.cc
++++ b/v8/src/parsing/parser.cc
+@@ -745,12 +745,20 @@
+   }
+ 
+   scanner_.Initialize();
++  std::optional<ClassScope::HeritageParsingScope> heritage;
++  if (V8_UNLIKELY(flags().private_name_lookup_skips_outer_class() &&
++                  original_scope_->is_class_scope())) {
++    heritage.emplace(original_scope_->AsClassScope());
++  }
+   FunctionLiteral* result =
+       DoParseProgram(isolate, info, script->eval_from_position());
+   if (flags().allow_heap_allocation()) {
+     HandleDebugMagicComments(isolate, script);
+   }
+   if (result == nullptr) return;
++  if (V8_UNLIKELY(flags().private_name_lookup_skips_outer_class())) {
++    result->scope()->RecordNeedsPrivateNameContextChainRecalc();
++  }
+   result->scope()->set_is_hoisted_in_context(
+       info->flags().is_hoisted_in_context());
+   if (flags().allow_heap_allocation()) {
+@@ -1258,6 +1266,9 @@
+     }
+ 
+     if (has_error()) return nullptr;
++    if (V8_UNLIKELY(flags().private_name_lookup_skips_outer_class())) {
++      result->scope()->RecordNeedsPrivateNameContextChainRecalc();
++    }
+     result->set_requires_instance_members_initializer(
+         flags().requires_instance_members_initializer());
+     result->set_class_scope_has_private_brand(
+diff --git a/v8/src/runtime/runtime-compiler.cc b/v8/src/runtime/runtime-compiler.cc
+index c6c600b..7edba82 100644
+--- a/v8/src/runtime/runtime-compiler.cc
++++ b/v8/src/runtime/runtime-compiler.cc
+@@ -13,6 +13,7 @@
+ #include "src/execution/arguments-inl.h"
+ #include "src/execution/frames-inl.h"
+ #include "src/execution/isolate-inl.h"
++#include "src/interpreter/bytecode-flags-and-tokens.h"
+ #include "src/objects/abstract-code-inl.h"
+ #include "src/objects/js-array-buffer-inl.h"
+ #include "src/objects/objects-inl.h"
+@@ -835,7 +836,8 @@
+ static Tagged<Object> CompileGlobalEval(
+     Isolate* isolate, Handle<i::Object> source_object,
+     DirectHandle<SharedFunctionInfo> outer_info, LanguageMode language_mode,
+-    int eval_scope_info_index, int eval_position) {
++    int eval_scope_info_index, int eval_position,
++    bool private_name_lookup_skips_outer_class) {
+   DirectHandle<NativeContext> native_context = isolate->native_context();
+ 
+   // Check if native context allows code generation from
+@@ -874,7 +876,8 @@
+       isolate, compiled,
+       Compiler::GetFunctionFromEval(
+           isolate, source.ToHandleChecked(), outer_info, context, language_mode,
+-          restriction, kNoSourcePosition, eval_position),
++          restriction, kNoSourcePosition, eval_position,
++          ParsingWhileDebugging::kNo, private_name_lookup_skips_outer_class),
+       ReadOnlyRoots(isolate).exception());
+   return *compiled;
+ }
+@@ -891,13 +894,17 @@
+     return *callee;
+   }
+ 
+-  DCHECK(is_valid_language_mode(args.smi_value_at(3)));
+-  LanguageMode language_mode = static_cast<LanguageMode>(args.smi_value_at(3));
++  int eval_flags = args.smi_value_at(3);
++  LanguageMode language_mode =
++      interpreter::ResolveEvalFlags::LanguageModeBit::decode(eval_flags);
++  bool private_name_lookup_skips_outer_class = interpreter::ResolveEvalFlags::
++      PrivateNameLookupSkipsOuterClassBit::decode(eval_flags);
+   DirectHandle<SharedFunctionInfo> outer_info(args.at<JSFunction>(2)->shared(),
+                                               isolate);
+   return CompileGlobalEval(isolate, args.at<Object>(1), outer_info,
+                            language_mode, args.smi_value_at(4),
+-                           args.smi_value_at(5));
++                           args.smi_value_at(5),
++                           private_name_lookup_skips_outer_class);
+ }
+ 
+ #ifdef V8_ENABLE_SPARKPLUG_PLUS
 diff --git a/v8/src/runtime/runtime-forin.cc b/v8/src/runtime/runtime-forin.cc
 index 7fa6bbe..2ab60ba 100644
 --- a/v8/src/runtime/runtime-forin.cc
@@ -7624,6 +8162,109 @@ index a9101df..7db05dd 100644
      base::MutexGuard guard(&mutex_);
      auto it = per_isolate_data_.find(isolate);
      return it != per_isolate_data_.end() &&
+diff --git a/third_party/angle/src/libANGLE/ErrorStrings.h b/third_party/angle/src/libANGLE/ErrorStrings.h
+index 48c91ed..34b6ef7 100644
+--- a/third_party/angle/src/libANGLE/ErrorStrings.h
++++ b/third_party/angle/src/libANGLE/ErrorStrings.h
+@@ -207,6 +207,7 @@
+ inline constexpr const char *kFramebufferIncompleteMultiviewViewsMismatch = "Framebuffer is incomplete: Attachments have inconsistent multiview view counts.";
+ inline constexpr const char *kFramebufferIncompleteSurfaceless = "Framebuffer is incomplete: Framebuffer is surfaceless.";
+ inline constexpr const char *kFramebufferIncompleteUnsupportedMissmatchedDimensions = "Framebuffer is incomplete: Mismatched attachment sizes are unsupported.";
++inline constexpr const char *kFramebufferIncompleteUnsupportedMixed3DAndNon3DAttachments = "Framebuffer is incomplete: Mixing 3D and non-3D attachments is unsupported.";
+ inline constexpr const char *kFramebufferIncompleteUnsupportedNonUniqueAttachments = "Framebuffer is incomplete: Non-unique attachments are unsupported.";
+ inline constexpr const char *kFramebufferIncompleteUnsupportedSeparateDepthStencilBuffers = "Framebuffer is incomplete: Separate depth and stencil buffers are unsupported.";
+ inline constexpr const char *kFramebufferIncompleteUnsupportedSeparateDepthStencilBuffersCombinedFormat = "Framebuffer is incomplete: Combined depth/stencil formats cannot be used with separate depth and stencil buffers.";
+diff --git a/third_party/angle/src/libANGLE/Framebuffer.cpp b/third_party/angle/src/libANGLE/Framebuffer.cpp
+index 6233d1c..a473488 100644
+--- a/third_party/angle/src/libANGLE/Framebuffer.cpp
++++ b/third_party/angle/src/libANGLE/Framebuffer.cpp
+@@ -669,6 +669,39 @@
+             {
+                 return false;
+             }
++
++            // Also check if two attachments on the same texture and mip level have overlapping
++            // layer ranges. For example, glFramebufferTextureMultiviewOVR can attach a range of
++            // layers [baseViewIndex, baseViewIndex + numViews) from a 2D array texture. Even if
++            // two attachments have different baseViewIndex values (so firstAttachment !=
++            // secondAttachment), their layer ranges can still overlap (e.g. layers [0, 2) and
++            // [1, 3) both include layer 1).
++            if (firstAttachment.type() == GL_TEXTURE && secondAttachment.type() == GL_TEXTURE &&
++                firstAttachment.getResource() == secondAttachment.getResource())
++            {
++                const ImageIndex &firstIndex  = firstAttachment.getTextureImageIndex();
++                const ImageIndex &secondIndex = secondAttachment.getTextureImageIndex();
++                if (firstIndex.getLevelIndex() == secondIndex.getLevelIndex())
++                {
++                    // If either attachment covers the entire mip level rather than specific
++                    // layer(s), they must overlap.
++                    if (!firstIndex.hasLayer() || !secondIndex.hasLayer())
++                    {
++                        return false;
++                    }
++
++                    // Check whether the half-open layer intervals [firstStart, firstEnd) and
++                    // [secondStart, secondEnd) overlap.
++                    const GLint firstStart  = firstIndex.getLayerIndex();
++                    const GLint firstEnd    = firstStart + firstIndex.getLayerCount();
++                    const GLint secondStart = secondIndex.getLayerIndex();
++                    const GLint secondEnd   = secondStart + secondIndex.getLayerCount();
++                    if (firstStart < secondEnd && secondStart < firstEnd)
++                    {
++                        return false;
++                    }
++                }
++            }
+         }
+     }
+ 
+diff --git a/third_party/angle/src/libANGLE/renderer/d3d/FramebufferD3D.cpp b/third_party/angle/src/libANGLE/renderer/d3d/FramebufferD3D.cpp
+index 204b3a7..7656e19 100644
+--- a/third_party/angle/src/libANGLE/renderer/d3d/FramebufferD3D.cpp
++++ b/third_party/angle/src/libANGLE/renderer/d3d/FramebufferD3D.cpp
+@@ -284,6 +284,42 @@
+             gl::err::kFramebufferIncompleteUnsupportedMissmatchedDimensions);
+     }
+ 
++    // D3D11's OMSetRenderTargets requires all bound RenderTargetViews and the DepthStencilView to
++    // have matching resource dimensions; otherwise the call fails and leaves the previously bound
++    // targets active on the device context. 3D texture color attachments use
++    // D3D11_RTV_DIMENSION_TEXTURE3D, so they cannot be mixed with non-3D color attachments (such
++    // as 2D textures, 2D array textures, cube maps, or renderbuffers).
++    bool has3DAttachment    = false;
++    bool hasNon3DAttachment = false;
++    for (const gl::FramebufferAttachment &attachment : mState.getColorAttachments())
++    {
++        if (attachment.isAttached())
++        {
++            if (attachment.type() == GL_TEXTURE &&
++                attachment.getTextureImageIndex().getType() == gl::TextureType::_3D)
++            {
++                has3DAttachment = true;
++            }
++            else
++            {
++                hasNon3DAttachment = true;
++            }
++        }
++    }
++    // D3D11 does not support 3D depth/stencil views (D3D11_DSV_DIMENSION_TEXTURE3D does not
++    // exist), so any depth or stencil attachment is always non-3D and cannot be bound alongside a
++    // 3D texture color attachment in OMSetRenderTargets.
++    if (mState.getDepthAttachment() != nullptr || mState.getStencilAttachment() != nullptr)
++    {
++        hasNon3DAttachment = true;
++    }
++    if (has3DAttachment && hasNon3DAttachment)
++    {
++        return gl::FramebufferStatus::Incomplete(
++            GL_FRAMEBUFFER_UNSUPPORTED,
++            gl::err::kFramebufferIncompleteUnsupportedMixed3DAndNon3DAttachments);
++    }
++
+     return gl::FramebufferStatus::Complete();
+ }
+ 
 diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/VertexArrayVk.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/VertexArrayVk.cpp
 index 1a238eb..87f627b 100644
 --- a/third_party/angle/src/libANGLE/renderer/vulkan/VertexArrayVk.cpp
@@ -7647,7 +8288,7 @@ diff --git a/build/util/LASTCHANGE b/build/util/LASTCHANGE
 +++ b/build/util/LASTCHANGE
 @@ -1,2 +1,2 @@
 -LASTCHANGE=638dd0ef2fd334b657efb909d06d0164ea4d9443-refs/branch-heads/8103@{#943}
-+LASTCHANGE=91eedbc98a63dbe843bc2b0431f46f5c3b85f4c0-refs/branch-heads/8103@{#1042}
++LASTCHANGE=f37af91d818ffa034fc2d8f1028dd190dab034ed-refs/branch-heads/8103@{#1090}
  LASTCHANGE_YEAR=2026
 diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 --- a/build/util/LASTCHANGE.committime
@@ -7655,7 +8296,7 @@ diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 @@ -1 +1 @@
 -1793133444
 \ No newline at end of file
-+1793667663
++1793722449
 \ No newline at end of file
 diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
 --- a/gpu/config/gpu_lists_version.h
@@ -7665,7 +8306,7 @@ diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
  #define GPU_CONFIG_GPU_LISTS_VERSION_H_
  
 -#define GPU_LISTS_VERSION "638dd0ef2fd334b657efb909d06d0164ea4d9443"
-+#define GPU_LISTS_VERSION "91eedbc98a63dbe843bc2b0431f46f5c3b85f4c0"
++#define GPU_LISTS_VERSION "f37af91d818ffa034fc2d8f1028dd190dab034ed"
  
  #endif  // GPU_CONFIG_GPU_LISTS_VERSION_H_
 diff --git a/skia/ext/skia_commit_hash.h b/skia/ext/skia_commit_hash.h

@@ -1,0 +1,309 @@
+Skia: "Fix integer overflow and oversized glyph rasterization in SDF
+generation" (crbugs 581211720 and b/576664769, not public; no CVE listed
+yet): a font with an oversized glyph could overflow the distance field
+buffer size computation (SkComputeDistanceFieldSize, SkDistanceFieldGen),
+and the remote glyph cache rasterized glyphs larger than the atlas. Skia
+main commit 3d70807b9548ec53b4d201afc3094fdfc73af572, merged on 2026-11-03
+to Skia's chrome/m157 branch (8bc8a8fb495665040f771a3477a0a875b9e80b43; not
+yet rolled into the 157 branch) and proposed for chrome/m156. This is that
+merge, at third_party/skia/, without its tests. Drop it once a 157 tag's
+Skia has it.
+
+diff --git a/third_party/skia/src/core/SkDistanceFieldGen.cpp b/third_party/skia/src/core/SkDistanceFieldGen.cpp
+index e3af384..0dcb556 100644
+--- a/third_party/skia/src/core/SkDistanceFieldGen.cpp
++++ b/third_party/skia/src/core/SkDistanceFieldGen.cpp
+@@ -10,11 +10,13 @@
+ #include "include/core/SkPoint.h"
+ #include "include/core/SkScalar.h"
+ #include "include/private/SkMalloc.h"
++#include "include/private/SkTFitsIn.h"
+ #include "include/private/SkTPin.h"
+ #include "include/private/SkTemplates.h"
+ #include "src/core/SkAutoMalloc.h"
+ #include "src/core/SkMask.h"
+ #include "src/core/SkPointPriv.h"
++#include "src/core/SkSafeMath.h"
+ 
+ #include <cstdint>
+ #include <cstring>
+@@ -349,13 +351,75 @@
+ }
+ #endif
+ 
++// Owns all temporary storage for one distance field generation:
++// the DFData working grid, its edge flags, and the padded 8-bit source copy
++class DFScratch {
++public:
++    static size_t ComputeTotalSize(int w, int h, size_t* gridCountOut = nullptr) {
++        if (w <= 0 || h <= 0) {
++            return 0;
++        }
++        constexpr int kPad = SK_DistanceFieldPad + 1;
++        SkSafeMath safe;
++        const size_t gridCount = safe.mul(safe.addInt(w, 2 * kPad), safe.addInt(h, 2 * kPad));
++        const size_t copyCount = safe.mul(safe.addInt(w, 2), safe.addInt(h, 2));
++        const size_t dataBytes = safe.mul(gridCount, sizeof(DFData));
++        const size_t total = safe.add(safe.add(dataBytes, gridCount), copyCount);
++        // The transform uses int pointer offsets over the padded grid
++        if (!safe || !SkTFitsIn<int>(total)) {
++            return 0;
++        }
++        if (gridCountOut) {
++            *gridCountOut = gridCount;
++        }
++        return total;
++    }
++
++    DFScratch(int w, int h) {
++        size_t gridCount = 0;
++        const size_t total = ComputeTotalSize(w, h, &gridCount);
++        if (total == 0) {
++            return;
++        }
++        fStorage.reset(sk_calloc_canfail(total));
++        if (!fStorage) {
++            return;
++        }
++        fData = static_cast<DFData*>(fStorage.get());
++        fEdge = reinterpret_cast<unsigned char*>(fData + gridCount);
++        fCopy = fEdge + gridCount;
++    }
++
++    explicit operator bool() const { return fStorage != nullptr; }
++
++    DFData* data() const { return fData; }
++    unsigned char* edge() const { return fEdge; }
++    unsigned char* copy() const { return fCopy; }
++
++private:
++    UniqueVoidPtr fStorage;
++    DFData* fData = nullptr;
++    unsigned char* fEdge = nullptr;
++    unsigned char* fCopy = nullptr;
++};
++
++size_t SkComputeDistanceFieldSize(int w, int h) {
++    // Reject dimensions whose distance field or DFScratch buffer cannot be allocated
++    if (DFScratch::ComputeTotalSize(w, h) == 0) {
++        return 0;
++    }
++    return static_cast<size_t>(w + 2 * SK_DistanceFieldPad) *
++           static_cast<size_t>(h + 2 * SK_DistanceFieldPad);
++}
++
+ // assumes a padded 8-bit image and distance field
+ // width and height are the original width and height of the image
+ static bool generate_distance_field_from_image(unsigned char* distanceField,
+-                                               const unsigned char* copyPtr,
+-                                               int width, int height) {
++                                               const DFScratch& scratch,
++                                               int width,
++                                               int height) {
+     SkASSERT(distanceField);
+-    SkASSERT(copyPtr);
++    SkASSERT(scratch);
+ 
+     // we expand our temp data by one more on each side to simplify
+     // the scanning code -- will always be treated as infinitely far away
+@@ -365,15 +429,18 @@
+     int dataWidth = width + 2*pad;
+     int dataHeight = height + 2*pad;
+ 
+-    // create zeroed temp DFData+edge storage
+-    UniqueVoidPtr storage(sk_calloc_throw(dataWidth*dataHeight*(sizeof(DFData) + 1)));
+-    DFData*        dataPtr = (DFData*)storage.get();
+-    unsigned char* edgePtr = (unsigned char*)storage.get() + dataWidth*dataHeight*sizeof(DFData);
++    DFData* dataPtr = scratch.data();
++    unsigned char* edgePtr = scratch.edge();
+ 
+     // copy glyph into distance field storage
+-    init_glyph_data(dataPtr, edgePtr, copyPtr,
+-                    dataWidth, dataHeight,
+-                    width+2, height+2, SK_DistanceFieldPad);
++    init_glyph_data(dataPtr,
++                    edgePtr,
++                    scratch.copy(),
++                    dataWidth,
++                    dataHeight,
++                    width + 2,
++                    height + 2,
++                    SK_DistanceFieldPad);
+ 
+     // create initial distance data, particularly at edges
+     init_distances(dataPtr, edgePtr, dataWidth, dataHeight);
+@@ -482,9 +549,11 @@
+     SkASSERT(distanceField);
+     SkASSERT(image);
+ 
+-    // create temp data
+-    SkAutoSMalloc<1024> copyStorage((width+2)*(height+2)*sizeof(char));
+-    unsigned char* copyPtr = (unsigned char*) copyStorage.get();
++    DFScratch scratch(width, height);
++    if (!scratch) {
++        return false;
++    }
++    unsigned char* copyPtr = scratch.copy();
+ 
+     // we copy our source image into a padded copy to ensure we catch edge transitions
+     // around the outside
+@@ -500,7 +569,7 @@
+     }
+     sk_bzero(currDestPtr, (width+2)*sizeof(char));
+ 
+-    return generate_distance_field_from_image(distanceField, copyPtr, width, height);
++    return generate_distance_field_from_image(distanceField, scratch, width, height);
+ }
+ 
+ // assumes a 16-bit lcd mask and 8-bit distance field
+@@ -510,9 +579,11 @@
+     SkASSERT(distanceField);
+     SkASSERT(image);
+ 
+-    // create temp data
+-    SkAutoSMalloc<1024> copyStorage((w+2)*(h+2)*sizeof(char));
+-    unsigned char* copyPtr = (unsigned char*) copyStorage.get();
++    DFScratch scratch(w, h);
++    if (!scratch) {
++        return false;
++    }
++    unsigned char* copyPtr = scratch.copy();
+ 
+     // we copy our source image into a padded copy to ensure we catch edge transitions
+     // around the outside
+@@ -530,7 +601,7 @@
+     }
+     sk_bzero(currDestPtr, (w+2)*sizeof(char));
+ 
+-    return generate_distance_field_from_image(distanceField, copyPtr, w, h);
++    return generate_distance_field_from_image(distanceField, scratch, w, h);
+ }
+ 
+ // assumes a 1-bit image and 8-bit distance field
+@@ -540,9 +611,11 @@
+     SkASSERT(distanceField);
+     SkASSERT(image);
+ 
+-    // create temp data
+-    SkAutoSMalloc<1024> copyStorage((width+2)*(height+2)*sizeof(char));
+-    unsigned char* copyPtr = (unsigned char*) copyStorage.get();
++    DFScratch scratch(width, height);
++    if (!scratch) {
++        return false;
++    }
++    unsigned char* copyPtr = scratch.copy();
+ 
+     // we copy our source image into a padded copy to ensure we catch edge transitions
+     // around the outside
+@@ -566,7 +639,7 @@
+     }
+     sk_bzero(currDestPtr, (width+2)*sizeof(char));
+ 
+-    return generate_distance_field_from_image(distanceField, copyPtr, width, height);
++    return generate_distance_field_from_image(distanceField, scratch, width, height);
+ }
+ 
+ #endif // !defined(SK_DISABLE_SDF_TEXT)
+diff --git a/third_party/skia/src/core/SkDistanceFieldGen.h b/third_party/skia/src/core/SkDistanceFieldGen.h
+index 8374dbe..bbb72e1 100644
+--- a/third_party/skia/src/core/SkDistanceFieldGen.h
++++ b/third_party/skia/src/core/SkDistanceFieldGen.h
+@@ -72,9 +72,7 @@
+  *  @param w                 Width of the original image.
+  *  @param h                 Height of the original image.
+  */
+-inline size_t SkComputeDistanceFieldSize(int w, int h) {
+-    return (w + 2*SK_DistanceFieldPad) * (h + 2*SK_DistanceFieldPad) * sizeof(unsigned char);
+-}
++size_t SkComputeDistanceFieldSize(int w, int h);
+ 
+ #endif // !defined(SK_DISABLE_SDF_TEXT)
+ 
+diff --git a/third_party/skia/src/core/SkGlyph.cpp b/third_party/skia/src/core/SkGlyph.cpp
+index 0ed78b3..01cd083 100644
+--- a/third_party/skia/src/core/SkGlyph.cpp
++++ b/third_party/skia/src/core/SkGlyph.cpp
+@@ -351,10 +351,9 @@
+ }
+ 
+ void SkGlyph::flattenImage(SkWriteBuffer& buffer) const {
+-    SkASSERT(this->setImageHasBeenCalled());
+-
+-    // If the glyph is empty or too big, then no image data is sent.
++    // If the glyph is empty or too big, then no image data is sent
+     if (!this->isEmpty() && SkGlyphDigest::FitsInAtlas(*this)) {
++        SkASSERT(this->setImageHasBeenCalled());
+         buffer.writeByteArray(this->image(), this->imageSize());
+     }
+ }
+diff --git a/third_party/skia/src/text/gpu/SDFMaskFilter.cpp b/third_party/skia/src/text/gpu/SDFMaskFilter.cpp
+index 0870d36..467132c 100644
+--- a/third_party/skia/src/text/gpu/SDFMaskFilter.cpp
++++ b/third_party/skia/src/text/gpu/SDFMaskFilter.cpp
+@@ -53,6 +53,12 @@
+         && src.fFormat != SkMask::kLCD16_Format) {
+         return false;
+     }
++    // Reject dimensions whose distance field or scratch storage cannot be allocated
++    if (SkComputeDistanceFieldSize(src.fBounds.width(), src.fBounds.height()) == 0) {
++        dst->image() = nullptr;
++        dst->bounds().setEmpty();
++        return false;
++    }
+ 
+     *dst = SkMaskBuilder::PrepareDestination(SK_DistanceFieldPad, SK_DistanceFieldPad, src);
+     dst->format() = SkMask::kSDF_Format;
+@@ -69,19 +75,26 @@
+         return false;
+     }
+ 
++    bool success = false;
+     if (src.fFormat == SkMask::kA8_Format) {
+-        return SkGenerateDistanceFieldFromA8Image(dst->image(), src.fImage,
+-                                                  src.fBounds.width(), src.fBounds.height(),
+-                                                  src.fRowBytes);
++        success = SkGenerateDistanceFieldFromA8Image(
++                dst->image(), src.fImage, src.fBounds.width(), src.fBounds.height(), src.fRowBytes);
+     } else if (src.fFormat == SkMask::kLCD16_Format) {
+-        return SkGenerateDistanceFieldFromLCD16Mask(dst->image(), src.fImage,
+-                                                     src.fBounds.width(), src.fBounds.height(),
+-                                                     src.fRowBytes);
++        success = SkGenerateDistanceFieldFromLCD16Mask(
++                dst->image(), src.fImage, src.fBounds.width(), src.fBounds.height(), src.fRowBytes);
+     } else {
+-        return SkGenerateDistanceFieldFromBWImage(dst->image(), src.fImage,
+-                                                  src.fBounds.width(), src.fBounds.height(),
+-                                                  src.fRowBytes);
++        success = SkGenerateDistanceFieldFromBWImage(
++                dst->image(), src.fImage, src.fBounds.width(), src.fBounds.height(), src.fRowBytes);
+     }
++
++    // Release the destination buffer when distance field generation fails
++    if (!success) {
++        SkMaskBuilder::FreeImage(dst->image());
++        dst->image() = nullptr;
++        dst->bounds().setEmpty();
++        return false;
++    }
++    return true;
+ }
+ 
+ void SDFMaskFilterImpl::computeFastBounds(const SkRect& src,
+diff --git a/third_party/skia/src/text/gpu/SkChromeRemoteGlyphCache.cpp b/third_party/skia/src/text/gpu/SkChromeRemoteGlyphCache.cpp
+index b9995e5..31f2a46 100644
+--- a/third_party/skia/src/text/gpu/SkChromeRemoteGlyphCache.cpp
++++ b/third_party/skia/src/text/gpu/SkChromeRemoteGlyphCache.cpp
+@@ -185,9 +185,11 @@
+         fHaveSentFontMetrics = true;
+     }
+ 
+-    // Make sure to install all the mask data into the glyphs before sending.
++    // Oversized glyphs are rejected by the atlas and sent as metrics-only
+     for (SkGlyph& glyph: fMasksToSend) {
+-        this->prepareForImage(&glyph);
++        if (SkGlyphDigest::FitsInAtlas(glyph)) {
++            this->prepareForImage(&glyph);
++        }
+     }
+ 
+     // Make sure to install all the path data into the glyphs before sending.
