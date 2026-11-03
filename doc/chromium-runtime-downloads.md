@@ -13,7 +13,7 @@ an interpreter that is compiled into Chromium*; custom ops are compiled in, not
 downloaded. They are treated as **data** here (with that nuance noted), as are lists,
 protobuf configs and dictionaries.
 
-Deliverable patch: `www-client/chromium/files/chromium-156-no-runtime-executable-downloads.patch`
+Deliverable patch: `www-client/chromium/files/chromium-157-no-runtime-executable-downloads.patch`
 (applies cleanly to the pristine tree: `git apply --check` and `patch -p1 --dry-run` both OK).
 
 ---
@@ -99,7 +99,7 @@ SODA (`chrome/services/speech/soda`), Screen AI (`services/screen_ai`) and Trans
 
 ## 2. What the patch does
 
-`www-client/chromium/files/chromium-156-no-runtime-executable-downloads.patch` – 12 files, ~140 changed lines,
+`www-client/chromium/files/chromium-157-no-runtime-executable-downloads.patch` – 12 files, ~140 changed lines,
 plain `git diff` with `a/` `b/` prefixes, free-text header on top (works with `eapply`/`git apply`/`patch -p1`).
 
 Design choices:
@@ -169,7 +169,7 @@ not runtime-tested (needs the proprietary CDM).
 
 ## 4. Recommended ebuild changes (written before implementation; 1–2 are done)
 
-1. Add `"${FILESDIR}/chromium-156-no-runtime-executable-downloads.patch"` to `PATCHES`. Unconditional (hard rule).
+1. Add `"${FILESDIR}/chromium-157-no-runtime-executable-downloads.patch"` to `PATCHES`. Unconditional (hard rule).
 2. No new GN args are required for the hard rule. Explicitly **not** recommended: `enable_on_device_translation=false`
    (not buildable on Linux without extra patches, see table row 29) and `enable_screen_ai_service=false`
    (doesn't build as is, row 27).
