@@ -37,7 +37,8 @@ masked) keeps the previous set and its packages.
 ## Notable ebuild changes vs. 151
 
 - **Gentoo patchset:** forked from `chromium-patches` tag 152 into
-  `files/chromium-patches-156/`.
+  `files/chromium-patches-156/` (now `files/chromium-patches-157/` and `-158/`; 156 was dropped on
+  2026-11-03).
   - Refreshed `cr152-compiler` and `cr152-fix-rust-2-oxidize-harder`; `cr151-dawn-system-go` only needed
     its context updated.
   - Dropped `cr131-unbundle-icu-target` (upstreamed; applying it with fuzz would have
@@ -54,7 +55,7 @@ masked) keeps the previous set and its packages.
   - Re-checks after system tools are linked in, and **dies** on anything left over. The
     only exception is our own `tsc` from `dev-lang/typescript`; nothing prebuilt
     is allowed.
-- **`chromium-156-no-runtime-executable-downloads.patch`:** Chromium never downloads or
+- **`chromium-157-no-runtime-executable-downloads.patch`** (first made for 156): Chromium never downloads or
   loads code via the component updater: Widevine CDM, Screen AI, SODA, TranslateKit, the
   WASM TTS engine, component-extension JavaScript, the Commerce Heuristics component (its
   archive carries a JavaScript file), and the remote DevTools front-end.
@@ -66,7 +67,7 @@ masked) keeps the previous set and its packages.
   - The Translator web API reports "unavailable" rather than hanging. The DevTools CSP no longer allows
     remote scripts.
   - Data components (CRLSet, filter lists, hints, …) are unaffected.
-- **`chromium-156-system-crubit.patch`:** lets Chromium's GN use a system Crubit with the
+- **`chromium-157-system-crubit.patch`** (first made for 156): lets Chromium's GN use a system Crubit with the
   prebuilt system Rust stdlib.
   - New args `rust_crubit_root` and `rust_crubit_clang_format`.
   - The stdlib's C++ bindings are generated from its `.rmeta` files.
@@ -79,7 +80,7 @@ masked) keeps the previous set and its packages.
   code still runs only after Skia's runtime CPU check, as upstream.
   - A `-mtune` in CFLAGS still applies to them. The new GN arg `avx512_tune_cpu` (default empty)
     tunes just these kernels for another CPU, e.g. `avx512_tune_cpu="znver4"` in `EXTRA_GN`.
-- **`chromium-156-v8-metagen-resource-dir.patch`** plus GN args: V8 metagen uses the
+- **`chromium-157-v8-metagen-resource-dir.patch`** (first made for 156) plus GN args: V8 metagen uses the
   system libclang instead of a prebuilt one.
 - **Unused npm packages are deleted** (`files/chromium-prune-node-modules.py`, keep list
   `files/chromium-156-node-modules.txt`): 144 of the tarball's 1329 packages (372 MiB, mostly
@@ -115,8 +116,8 @@ No USE flags were removed. New ones:
   - Vanadium's seccomp W^X restriction (0178, 0183) and the wasm-interpreter-without-JIT fix (0212).
   - `v8_enable_drumbrake=true`: V8's WebAssembly interpreter. 0212 only passes `--wasm-jitless`, which
     needs it; before, sites with JIT disabled had no WebAssembly at all (`WebAssembly is not defined`).
-    DrumBrake doesn't build in 156 as is: `chromium-156-hardened-v8-drumbrake-declares-locals.patch`
-    adds a method V8's debugger interface gained but the interpreter's scope iterator lacks.
+    DrumBrake didn't build in 156 as is: `chromium-156-hardened-v8-drumbrake-declares-locals.patch`
+    (dropped with 156) added a method V8's debugger interface gained but the interpreter's scope iterator lacks.
   - `-fstack-protector-strong`.
   - Zero-initialised stack variables, via GN's `init_stack_vars_zero`. Official builds already have this.
   - Page info bubble toggles for the JavaScript JIT and
@@ -133,8 +134,9 @@ No USE flags were removed. New ones:
   - With `USE=lto` and `USE=official`: CFI cast checks (`use_cfi_cast`), which upstream only uses on
     ChromeOS and Android.
 
-Also new, for 156: `chromium-156-disable-tos-dialog.patch` (from ungoogled-chromium) skips the
-built-in terms dialog Linux builds show on a new profile's first run (157 does the same upstream).
+Also new, for 156: `chromium-156-disable-tos-dialog.patch` (from ungoogled-chromium; dropped with 156)
+skipped the built-in terms dialog Linux builds show on a new profile's first run (157 does the same
+upstream).
 
 `chromium-156-crash-bubble-once.patch` fixes an upstream bug: after a crash and a restore from
 the "Restore pages?" bubble, a window opened later through the startup path (running `chromium`
