@@ -1,0 +1,41 @@
+"[CE] Gate icon-only styles properly behind its feature flag" (crbugs
+578840597 and 579812417, "IconOnly mode is not properly guarded by its
+flag"): the UA style sheet applied displaymode="icon-only" to the
+<geolocation>, <camera>, <microphone> and <permission> capability elements
+even though CapabilityElementIconOnlyMode is off, so any page could hide such
+a permission element's text and leave only its icon, while 157 ships the
+elements themselves. The icon-only rules are now inside
+@supports blink-feature(CapabilityElementIconOnlyMode). chromium/src main
+commit c850d0adde4d2a81b002ab0778b182c88aaeddfb, merged on 2026-11-03 to 157
+(e8097a685d75165e187b0086415439b07e7871a3, after the 157.0.8103.41 tag).
+This is the 157 merge, without its tests. Drop it once a 157 tag has it.
+
+diff --git a/third_party/blink/renderer/core/html/resources/capability_element.css b/third_party/blink/renderer/core/html/resources/capability_element.css
+index fe99687..83ab0c9 100644
+--- a/third_party/blink/renderer/core/html/resources/capability_element.css
++++ b/third_party/blink/renderer/core/html/resources/capability_element.css
+@@ -76,14 +76,16 @@
+   margin-inline-start: 0px !important;
+ }
+ 
+-permission[displaymode="icon-only" i]::-internal-permission-text, geolocation[displaymode="icon-only" i]::-internal-permission-text, camera[displaymode="icon-only" i]::-internal-permission-text, microphone[displaymode="icon-only" i]::-internal-permission-text {
+-  display: none !important;
+-}
++@supports blink-feature(CapabilityElementIconOnlyMode) {
++  permission[displaymode="icon-only" i]::-internal-permission-text, geolocation[displaymode="icon-only" i]::-internal-permission-text, camera[displaymode="icon-only" i]::-internal-permission-text, microphone[displaymode="icon-only" i]::-internal-permission-text {
++    display: none !important;
++  }
+ 
+-permission[displaymode="icon-only" i]::permission-icon, geolocation[displaymode="icon-only" i]::permission-icon, camera[displaymode="icon-only" i]::permission-icon, microphone[displaymode="icon-only" i]::permission-icon {
+-  margin-inline-end: 0px !important;
+-}
++  permission[displaymode="icon-only" i]::permission-icon, geolocation[displaymode="icon-only" i]::permission-icon, camera[displaymode="icon-only" i]::permission-icon, microphone[displaymode="icon-only" i]::permission-icon {
++    margin-inline-end: 0px !important;
++  }
+ 
+-permission[displaymode="icon-only" i], geolocation[displaymode="icon-only" i], camera[displaymode="icon-only" i], microphone[displaymode="icon-only" i] {
+-  padding: 8px;
++  permission[displaymode="icon-only" i], geolocation[displaymode="icon-only" i], camera[displaymode="icon-only" i], microphone[displaymode="icon-only" i] {
++    padding: 8px;
++  }
+ }
