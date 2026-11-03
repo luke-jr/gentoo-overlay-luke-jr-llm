@@ -181,6 +181,7 @@ CHROMIUM_FIXES=(
 	chromium-157-length-calc-value-gc.patch
 	chromium-157-gtk-file-dialog-accept.patch
 	chromium-157-pdf-thumbnail-unload.patch
+	chromium-157-skia-sdf-overflow.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
