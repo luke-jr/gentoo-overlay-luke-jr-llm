@@ -183,6 +183,7 @@ CHROMIUM_FIXES=(
 	chromium-157-capability-element-icon-only-flag.patch
 	chromium-157-v8-private-name-heritage.patch
 	chromium-157-v8-private-name-eval-skip-bit.patch
+	chromium-157-simplecache-key-collision-cleanup.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
