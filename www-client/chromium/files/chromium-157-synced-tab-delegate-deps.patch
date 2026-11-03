@@ -1,0 +1,555 @@
+"[Sync] Inject dependencies into TabContentsSyncedTabDelegate" (crbugs
+540709814, 575846136, not public; no CVE listed yet): a tab's sync delegate
+looked up its TaskTabHelper and SupervisedUserNavigationObserver through the
+tab, and they were torn down before it; closing a Sad Tab under a child
+account made the sync delegate call into the destroyed navigation observer
+(use after free). Both are now passed in, so they are created before the sync
+delegate and outlive it. chromium/src main commit
+92820d1f3177b96d29faf0212e6a9e437461230b, merged on 2026-11-02 to 157
+(635285924de96083135b5a7b9f6d82fd2100b3d3, after the 157.0.8103.41 tag). This
+is the 157 merge (Android files included), without its tests. Drop it once a
+157 tag has it.
+
+diff --git a/chrome/browser/android/tab_android.cc b/chrome/browser/android/tab_android.cc
+index f0fab106..b16f6a6 100644
+--- a/chrome/browser/android/tab_android.cc
++++ b/chrome/browser/android/tab_android.cc
+@@ -313,7 +313,11 @@
+     synced_tab_delegate_ =
+         std::make_unique<browser_sync::SyncedTabDelegateAndroid>(this);
+     if (web_contents_) {
+-      synced_tab_delegate_->SetWebContents(web_contents_.get());
++      synced_tab_delegate_->SetWebContents(
++          web_contents_.get(),
++          tab_features_ ? tab_features_->task_tab_helper() : nullptr,
++          tab_features_ ? tab_features_->supervised_user_navigation_observer()
++                        : nullptr);
+     }
+   }
+   return synced_tab_delegate_.get();
+@@ -471,7 +475,9 @@
+       ->SetPopulatorFactory(jcontext_menu_populator_factory);
+ 
+   if (synced_tab_delegate_) {
+-    synced_tab_delegate_->SetWebContents(web_contents_.get());
++    synced_tab_delegate_->SetWebContents(
++        web_contents_.get(), tab_features_->task_tab_helper(),
++        tab_features_->supervised_user_navigation_observer());
+   }
+ 
+   // Verify that the WebContents this tab represents matches the expected
+@@ -656,11 +662,11 @@
+   }
+ 
+   ResetTabAlertController();
+-  tab_features_.reset();
+-  web_contents_.reset();
+   if (synced_tab_delegate_) {
+     synced_tab_delegate_->ResetWebContents();
+   }
++  tab_features_.reset();
++  web_contents_.reset();
+   content_layer_.reset();
+ 
+   return tabs::TabDestroyStatus::FAST_SHUTDOWN;
+@@ -692,6 +698,9 @@
+   WillRemoveWebContentsFromTab(web_contents(), clear_delegate);
+ 
+   ResetTabAlertController();
++  if (synced_tab_delegate_) {
++    synced_tab_delegate_->ResetWebContents();
++  }
+   tab_features_.reset();
+   std::unique_ptr<content::WebContents> released_contents =
+       std::move(web_contents_);
+@@ -705,9 +714,6 @@
+     ClearSessionId();
+   }
+ 
+-  if (synced_tab_delegate_) {
+-    synced_tab_delegate_->ResetWebContents();
+-  }
+   content_layer_.reset();
+   return released_contents;
+ }
+diff --git a/chrome/browser/android/tab_features.cc b/chrome/browser/android/tab_features.cc
+index b0fdfe5..ac601ec 100644
+--- a/chrome/browser/android/tab_features.cc
++++ b/chrome/browser/android/tab_features.cc
+@@ -291,14 +291,6 @@
+   }
+   InitializePageLoadMetricsForWebContents(web_contents);
+ 
+-  sync_sessions_router_ =
+-      std::make_unique<sync_sessions::SyncSessionsRouterTabHelper>(
+-          web_contents,
+-          sync_sessions::SyncSessionsWebContentsRouterFactory::GetForProfile(
+-              profile),
+-          ChromeTranslateClient::FromWebContents(web_contents),
+-          favicon::ContentFaviconDriver::FromWebContents(web_contents));
+-
+   http_auth_cache_status_ = std::make_unique<HttpAuthCacheStatus>(web_contents);
+ 
+   security_state_event_observer_ =
+@@ -623,6 +615,14 @@
+             *tab, *tab, web_contents);
+   }
+ 
++  sync_sessions_router_ =
++      std::make_unique<sync_sessions::SyncSessionsRouterTabHelper>(
++          web_contents,
++          sync_sessions::SyncSessionsWebContentsRouterFactory::GetForProfile(
++              profile),
++          ChromeTranslateClient::FromWebContents(web_contents),
++          favicon::ContentFaviconDriver::FromWebContents(web_contents));
++
+   offline_page_tab_helper_ =
+       GetUserDataFactory().CreateInstance<offline_pages::OfflinePageTabHelper>(
+           *tab, *tab, web_contents);
+diff --git a/chrome/browser/android/tab_features.h b/chrome/browser/android/tab_features.h
+index 919c759..0b85cb1 100644
+--- a/chrome/browser/android/tab_features.h
++++ b/chrome/browser/android/tab_features.h
+@@ -212,6 +212,12 @@
+     return data_protection_tab_controller_.get();
+   }
+ 
++  tasks::TaskTabHelper* task_tab_helper() { return task_tab_helper_.get(); }
++
++  SupervisedUserNavigationObserver* supervised_user_navigation_observer() {
++    return supervised_user_navigation_observer_.get();
++  }
++
+ #if BUILDFLAG(ENABLE_WEBUI_NTP)
+   customize_chrome::SidePanelController*
+   customize_chrome_side_panel_controller() {
+@@ -245,8 +251,6 @@
+   std::unique_ptr<actor::ActorTabData> actor_tab_data_;
+   std::unique_ptr<actor::ActorSurfaceTabHelper> actor_surface_tab_helper_;
+ 
+-  std::unique_ptr<sync_sessions::SyncSessionsRouterTabHelper>
+-      sync_sessions_router_;
+   std::unique_ptr<ConnectionHelpTabHelper> connection_help_tab_helper_;
+   std::unique_ptr<HttpAuthCacheStatus> http_auth_cache_status_;
+   std::unique_ptr<SecurityStateEventObserver> security_state_event_observer_;
+@@ -330,6 +334,8 @@
+   std::unique_ptr<chrome_browser_net::NetErrorTabHelper> net_error_tab_helper_;
+   std::unique_ptr<SupervisedUserNavigationObserver>
+       supervised_user_navigation_observer_;
++  std::unique_ptr<sync_sessions::SyncSessionsRouterTabHelper>
++      sync_sessions_router_;
+   std::unique_ptr<offline_pages::OfflinePageTabHelper> offline_page_tab_helper_;
+   std::unique_ptr<offline_pages::RecentTabHelper> recent_tab_helper_;
+   std::unique_ptr<AutoPictureInPictureTabHelper>
+diff --git a/chrome/browser/sync/glue/synced_tab_delegate_android.cc b/chrome/browser/sync/glue/synced_tab_delegate_android.cc
+index 362a3252..6d633b0 100644
+--- a/chrome/browser/sync/glue/synced_tab_delegate_android.cc
++++ b/chrome/browser/sync/glue/synced_tab_delegate_android.cc
+@@ -96,12 +96,15 @@
+ }
+ 
+ void SyncedTabDelegateAndroid::SetWebContents(
+-    content::WebContents* web_contents) {
+-  TabContentsSyncedTabDelegate::SetWebContents(web_contents);
++    content::WebContents* web_contents,
++    tasks::TaskTabHelper* task_tab_helper,
++    SupervisedUserNavigationObserver* supervised_user_navigation_observer) {
++  TabContentsSyncedTabDelegate::SetWebContents(
++      web_contents, task_tab_helper, supervised_user_navigation_observer);
+ }
+ 
+ void SyncedTabDelegateAndroid::ResetWebContents() {
+-  TabContentsSyncedTabDelegate::SetWebContents(nullptr);
++  TabContentsSyncedTabDelegate::SetWebContents(nullptr, nullptr, nullptr);
+ }
+ 
+ SessionID SyncedTabDelegateAndroid::SessionIdFromAndroidId(int android_tab_id) {
+diff --git a/chrome/browser/sync/glue/synced_tab_delegate_android.h b/chrome/browser/sync/glue/synced_tab_delegate_android.h
+index 26ec29f4..c68bf3b1 100644
+--- a/chrome/browser/sync/glue/synced_tab_delegate_android.h
++++ b/chrome/browser/sync/glue/synced_tab_delegate_android.h
+@@ -13,8 +13,13 @@
+ class WebContents;
+ }
+ 
++class SupervisedUserNavigationObserver;
+ class TabAndroidDataProvider;
+ 
++namespace tasks {
++class TaskTabHelper;
++}
++
+ namespace browser_sync {
+ // On Android a tab can exist even without web contents.
+ 
+@@ -38,8 +43,11 @@
+   std::unique_ptr<SyncedTabDelegate> ReadPlaceholderTabSnapshotIfItShouldSync(
+       sync_sessions::SyncSessionsClient* sessions_client) override;
+ 
+-  // Set the web contents for this tab.
+-  void SetWebContents(content::WebContents* web_contents);
++  // Set the web contents and associated tab helpers for this tab.
++  void SetWebContents(
++      content::WebContents* web_contents,
++      tasks::TaskTabHelper* task_tab_helper,
++      SupervisedUserNavigationObserver* supervised_user_navigation_observer);
+ 
+   // Set web contents to null.
+   void ResetWebContents();
+diff --git a/chrome/browser/sync/glue/web_contents_state_synced_tab_delegate.cc b/chrome/browser/sync/glue/web_contents_state_synced_tab_delegate.cc
+index b1b680c..101bafb 100644
+--- a/chrome/browser/sync/glue/web_contents_state_synced_tab_delegate.cc
++++ b/chrome/browser/sync/glue/web_contents_state_synced_tab_delegate.cc
+@@ -24,7 +24,9 @@
+   if (web_contents_) {
+     web_contents_->SetOwnerLocationForDebug(FROM_HERE);
+   }
+-  TabContentsSyncedTabDelegate::SetWebContents(web_contents_.get());
++  TabContentsSyncedTabDelegate::SetWebContents(
++      web_contents_.get(), /*task_tab_helper=*/nullptr,
++      /*supervised_user_navigation_observer=*/nullptr);
+ }
+ 
+ WebContentsStateSyncedTabDelegate::~WebContentsStateSyncedTabDelegate() =
+diff --git a/chrome/browser/ui/sync/browser_synced_tab_delegate.cc b/chrome/browser/ui/sync/browser_synced_tab_delegate.cc
+index 5a5b92a..ac41d293 100644
+--- a/chrome/browser/ui/sync/browser_synced_tab_delegate.cc
++++ b/chrome/browser/ui/sync/browser_synced_tab_delegate.cc
+@@ -13,9 +13,12 @@
+ 
+ BrowserSyncedTabDelegate::BrowserSyncedTabDelegate(
+     tabs::TabInterface& tab,
+-    content::WebContents* web_contents)
++    content::WebContents* web_contents,
++    tasks::TaskTabHelper* task_tab_helper,
++    SupervisedUserNavigationObserver* supervised_user_navigation_observer)
+     : scoped_unowned_user_data_(tab.GetUnownedUserDataHost(), *this) {
+-  SetWebContents(web_contents);
++  SetWebContents(web_contents, task_tab_helper,
++                 supervised_user_navigation_observer);
+ }
+ 
+ // static
+diff --git a/chrome/browser/ui/sync/browser_synced_tab_delegate.h b/chrome/browser/ui/sync/browser_synced_tab_delegate.h
+index 5fa4a593..3fc8a4c5 100644
+--- a/chrome/browser/ui/sync/browser_synced_tab_delegate.h
++++ b/chrome/browser/ui/sync/browser_synced_tab_delegate.h
+@@ -13,6 +13,8 @@
+ class WebContents;
+ }
+ 
++class SupervisedUserNavigationObserver;
++
+ namespace sync_sessions {
+ class SyncedTabDelegate;
+ }
+@@ -21,6 +23,10 @@
+ class TabInterface;
+ }
+ 
++namespace tasks {
++class TaskTabHelper;
++}
++
+ // A BrowserSyncedTabDelegate is the desktop implementation for
+ // SyncedTabDelegate, which essentially reads session IDs from
+ // SessionTabHelper. It is owned by the tab's TabFeatures.
+@@ -31,8 +37,11 @@
+   // `web_contents` is passed explicitly because during a discard the helper
+   // is recreated for the incoming WebContents before `tab` swaps its
+   // contents.
+-  BrowserSyncedTabDelegate(tabs::TabInterface& tab,
+-                           content::WebContents* web_contents);
++  BrowserSyncedTabDelegate(
++      tabs::TabInterface& tab,
++      content::WebContents* web_contents,
++      tasks::TaskTabHelper* task_tab_helper,
++      SupervisedUserNavigationObserver* supervised_user_navigation_observer);
+ 
+   BrowserSyncedTabDelegate(const BrowserSyncedTabDelegate&) = delete;
+   BrowserSyncedTabDelegate& operator=(const BrowserSyncedTabDelegate&) = delete;
+diff --git a/chrome/browser/ui/sync/tab_contents_synced_tab_delegate.cc b/chrome/browser/ui/sync/tab_contents_synced_tab_delegate.cc
+index 747cfdb..a0de5ae 100644
+--- a/chrome/browser/ui/sync/tab_contents_synced_tab_delegate.cc
++++ b/chrome/browser/ui/sync/tab_contents_synced_tab_delegate.cc
+@@ -13,7 +13,6 @@
+ #include "components/sync_sessions/sync_sessions_client.h"
+ #include "components/sync_sessions/synced_window_delegate.h"
+ #include "components/sync_sessions/synced_window_delegates_getter.h"
+-#include "components/tabs/public/tab_interface.h"
+ #include "content/public/browser/favicon_status.h"
+ #include "content/public/browser/navigation_controller.h"
+ #include "content/public/browser/navigation_entry.h"
+@@ -123,22 +122,10 @@
+ 
+ const std::vector<std::unique_ptr<const sessions::SerializedNavigationEntry>>*
+ TabContentsSyncedTabDelegate::GetBlockedNavigations() const {
+-  tabs::TabInterface* const tab =
+-      tabs::TabInterface::MaybeGetFromContents(web_contents_);
+-  SupervisedUserNavigationObserver* navigation_observer =
+-      tab ? SupervisedUserNavigationObserver::From(tab) : nullptr;
+-#if BUILDFLAG(IS_ANDROID)
+-  // TabHelpers::AttachTabHelpers() will not be called for a placeholder tab's
+-  // WebContents that is temporarily created from a serialized state in
+-  // SyncedTabDelegateAndroid::ReadPlaceholderTabSnapshotIfItShouldSync(). When
+-  // this occurs, early-out and return a nullptr.
+-  if (!navigation_observer) {
++  if (!supervised_user_navigation_observer_) {
+     return nullptr;
+   }
+-#endif  // BUILDFLAG(IS_ANDROID)
+-  DCHECK(navigation_observer);
+-
+-  return &navigation_observer->blocked_navigations();
++  return &supervised_user_navigation_observer_->blocked_navigations();
+ }
+ 
+ bool TabContentsSyncedTabDelegate::ShouldSync(
+@@ -149,16 +136,10 @@
+   }
+ 
+   if (ProfileHasChildAccount()) {
+-#if BUILDFLAG(IS_ANDROID)
+     auto* blocked_navigations = GetBlockedNavigations();
+     if (blocked_navigations && !blocked_navigations->empty()) {
+       return true;
+     }
+-#else
+-    if (!GetBlockedNavigations()->empty()) {
+-      return true;
+-    }
+-#endif  // BUILDFLAG(IS_ANDROID)
+   }
+ 
+   if (IsInitialBlankNavigation()) {
+@@ -184,30 +165,27 @@
+ 
+ int64_t TabContentsSyncedTabDelegate::GetTaskIdForNavigationId(
+     int nav_id) const {
+-  const tasks::TaskTabHelper* task_tab_helper = this->task_tab_helper();
+-  if (task_tab_helper &&
+-      task_tab_helper->get_task_id_for_navigation(nav_id) != nullptr) {
+-    return task_tab_helper->get_task_id_for_navigation(nav_id)->id();
++  if (task_tab_helper_ &&
++      task_tab_helper_->get_task_id_for_navigation(nav_id) != nullptr) {
++    return task_tab_helper_->get_task_id_for_navigation(nav_id)->id();
+   }
+   return -1;
+ }
+ 
+ int64_t TabContentsSyncedTabDelegate::GetParentTaskIdForNavigationId(
+     int nav_id) const {
+-  const tasks::TaskTabHelper* task_tab_helper = this->task_tab_helper();
+-  if (task_tab_helper &&
+-      task_tab_helper->get_task_id_for_navigation(nav_id) != nullptr) {
+-    return task_tab_helper->get_task_id_for_navigation(nav_id)->parent_id();
++  if (task_tab_helper_ &&
++      task_tab_helper_->get_task_id_for_navigation(nav_id) != nullptr) {
++    return task_tab_helper_->get_task_id_for_navigation(nav_id)->parent_id();
+   }
+   return -1;
+ }
+ 
+ int64_t TabContentsSyncedTabDelegate::GetRootTaskIdForNavigationId(
+     int nav_id) const {
+-  const tasks::TaskTabHelper* task_tab_helper = this->task_tab_helper();
+-  if (task_tab_helper &&
+-      task_tab_helper->get_task_id_for_navigation(nav_id) != nullptr) {
+-    return task_tab_helper->get_task_id_for_navigation(nav_id)->root_id();
++  if (task_tab_helper_ &&
++      task_tab_helper_->get_task_id_for_navigation(nav_id) != nullptr) {
++    return task_tab_helper_->get_task_id_for_navigation(nav_id)->root_id();
+   }
+   return -1;
+ }
+@@ -221,15 +199,10 @@
+ }
+ 
+ void TabContentsSyncedTabDelegate::SetWebContents(
+-    content::WebContents* web_contents) {
++    content::WebContents* web_contents,
++    tasks::TaskTabHelper* task_tab_helper,
++    SupervisedUserNavigationObserver* supervised_user_navigation_observer) {
+   web_contents_ = web_contents;
+-}
+-
+-const tasks::TaskTabHelper* TabContentsSyncedTabDelegate::task_tab_helper()
+-    const {
+-  if (web_contents_ == nullptr) {
+-    return nullptr;
+-  }
+-  return tasks::TaskTabHelper::From(
+-      tabs::TabInterface::MaybeGetFromContents(web_contents_));
++  task_tab_helper_ = task_tab_helper;
++  supervised_user_navigation_observer_ = supervised_user_navigation_observer;
+ }
+diff --git a/chrome/browser/ui/sync/tab_contents_synced_tab_delegate.h b/chrome/browser/ui/sync/tab_contents_synced_tab_delegate.h
+index 4e97463..c71ef05 100644
+--- a/chrome/browser/ui/sync/tab_contents_synced_tab_delegate.h
++++ b/chrome/browser/ui/sync/tab_contents_synced_tab_delegate.h
+@@ -18,6 +18,8 @@
+ class WebContents;
+ }
+ 
++class SupervisedUserNavigationObserver;
++
+ namespace tasks {
+ class TaskTabHelper;
+ }
+@@ -60,12 +62,16 @@
+  protected:
+   const content::WebContents* web_contents() const;
+   content::WebContents* web_contents();
+-  void SetWebContents(content::WebContents* web_contents);
++  void SetWebContents(
++      content::WebContents* web_contents,
++      tasks::TaskTabHelper* task_tab_helper,
++      SupervisedUserNavigationObserver* supervised_user_navigation_observer);
+ 
+  private:
+-  const tasks::TaskTabHelper* task_tab_helper() const;
+-
+   raw_ptr<content::WebContents, DanglingUntriaged> web_contents_ = nullptr;
++  raw_ptr<tasks::TaskTabHelper> task_tab_helper_ = nullptr;
++  raw_ptr<SupervisedUserNavigationObserver>
++      supervised_user_navigation_observer_ = nullptr;
+ 
+   // Cached value of last_active_time_ticks and last_active_time, sometimes
+   // returned instead of the last_active_time from the WebContents.
+diff --git a/chrome/browser/ui/tabs/public/tab_features.h b/chrome/browser/ui/tabs/public/tab_features.h
+index a22dcb9e..d66a041 100644
+--- a/chrome/browser/ui/tabs/public/tab_features.h
++++ b/chrome/browser/ui/tabs/public/tab_features.h
+@@ -597,13 +597,6 @@
+   // form-submission UKM).
+   std::unique_ptr<SecurityStateEventObserver> security_state_event_observer_;
+ 
+-  // Forwards tab-related events to sync.
+-  std::unique_ptr<sync_sessions::SyncSessionsRouterTabHelper>
+-      sync_sessions_router_;
+-
+-  // Provides this tab's session identity to sync.
+-  std::unique_ptr<BrowserSyncedTabDelegate> browser_synced_tab_delegate_;
+-
+   // Responsible for keeping a tab within a tab group in sync with its remote
+   // tab counterpart from sync.
+   std::unique_ptr<tab_groups::SavedTabGroupWebContentsListener>
+@@ -1030,6 +1023,18 @@
+   std::unique_ptr<SupervisedUserNavigationObserver>
+       supervised_user_navigation_observer_;
+ 
++  // Provides this tab's session identity to sync. Declared after
++  // `task_tab_helper_` and `supervised_user_navigation_observer_` so those
++  // dependencies outlive it.
++  std::unique_ptr<BrowserSyncedTabDelegate> browser_synced_tab_delegate_;
++
++  // Forwards tab-related events to sync. Declared after
++  // `browser_synced_tab_delegate_` and `sad_tab_helper_` so it is destroyed
++  // before teardown side effects (such as `~SadTabHelper` visibility changes)
++  // or `browser_synced_tab_delegate_` destruction.
++  std::unique_ptr<sync_sessions::SyncSessionsRouterTabHelper>
++      sync_sessions_router_;
++
+ #if BUILDFLAG(ENABLE_OFFLINE_PAGES)
+   std::unique_ptr<offline_pages::OfflinePageTabHelper> offline_page_tab_helper_;
+   std::unique_ptr<offline_pages::RecentTabHelper> recent_tab_helper_;
+diff --git a/chrome/browser/ui/tabs/tab_features.cc b/chrome/browser/ui/tabs/tab_features.cc
+index b8826e9c..b623a61 100644
+--- a/chrome/browser/ui/tabs/tab_features.cc
++++ b/chrome/browser/ui/tabs/tab_features.cc
+@@ -816,18 +816,6 @@
+   security_state_event_observer_ =
+       std::make_unique<SecurityStateEventObserver>(tab.GetContents());
+ 
+-  sync_sessions_router_ =
+-      std::make_unique<sync_sessions::SyncSessionsRouterTabHelper>(
+-          tab.GetContents(),
+-          sync_sessions::SyncSessionsWebContentsRouterFactory::GetForProfile(
+-              profile),
+-          ChromeTranslateClient::FromWebContents(tab.GetContents()),
+-          favicon::ContentFaviconDriver::FromWebContents(tab.GetContents()));
+-
+-  browser_synced_tab_delegate_ =
+-      GetUserDataFactory().CreateInstance<BrowserSyncedTabDelegate>(
+-          tab, tab, tab.GetContents());
+-
+   focus_tab_after_navigation_helper_ =
+       std::make_unique<FocusTabAfterNavigationHelper>(tab.GetContents());
+ 
+@@ -1293,6 +1281,19 @@
+   }
+ #endif
+ 
++  browser_synced_tab_delegate_ =
++      GetUserDataFactory().CreateInstance<BrowserSyncedTabDelegate>(
++          tab, tab, tab.GetContents(), task_tab_helper_.get(),
++          supervised_user_navigation_observer_.get());
++
++  sync_sessions_router_ =
++      std::make_unique<sync_sessions::SyncSessionsRouterTabHelper>(
++          tab.GetContents(),
++          sync_sessions::SyncSessionsWebContentsRouterFactory::GetForProfile(
++              profile),
++          ChromeTranslateClient::FromWebContents(tab.GetContents()),
++          favicon::ContentFaviconDriver::FromWebContents(tab.GetContents()));
++
+ #if BUILDFLAG(ENABLE_OFFLINE_PAGES)
+   offline_page_tab_helper_ =
+       GetUserDataFactory().CreateInstance<offline_pages::OfflinePageTabHelper>(
+@@ -1642,23 +1643,6 @@
+         new_contents, contextual_cueing_service);
+   }
+ 
+-  sync_sessions_router_.reset();
+-  sync_sessions_router_ =
+-      std::make_unique<sync_sessions::SyncSessionsRouterTabHelper>(
+-          new_contents,
+-          sync_sessions::SyncSessionsWebContentsRouterFactory::GetForProfile(
+-              profile),
+-          ChromeTranslateClient::FromWebContents(new_contents),
+-          favicon::ContentFaviconDriver::FromWebContents(new_contents));
+-
+-  // The reset() must happen first so that the old instance deregisters
+-  // itself from the UnownedUserDataHost before the new instance registers
+-  // itself.
+-  browser_synced_tab_delegate_.reset();
+-  browser_synced_tab_delegate_ =
+-      GetUserDataFactory().CreateInstance<BrowserSyncedTabDelegate>(
+-          *tab, *tab, new_contents);
+-
+   if (permission_indicators_tab_data_) {
+     permission_indicators_tab_data_ =
+         std::make_unique<permissions::PermissionIndicatorsTabData>(
+@@ -1911,6 +1895,12 @@
+       GetUserDataFactory().CreateInstance<SoundContentSettingObserver>(
+           *tab, *tab, new_contents);
+ 
++  // Reset `sync_sessions_router_` and `browser_synced_tab_delegate_` before
++  // resetting `task_tab_helper_` and `supervised_user_navigation_observer_` so
++  // `browser_synced_tab_delegate_` never holds dangling pointers to them.
++  sync_sessions_router_.reset();
++  browser_synced_tab_delegate_.reset();
++
+   task_tab_helper_.reset();
+   task_tab_helper_ = GetUserDataFactory().CreateInstance<tasks::TaskTabHelper>(
+       *tab, *tab, new_contents);
+@@ -1961,6 +1951,19 @@
+             *tab, *tab, new_contents);
+   }
+ 
++  browser_synced_tab_delegate_ =
++      GetUserDataFactory().CreateInstance<BrowserSyncedTabDelegate>(
++          *tab, *tab, new_contents, task_tab_helper_.get(),
++          supervised_user_navigation_observer_.get());
++
++  sync_sessions_router_ =
++      std::make_unique<sync_sessions::SyncSessionsRouterTabHelper>(
++          new_contents,
++          sync_sessions::SyncSessionsWebContentsRouterFactory::GetForProfile(
++              profile),
++          ChromeTranslateClient::FromWebContents(new_contents),
++          favicon::ContentFaviconDriver::FromWebContents(new_contents));
++
+ #if BUILDFLAG(ENABLE_OFFLINE_PAGES)
+   offline_page_tab_helper_.reset();
+   offline_page_tab_helper_ =

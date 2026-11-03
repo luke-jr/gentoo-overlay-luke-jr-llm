@@ -194,6 +194,9 @@ CHROMIUM_FIXES=(
 	chromium-157-keyframe-snapshot-uaf.patch
 	chromium-157-angle-vulkan-disabled-attribs-uaf.patch
 	chromium-157-gainmap-decode-overwrite.patch
+	chromium-157-css-selector-rare-data-barrier.patch
+	chromium-157-synced-tab-delegate-deps.patch
+	chromium-157-app-menu-zoom-alert.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
