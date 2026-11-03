@@ -18,7 +18,7 @@ masters = gentoo
 auto-sync = no
 ```
 
-`www-client/chromium-156.0.8078.83_pre`, `157.0.8103.44_pre-r2` and `158.0.8127.2`, based on `::gentoo`'s
+`www-client/chromium-156.0.8078.83_pre`, `157.0.8103.38_pre`, `157.0.8103.44_pre-r2` and `158.0.8127.2`, based on `::gentoo`'s
 `chromium-151.0.7922.169-r1`. `::gentoo` masked `www-client/chromium` on 2026-09-24 for removal
 on 2026-10-24 (bug #982204); as of 2026-11-01 it is still in the tree, masked. That mask covers
 this overlay's `www-client/chromium` too, so unmask it (see `doc/chromium.md`). Only the package is
@@ -57,6 +57,7 @@ What the packages here follow, beyond Gentoo's own policies:
 | Package | Why |
 |---|---|
 | `www-client/chromium-156.0.8078.83_pre` | the browser: 156.0.8078.83, the newest tag of the 156 branch, which has no release or source tarball: built from Google's official "lite" tarball of 156.0.8078.79 (Linux Stable) plus `files/chromium-156.0.8078.79-to-156.0.8078.83.patch` (the upstream changes that can affect a Linux build; see its header), and the CVE-2026-110914 fix 156 hasn't got yet. `_pre` sorts below a real 156.0.8078.83 release, which replaces it. |
+| `www-client/chromium-157.0.8103.38_pre` | the browser: 157.0.8103.38, Google's Linux **Stable** release of 157, which has no source tarball yet: built from Google's official "lite" tarball of 157.0.8103.30 plus `files/chromium-157.0.8103.30-to-157.0.8103.38.patch` (see its header), with no fixes beyond the release. `SLOT="stable"`, `amd64`. `_pre` sorts below a real 157.0.8103.38 release, which replaces it when its tarball comes out. |
 | `www-client/chromium-157.0.8103.44_pre-r2` | the browser: 157.0.8103.44, the newest tag of the 157 branch, which has no source tarball: built from Google's official "lite" tarball of 157.0.8103.30 (the newest 157 tarball) plus `files/chromium-157.0.8103.30-to-157.0.8103.44.patch` (see its header), and the fixes that .44 lacks: CVE-2026-76026, the SVGImage and Length GC fixes (their 157 merges are still open), the PDF thumbnail page unloading and Skia SDF overflow fixes merged after .44, and the GTK file dialog double-click fix from main (see their headers). 157 is Google's early stable release (Windows and Mac only so far), so `SLOT="stable"` with `~amd64`: it replaces 156 for `~amd64` users, and becomes `amd64` when Google releases 157 for Linux Stable. |
 | `www-client/chromium-158.0.8127.2` | the browser: 158.0.8127.2, Google's **Beta** for Linux, from its official "lite" tarball, with no fixes beyond the release: `SLOT="beta"` (it installs beside stable as `chromium-browser-beta`, with its own profile directory), `~amd64`. Kept so that the next major is ready before it reaches Early Stable. |
 | `dev-util/ragel-6.10:6` | Ragel 6 in slot 6, installed as `ragel-6`, for systems that keep `::gentoo`'s Ragel 7 (`::gentoo` has 6 and 7 both in slot 0). Chromium's ebuild regenerates HarfBuzz's state machines with Ragel 6 (HarfBuzz requires 6.10): `::gentoo`'s `dev-util/ragel-6.10` when that is installed or nothing is, this slot when Ragel 7 is installed. |
