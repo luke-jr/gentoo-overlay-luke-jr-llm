@@ -1,0 +1,117 @@
+"[actor] [page stabilization] exit start delay early on first paint" (crbugs
+580001415 and 573290593, not public): when a contentful paint happens during
+the page stability monitor's start delay, monitoring starts at once. Not a
+security fix as far as the change shows, but it is on the 157 branch, which
+the bleeding-edge build carries in full. chromium/src main commit
+8abd4d875d004eccfbeb3298892851f481236f12 (main@{#1720956}), merged on
+2026-11-04 to the 157 branch (185187f8924db3fd2d29131464be9e1280dc231b,
+refs/branch-heads/8103@{#1121}, after the 157.0.8103.45 tag). This is the
+157 merge without its browser test (the components/BUILD.gn dependency it
+adds is kept). Drop it once a 157 tag has it.
+
+diff --git a/components/BUILD.gn b/components/BUILD.gn
+index 9413748..e15ecd0 100644
+--- a/components/BUILD.gn
++++ b/components/BUILD.gn
+@@ -1188,6 +1188,7 @@
+       "//components/page_content_annotations/content/browser",
+       "//components/page_content_annotations/content/mojom",
+       "//components/page_content_annotations/content/renderer",
++      "//components/page_content_annotations/core",
+       "//components/page_content_annotations/core:features",
+       "//components/paint_preview/renderer",
+       "//components/password_manager/content/browser",
+diff --git a/components/page_content_annotations/content/renderer/page_stability_monitor.cc b/components/page_content_annotations/content/renderer/page_stability_monitor.cc
+index 3fd749f..c37e952 100644
+--- a/components/page_content_annotations/content/renderer/page_stability_monitor.cc
++++ b/components/page_content_annotations/content/renderer/page_stability_monitor.cc
+@@ -9,6 +9,7 @@
+ 
+ #include "base/check.h"
+ #include "base/check_op.h"
++#include "base/feature_list.h"
+ #include "base/functional/callback.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/no_destructor.h"
+@@ -18,6 +19,7 @@
+ #include "base/time/time.h"
+ #include "components/page_content_annotations/content/renderer/network_and_main_thread_stability_monitor.h"
+ #include "components/page_content_annotations/content/renderer/paint_stability_monitor.h"
++#include "components/page_content_annotations/core/page_content_annotations_features.h"
+ #include "components/page_content_annotations/core/page_stability_monitor_delegate.h"
+ #include "content/public/renderer/render_frame.h"
+ #include "third_party/blink/public/web/web_local_frame_client.h"
+@@ -72,7 +74,14 @@
+   monitoring_start_delay_ = observation_delay;
+ 
+   if (paint_stability_monitor_) {
+-    paint_stability_monitor_->Start();
++    base::OnceClosure first_paint_callback;
++    if (base::FeatureList::IsEnabled(
++            features::kPageStabilityExitStartDelayOnFirstPaint)) {
++      first_paint_callback =
++          base::BindOnce(&PageStabilityMonitor::OnFirstContentfulPaint,
++                         weak_ptr_factory_.GetWeakPtr());
++    }
++    paint_stability_monitor_->Start(std::move(first_paint_callback));
+   }
+ 
+   base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+@@ -284,6 +293,15 @@
+       MoveToStateClosure(new_state), delay);
+ }
+ 
++void PageStabilityMonitor::OnFirstContentfulPaint() {
++  if (state_ != State::kMonitorStartDelay) {
++    return;
++  }
++
++  start_monitoring_delayed_handle_.CancelTask();
++  MoveToState(State::kWaitForNavigation);
++}
++
+ void PageStabilityMonitor::OnPaintStabilityReached() {
+   delegate_->OnEvent(PaintStabilityReachedEvent{});
+ 
+diff --git a/components/page_content_annotations/content/renderer/page_stability_monitor.h b/components/page_content_annotations/content/renderer/page_stability_monitor.h
+index ce44100d7..559ef7a 100644
+--- a/components/page_content_annotations/content/renderer/page_stability_monitor.h
++++ b/components/page_content_annotations/content/renderer/page_stability_monitor.h
+@@ -82,6 +82,7 @@
+   void DCheckStateTransition(PageStabilityState old_state,
+                              PageStabilityState new_state);
+ 
++  void OnFirstContentfulPaint();
+   void OnPaintStabilityReached();
+   void OnNetworkAndMainThreadIdle();
+   void OnRenderFrameGoingAway();
+diff --git a/components/page_content_annotations/core/page_content_annotations_features.cc b/components/page_content_annotations/core/page_content_annotations_features.cc
+index 462c8691..0e08243 100644
+--- a/components/page_content_annotations/core/page_content_annotations_features.cc
++++ b/components/page_content_annotations/core/page_content_annotations_features.cc
+@@ -184,6 +184,9 @@
+ BASE_FEATURE(kPaintStabilityDeferInitialPaintTimeout,
+              base::FEATURE_DISABLED_BY_DEFAULT);
+ 
++BASE_FEATURE(kPageStabilityExitStartDelayOnFirstPaint,
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
+ base::TimeDelta PCAServiceWaitForTitleDelayDuration() {
+   return base::Milliseconds(5000);
+ }
+diff --git a/components/page_content_annotations/core/page_content_annotations_features.h b/components/page_content_annotations/core/page_content_annotations_features.h
+index 70a294f..1602d66 100644
+--- a/components/page_content_annotations/core/page_content_annotations_features.h
++++ b/components/page_content_annotations/core/page_content_annotations_features.h
+@@ -126,6 +126,11 @@
+ COMPONENT_EXPORT(PAGE_CONTENT_ANNOTATIONS_FEATURES)
+ BASE_DECLARE_FEATURE(kPaintStabilityDeferInitialPaintTimeout);
+ 
++// If enabled, exits the page stability observation start delay early on the
++// first contentful paint.
++COMPONENT_EXPORT(PAGE_CONTENT_ANNOTATIONS_FEATURES)
++BASE_DECLARE_FEATURE(kPageStabilityExitStartDelayOnFirstPaint);
++
+ // The maximum number of "related searches" entries allowed to be maintained in
+ // a least-recently-used cache for "related searches" data obtained via ZPS
+ // prefetch logic.
