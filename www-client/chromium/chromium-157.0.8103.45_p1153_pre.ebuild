@@ -184,8 +184,8 @@ CHROMIUM_FIXES=(
 	chromium-157-page-stability-start-delay.patch
 	chromium-157-connection-allowlist-history-reports.patch
 	chromium-157-popup-bounds-clamp-revert.patch
-	chromium-157-v8-maglev-apply-receiver-feedback.patch
-	chromium-157-skia-graphite-clip-key-bounds.patch
+	chromium-157-v8-skia-roll.patch
+	chromium-157-animation-timelines-copy.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
