@@ -169,7 +169,7 @@ Built offline and runtime-tested like 156 (components, DevTools, WebDriver BiDi,
 
 ## 158
 
-The 158 ebuild (`158.0.8127.2`, the Linux Beta: `SLOT="beta"`) is the 157 one with these
+The 158 ebuild (`158.0.8127.18`, the Linux Beta: `SLOT="beta"`) is the 157 one with these
 differences:
 - No Crubit patch: 158 supports a system Crubit itself (its `rust_crubit_root` GN argument, and
   C++ bindings of the prebuilt stdlib from its `.rmeta` files), which the ebuild says with
