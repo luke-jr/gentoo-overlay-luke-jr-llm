@@ -182,6 +182,7 @@ CHROMIUM_FIXES=(
 	chromium-157-gtk-file-dialog-accept.patch
 	chromium-157-paint-stability-first-paint.patch
 	chromium-157-page-stability-start-delay.patch
+	chromium-157-connection-allowlist-history-reports.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
