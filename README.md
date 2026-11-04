@@ -18,7 +18,7 @@ masters = gentoo
 auto-sync = no
 ```
 
-`www-client/chromium-157.0.8103.38_pre`, `158.0.8127.2` and `158.0.8127.22_p948_pre`, based on `::gentoo`'s
+`www-client/chromium-157.0.8103.38_pre`, `158.0.8127.2` and `158.0.8127.22_p956_pre`, based on `::gentoo`'s
 `chromium-151.0.7922.169-r1`. `::gentoo` masked `www-client/chromium` on 2026-09-24 for removal
 on 2026-10-24 (bug #982204); as of 2026-11-01 it is still in the tree, masked. That mask covers
 this overlay's `www-client/chromium` too, so unmask it (see `doc/chromium.md`). Only the package is
@@ -58,7 +58,7 @@ What the packages here follow, beyond Gentoo's own policies:
 |---|---|
 | `www-client/chromium-157.0.8103.38_pre` | the browser: 157.0.8103.38, Google's Linux **Stable** release of 157, which has no source tarball yet: built from Google's official "lite" tarball of 157.0.8103.30 plus `files/chromium-157.0.8103.30-to-157.0.8103.38.patch` (see its header), with no fixes beyond the release. `SLOT="stable"`, `amd64`. `_pre` sorts below a real 157.0.8103.38 release, which replaces it when its tarball comes out. |
 | `www-client/chromium-158.0.8127.2` | the browser: 158.0.8127.2, Google's **Beta** for Linux, from its official "lite" tarball, with no fixes beyond the release: `SLOT="beta"` (it installs beside stable as `chromium-browser-beta`, with its own profile directory), `~amd64`. Kept so that the next major is ready before it reaches Early Stable. |
-| `www-client/chromium-158.0.8127.22_p948_pre` | the browser: 158.0.8127.22, the newest tag of the 158 branch, plus the branch up to 8127@{#948} (`_p948`); no source tarball (`_pre`): built from Google's official "lite" tarball of 158.0.8127.18 plus `files/chromium-158.0.8127.18-to-158.0.8127.22.patch` and `files/chromium-158.0.8127.22-branch-fixes.patch`, and the Mali GPU query fix that 158 lacks (see their headers). 158 is Google's Early Stable (since 158.0.8127.18), so `SLOT="stable"`, `~amd64`: this is the bleeding-edge build of it. |
+| `www-client/chromium-158.0.8127.22_p956_pre` | the browser: 158.0.8127.22, the newest tag of the 158 branch, plus the branch up to 8127@{#956} (`_p956`); no source tarball (`_pre`): built from Google's official "lite" tarball of 158.0.8127.18 plus `files/chromium-158.0.8127.18-to-158.0.8127.22.patch` and `files/chromium-158.0.8127.22-branch-fixes.patch`, and the Mali GPU query fix that 158 lacks (see their headers). 158 is Google's Early Stable (since 158.0.8127.18), so `SLOT="stable"`, `~amd64`: this is the bleeding-edge build of it. |
 | `dev-util/ragel-6.10:6` | Ragel 6 in slot 6, installed as `ragel-6`, for systems that keep `::gentoo`'s Ragel 7 (`::gentoo` has 6 and 7 both in slot 0). Chromium's ebuild regenerates HarfBuzz's state machines with Ragel 6 (HarfBuzz requires 6.10), and depends on `=dev-util/ragel-6.10*`, which either satisfies: `::gentoo`'s `dev-util/ragel-6.10` when that is installed, otherwise this slot (Portage installs it next to a Ragel 7, and prefers it on a system with no Ragel, as the overlay's repository priority is higher). |
 | `dev-util/esbuild-0.28.2` | DevTools needs exactly this version. `::gentoo` stops at 0.27.3, and deps.gentoo.zip has no vendor tarball, so this uses `EGO_SUM`. |
 | `dev-build/gn-0.2595`, `gn-0.2603` | 157's `.gn` needs gn 0.2595, 158's 0.2603 (`check_includes_strict_exceptions`). Pinned to the commits Chromium's `DEPS` uses, via git-r3, because there is no tarball and gitiles archives aren't reproducible. |

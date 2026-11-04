@@ -1,17 +1,17 @@
 Chromium 158.0.8127.22 + the later changes of its release branch, up to
-73ceed4a05f14e47864a1394c271883480bdadf4 (refs/branch-heads/8127@{#948}), for the
+c82bf00fdf0b2f896c17a656fdcdec4a2ff39879 (refs/branch-heads/8127@{#956}), for the
 158.0.8127.22 tree that chromium-158.0.8127.18-to-158.0.8127.22.patch makes.
 
-Generated from the upstream diffs chromium/src refs/tags/158.0.8127.22..73ceed4a05f14e47864a1394c271883480bdadf4
-and the dependencies whose DEPS revision changed (DevTools, Skia, V8,
-WebRTC), as served by Gitiles, with scripts/chromium-delta --branch-fixes:
+Generated from the upstream diffs chromium/src refs/tags/158.0.8127.22..c82bf00fdf0b2f896c17a656fdcdec4a2ff39879
+and the dependencies whose DEPS revision changed (ANGLE, DevTools, Skia,
+V8, WebRTC), as served by Gitiles, with scripts/chromium-delta --branch-fixes:
 left out are files not in the release tarball, iOS/Android/ChromeOS/Mac/
 Windows-only files, tests and docs, translations, PGO/orderfile pointers,
 submodule pointer updates. chrome/VERSION, DEPS and the stamp files stay
 at 158.0.8127.22.
 
 Commits contributing to it (oldest first; "Roll commits from side projects"
-are the DevTools, Skia, V8 and WebRTC updates):
+are the ANGLE, DevTools, Skia, V8 and WebRTC updates):
   03f44f8a4da3 [M158] [omnibox][webui] Explain allow_exact_keyword_match instead 
   0bec2f376d47 [M158] [contextual_tasks] Show the searchbox in Incognito; hide ex
   647eaf16da18 [M158] [contextual-tasks] Treat stub WebContents as side panel in 
@@ -50,6 +50,11 @@ are the DevTools, Skia, V8 and WebRTC updates):
   1c8975eb8510 Roll commits from side projects in M158
   6f6b72105914 [M158] Fix CanCreateSession() callback handling in ModelSubscriber
   73ceed4a05f1 [M158] Reland "[glic] Stop treating a client waiting for sign-in a
+  7d01b6b8066b Roll commits from side projects in M158
+  e93ecea4c210 Roll commits from side projects in M158
+  00b3af826730 Roll commits from side projects in M158
+  d6c4f13798c3 [M158] [MSE] Don't open a MediaSource whose context died mid-attac
+  c82bf00fdf0b Roll commits from side projects in M158
 
 Checked: applies to the 158.0.8127.22 tree; every patched file is
 byte-identical to its version at the commits above.
@@ -1834,6 +1839,27 @@ index 8ac1e04e..d197628 100644
                  ResourceRequestHead::RedirectStatus::kNoRedirect);
      if (!csp_allows_load) {
        UseCounter::Count(ExecutionContext::From(modulator_->GetScriptState()),
+diff --git a/third_party/blink/renderer/modules/mediasource/same_thread_media_source_attachment.cc b/third_party/blink/renderer/modules/mediasource/same_thread_media_source_attachment.cc
+index 20e68d96..9113dd2 100644
+--- a/third_party/blink/renderer/modules/mediasource/same_thread_media_source_attachment.cc
++++ b/third_party/blink/renderer/modules/mediasource/same_thread_media_source_attachment.cc
+@@ -251,6 +251,16 @@
+ void SameThreadMediaSourceAttachment::CompleteAttachingToMediaElement(
+     MediaSourceTracer* tracer,
+     std::unique_ptr<WebMediaSource> web_media_source) {
++  // The MediaSource's context (e.g. a since-detached iframe) may have been
++  // destroyed after attachment started, but before the media element's player
++  // opened its demuxer. The MediaSource closed itself upon that context
++  // destruction, and Close() will not be called on it again, so it must not be
++  // opened now: nothing would then release |web_media_source| before the
++  // player destroys the demuxer which |web_media_source| references.
++  if (media_source_context_destroyed_) {
++    return;
++  }
++
+   VerifyCalledWhileContextsAliveForDebugging();
+ 
+   GetMediaSource(tracer)->CompleteAttachingToMediaElement(
 diff --git a/tools/metrics/histograms/metadata/others/histograms.xml b/tools/metrics/histograms/metadata/others/histograms.xml
 index b6a6dd8..3798e31 100644
 --- a/tools/metrics/histograms/metadata/others/histograms.xml
@@ -2540,45 +2566,96 @@ index bb288c9..33d43ed 100644
      // draw bounds (if we could efficiently know a path was a closed contour, it could
      // be included here too).
 diff --git a/third_party/skia/src/text/gpu/SlugImpl.cpp b/third_party/skia/src/text/gpu/SlugImpl.cpp
-index 738a7db..4e135f0 100644
+index 738a7db..666fe2f 100644
 --- a/third_party/skia/src/text/gpu/SlugImpl.cpp
 +++ b/third_party/skia/src/text/gpu/SlugImpl.cpp
-@@ -66,11 +66,35 @@
-             initializer.initialize(std::move(alloc), std::move(container), sourceBounds, origin));
- }
+@@ -19,6 +19,7 @@
+ #include "src/text/GlyphRun.h"
+ #include "src/text/gpu/SubRunAllocator.h"
+ #include "src/text/gpu/SubRunContainer.h"
++#include "src/text/gpu/VertexFiller.h"
+ 
+ #include <memory>
+ #include <utility>
+@@ -36,6 +37,19 @@
+         , fSourceBounds{sourceBounds}
+         , fOrigin{origin} {}
  
 +namespace {
- SkMatrix position_matrix(const SkMatrix& drawMatrix, SkPoint drawOrigin) {
-     SkMatrix position_matrix = drawMatrix;
-     return position_matrix.preTranslate(drawOrigin.x(), drawOrigin.y());
- }
- 
-+bool valid_slug_matrices(const SkMatrix& creationMatrix, const SkMatrix& positionMatrix) {
-+    if (creationMatrix == positionMatrix) {
-+        return true;
-+    }
++SkMatrix position_matrix(const SkMatrix& drawMatrix, SkPoint drawOrigin) {
++    SkMatrix position_matrix = drawMatrix;
++    return position_matrix.preTranslate(drawOrigin.x(), drawOrigin.y());
++}
 +
-+    SkVector translation = positionMatrix.mapOrigin() - creationMatrix.mapOrigin();
-+    return creationMatrix.getScaleX() == positionMatrix.getScaleX() &&
-+           creationMatrix.getScaleY() == positionMatrix.getScaleY() &&
-+           creationMatrix.getSkewX()  == positionMatrix.getSkewX()  &&
-+           creationMatrix.getSkewY()  == positionMatrix.getSkewY()  &&
-+           !positionMatrix.hasPerspective() && !creationMatrix.hasPerspective() &&
-+           SkScalarIsInt(translation.x()) && SkScalarIsInt(translation.y());
++// Every Slug has finite, non-empty source bounds and a finite origin. Slugs are only created with
++// values that pass this check, and deserialization rejects any that don't.
++bool valid_bounds_and_origin(SkRect sourceBounds, SkPoint origin) {
++    return sourceBounds.isFinite() && !sourceBounds.isEmpty() && origin.isFinite();
 +}
 +}  // namespace
 +
+ void SlugImpl::doFlatten(SkWriteBuffer& buffer) const {
+     buffer.writeRect(fSourceBounds);
+     buffer.writePoint(fOrigin);
+@@ -45,10 +59,10 @@
+ 
+ sk_sp<Slug> SlugImpl::MakeFromBuffer(SkReadBuffer& buffer, const SkStrikeClient* client) {
+     SkRect sourceBounds = buffer.readRect();
+-    if (!buffer.validate(!sourceBounds.isEmpty())) {
++    SkPoint origin = buffer.readPoint();
++    if (!buffer.validate(valid_bounds_and_origin(sourceBounds, origin))) {
+         return nullptr;
+     }
+-    SkPoint origin = buffer.readPoint();
+     int allocSizeHint = gpu::SubRunContainer::AllocSizeHintFromBuffer(buffer);
+ 
+     auto [initializer, _, alloc] =
+@@ -66,9 +80,20 @@
+             initializer.initialize(std::move(alloc), std::move(container), sourceBounds, origin));
+ }
+ 
+-SkMatrix position_matrix(const SkMatrix& drawMatrix, SkPoint drawOrigin) {
+-    SkMatrix position_matrix = drawMatrix;
+-    return position_matrix.preTranslate(drawOrigin.x(), drawOrigin.y());
 +bool SlugImpl::canDraw(const SkMatrix& drawMatrix, bool supportBilerpAtlas) const {
-+    if (supportBilerpAtlas) {
++    // Only direct-mask glyphs are packed into the atlas without padding, and only when the atlas
++    // doesn't support bilerp. Every other SubRun type is either padded in the atlas (atlas
++    // entries are keyed by padding, so they are never shared with direct masks) or doesn't use
++    // the atlas at all, so it can be drawn with any matrix.
++    if (supportBilerpAtlas || !fSubRuns->hasDirectMaskSubRuns()) {
 +        return true;
 +    }
-+    const SkMatrix positionMatrix = position_matrix(drawMatrix, fOrigin);
-+    return valid_slug_matrices(this->initialPositionMatrix(), positionMatrix);
-+}
-+
++    // Direct masks may only be drawn with a bounded integer translation of their creation
++    // matrix. Use the same check, on the same single-precision positionMatrix, that the backends
++    // use when drawing the direct-mask SubRuns.
++    auto [canUseDirect, _] = VertexFiller::CanUseDirect(this->initialPositionMatrix(),
++                                                       position_matrix(drawMatrix, fOrigin));
++    return canUseDirect;
+ }
+ 
  sk_sp<SlugImpl> SlugImpl::Make(const SkMatrix& viewMatrix,
-                                const sktext::GlyphRunList& glyphRunList,
+@@ -76,12 +101,19 @@
                                 const SkPaint& paint,
+                                SkStrikeDeviceInfo strikeDeviceInfo,
+                                sktext::StrikeForGPUCacheInterface* strikeCache) {
++    // Only make Slugs that can be deserialized: SlugImpl::MakeFromBuffer requires valid bounds and
++    // origin, and SubRunContainer::MakeFromBufferInAlloc requires a finite positionMatrix (its
++    // translation can overflow even when the viewMatrix and origin are finite).
++    const SkMatrix positionMatrix = position_matrix(viewMatrix, glyphRunList.origin());
++    if (!positionMatrix.isFinite() ||
++        !valid_bounds_and_origin(glyphRunList.sourceBounds(), glyphRunList.origin())) {
++        return nullptr;
++    }
++
+     size_t subRunSizeHint = gpu::SubRunContainer::EstimateAllocSize(glyphRunList);
+     auto [initializer, _, alloc] =
+             SubRunAllocator::AllocateClassMemoryAndArena<SlugImpl>(subRunSizeHint);
+ 
+-    const SkMatrix positionMatrix = position_matrix(viewMatrix, glyphRunList.origin());
+-
+     auto subRuns = gpu::SubRunContainer::MakeInAlloc(glyphRunList,
+                                                      positionMatrix,
+                                                      paint,
 diff --git a/third_party/skia/src/text/gpu/SlugImpl.h b/third_party/skia/src/text/gpu/SlugImpl.h
 index b8b89f9..bc04837 100644
 --- a/third_party/skia/src/text/gpu/SlugImpl.h
@@ -2592,24 +2669,764 @@ index b8b89f9..bc04837 100644
      // Change memory management to handle the data after Slug, but in the same allocation
      // of memory. Only allow placement new.
      void operator delete(void* p) { ::operator delete(p); }
+diff --git a/third_party/skia/src/text/gpu/SubRunContainer.cpp b/third_party/skia/src/text/gpu/SubRunContainer.cpp
+index cf34793..8a3911a 100644
+--- a/third_party/skia/src/text/gpu/SubRunContainer.cpp
++++ b/third_party/skia/src/text/gpu/SubRunContainer.cpp
+@@ -53,6 +53,7 @@
+ 
+ #include <algorithm>
+ #include <climits>
++#include <cmath>
+ #include <cstdint>
+ #include <new>
+ #include <optional>
+@@ -117,6 +118,33 @@
+     return glyph_bounds(digest, inset, offset);
+ }
+ 
++// Bound glyph coordinates to 1e14f (~2^46). This accommodates arbitrarily large page
++// layouts while rejecting extreme float values (such as near FLT_MAX) where precision loss
++// collapses glyph bounds (e.g. left + width == left) and downstream double-precision
++// calculations (53-bit mantissa) would risk losing subpixel precision.
++constexpr SkScalar kMaxGlyphPositionCoord = 1e14f;
++bool valid_glyph_position(SkPoint pt) {
++    return pt.isFinite() &&
++           std::abs(pt.x()) <= kMaxGlyphPositionCoord &&
++           std::abs(pt.y()) <= kMaxGlyphPositionCoord;
++}
++
++// The creation matrix of every atlas SubRun must be finite, have no perspective, and be invertible
++// (it is inverted to draw with any other matrix). SubRuns are only created with matrices that pass
++// these checks, and deserialization rejects any that don't, so every created SubRun deserializes.
++// The isFinite() check is not redundant with invert(), which accepts infinite scale factors
++// (their inverse is 0).
++bool valid_creation_matrix(const SkMatrix& m) {
++    return m.isFinite() && !m.hasPerspective() && m.invert().has_value();
++}
++
++// A DirectMaskSubRun's creation matrix is the positionMatrix, whose translation must also be a
++// valid glyph position.
++bool valid_direct_creation_matrix(const SkMatrix& m) {
++    return valid_creation_matrix(m) &&
++           valid_glyph_position({m.getTranslateX(), m.getTranslateY()});
++}
++
+ // Returns the empty span if there is a problem reading the positions.
+ SkSpan<SkPoint> make_points_from_buffer(SkReadBuffer& buffer, SubRunAllocator* alloc) {
+     uint32_t glyphCount = buffer.getArrayCount();
+@@ -129,14 +157,21 @@
+                          BagOfBytes::WillCountFit<SkPoint>(glyphCount))) { return {}; }
+ 
+     SkPoint* positionsData = alloc->makePODArray<SkPoint>(glyphCount);
+-    if (!buffer.readPointArray({positionsData, glyphCount})) { return {}; }
+-    return {positionsData, glyphCount};
++    SkSpan<SkPoint> positions{positionsData, glyphCount};
++    if (!buffer.readPointArray(positions)) { return {}; }
++
++    for (const SkPoint& pt : positions) {
++        if (!buffer.validate(valid_glyph_position(pt))) {
++            return {};
++        }
++    }
++    return positions;
+ }
+ 
+-SkRect reconstruct_safe_bounds(SkSpan<const SkPoint> leftTop,
+-                               GlyphVector* glyphVector,
+-                               skglyph::ActionType actionType,
+-                               int inset) {
++std::optional<SkRect> reconstruct_safe_bounds(SkSpan<const SkPoint> leftTop,
++                                              GlyphVector* glyphVector,
++                                              skglyph::ActionType actionType,
++                                              int inset) {
+     int count = leftTop.size();
+ 
+     StrikeForGPU* strike = glyphVector->strikePromise().strike();
+@@ -146,10 +181,15 @@
+     for (int i = 0; i < count; ++i) {
+         SkPackedGlyphID packedID = glyphVector->getPackedGlyphID(i);
+         SkGlyphDigest digest = strike->digestFor(actionType, packedID);
+-        boundingRect = skglyph::rect_union(
+-                boundingRect, glyph_bounds_from_left_top(digest, inset, leftTop[i]));
++        const SkGlyphRect glyphBounds =
++                glyph_bounds_from_left_top(digest, inset, leftTop[i]);
++        if (!glyphBounds.rect().isFinite()) {
++            return std::nullopt;
++        }
++        boundingRect = skglyph::rect_union(boundingRect, glyphBounds);
+     }
+-    return boundingRect.empty() ? SkRect::MakeEmpty() : boundingRect.rect();
++    SkRect rect = boundingRect.empty() ? SkRect::MakeEmpty() : boundingRect.rect();
++    return rect.isFinite() ? std::optional<SkRect>{rect} : std::nullopt;
+ }
+ 
+ void flatten_vertex_filler(SkWriteBuffer &buffer, const VertexFiller& vf) {
+@@ -167,12 +207,17 @@
+     MaskFormat maskFormat = buffer.read32LE(MaskFormat::kLast);
+ 
+     const bool canDrawDirect = buffer.readBool();
++    if (!buffer.validate(canDrawDirect == (actionType == skglyph::kDirectMask))) {
++        return std::nullopt;
++    }
+ 
+     SkMatrix creationMatrix;
+     buffer.readMatrix(&creationMatrix);
+     // The only valid creationMatrices do not have perspective and many rendering parts assume
+-    // they are non-affine, so reject any malformed matrices here.
+-    if (!buffer.validate(!creationMatrix.hasPerspective())) {
++    // they are non-affine, so reject any malformed matrices here. Use the same checks that are
++    // applied when SubRuns are created.
++    if (!buffer.validate(canDrawDirect ? valid_direct_creation_matrix(creationMatrix)
++                                       : valid_creation_matrix(creationMatrix))) {
+         return std::nullopt;
+     }
+ 
+@@ -185,9 +230,21 @@
+         return std::nullopt;
+     }
+ 
+-    SkRect safeBounds = reconstruct_safe_bounds(leftTop, glyphVector, actionType, inset);
++    if (canDrawDirect) {
++        for (const SkPoint& pt : leftTop) {
++            if (!buffer.validate(VertexFiller::ValidDirectPosition(pt))) {
++                return std::nullopt;
++            }
++        }
++    }
+ 
+-    return VertexFiller{maskFormat, creationMatrix, safeBounds, leftTop, canDrawDirect};
++    std::optional<SkRect> safeBounds =
++            reconstruct_safe_bounds(leftTop, glyphVector, actionType, inset);
++    if (!buffer.validate(safeBounds.has_value())) {
++        return std::nullopt;
++    }
++
++    return VertexFiller{maskFormat, creationMatrix, *safeBounds, leftTop, canDrawDirect};
+ }
+ 
+ // -- PathOpSubmitter ------------------------------------------------------------------------------
+@@ -253,7 +310,7 @@
+ void PathOpSubmitter::flatten(SkWriteBuffer& buffer) const {
+     fStrikePromise.flatten(buffer);
+ 
+-    buffer.writeInt(fIsAntiAliased);
++    buffer.writeBool(fIsAntiAliased);
+     buffer.writeScalar(fStrikeToSourceScale);
+     buffer.writePointArray(fPositions);
+     for (IDOrPath& idOrPath : fIDsOrPaths) {
+@@ -270,10 +327,12 @@
+         return std::nullopt;
+     }
+ 
+-    bool isAntiAlias = buffer.readInt();
++    bool isAntiAlias = buffer.readBool();
+ 
+     SkScalar strikeToSourceScale = buffer.readScalar();
+-    if (!buffer.validate(0 < strikeToSourceScale)) { return std::nullopt; }
++    if (!buffer.validate(SkIsFinite(strikeToSourceScale) && 0 < strikeToSourceScale)) {
++        return std::nullopt;
++    }
+ 
+     SkSpan<SkPoint> positions = make_points_from_buffer(buffer, alloc);
+     if (positions.empty()) { return std::nullopt; }
+@@ -424,6 +483,7 @@
+     }
+     const AtlasSubRun* testingOnly_atlasSubRun() const override { return nullptr; }
+     static SubRunOwner MakeFromBuffer(SkReadBuffer& buffer,
++                                      const SkMatrix& initialPositionMatrix,
+                                       SubRunAllocator* alloc,
+                                       const SkStrikeClient* client);
+ 
+@@ -444,6 +504,7 @@
+ }
+ 
+ SubRunOwner PathSubRun::MakeFromBuffer(SkReadBuffer& buffer,
++                                       const SkMatrix& /*initialPositionMatrix*/,
+                                        SubRunAllocator* alloc,
+                                        const SkStrikeClient* client) {
+     auto pathOpSubmitter = PathOpSubmitter::MakeFromBuffer(buffer, alloc, client);
+@@ -526,7 +587,9 @@
+     }
+ 
+     SkScalar strikeToSourceScale = buffer.readScalar();
+-    if (!buffer.validate(0 < strikeToSourceScale)) { return std::nullopt; }
++    if (!buffer.validate(SkIsFinite(strikeToSourceScale) && 0 < strikeToSourceScale)) {
++        return std::nullopt;
++    }
+ 
+     SkSpan<SkPoint> positions = make_points_from_buffer(buffer, alloc);
+     if (positions.empty()) { return std::nullopt; }
+@@ -617,6 +680,7 @@
+     }
+ 
+     static SubRunOwner MakeFromBuffer(SkReadBuffer& buffer,
++                                      const SkMatrix& initialPositionMatrix,
+                                       SubRunAllocator* alloc,
+                                       const SkStrikeClient* client);
+ 
+@@ -651,6 +715,7 @@
+ }
+ 
+ SubRunOwner DrawableSubRun::MakeFromBuffer(SkReadBuffer& buffer,
++                                           const SkMatrix& /*initialPositionMatrix*/,
+                                            SubRunAllocator* alloc,
+                                            const SkStrikeClient* client) {
+     auto drawableOpSubmitter = DrawableOpSubmitter::MakeFromBuffer(buffer, alloc, client);
+@@ -694,6 +759,7 @@
+     }
+ 
+     static SubRunOwner MakeFromBuffer(SkReadBuffer& buffer,
++                                      const SkMatrix& initialPositionMatrix,
+                                       SubRunAllocator* alloc,
+                                       const SkStrikeClient* client) {
+         auto glyphVector = GlyphVector::MakeFromBuffer(buffer, client, alloc);
+@@ -703,6 +769,10 @@
+                                                            skglyph::kDirectMask, kGlyphInsetting);
+         if (!buffer.validate(vertexFiller.has_value())) { return nullptr; }
+ 
++        if (!buffer.validate(vertexFiller->creationMatrix() == initialPositionMatrix)) {
++            return nullptr;
++        }
++
+         SkASSERT(buffer.isValid());
+         return alloc->makeUnique<DirectMaskSubRun>(std::move(*vertexFiller),
+                                                    std::move(*glyphVector));
+@@ -796,6 +866,7 @@
+     }
+ 
+     static SubRunOwner MakeFromBuffer(SkReadBuffer& buffer,
++                                      const SkMatrix& /*initialPositionMatrix*/,
+                                       SubRunAllocator* alloc,
+                                       const SkStrikeClient* client) {
+         auto glyphVector = GlyphVector::MakeFromBuffer(buffer, client, alloc);
+@@ -928,11 +999,13 @@
+     }
+ 
+     static SubRunOwner MakeFromBuffer(SkReadBuffer& buffer,
++                                      const SkMatrix& /*initialPositionMatrix*/,
+                                       SubRunAllocator* alloc,
+                                       const SkStrikeClient* client) {
+-        int useLCD = buffer.readInt();
+-        int isAntiAliased = buffer.readInt();
++        const bool useLCD = buffer.readBool();
++        const bool isAntiAliased = buffer.readBool();
+         SDFTMatrixRange matrixRange = SDFTMatrixRange::MakeFromBuffer(buffer);
++        if (!buffer.isValid()) { return nullptr; }
+ 
+         auto glyphVector = GlyphVector::MakeFromBuffer(buffer, client, alloc);
+         if (!buffer.validate(glyphVector.has_value())) { return nullptr; }
+@@ -989,8 +1062,8 @@
+ protected:
+     SubRunStreamTag subRunStreamTag() const override { return SubRunStreamTag::kSDFTStreamTag; }
+     void doFlatten(SkWriteBuffer& buffer) const override {
+-        buffer.writeInt(fUseLCDText);
+-        buffer.writeInt(fAntiAliased);
++        buffer.writeBool(fUseLCDText);
++        buffer.writeBool(fAntiAliased);
+         fMatrixRange.flatten(buffer);
+         fGlyphVector.flatten(buffer);
+         flatten_vertex_filler(buffer, fVertexFiller);
+@@ -1042,9 +1115,11 @@
+ }
+ 
+ SubRunOwner SubRun::MakeFromBuffer(SkReadBuffer& buffer,
++                                   const SkMatrix& initialPositionMatrix,
+                                    SubRunAllocator* alloc,
+                                    const SkStrikeClient* client) {
+     using Maker = SubRunOwner (*)(SkReadBuffer&,
++                                  const SkMatrix&,
+                                   SubRunAllocator*,
+                                   const SkStrikeClient*);
+ 
+@@ -1064,7 +1139,7 @@
+     }
+     auto maker = makers[subRunTypeInt];
+     if (!buffer.validate(maker != nullptr)) { return nullptr; }
+-    return maker(buffer, alloc, client);
++    return maker(buffer, initialPositionMatrix, alloc, client);
+ }
+ 
+ // -- SubRunContainer ------------------------------------------------------------------------------
+@@ -1107,17 +1182,17 @@
+                                                             SubRunAllocator* alloc) {
+     SkMatrix positionMatrix;
+     buffer.readMatrix(&positionMatrix);
+-    if (!buffer.isValid()) { return nullptr; }
++    if (!buffer.validate(positionMatrix.isFinite())) {
++        return nullptr;
++    }
+     SubRunContainerOwner container = alloc->makeUnique<SubRunContainer>(positionMatrix);
+ 
+     int subRunCount = buffer.readInt();
+     if (!buffer.validate(subRunCount > 0)) { return nullptr; }
+     for (int i = 0; i < subRunCount; ++i) {
+-        auto subRunOwner = SubRun::MakeFromBuffer(buffer, alloc, client);
++        auto subRunOwner = SubRun::MakeFromBuffer(buffer, positionMatrix, alloc, client);
+         if (!buffer.validate(subRunOwner != nullptr)) { return nullptr; }
+-        if (subRunOwner != nullptr) {
+-            container->fSubRuns.append(std::move(subRunOwner));
+-        }
++        container->fSubRuns.append(std::move(subRunOwner));
+     }
+     return container;
+ }
+@@ -1165,9 +1240,20 @@
+         switch (const SkGlyphDigest digest = strike->digestFor(skglyph::kSDFT, packedID);
+                 digest.actionFor(skglyph::kSDFT)) {
+             case GlyphAction::kAccept: {
++                // Glyphs whose creation-space position or bounds are unusable (non-finite or
++                // beyond kMaxGlyphPositionCoord) are rejected so a later stage can draw them.
+                 SkPoint mappedPos = creationMatrix.mapPoint(pos);
++                if (!mappedPos.isFinite()) {
++                    rejectedBuffer[rejectedSize++] = std::make_tuple(glyphID, pos);
++                    break;
++                }
+                 const SkGlyphRect glyphBounds =
+                         glyph_bounds(digest, SDFTSubRun::kGlyphInsetting, mappedPos);
++                if (!glyphBounds.rect().isFinite() ||
++                    !valid_glyph_position(glyphBounds.leftTop())) {
++                    rejectedBuffer[rejectedSize++] = std::make_tuple(glyphID, pos);
++                    break;
++                }
+                 boundingRect = skglyph::rect_union(boundingRect, glyphBounds);
+                 acceptedBuffer[acceptedSize++] = std::make_tuple(packedID, glyphBounds.leftTop());
+                 break;
+@@ -1195,6 +1281,10 @@
+                                 SkZip<SkPackedGlyphID, SkPoint, SkMask::Format> acceptedBuffer,
+                                 SkZip<SkGlyphID, SkPoint> rejectedBuffer,
+                                 skglyph::ActionType actionType) {
++    // The positionMatrix becomes the creationMatrix of the DirectMaskSubRuns, so the caller only
++    // uses direct masks when it is a valid direct creation matrix.
++    SkASSERT(valid_direct_creation_matrix(positionMatrix));
++
+     const SkIPoint mask = strike->roundingSpec().ignorePositionFieldMask;
+     const SkPoint halfSampleFreq = strike->roundingSpec().halfAxisSampleFreq;
+ 
+@@ -1213,6 +1303,11 @@
+         }
+ 
+         const SkPoint mappedPos = positionMatrixWithRounding.mapPoint(pos);
++        if (!mappedPos.isFinite()) {
++            // Like the other stages, let a later stage try to draw this glyph.
++            rejectedBuffer[rejectedSize++] = std::make_tuple(glyphID, pos);
++            continue;
++        }
+         const SkPackedGlyphID packedID{glyphID, mappedPos, mask};
+         switch (const SkGlyphDigest digest = strike->digestFor(actionType, packedID);
+                 digest.actionFor(actionType)) {
+@@ -1222,6 +1317,11 @@
+                 const SkGlyphRect glyphBounds = glyph_bounds(digest,
+                                                              DirectMaskSubRun::kGlyphInsetting,
+                                                              roundedPos);
++                if (!VertexFiller::ValidDirectPosition(glyphBounds.leftTop()) ||
++                    !glyphBounds.rect().isFinite()) {
++                    rejectedBuffer[rejectedSize++] = std::make_tuple(glyphID, pos);
++                    break;
++                }
+                 boundingRect = skglyph::rect_union(boundingRect, glyphBounds);
+                 acceptedBuffer[acceptedSize++] =
+                         std::make_tuple(packedID, glyphBounds.leftTop(), digest.maskFormat());
+@@ -1261,9 +1361,20 @@
+         switch (const SkGlyphDigest digest = strike->digestFor(kMask, packedID);
+                 digest.actionFor(kMask)) {
+             case GlyphAction::kAccept: {
++                // Report glyphs whose creation-space position or bounds are unusable (non-finite
++                // or beyond kMaxGlyphPositionCoord) as rejected, consistent with the other stages.
+                 const SkPoint mappedPos = creationMatrix.mapPoint(pos);
++                if (!mappedPos.isFinite()) {
++                    rejectedBuffer[rejectedSize++] = std::make_tuple(glyphID, pos);
++                    break;
++                }
+                 const SkGlyphRect glyphBounds =
+                         glyph_bounds(digest, TransformedMaskSubRun::kGlyphInsetting, mappedPos);
++                if (!glyphBounds.rect().isFinite() ||
++                    !valid_glyph_position(glyphBounds.leftTop())) {
++                    rejectedBuffer[rejectedSize++] = std::make_tuple(glyphID, pos);
++                    break;
++                }
+                 boundingRect = skglyph::rect_union(boundingRect, glyphBounds);
+                 acceptedBuffer[acceptedSize++] =
+                         std::make_tuple(packedID, glyphBounds.leftTop(), digest.maskFormat());
+@@ -1291,7 +1402,7 @@
+     int rejectedSize = 0;
+     StrikeMutationMonitor m{strike};
+     for (const auto [glyphID, pos] : source) {
+-        if (!SkIsFinite(pos.x(), pos.y())) {
++        if (!valid_glyph_position(pos)) {
+             continue;
+         }
+ 
+@@ -1319,7 +1430,7 @@
+     int rejectedSize = 0;
+     StrikeMutationMonitor m{strike};
+     for (const auto [glyphID, pos] : source) {
+-        if (!SkIsFinite(pos.x(), pos.y())) {
++        if (!valid_glyph_position(pos)) {
+             continue;
+         }
+ 
+@@ -1429,6 +1540,10 @@
+ 
+     const SkPoint glyphRunListLocation = glyphRunList.sourceBounds().center();
+ 
++    // The positionMatrix becomes the creationMatrix of any DirectMaskSubRuns, so direct masks can
++    // only be used if it is a valid direct creation matrix (for example, not singular).
++    const bool canUseDirectMasks = valid_direct_creation_matrix(positionMatrix);
++
+     // Handle all the runs in the glyphRunList
+     for (auto& glyphRun : glyphRunList) {
+         SkZip<const SkGlyphID, const SkPoint> source = glyphRun.source();
+@@ -1454,19 +1569,22 @@
+                                 runFont, runPaint, deviceProps, positionMatrix,
+                                 glyphRunListLocation, *subRunControl);
+ 
+-                if (!SkScalarNearlyZero(strikeToSourceScale)) {
+-                    sk_sp<StrikeForGPU> strike = strikeSpec.findOrCreateScopedStrike(strikeCache);
++                // The creationMatrix needs to scale the strike data when inverted and
++                // multiplied by the positionMatrix. The final CTM should be:
++                //   [positionMatrix][scale by strikeToSourceScale],
++                // which should equal the following because of the transform during the vertex
++                // calculation,
++                //   [positionMatrix][creationMatrix]^-1.
++                // So, the creation matrix needs to be
++                //   [scale by 1/strikeToSourceScale].
++                const SkScalar creationScale = sk_ieee_float_divide(1.f, strikeToSourceScale);
++                const SkMatrix creationMatrix = SkMatrix::Scale(creationScale, creationScale);
+ 
+-                    // The creationMatrix needs to scale the strike data when inverted and
+-                    // multiplied by the positionMatrix. The final CTM should be:
+-                    //   [positionMatrix][scale by strikeToSourceScale],
+-                    // which should equal the following because of the transform during the vertex
+-                    // calculation,
+-                    //   [positionMatrix][creationMatrix]^-1.
+-                    // So, the creation matrix needs to be
+-                    //   [scale by 1/strikeToSourceScale].
+-                    SkMatrix creationMatrix =
+-                            SkMatrix::Scale(1.f/strikeToSourceScale, 1.f/strikeToSourceScale);
++                // Only create SDFTSubRuns whose matrix range and creationMatrix pass the same
++                // checks that deserialization applies.
++                if (!SkScalarNearlyZero(strikeToSourceScale) && matrixRange.isValid() &&
++                    valid_creation_matrix(creationMatrix)) {
++                    sk_sp<StrikeForGPU> strike = strikeSpec.findOrCreateScopedStrike(strikeCache);
+ 
+                     auto acceptedBuffer = SkMakeZip(acceptedPackedGlyphIDs, acceptedPositions);
+                     auto [accepted, rejected, creationBounds] = prepare_for_SDFT_drawing(
+@@ -1492,7 +1610,7 @@
+                 as_MFB(runPaint.getMaskFilter())->getFormat() == SkMask::k3D_Format;
+             // Direct Mask case
+             // Handle all the directly mapped mask subruns.
+-            if (!source.empty() && !positionMatrix.hasPerspective() && !needsAutoLayer) {
++            if (!source.empty() && canUseDirectMasks && !needsAutoLayer) {
+                 // Process masks including ARGB - this should be the 99.99% case.
+                 // This will handle medium size emoji that are sharing the run with SDFT drawn text.
+                 // If things are too big they will be passed along to the drawing of last resort
+@@ -1655,35 +1773,40 @@
+                 creationMatrix.postScale(reductionFactor, reductionFactor);
+             }
+ 
+-            // Draw using the creationMatrix.
+-            SkStrikeSpec strikeSpec = SkStrikeSpec::MakeTransformMask(
+-                    runFont, runPaint, deviceProps, scalerContextFlags, creationMatrix);
++            // TransformedMaskSubRuns invert the creationMatrix to draw, and deserialization
++            // rejects creation matrices that aren't valid, so these glyphs can't be drawn if
++            // conditioning didn't produce a valid one.
++            if (valid_creation_matrix(creationMatrix)) {
++                // Draw using the creationMatrix.
++                SkStrikeSpec strikeSpec = SkStrikeSpec::MakeTransformMask(
++                        runFont, runPaint, deviceProps, scalerContextFlags, creationMatrix);
+ 
+-            sk_sp<StrikeForGPU> strike = strikeSpec.findOrCreateScopedStrike(strikeCache);
++                sk_sp<StrikeForGPU> strike = strikeSpec.findOrCreateScopedStrike(strikeCache);
+ 
+-            auto acceptedBuffer =
+-                    SkMakeZip(acceptedPackedGlyphIDs, acceptedPositions, acceptedFormats);
+-            auto [accepted, rejected, creationBounds] =
+-                prepare_for_mask_drawing(
+-                        strike.get(), creationMatrix, source, acceptedBuffer, rejectedBuffer);
+-            source = rejected;
++                auto acceptedBuffer =
++                        SkMakeZip(acceptedPackedGlyphIDs, acceptedPositions, acceptedFormats);
++                auto [accepted, rejected, creationBounds] =
++                    prepare_for_mask_drawing(
++                            strike.get(), creationMatrix, source, acceptedBuffer, rejectedBuffer);
++                source = rejected;
+ 
+-            if (creationBehavior == kAddSubRuns && !accepted.empty()) {
++                if (creationBehavior == kAddSubRuns && !accepted.empty()) {
+ 
+-                auto addGlyphsWithSameFormat =
+-                        [&, bounds = creationBounds](
+-                                SkZip<const SkPackedGlyphID, const SkPoint> subrun,
+-                                MaskFormat format) {
+-                            container->fSubRuns.append(
+-                                    TransformedMaskSubRun::Make(subrun,
+-                                                                container->initialPosition(),
+-                                                                strike->strikePromise(),
+-                                                                creationMatrix,
+-                                                                bounds,
+-                                                                format,
+-                                                                alloc));
+-                        };
+-                add_multi_mask_format(addGlyphsWithSameFormat, accepted);
++                    auto addGlyphsWithSameFormat =
++                            [&, bounds = creationBounds](
++                                    SkZip<const SkPackedGlyphID, const SkPoint> subrun,
++                                    MaskFormat format) {
++                                container->fSubRuns.append(
++                                        TransformedMaskSubRun::Make(subrun,
++                                                                    container->initialPosition(),
++                                                                    strike->strikePromise(),
++                                                                    creationMatrix,
++                                                                    bounds,
++                                                                    format,
++                                                                    alloc));
++                            };
++                    add_multi_mask_format(addGlyphsWithSameFormat, accepted);
++                }
+             }
+         }
+     }
+@@ -1710,4 +1833,13 @@
+     return true;
+ }
+ 
++bool SubRunContainer::hasDirectMaskSubRuns() const {
++    for (const SubRun& subRun : fSubRuns) {
++        if (subRun.canDrawDirect()) {
++            return true;
++        }
++    }
++    return false;
++}
++
+ }  // namespace sktext::gpu
+diff --git a/third_party/skia/src/text/gpu/SubRunContainer.h b/third_party/skia/src/text/gpu/SubRunContainer.h
+index 9f2f9b4..9064230 100644
+--- a/third_party/skia/src/text/gpu/SubRunContainer.h
++++ b/third_party/skia/src/text/gpu/SubRunContainer.h
+@@ -62,6 +62,7 @@
+ 
+     void flatten(SkWriteBuffer& buffer) const;
+     static SubRunOwner MakeFromBuffer(SkReadBuffer& buffer,
++                                      const SkMatrix& initialPositionMatrix,
+                                       sktext::gpu::SubRunAllocator* alloc,
+                                       const SkStrikeClient* client);
+ 
+@@ -73,6 +74,10 @@
+     // position.
+     virtual bool canReuse(const SkPaint& paint, const SkMatrix& positionMatrix) const = 0;
+ 
++    // Returns true if this SubRun draws direct masks, which are packed into the atlas without
++    // padding when atlas bilerp is unsupported.
++    virtual bool canDrawDirect() const { return false; }
++
+     // Return the underlying atlas SubRun if it exists. Otherwise, return nullptr.
+     // * Don't use this API. It is only to support testing.
+     virtual const AtlasSubRun* testingOnly_atlasSubRun() const = 0;
+@@ -128,6 +133,8 @@
+     };
+     virtual GlyphParams glyphParams() const = 0;
+ 
++    bool canDrawDirect() const override { return fVertexFiller.canDrawDirect(); }
++
+     const VertexFiller& vertexFiller() const { return fVertexFiller; }
+ 
+     GlyphVector& glyphVector() const { return fGlyphVector; }
+@@ -219,6 +226,7 @@
+ 
+     const SkMatrix& initialPosition() const { return fInitialPositionMatrix; }
+     bool isEmpty() const { return fSubRuns.isEmpty(); }
++    bool hasDirectMaskSubRuns() const;
+     bool canReuse(const SkPaint& paint, const SkMatrix& positionMatrix) const;
+ 
+ private:
+diff --git a/third_party/skia/src/text/gpu/SubRunControl.cpp b/third_party/skia/src/text/gpu/SubRunControl.cpp
+index abac07e..209729b 100644
+--- a/third_party/skia/src/text/gpu/SubRunControl.cpp
++++ b/third_party/skia/src/text/gpu/SubRunControl.cpp
+@@ -145,6 +145,10 @@
+     return fMatrixMin < maxScale && maxScale <= fMatrixMax;
+ }
+ 
++bool SDFTMatrixRange::isValid() const {
++    return SkIsFinite(fMatrixMin, fMatrixMax) && 0 <= fMatrixMin && 0 <= fMatrixMax;
++}
++
+ void SDFTMatrixRange::flatten(SkWriteBuffer& buffer) const {
+     buffer.writeScalar(fMatrixMin);
+     buffer.writeScalar(fMatrixMax);
+@@ -153,7 +157,11 @@
+ SDFTMatrixRange SDFTMatrixRange::MakeFromBuffer(SkReadBuffer& buffer) {
+     SkScalar min = buffer.readScalar();
+     SkScalar max = buffer.readScalar();
+-    return SDFTMatrixRange{min, max};
++    SDFTMatrixRange range{min, max};
++    if (!buffer.validate(range.isValid())) {
++        return SDFTMatrixRange{0, 0};
++    }
++    return range;
+ }
+ #endif // !defined(SK_DISABLE_SDF_TEXT)
+ 
+diff --git a/third_party/skia/src/text/gpu/SubRunControl.h b/third_party/skia/src/text/gpu/SubRunControl.h
+index 406170c..098869b 100644
+--- a/third_party/skia/src/text/gpu/SubRunControl.h
++++ b/third_party/skia/src/text/gpu/SubRunControl.h
+@@ -29,6 +29,10 @@
+ public:
+     SDFTMatrixRange(SkScalar min, SkScalar max) : fMatrixMin{min}, fMatrixMax{max} {}
+     bool matrixInRange(const SkMatrix& matrix) const;
++    // Returns true if both limits are finite and non-negative. SDFTSubRuns are only created with
++    // valid ranges, and deserialization rejects invalid ones. A valid range may have min > max
++    // (e.g. perspective text below the minimum SDFT size); such a range never matches.
++    bool isValid() const;
+     void flatten(SkWriteBuffer& buffer) const;
+     static SDFTMatrixRange MakeFromBuffer(SkReadBuffer& buffer);
+ 
 diff --git a/third_party/skia/src/text/gpu/VertexFiller.cpp b/third_party/skia/src/text/gpu/VertexFiller.cpp
-index 7a3672a..baee3b7 100644
+index 7a3672a..41c3960 100644
 --- a/third_party/skia/src/text/gpu/VertexFiller.cpp
 +++ b/third_party/skia/src/text/gpu/VertexFiller.cpp
-@@ -98,7 +98,8 @@
+@@ -18,12 +18,24 @@
+ #include "src/text/gpu/SubRunAllocator.h"
+ #include "src/text/gpu/SubRunContainer.h"
+ 
++#include <cmath>
+ #include <optional>
+ 
+ using MaskFormat = skgpu::MaskFormat;
+ 
+ namespace sktext::gpu {
+ 
++bool VertexFiller::ValidDirectPosition(SkPoint pt) {
++    // Single-precision floats have a 24-bit significand. At or below 2^21, floats can represent
++    // all 1/4 subpixel increments (ULP <= 0.25f) and exact integers. Bounding direct coordinates
++    // and offsets to 2^21 ensures that glyph bounds and sums remain well within the 2^24 exact
++    // integer range, prevents subpixel rounding absorption (e.g. pt + 0.5f == pt), and avoids
++    // 32-bit integer overflow.
++    return pt.isFinite() &&
++           std::abs(pt.x()) <= kMaxDirectCoord && std::abs(pt.y()) <= kMaxDirectCoord &&
++           SkScalarIsInt(pt.x()) && SkScalarIsInt(pt.y());
++}
++
+ VertexFiller::VertexFiller(MaskFormat maskFormat,
+                            const SkMatrix& creationMatrix,
+                            SkRect creationBounds,
+@@ -42,6 +54,13 @@
+                                 SubRunAllocator *alloc,
+                                 FillerType fillerType) {
+     SkSpan<SkPoint> leftTop = alloc->makePODSpan<SkPoint>(positions);
++#if defined(SK_DEBUG)
++    if (fillerType == kIsDirect) {
++        for (const SkPoint& pt : leftTop) {
++            SkASSERT(ValidDirectPosition(pt));
++        }
++    }
++#endif
+     return VertexFiller{
+             maskType, creationMatrix, creationBounds, leftTop, fillerType == kIsDirect};
+ }
+@@ -55,22 +74,34 @@
+ 
+ // Check for integer translate with the same 2x2 matrix.
+ // Returns the translation, and true if the change from creation matrix to the position matrix
+-// supports using direct glyph masks.
++// supports using direct glyph masks. Returns {false, {0, 0}} otherwise.
+ std::tuple<bool, SkVector> VertexFiller::CanUseDirect(
+         const SkMatrix& creationMatrix, const SkMatrix& positionMatrix) {
+-    // The existing direct glyph info can be used if the creationMatrix, and the
+-    // positionMatrix have the same 2x2, the translation between them is integer, and no
+-    // perspective is involved. Calculate the translation in source space to a translation in
+-    // device space by mapping (0, 0) through both the creationMatrix and the positionMatrix;
+-    // take the difference.
+-    SkVector translation = positionMatrix.mapOrigin() - creationMatrix.mapOrigin();
+-    return {creationMatrix.getScaleX() == positionMatrix.getScaleX() &&
+-            creationMatrix.getScaleY() == positionMatrix.getScaleY() &&
+-            creationMatrix.getSkewX()  == positionMatrix.getSkewX()  &&
+-            creationMatrix.getSkewY()  == positionMatrix.getSkewY()  &&
+-            !positionMatrix.hasPerspective() && !creationMatrix.hasPerspective() &&
+-            SkScalarIsInt(translation.x()) && SkScalarIsInt(translation.y()),
+-            translation};
++    // The existing direct glyph info can be used if the creationMatrix and the positionMatrix
++    // have the same 2x2, no perspective is involved, and the translation between them is a valid
++    // direct-mask offset.
++    if (!creationMatrix.isFinite() || !positionMatrix.isFinite() ||
++        creationMatrix.hasPerspective() || positionMatrix.hasPerspective() ||
++        creationMatrix.getScaleX() != positionMatrix.getScaleX() ||
++        creationMatrix.getScaleY() != positionMatrix.getScaleY() ||
++        creationMatrix.getSkewX()  != positionMatrix.getSkewX()  ||
++        creationMatrix.getSkewY()  != positionMatrix.getSkewY()) {
++        return {false, {0, 0}};
++    }
++
++    // Both translations are single-precision results of the same SkMatrix::preTranslate math, so
++    // drawing with an unchanged matrix yields an exact zero offset. Take the difference in double
++    // and require it to be exactly representable as a float so that rounding can't turn a
++    // non-integer (or overflowing) difference into an integer. Float rounding of very large
++    // translations can't cause atlas sampling problems: the validated integer offset is what
++    // positions the glyph quads.
++    const double dx = (double)positionMatrix.getTranslateX() - creationMatrix.getTranslateX();
++    const double dy = (double)positionMatrix.getTranslateY() - creationMatrix.getTranslateY();
++    const SkVector offset = {(float)dx, (float)dy};
++    if ((double)offset.x() != dx || (double)offset.y() != dy || !ValidDirectPosition(offset)) {
++        return {false, {0, 0}};
++    }
++    return {true, offset};
+ }
+ 
+ bool VertexFiller::isLCD() const { return fMaskFormat == MaskFormat::kA565; }
+@@ -98,37 +129,38 @@
  }
  
  std::tuple<SkRect, SkMatrix> VertexFiller::boundsAndDeviceMatrix(const SkMatrix& localToDevice,
 -                                                                 SkPoint drawOrigin) const {
+-    // The baked-in matrix differs from the current localToDevice by a translation if the
+-    // upper 2x2 remains the same, and there's no perspective. Since there's no projection,
+-    // Z is irrelevant, so it's okay that fCreationMatrix is an SkMatrix and has
+-    // discarded the 3rd row/col, and can ignore those values in localToDevice.
+-    const bool compatibleMatrix = localToDevice.rc(0, 0) == fCreationMatrix.rc(0, 0) &&
+-                                  localToDevice.rc(0, 1) == fCreationMatrix.rc(0, 1) &&
+-                                  localToDevice.rc(1, 0) == fCreationMatrix.rc(1, 0) &&
+-                                  localToDevice.rc(1, 1) == fCreationMatrix.rc(1, 1) &&
+-                                  !localToDevice.hasPerspective() &&
+-                                  !fCreationMatrix.hasPerspective();
+-
+-    if (compatibleMatrix) {
+-        SkPoint mappedOrigin = localToDevice.mapPoint(drawOrigin);
+-        auto offset = mappedOrigin -
+-                      SkPoint{fCreationMatrix.getTranslateX(), fCreationMatrix.getTranslateY()};
+-        if (SkScalarIsInt(offset.fX) && SkScalarIsInt(offset.fY)) {
+-            // The offset is an integer (but make sure), which means the generated mask can be
+-            // accessed without changing how texels would be sampled.
+-            return {fCreationBounds, SkMatrix::Translate(offset)};
+-        }
+-    }
+-
+-    // Otherwise compute the relative transformation from fCreationMatrix to
+-    // localToDevice, with the drawOrigin applied. If fCreationMatrix or the
+-    // concatenation is not invertible the returned Transform is marked invalid and the draw
+-    // will be automatically dropped.
 +                                                                 SkPoint drawOrigin,
 +                                                                 bool supportBilerpAtlas) const {
-     // The baked-in matrix differs from the current localToDevice by a translation if the
-     // upper 2x2 remains the same, and there's no perspective. Since there's no projection,
-     // Z is irrelevant, so it's okay that fCreationMatrix is an SkMatrix and has
-@@ -121,6 +122,13 @@
-         }
-     }
- 
++    // Compute the positionMatrix exactly as it was computed when the glyphs were created, so
++    // that drawing with an unchanged matrix yields a zero offset. The baked-in matrix differs from
++    // the current positionMatrix by a translation if the upper 2x2 remains the same, and there's
++    // no perspective. Since there's no projection, Z is irrelevant, so it's okay that
++    // fCreationMatrix is an SkMatrix and has discarded the 3rd row/col, and can ignore those
++    // values in localToDevice.
+     SkMatrix positionMatrix = localToDevice;
+     positionMatrix.preTranslate(drawOrigin.x(), drawOrigin.y());
+-    const SkMatrix viewDifference = this->viewDifference(positionMatrix);
+-    return {fCreationBounds, viewDifference};
++
++    if (auto [directDrawCompatible, offset] = CanUseDirect(fCreationMatrix, positionMatrix);
++        directDrawCompatible) {
++        // The offset is a bounded integer, which means the generated mask can be accessed
++        // without changing how texels would be sampled.
++        return {fCreationBounds, SkMatrix::Translate(offset)};
++    }
++
 +    if (fCanDrawDirect && !supportBilerpAtlas) {
 +        // Direct-mask glyphs have no padding in the atlas when atlas bilerp is unsupported.
 +        // Drawing with a fractional translation or non-identical matrix causes sampling
@@ -2617,11 +3434,18 @@ index 7a3672a..baee3b7 100644
 +        return {SkRect::MakeEmpty(), SkMatrix::I()};
 +    }
 +
-     // Otherwise compute the relative transformation from fCreationMatrix to
-     // localToDevice, with the drawOrigin applied. If fCreationMatrix or the
-     // concatenation is not invertible the returned Transform is marked invalid and the draw
++    // Otherwise compute the relative transformation from fCreationMatrix to positionMatrix. If
++    // fCreationMatrix is not invertible, return empty bounds so the draw is dropped.
++    const std::optional<SkMatrix> inverse = fCreationMatrix.invert();
++    if (!inverse) {
++        return {SkRect::MakeEmpty(), SkMatrix::I()};
++    }
++    return {fCreationBounds, SkMatrix::Concat(positionMatrix, *inverse)};
+ }
+ 
+ }  // namespace sktext::gpu
 diff --git a/third_party/skia/src/text/gpu/VertexFiller.h b/third_party/skia/src/text/gpu/VertexFiller.h
-index 06a1af8..e7fc157 100644
+index 06a1af8..78da1ee 100644
 --- a/third_party/skia/src/text/gpu/VertexFiller.h
 +++ b/third_party/skia/src/text/gpu/VertexFiller.h
 @@ -29,8 +29,8 @@
@@ -2644,8 +3468,36 @@ index 06a1af8..e7fc157 100644
  
      // Return true if the positionMatrix represents an integer translation. Return the device
      // bounding box of all the glyphs. If the bounding box is empty, then something went singular
+@@ -89,12 +90,25 @@
+     }
+     SkMatrix viewDifference(const SkMatrix& positionMatrix) const;
+ 
+-private:
+-    friend class AtlasSubRun;
++    // Direct-mask glyph positions and draw offsets are limited to +/-kMaxDirectCoord. Their sum
++    // then stays well inside the range where floats represent every integer exactly, and inside
++    // the int32 range used when clipping direct-mask quads.
++    static constexpr SkScalar kMaxDirectCoord = 1 << 21;  // 2,097,152
+ 
++    // Returns true if pt is finite, integral, and within +/-kMaxDirectCoord. Direct-mask glyphs
++    // are packed into the atlas without padding, so their device positions must be integers for
++    // texel centers to align with pixel centers.
++    static bool ValidDirectPosition(SkPoint pt);
++
++    // Returns true, and the device-space offset, if positionMatrix differs from creationMatrix
++    // only by an integer translation that is a valid direct-mask offset; otherwise returns
++    // {false, {0, 0}}. positionMatrix must be computed the same way it was at creation time,
++    // i.e. drawMatrix.preTranslate(drawOrigin) in single precision, so that drawing with an
++    // unchanged matrix yields a bit-exact zero offset.
+     static std::tuple<bool, SkVector> CanUseDirect(const SkMatrix& creationMatrix,
+                                                    const SkMatrix& positionMatrix);
+ 
++private:
+     const skgpu::MaskFormat fMaskFormat;
+     const bool fCanDrawDirect;
+     const SkMatrix fCreationMatrix;
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index 9258925..2230b1c 100644
+index 9258925..31c243a 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -2653,10 +3505,119 @@ index 9258925..2230b1c 100644
  #define V8_MINOR_VERSION 8
  #define V8_BUILD_NUMBER 62
 -#define V8_PATCH_LEVEL 9
-+#define V8_PATCH_LEVEL 11
++#define V8_PATCH_LEVEL 12
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/compiler/wasm-load-elimination.cc b/v8/src/compiler/wasm-load-elimination.cc
+index 3ab300b..75d7f83 100644
+--- a/v8/src/compiler/wasm-load-elimination.cc
++++ b/v8/src/compiler/wasm-load-elimination.cc
+@@ -84,7 +84,40 @@
+ std::tuple<Node*, Node*> WasmLoadElimination::TruncateAndExtendOrType(
+     Node* value, Node* effect, Node* control, wasm::ValueType field_type,
+     bool is_signed) {
++  if (value->opcode() == IrOpcode::kDead ||
++      value->opcode() == IrOpcode::kDeadValue) {
++    return {dead(), dead()};
++  }
++
++  // The value might be untyped or have a non-Wasm type (e.g. Type::None() from
++  // DeadCodeElimination, or a JS node in case of Wasm inlined into JS). Without
++  // a concrete Wasm type we cannot verify representation compatibility.
++  if (!NodeProperties::IsTyped(value)) {
++    return {nullptr, nullptr};
++  }
++
++  Type value_type = NodeProperties::GetType(value);
++  if (!value_type.IsWasm()) {
++    return {nullptr, nullptr};
++  }
++
++  wasm::TypeInModule node_type = value_type.AsWasm();
++  if (node_type.type.is_top()) {
++    return {nullptr, nullptr};
++  }
++
++  wasm::ValueType unpacked_field_type = field_type.Unpacked();
++  if (node_type.type.is_uninhabited() ||
++      TypesUnrelated(node_type.type, unpacked_field_type, node_type.module)) {
++    // Uninhabited or unrelated types can occur as a result of unreachable code.
++    // Example: Storing a value x of type A in a struct, then casting the struct
++    // to a different struct type to then load type B from the same offset
++    // results in trying to replace the load with value x.
++    return {dead(), dead()};
++  }
++
+   if (field_type == wasm::kWasmI8 || field_type == wasm::kWasmI16) {
++    DCHECK_EQ(node_type.type, wasm::kWasmI32);
+     Node* ret = nullptr;
+     if (is_signed) {
+       int shift = 32 - 8 * field_type.value_kind_size();
+@@ -98,30 +131,10 @@
+                              jsgraph()->Int32Constant(mask));
+     }
+ 
+-    NodeProperties::SetType(ret, NodeProperties::GetType(value));
++    NodeProperties::SetType(ret, value_type);
+     return {ret, effect};
+   }
+ 
+-  // The value might be untyped in case of wasm inlined into JS if the value
+-  // comes from a JS node.
+-  if (!NodeProperties::IsTyped(value)) {
+-    return {value, effect};
+-  }
+-
+-  Type value_type = NodeProperties::GetType(value);
+-  if (!value_type.IsWasm()) {
+-    return {value, effect};
+-  }
+-
+-  wasm::TypeInModule node_type = value_type.AsWasm();
+-
+-  if (TypesUnrelated(node_type.type, field_type, node_type.module)) {
+-    // Unrelated types can occur as a result of unreachable code.
+-    // Example: Storing a value x of type A in a struct, then casting the struct
+-    // to a different struct type to then load type B from the same offset
+-    // results in trying to replace the load with value x.
+-    return {dead(), dead()};
+-  }
+   if (!wasm::IsSubtypeOf(node_type.type, field_type, node_type.module)) {
+     Type type = Type::Wasm({field_type, node_type.module}, graph()->zone());
+     Node* ret =
+@@ -233,10 +246,12 @@
+       node->Kill();
+       return Replace(dead());
+     }
+-    ReplaceWithValue(node, std::get<0>(replacement), std::get<1>(replacement),
+-                     control);
+-    node->Kill();
+-    return Replace(std::get<0>(replacement));
++    if (std::get<0>(replacement) != nullptr) {
++      ReplaceWithValue(node, std::get<0>(replacement), std::get<1>(replacement),
++                       control);
++      node->Kill();
++      return Replace(std::get<0>(replacement));
++    }
+   }
+ 
+   half_state = half_state->AddField(field_info.field_index, object, node);
+diff --git a/v8/src/compiler/wasm-load-elimination.h b/v8/src/compiler/wasm-load-elimination.h
+index fe40418..204af4f 100644
+--- a/v8/src/compiler/wasm-load-elimination.h
++++ b/v8/src/compiler/wasm-load-elimination.h
+@@ -138,7 +138,9 @@
+   AbstractState const* ComputeLoopState(Node* node,
+                                         AbstractState const* state) const;
+   // Returns the replacement value and effect for a load given an initial value
+-  // node, after optional {TypeGuard}ing and i8/i16 adaptation to i32.
++  // node, after optional {TypeGuard}ing and i8/i16 adaptation to i32. Returns
++  // {dead(), dead()} if the types prove the load is unreachable, or
++  // {nullptr, nullptr} if replacement must be skipped.
+   std::tuple<Node*, Node*> TruncateAndExtendOrType(Node* value, Node* effect,
+                                                    Node* control,
+                                                    wasm::ValueType field_type,
 diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
 index ece949c..56230c1 100644
 --- a/v8/src/maglev/maglev-graph-builder.cc
@@ -2765,3 +3726,144 @@ index d3b18a8..68d04e8 100644
  
    const Timestamp post_time = env.clock().CurrentTime();
  
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/FramebufferVk.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/FramebufferVk.cpp
+index acd396e..6af6a6d 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/FramebufferVk.cpp
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/FramebufferVk.cpp
+@@ -2249,27 +2249,8 @@
+     // Shouldn't try to issue deferred clears if invalidating sub framebuffer.
+     ASSERT(mDeferredClears.empty() || !isSubInvalidate);
+ 
+-    if (contextVk->getFeatures().dropDepthStencilClearOnInvalidate.enabled)
+-    {
+-        // Remove deferred clears for the invalidated attachments.
+-        if (invalidateDepthBuffer)
+-        {
+-            mDeferredClears.reset(vk::kUnpackedDepthIndex);
+-        }
+-        if (invalidateStencilBuffer)
+-        {
+-            mDeferredClears.reset(vk::kUnpackedStencilIndex);
+-        }
+-    }
+     // Limit invalidateColorBuffers to enabled draw buffers
+     invalidateColorBuffers &= mState.getEnabledDrawBuffers();
+-    for (size_t colorIndexGL : invalidateColorBuffers)
+-    {
+-        mDeferredClears.reset(colorIndexGL);
+-    }
+-
+-    // If there are still deferred clears, restage them. See relevant comment in invalidateSub.
+-    restageDeferredClears(contextVk);
+ 
+     const auto &colorRenderTargets           = mRenderTargetCache.getColors();
+     RenderTargetVk *depthStencilRenderTarget = mRenderTargetCache.getDepthStencil();
+@@ -2289,22 +2270,28 @@
+             RenderTargetVk *colorRenderTarget = colorRenderTargets[colorIndexGL];
+             ASSERT(colorRenderTarget);
+ 
++            // All pending deferred clears on this attachment are dropped, unless it is preferred
++            // that its content remain defined, in which case the invalidation is skipped instead.
+             bool preferToKeepContentsDefined = false;
+             colorRenderTarget->invalidateEntireContent(contextVk, &preferToKeepContentsDefined);
+             if (preferToKeepContentsDefined)
+             {
+                 invalidateColorBuffers.reset(colorIndexGL);
+             }
+-            else if (isRobustResourceInitEnabled)
++            else
+             {
+-                gl::OwnerImageIndex imageIndex = colorRenderTarget->getImageIndexForClear(
+-                    mCurrentFramebufferDesc.getLayerCount());
+-                colorRenderTarget->getImageForWrite().stageRobustResourceClear(
+-                    imageIndex, VK_IMAGE_ASPECT_COLOR_BIT);
++                mDeferredClears.reset(colorIndexGL);
++
++                if (isRobustResourceInitEnabled)
++                {
++                    gl::OwnerImageIndex imageIndex = colorRenderTarget->getImageIndexForClear(
++                        mCurrentFramebufferDesc.getLayerCount());
++                    colorRenderTarget->getImageForWrite().stageRobustResourceClear(
++                        imageIndex, VK_IMAGE_ASPECT_COLOR_BIT);
++                }
+             }
+         }
+ 
+-        // If we have a depth / stencil render target, invalidate its aspects.
+         if (depthStencilRenderTarget)
+         {
+             if (invalidateDepthBuffer)
+@@ -2316,6 +2303,10 @@
+                 {
+                     invalidateDepthBuffer = false;
+                 }
++                else if (contextVk->getFeatures().dropDepthStencilClearOnInvalidate.enabled)
++                {
++                    mDeferredClears.reset(vk::kUnpackedDepthIndex);
++                }
+             }
+             if (invalidateStencilBuffer)
+             {
+@@ -2326,8 +2317,21 @@
+                 {
+                     invalidateStencilBuffer = false;
+                 }
++                else if (contextVk->getFeatures().dropDepthStencilClearOnInvalidate.enabled)
++                {
++                    mDeferredClears.reset(vk::kUnpackedStencilIndex);
++                }
+             }
++        }
+ 
++        // If there are still deferred clears, restage them. See relevant comment in invalidateSub.
++        // This must be called before depth/stencil robust clearing below, so that any pending D/S
++        // clears are not restaged on top of the robust clear.
++        restageDeferredClears(contextVk);
++
++        // If we have a D/S render target, stage robust clear for its invalidated aspects.
++        if (depthStencilRenderTarget)
++        {
+             if (isRobustResourceInitEnabled)
+             {
+                 VkImageAspectFlags dsAspectFlags = 0;
+@@ -2350,6 +2354,7 @@
+             }
+         }
+     }
++    ASSERT(mDeferredClears.empty());
+ 
+     // To ensure we invalidate the right renderpass we require that the current framebuffer be the
+     // same as the current renderpass' framebuffer. E.g. prevent sequence like:
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/VertexArrayVk.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/VertexArrayVk.cpp
+index 590f3ef..2a00127 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/VertexArrayVk.cpp
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/VertexArrayVk.cpp
+@@ -939,8 +939,7 @@
+ {
+     gl::VertexArray::DirtyBits dirtyBits;
+ 
+-    const std::vector<gl::VertexAttribute> &attribs = mState.getVertexAttributes();
+-    const std::vector<gl::VertexBinding> &bindings  = mState.getVertexBindings();
++    const std::vector<gl::VertexBinding> &bindings = mState.getVertexBindings();
+ 
+     // Element buffer is not in bindings yet, has to handle separately.
+     dirtyBits.set(gl::VertexArray::DIRTY_BIT_ELEMENT_ARRAY_BUFFER);
+@@ -952,11 +951,14 @@
+     {
+         const gl::Buffer *bufferGL    = getVertexArrayBuffer(bindingIndex);
+         vk::BufferSerial bufferSerial = vk::GetImpl(bufferGL)->getBufferSerial();
+-        gl::AttributesMask enabledAttributeMask =
+-            bindings[bindingIndex].getBoundAttributesMask() & mState.getEnabledAttributesMask();
+-        for (size_t attribIndex : enabledAttributeMask)
++
++        // If the buffer for a disabled attribute is respecified when the VAO is unbound and then it
++        // gets re-enabled, the enable-attribute dirty bit is cleared. Without checking the disabled
++        // attributes here, a stale buffer may be bound and used for the next draw in such cases.
++        const gl::AttributesMask boundAttributeMask =
++            bindings[bindingIndex].getBoundAttributesMask();
++        for (size_t attribIndex : boundAttributeMask)
+         {
+-            ASSERT(attribs[attribIndex].enabled);
+             if (!bufferSerial.valid() || bufferSerial != mCurrentArrayBufferSerial[attribIndex])
+             {
+                 dirtyBits.set(gl::VertexArray::DIRTY_BIT_BINDING_0 + bindingIndex);
