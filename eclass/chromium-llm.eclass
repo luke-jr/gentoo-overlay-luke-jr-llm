@@ -489,7 +489,7 @@ BDEPEND="
 	sys-libs/zlib
 	dev-lang/yasm
 	dev-build/meson
-	|| ( =dev-util/ragel-6*:0 dev-util/ragel:6 )
+	=dev-util/ragel-6*
 	dev-util/glslang
 	sys-devel/flex
 	virtual/pkgconfig
