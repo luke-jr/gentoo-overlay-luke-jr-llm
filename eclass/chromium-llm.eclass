@@ -21,9 +21,15 @@
 # @ECLASS_VARIABLE: CHROMIUM_TARBALL_PV
 # @DEFAULT_UNSET
 # @DESCRIPTION:
-# The version of the source tarball, when it isn't ${PV}: a _pre of a tag without a tarball
-# is built from an older tarball plus files/chromium-${CHROMIUM_TARBALL_PV}-to-${PV%_pre}.patch
-# (scripts/chromium-delta). Defaults to ${PV}.
+# The version of the source tarball, when it isn't the tag's (${PV%%_*}). Versions:
+#   <tag>            Google's release, from its tarball
+#   <tag>_pre        Google's release (or a tag) that has no tarball yet
+#   <tag>_p<N>       the bleeding edge: the tag's tarball, plus the branch's changes up to
+#                    refs/branch-heads/<build>@{#N} and other carried fixes (CHROMIUM_FIXES)
+#   <tag>_p<N>_pre   the same without the tag's tarball
+# Each _pre is built from an older tarball plus
+# files/chromium-${CHROMIUM_TARBALL_PV}-to-<tag>.patch (scripts/chromium-delta).
+# Defaults to the tag.
 
 # @ECLASS_VARIABLE: CHROMIUM_FIXES
 # @DEFAULT_UNSET
@@ -146,7 +152,7 @@ RUST_REQ_USE="rustfmt" # Upstream run rustfmt on bindgen output, so we need it t
 inherit check-reqs chromium-2 desktop flag-o-matic llvm-r1 multiprocessing ninja-utils pax-utils
 inherit python-any-r1 readme.gentoo-r1 rust systemd toolchain-funcs virtualx xdg-utils
 
-: "${CHROMIUM_TARBALL_PV:=${PV}}"
+: "${CHROMIUM_TARBALL_PV:=${PV%%_*}}"
 S="${WORKDIR}/chromium-${CHROMIUM_TARBALL_PV}"
 # Google's official "lite" source tarball (as for 156, whose 156.0.8078.47 had none at
 # chromium-linux-tarballs, which ::gentoo uses). For 156.0.8078.12, the two have the same content,
@@ -798,16 +804,17 @@ remove_compiler_builtins() {
 }
 
 chromium-llm_src_prepare() {
-	# A _pre of a tag without a tarball: upgrade the ${CHROMIUM_TARBALL_PV} tarball to ${PV%_pre}
+	# A _pre of a tag without a tarball: upgrade the ${CHROMIUM_TARBALL_PV} tarball to the tag
 	# first (see the patch's header).
-	if [[ ${CHROMIUM_TARBALL_PV} != "${PV%_pre}" ]]; then
-		einfo "Upgrading the ${CHROMIUM_TARBALL_PV} sources to ${PV%_pre} ..."
-		git apply --whitespace=nowarn "${FILESDIR}/chromium-${CHROMIUM_TARBALL_PV}-to-${PV%_pre}.patch" ||
-			die "Failed to upgrade the sources to ${PV%_pre}"
+	local tag=${PV%%_*}
+	if [[ ${CHROMIUM_TARBALL_PV} != "${tag}" ]]; then
+		einfo "Upgrading the ${CHROMIUM_TARBALL_PV} sources to ${tag} ..."
+		git apply --whitespace=nowarn "${FILESDIR}/chromium-${CHROMIUM_TARBALL_PV}-to-${tag}.patch" ||
+			die "Failed to upgrade the sources to ${tag}"
 		local version
 		version=$(source chrome/VERSION && echo "${MAJOR}.${MINOR}.${BUILD}.${PATCH}") ||
 			die "Failed to read chrome/VERSION"
-		[[ ${version} == "${PV%_pre}" ]] || die "chrome/VERSION says ${version} after upgrading, expected ${PV%_pre}"
+		[[ ${version} == "${tag}" ]] || die "chrome/VERSION says ${version} after upgrading, expected ${tag}"
 	fi
 	local fix
 	for fix in "${CHROMIUM_FIXES[@]}"; do

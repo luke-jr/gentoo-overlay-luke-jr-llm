@@ -1,0 +1,93 @@
+"[actor] [page stabilization] add first paint callback to paintstability
+monitor so that we start monitoring after the initial DOM reaction" (crbugs
+580001415 and 573290593, not public): the actor's paint stability monitor
+starts monitoring on the first paint within its start delay, not only when
+the delay runs out. Not a security fix as far as the change shows, but it is
+on the 157 branch, which the bleeding-edge build carries in full.
+chromium/src main commit 4f79e3ed1417d894ae5d873be51d185a202b1b95
+(main@{#1720926}), merged on 2026-11-04 to the 157 branch
+(a721fda3541edba4e7c7ab0aae40972eca4a0cbc, refs/branch-heads/8103@{#1117},
+after the 157.0.8103.45 tag). This is the 157 merge without its browser
+test. Drop it once a 157 tag has it.
+
+diff --git a/components/page_content_annotations/content/renderer/paint_stability_monitor.cc b/components/page_content_annotations/content/renderer/paint_stability_monitor.cc
+index 1ee1ea6..49f69ed33 100644
+--- a/components/page_content_annotations/content/renderer/paint_stability_monitor.cc
++++ b/components/page_content_annotations/content/renderer/paint_stability_monitor.cc
+@@ -34,7 +34,8 @@
+ 
+ PaintStabilityMonitor::~PaintStabilityMonitor() = default;
+ 
+-void PaintStabilityMonitor::Start() {
++void PaintStabilityMonitor::Start(
++    base::OnceClosure first_contentful_paint_callback) {
+   CHECK(!is_stable_callback_);
+ 
+   is_started_ = true;
+@@ -45,6 +46,8 @@
+             interaction_effects_monitor_->TotalPaintedArea()});
+   }
+ 
++  first_contentful_paint_callback_ = std::move(first_contentful_paint_callback);
++
+   if (base::FeatureList::IsEnabled(
+           features::kPaintStabilityDeferInitialPaintTimeout)) {
+     return;
+@@ -66,6 +69,7 @@
+   CHECK(!is_stable_callback_);
+   is_stable_callback_ = std::move(callback);
+   is_wait_for_stable_started_ = true;
++  first_contentful_paint_callback_.Reset();
+ 
+   // Paint stability might have been reached between `Start()` and now.
+   if (is_stability_reached_) {
+@@ -118,6 +122,10 @@
+ 
+   is_stability_reached_ = false;
+   ScheduleContentfulPaintTimeoutTask(FROM_HERE, GetSubsequentPaintTimeout());
++
++  if (first_contentful_paint_callback_) {
++    std::move(first_contentful_paint_callback_).Run();
++  }
+ }
+ 
+ void PaintStabilityMonitor::OnPaintStabilityDetected() {
+diff --git a/components/page_content_annotations/content/renderer/paint_stability_monitor.h b/components/page_content_annotations/content/renderer/paint_stability_monitor.h
+index 1833b59d..dcb7832f 100644
+--- a/components/page_content_annotations/content/renderer/paint_stability_monitor.h
++++ b/components/page_content_annotations/content/renderer/paint_stability_monitor.h
+@@ -7,7 +7,8 @@
+ 
+ #include <memory>
+ 
+-#include "base/functional/callback_forward.h"
++#include "base/functional/callback.h"
++#include "base/functional/callback_helpers.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/weak_ptr.h"
+ #include "base/timer/timer.h"
+@@ -48,8 +49,11 @@
+   // cannot occur until after `WaitForStable()` is called. Decoupling these
+   // allows clients to enforce a minimum stability timeout threshold and tie
+   // paint stability to other signals, while allowing this monitor to observe
+-  // all relevant paints.
+-  void Start();
++  // all relevant paints. If `first_contentful_paint_callback` is provided, it
++  // will be invoked on the first contentful paint observed before
++  // `WaitForStable()` is called.
++  void Start(
++      base::OnceClosure first_contentful_paint_callback = base::NullCallback());
+ 
+   // Wait for paint stability and invoke `callback` once reached. `callback`
+   // will only be invoked if `mode_` is enabled and not log-only. `callback`
+@@ -84,6 +88,10 @@
+   // between `Start()` and `WaitForStable()`.
+   bool is_stability_reached_ = false;
+ 
++  // Optional callback invoked on the first contentful paint before
++  // `WaitForStable()` is called.
++  base::OnceClosure first_contentful_paint_callback_;
++
+   // The callback to invoke when stability has been reached, if `mode_` is
+   // enabled and not log-only.
+   base::OnceClosure is_stable_callback_;

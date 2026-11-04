@@ -10,8 +10,9 @@ was added with (and 156 updated from .12 to .47).
   the channel, as in `::gentoo`: `stable`, `beta` or `unstable` (dev). It is not just a label: it
   decides the install directory (`chromium-browser-<slot>`), the profile directory and the channel
   the browser reports. `KEYWORDS` say how far along the version is:
-  - Stable for Linux: `SLOT="stable"`, `KEYWORDS="amd64 ~arm64"` (with the `_pre` of the branch's
-    newest tag, which has the fixes made after the release);
+  - Stable for Linux: `SLOT="stable"`, `KEYWORDS="amd64 ~arm64"`: the official release as a
+    plain ebuild, and the bleeding-edge `_p<N>` (below) of the same major if it is also the newest
+    stable branch;
   - Google's "Early Stable" (Windows and Mac first, to some users): `SLOT="stable"`,
     `KEYWORDS="~amd64 ~arm64"`. When Google releases it for Linux Stable, it gets `amd64`; no new
     slot, so installed copies keep their profile;
@@ -80,11 +81,18 @@ This is how 156 went from .47 to .78_pre (on the .73 tarball).
    tarball's line in the `Manifest` (check the tarball against its `.hashes` first).
 2. **Fixes after the release:** Google tags every candidate build on the release branch
    (`refs/tags/<version>`, in the branch's log), but publishes a tarball only for releases. When
-   the branch has a newer tag than the newest tarball, build that tag as a `_pre` ebuild
-   (`chromium-<tag>_pre`, `CHROMIUM_TARBALL_PV` = the tarball's version): an upgrade patch
-   `files/chromium-<tarball>-to-<tag>.patch` made with `scripts/chromium-delta` (its README),
-   which also sets `chrome/VERSION` and the version stamps to the tag's. `_pre` sorts below the
-   real release, so a later tarball of that version replaces it. Check that every patched file is
+   the version has no tarball, build it as a `_pre` ebuild (`CHROMIUM_TARBALL_PV` = the newest
+   tarball's version): an upgrade patch `files/chromium-<tarball>-to-<tag>.patch` made with
+   `scripts/chromium-delta` (its README), which also sets `chrome/VERSION` and the version stamps
+   to the tag's. The versions (Portage sorts them in this order):
+   - `<tag>_pre`: Google's release, no tarball yet;
+   - `<tag>`: Google's release, from its tarball;
+   - `<tag>_p<N>_pre`: the bleeding edge, the newest tag plus every later change of the branch
+     up to `refs/branch-heads/<build>@{#N}` (translations and profiles left out) and the carried
+     fixes not on the branch yet, without the tag's tarball;
+   - `<tag>_p<N>`: the same on the tag's tarball, when it comes out.
+   A newer branch position is a new `_p<N>`; a change to the carried fixes alone is a `-r`
+   bump. The bleeding edge always sorts above the official release of its tag. Check that every patched file is
    byte-identical to its version at the tag; a blobless git fetch is more reliable for that than
    Gitiles, which often times out.
 3. **Other fixes** carried for this major (e.g. `chromium-156-cve-2026-110914.patch`): look for
