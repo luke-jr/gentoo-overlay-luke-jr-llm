@@ -1,7 +1,7 @@
-Chromium 157.0.8103.30 -> 157.0.8103.44, for the 157.0.8103.30 tarball.
+Chromium 157.0.8103.30 -> 157.0.8103.45, for the 157.0.8103.30 tarball.
 
-157.0.8103.44 is a tag on the 157 branch (refs/branch-heads/8103) that has
-no source tarball (as of 2026-11-03). It has the fixes made after
+157.0.8103.45 is a tag on the 157 branch (refs/branch-heads/8103) that has
+no source tarball (as of 2026-11-04). It has the fixes made after
 157.0.8103.30 up to it: those of 157.0.8103.32 to .34 (use-after-frees in
 the bookmarks side panel, MojoCdm, chrome.windows.update and
 TransitionPseudoElementData; HttpCache range responses; File System Access's
@@ -24,10 +24,16 @@ use-after-free); the app menu's zoom announcements; and since .42: the capabilit
 element's icon-only styles gated behind their feature flag; V8's private
 name resolution in catch scopes and class heritage eval (two fixes);
 SimpleCache's cleanup on key collision; ANGLE's rejection of overlapping
-framebuffer layers (and D3D11 fixes).
+framebuffer layers (and D3D11 fixes); and since .44: PDF JavaScript
+unloading a page while its thumbnail was rendered; dirty slot assignments during
+layout and frame rect updates; accessibility's nested child updates while
+iterating children; the extensions menu closed asynchronously from
+accessibility events (a use-after-free); the actor's paint stability
+timeout deferred to WaitForStable(); Skia's SDF overflow and Graphite
+inverse fills covering the scissor.
 
 Generated from the upstream diffs between the tags (chromium/src
-refs/tags/157.0.8103.30..157.0.8103.44), ANGLE, DevTools, Skia and V8 (the
+refs/tags/157.0.8103.30..157.0.8103.45), ANGLE, DevTools, Skia and V8 (the
 only dependencies whose DEPS revisions changed; no CIPD/GCS package or
 gclient gn arg changed), as served by Gitiles, with scripts/chromium-delta.
 
@@ -39,11 +45,11 @@ DEPS.
 Added: the tarball's stamp files for the new commit (stamps.py:
 build/util/LASTCHANGE{,.committime}, gpu/config/gpu_lists_version.h and
 skia/ext/skia_commit_hash.h; commit
-f37af91d818ffa034fc2d8f1028dd190dab034ed, refs/branch-heads/8103@{#1090}).
+bc3ac779b1079953f17297c57d7a44b42c30bf24, refs/branch-heads/8103@{#1114}).
 Dawn's stamps and build/util/MINIBRANCH don't change.
 
 Checked: applies to the 157.0.8103.30 tarball; chrome/VERSION becomes
-157.0.8103.44; every patched source file is byte-identical to its version
+157.0.8103.45; every patched source file is byte-identical to its version
 at the tag; the one new file (Skia's
 resources/sksl/runtime_errors/InvalidTypeInStruct.rts) is an SkSL test
 source, not generated; the 157.0.8103.30 tarball's non-git files are all
@@ -249,7 +255,7 @@ index 478cd5e..21206a8 100644
    // rendering changes, to ensure the bits in CommitState are propagated.
    bool force_commit_for_propagation_ = true;
 diff --git a/chrome/VERSION b/chrome/VERSION
-index 3a363a4..d7331261 100644
+index 3a363a4..5850a921 100644
 --- a/chrome/VERSION
 +++ b/chrome/VERSION
 @@ -1,4 +1,4 @@
@@ -257,7 +263,7 @@ index 3a363a4..d7331261 100644
  MINOR=0
  BUILD=8103
 -PATCH=30
-+PATCH=44
++PATCH=45
 diff --git a/chrome/app/resources/generated_resources_en-GB.xtb b/chrome/app/resources/generated_resources_en-GB.xtb
 index a97b92a..aece766 100644
 --- a/chrome/app/resources/generated_resources_en-GB.xtb
@@ -1709,6 +1715,94 @@ index 270400f..b5e0ffff 100644
      bookmark_service_observation_.Observe(service);
    }
  
+diff --git a/chrome/browser/ui/views/extensions/extensions_menu_coordinator.cc b/chrome/browser/ui/views/extensions/extensions_menu_coordinator.cc
+index 880d7fd..0beb6bcf 100644
+--- a/chrome/browser/ui/views/extensions/extensions_menu_coordinator.cc
++++ b/chrome/browser/ui/views/extensions/extensions_menu_coordinator.cc
+@@ -28,10 +28,13 @@
+       extensions_container_(CHECK_DEREF(extensions_container)) {}
+ 
+ ExtensionsMenuCoordinator::~ExtensionsMenuCoordinator() {
+-  if (views::Widget* const menu = GetExtensionsMenuWidget()) {
+-    // Close the menu widget synchronously as it may hold references back to the
+-    // coordinator and its host Browser.
+-    menu->CloseNow();
++  if (views::View* const bubble_contents =
++          bubble_view_observation_.GetSource()) {
++    if (views::Widget* const menu = bubble_contents->GetWidget()) {
++      // Close the menu widget synchronously as it may hold references back to
++      // the coordinator and its host Browser.
++      menu->CloseNow();
++    }
+   }
+ }
+ 
+@@ -54,7 +57,14 @@
+   DCHECK(base::FeatureList::IsEnabled(
+       extensions_features::kExtensionsMenuAccessControl));
+   if (views::Widget* const menu = GetExtensionsMenuWidget()) {
+-    menu->CloseNow();
++    // Close the widget asynchronously so any views or delegate frames currently
++    // on the stack (e.g., when a synchronous accessibility event spins a nested
++    // message loop that invokes Hide()) can unwind safely before teardown.
++    menu->Close();
++    // Immediately stop tracking the view so IsShowing() returns false.
++    // `bubble_view_observation_` and `menu_delegate_` are reset when the widget
++    // finishes closing in OnViewIsDeleting() (or if reopened before then).
++    bubble_tracker_.SetView(nullptr);
+   }
+ }
+ 
+@@ -80,6 +90,20 @@
+     ExtensionsContainerViews* extensions_container_views) {
+   DCHECK(base::FeatureList::IsEnabled(
+       extensions_features::kExtensionsMenuAccessControl));
++  if (views::View* const prev_bubble = bubble_view_observation_.GetSource()) {
++    // If a previous bubble widget is still awaiting asynchronous teardown from
++    // Hide(), finish closing it now so OnViewIsDeleting() cleans up its
++    // observation and delegate in the proper view-destruction order before
++    // observing the new bubble contents.
++    if (views::Widget* const menu = prev_bubble->GetWidget()) {
++      menu->CloseNow();
++    } else {
++      bubble_tracker_.SetView(nullptr);
++      bubble_view_observation_.Reset();
++      menu_delegate_.reset();
++    }
++  }
++
+   views::BubbleBorder::Arrow arrow =
+       extensions_container_views ? extensions_container_views->GetPopupArrow()
+                                  : views::BubbleBorder::TOP_RIGHT;
+diff --git a/chrome/browser/ui/views/extensions/extensions_menu_main_page_view.h b/chrome/browser/ui/views/extensions/extensions_menu_main_page_view.h
+index 4c949b172..53a1a6d 100644
+--- a/chrome/browser/ui/views/extensions/extensions_menu_main_page_view.h
++++ b/chrome/browser/ui/views/extensions/extensions_menu_main_page_view.h
+@@ -83,6 +83,9 @@
+ 
+   // Accessors used by tests:
+   std::u16string_view GetSiteSettingLabelForTesting() const;
++  views::Label* GetSiteSettingsLabelForTesting() {
++    return site_settings_label_;
++  }
+   const views::View* site_settings_tooltip() const;
+   views::ToggleButton* GetSiteSettingsToggleForTesting() {
+     return site_settings_toggle_;
+diff --git a/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc b/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc
+index a364550..f06ee74 100644
+--- a/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc
++++ b/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc
+@@ -157,6 +157,10 @@
+     return;
+   }
+ 
++  if (extensions_menu_widget_) {
++    extensions_menu_widget_->CloseNow();
++  }
++
+   pressed_lock_ = menu_button_controller_->TakeLock();
+   extensions_toolbar_->OnMenuOpening();
+   base::RecordAction(base::UserMetricsAction("Extensions.Toolbar.MenuOpened"));
 diff --git a/chrome/browser/ui/views/toolbar/app_menu.cc b/chrome/browser/ui/views/toolbar/app_menu.cc
 index 0d5179c..820463a 100644
 --- a/chrome/browser/ui/views/toolbar/app_menu.cc
@@ -2377,6 +2471,88 @@ index 5d04953..0d54ebe 100644
    std::vector<std::string> keys;
    FileEnumerator file_enumerator(storage_path, false, FileEnumerator::FILES);
    for (FilePath name = file_enumerator.Next(); !name.empty();
+diff --git a/components/page_content_annotations/content/renderer/paint_stability_monitor.cc b/components/page_content_annotations/content/renderer/paint_stability_monitor.cc
+index 4f44668..1ee1ea6 100644
+--- a/components/page_content_annotations/content/renderer/paint_stability_monitor.cc
++++ b/components/page_content_annotations/content/renderer/paint_stability_monitor.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "components/page_content_annotations/content/renderer/paint_stability_monitor.h"
+ 
++#include "base/feature_list.h"
+ #include "base/location.h"
+ #include "base/memory/ptr_util.h"
+ #include "base/task/sequenced_task_runner.h"
+@@ -44,6 +45,11 @@
+             interaction_effects_monitor_->TotalPaintedArea()});
+   }
+ 
++  if (base::FeatureList::IsEnabled(
++          features::kPaintStabilityDeferInitialPaintTimeout)) {
++    return;
++  }
++
+   // There won't be any interactions if the underlying frame does not support
+   // monitoring, which is the case for iframes. Avoid invoking the
+   // `is_stable_callback_` in that case.
+@@ -60,9 +66,27 @@
+   CHECK(!is_stable_callback_);
+   is_stable_callback_ = std::move(callback);
+   is_wait_for_stable_started_ = true;
++
+   // Paint stability might have been reached between `Start()` and now.
+   if (is_stability_reached_) {
+     OnPaintStabilityDetected();
++    return;
++  }
++
++  // Defer the initial contentful paint timeout until `WaitForStable()` is
++  // called so it does not expire prematurely during `monitoring_start_delay_`.
++  // If a contentful paint already occurred between `Start()` and now,
++  // `OnContentfulPaint()` has already scheduled the subsequent paint timeout.
++  if (base::FeatureList::IsEnabled(
++          features::kPaintStabilityDeferInitialPaintTimeout) &&
++      !contentful_paint_timer_.IsRunning()) {
++    // There won't be any interactions if the underlying frame does not support
++    // monitoring, which is the case for iframes. Avoid invoking the
++    // `is_stable_callback_` in that case.
++    if (interaction_effects_monitor_->InteractionCount() == 0) {
++      return;
++    }
++    ScheduleContentfulPaintTimeoutTask(FROM_HERE, GetInitialPaintTimeout());
+   }
+ }
+ 
+diff --git a/components/page_content_annotations/core/page_content_annotations_features.cc b/components/page_content_annotations/core/page_content_annotations_features.cc
+index 2d0473bd..462c8691 100644
+--- a/components/page_content_annotations/core/page_content_annotations_features.cc
++++ b/components/page_content_annotations/core/page_content_annotations_features.cc
+@@ -181,6 +181,9 @@
+ BASE_FEATURE(kPageSettledMonitorSkipAwaitVisualStateForHiddenTabs,
+              base::FEATURE_ENABLED_BY_DEFAULT);
+ 
++BASE_FEATURE(kPaintStabilityDeferInitialPaintTimeout,
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
+ base::TimeDelta PCAServiceWaitForTitleDelayDuration() {
+   return base::Milliseconds(5000);
+ }
+diff --git a/components/page_content_annotations/core/page_content_annotations_features.h b/components/page_content_annotations/core/page_content_annotations_features.h
+index d6d32ab0..70a294f 100644
+--- a/components/page_content_annotations/core/page_content_annotations_features.h
++++ b/components/page_content_annotations/core/page_content_annotations_features.h
+@@ -121,6 +121,11 @@
+ COMPONENT_EXPORT(PAGE_CONTENT_ANNOTATIONS_FEATURES)
+ BASE_DECLARE_FEATURE(kPageSettledMonitorSkipAwaitVisualStateForHiddenTabs);
+ 
++// If enabled, defers the initial contentful paint timeout until WaitForStable()
++// is called.
++COMPONENT_EXPORT(PAGE_CONTENT_ANNOTATIONS_FEATURES)
++BASE_DECLARE_FEATURE(kPaintStabilityDeferInitialPaintTimeout);
++
+ // The maximum number of "related searches" entries allowed to be maintained in
+ // a least-recently-used cache for "related searches" data obtained via ZPS
+ // prefetch logic.
 diff --git a/components/performance_manager/features.cc b/components/performance_manager/features.cc
 index 0d6d185..5667f91 100644
 --- a/components/performance_manager/features.cc
@@ -3870,6 +4046,20 @@ index 4094fcf..d220e569e 100644
  
    // Next portion available in the cache --- this may be what's currently being
    // read, or the next thing that will be read if the current network portion
+diff --git a/pdf/pdfium/pdfium_page.cc b/pdf/pdfium/pdfium_page.cc
+index 20d3fb1d7..c240343 100644
+--- a/pdf/pdfium/pdfium_page.cc
++++ b/pdf/pdfium/pdfium_page.cc
+@@ -2148,6 +2148,9 @@
+   DCHECK(available());
+ 
+   FPDF_PAGE page = GetPage();
++  // Make sure `page` stays valid for the duration of this function.
++  ScopedPageUnloadPreventer scoped_unload_preventer(this);
++
+   const bool has_alpha = !!FPDFPage_HasTransparency(page);
+   const int format = has_alpha ? FPDFBitmap_BGRA : FPDFBitmap_BGRx;
+ 
 diff --git a/remoting/host/BUILD.gn b/remoting/host/BUILD.gn
 index ef4d9e8..0efb6c3 100644
 --- a/remoting/host/BUILD.gn
@@ -4628,6 +4818,47 @@ index 530d36c9..6f43c47b 100644
    }
  }
  
+diff --git a/third_party/blink/renderer/core/dom/slot_assignment.cc b/third_party/blink/renderer/core/dom/slot_assignment.cc
+index 0ace27f..e03ad9e 100644
+--- a/third_party/blink/renderer/core/dom/slot_assignment.cc
++++ b/third_party/blink/renderer/core/dom/slot_assignment.cc
+@@ -60,6 +60,7 @@
+   if (owner_->IsManualSlotting()) {
+     auto& candidates = slot.ManuallyAssignedNodes();
+     if (candidates.size()) {
++      SetNeedsAssignmentRecalc();
+       slot.DidSlotChangeAfterRemovedFromShadowTree();
+     }
+     return;
+@@ -383,12 +384,23 @@
+ }
+ 
+ HTMLSlotElement* SlotAssignment::FindSlotInManualSlotting(Node& node) {
++  if (!node.IsChildOfShadowHost() || node.parentElement() != owner_->host()) {
++    return nullptr;
++  }
++  // User-agent manual-slotting shadow roots (<details>, <select>, <optgroup>)
++  // do not set `node.ManuallyAssignedSlot()` in `HTMLSlotElement::Assign()` so
++  // they do not clobber imperative author `slot.assign()` associations. Look
++  // up the node directly in the UA slots' `ManuallyAssignedNodes()` sets.
++  if (owner_->IsUserAgent()) {
++    for (HTMLSlotElement* slot : Slots()) {
++      if (slot->ManuallyAssignedNodes().Contains(&node)) {
++        return slot;
++      }
++    }
++    return nullptr;
++  }
+   auto* slot = node.ManuallyAssignedSlot();
+-  if (slot && slot->ContainingShadowRoot() == owner_ &&
+-      node.IsChildOfShadowHost() && node.parentElement() == owner_->host())
+-    return slot;
+-
+-  return nullptr;
++  return (slot && slot->ContainingShadowRoot() == owner_) ? slot : nullptr;
+ }
+ 
+ void SlotAssignment::CollectSlots() {
 diff --git a/third_party/blink/renderer/core/dom/transition_pseudo_element_data.h b/third_party/blink/renderer/core/dom/transition_pseudo_element_data.h
 index 480c7f0..10e6aba9 100644
 --- a/third_party/blink/renderer/core/dom/transition_pseudo_element_data.h
@@ -4838,6 +5069,56 @@ index b17173ab..2b779e1 100644
    HeapVector<Member<ErrorEvent> > pending_exceptions_;
  
    mojom::FrameLifecycleState lifecycle_state_;
+diff --git a/third_party/blink/renderer/core/frame/local_frame_view.cc b/third_party/blink/renderer/core/frame/local_frame_view.cc
+index b716abb..97434d35 100644
+--- a/third_party/blink/renderer/core/frame/local_frame_view.cc
++++ b/third_party/blink/renderer/core/frame/local_frame_view.cc
+@@ -74,6 +74,7 @@
+ #include "third_party/blink/renderer/core/dom/dom_node_ids.h"
+ #include "third_party/blink/renderer/core/dom/flat_tree_traversal.h"
+ #include "third_party/blink/renderer/core/dom/scroll_marker_group_pseudo_element.h"
++#include "third_party/blink/renderer/core/dom/slot_assignment_recalc_forbidden_scope.h"
+ #include "third_party/blink/renderer/core/dom/static_node_list.h"
+ #include "third_party/blink/renderer/core/dom/text.h"
+ #include "third_party/blink/renderer/core/editing/drag_caret.h"
+@@ -431,10 +432,21 @@
+ 
+ void LocalFrameView::ForAllChildViewsAndPlugins(
+     base::FunctionRef<void(EmbeddedContentView&)> function) {
++#if DCHECK_IS_ON()
++  const unsigned initial_child_count = frame_->Tree().ChildCount();
++#endif
+   for (Frame* child = frame_->Tree().FirstChild(); child;
+        child = child->Tree().NextSibling()) {
++#if DCHECK_IS_ON()
++    Frame* next_sibling = child->Tree().NextSibling();
++#endif
+     if (child->View())
+       function(*child->View());
++#if DCHECK_IS_ON()
++    DCHECK_EQ(child->Tree().Parent(), frame_);
++    DCHECK_EQ(child->Tree().NextSibling(), next_sibling);
++    DCHECK_EQ(frame_->Tree().ChildCount(), initial_child_count);
++#endif
+   }
+ 
+   for (const auto& plugin : plugins_) {
+@@ -766,6 +778,7 @@
+   const bool has_subtree_layout_roots = HasSubtreeLayoutRoots();
+ 
+   Document* document = GetFrame().GetDocument();
++  SlotAssignmentRecalcForbiddenScope forbid_slot_recalc(*document);
+   if (!has_subtree_layout_roots) {
+     Node* body = document->body();
+     if (IsA<HTMLFrameSetElement>(body) && body->GetLayoutObject()) {
+@@ -4249,6 +4262,7 @@
+ 
+ void LocalFrameView::PropagateFrameRectsRecursively() {
+   CHECK(RuntimeEnabledFeatures::AvoidEmbeddedContentViewLocationEnabled());
++  SlotAssignmentRecalcForbiddenScope forbid_slot_recalc(*frame_->GetDocument());
+   if (NeedsFrameRectPropagation()) {
+     PropagateFrameRects();
+   }
 diff --git a/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc b/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
 index 13c0ced1..3da40c38 100644
 --- a/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
@@ -4873,6 +5154,79 @@ index af58a03..83aa0a8 100644
      this.selectElement_.value = this.config_.selectedIndex;
    }
  
+diff --git a/third_party/blink/renderer/core/html/html_slot_element.cc b/third_party/blink/renderer/core/html/html_slot_element.cc
+index e00ddd7..1cc81e6 100644
+--- a/third_party/blink/renderer/core/html/html_slot_element.cc
++++ b/third_party/blink/renderer/core/html/html_slot_element.cc
+@@ -214,26 +214,33 @@
+   if (nodes.empty() && manually_assigned_nodes_.empty())
+     return;
+ 
++  // A slottable's manual slot assignment on Node (`ManuallyAssignedSlot()`)
++  // tracks imperative author slot assignment via `HTMLSlotElement.assign()`.
++  // User-agent shadow roots (`<details>`, `<select>`, `<optgroup>`) also use
++  // `Assign()` during `ManuallyAssignSlots()` inside `RecalcAssignment()`,
++  // which must not overwrite or clear an author `<slot>`'s manual assignment
++  // for a node, or dirty another shadow root mid-recalc.
++  const bool is_user_agent_slot = IsInUserAgentShadowRoot();
++
+   bool updated = false;
+   HeapHashSet<Member<HTMLSlotElement>> changed_slots;
+   HeapLinkedHashSet<WeakMember<Node>> added_nodes;
+   for (Node* node : nodes) {
+     added_nodes.insert(node);
+-    if (auto* previous_slot = node->ManuallyAssignedSlot()) {
+-      if (previous_slot == this)
+-        continue;
+-      previous_slot->manually_assigned_nodes_.erase(node);
+-      if (previous_slot->SupportsAssignment())
+-        changed_slots.insert(previous_slot);
+-    }
+-    updated = true;
+-    node->SetManuallyAssignedSlot(this);
+-  }
+-
+-  HeapLinkedHashSet<WeakMember<Node>> removed_nodes;
+-  for (Node* node : manually_assigned_nodes_) {
+-    if (!added_nodes.Contains(node)) {
+-      removed_nodes.insert(node);
++    if (!is_user_agent_slot) {
++      if (auto* previous_slot = node->ManuallyAssignedSlot()) {
++        if (previous_slot == this) {
++          continue;
++        }
++        previous_slot->manually_assigned_nodes_.erase(node);
++        if (previous_slot->SupportsAssignment()) {
++          changed_slots.insert(previous_slot);
++        }
++      }
++      updated = true;
++      node->SetManuallyAssignedSlot(this);
++    } else if (!manually_assigned_nodes_.Contains(node)) {
++      updated = true;
+     }
+   }
+ 
+@@ -247,12 +254,16 @@
+       }
+     }
+   }
+-  DCHECK(updated || removed_nodes.empty());
+ 
+   ShadowRoot* shadow_root = ContainingShadowRoot();
+   if (updated) {
+-    for (auto removed_node : removed_nodes)
+-      removed_node->SetManuallyAssignedSlot(nullptr);
++    if (!is_user_agent_slot) {
++      for (Node* node : manually_assigned_nodes_) {
++        if (!added_nodes.Contains(node)) {
++          node->SetManuallyAssignedSlot(nullptr);
++        }
++      }
++    }
+     manually_assigned_nodes_.Swap(added_nodes);
+     // The slot might not be located in a shadow root yet.
+     if (shadow_root) {
 diff --git a/third_party/blink/renderer/core/html/resources/capability_element.css b/third_party/blink/renderer/core/html/resources/capability_element.css
 index fe99687..83ab0c9 100644
 --- a/third_party/blink/renderer/core/html/resources/capability_element.css
@@ -5057,6 +5411,158 @@ index 0125247b..83d55ed 100644
        UpdatePropertyChange(properties_changed_.effect_changed,
                             PaintPropertyChangeType::kNodeAddedOrRemoved);
      }
+diff --git a/third_party/blink/renderer/modules/accessibility/ax_object.cc b/third_party/blink/renderer/modules/accessibility/ax_object.cc
+index 25e86bc..7c76983 100644
+--- a/third_party/blink/renderer/modules/accessibility/ax_object.cc
++++ b/third_party/blink/renderer/modules/accessibility/ax_object.cc
+@@ -7105,6 +7105,12 @@
+     return;
+   }
+ 
++  // A loop up the stack is walking children_. Leave them dirty, so a later call
++  // rebuilds them.
++  if (children_guarded_) {
++    return;
++  }
++
+   if (AXObjectCache().IsFrozen()) {
+     // TODO(crbug.com/500793607): Investigate and convert to CHECK.
+     DCHECK(!AXObjectCache().IsFrozen())
+@@ -7130,6 +7136,10 @@
+   }
+ 
+   ClearChildren();
++  // Clearing the children can remove |this|.
++  if (IsDetached()) {
++    return;
++  }
+   AddChildren();
+   CHECK(!children_dirty_);
+   CHECK(!child_cached_values_need_update_);
+@@ -7286,8 +7296,14 @@
+       << this;
+ #endif
+ 
++  // A loop up the stack is walking children_ to detach or remove them.
++  // Clearing them here would free the vector under that loop.
++  if (children_guarded_) {
++    return;
++  }
++
+   // Detach included children from their parent (this).
+-  for (const auto& child : children_) {
++  for (const auto& child : GuardedCachedChildrenIncludingIgnored()) {
+     // Check parent first, as the child might be several levels down if there
+     // are unincluded nodes in between, in which case the cached parent will
+     // also be a descendant (unlike children_, parent_ does not skip levels).
+@@ -7300,6 +7316,11 @@
+ 
+   children_.clear();
+ 
++  // Detaching the children can remove |this|.
++  if (IsDetached()) {
++    return;
++  }
++
+   Node* node = GetNode();
+   if (!node) {
+     return;
+diff --git a/third_party/blink/renderer/modules/accessibility/ax_object.h b/third_party/blink/renderer/modules/accessibility/ax_object.h
+index 56896f5..32d0de6 100644
+--- a/third_party/blink/renderer/modules/accessibility/ax_object.h
++++ b/third_party/blink/renderer/modules/accessibility/ax_object.h
+@@ -34,6 +34,7 @@
+ #include <ostream>
+ #include <utility>
+ 
++#include "base/auto_reset.h"
+ #include "base/containers/span.h"
+ #include "base/dcheck_is_on.h"
+ #include "base/gtest_prod_util.h"
+@@ -1297,6 +1298,31 @@
+     return children_;
+   }
+ 
++  // Range adapter for `AXObject::children_`, sets `AXObject::children_guarded_`
++  // while alive to avoid re-entrant modification of `children_`.
++  class GuardedChildren {
++    STACK_ALLOCATED();
++
++   public:
++    explicit GuardedChildren(AXObject& object)
++        : children_(object.children_),
++          guarded_(&object.children_guarded_, true) {}
++
++    auto begin() const { return children_.begin(); }
++    auto end() const { return children_.end(); }
++
++   private:
++    const AXObjectVector& children_;
++    base::AutoReset<bool> guarded_;
++  };
++
++  // Like CachedChildrenIncludingIgnored(), but holds a reentrancy guard on this
++  // object for the loop, so nested calls can't clear or rebuild its children_
++  // while the loop runs.
++  GuardedChildren GuardedCachedChildrenIncludingIgnored() {
++    return GuardedChildren(*this);
++  }
++
+   // Sets the parent AXObject directly. If the parent of this object is known,
+   // this can be faster than using ComputeParent().
+   void SetParent(AXObject* new_parent);
+@@ -1614,6 +1640,8 @@
+   // When true, actions may use more expensive layout-based computations.
+   // e.g. DefaultActionVerb::kClickInHitTest.
+   bool use_layout_based_action_ = false;
++  // While true children_ is being walked and must not be cleared or rebuilt.
++  bool children_guarded_ = false;
+ 
+   // The final role, taking into account the ARIA role and native role.
+   ax::mojom::blink::Role role_;
+diff --git a/third_party/blink/renderer/modules/accessibility/ax_object_cache_impl.cc b/third_party/blink/renderer/modules/accessibility/ax_object_cache_impl.cc
+index 67cbf9c..9d71357 100644
+--- a/third_party/blink/renderer/modules/accessibility/ax_object_cache_impl.cc
++++ b/third_party/blink/renderer/modules/accessibility/ax_object_cache_impl.cc
+@@ -1984,11 +1984,12 @@
+     return;
+   }
+ 
+-  for (const auto& ax_child : object->CachedChildrenIncludingIgnored()) {
+-    RemoveIncludedSubtree(ax_child, /* remove_root */ true);
++  for (const auto& ax_child : object->GuardedCachedChildrenIncludingIgnored()) {
++    RemoveIncludedSubtree(ax_child, /*remove_root=*/true);
+   }
+-  if (remove_root) {
+-    Remove(object, /* notify_parent */ false);
++  // Removing the children can remove |object|.
++  if (remove_root && !object->IsDetached()) {
++    Remove(object, /*notify_parent=*/false);
+   }
+ }
+ 
+@@ -2081,7 +2082,8 @@
+ 
+   // When removing children, use the cached children to avoid creating a child
+   // just to destroy it.
+-  for (AXObject* ax_included_child : object->CachedChildrenIncludingIgnored()) {
++  for (AXObject* ax_included_child :
++       object->GuardedCachedChildrenIncludingIgnored()) {
+     if (ax_included_child->ParentObjectIfPresent() != object) {
+       continue;
+     }
+@@ -2099,6 +2101,11 @@
+     }
+   }
+ 
++  // Removing the children can remove |object|.
++  if (object->IsDetached()) {
++    return;
++  }
++
+   // The code below uses ChildrenChangedWithCleanLayout() instead of
+   // notify_parent param in Remove(), which would be queued, and it needs to
+   // happen immediately.
 diff --git a/third_party/blink/renderer/modules/content_extraction/ai_page_content_agent.cc b/third_party/blink/renderer/modules/content_extraction/ai_page_content_agent.cc
 index 3b27801..5b5ec18 100644
 --- a/third_party/blink/renderer/modules/content_extraction/ai_page_content_agent.cc
@@ -6267,6 +6773,18 @@ index cbce6d7..ab4dccb 100644
    "runtime_errors/InvalidUniformTypes.rts",
    "runtime_errors/InvalidUniformTypesES3.rts",
    "runtime_errors/LoopConditionErrors.rts",
+diff --git a/third_party/skia/gn/tests.gni b/third_party/skia/gn/tests.gni
+index d2bb03c..4818502 100644
+--- a/third_party/skia/gn/tests.gni
++++ b/third_party/skia/gn/tests.gni
+@@ -64,6 +64,7 @@
+   "$_tests/DirectMaskLimitTest.cpp",
+   "$_tests/DiscardableMemoryPoolTest.cpp",
+   "$_tests/DiscardableMemoryTest.cpp",
++  "$_tests/DistanceFieldTest.cpp",
+   "$_tests/DrawBitmapRectTest.cpp",
+   "$_tests/DrawPathTest.cpp",
+   "$_tests/DrawTextTest.cpp",
 diff --git a/third_party/skia/resources/sksl/BUILD.bazel b/third_party/skia/resources/sksl/BUILD.bazel
 index e937158..7c32781 100644
 --- a/third_party/skia/resources/sksl/BUILD.bazel
@@ -6306,6 +6824,216 @@ index 0000000..5cae8b8
 +invalid type
 +invalid type
 +*%%*/
+diff --git a/third_party/skia/src/core/SkDistanceFieldGen.cpp b/third_party/skia/src/core/SkDistanceFieldGen.cpp
+index e3af384..0dcb556 100644
+--- a/third_party/skia/src/core/SkDistanceFieldGen.cpp
++++ b/third_party/skia/src/core/SkDistanceFieldGen.cpp
+@@ -10,11 +10,13 @@
+ #include "include/core/SkPoint.h"
+ #include "include/core/SkScalar.h"
+ #include "include/private/SkMalloc.h"
++#include "include/private/SkTFitsIn.h"
+ #include "include/private/SkTPin.h"
+ #include "include/private/SkTemplates.h"
+ #include "src/core/SkAutoMalloc.h"
+ #include "src/core/SkMask.h"
+ #include "src/core/SkPointPriv.h"
++#include "src/core/SkSafeMath.h"
+ 
+ #include <cstdint>
+ #include <cstring>
+@@ -349,13 +351,75 @@
+ }
+ #endif
+ 
++// Owns all temporary storage for one distance field generation:
++// the DFData working grid, its edge flags, and the padded 8-bit source copy
++class DFScratch {
++public:
++    static size_t ComputeTotalSize(int w, int h, size_t* gridCountOut = nullptr) {
++        if (w <= 0 || h <= 0) {
++            return 0;
++        }
++        constexpr int kPad = SK_DistanceFieldPad + 1;
++        SkSafeMath safe;
++        const size_t gridCount = safe.mul(safe.addInt(w, 2 * kPad), safe.addInt(h, 2 * kPad));
++        const size_t copyCount = safe.mul(safe.addInt(w, 2), safe.addInt(h, 2));
++        const size_t dataBytes = safe.mul(gridCount, sizeof(DFData));
++        const size_t total = safe.add(safe.add(dataBytes, gridCount), copyCount);
++        // The transform uses int pointer offsets over the padded grid
++        if (!safe || !SkTFitsIn<int>(total)) {
++            return 0;
++        }
++        if (gridCountOut) {
++            *gridCountOut = gridCount;
++        }
++        return total;
++    }
++
++    DFScratch(int w, int h) {
++        size_t gridCount = 0;
++        const size_t total = ComputeTotalSize(w, h, &gridCount);
++        if (total == 0) {
++            return;
++        }
++        fStorage.reset(sk_calloc_canfail(total));
++        if (!fStorage) {
++            return;
++        }
++        fData = static_cast<DFData*>(fStorage.get());
++        fEdge = reinterpret_cast<unsigned char*>(fData + gridCount);
++        fCopy = fEdge + gridCount;
++    }
++
++    explicit operator bool() const { return fStorage != nullptr; }
++
++    DFData* data() const { return fData; }
++    unsigned char* edge() const { return fEdge; }
++    unsigned char* copy() const { return fCopy; }
++
++private:
++    UniqueVoidPtr fStorage;
++    DFData* fData = nullptr;
++    unsigned char* fEdge = nullptr;
++    unsigned char* fCopy = nullptr;
++};
++
++size_t SkComputeDistanceFieldSize(int w, int h) {
++    // Reject dimensions whose distance field or DFScratch buffer cannot be allocated
++    if (DFScratch::ComputeTotalSize(w, h) == 0) {
++        return 0;
++    }
++    return static_cast<size_t>(w + 2 * SK_DistanceFieldPad) *
++           static_cast<size_t>(h + 2 * SK_DistanceFieldPad);
++}
++
+ // assumes a padded 8-bit image and distance field
+ // width and height are the original width and height of the image
+ static bool generate_distance_field_from_image(unsigned char* distanceField,
+-                                               const unsigned char* copyPtr,
+-                                               int width, int height) {
++                                               const DFScratch& scratch,
++                                               int width,
++                                               int height) {
+     SkASSERT(distanceField);
+-    SkASSERT(copyPtr);
++    SkASSERT(scratch);
+ 
+     // we expand our temp data by one more on each side to simplify
+     // the scanning code -- will always be treated as infinitely far away
+@@ -365,15 +429,18 @@
+     int dataWidth = width + 2*pad;
+     int dataHeight = height + 2*pad;
+ 
+-    // create zeroed temp DFData+edge storage
+-    UniqueVoidPtr storage(sk_calloc_throw(dataWidth*dataHeight*(sizeof(DFData) + 1)));
+-    DFData*        dataPtr = (DFData*)storage.get();
+-    unsigned char* edgePtr = (unsigned char*)storage.get() + dataWidth*dataHeight*sizeof(DFData);
++    DFData* dataPtr = scratch.data();
++    unsigned char* edgePtr = scratch.edge();
+ 
+     // copy glyph into distance field storage
+-    init_glyph_data(dataPtr, edgePtr, copyPtr,
+-                    dataWidth, dataHeight,
+-                    width+2, height+2, SK_DistanceFieldPad);
++    init_glyph_data(dataPtr,
++                    edgePtr,
++                    scratch.copy(),
++                    dataWidth,
++                    dataHeight,
++                    width + 2,
++                    height + 2,
++                    SK_DistanceFieldPad);
+ 
+     // create initial distance data, particularly at edges
+     init_distances(dataPtr, edgePtr, dataWidth, dataHeight);
+@@ -482,9 +549,11 @@
+     SkASSERT(distanceField);
+     SkASSERT(image);
+ 
+-    // create temp data
+-    SkAutoSMalloc<1024> copyStorage((width+2)*(height+2)*sizeof(char));
+-    unsigned char* copyPtr = (unsigned char*) copyStorage.get();
++    DFScratch scratch(width, height);
++    if (!scratch) {
++        return false;
++    }
++    unsigned char* copyPtr = scratch.copy();
+ 
+     // we copy our source image into a padded copy to ensure we catch edge transitions
+     // around the outside
+@@ -500,7 +569,7 @@
+     }
+     sk_bzero(currDestPtr, (width+2)*sizeof(char));
+ 
+-    return generate_distance_field_from_image(distanceField, copyPtr, width, height);
++    return generate_distance_field_from_image(distanceField, scratch, width, height);
+ }
+ 
+ // assumes a 16-bit lcd mask and 8-bit distance field
+@@ -510,9 +579,11 @@
+     SkASSERT(distanceField);
+     SkASSERT(image);
+ 
+-    // create temp data
+-    SkAutoSMalloc<1024> copyStorage((w+2)*(h+2)*sizeof(char));
+-    unsigned char* copyPtr = (unsigned char*) copyStorage.get();
++    DFScratch scratch(w, h);
++    if (!scratch) {
++        return false;
++    }
++    unsigned char* copyPtr = scratch.copy();
+ 
+     // we copy our source image into a padded copy to ensure we catch edge transitions
+     // around the outside
+@@ -530,7 +601,7 @@
+     }
+     sk_bzero(currDestPtr, (w+2)*sizeof(char));
+ 
+-    return generate_distance_field_from_image(distanceField, copyPtr, w, h);
++    return generate_distance_field_from_image(distanceField, scratch, w, h);
+ }
+ 
+ // assumes a 1-bit image and 8-bit distance field
+@@ -540,9 +611,11 @@
+     SkASSERT(distanceField);
+     SkASSERT(image);
+ 
+-    // create temp data
+-    SkAutoSMalloc<1024> copyStorage((width+2)*(height+2)*sizeof(char));
+-    unsigned char* copyPtr = (unsigned char*) copyStorage.get();
++    DFScratch scratch(width, height);
++    if (!scratch) {
++        return false;
++    }
++    unsigned char* copyPtr = scratch.copy();
+ 
+     // we copy our source image into a padded copy to ensure we catch edge transitions
+     // around the outside
+@@ -566,7 +639,7 @@
+     }
+     sk_bzero(currDestPtr, (width+2)*sizeof(char));
+ 
+-    return generate_distance_field_from_image(distanceField, copyPtr, width, height);
++    return generate_distance_field_from_image(distanceField, scratch, width, height);
+ }
+ 
+ #endif // !defined(SK_DISABLE_SDF_TEXT)
+diff --git a/third_party/skia/src/core/SkDistanceFieldGen.h b/third_party/skia/src/core/SkDistanceFieldGen.h
+index 8374dbe..bbb72e1 100644
+--- a/third_party/skia/src/core/SkDistanceFieldGen.h
++++ b/third_party/skia/src/core/SkDistanceFieldGen.h
+@@ -72,9 +72,7 @@
+  *  @param w                 Width of the original image.
+  *  @param h                 Height of the original image.
+  */
+-inline size_t SkComputeDistanceFieldSize(int w, int h) {
+-    return (w + 2*SK_DistanceFieldPad) * (h + 2*SK_DistanceFieldPad) * sizeof(unsigned char);
+-}
++size_t SkComputeDistanceFieldSize(int w, int h);
+ 
+ #endif // !defined(SK_DISABLE_SDF_TEXT)
+ 
 diff --git a/third_party/skia/src/core/SkGeometry.cpp b/third_party/skia/src/core/SkGeometry.cpp
 index 2248fb7..9752915 100644
 --- a/third_party/skia/src/core/SkGeometry.cpp
@@ -6334,6 +7062,23 @@ index d9d6ddd..2c45b59 100644
      /**
       *  return the power-of-2 number of quads needed to approximate this conic
       *  with a sequence of quads. Will be >= 0.
+diff --git a/third_party/skia/src/core/SkGlyph.cpp b/third_party/skia/src/core/SkGlyph.cpp
+index 0ed78b3..01cd083 100644
+--- a/third_party/skia/src/core/SkGlyph.cpp
++++ b/third_party/skia/src/core/SkGlyph.cpp
+@@ -351,10 +351,9 @@
+ }
+ 
+ void SkGlyph::flattenImage(SkWriteBuffer& buffer) const {
+-    SkASSERT(this->setImageHasBeenCalled());
+-
+-    // If the glyph is empty or too big, then no image data is sent.
++    // If the glyph is empty or too big, then no image data is sent
+     if (!this->isEmpty() && SkGlyphDigest::FitsInAtlas(*this)) {
++        SkASSERT(this->setImageHasBeenCalled());
+         buffer.writeByteArray(this->image(), this->imageSize());
+     }
+ }
 diff --git a/third_party/skia/src/core/SkRegion_path.cpp b/third_party/skia/src/core/SkRegion_path.cpp
 index e65daff..011fe56 100644
 --- a/third_party/skia/src/core/SkRegion_path.cpp
@@ -6553,10 +7298,26 @@ index cf2287e..75101a8 100644
          return TextureOpImpl::Make(context, std::move(proxyView), std::move(textureXform), filter,
                                     mm, color, saturate, aaType, std::move(quad), subset);
 diff --git a/third_party/skia/src/gpu/graphite/ClipStack.cpp b/third_party/skia/src/gpu/graphite/ClipStack.cpp
-index 5e8d407..784b264 100644
+index 5e8d407..283fd20 100644
 --- a/third_party/skia/src/gpu/graphite/ClipStack.cpp
 +++ b/third_party/skia/src/gpu/graphite/ClipStack.cpp
-@@ -1369,9 +1369,22 @@
+@@ -1300,9 +1300,12 @@
+     void resetToFloodFill();
+     bool intersectClipElement(const RawElement& clip);
+ 
+-    // Sync any modifications back to `geometry` and return a Clip object encapsulating the
+-    // tracked bounds of the now-clipped draw.
+-    Clip toClip(Geometry* geometry, const NonMSAAClip& analyticClip, const SkShader* clipShader);
++    // Sync any modifications back to `geometry` and `style` and return a Clip object encapsulating
++    // the tracked bounds of the now-clipped draw.
++    Clip toClip(Geometry* geometry,
++                SkStrokeRec* style,
++                const NonMSAAClip& analyticClip,
++                const SkShader* clipShader);
+ 
+ private:
+     Transform fLocalToDevice;
+@@ -1369,9 +1372,22 @@
          fLocalToDevice = Transform::Identity();
          fShapeMatchesGeometry = false;
      } else {
@@ -6581,7 +7342,7 @@ index 5e8d407..784b264 100644
              // Rectangles, rounded rectangles, and lines do not produce miters so don't count the
              // pessimistic limit against their draw bounds.
              const float effectiveMiterLimit = fShape.isPath() ? style.getMiter() : 1.f;
-@@ -1383,17 +1396,7 @@
+@@ -1383,17 +1399,7 @@
              localOutset = SkStrokeRec::GetInflationRadius(style.getJoin(),
                                                            effectiveMiterLimit,
                                                            effectiveCap,
@@ -6600,6 +7361,121 @@ index 5e8d407..784b264 100644
          }
  
          if (localOutset > 0.f) {
+@@ -1444,9 +1450,16 @@
+     fScissor.intersect(scissor); // For first call, fScissor is infinite so this is assignment
+     fOuterBounds.intersect(scissor);
+     fInnerBounds.intersect(scissor);
++
++    // An inverse fill whose shape is entirely outside of the scissor covers every pixel that can
++    // be drawn, so it can be replaced with a flood fill.
++    if (fShape.inverted() && fOuterBounds.isEmptyNegativeOrNaN()) {
++        this->resetToFloodFill();
++    }
+ }
+ 
+ Clip ClipStack::DrawShape::toClip(Geometry* geometry,
++                                  SkStrokeRec* style,
+                                   const NonMSAAClip& analyticClip,
+                                   const SkShader* clipShader) {
+     if (fShapeWasModified) {
+@@ -1460,6 +1473,7 @@
+             SkASSERT(fEdgeFlags == EdgeAAQuad::Flags::kAll);
+             geometry->setShape(fShape);
+         }
++        style->setFillStyle();
+         // Reconstruct new transformedShapeBounds and outer bounds
+         fTransformedShapeBounds = fLocalToDevice.mapRect(fShape.bounds());
+         fOuterBounds = fTransformedShapeBounds.makeIntersect(fScissor);
+@@ -1477,11 +1491,16 @@
+ }
+ 
+ void ClipStack::DrawShape::resetToFloodFill() {
+-    if (this->shapeCanBeModified() && !fShape.isFloodFill()) {
++    // An inverse-filled shape that is replaced by the clip or scissor can always become a flood
++    // fill.
++    const bool canReset = this->shapeCanBeModified() || fShape.inverted();
++    if (canReset && !fShape.isFloodFill()) {
+         fShape.reset();
+         fShape.setInverted(true);
+         fEdgeFlags = EdgeAAQuad::Flags::kAll;
+         fOuterBounds = fInnerBounds = Rect::InfiniteInverted();
++        fShapeMatchesGeometry = true;
++        fShapeCompatibleWithIntersectShape = true;
+         fShapeWasModified = true;
+     }
+ }
+@@ -1830,7 +1849,7 @@
+ 
+ Clip ClipStack::visitClipStackForDraw(const Transform& localToDevice,
+                                       Geometry* geometry,
+-                                      const SkStrokeRec& style,
++                                      SkStrokeRec* style,
+                                       ClipStack::ElementList* outEffectiveElements) const {
+     static const Clip kClippedOut = {
+             Rect::InfiniteInverted(), Rect::InfiniteInverted(), SkIRect::MakeEmpty(),
+@@ -1846,7 +1865,7 @@
+     const Rect deviceBounds = this->deviceBounds();
+ 
+     DrawShape draw{localToDevice, *geometry};
+-    if (!draw.applyStyle(style, deviceBounds)) {
++    if (!draw.applyStyle(*style, deviceBounds)) {
+         return kClippedOut;
+     }
+ 
+@@ -1869,7 +1888,7 @@
+         case DrawInfluence::kNone:
+             // The draw is unaffected by the clip stack (except possibly `scissor`), and there's no
+             // need to visit each clip element.
+-            return draw.toClip(geometry, {}, cs.shader());
++            return draw.toClip(geometry, style, {}, cs.shader());
+ 
+         case DrawInfluence::kReplacesDraw:
+             // The draw covers the clip entirely. Replace the shape with a flood fill, which can
+@@ -1976,7 +1995,7 @@
+         }
+     }
+ 
+-    return draw.toClip(geometry, nonMSAAClip, cs.shader());
++    return draw.toClip(geometry, style, nonMSAAClip, cs.shader());
+ }
+ 
+ std::pair<CompressedPaintersOrder, Layer*> ClipStack::updateClipStateForDraw(
+diff --git a/third_party/skia/src/gpu/graphite/ClipStack.h b/third_party/skia/src/gpu/graphite/ClipStack.h
+index 12088d9..57d71f4 100644
+--- a/third_party/skia/src/gpu/graphite/ClipStack.h
++++ b/third_party/skia/src/gpu/graphite/ClipStack.h
+@@ -101,7 +101,7 @@
+     using ElementList = skia_private::STArray<4, const Element*>;
+     Clip visitClipStackForDraw(const Transform&,
+                                Geometry*,
+-                               const SkStrokeRec&,
++                               SkStrokeRec* style,
+                                ElementList* outEffectiveElements) const;
+ 
+     // Update the per-clip element state for later rendering using pre-computed clip state data for
+@@ -141,8 +141,8 @@
+     //
+     // TransformedShape is a lightweight wrapper that can convert these different types into a
+     // common type that Simplify() can reason about.
+-    struct TransformedShape;
+     class DrawShape;
++    struct TransformedShape;
+ 
+     // This captures which of the two elements in (A op B) would be required when they are combined,
+     // where op is intersect or difference.
+diff --git a/third_party/skia/src/gpu/graphite/Device.cpp b/third_party/skia/src/gpu/graphite/Device.cpp
+index 73f6971..7a83eb7 100644
+--- a/third_party/skia/src/gpu/graphite/Device.cpp
++++ b/third_party/skia/src/gpu/graphite/Device.cpp
+@@ -1691,7 +1691,7 @@
+     ClipStack::ElementList clipElements;
+     Clip clip = fClip.visitClipStackForDraw(localToDevice,
+                                             &geometry,
+-                                            style,
++                                            &style,
+                                             &clipElements);
+     if (clip.isClippedOut()) {
+         // Clipped out, so don't record anything.
 diff --git a/third_party/skia/src/gpu/graphite/PaintParamsKey.h b/third_party/skia/src/gpu/graphite/PaintParamsKey.h
 index 8eefefc..d2e9fea 100644
 --- a/third_party/skia/src/gpu/graphite/PaintParamsKey.h
@@ -6613,6 +7489,38 @@ index 8eefefc..d2e9fea 100644
      }
      bool operator!=(const PaintParamsKey& that) const { return !(*this == that); }
  
+diff --git a/third_party/skia/src/gpu/graphite/PathAtlas.cpp b/third_party/skia/src/gpu/graphite/PathAtlas.cpp
+index 6a52471..ea91da1 100644
+--- a/third_party/skia/src/gpu/graphite/PathAtlas.cpp
++++ b/third_party/skia/src/gpu/graphite/PathAtlas.cpp
+@@ -41,12 +41,12 @@
+         const Shape& shape,
+         const Transform& localToDevice,
+         const SkStrokeRec& style) {
+-    // It is possible for the transformed shape bounds to be fully clipped out while the draw still
+-    // produces coverage due to an inverse fill. In this case, don't render any mask;
+-    // CoverageMaskShapeRenderStep will automatically handle the simple fill. We'll handle this
+-    // by adding an empty mask.
+-    // TODO: We could have addShape() handle this fully except we need a valid TextureProxy still.
+-    const bool emptyMask = transformedShapeBounds.isEmptyNegativeOrNaN();
++    // Inverse fills that don't intersect the scissor are drawn as flood fills, so
++    // there is always a non-empty region of the shape to rasterize here.
++    SkASSERT(!transformedShapeBounds.isEmptyNegativeOrNaN());
++    if (transformedShapeBounds.isEmptyNegativeOrNaN()) {
++        return std::make_pair(nullptr, std::nullopt);
++    }
+ 
+     // Round out the shape bounds to preserve any fractional offset so that it is present in the
+     // translation that we use when deriving the atlas-space transform later.
+@@ -55,7 +55,7 @@
+     CoverageMaskShape::MaskInfo maskInfo;
+     // This size does *not* include any padding that the atlas may place around the mask. This size
+     // represents the area the shape can actually modify.
+-    maskInfo.fMaskSize = emptyMask ? skvx::half2(0) : skvx::cast<uint16_t>(maskBounds.size());
++    maskInfo.fMaskSize = skvx::cast<uint16_t>(maskBounds.size());
+     // We use the origin of the clipped mask bounds relative to the full mask to distinguish
+     // between clips of the same size.
+     Rect shapeDevBounds = localToDevice.mapRect(shape.bounds());
 diff --git a/third_party/skia/src/shaders/SkShaderBase.h b/third_party/skia/src/shaders/SkShaderBase.h
 index f346da4..e95ddfd 100644
 --- a/third_party/skia/src/shaders/SkShaderBase.h
@@ -6739,6 +7647,77 @@ index 0d49ea3..8d83473 100644
          return false;
      }
      if (baseType->isVoid()) {
+diff --git a/third_party/skia/src/text/gpu/SDFMaskFilter.cpp b/third_party/skia/src/text/gpu/SDFMaskFilter.cpp
+index 0870d36..467132c 100644
+--- a/third_party/skia/src/text/gpu/SDFMaskFilter.cpp
++++ b/third_party/skia/src/text/gpu/SDFMaskFilter.cpp
+@@ -53,6 +53,12 @@
+         && src.fFormat != SkMask::kLCD16_Format) {
+         return false;
+     }
++    // Reject dimensions whose distance field or scratch storage cannot be allocated
++    if (SkComputeDistanceFieldSize(src.fBounds.width(), src.fBounds.height()) == 0) {
++        dst->image() = nullptr;
++        dst->bounds().setEmpty();
++        return false;
++    }
+ 
+     *dst = SkMaskBuilder::PrepareDestination(SK_DistanceFieldPad, SK_DistanceFieldPad, src);
+     dst->format() = SkMask::kSDF_Format;
+@@ -69,19 +75,26 @@
+         return false;
+     }
+ 
++    bool success = false;
+     if (src.fFormat == SkMask::kA8_Format) {
+-        return SkGenerateDistanceFieldFromA8Image(dst->image(), src.fImage,
+-                                                  src.fBounds.width(), src.fBounds.height(),
+-                                                  src.fRowBytes);
++        success = SkGenerateDistanceFieldFromA8Image(
++                dst->image(), src.fImage, src.fBounds.width(), src.fBounds.height(), src.fRowBytes);
+     } else if (src.fFormat == SkMask::kLCD16_Format) {
+-        return SkGenerateDistanceFieldFromLCD16Mask(dst->image(), src.fImage,
+-                                                     src.fBounds.width(), src.fBounds.height(),
+-                                                     src.fRowBytes);
++        success = SkGenerateDistanceFieldFromLCD16Mask(
++                dst->image(), src.fImage, src.fBounds.width(), src.fBounds.height(), src.fRowBytes);
+     } else {
+-        return SkGenerateDistanceFieldFromBWImage(dst->image(), src.fImage,
+-                                                  src.fBounds.width(), src.fBounds.height(),
+-                                                  src.fRowBytes);
++        success = SkGenerateDistanceFieldFromBWImage(
++                dst->image(), src.fImage, src.fBounds.width(), src.fBounds.height(), src.fRowBytes);
+     }
++
++    // Release the destination buffer when distance field generation fails
++    if (!success) {
++        SkMaskBuilder::FreeImage(dst->image());
++        dst->image() = nullptr;
++        dst->bounds().setEmpty();
++        return false;
++    }
++    return true;
+ }
+ 
+ void SDFMaskFilterImpl::computeFastBounds(const SkRect& src,
+diff --git a/third_party/skia/src/text/gpu/SkChromeRemoteGlyphCache.cpp b/third_party/skia/src/text/gpu/SkChromeRemoteGlyphCache.cpp
+index b9995e5..31f2a46 100644
+--- a/third_party/skia/src/text/gpu/SkChromeRemoteGlyphCache.cpp
++++ b/third_party/skia/src/text/gpu/SkChromeRemoteGlyphCache.cpp
+@@ -185,9 +185,11 @@
+         fHaveSentFontMetrics = true;
+     }
+ 
+-    // Make sure to install all the mask data into the glyphs before sending.
++    // Oversized glyphs are rejected by the atlas and sent as metrics-only
+     for (SkGlyph& glyph: fMasksToSend) {
+-        this->prepareForImage(&glyph);
++        if (SkGlyphDigest::FitsInAtlas(glyph)) {
++            this->prepareForImage(&glyph);
++        }
+     }
+ 
+     // Make sure to install all the path data into the glyphs before sending.
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
 index 9481dc1..51f418e 100644
 --- a/v8/include/v8-version.h
@@ -8288,7 +9267,7 @@ diff --git a/build/util/LASTCHANGE b/build/util/LASTCHANGE
 +++ b/build/util/LASTCHANGE
 @@ -1,2 +1,2 @@
 -LASTCHANGE=638dd0ef2fd334b657efb909d06d0164ea4d9443-refs/branch-heads/8103@{#943}
-+LASTCHANGE=f37af91d818ffa034fc2d8f1028dd190dab034ed-refs/branch-heads/8103@{#1090}
++LASTCHANGE=bc3ac779b1079953f17297c57d7a44b42c30bf24-refs/branch-heads/8103@{#1114}
  LASTCHANGE_YEAR=2026
 diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 --- a/build/util/LASTCHANGE.committime
@@ -8296,7 +9275,7 @@ diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 @@ -1 +1 @@
 -1793133444
 \ No newline at end of file
-+1793722449
++1793754286
 \ No newline at end of file
 diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
 --- a/gpu/config/gpu_lists_version.h
@@ -8306,7 +9285,7 @@ diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
  #define GPU_CONFIG_GPU_LISTS_VERSION_H_
  
 -#define GPU_LISTS_VERSION "638dd0ef2fd334b657efb909d06d0164ea4d9443"
-+#define GPU_LISTS_VERSION "f37af91d818ffa034fc2d8f1028dd190dab034ed"
++#define GPU_LISTS_VERSION "bc3ac779b1079953f17297c57d7a44b42c30bf24"
  
  #endif  // GPU_CONFIG_GPU_LISTS_VERSION_H_
 diff --git a/skia/ext/skia_commit_hash.h b/skia/ext/skia_commit_hash.h
@@ -8317,6 +9296,6 @@ diff --git a/skia/ext/skia_commit_hash.h b/skia/ext/skia_commit_hash.h
  #define SKIA_EXT_SKIA_COMMIT_HASH_H_
  
 -#define SKIA_COMMIT_HASH "fa428e2b9c671ce8e57b3823536b4a1f648d178d"
-+#define SKIA_COMMIT_HASH "ca84ce0a6f1659748188469a89361ccea71e3a64"
++#define SKIA_COMMIT_HASH "ca220d775882831560d7517d0cd0e67ef95bbe20"
  
  #endif  // SKIA_EXT_SKIA_COMMIT_HASH_H_
