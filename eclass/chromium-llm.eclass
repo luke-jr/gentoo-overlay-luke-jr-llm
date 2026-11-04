@@ -489,7 +489,7 @@ BDEPEND="
 	sys-libs/zlib
 	dev-lang/yasm
 	dev-build/meson
-	=dev-util/ragel-6*
+	=dev-util/ragel-6.10*
 	dev-util/glslang
 	sys-devel/flex
 	virtual/pkgconfig
@@ -1984,16 +1984,17 @@ exec(compile(open(sys.argv[0]).read(), sys.argv[0], "exec"), {"__name__": "__mai
 	# (core/xml/xpath_grammar_generated.{cc,h}) with Blink's rule_bison.py; the emoji presentation
 	# scanner (third_party/emoji-segmenter, used by Blink's SymbolsIterator) and HarfBuzz's
 	# state machines (hb-*.hh from hb-*.rl; used without USE=system-harfbuzz) with Ragel 6, as
-	# their makefiles do (HarfBuzz requires 6.10). Blink's css_group_config.json5 says it is
+	# their makefiles do (HarfBuzz requires 6.10: find_program('ragel', version: '6.10') in its
+	# src/meson.build). Blink's css_group_config.json5 says it is
 	# generated, but its generator (update_css_ranking.py, from CSS usage statistics) is gone.
 	einfo "Regenerating Bison and Ragel output ..."
 	PYTHONPATH="third_party/blink/tools:third_party/blink/renderer/build/scripts" "${EPYTHON}" -B \
 		third_party/blink/renderer/build/scripts/rule_bison.py third_party/blink/renderer/core/xml/xpath_grammar.y \
 		third_party/blink/renderer/core/xml "$(type -P bison)" || die "Failed to regenerate Blink's XPath parser"
-	# Ragel 6 is ::gentoo's dev-util/ragel-6* in slot 0 (ragel) or, next to a Ragel 7 there, the
-	# overlay's dev-util/ragel:6 (ragel-6).
+	# Ragel 6.10 is ::gentoo's dev-util/ragel-6.10* in slot 0 (ragel) or, next to a Ragel 7 there,
+	# the overlay's dev-util/ragel:6 (ragel-6).
 	local ragel=ragel-6
-	has_version -b "=dev-util/ragel-6*:0" && ragel=ragel
+	has_version -b "=dev-util/ragel-6.10*:0" && ragel=ragel
 	( cd third_party/emoji-segmenter/src && "${ragel}" -F1 emoji_presentation_scanner.rl ) ||
 		die "Failed to regenerate the emoji presentation scanner"
 	if use !system-harfbuzz; then

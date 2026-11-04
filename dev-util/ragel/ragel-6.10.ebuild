@@ -13,7 +13,7 @@ LICENSE="GPL-2"
 # Ragel 6 in a slot of its own, installed as ragel-6, for systems that keep ::gentoo's
 # dev-util/ragel:0 at Ragel 7 (::gentoo has Ragel 6 and 7 both in slot 0): HarfBuzz needs exactly
 # 6.10 to regenerate its state machines. Keep the version equal to ::gentoo's 6.10 (no revision):
-# Chromium depends on =dev-util/ragel-6*, and emerge -uD installs a higher version here next to
+# Chromium depends on =dev-util/ragel-6.10*, and emerge -uD installs a higher version here next to
 # an installed ::gentoo 6.10.
 SLOT="6"
 KEYWORDS="~amd64 ~arm64"
