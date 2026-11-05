@@ -28,8 +28,8 @@ masked) keeps the previous set and its packages.
    the installed `dev-util/crubit` versions (the Chromium ebuild checks this). If you installed
    `dev-lang/rustc-dev`, unmerge it: Crubit no longer uses it.
 3. Accept `~amd64` for the overlay's packages and unmask `www-client/chromium::luke-jr-llm`
-   (`::gentoo`'s `profiles/package.mask` masks `www-client/chromium` in every repository until
-   `::gentoo` removes the package, bug #982204).
+   (`::gentoo`'s `profiles/package.mask` masks `www-client/chromium` in every repository; it
+   removed its own package on 2026-11-05, bug #982204, but not yet the mask).
    `LLVM_COMPAT` is 22 only: LLVM 23 means Rust 1.99, which would need a `dev-util/crubit:1.99.0`.
 4. `=dev-python/clang-22*`, pulled in automatically, used by V8's build-time
    header parser ("metagen").
