@@ -169,7 +169,7 @@ LICENSE+=" IJG ISC LGPL-2 LGPL-2.1 MIT MPL-1.1 MPL-2.0 Ms-PL Old-MIT PSF-2 SGI-B
 LICENSE+=" Unicode-DFS-2015 Unlicense UoI-NCSA ZLIB libtiff openssl"
 LICENSE+=" rar? ( unRAR )"
 
-SLOT="beta"
+SLOT="stable"
 KEYWORDS="~amd64 ~arm64"
 
 # The overlay's patches, after the Gentoo patchset's common ones.

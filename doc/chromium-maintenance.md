@@ -18,7 +18,9 @@ was added with (and 156 updated from .12 to .47).
     slot, so installed copies keep their profile;
   - Beta for Linux: `SLOT="beta"`, `KEYWORDS="~amd64 ~arm64"`: the newest official Linux Beta,
     as a plain ebuild (no carried fixes), so that the next major is ported before it reaches
-    Early Stable. It replaces the previous Beta.
+    Early Stable. It replaces the previous Beta. When the Linux Beta is the same version as
+    Google's Early Stable (e.g. 158.0.8127.18), there is one plain ebuild, as Early Stable
+    (`SLOT="stable"`), and no Beta one until the Linux Beta moves to another version.
   `arm64` stays `~arm64`: nobody has built or run it.
 - **Source:** Google's official "lite" tarball,
   `https://commondatastorage.googleapis.com/chromium-browser-official/chromium-<version>-lite.tar.xz`;
