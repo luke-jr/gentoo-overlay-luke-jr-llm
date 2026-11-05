@@ -1,8 +1,8 @@
 Chromium 158.0.8127.22 + the later changes of its release branch, up to
-c82bf00fdf0b2f896c17a656fdcdec4a2ff39879 (refs/branch-heads/8127@{#956}), for the
+3b9dc612356d6e03be7571be614b0adb18c0f8d1 (refs/branch-heads/8127@{#981}), for the
 158.0.8127.22 tree that chromium-158.0.8127.18-to-158.0.8127.22.patch makes.
 
-Generated from the upstream diffs chromium/src refs/tags/158.0.8127.22..c82bf00fdf0b2f896c17a656fdcdec4a2ff39879
+Generated from the upstream diffs chromium/src refs/tags/158.0.8127.22..3b9dc612356d6e03be7571be614b0adb18c0f8d1
 and the dependencies whose DEPS revision changed (ANGLE, DevTools, Skia,
 V8, WebRTC), as served by Gitiles, with scripts/chromium-delta --branch-fixes:
 left out are files not in the release tarball, iOS/Android/ChromeOS/Mac/
@@ -55,6 +55,25 @@ are the ANGLE, DevTools, Skia, V8 and WebRTC updates):
   00b3af826730 Roll commits from side projects in M158
   d6c4f13798c3 [M158] [MSE] Don't open a MediaSource whose context died mid-attac
   c82bf00fdf0b Roll commits from side projects in M158
+  27e510044ce5 [M158] Revert "Ship a placeholder 64-bit lib with Chrome 32-bit pr
+  279a32088cb8 [M158] [ContextualTasks] Send handshake capabilities
+  f4375d67fa30 [M158] Fix OnboardingVariantProperties corner radius check without
+  c70b7879bd54 [M158] [composebox] Make vertical matches container scrollable in 
+  d9a01204ff3b [M158] Roll omnibox protos from google3
+  44d79cad2e0d [M158] [ContextualTasks] Prevent 10s query submit stall
+  d7da8eff50a1 [M158] [ContextualTasks] Add error mode to ghost loader
+  65378ec8f79a [M158] [contextual-tasks] Clear stale thread title when q is absen
+  e32ac98b1f97 [M158] [LHS] Smooth width transition when the rail expands/collaps
+  11c10225905a [M158] [loomnibox] Refuse AI Mode actions when AI Mode is unavaila
+  e4eef13af933 [M158] [NTP] Keep OneGoogleBar width constant while the LHS rail a
+  971ab8f5882c [M158] [omnibox_everywhere] Set composebox state imperatively on o
+  00ff52e9dc82 [M158] Allow closing contextual tasks from the pinned button conte
+  422869dd4fbf [M158] [Extensions] Avoid copy fallback in final install move
+  45f10f5f38c0 [M158] [iOS] Minimize Gemini container when presenting gesture IPH
+  50ee2eb07292 [M158] [ContextualTasks] Deflake and re-enable CopyUrl
+  680d5a75a028 [M158] [contextual-tasks]: Remove follow-up query and placeholder 
+  26ace9c4d5c2 [M158] [Composebox] Disable rainbow caret animation when willFulfi
+  3b9dc612356d [M158] [Contextual Tasks] Wire Smart Tab Sharing Mojo RPCs and STS
 
 Checked: applies to the 158.0.8127.22 tree; every patched file is
 byte-identical to its version at the commits above.
@@ -247,6 +266,49 @@ index f1a1cd5..7b7f428 100644
  <translation id="894763922177556086">Good</translation>
  <translation id="895054485242522631">Sites can use motion sensors</translation>
  <translation id="8951465597020890363">Exit guest mode anyway?</translation>
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks.mojom b/chrome/browser/contextual_tasks/contextual_tasks.mojom
+index 8dac34a..c459311 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks.mojom
++++ b/chrome/browser/contextual_tasks/contextual_tasks.mojom
+@@ -315,7 +315,7 @@
+   //
+   // Returns:
+   // - `message`: A ProtoWrapper containing the serialized
+-  //   `lens.ClientToAimMessage` which wraps the `HandshakePing`.
++  //   `lens.ClientToSearchMessage` which wraps the `HandshakePing`.
+   GetHandshakeMessage(string? document_id)
+       => (mojo_base.mojom.ProtoWrapper message);
+ 
+@@ -357,6 +357,16 @@
+ };
+ 
+ // Extension-side handler for requests from the browser process.
++// State of the Smart Tab Sharing ('Share open tabs') feature for the current
++// Contextual Tasks session.
++struct SmartTabSharingState {
++  // Whether Smart Tab Sharing is currently toggled on for the session.
++  bool active;
++  // Whether the Smart Tab Sharing menu option should be shown in the tab picker
++  // menu.
++  bool visible;
++};
++
+ // Implemented in HTML/TS and called from C++
+ // (ContextualTasksExtensionHandler or
+ // ContextualTasksExtensionServiceWorkerHandler) to control the extension UI and
+@@ -395,7 +405,10 @@
+   // Called by the browser process (C++, ContextualTasksExtensionHandler)
+   // when the session's tab context state updates, providing the combined
+   // list of attached and restored tabs along with the IDs of tabs that
+-  // have already been submitted or restored.
++  // have already been submitted or restored, as well as the current Smart
++  // Tab Sharing state (consumed by `ContextLibraryElement` in
++  // `context_library.ts` and `TabPickerAppElement` in `tab_picker_app.ts`).
+   OnTabContextUpdated(array<searchbox.mojom.TabInfo> tabs,
+-                      array<int32> submitted_tab_ids);
++                      array<int32> submitted_tab_ids,
++                      SmartTabSharingState smart_tab_sharing_state);
+ };
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_bridge_factory.cc b/chrome/browser/contextual_tasks/contextual_tasks_extension_bridge_factory.cc
 index 5f188fc4..0e5e4e19 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_extension_bridge_factory.cc
@@ -265,6 +327,433 @@ index 5f188fc4..0e5e4e19 100644
                .Build()) {
    DependsOn(extensions::ExtensionConfigMapFactory::GetInstance());
    DependsOn(extensions::ExtensionMojoBinderRegistryFactory::GetInstance());
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
+index 7eb0caf..7667c3f 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
+@@ -7,6 +7,7 @@
+ #include <algorithm>
+ #include <iterator>
+ #include <optional>
++#include <ranges>
+ #include <set>
+ #include <utility>
+ #include <vector>
+@@ -23,6 +24,8 @@
+ #include "base/unguessable_token.h"
+ #include "build/build_config.h"
+ #include "chrome/browser/contextual_search/contextual_search_web_contents_helper.h"
++#include "chrome/browser/contextual_tasks/contextual_tasks_context_service.h"
++#include "chrome/browser/contextual_tasks/contextual_tasks_context_service_factory.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_utils.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h"
+@@ -254,7 +257,10 @@
+     user_data->UpdateExtensionFrameBound(
+         this, /*is_page_bound=*/true,
+         base::BindRepeating(&ContextualTasksExtensionHandler::OnLensCropUpdated,
+-                            weak_ptr_factory_.GetWeakPtr()));
++                            weak_ptr_factory_.GetWeakPtr()),
++        base::BindRepeating(
++            &ContextualTasksExtensionHandler::OnTabContextUpdatedFromUserData,
++            weak_ptr_factory_.GetWeakPtr()));
+   }
+   InitializeInputStateModel();
+   // Do not reset the session's tab context here. The session is shared by every
+@@ -263,13 +269,21 @@
+   // attached) would drop the tabs unexpectedly. Instead, send the page any
+   // tabs added before it subscribed, since subscribing does not load initial
+   // state.
+-  if (auto* session_handle = GetOrCreateContextualSessionHandle()) {
++  if (contextual_search::ContextualSearchSessionHandle* session_handle =
++          GetOrCreateContextualSessionHandle()) {
+     MaybeRefreshTabContextSubscription(session_handle);
+     const auto& tab_context = session_handle->GetTabContextState();
+-    if (!tab_context.attached.empty() || !tab_context.restored.empty()) {
++    contextual_tasks::ContextualTasksWebContentsUserData* user_data =
++        GetOrCreateWebContentsUserData();
++    const bool sts_enabled = user_data && user_data->IsSmartTabSharingEnabled();
++    if (!tab_context.attached.empty() || !tab_context.restored.empty() ||
++        sts_enabled) {
+       SendTabContextToExtensionPage(tab_context);
+     }
+   }
++  if (IsSmartTabSharingActive()) {
++    PreflightSmartTabSharingEmbeddings();
++  }
+ }
+ 
+ // contextual_tasks::mojom::ExtensionPageHandler:
+@@ -331,9 +345,7 @@
+   }
+ }
+ 
+-// composebox::mojom::PageHandler stubs:
+-void ContextualTasksExtensionHandler::FocusChanged(bool focused) {}
+-void ContextualTasksExtensionHandler::StartPlatformVoiceRecognition() {}
++// composebox::mojom::PageHandler:
+ void ContextualTasksExtensionHandler::HandleLensButtonClick() {
+ #if !BUILDFLAG(IS_ANDROID)
+   if (!IsEmbeddedInSidePanel()) {
+@@ -377,15 +389,29 @@
+   }
+ #endif
+ }
++
++void ContextualTasksExtensionHandler::SetSmartTabSharingActive(bool active) {
++  if (contextual_tasks::ContextualTasksWebContentsUserData* user_data =
++          GetOrCreateWebContentsUserData()) {
++    user_data->SetSmartTabSharingActive(active);
++  }
++  if (IsSmartTabSharingActive()) {
++    PreflightSmartTabSharingEmbeddings();
++  }
++}
++
++void ContextualTasksExtensionHandler::GetSmartTabSharingActive(
++    GetSmartTabSharingActiveCallback callback) {
++  std::move(callback).Run(IsSmartTabSharingActive());
++}
++
++// composebox::mojom::PageHandler stubs:
++void ContextualTasksExtensionHandler::FocusChanged(bool focused) {}
++void ContextualTasksExtensionHandler::StartPlatformVoiceRecognition() {}
+ void ContextualTasksExtensionHandler::HandleFileUpload(bool is_image) {}
+ void ContextualTasksExtensionHandler::NavigateUrl(const GURL& url) {}
+ void ContextualTasksExtensionHandler::CloseLensOverlayFromWebUI(
+     composebox::mojom::LensOverlayDismissalSource dismissal_source) {}
+-void ContextualTasksExtensionHandler::SetSmartTabSharingActive(bool active) {}
+-void ContextualTasksExtensionHandler::GetSmartTabSharingActive(
+-    GetSmartTabSharingActiveCallback callback) {
+-  std::move(callback).Run(false);
+-}
+ void ContextualTasksExtensionHandler::
+     NotifyComposeboxQuerySubmittedWithContext() {}
+ void ContextualTasksExtensionHandler::CanShowNextboxAnimation(
+@@ -411,6 +437,9 @@
+   DCHECK(!tab_id.has_value())
+       << "QueryAutocomplete with tab_id is only supported for the full WebUI "
+          "Omnibox.";
++  if (IsSmartTabSharingActive()) {
++    PreflightSmartTabSharingEmbeddings();
++  }
+ }
+ void ContextualTasksExtensionHandler::StopAutocomplete(bool clear_result) {}
+ void ContextualTasksExtensionHandler::OpenAutocompleteMatch(
+@@ -511,7 +540,12 @@
+ }
+ void ContextualTasksExtensionHandler::ResetSmartTabSharing(
+     ResetSmartTabSharingCallback callback) {
+-  std::move(callback).Run(false);
++  contextual_tasks::ContextualTasksWebContentsUserData* user_data =
++      GetOrCreateWebContentsUserData();
++  if (user_data) {
++    user_data->ResetSmartTabSharing();
++  }
++  std::move(callback).Run(user_data && user_data->IsSmartTabSharingActive());
+ }
+ void ContextualTasksExtensionHandler::NotifySessionStarted() {}
+ void ContextualTasksExtensionHandler::NotifySessionAbandoned() {}
+@@ -833,92 +867,131 @@
+           base::Unretained(this)));
+ }
+ 
++void ContextualTasksExtensionHandler::OnTabContextUpdatedFromUserData() {
++  if (contextual_search::ContextualSearchSessionHandle* session_handle =
++          GetOrCreateContextualSessionHandle()) {
++    SendTabContextToExtensionPage(session_handle->GetTabContextState());
++  }
++}
++
++bool ContextualTasksExtensionHandler::IsSmartTabSharingActive() {
++  contextual_tasks::ContextualTasksWebContentsUserData* user_data =
++      GetOrCreateWebContentsUserData();
++  return user_data && user_data->IsSmartTabSharingActive();
++}
++
++void ContextualTasksExtensionHandler::PreflightSmartTabSharingEmbeddings() {
++  auto* profile =
++      Profile::FromBrowserContext(render_frame_host().GetBrowserContext());
++  if (!profile) {
++    return;
++  }
++  if (auto* context_service =
++          contextual_tasks::ContextualTasksContextServiceFactory::GetForProfile(
++              profile)) {
++    BrowserWindowInterface* browser_window = GetBrowserWindowInterface();
++    context_service->OnTypedQuery(browser_window ? browser_window->GetWeakPtr()
++                                                 : nullptr);
++  }
++}
++
+ void ContextualTasksExtensionHandler::SendTabContextToExtensionPage(
+     const contextual_search::TabContextState& state) {
+   if (!contextual_tasks_page_.is_bound()) {
+     return;
+   }
+ 
+-  std::vector<base::UnguessableToken> uploaded_tokens;
+-  if (subscribed_session_handle_) {
+-    uploaded_tokens = subscribed_session_handle_->GetUploadedContextTokens();
+-  }
++  contextual_tasks::ContextualTasksWebContentsUserData* user_data =
++      GetOrCreateWebContentsUserData();
++  auto smart_tab_sharing_state =
++      contextual_tasks::mojom::SmartTabSharingState::New();
++  smart_tab_sharing_state->active =
++      user_data && user_data->IsSmartTabSharingActive();
++  smart_tab_sharing_state->visible =
++      user_data && user_data->IsSmartTabSharingEnabled();
+ 
+   // Combine and deduplicate tabs between restored tabs and attached
+   // tabs into a single tab list to send to the frontend extension.
+   // Key tabs by TabHandle ID (used by the frontend) rather than SessionID.
+   std::vector<searchbox::mojom::TabInfoPtr> tabs;
+   std::vector<int32_t> submitted_tab_ids;
+-  std::set<GURL> seen_urls;
+-  std::set<int32_t> seen_tab_ids;
+ 
+-  // Resolve each tab's SessionID to its TabHandle ID via `user_data` (falling
+-  // back to SessionID if no matching open or mapped tab handle exists).
+-  // Frontend uses tab handle ID to identify tabs, while restored tab session
+-  // IDs are persistent between chat sessions.
+-  auto* user_data = GetOrCreateWebContentsUserData();
++  if (!smart_tab_sharing_state->active) {
++    std::vector<base::UnguessableToken> uploaded_tokens;
++    if (subscribed_session_handle_) {
++      uploaded_tokens = subscribed_session_handle_->GetUploadedContextTokens();
++    }
++    std::set<GURL> seen_urls;
++    std::set<int32_t> seen_tab_ids;
+ 
+-  // Attached tabs are reversed to show the newest tabs first and processed
+-  // before restored tabs so they take precedence during deduplication.
+-  for (const auto& tab : base::Reversed(state.attached)) {
+-    if (!tab.tab_id.has_value() ||
+-        state.deselected.contains(
+-            SessionID::FromSerializedValue(*tab.tab_id))) {
+-      continue;
++    // Resolve each tab's SessionID to its TabHandle ID via `user_data` (falling
++    // back to SessionID if no matching open or mapped tab handle exists).
++    // Frontend uses tab handle ID to identify tabs, while restored tab session
++    // IDs are persistent between chat sessions.
++
++    // Attached tabs are reversed to show the newest tabs first and processed
++    // before restored tabs so they take precedence during deduplication.
++    for (const auto& tab : std::views::reverse(state.attached)) {
++      if (!tab.tab_id.has_value() ||
++          state.deselected.contains(
++              SessionID::FromSerializedValue(*tab.tab_id))) {
++        continue;
++      }
++      const int32_t tab_handler_id =
++          (user_data ? user_data->ResolveAndRecordTabHandleForSessionTabId(
++                           *tab.tab_id)
++                     : std::nullopt)
++              .value_or(*tab.tab_id);
++      // Skip duplicate tabs.
++      if (!seen_tab_ids.insert(tab_handler_id).second) {
++        continue;
++      }
++      // Record the URL so restored duplicates are skipped below. Attached tabs
++      // are never skipped, even if two share a URL since the user manually
++      // selected them.
++      if (tab.url.is_valid()) {
++        seen_urls.insert(tab.url);
++      }
++      tabs.push_back(CreateMojomTab(tab, tab_handler_id));
++      const bool is_submitted =
++          !tab.pending_delayed_upload &&
++          !std::ranges::contains(uploaded_tokens, tab.context_token);
++      if (is_submitted) {
++        submitted_tab_ids.push_back(tab_handler_id);
++      }
+     }
+-    const int32_t tab_handler_id =
+-        (user_data
+-             ? user_data->ResolveAndRecordTabHandleForSessionTabId(*tab.tab_id)
+-             : std::nullopt)
+-            .value_or(*tab.tab_id);
+-    // Skip duplicate tabs.
+-    if (!seen_tab_ids.insert(tab_handler_id).second) {
+-      continue;
+-    }
+-    // Record the URL so restored duplicates are skipped below. Attached tabs
+-    // are never skipped, even if two share a URL since the user manually
+-    // selected them.
+-    if (tab.url.is_valid()) {
+-      seen_urls.insert(tab.url);
+-    }
+-    tabs.push_back(CreateMojomTab(tab, tab_handler_id));
+-    const bool is_submitted =
+-        !tab.pending_delayed_upload &&
+-        !std::ranges::contains(uploaded_tokens, tab.context_token);
+-    if (is_submitted) {
++
++    for (const auto& tab : std::views::reverse(state.restored)) {
++      // Tab ID is not guaranteed to be present. Verify it exists and skip
++      // deselected tabs.
++      if (!tab.tab_id.has_value() ||
++          state.deselected.contains(
++              SessionID::FromSerializedValue(*tab.tab_id))) {
++        continue;
++      }
++
++      const int32_t tab_handler_id =
++          (user_data ? user_data->ResolveAndRecordTabHandleForSessionTabId(
++                           *tab.tab_id)
++                     : std::nullopt)
++              .value_or(*tab.tab_id);
++      // Disallow duplicate restored IDs.
++      if (!seen_tab_ids.insert(tab_handler_id).second) {
++        continue;
++      }
++
++      // Allow for empty URLs, but not duplicate restored URLs.
++      if (tab.url.is_valid() && !seen_urls.insert(tab.url).second) {
++        continue;
++      }
++      tabs.push_back(CreateMojomTab(tab, tab_handler_id));
+       submitted_tab_ids.push_back(tab_handler_id);
+     }
+   }
+ 
+-  for (const auto& tab : base::Reversed(state.restored)) {
+-    // Tab ID is not guaranteed to be present. Verify it exists and skip
+-    // deselected tabs.
+-    if (!tab.tab_id.has_value() ||
+-        state.deselected.contains(
+-            SessionID::FromSerializedValue(*tab.tab_id))) {
+-      continue;
+-    }
+-
+-    const int32_t tab_handler_id =
+-        (user_data
+-             ? user_data->ResolveAndRecordTabHandleForSessionTabId(*tab.tab_id)
+-             : std::nullopt)
+-            .value_or(*tab.tab_id);
+-    // Disallow duplicate restored IDs.
+-    if (!seen_tab_ids.insert(tab_handler_id).second) {
+-      continue;
+-    }
+-
+-    // Allow for empty URLs, but not duplicate restored URLs.
+-    if (tab.url.is_valid() && !seen_urls.insert(tab.url).second) {
+-      continue;
+-    }
+-    tabs.push_back(CreateMojomTab(tab, tab_handler_id));
+-    submitted_tab_ids.push_back(tab_handler_id);
+-  }
+-
+-  contextual_tasks_page_->OnTabContextUpdated(std::move(tabs),
+-                                              std::move(submitted_tab_ids));
++  contextual_tasks_page_->OnTabContextUpdated(
++      std::move(tabs), std::move(submitted_tab_ids),
++      std::move(smart_tab_sharing_state));
+ }
+ 
+ void ContextualTasksExtensionHandler::StartScreenshare(
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
+index 86a90ca..309ea0f 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
+@@ -135,16 +135,18 @@
+       override;
+ 
+   // composebox::mojom::PageHandler:
++  void HandleLensButtonClick() override;
++  void SetSmartTabSharingActive(bool active) override;
++  void GetSmartTabSharingActive(
++      GetSmartTabSharingActiveCallback callback) override;
++
++  // composebox::mojom::PageHandler stubs:
+   void FocusChanged(bool focused) override;
+   void StartPlatformVoiceRecognition() override;
+-  void HandleLensButtonClick() override;
+   void HandleFileUpload(bool is_image) override;
+   void NavigateUrl(const GURL& url) override;
+   void CloseLensOverlayFromWebUI(
+       composebox::mojom::LensOverlayDismissalSource dismissal_source) override;
+-  void SetSmartTabSharingActive(bool active) override;
+-  void GetSmartTabSharingActive(
+-      GetSmartTabSharingActiveCallback callback) override;
+   void NotifyComposeboxQuerySubmittedWithContext() override;
+   void CanShowNextboxAnimation(
+       CanShowNextboxAnimationCallback callback) override;
+@@ -287,6 +289,12 @@
+   // to the extension page. Duplicates are skipped.
+   void SendTabContextToExtensionPage(
+       const contextual_search::TabContextState& state);
++  // Notifies the extension page of the current tab context when user data
++  // changes.
++  void OnTabContextUpdatedFromUserData();
++  bool IsSmartTabSharingActive();
++  // Triggers tab embedding pre-flighting for Smart Tab Sharing.
++  void PreflightSmartTabSharingEmbeddings();
+   void OnLensThumbnailCreated(const std::string& thumbnail_uri);
+   void OnLensCropUpdated(const GURL& data_uri);
+ 
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_service_worker_handler.cc b/chrome/browser/contextual_tasks/contextual_tasks_extension_service_worker_handler.cc
+index 041c086..4c4f30bb 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_extension_service_worker_handler.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_extension_service_worker_handler.cc
+@@ -24,7 +24,6 @@
+ #include "extensions/browser/service_worker/service_worker_keepalive.h"
+ #include "extensions/common/constants.h"
+ #include "mojo/public/cpp/base/proto_wrapper.h"
+-#include "third_party/lens_server_proto/aim_communication.pb.h"
+ #include "third_party/lens_server_proto/search_communication.pb.h"
+ 
+ namespace contextual_tasks {
+@@ -152,7 +151,7 @@
+         << "HandshakePing rejected: feature disabled (document_id="
+         << document_id.value_or("") << ")";
+     std::move(callback).Run(
+-        mojo_base::ProtoWrapper(lens::ClientToAimMessage()));
++        mojo_base::ProtoWrapper(lens::ClientToSearchMessage()));
+     return;
+   }
+ 
+@@ -162,7 +161,7 @@
+     RecordExtensionHandshakeStatus(
+         ExtensionHandshakeStatus::kInvalidDocumentId);
+     std::move(callback).Run(
+-        mojo_base::ProtoWrapper(lens::ClientToAimMessage()));
++        mojo_base::ProtoWrapper(lens::ClientToSearchMessage()));
+     return;
+   }
+ 
+@@ -175,7 +174,7 @@
+     RecordExtensionHandshakeStatus(
+         ExtensionHandshakeStatus::kInvalidDocumentId);
+     std::move(callback).Run(
+-        mojo_base::ProtoWrapper(lens::ClientToAimMessage()));
++        mojo_base::ProtoWrapper(lens::ClientToSearchMessage()));
+     return;
+   }
+ 
+@@ -188,7 +187,7 @@
+     RecordExtensionHandshakeStatus(
+         ExtensionHandshakeStatus::kInvalidDocumentId);
+     std::move(callback).Run(
+-        mojo_base::ProtoWrapper(lens::ClientToAimMessage()));
++        mojo_base::ProtoWrapper(lens::ClientToSearchMessage()));
+     return;
+   }
+ 
+@@ -201,9 +200,10 @@
+           &ContextualTasksExtensionServiceWorkerHandler::DispatchSearchMessage,
+           weak_ptr_factory_.GetWeakPtr(), *document_id));
+ 
+-  lens::ClientToAimMessage handshake_message = GetHandshakeMessageProto();
++  lens::ClientToSearchMessage handshake_message =
++      GetSearchHandshakeMessageProto(&profile_.get());
+   OMNIBOX_LOG_WITH_PROTO(kPostServiceWorkerMessageTag, handshake_message,
+-                         std::string("lens.chrome.ClientToAimMessage"))
++                         std::string("lens.chrome.ClientToSearchMessage"))
+       << "HandshakePing (document_id=" << *document_id << ")";
+   std::move(callback).Run(
+       mojo_base::ProtoWrapper(std::move(handshake_message)));
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc b/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc
 index dea4a50..453ff3dc 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc
@@ -379,6 +868,31 @@ index bf3fdf31..aff9d61 100644
  #endif
  
    dict.Set("composeboxFileMaxSize",
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc
+index 50e57b8..25e94f1 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc
+@@ -195,9 +195,6 @@
+       "error_dialog.css.js",
+       "error_dialog.html.js",
+       "error_dialog.js",
+-      "error_page.css.js",
+-      "error_page.html.js",
+-      "error_page.js",
+       "info_tooltip.css.js",
+       "info_tooltip.html.js",
+       "info_tooltip.js",
+@@ -498,6 +495,10 @@
+       {"newThreadTooltip", IDS_CONTEXTUAL_TASKS_SIDE_PANEL_NEW_THREAD_TOOL_TIP},
+       {"openInNewTab", IDS_CONTEXTUAL_TASKS_MENU_OPEN_IN_NEW_TAB},
+       {"pinTooltip", IDS_SIDE_PANEL_HEADER_PIN_BUTTON_TOOLTIP},
++      {"protectedErrorPageBottomLine",
++       IDS_SIDE_PANEL_LENS_OVERLAY_PROTECTED_PAGE_ERROR_SECOND_LINE},
++      {"protectedErrorPageTopLine",
++       IDS_SIDE_PANEL_LENS_OVERLAY_PROTECTED_PAGE_ERROR_FIRST_LINE},
+       {"reopenTab", IDS_CONTEXTUAL_TASKS_REOPEN_TABS_BUTTON_TEXT},
+       {"sourcesMenuTitle", IDS_CONTEXTUAL_TASKS_SOURCES_MENU_TITLE},
+       {"threadHistoryTooltip",
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
 index 638c93e..fabefde3 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
@@ -475,6 +989,204 @@ index 537c069..c4a3e41 100644
      return false;
    }
  
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_utils.cc b/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
+index 615d06c2..684448856 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
+@@ -69,6 +69,7 @@
+ #include "content/public/common/url_constants.h"
+ #include "net/base/url_util.h"
+ #include "third_party/lens_server_proto/aim_communication.pb.h"
++#include "third_party/lens_server_proto/search_communication.pb.h"
+ #include "ui/base/device_form_factor.h"
+ #include "ui/base/window_open_disposition.h"
+ #include "url/gurl.h"
+@@ -762,6 +763,17 @@
+   return message;
+ }
+ 
++lens::ClientToSearchMessage GetSearchHandshakeMessageProto(Profile* profile) {
++  lens::ClientToSearchMessage message;
++  lens::ClientToSearchMessage::HandshakePing* ping =
++      message.mutable_handshake_ping();
++  if (CanShareTabContext(profile)) {
++    ping->add_capabilities(lens::ClientToSearchMessage::HandshakePing::TABS);
++  }
++  ping->add_capabilities(lens::ClientToSearchMessage::HandshakePing::LENS);
++  return message;
++}
++
+ std::vector<uint8_t> GetSerializedHandshakeMessage() {
+   lens::ClientToAimMessage message = GetHandshakeMessageProto();
+   const size_t size = message.ByteSizeLong();
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_utils.h b/chrome/browser/contextual_tasks/contextual_tasks_utils.h
+index 9d42ea0..2bd99998 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_utils.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_utils.h
+@@ -47,6 +47,7 @@
+ 
+ namespace lens {
+ class ClientToAimMessage;
++class ClientToSearchMessage;
+ }  // namespace lens
+ 
+ namespace contextual_tasks {
+@@ -243,6 +244,11 @@
+ // with supported capabilities.
+ lens::ClientToAimMessage GetHandshakeMessageProto();
+ 
++// Returns the `ClientToSearchMessage` containing the `HandshakePing`
++// with supported capabilities for `profile` (may be `nullptr`, in which case
++// tab-sharing capabilities are omitted).
++lens::ClientToSearchMessage GetSearchHandshakeMessageProto(Profile* profile);
++
+ // Returns the serialized ClientToAimMessage containing the HandshakePing
+ // with supported capabilities.
+ std::vector<uint8_t> GetSerializedHandshakeMessage();
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
+index adbf1f8d..23cfafc 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
+@@ -888,9 +888,23 @@
+ 
+ void ContextualTasksWebContentsUserData::HandleOnSubmitQueryRequest(
+     std::string_view query_text) {
++  if (submit_pending_) {
++    return;
++  }
++
++  auto post_empty_response = [this]() {
++    if (!GetPrimaryPageSearchState().is_handshake_complete) {
++      return;
++    }
++    lens::ClientToSearchMessage response_message;
++    response_message.mutable_on_submit_query_response();
++    PostSearchMessage(response_message);
++  };
++
+   content::WebContents* web_contents = &GetWebContents();
+   // Require a recent user interaction on the page before attaching context.
+-  if (!web_contents->HasRecentInteraction() || submit_pending_) {
++  if (!web_contents->HasRecentInteraction()) {
++    post_empty_response();
+     return;
+   }
+ 
+@@ -898,6 +912,7 @@
+   base::TimeTicks last_interaction =
+       web_contents->GetLastInteractionTimeTicks();
+   if (last_interaction <= last_handled_submit_interaction_time_) {
++    post_empty_response();
+     return;
+   }
+   last_handled_submit_interaction_time_ = last_interaction;
+@@ -910,9 +925,7 @@
+     LogOptOutMidThread(false);
+   }
+   if (!session_handle) {
+-    lens::ClientToSearchMessage response_message;
+-    response_message.mutable_on_submit_query_response();
+-    PostSearchMessage(response_message);
++    post_empty_response();
+     return;
+   }
+ 
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc b/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc
+index ee18d93..ade03470 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc
+@@ -12,7 +12,6 @@
+ #include "base/logging.h"
+ #include "chrome/browser/contextual_search/contextual_search_web_contents_helper.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_ghost_loader_view.h"
+-#include "chrome/browser/contextual_tasks/contextual_tasks_ui.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_ui_base.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_ui_service.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_ui_service_factory.h"
+@@ -55,7 +54,25 @@
+ namespace contextual_tasks {
+ 
+ namespace {
++
+ constexpr SkColor kDarkModeBackgroundColor = SkColorSetRGB(34, 36, 43);
++
++void UpdateToolbarStateForUrl(const GURL& url,
++                              ContextualTasksUiService* ui_service,
++                              ContextualTasksUIBase* toolbar_ui) {
++  const bool is_ai_url = ui_service && ui_service->IsAiUrl(url);
++  toolbar_ui->SetIsAiPage(is_ai_url);
++  toolbar_ui->UpdateProfileIndicator(url);
++
++  std::string query_value;
++  if (is_ai_url && net::GetValueForKeyInQuery(url, "q", &query_value) &&
++      !query_value.empty()) {
++    toolbar_ui->SetThreadTitle(query_value);
++  } else {
++    toolbar_ui->SetThreadTitle(std::nullopt);
++  }
++}
++
+ }  // namespace
+ 
+ // static
+@@ -401,20 +418,7 @@
+         browser_window_->GetProfile());
+   }
+ 
+-  const GURL& url = navigation_handle->GetURL();
+-  const bool is_ai_url = ui_service && ui_service->IsAiUrl(url);
+-  toolbar_ui->SetIsAiPage(is_ai_url);
+-  toolbar_ui->UpdateProfileIndicator(url);
+-
+-  if (!is_ai_url || ContextualTasksUI::IsZeroState(url, ui_service)) {
+-    toolbar_ui->SetThreadTitle(std::nullopt);
+-  } else {
+-    std::string query_value;
+-    if (net::GetValueForKeyInQuery(url, "q", &query_value) &&
+-        !query_value.empty()) {
+-      toolbar_ui->SetThreadTitle(query_value);
+-    }
+-  }
++  UpdateToolbarStateForUrl(navigation_handle->GetURL(), ui_service, toolbar_ui);
+   toolbar_ui->MaybeTriggerPinningPromo();
+ 
+   if (ui_service) {
+@@ -658,20 +662,7 @@
+       browser_window_->GetProfile());
+   const GURL& url =
+       use_last_committed_url ? wc->GetLastCommittedURL() : wc->GetVisibleURL();
+-  const bool is_ai_url = ui_service && ui_service->IsAiUrl(url);
+-  toolbar_ui->SetIsAiPage(is_ai_url);
+-  toolbar_ui->UpdateProfileIndicator(url);
+-
+-  if (!is_ai_url || ContextualTasksUI::IsZeroState(url, ui_service)) {
+-    toolbar_ui->SetThreadTitle(std::nullopt);
+-    return;
+-  }
+-
+-  std::string query_value;
+-  if (net::GetValueForKeyInQuery(url, "q", &query_value) &&
+-      !query_value.empty()) {
+-    toolbar_ui->SetThreadTitle(query_value);
+-  }
++  UpdateToolbarStateForUrl(url, ui_service, toolbar_ui);
+ }
+ 
+ BEGIN_METADATA(ContextualTasksWebView)
+diff --git a/chrome/browser/contextual_tasks/mock_contextual_tasks_page.h b/chrome/browser/contextual_tasks/mock_contextual_tasks_page.h
+index f0e90fd..4119cd0d 100644
+--- a/chrome/browser/contextual_tasks/mock_contextual_tasks_page.h
++++ b/chrome/browser/contextual_tasks/mock_contextual_tasks_page.h
+@@ -117,7 +117,8 @@
+   MOCK_METHOD(void,
+               OnTabContextUpdated,
+               (std::vector<searchbox::mojom::TabInfoPtr> tabs,
+-               const std::vector<int32_t>& submitted_tab_ids),
++               const std::vector<int32_t>& submitted_tab_ids,
++               mojom::SmartTabSharingStatePtr smart_tab_sharing_state),
+               (override));
+ 
+  private:
 diff --git a/chrome/browser/download/download_target_determiner.cc b/chrome/browser/download/download_target_determiner.cc
 index d54830e8f..3fc1b3d 100644
 --- a/chrome/browser/download/download_target_determiner.cc
@@ -981,6 +1693,98 @@ index 0401f246..ebacf73 100644
  
      // We should delete the automatic active tab if it is different from the
      // current tab when webUIOmniboxAskGAboutThisPageEnabled_ is true. Make sure
+diff --git a/chrome/browser/resources/contextual_tasks/extension/context_library.css b/chrome/browser/resources/contextual_tasks/extension/context_library.css
+index fd877a3..2c1c9ba 100644
+--- a/chrome/browser/resources/contextual_tasks/extension/context_library.css
++++ b/chrome/browser/resources/contextual_tasks/extension/context_library.css
+@@ -38,3 +38,21 @@
+   --composebox-favicon-skeleton-color:
+       var(--color-override-favicon-skeleton, rgb(68, 71, 70));
+ }
++
++#faviconGroup[hidden] {
++  display: none;
++}
++
++.sts-active-coin {
++  --iron-icon-height: 20px;
++  --iron-icon-width: 20px;
++  color: var(--color-sys-on-surface-subtle,
++      var(--cr-fallback-color-on-surface-subtle, #474747));
++  flex-shrink: 0;
++  height: 20px;
++  width: 20px;
++}
++
++:host([dark-mode]) .sts-active-coin {
++  color: rgba(230, 232, 240, 1);
++}
+diff --git a/chrome/browser/resources/contextual_tasks/extension/context_library.html.ts b/chrome/browser/resources/contextual_tasks/extension/context_library.html.ts
+index ec1a9b9..9744202 100644
+--- a/chrome/browser/resources/contextual_tasks/extension/context_library.html.ts
++++ b/chrome/browser/resources/contextual_tasks/extension/context_library.html.ts
+@@ -7,9 +7,16 @@
+ import type {ContextLibraryElement} from './context_library.js';
+ 
+ export function getHtml(this: ContextLibraryElement) {
+-  // Frontend context library is synonymous with favicon group.
++  // Frontend context library renders either the Smart Tab Sharing active coin
++  // or the manual/restored tab favicon group.
+   return html`<!--_html_template_start_-->
++    ${this.smartTabSharingActive ? html`
++      <cr-icon id="stsCoin" class="sts-active-coin"
++          icon="composebox:screensaverAuto">
++      </cr-icon>
++    ` : ''}
+     <composebox-favicon-group id="faviconGroup"
++        ?hidden="${this.smartTabSharingActive}"
+         .tabs="${this.tabs}"
+         .submittedTabIds="${this.submittedTabIds}"
+         @wait-for-tab-load="${this.onWaitForTabLoad_}">
+diff --git a/chrome/browser/resources/contextual_tasks/extension/context_library.ts b/chrome/browser/resources/contextual_tasks/extension/context_library.ts
+index 0c50e6b..0f07f71 100644
+--- a/chrome/browser/resources/contextual_tasks/extension/context_library.ts
++++ b/chrome/browser/resources/contextual_tasks/extension/context_library.ts
+@@ -3,7 +3,10 @@
+ // found in the LICENSE file.
+ 
+ import 'chrome://resources/cr_components/composebox/composebox_favicon_group.js';
++import 'chrome://resources/cr_components/composebox/icons.html.js';
++import 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
+ 
++import type {SmartTabSharingState} from 'chrome://contextual-tasks/contextual_tasks.mojom-webui.js';
+ import {ExtensionBrowserProxyImpl} from 'chrome://contextual-tasks/contextual_tasks_browser_proxy.js';
+ import type {ComposeboxFaviconGroupElement} from 'chrome://resources/cr_components/composebox/composebox_favicon_group.js';
+ import {ComposeboxProxyImpl} from 'chrome://resources/cr_components/composebox/composebox_proxy.js';
+@@ -47,6 +50,7 @@
+     return {
+       tabs: {type: Array},
+       submittedTabIds: {type: Object},
++      smartTabSharingActive: {type: Boolean},
+       darkMode: {
+         type: Boolean,
+         reflect: true,
+@@ -56,6 +60,7 @@
+ 
+   accessor tabs: TabInfo[] = [];
+   accessor submittedTabIds: Set<number> = new Set();
++  accessor smartTabSharingActive: boolean = false;
+   accessor darkMode: boolean = false;
+ 
+   private isTrackingFaviconGroup_: boolean = false;
+@@ -73,9 +78,11 @@
+     const callbackRouter =
+         ExtensionBrowserProxyImpl.getInstance().callbackRouter;
+     this.listenerIds_.push(callbackRouter.onTabContextUpdated.addListener(
+-        (tabs: TabInfo[], submittedTabIds: number[]) => {
++        (tabs: TabInfo[], submittedTabIds: number[],
++         smartTabSharingState: SmartTabSharingState) => {
+           this.tabs = tabs;
+           this.submittedTabIds = new Set(submittedTabIds);
++          this.smartTabSharingActive = smartTabSharingState.active;
+         }));
+     this.updateFaviconTracking_();
+   }
 diff --git a/chrome/browser/resources/contextual_tasks/extension/manifest.json b/chrome/browser/resources/contextual_tasks/extension/manifest.json
 index b63686a8..368fbd3 100644
 --- a/chrome/browser/resources/contextual_tasks/extension/manifest.json
@@ -995,6 +1799,413 @@ index b63686a8..368fbd3 100644
    "permissions": [
      "contextualTasksPrivate",
      "metricsPrivate",
+diff --git a/chrome/browser/resources/contextual_tasks/ghost_loader.html b/chrome/browser/resources/contextual_tasks/ghost_loader.html
+index 9e8e8bc..f5309c5f 100644
+--- a/chrome/browser/resources/contextual_tasks/ghost_loader.html
++++ b/chrome/browser/resources/contextual_tasks/ghost_loader.html
+@@ -12,8 +12,12 @@
+ </if>
+     <style>
+       :root {
++        --error-bottom-line-color: #70757A;
++        --error-top-line-color: #202124;
+         --ghost-loader-base: #F3F5F6;
+         --ghost-loader-highlight: #DEE1E3;
++        --protected-icon-background-color: #535353;
++        --search-background-color: #FFFFFF;
+       }
+ 
+       html, body {
+@@ -28,8 +32,12 @@
+ 
+       @media (prefers-color-scheme: dark) {
+         :root {
++          --error-bottom-line-color: #9AA0A6;
++          --error-top-line-color: #E8EAED;
+           --ghost-loader-base: #333438;
+           --ghost-loader-highlight: #3A3F50;
++          --protected-icon-background-color: #E8EAED;
++          --search-background-color: rgba(34, 36, 43, 1);
+         }
+ 
+         html, body {
+@@ -51,10 +59,21 @@
+         padding-right: 20px;
+         width: 100%;
+       }
++
++      error-page {
++        flex: 1;
++        width: 100%;
++      }
++
++      ghost-loader[hidden],
++      error-page[hidden] {
++        display: none;
++      }
+     </style>
+   </head>
+   <body>
+     <ghost-loader></ghost-loader>
++    <error-page hidden></error-page>
+     <script type="module" src="ghost_loader.js"></script>
+   </body>
+ </html>
+diff --git a/chrome/browser/resources/contextual_tasks/ghost_loader.ts b/chrome/browser/resources/contextual_tasks/ghost_loader.ts
+index 3708dbf..f343b28 100644
+--- a/chrome/browser/resources/contextual_tasks/ghost_loader.ts
++++ b/chrome/browser/resources/contextual_tasks/ghost_loader.ts
+@@ -2,6 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
++import './error_page.js';
++
+ import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+ 
+ import {getCss} from './ghost_loader.css.js';
+@@ -56,3 +58,18 @@
+ 
+ customElements.define(
+     GhostLoaderElement.is, GhostLoaderElement);
++
++function updateScrimMode() {
++  const showErrorPage = window.location.hash === '#error';
++  const ghostLoader = document.querySelector<HTMLElement>('ghost-loader');
++  const errorPage = document.querySelector<HTMLElement>('error-page');
++  if (ghostLoader) {
++    ghostLoader.hidden = showErrorPage;
++  }
++  if (errorPage) {
++    errorPage.hidden = !showErrorPage;
++  }
++}
++
++window.addEventListener('hashchange', updateScrimMode);
++updateScrimMode();
+diff --git a/chrome/browser/resources/new_tab_page/app.css b/chrome/browser/resources/new_tab_page/app.css
+index bacd66a..c6296d4 100644
+--- a/chrome/browser/resources/new_tab_page/app.css
++++ b/chrome/browser/resources/new_tab_page/app.css
+@@ -152,6 +152,15 @@
+   width: 100%;
+ }
+ 
++/* With the LHS present, #rhsContent changes width on every frame of the LHS
++ * transition. Keep the OGB iframe at a constant width anchored to the far
++ * edge, so it is not re-laid out (and painted blank) while the LHS animates.
++ * The surplus width overflows under the LHS, where #rhsContent clips it. */
++:host([enable-threads-rail_]) #oneGoogleBar {
++  inset-inline-end: 0;
++  width: max(100%, 100vw);
++}
++
+ #content {
+   display: flex;
+   flex-direction: row;
+diff --git a/chrome/browser/resources/new_tab_page/app.ts b/chrome/browser/resources/new_tab_page/app.ts
+index f6b12f40..9809a0a 100644
+--- a/chrome/browser/resources/new_tab_page/app.ts
++++ b/chrome/browser/resources/new_tab_page/app.ts
+@@ -342,7 +342,10 @@
+       /**
+        * Whether to show the AIM threads rail when composebox is open.
+        */
+-      enableThreadsRail_: {type: Boolean},
++      enableThreadsRail_: {
++        type: Boolean,
++        reflect: true,
++      },
+ 
+       rhsWidth_: {type: Number},
+ 
+diff --git a/chrome/browser/resources/new_tab_page/left_hand_side.css b/chrome/browser/resources/new_tab_page/left_hand_side.css
+index e60a368c..85549f2 100644
+--- a/chrome/browser/resources/new_tab_page/left_hand_side.css
++++ b/chrome/browser/resources/new_tab_page/left_hand_side.css
+@@ -10,6 +10,26 @@
+ :host {
+   display: block;
+   height: 100%;
++  overflow: hidden;
++  transition: width 300ms cubic-bezier(0.2, 0.0, 0, 1.0);
++  /* The element sets this in both modes: in hybrid mode it switches between
++   * the folded rail's width and the expanded width, in full-iframe mode it
++   * mirrors the width the embedded page reports through frame-sizing (see
++   * setHostWidth_()). Transitioning the host, rather than snapping to the
++   * iframe's width, lets the rest of the NTP slide in sync with the rail.
++   * Until the first width is known the host sizes to its content. */
++  width: var(--cr-left-hand-side-width, fit-content);
++}
++
++:host([is-expanded_]) {
++  transition: width 450ms cubic-bezier(0.2, 0.0, 0, 1.0);
++}
++
++@container style(--cr-animations-disabled: 1) {
++  :host,
++  :host([is-expanded_]) {
++    transition: none;
++  }
+ }
+ 
+ #expanded,
+diff --git a/chrome/browser/resources/new_tab_page/left_hand_side.ts b/chrome/browser/resources/new_tab_page/left_hand_side.ts
+index b59556b2..7a2323e 100644
+--- a/chrome/browser/resources/new_tab_page/left_hand_side.ts
++++ b/chrome/browser/resources/new_tab_page/left_hand_side.ts
+@@ -6,6 +6,7 @@
+ 
+ import {COLOR_PROVIDER_CHANGED, ColorChangeUpdater} from 'chrome://resources/cr_components/color_change_listener/colors_css_updater.js';
+ import {EventTracker} from 'chrome://resources/js/event_tracker.js';
++import type {PropertyValues} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+ import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+ 
+ import {loadTimeData} from './i18n_setup.js';
+@@ -66,6 +67,12 @@
+   railBackground?: string;
+ }
+ 
++export interface LeftHandSideElement {
++  $: {
++    expanded: IframeElement,
++  };
++}
++
+ export class LeftHandSideElement extends CrLitElement {
+   static get is() {
+     return 'cr-left-hand-side';
+@@ -88,7 +95,10 @@
+         type: Boolean,
+         reflect: true,
+       },
+-      isExpanded_: {type: Boolean},
++      isExpanded_: {
++        type: Boolean,
++        reflect: true,
++      },
+       isExpandedReady_: {type: Boolean},
+     };
+   }
+@@ -102,6 +112,10 @@
+   protected accessor isExpanded_: boolean = false;
+   protected accessor isExpandedReady_: boolean = false;
+   private eventTracker_: EventTracker = new EventTracker();
++  private iframeResizeObserver_: ResizeObserver|null = null;
++  private lastIframeWidth_: number = 0;
++  // Width of the folded rail in hybrid mode, measured once it has rendered.
++  private collapsedWidth_: number = 0;
+ 
+   override connectedCallback() {
+     super.connectedCallback();
+@@ -117,6 +131,69 @@
+   override disconnectedCallback() {
+     super.disconnectedCallback();
+     this.eventTracker_.removeAll();
++    this.iframeResizeObserver_?.disconnect();
++    this.iframeResizeObserver_ = null;
++  }
++
++  override firstUpdated(changedProperties: PropertyValues<this>) {
++    super.firstUpdated(changedProperties);
++    if (this.enableThreadsRailHybrid_) {
++      const folded = this.shadowRoot.querySelector<HTMLElement>('#folded');
++      this.collapsedWidth_ = folded ? folded.offsetWidth : 0;
++    }
++  }
++
++  override updated(changedProperties: PropertyValues<this>) {
++    super.updated(changedProperties);
++    const changedPrivateProperties =
++        changedProperties as Map<PropertyKey, unknown>;
++    if (this.enableThreadsRailHybrid_ &&
++        (changedPrivateProperties.has('isExpanded_') ||
++         changedPrivateProperties.has('isExpandedReady_') ||
++         changedPrivateProperties.has('expandedWidth_') ||
++         changedPrivateProperties.has('collapsedWidth_'))) {
++      this.setHostWidth_(
++          (this.isExpanded_ && this.isExpandedReady_) ? this.expandedWidth_ :
++                                                        this.collapsedWidth_);
++    }
++  }
++
++  private setHostWidth_(width: number) {
++    this.style.setProperty(
++        '--cr-left-hand-side-width', `${Math.round(width)}px`);
++  }
++
++  // In full-iframe mode the embedded page owns the rail width and reports it
++  // through `frame-sizing: content-width`. That width lands in one step, so the
++  // NTP layout would jump while the rail animates. Mirror the iframe width onto
++  // the host, which transitions it, so the rest of the NTP slides in sync.
++  private observeIframeWidth_(iframe: HTMLIFrameElement) {
++    if (this.iframeResizeObserver_) {
++      return;
++    }
++    this.iframeResizeObserver_ = new ResizeObserver(entries => {
++      this.onIframeResize_(entries[entries.length - 1]!);
++    });
++    this.iframeResizeObserver_.observe(iframe);
++  }
++
++  private onIframeResize_(entry: ResizeObserverEntry) {
++    const width = Math.round(entry.contentRect.width);
++    // The iframe is 0px wide until it is ready. Leave the host width alone so
++    // the first non-zero width is applied without a transition. The observer
++    // also fires for height-only resizes (e.g. when the browser window is
++    // resized); ignore those so the expanded state inferred below is not
++    // flipped by a width that did not change.
++    if (width <= 0 || width === this.lastIframeWidth_) {
++      return;
++    }
++    if (this.lastIframeWidth_ > 0) {
++      // The embedded page owns the expanded state in full-iframe mode. Infer
++      // it from the direction of the resize to pick the matching transition.
++      this.isExpanded_ = width > this.lastIframeWidth_;
++    }
++    this.lastIframeWidth_ = width;
++    this.setHostWidth_(width);
+   }
+ 
+   protected onFoldedClick_(): void {
+@@ -133,9 +210,9 @@
+       return;
+     }
+ 
+-    const expanded = this.shadowRoot.querySelector<HTMLElement>('#expanded');
+-    const iframe = expanded?.shadowRoot?.querySelector('iframe');
+-    if (!expanded || !iframe || event.source !== iframe.contentWindow) {
++    const expanded = this.$.expanded;
++    const iframe = expanded.shadowRoot.querySelector('iframe');
++    if (!iframe || event.source !== iframe.contentWindow) {
+       return;
+     }
+ 
+@@ -151,6 +228,9 @@
+             data.width :
+             DEFAULT_EXPANDED_LHS_WIDTH_PX;
+         this.isExpandedReady_ = true;
++        if (!this.enableThreadsRailHybrid_) {
++          this.observeIframeWidth_(iframe);
++        }
+         break;
+       }
+       case NtpLhsMessageType.NTP_LHS_CLOSE: {
+diff --git a/chrome/browser/resources/new_tab_page/ntp_composebox.html.ts b/chrome/browser/resources/new_tab_page/ntp_composebox.html.ts
+index 26742ef..e0e42db 100644
+--- a/chrome/browser/resources/new_tab_page/ntp_composebox.html.ts
++++ b/chrome/browser/resources/new_tab_page/ntp_composebox.html.ts
+@@ -78,7 +78,8 @@
+             class="${this.hasTabs() ? 'has-tabs' : ''}"
+             exportparts="text-container, icon-container, mirror, input, smart-compose, cancel, action-icon, cancel-icon"
+             .composeboxSkillsEnabled="${this.composeboxSkillsEnabled}"
+-            .disableCaretColorAnimation="${this.disableCaretColorAnimation}"
++            .disableCaretColorAnimation="${
++                this.disableCaretColorAnimation || !this.willFulfillInAim}"
+             .showDropdown="${this.showDropdown}"
+             .inputPlaceholder="${this.inputPlaceholder}"
+             .input="${this.input}"
+diff --git a/chrome/browser/resources/omnibox_everywhere/app.html.ts b/chrome/browser/resources/omnibox_everywhere/app.html.ts
+index 38f524c..84af18d6c 100644
+--- a/chrome/browser/resources/omnibox_everywhere/app.html.ts
++++ b/chrome/browser/resources/omnibox_everywhere/app.html.ts
+@@ -16,7 +16,6 @@
+         ?is-active="${this.isActive_}"
+         .isPendingScreenshot="${this.isPendingScreenshot_}"
+         searchbox-layout-mode="${this.searchboxLayoutMode_}"
+-        .state="${this.composeboxState_}"
+         .clearAllInputsWhenSubmittingQuery="${true}"
+         @close-composebox="${this.onCloseComposebox_}"
+         @composebox-submit="${this.onComposeboxSubmit_}"
+diff --git a/chrome/browser/resources/omnibox_everywhere/app.ts b/chrome/browser/resources/omnibox_everywhere/app.ts
+index 2ca2e1a..cbdb068 100644
+--- a/chrome/browser/resources/omnibox_everywhere/app.ts
++++ b/chrome/browser/resources/omnibox_everywhere/app.ts
+@@ -95,7 +95,6 @@
+       usePecApi_: {type: Boolean},
+       isOblongShape_: {type: Boolean},
+       contextManagementInComposeboxEnabled_: {type: Boolean},
+-      composeboxState_: {type: Object},
+       showVoiceSearchOverlay_: {
+         type: Boolean,
+         reflect: true,
+@@ -158,7 +157,6 @@
+       loadTimeData.getBoolean('contextButtonShapeIsOblong');
+   protected accessor contextManagementInComposeboxEnabled_: boolean =
+       loadTimeData.getBoolean('contextManagementInComposeboxEnabled');
+-  protected accessor composeboxState_: ComposeboxState|null = null;
+   protected accessor showVoiceSearchOverlay_: boolean = false;
+   protected accessor hasVoiceSearchError_: boolean = false;
+   protected accessor voiceSearchTranscript_: string = '';
+@@ -386,13 +384,13 @@
+     // (e.g. when clicking a tool or attaching a tab from the '+' context menu).
+     const text = this.searchbox ? this.searchbox.getInputText?.() || '' : '';
+     // Calls setActiveToolMode(initialMode) directly without passing mode down
+-    // through composeboxState_. This prevents
++    // through composebox.state. This prevents
+     // ComposeboxEmbedderMixin.updateState() from mistakenly calling
+     // handleToolClick() and toggling off the active tool mode.
+     const {mode: initialMode = ToolMode.kUnspecified, ...stateForComposebox} =
+         state ?? {};
+ 
+-    this.composeboxState_ = {
++    const composeboxState: ComposeboxState = {
+       text,
+       files: [],
+       mode: ToolMode.kUnspecified,
+@@ -416,6 +414,7 @@
+     this.setIsComposebox_(true);
+     await this.updateComplete;
+     if (this.composebox) {
++      this.composebox.state = composeboxState;
+       this.composebox.focusInput();
+       if (!isPendingScreenshot) {
+         this.composebox.playGlowAnimation();
+@@ -537,7 +536,6 @@
+     SearchboxBrowserProxy.getInstance().handler.openHotkeySettings();
+   }
+   protected async onOpenComposebox_(e: CustomEvent<ComposeboxState>) {
+-    this.composeboxState_ = e.detail;
+     this.screenshotOriginWasSearchbox_ = false;
+     this.setIsComposebox_(true);
+     await this.updateComplete;
+@@ -545,13 +543,13 @@
+         this.shadowRoot?.querySelector<OmniboxEverywhereComposeboxElement>(
+             'omnibox-everywhere-composebox');
+     if (composebox) {
++      composebox.state = e.detail;
+       composebox.focusInput();
+       composebox.playGlowAnimation();
+     }
+   }
+ 
+   protected async onCloseComposebox_() {
+-    this.composeboxState_ = null;
+     this.isPendingScreenshot_ = false;
+     this.screenshotOriginWasSearchbox_ = false;
+     this.setIsComposebox_(false);
+@@ -594,7 +592,6 @@
+   }
+ 
+   protected async onComposeboxSubmit_() {
+-    this.composeboxState_ = null;
+     this.isComposeboxMode_ = false;
+     this.isPendingScreenshot_ = false;
+     this.screenshotOriginWasSearchbox_ = false;
+diff --git a/chrome/browser/resources/omnibox_popup/omnibox_composebox.html.ts b/chrome/browser/resources/omnibox_popup/omnibox_composebox.html.ts
+index c02915a..f81c855 100644
+--- a/chrome/browser/resources/omnibox_popup/omnibox_composebox.html.ts
++++ b/chrome/browser/resources/omnibox_popup/omnibox_composebox.html.ts
+@@ -75,7 +75,8 @@
+         <cr-composebox-input id="composeboxInput"
+             exportparts="text-container, icon-container, mirror, input, smart-compose, cancel, action-icon, cancel-icon"
+             .composeboxSkillsEnabled="${this.composeboxSkillsEnabled}"
+-            .disableCaretColorAnimation="${this.disableCaretColorAnimation}"
++            .disableCaretColorAnimation="${
++                this.disableCaretColorAnimation || !this.willFulfillInAim}"
+             .showDropdown="${this.showDropdown}"
+             .inputPlaceholder="${this.inputPlaceholder}"
+             .input="${this.input}"
 diff --git a/chrome/browser/ui/exclusive_access/fullscreen_controller.cc b/chrome/browser/ui/exclusive_access/fullscreen_controller.cc
 index 8559775..a4d416e 100644
 --- a/chrome/browser/ui/exclusive_access/fullscreen_controller.cc
@@ -1044,6 +2255,29 @@ index 82a52b4..9adf0a9 100644
  }
  
  void FindBarController::UpdateFindBarForCurrentResult() {
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/BUILD.gn b/chrome/browser/ui/omnibox/omnibox_everywhere/BUILD.gn
+index 4aa74a2e..683d58d4 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere/BUILD.gn
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/BUILD.gn
+@@ -229,6 +229,7 @@
+       ":omnibox_everywhere",
+       "//base",
+       "//base/test:test_support",
++      "//chrome/browser/autocomplete:aim_eligibility_service",
+       "//chrome/browser/background/omnibox_everywhere",
+       "//chrome/browser/prefs:util",
+       "//chrome/browser/status_icons",
+@@ -239,8 +240,10 @@
+       "//chrome/browser/ui/webui/omnibox_everywhere",
+       "//chrome/test:test_support",
+       "//chrome/test:test_support_ui",
++      "//components/keyed_service/core",
+       "//content/test:test_support",
+       "//media",
++      "//services/network/public/cpp",
+       "//testing/gtest",
+       "//ui/base:ozone_buildflags",
+       "//ui/views",
 diff --git a/chrome/browser/ui/read_anything/read_anything_omnibox_controller.cc b/chrome/browser/ui/read_anything/read_anything_omnibox_controller.cc
 index c9c21a7..7a79fbe6 100644
 --- a/chrome/browser/ui/read_anything/read_anything_omnibox_controller.cc
@@ -1162,6 +2396,35 @@ index 96c3627..977cfb9 100644
  
    // The cached result of CheckIfShouldSuggestReadingMode.
    bool was_last_checked_page_distillable_ = false;
+diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
+index 111f7ca..4420bfd 100644
+--- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
++++ b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
+@@ -872,12 +872,21 @@
+       browser_window_interface_->GetProfile());
+   const bool should_show = ShouldShowPinnedButtonActiveIndicator();
+   if (close_side_panel_action_item_) {
+-    const bool should_show_close_side_panel =
++    // The ephemeral (unpinned) button offers "Close/Hide side panel" whenever
++    // it is shown for an ongoing task. The permanently pinned button offers it
++    // only when the active indicator is showing and the corresponding
++    // `ContextualTasksPinnedButtonContextMenuCloseSidePanel` param is on.
++    const bool ephemeral_button_eligible =
++        !is_pinned &&
+         (should_show ||
+          (contextual_tasks::
+               IsContextualTasksEphemeralPinButtonRefactorEnabled() &&
+-          ShouldShowEphemeralButton())) &&
+-        !is_pinned && !IsPanelOpen();
++          ShouldShowEphemeralButton()));
++    const bool pinned_button_eligible =
++        is_pinned && should_show &&
++        contextual_tasks::ShouldShowCloseSidePanelInPinnedButtonContextMenu();
++    const bool should_show_close_side_panel =
++        (ephemeral_button_eligible || pinned_button_eligible) && !IsPanelOpen();
+     close_side_panel_action_item_->SetVisible(should_show_close_side_panel);
+     close_side_panel_action_item_->SetEnabled(should_show_close_side_panel);
+   }
 diff --git a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
 index a736ab1..14f60db 100644
 --- a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
@@ -1181,6 +2444,215 @@ index a736ab1..14f60db 100644
    autocomplete_input.set_allow_exact_keyword_match(is_keyword_selected);
    autocomplete_input.set_in_keyword_mode(is_keyword_selected);
    // Set the lens overlay suggest inputs, if available.
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/BUILD.gn b/chrome/browser/ui/webui/omnibox_everywhere/BUILD.gn
+index 14b3965..4d199977 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/BUILD.gn
++++ b/chrome/browser/ui/webui/omnibox_everywhere/BUILD.gn
+@@ -34,6 +34,7 @@
+       "//components/bookmarks/test",
+       "//components/omnibox/browser",
+       "//components/prefs",
++      "//components/search",
+       "//components/search_engines",
+       "//content/test:test_support",
+       "//mojo/public/cpp/bindings",
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.cc b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.cc
+index 8ce2c5f..03302dc 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.cc
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.cc
+@@ -58,25 +58,6 @@
+ constexpr char kVoiceSearchQueryParameterKey[] = "gs_ivs";
+ constexpr char kVoiceSearchQueryParameterValue[] = "1";
+ 
+-bool IsFuseboxEligible(Profile* profile) {
+-  if (!profile) {
+-    return false;
+-  }
+-  auto* aim_eligibility_service =
+-      AimEligibilityServiceFactory::GetForProfile(profile);
+-  return aim_eligibility_service &&
+-         aim_eligibility_service->IsFuseboxEligible();
+-}
+-
+-bool IsFuseboxEnabled(Profile* profile) {
+-  if (!IsFuseboxEligible(profile)) {
+-    return false;
+-  }
+-  return !profile || !profile->GetPrefs() ||
+-         profile->GetPrefs()->GetBoolean(
+-             omnibox_everywhere::prefs::kOmniboxEverywhereShowAiMode);
+-}
+-
+ omnibox_everywhere::FreStage MojoFreStageToFreStage(
+     searchbox::mojom::FreStage stage) {
+   switch (stage) {
+@@ -285,7 +266,7 @@
+                                            bool meta_key,
+                                            bool shift_key,
+                                            bool is_voice_search) {
+-  if (!is_voice_search) {
++  if (!is_voice_search && OmniboxEverywhereUI::IsFuseboxEnabled(profile_)) {
+     ContextualSearchboxHandler::SubmitQuery(query_text, mouse_button, alt_key,
+                                             ctrl_key, meta_key, shift_key,
+                                             is_voice_search);
+@@ -295,8 +276,9 @@
+   // In classic Omnibox mode, unlike Composebox mode (which handles contextual
+   // file/tab attachments via ComposeboxEverywhereHandler and routes through
+   // ComposeboxQueryController), there are no contextual attachments. Voice
+-  // searches from classic Omnibox mode should navigate directly to the user's
+-  // default search provider rather than being routed to AI Mode (udm=50).
++  // searches from classic Omnibox mode, and typed queries when AI Mode is
++  // unavailable, should navigate directly to the user's default search provider
++  // rather than being routed to AI Mode (udm=50).
+   //
+   // Unlike the New Tab Page, which can perform a client-side navigation inside
+   // its own tab, Omnibox Everywhere runs in a standalone popup window. We must
+@@ -317,7 +299,8 @@
+ 
+   TemplateURLRef::SearchTermsArgs search_terms_args(
+       base::UTF8ToUTF16(query_text));
+-  if (search::DefaultSearchProviderIsGoogle(template_url_service)) {
++  if (is_voice_search &&
++      search::DefaultSearchProviderIsGoogle(template_url_service)) {
+     search_terms_args.additional_query_params = base::StrCat(
+         {kVoiceSearchQueryParameterKey, "=", kVoiceSearchQueryParameterValue});
+   }
+@@ -350,7 +333,8 @@
+ void OmniboxEverywhereHandler::OnAiModeEligibilityOrPrefChanged() {
+   InitializeInputStateModel();
+   if (page()) {
+-    page()->UpdateAimPopupEligibility(IsFuseboxEnabled(profile_));
++    page()->UpdateAimPopupEligibility(
++        OmniboxEverywhereUI::IsFuseboxEnabled(profile_));
+   }
+ }
+ 
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc
+index 3ecb4307..6a67a76 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc
+@@ -105,25 +105,6 @@
+ // and the previous dropdown implementation (320px).
+ constexpr int kScreenshotMenuWidth = 320;
+ 
+-bool IsFuseboxEligible(Profile* profile) {
+-  if (!profile) {
+-    return false;
+-  }
+-  auto* aim_eligibility_service =
+-      AimEligibilityServiceFactory::GetForProfile(profile);
+-  return aim_eligibility_service &&
+-         aim_eligibility_service->IsFuseboxEligible();
+-}
+-
+-bool IsFuseboxEnabled(Profile* profile) {
+-  if (!IsFuseboxEligible(profile)) {
+-    return false;
+-  }
+-  return !profile || !profile->GetPrefs() ||
+-         profile->GetPrefs()->GetBoolean(
+-             omnibox_everywhere::prefs::kOmniboxEverywhereShowAiMode);
+-}
+-
+ class OmniboxEverywhereMostVisitedPrefObserver
+     : public MostVisitedPrefObserver {
+  public:
+@@ -480,6 +461,24 @@
+ 
+ OmniboxEverywhereUI::~OmniboxEverywhereUI() = default;
+ 
++// static
++bool OmniboxEverywhereUI::IsFuseboxEligible(Profile* profile) {
++  if (!profile) {
++    return false;
++  }
++  auto* aim_eligibility_service =
++      AimEligibilityServiceFactory::GetForProfile(profile);
++  return aim_eligibility_service &&
++         aim_eligibility_service->IsFuseboxEligible();
++}
++
++// static
++bool OmniboxEverywhereUI::IsFuseboxEnabled(Profile* profile) {
++  return IsFuseboxEligible(profile) && profile->GetPrefs() &&
++         profile->GetPrefs()->GetBoolean(
++             omnibox_everywhere::prefs::kOmniboxEverywhereShowAiMode);
++}
++
+ void OmniboxEverywhereUI::BindInterface(
+     mojo::PendingReceiver<plural_string::mojom::PluralStringProvider>
+         receiver) {
+@@ -944,6 +943,14 @@
+     return;
+   }
+ 
++  // Re-check AI Mode availability: this may run after the asynchronous
++  // screenshot disclosure dialog, during which eligibility can change. Reset
++  // the page as for a cancelled capture.
++  if (!IsFuseboxEnabled(profile_)) {
++    OnScreenshotCaptureDone(std::nullopt);
++    return;
++  }
++
+   screenshot_origin_was_searchbox_ = !is_composebox_mode_;
+ 
+   // Open Composebox immediately from the Lens entry point with a pending
+@@ -1034,7 +1041,11 @@
+     case kScreenshotEntireScreen:
+     case kScreenshotWindow:
+     case kScreenshotRegion:
+-      return IsScreenshotCommandEnabled(GetContextualSearchboxHandler());
++      // Screenshots are shared with AI Mode, so refuse them when AI Mode is
++      // unavailable. `ExecuteCommand()` checks this before showing the
++      // screenshot disclosure dialog.
++      return IsFuseboxEnabled(profile_) &&
++             IsScreenshotCommandEnabled(GetContextualSearchboxHandler());
+   }
+   return true;
+ }
+@@ -1045,6 +1056,10 @@
+ 
+ void OmniboxEverywhereUI::OpenComposebox(
+     omnibox_everywhere::mojom::ComposeboxInitialStatePtr initial_state) {
++  // AI Mode eligibility can change while a native menu or file chooser is open.
++  if (!IsFuseboxEnabled(profile_)) {
++    return;
++  }
+   // Clear any active autocomplete suggestions on the omnibox searchbox before
+   // transitioning into Composebox mode so that stale searchbox results do not
+   // linger or flash during the mode switch.
+@@ -1121,6 +1136,12 @@
+ }
+ 
+ void OmniboxEverywhereUI::ShowContextActionMenu(const gfx::Rect& anchor_rect) {
++  // The "+" menu's actions all open the AI Mode composebox, so don't show the
++  // menu when AI Mode is unavailable.
++  if (!IsFuseboxEnabled(profile_)) {
++    OnContextMenuClosed();
++    return;
++  }
+   if (context_menu_) {
+     context_menu_->Cancel();
+   }
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.h b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.h
+index ca78f10..b87d024b 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.h
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.h
+@@ -105,6 +105,14 @@
+     return "OmniboxEverywhere";
+   }
+ 
++  // Returns whether AI Mode (Fusebox) is eligible for `profile` via
++  // `AimEligibilityService`.
++  static bool IsFuseboxEligible(Profile* profile);
++
++  // Returns whether AI Mode (Fusebox) is both eligible and enabled via the
++  // Omnibox Everywhere "Show AI Mode" preference for `profile`.
++  static bool IsFuseboxEnabled(Profile* profile);
++
+   // most_visited::mojom::MostVisitedPageHandlerFactory:
+   void BindInterface(
+       mojo::PendingReceiver<most_visited::mojom::MostVisitedPageHandlerFactory>
 diff --git a/components/find_in_page/find_tab_helper.cc b/components/find_in_page/find_tab_helper.cc
 index 04848ef..36b4d85 100644
 --- a/components/find_in_page/find_tab_helper.cc
@@ -1461,6 +2933,161 @@ index d5a8576..ef63298 100644
  }  // namespace find_in_page
  
  #endif  // COMPONENTS_FIND_IN_PAGE_FIND_TYPES_H_
+diff --git a/components/omnibox/browser/fusebox_action.mojom b/components/omnibox/browser/fusebox_action.mojom
+index b09efa7..733f9cc 100644
+--- a/components/omnibox/browser/fusebox_action.mojom
++++ b/components/omnibox/browser/fusebox_action.mojom
+@@ -25,6 +25,7 @@
+   kAddFile = 13,
+   kAddTab = 14,
+   kAimImages = 15,
++  kImageGenSeasonalPromo = 16,
+ };
+ // LINT.ThenChange(//third_party/omnibox_proto/suggest_inventory.proto:SuggestInventory)
+ 
+diff --git a/components/omnibox/browser/fusebox_action_mojom_traits.cc b/components/omnibox/browser/fusebox_action_mojom_traits.cc
+index 4006502..4c40af0 100644
+--- a/components/omnibox/browser/fusebox_action_mojom_traits.cc
++++ b/components/omnibox/browser/fusebox_action_mojom_traits.cc
+@@ -45,6 +45,8 @@
+       return fusebox_action::mojom::SuggestInventory::kAddTab;
+     case omnibox::SuggestInventory::SUGGEST_INVENTORY_AIM_IMAGES:
+       return fusebox_action::mojom::SuggestInventory::kAimImages;
++    case omnibox::SuggestInventory::SUGGEST_INVENTORY_IMAGE_GEN_SEASONAL_PROMO:
++      return fusebox_action::mojom::SuggestInventory::kImageGenSeasonalPromo;
+     default:
+       return fusebox_action::mojom::SuggestInventory::kDefault;
+   }
+@@ -90,6 +92,9 @@
+       return omnibox::SuggestInventory::SUGGEST_INVENTORY_ADD_TAB;
+     case fusebox_action::mojom::SuggestInventory::kAimImages:
+       return omnibox::SuggestInventory::SUGGEST_INVENTORY_AIM_IMAGES;
++    case fusebox_action::mojom::SuggestInventory::kImageGenSeasonalPromo:
++      return omnibox::SuggestInventory::
++          SUGGEST_INVENTORY_IMAGE_GEN_SEASONAL_PROMO;
+   }
+   return std::nullopt;
+ }
+diff --git a/components/omnibox/common/omnibox_metrics_utils.cc b/components/omnibox/common/omnibox_metrics_utils.cc
+index 34a813d..0ecfad8 100644
+--- a/components/omnibox/common/omnibox_metrics_utils.cc
++++ b/components/omnibox/common/omnibox_metrics_utils.cc
+@@ -68,6 +68,26 @@
+       return "GeminiProLatest";
+     case omnibox::MODEL_MODE_GEMINI_PREVIEW:
+       return "GeminiPreview";
++    case omnibox::MODEL_MODE_AIM_MODEL_ALFA:
++      return "AimModelAlfa";
++    case omnibox::MODEL_MODE_AIM_MODEL_BRAVO:
++      return "AimModelBravo";
++    case omnibox::MODEL_MODE_AIM_MODEL_CHARLIE:
++      return "AimModelCharlie";
++    case omnibox::MODEL_MODE_AIM_MODEL_DELTA:
++      return "AimModelDelta";
++    case omnibox::MODEL_MODE_AIM_MODEL_ECHO:
++      return "AimModelEcho";
++    case omnibox::MODEL_MODE_AIM_MODEL_FOXTROT:
++      return "AimModelFoxtrot";
++    case omnibox::MODEL_MODE_AIM_MODEL_GOLF:
++      return "AimModelGolf";
++    case omnibox::MODEL_MODE_AIM_MODEL_HOTEL:
++      return "AimModelHotel";
++    case omnibox::MODEL_MODE_AIM_MODEL_INDIA:
++      return "AimModelIndia";
++    case omnibox::MODEL_MODE_AIM_MODEL_JULIETT:
++      return "AimModelJuliett";
+     default:
+       return "Unspecified";
+   }
+diff --git a/components/omnibox/composebox/composebox_query.mojom b/components/omnibox/composebox/composebox_query.mojom
+index 70debbc..d32030e2 100644
+--- a/components/omnibox/composebox/composebox_query.mojom
++++ b/components/omnibox/composebox/composebox_query.mojom
+@@ -88,6 +88,26 @@
+   kGeminiProLatest = 6,
+   // Uses Gemini Preview Model.
+   kGeminiPreview = 7,
++  // Uses AIM Model Alfa.
++  kAimModelAlfa = 8,
++  // Uses AIM Model Bravo.
++  kAimModelBravo = 9,
++  // Uses AIM Model Charlie.
++  kAimModelCharlie = 10,
++  // Uses AIM Model Delta.
++  kAimModelDelta = 11,
++  // Uses AIM Model Echo.
++  kAimModelEcho = 12,
++  // Uses AIM Model Foxtrot.
++  kAimModelFoxtrot = 13,
++  // Uses AIM Model Golf.
++  kAimModelGolf = 14,
++  // Uses AIM Model Hotel.
++  kAimModelHotel = 15,
++  // Uses AIM Model India.
++  kAimModelIndia = 16,
++  // Uses AIM Model Juliett.
++  kAimModelJuliett = 17,
+ };
+ // LINT.ThenChange(//third_party/omnibox_proto/model_mode.proto:ModelMode)
+ 
+diff --git a/components/omnibox/composebox/contextual_search_mojom_traits.cc b/components/omnibox/composebox/contextual_search_mojom_traits.cc
+index 255fd7ee..05a498eb 100644
+--- a/components/omnibox/composebox/contextual_search_mojom_traits.cc
++++ b/components/omnibox/composebox/contextual_search_mojom_traits.cc
+@@ -137,6 +137,26 @@
+       return UsedModelMode::kGeminiProLatest;
+     case omnibox::ModelMode::MODEL_MODE_GEMINI_PREVIEW:
+       return UsedModelMode::kGeminiPreview;
++    case omnibox::ModelMode::MODEL_MODE_AIM_MODEL_ALFA:
++      return UsedModelMode::kAimModelAlfa;
++    case omnibox::ModelMode::MODEL_MODE_AIM_MODEL_BRAVO:
++      return UsedModelMode::kAimModelBravo;
++    case omnibox::ModelMode::MODEL_MODE_AIM_MODEL_CHARLIE:
++      return UsedModelMode::kAimModelCharlie;
++    case omnibox::ModelMode::MODEL_MODE_AIM_MODEL_DELTA:
++      return UsedModelMode::kAimModelDelta;
++    case omnibox::ModelMode::MODEL_MODE_AIM_MODEL_ECHO:
++      return UsedModelMode::kAimModelEcho;
++    case omnibox::ModelMode::MODEL_MODE_AIM_MODEL_FOXTROT:
++      return UsedModelMode::kAimModelFoxtrot;
++    case omnibox::ModelMode::MODEL_MODE_AIM_MODEL_GOLF:
++      return UsedModelMode::kAimModelGolf;
++    case omnibox::ModelMode::MODEL_MODE_AIM_MODEL_HOTEL:
++      return UsedModelMode::kAimModelHotel;
++    case omnibox::ModelMode::MODEL_MODE_AIM_MODEL_INDIA:
++      return UsedModelMode::kAimModelIndia;
++    case omnibox::ModelMode::MODEL_MODE_AIM_MODEL_JULIETT:
++      return UsedModelMode::kAimModelJuliett;
+     // The proto compiler generates these sentinel values. We must handle them
+     // to satisfy the compiler's exhaustiveness check (since we don't have a
+     // default case), but they should never be encountered in practice.
+@@ -168,6 +188,26 @@
+       return omnibox::ModelMode::MODEL_MODE_GEMINI_PRO_LATEST;
+     case UsedModelMode::kGeminiPreview:
+       return omnibox::ModelMode::MODEL_MODE_GEMINI_PREVIEW;
++    case UsedModelMode::kAimModelAlfa:
++      return omnibox::ModelMode::MODEL_MODE_AIM_MODEL_ALFA;
++    case UsedModelMode::kAimModelBravo:
++      return omnibox::ModelMode::MODEL_MODE_AIM_MODEL_BRAVO;
++    case UsedModelMode::kAimModelCharlie:
++      return omnibox::ModelMode::MODEL_MODE_AIM_MODEL_CHARLIE;
++    case UsedModelMode::kAimModelDelta:
++      return omnibox::ModelMode::MODEL_MODE_AIM_MODEL_DELTA;
++    case UsedModelMode::kAimModelEcho:
++      return omnibox::ModelMode::MODEL_MODE_AIM_MODEL_ECHO;
++    case UsedModelMode::kAimModelFoxtrot:
++      return omnibox::ModelMode::MODEL_MODE_AIM_MODEL_FOXTROT;
++    case UsedModelMode::kAimModelGolf:
++      return omnibox::ModelMode::MODEL_MODE_AIM_MODEL_GOLF;
++    case UsedModelMode::kAimModelHotel:
++      return omnibox::ModelMode::MODEL_MODE_AIM_MODEL_HOTEL;
++    case UsedModelMode::kAimModelIndia:
++      return omnibox::ModelMode::MODEL_MODE_AIM_MODEL_INDIA;
++    case UsedModelMode::kAimModelJuliett:
++      return omnibox::ModelMode::MODEL_MODE_AIM_MODEL_JULIETT;
+   }
+   NOTREACHED();
+ }
 diff --git a/components/optimization_guide/core/model_execution/model_broker_client.cc b/components/optimization_guide/core/model_execution/model_broker_client.cc
 index 6f1040d2..a3053ef 100644
 --- a/components/optimization_guide/core/model_execution/model_broker_client.cc
@@ -1746,6 +3373,37 @@ index 00922a2..30f56a1ba 100644
  
    // Checks if the specified CSP context's relevant CSP directive
    // allows the navigation. This is called to perform the frame-src check.
+diff --git a/extensions/common/file_util.cc b/extensions/common/file_util.cc
+index 504d3839..4c4765b 100644
+--- a/extensions/common/file_util.cc
++++ b/extensions/common/file_util.cc
+@@ -195,10 +195,22 @@
+   // may still be lost.
+   FlushFilesInDir(crx_temp_source, FlushOneOrAllFiles::kAllFiles);
+ 
+-  // The target version_dir does not exists yet, so base::Move() is using
+-  // rename() on POSIX systems. It is atomic in the sense that it will
+-  // either complete successfully or in the event of data loss be reverted.
+-  if (!base::Move(crx_temp_source, version_dir)) {
++  // `crx_temp_source` is on the same file system as `version_dir` (see
++  // GetInstallTempDir()) and `version_dir` does not exist yet, so a plain
++  // rename() is enough. It is atomic in the sense that it will either complete
++  // successfully or in the event of data loss be reverted.
++  //
++  // On POSIX, don't use base::Move(). If rename() fails, it falls back to a
++  // base::CopyDirectory() that follows symlinks. The staging directory may be
++  // writable by a less privileged process (e.g. the network service on macOS),
++  // so that fallback could copy an arbitrary directory into the profile.
++#if BUILDFLAG(IS_POSIX)
++  const bool moved =
++      base::ReplaceFile(crx_temp_source, version_dir, /*error=*/nullptr);
++#else
++  const bool moved = base::Move(crx_temp_source, version_dir);
++#endif
++  if (!moved) {
+     LOG(ERROR) << "Installing extension from : " << crx_temp_source.value()
+                << " into : " << version_dir.value() << " failed.";
+     return base::FilePath();
 diff --git a/testing/variations/fieldtrial_testing_config.json b/testing/variations/fieldtrial_testing_config.json
 index b0551dda..c5aa239 100644
 --- a/testing/variations/fieldtrial_testing_config.json
@@ -1860,6 +3518,368 @@ index 20e68d96..9113dd2 100644
    VerifyCalledWhileContextsAliveForDebugging();
  
    GetMediaSource(tracer)->CompleteAttachingToMediaElement(
+diff --git a/third_party/lens_server_proto/search_communication.proto b/third_party/lens_server_proto/search_communication.proto
+index 9a14afa..84e41cb1 100644
+--- a/third_party/lens_server_proto/search_communication.proto
++++ b/third_party/lens_server_proto/search_communication.proto
+@@ -15,7 +15,18 @@
+ // Top-level envelope for messages from Extension Iframes to Search Web.
+ message ClientToSearchMessage {
+   // Handshake ping sent by an extension frame to initiate communication.
+-  message HandshakePing {}
++  message HandshakePing {
++    enum Capability {
++      CAPABILITY_UNSPECIFIED = 0;
++      // The client supports tabs integration (e.g. tabs picker).
++      TABS = 1;
++      // The client supports Lens features (e.g. Lens button, Lens chip).
++      LENS = 2;
++    }
++
++    // List of capabilities supported by the client.
++    repeated Capability capabilities = 1;
++  }
+ 
+   // Instructs Search Web to mount or unmount a Chrome input into the searchbox.
+   message InjectChromeInput {
+diff --git a/third_party/omnibox_proto/README.chromium b/third_party/omnibox_proto/README.chromium
+index 02362ee..1dd9682f 100644
+--- a/third_party/omnibox_proto/README.chromium
++++ b/third_party/omnibox_proto/README.chromium
+@@ -2,8 +2,8 @@
+ Short Name: omnibox_proto
+ URL: This is the canonical public repository
+ Update Mechanism: Manual
+-Version: 1008882281
+-Date: 2026-10-28
++Version: 1009914496
++Date: 2026-10-29
+ License: BSD-3-Clause
+ License File: LICENSE
+ Shipped: yes
+diff --git a/third_party/omnibox_proto/icon.proto b/third_party/omnibox_proto/icon.proto
+index 6b8240c..c262f7f 100644
+--- a/third_party/omnibox_proto/icon.proto
++++ b/third_party/omnibox_proto/icon.proto
+@@ -16,10 +16,16 @@
+ import "icon_resource_ids.proto";
+ 
+ // Configuration for Icon.
+-// Next ID: 2
++// Next ID: 3
+ message Icon {
+   // The icon id.
+   // Note: this legacy enum does not have an unspecified value, so clients
+-  // should trate the current PLACE_WHITE = 0 as unspecified instead.
++  // should treat the current PLACE_WHITE = 0 as unspecified instead.
+   optional IconResourceIds icon_id = 1;
++
++  // Hosted HTTPS URL of the icon to be displayed on the client.
++  // Expected to point to an image asset, typically a vector graphic (e.g. SVG
++  // such as 24px Google Symbols from https://fonts.gstatic.com/) or a raster
++  // image (e.g. PNG).
++  string icon_url = 2;
+ }
+diff --git a/third_party/omnibox_proto/input_type_rule.proto b/third_party/omnibox_proto/input_type_rule.proto
+index 72109d09..6d7a596 100644
+--- a/third_party/omnibox_proto/input_type_rule.proto
++++ b/third_party/omnibox_proto/input_type_rule.proto
+@@ -18,7 +18,7 @@
+ import "tool_mode.proto";
+ 
+ // Rule for restricting an InputType.
+-// Next ID: 9
++// Next ID: 11
+ message InputTypeRule {
+   // The input type that is being restricted.
+   optional InputType input_type = 1;
+@@ -30,12 +30,26 @@
+   repeated InputType allowed_input_types = 3;
+   // If true, all input types are allowed to be used with the input_type.
+   optional bool allow_all_input_types = 4;
++  // Numeric values of the `ToolMode` enums for the tools that are allowed to be
++  // used with the input_type. See crbug.com/545733743.
++  repeated int32 allowed_tool_keys = 9;
++  // Deprecated: Use `allowed_tool_keys` instead. Cleared for clients that have
++  // migrated to `allowed_tool_keys`.
++  // New clients must not use this field.
++  //
+   // The tools that are allowed to be used with the input_type.
+-  repeated ToolMode allowed_tools = 5;
++  repeated ToolMode allowed_tools = 5 [deprecated = true];
+   // If true, all tools are allowed to be used with the input_type.
+   optional bool allow_all_tools = 6;
++  // Numeric values of the `ModelMode` enums for the models that are allowed to
++  // be used with the input_type. See crbug.com/545733743.
++  repeated int32 allowed_model_keys = 10;
++  // Deprecated: Use `allowed_model_keys` instead. Cleared for clients that have
++  // migrated to `allowed_model_keys`.
++  // New clients must not use this field.
++  //
+   // The models that are allowed to be used with the input_type.
+-  repeated ModelMode allowed_models = 7;
++  repeated ModelMode allowed_models = 7 [deprecated = true];
+   // If true, all models are allowed to be used with the input_type.
+   optional bool allow_all_models = 8;
+ }
+diff --git a/third_party/omnibox_proto/model_config.proto b/third_party/omnibox_proto/model_config.proto
+index 92054f7f..ab5949c 100644
+--- a/third_party/omnibox_proto/model_config.proto
++++ b/third_party/omnibox_proto/model_config.proto
+@@ -19,15 +19,22 @@
+ import "url_param.proto";
+ 
+ // Configuration for a model mode.
+-// Next ID: 10
++// Next ID: 11
+ // LINT.IfChange(ModelConfig)
+ message ModelConfig {
++  // Numeric value of the `ModelMode` enum for the model. See
++  // crbug.com/545733743.
++  int32 model_key = 10;
++  // Deprecated: Use `model_key` instead. Cleared for clients that have
++  // migrated to `model_key`.
++  // New clients must not use this field.
++  //
+   // The model mode.
+   //
+   // Note: Clients should use the *Value accessor variant (e.g. getModelValue())
+   // rather than enum accessors to be future-proof against new open enum values
+   // served by the backend without requiring client updates.
+-  ModelMode model = 1;
++  ModelMode model = 1 [deprecated = true];
+   // The label for the model in a menu.
+   string menu_label = 2;
+   // The hint text in the input text field when this model is selected.
+diff --git a/third_party/omnibox_proto/model_mode.proto b/third_party/omnibox_proto/model_mode.proto
+index 02c2d55b..70fc1f06 100644
+--- a/third_party/omnibox_proto/model_mode.proto
++++ b/third_party/omnibox_proto/model_mode.proto
+@@ -15,25 +15,58 @@
+ 
+ // The AIM model mode that is applied to a query (e.g. on the input plate or
+ // fusebox).
+-// Next ID: 8
++// Next ID: 18
+ // LINT.IfChange(ModelMode)
+ enum ModelMode {
+   // Unspecified model mode.
+   MODEL_MODE_UNSPECIFIED = 0;
+-  // Gemini regular model mode.
++
++  /////////////////////////////////////////////////////////////////////////////
++  // Model types in the below section have client-hardcoded URL mappings and
++  // cannot be reused for other URL-based routing parameters.
++  /////////////////////////////////////////////////////////////////////////////
++
++  // Gemini regular model mode. This is client-hardcoded to be "udm=50" only.
+   MODEL_MODE_GEMINI_REGULAR = 1;
+-  // Gemini pro model mode.
++  // Gemini pro model mode. This is client-hardcoded to be "nem=143" only.
+   MODEL_MODE_GEMINI_PRO = 2;
+-  // Autoroute. Same URL mapping as regular but used for relabeling.
++  // Autoroute. Same URL mapping as regular but used for relabeling. This is
++  // client-hardcoded to be "udm=50" only.
+   MODEL_MODE_GEMINI_PRO_AUTOROUTE = 3;
+-  // Gemini Pro model without generative UI.
++  // Gemini Pro model without generative UI. This is client-hardcoded to be
++  // "udm=50,arv=1".
+   MODEL_MODE_GEMINI_PRO_NO_GEN_UI = 4;
+-  // Gemini Flash Latest model mode.
++  // Gemini Flash Latest model mode. This is client-hardcoded to be
++  // "udm=50,arv=2".
++  // Supported in Bling 152+.
+   MODEL_MODE_GEMINI_FLASH_LATEST = 5;
+   // Gemini Pro Latest model mode. Used for Barium (Gemini 4 Argon externally).
++  // This is client-hardcoded to be "udm=50,arv=3".
++  // Supported in Bling 157+ (and 156 respin).
+   MODEL_MODE_GEMINI_PRO_LATEST = 6;
++
++  /////////////////////////////////////////////////////////////////////////////
++  // Unused model types.
++  /////////////////////////////////////////////////////////////////////////////
++
+   // Gemini Preview model mode, could be XS, S or M (currently unused as of
+-  // August 2026).
++  // Oct 2026).
++
++  // Merged into AGA 17.50, iGA 435, Chrome Desktop/Android 153, Bling 158.
+   MODEL_MODE_GEMINI_PREVIEW = 7;
++
++  // Merged into AGA 17.67, iGA 443, Chrome Desktop/Android 157, Bling 158.
++  MODEL_MODE_AIM_MODEL_ALFA = 8;      // arv=4
++  MODEL_MODE_AIM_MODEL_BRAVO = 9;     // arv=5
++  MODEL_MODE_AIM_MODEL_CHARLIE = 10;  // arv=6
++  MODEL_MODE_AIM_MODEL_DELTA = 11;    // arv=7
++  MODEL_MODE_AIM_MODEL_ECHO = 12;     // arv=8
++
++  // Merged into AGA 17.70, iGA 445, Chrome 158.
++  MODEL_MODE_AIM_MODEL_FOXTROT = 13;  // arv=9
++  MODEL_MODE_AIM_MODEL_GOLF = 14;     // arv=10
++  MODEL_MODE_AIM_MODEL_HOTEL = 15;    // arv=11
++  MODEL_MODE_AIM_MODEL_INDIA = 16;    // arv=12
++  MODEL_MODE_AIM_MODEL_JULIETT = 17;  // arv=13
+ }
+ // LINT.ThenChange(//components/omnibox/composebox/composebox_query.mojom:ModelMode, //components/omnibox/common/omnibox_metrics_utils.cc:ModelMode, //tools/metrics/histograms/metadata/omnibox/histograms.xml:OmniboxModelMode)
+diff --git a/third_party/omnibox_proto/model_rule.proto b/third_party/omnibox_proto/model_rule.proto
+index db01f527..77fe059 100644
+--- a/third_party/omnibox_proto/model_rule.proto
++++ b/third_party/omnibox_proto/model_rule.proto
+@@ -18,13 +18,27 @@
+ import "tool_mode.proto";
+ 
+ // Rule for restricting a model.
+-// Next ID: 6
++// Next ID: 8
+ message ModelRule {
++  // Numeric value of the `ModelMode` enum for the model that is being
++  // restricted. See crbug.com/545733743.
++  int32 model_key = 6;
++  // Deprecated: Use `model_key` instead. Cleared for clients that have
++  // migrated to `model_key`.
++  // New clients must not use this field.
++  //
+   // The model that is being restricted.
+-  optional ModelMode model = 1;
++  optional ModelMode model = 1 [deprecated = true];
++  // Numeric values of the `ToolMode` enums for the tools that are allowed to be
++  // used with the model. See crbug.com/545733743.
++  repeated int32 allowed_tool_keys = 7;
++  // Deprecated: Use `allowed_tool_keys` instead. Cleared for clients that have
++  // migrated to `allowed_tool_keys`.
++  // New clients must not use this field.
++  //
+   // The tools that are allowed to be used with the model.
+   // If allow_all_tools is true, this field is ignored.
+-  repeated ToolMode allowed_tools = 2;
++  repeated ToolMode allowed_tools = 2 [deprecated = true];
+   // The input types that are allowed to be used with the model.
+   // If allow_all_input_types is true, this field is ignored.
+   repeated InputType allowed_input_types = 3;
+diff --git a/third_party/omnibox_proto/searchbox_config.proto b/third_party/omnibox_proto/searchbox_config.proto
+index ac20552..57213ff 100644
+--- a/third_party/omnibox_proto/searchbox_config.proto
++++ b/third_party/omnibox_proto/searchbox_config.proto
+@@ -20,7 +20,7 @@
+ import "tool_config.proto";
+ 
+ // Configuration for the AI searchbox (e.g. input plate and fusebox)
+-// Next ID: 15
++// Next ID: 17
+ message SearchboxConfig {
+   // The rule set to use for the searchbox.
+   // This message is mostly deprecated (with exception of the
+diff --git a/third_party/omnibox_proto/suggest_inventory.proto b/third_party/omnibox_proto/suggest_inventory.proto
+index 9c3b63cd..ebf584b 100644
+--- a/third_party/omnibox_proto/suggest_inventory.proto
++++ b/third_party/omnibox_proto/suggest_inventory.proto
+@@ -15,7 +15,7 @@
+ 
+ // This enum can switch the inventory of suggestions that are shown dynamically
+ // based on the SBS entry point.
+-// Next ID: 16
++// Next ID: 17
+ // LINT.IfChange(SuggestInventory)
+ enum SuggestInventory {
+   SUGGEST_INVENTORY_DEFAULT = 0;
+@@ -43,5 +43,9 @@
+   SUGGEST_INVENTORY_ADD_FILE = 13;
+   SUGGEST_INVENTORY_ADD_TAB = 14;
+   SUGGEST_INVENTORY_AIM_IMAGES = 15;
++
++  // Used for seasonal / holiday image generation promos (e.g. Diwali,
++  // Halloween).
++  SUGGEST_INVENTORY_IMAGE_GEN_SEASONAL_PROMO = 16;
+ }
+ // LINT.ThenChange(//components/omnibox/browser/fusebox_action.mojom:SuggestInventory)
+diff --git a/third_party/omnibox_proto/tool_config.proto b/third_party/omnibox_proto/tool_config.proto
+index 67b5426..e5c837bf 100644
+--- a/third_party/omnibox_proto/tool_config.proto
++++ b/third_party/omnibox_proto/tool_config.proto
+@@ -19,15 +19,21 @@
+ import "url_param.proto";
+ 
+ // Configuration for a tool mode.
+-// Next ID: 15
++// Next ID: 16
+ // LINT.IfChange(ToolConfig)
+ message ToolConfig {
++  // Numeric value of the `ToolMode` enum for the tool. See crbug.com/545733743.
++  int32 tool_key = 15;
++  // Deprecated: Use `tool_key` instead. Cleared for clients that have
++  // migrated to `tool_key`.
++  // New clients must not use this field.
++  //
+   // The tool mode.
+   //
+   // Note: Clients should use the *Value accessor variant (e.g. getToolValue())
+   // rather than enum accessors to be future-proof against new open enum values
+   // served by the backend without requiring client updates.
+-  ToolMode tool = 1;
++  ToolMode tool = 1 [deprecated = true];
+   // Disable model selection state when the tool is selected (e.g. no check mark
+   // on model selection when the tool is selected). Some tools are not
+   // associated with any of the selectable models (e.g. DeepSearch)
+diff --git a/third_party/omnibox_proto/tool_rule.proto b/third_party/omnibox_proto/tool_rule.proto
+index eefc79b4..cc5aa00 100644
+--- a/third_party/omnibox_proto/tool_rule.proto
++++ b/third_party/omnibox_proto/tool_rule.proto
+@@ -18,17 +18,31 @@
+ import "tool_mode.proto";
+ 
+ // Rule for restricting a tool.
+-// Next ID: 6
++// Next ID: 8
+ message ToolRule {
++  // Numeric value of the `ToolMode` enum for the tool that is being restricted.
++  // See crbug.com/545733743.
++  int32 tool_key = 6;
++  // Deprecated: Use `tool_key` instead. Cleared for clients that have
++  // migrated to `tool_key`.
++  // New clients must not use this field.
++  //
+   // The tool that is being restricted.
+-  optional ToolMode tool = 1;
++  optional ToolMode tool = 1 [deprecated = true];
+   // The input types that are allowed to be used with the tool.
+   // If allow_all_input_types is true, this field is ignored.
+   repeated InputType allowed_input_types = 2;
+   // If true, all input types are allowed to be used with the tool.
+   optional bool allow_all_input_types = 3;
++  // Numeric values of the `ModelMode` enums for the models that are allowed to
++  // be used with the tool. See crbug.com/545733743.
++  repeated int32 allowed_model_keys = 7;
++  // Deprecated: Use `allowed_model_keys` instead. Cleared for clients that have
++  // migrated to `allowed_model_keys`.
++  // New clients must not use this field.
++  //
+   // The models that are allowed to be used with the tool.
+-  repeated ModelMode allowed_models = 4;
++  repeated ModelMode allowed_models = 4 [deprecated = true];
+   // If true, all models are allowed to be used with the tool.
+   optional bool allow_all_models = 5;
+ }
+diff --git a/tools/metrics/histograms/metadata/omnibox/histograms.xml b/tools/metrics/histograms/metadata/omnibox/histograms.xml
+index 57740dd5..6a25fb38 100644
+--- a/tools/metrics/histograms/metadata/omnibox/histograms.xml
++++ b/tools/metrics/histograms/metadata/omnibox/histograms.xml
+@@ -265,6 +265,16 @@
+ <!-- LINT.IfChange(OmniboxModelMode) -->
+ 
+ <variants name="OmniboxModelMode">
++  <variant name="AimModelAlfa" summary="AIM Model Alfa"/>
++  <variant name="AimModelBravo" summary="AIM Model Bravo"/>
++  <variant name="AimModelCharlie" summary="AIM Model Charlie"/>
++  <variant name="AimModelDelta" summary="AIM Model Delta"/>
++  <variant name="AimModelEcho" summary="AIM Model Echo"/>
++  <variant name="AimModelFoxtrot" summary="AIM Model Foxtrot"/>
++  <variant name="AimModelGolf" summary="AIM Model Golf"/>
++  <variant name="AimModelHotel" summary="AIM Model Hotel"/>
++  <variant name="AimModelIndia" summary="AIM Model India"/>
++  <variant name="AimModelJuliett" summary="AIM Model Juliett"/>
+   <variant name="GeminiFlashLatest" summary="Gemini Flash Latest model"/>
+   <variant name="GeminiPreview" summary="Gemini Preview model"/>
+   <variant name="GeminiPro" summary="Gemini Pro model"/>
 diff --git a/tools/metrics/histograms/metadata/others/histograms.xml b/tools/metrics/histograms/metadata/others/histograms.xml
 index b6a6dd8..3798e31 100644
 --- a/tools/metrics/histograms/metadata/others/histograms.xml
@@ -2079,10 +4099,31 @@ index 0a775c6..cb3a68f3 100644
    if (max_minor_text_width_ > 0) {
      max_minor_text_width_ += config.item_horizontal_padding;
 diff --git a/ui/webui/resources/cr_components/composebox/composebox.ts b/ui/webui/resources/cr_components/composebox/composebox.ts
-index d7c68b2..afdb1af 100644
+index d7c68b2..64fad39d 100644
 --- a/ui/webui/resources/cr_components/composebox/composebox.ts
 +++ b/ui/webui/resources/cr_components/composebox/composebox.ts
-@@ -155,6 +155,11 @@
+@@ -113,10 +113,7 @@
+         type: Boolean,
+         reflect: true,
+       },
+-      isFollowupQuery: {type: Boolean},
+-      enableFileHint: {type: Boolean},
+       isSidePanel: {type: Boolean},
+-      inputPlaceholderOverride: {type: String},
+       // Must be property so can pass it down to children.
+       searchboxCallbackRouter_: {type: Object},
+       applyContextButtonBackground: {
+@@ -127,9 +124,6 @@
+   }
+ 
+   accessor isSidePanel: boolean = false;
+-  accessor isFollowupQuery: boolean = false;
+-  accessor enableFileHint: boolean = false;
+-  accessor inputPlaceholderOverride: string = '';
+   accessor disableComposeboxAnimation: boolean = false;
+   accessor observeResize: boolean = true;
+   accessor lensButtonTriggersOverlay: boolean = false;
+@@ -155,6 +149,11 @@
      return loadTimeData.valueExists('webUIOmniboxAskGAboutThisPageEnabled') &&
          loadTimeData.getBoolean('webUIOmniboxAskGAboutThisPageEnabled');
    }
@@ -2094,7 +4135,55 @@ index d7c68b2..afdb1af 100644
    private pageHandler_: PageHandlerRemote;
    private searchboxHandler_: SearchboxPageHandlerRemote;
    private resizeObservers_: ResizeObserver[] = [];
-@@ -447,12 +452,19 @@
+@@ -299,11 +298,6 @@
+       this.applyContextButtonBackground = hasBackground && !inToolMode;
+     }
+ 
+-    if (changedProperties.has('inputPlaceholderOverride') ||
+-        changedProperties.has('enableFileHint')) {
+-      this.updateInputPlaceholder();
+-    }
+-
+     // If it is the first render, or 'entrypointName' has changed from its default.
+     if (!this.hasUpdated || changedProperties.has('entrypointName')) {
+       this.voiceSearchCoherenceEnabled =
+@@ -362,35 +356,6 @@
+     this.expanding_ = expanding;
+   }
+ 
+-  // Default logic moved to mixin. This override is for contextual_tasks.
+-  override hasValidQuery(): boolean {
+-    // If there is at least one file that supports unimodal search, query is
+-    // valid.
+-    if (this.attachedContext.values().find(
+-            (file: ComposeboxFile) => file.supportsUnimodal)) {
+-      return true;
+-    }
+-
+-    // If an autocomplete match is selected, it's a valid query.
+-    if (this.selectedMatchIndex >= 0 && !!this.result) {
+-      return true;
+-    }
+-
+-    if (this.input.trim().length > 0) {
+-      return true;
+-    }
+-
+-    // TODO(crbug.com/485648942): Update to drive Deep Search behavior from the
+-    //   PEC API's ToolSubstateConfig.
+-    // Allow empty query for Deep Search follow-ups.
+-    if (this.inputState?.activeTool === ToolMode.kDeepSearch &&
+-        this.isFollowupQuery) {
+-      return true;
+-    }
+-
+-    return false;
+-  }
+-
+   // TODO(crbug.com/486706573): common logic moved to mixin. Move embedder
+   // specific logic to the embedder class (contextual_tasks).
+   override deleteFile(uuidToDelete: UnguessableToken, fromUserAction?: boolean):
+@@ -447,12 +412,19 @@
        }
        return;
      }
@@ -2118,6 +4207,147 @@ index d7c68b2..afdb1af 100644
  
      // We should delete the automatic active tab if it is different from the
      // current tab when webUIOmniboxAskGAboutThisPageEnabled_ is true. Make sure
+@@ -590,42 +562,6 @@
+     e.preventDefault();
+   }
+ 
+-  // TODO(crbug.com/486706573): Refactor this function and move the common logic
+-  // to the mixin class. Move embedder specific logic to the embedder class.
+-  override updateInputPlaceholder() {
+-    if (this.inputPlaceholderOverride) {
+-      this.inputPlaceholder = this.inputPlaceholderOverride;
+-      return;
+-    }
+-
+-    // The file hint should only be shown when there is context that was
+-    // deliberately added by the user (i.e. not the automatic active tab).
+-    const isOnlyAutoTab = this.attachedContext.size === 1
+-        && !!this.automaticActiveTab;
+-    const shouldUseFileHint = this.enableFileHint && this.hasFiles() &&
+-        !isOnlyAutoTab && this.inputState?.activeTool === ToolMode.kUnspecified;
+-    if (shouldUseFileHint) {
+-      if (this.attachedContext.size > 1) {
+-        this.inputPlaceholder = this.i18n('composeboxHintTextAskAboutThese');
+-        return;
+-      }
+-      const file = this.attachedContext.values().next().value!;
+-      if (file.type === 'tab') {
+-        this.inputPlaceholder = this.i18n('composeboxHintTextAskAboutThisTab');
+-        return;
+-      } else if (file.type.includes('image')) {
+-        this.inputPlaceholder =
+-            this.i18n('composeboxHintTextAskAboutThisImage');
+-        return;
+-      } else if (file.type === 'pdf' || file.type === 'application/pdf') {
+-        this.inputPlaceholder = this.i18n('composeboxHintTextAskAboutThisDoc');
+-        return;
+-      }
+-    }
+-
+-    super.updateInputPlaceholder();
+-  }
+-
+   protected onComposeboxFocusin_(e: FocusEvent) {
+     // Exit early if the focus is still within the composebox.
+     if (this.$.composebox.contains(e.relatedTarget as Node)) {
+@@ -691,8 +627,6 @@
+   }
+ 
+   override submitCleanup() {
+-    // TODO: crbug.com/486707842 - Move to the Contextual Tasks embedder
+-    this.cacheSubmittedTabs();
+     if (this.isCollapsible) {
+       this.clearAllInputs(/* querySubmitted= */ true,
+                           /* shouldBlockAutoSuggestedTabs= */ false);
+diff --git a/ui/webui/resources/cr_components/composebox/composebox_dropdown.css b/ui/webui/resources/cr_components/composebox/composebox_dropdown.css
+index bd1b6a8..fc31da9 100644
+--- a/ui/webui/resources/cr_components/composebox/composebox_dropdown.css
++++ b/ui/webui/resources/cr_components/composebox/composebox_dropdown.css
+@@ -24,6 +24,25 @@
+   display: none;
+ }
+ 
++.matches {
++  min-height: 0;
++  overflow-x: hidden;
++  overflow-y: auto;
++}
++
++.matches::-webkit-scrollbar {
++  width: 7px;
++}
++
++.matches::-webkit-scrollbar-track {
++  background: transparent;
++}
++
++.matches::-webkit-scrollbar-thumb {
++  background: #7f7f7f;
++  border-radius: 100px;
++}
++
+ .matches.vertical {
+   display: flex;
+   flex-direction: column;
+@@ -42,9 +61,6 @@
+           min(100%, var(--cr-composebox-grid-min-item-width, 110px)),
+           var(--cr-composebox-grid-max-item-width, 136px)));
+   justify-content: start;
+-  min-height: 0;
+-  overflow-x: hidden;
+-  overflow-y: auto;
+   padding-block-end: var(--cr-composebox-grid-padding-bottom, 6px);
+   padding-block-start: 16px;
+   padding-inline: 16px;
+@@ -52,19 +68,6 @@
+   scroll-padding-block-start: 16px;
+ }
+ 
+-.matches.grid::-webkit-scrollbar {
+-  width: 7px;
+-}
+-
+-.matches.grid::-webkit-scrollbar-track {
+-  background: transparent;
+-}
+-
+-.matches.grid::-webkit-scrollbar-thumb {
+-  background: #7f7f7f;
+-  border-radius: 100px;
+-}
+-
+ .matches.grid [part='match-wrapper'] {
+   width: 100%;
+ }
+diff --git a/ui/webui/resources/cr_components/composebox/composebox_input.ts b/ui/webui/resources/cr_components/composebox/composebox_input.ts
+index e2a0c23..35fd2509 100644
+--- a/ui/webui/resources/cr_components/composebox/composebox_input.ts
++++ b/ui/webui/resources/cr_components/composebox/composebox_input.ts
+@@ -198,6 +198,11 @@
+       if (!this.input) {
+         this.resetHeight();
+       }
++      if (changedProperties.has('disableCaretColorAnimation') &&
++          !this.disableCaretColorAnimation &&
++          this.shadowRoot?.activeElement === inputEl) {
++        this.shadowRoot.getElementById('caret')?.classList.add('caret-visible');
++      }
+       this.updateMirrorAndCaret_();
+     }
+ 
+diff --git a/ui/webui/resources/cr_components/composebox/composebox_mixin.ts b/ui/webui/resources/cr_components/composebox/composebox_mixin.ts
+index 7d397119..8926d4c 100644
+--- a/ui/webui/resources/cr_components/composebox/composebox_mixin.ts
++++ b/ui/webui/resources/cr_components/composebox/composebox_mixin.ts
+@@ -2058,7 +2058,7 @@
+               this.queryAutocomplete(/* clearMatches= */ true);
+             }
+ 
+-            if (!this.disableCaretColorAnimation) {
++            if (!this.disableCaretColorAnimation && this.willFulfillInAim) {
+               this.getInputElement().resetCaret();
+             }
+           } else {
 diff --git a/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.test.ts b/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.test.ts
 index ee93f86..a7a1c96 100644
 --- a/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.test.ts
