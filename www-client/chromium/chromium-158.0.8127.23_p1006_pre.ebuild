@@ -175,8 +175,9 @@ LICENSE+=" rar? ( unRAR )"
 SLOT="stable"
 KEYWORDS="~amd64 ~arm64"
 
-# The fix 158 lacks (see its header).
+# The 158 branch's changes after the 158.0.8127.23 tag, and the fixes it lacks (see their headers).
 CHROMIUM_FIXES=(
+	chromium-158.0.8127.23-branch-fixes.patch
 	chromium-158-gpu-query-flush-fbo.patch
 )
 
