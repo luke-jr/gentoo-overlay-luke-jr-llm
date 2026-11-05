@@ -1,8 +1,8 @@
 Chromium 158.0.8127.23 + the later changes of its release branch, up to
-f7cf9fa574714315395045da2d4c6707c1d63410 (refs/branch-heads/8127@{#1078}), for the
+dde82c0384769a0baaf879f45642dec0b4bc8933 (refs/branch-heads/8127@{#1081}), for the
 158.0.8127.23 tree that chromium-158.0.8127.18-to-158.0.8127.23.patch makes.
 
-Generated from the upstream diffs chromium/src refs/tags/158.0.8127.23..f7cf9fa574714315395045da2d4c6707c1d63410
+Generated from the upstream diffs chromium/src refs/tags/158.0.8127.23..dde82c0384769a0baaf879f45642dec0b4bc8933
 and the dependencies whose DEPS revision changed (V8, ICU, Dawn, Skia, ANGLE),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes: left out are files not in the
 release tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -61,6 +61,7 @@ the ICU roll has two security fixes: usearch index overflow, number formatting):
   195fc9346762 [M158][glic] Merge invocation error recovery fixes behind feature 
   97417afed5f2 [M158] [iOS] Add loading pills when waiting for zero state suggest
   f7cf9fa57471 Roll commits from side projects in M158
+  dde82c038476 [M158] Swap pending snap sets before iterating in ExecutePendingSn
 
 Checked: applies to the 158.0.8127.23 tree; every patched file is
 byte-identical to its version at the commits above.
@@ -3008,6 +3009,92 @@ index 9153b58..98aaedb 100644
      }
      update_triggers_ = false;
    }
+diff --git a/third_party/blink/renderer/core/frame/local_frame_view.cc b/third_party/blink/renderer/core/frame/local_frame_view.cc
+index 99ceefd..7343fa23 100644
+--- a/third_party/blink/renderer/core/frame/local_frame_view.cc
++++ b/third_party/blink/renderer/core/frame/local_frame_view.cc
+@@ -2994,7 +2994,11 @@
+     frame_view.PerformScrollAnchoringAdjustments();
+   });
+ 
+-  ExecutePendingSnapUpdates();
++  {
++    SlotAssignmentRecalcForbiddenScope forbid_slot_recalc(
++        *frame_->GetDocument());
++    ExecutePendingSnapUpdates();
++  }
+ 
+   ExecutePendingScrollMarkerSelectionUpdates();
+ 
+@@ -5866,38 +5870,55 @@
+   if (pending_snap_updates_) {
+     pending_snap_updates_->erase(object);
+   }
++  if (pending_perform_snap_) {
++    pending_perform_snap_->erase(object);
++  }
+ }
+ 
+ void LocalFrameView::ExecutePendingSnapUpdates() {
+-  if (pending_snap_updates_) {
+-    // Some scroll containers might be mid-scroll animation. Defer snapping
+-    // those containers until after the scroll animation is done.
+-    HeapHashSet<Member<PaintLayerScrollableArea>> deferred_updates;
++  if (pending_snap_updates_ && !pending_snap_updates_->empty()) {
++    // Move to a local set before iterating, since updating snap container data
++    // may detach layout objects and mutate `pending_snap_updates_`.
++    HeapHashSet<Member<PaintLayerScrollableArea>> snap_updates;
++    pending_snap_updates_->swap(snap_updates);
++
+     // Iteration order of the objects doesn't matter as the snap-areas are
+     // contained within each scroll-container.
+-    for (PaintLayerScrollableArea* scrollable_area : *pending_snap_updates_) {
++    for (PaintLayerScrollableArea* scrollable_area : snap_updates) {
+       auto* snap_container = scrollable_area->GetLayoutBox();
++      if (!snap_container) {
++        continue;
++      }
+       DCHECK(snap_container->IsScrollContainer());
+       if (SnapCoordinator::UpdateSnapContainerData(*snap_container)) {
+-        if (!pending_perform_snap_) {
+-          pending_perform_snap_ = MakeGarbageCollected<
+-              GCedHeapHashSet<Member<PaintLayerScrollableArea>>>();
++        if (!scrollable_area->GetLayoutBox()) {
++          continue;
+         }
+         if (scrollable_area->HasRunningAnimation()) {
+-          deferred_updates.insert(scrollable_area);
++          // Some scroll containers might be mid-scroll animation. Defer
++          // snapping those containers until after the scroll animation is done.
++          pending_snap_updates_->insert(scrollable_area);
+         } else {
++          if (!pending_perform_snap_) {
++            pending_perform_snap_ = MakeGarbageCollected<
++                GCedHeapHashSet<Member<PaintLayerScrollableArea>>>();
++          }
+           pending_perform_snap_->insert(scrollable_area);
+         }
+       }
+     }
+-    pending_snap_updates_->swap(deferred_updates);
+   }
+ 
+-  if (pending_perform_snap_ && !ShouldDeferLayoutSnap()) {
+-    for (PaintLayerScrollableArea* scrollable_area : *pending_perform_snap_) {
++  if (pending_perform_snap_ && !pending_perform_snap_->empty() &&
++      !ShouldDeferLayoutSnap()) {
++    HeapHashSet<Member<PaintLayerScrollableArea>> perform_snap;
++    pending_perform_snap_->swap(perform_snap);
++    for (PaintLayerScrollableArea* scrollable_area : perform_snap) {
++      if (!scrollable_area->GetLayoutBox()) {
++        continue;
++      }
+       scrollable_area->SnapAfterLayout();
+     }
+-    pending_perform_snap_->clear();
+   }
+ }
+ 
 diff --git a/third_party/lens_server_proto/search_communication.proto b/third_party/lens_server_proto/search_communication.proto
 index 84e41cb1..4beb2ba 100644
 --- a/third_party/lens_server_proto/search_communication.proto
