@@ -8,9 +8,10 @@ Usage: compare-tarball.py TREE_DIR TARBALL
   TARBALL   the real tarball of the version the patches upgrade to
 
 Prints one line per difference (changed, only in the tree, only in the tarball), with the
-category: translation, test/docs/other platform, upstream profile, binary (unused), or
-"UNEXPECTED". Every UNEXPECTED line is either a mistake of the patches to fix, or something
-to add to the rules (and to README.md's notes).
+category: translation, test/docs/other platform, upstream profile, binary (unused), CI
+configuration, DEPS (filter.py drops these two), or "UNEXPECTED". Every UNEXPECTED line is
+either a mistake of the patches to fix, or something to add to the rules (and to README.md's
+notes).
 """
 import hashlib
 import os
@@ -32,6 +33,10 @@ def category(f):
         return "test/docs/other platform"
     if f.startswith("third_party/icu/") and f.endswith((".dat", ".res")):
         return "binary (unused)"
+    if f.startswith("infra/"):
+        return "CI configuration"
+    if f == "DEPS":
+        return "DEPS (not used by the build)"
     return "UNEXPECTED"
 
 
