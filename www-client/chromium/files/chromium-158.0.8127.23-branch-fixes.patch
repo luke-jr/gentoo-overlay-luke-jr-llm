@@ -1,0 +1,842 @@
+Chromium 158.0.8127.23 + the later changes of its release branch, up to
+1033aa8c9e10e3c6c394c9b97cb1a824fbd84b06 (refs/branch-heads/8127@{#1006}), for the
+158.0.8127.23 tree that chromium-158.0.8127.18-to-158.0.8127.23.patch makes.
+
+Generated from the upstream diffs chromium/src refs/tags/158.0.8127.23..1033aa8c9e10e3c6c394c9b97cb1a824fbd84b06
+and the dependencies whose DEPS revision changed (V8), as served by Gitiles,
+with scripts/chromium-delta --branch-fixes: left out are files not in the
+release tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
+translations, PGO/orderfile pointers, submodule pointer updates.
+chrome/VERSION, DEPS and the stamp files stay at 158.0.8127.23.
+
+Commits contributing to it (oldest first; "Roll commits from side projects"
+is the V8 update, with "[maglev] Do not unwrap lossy conversions in KNA"):
+  5981b113f92f [M158] [Omnibox] Don't open AskG CoBrowse panel without tab sharin
+  0ed1f4f49387 [M158] Attribute zero-state opens to correct pin buttons
+  99ced654a806 [M158] [contextual-tasks] Check tab sharing eligibility for update
+  423aff45a15c [M158] Respect context sharing settings in Contextual Tasks eligib
+  c307533068d9 [M158] Reset Smart Tab Sharing when dismissing or clearing compose
+  03ee2ac1a719 [M158] [ContextualTasks] Gate context library on tab sharing
+  a6fed980fdfe [M158] Update tab picker hover background colors to match Search p
+  022990132383 [M158] [composebox] Align focus indicator bar on two-line dropdown
+  52c6a199cb89 [M158] [ContextualTasks] Add error scrim mode to WebView
+  1033aa8c9e10 Roll commits from side projects in M158
+
+Checked: applies to the 158.0.8127.23 tree; every patched file is
+byte-identical to its version at the commits above.
+
+diff --git a/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc b/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
+index 8be77fd..6f696e5 100644
+--- a/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
++++ b/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
+@@ -827,7 +827,10 @@
+ 
+ bool ChromeAutocompleteProviderClient::ShouldOpenCoBrowsePanel() const {
+ #if !BUILDFLAG(IS_ANDROID)
+-  if (!omnibox::AreContextualTasksEligible(profile_)) {
++  // The CoBrowse side panel depends on sharing the current tab, so don't open
++  // it when tab sharing isn't supported.
++  if (!omnibox::AreContextualTasksEligible(profile_) ||
++      !contextual_tasks::IsTabSharingEligible(profile_)) {
+     return false;
+   }
+ 
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ghost_loader_view.cc b/chrome/browser/contextual_tasks/contextual_tasks_ghost_loader_view.cc
+index 52d6b72..77734e6c 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ghost_loader_view.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ghost_loader_view.cc
+@@ -4,10 +4,17 @@
+ 
+ #include "chrome/browser/contextual_tasks/contextual_tasks_ghost_loader_view.h"
+ 
++#include <string>
++
++#include "base/strings/strcat.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
+ #include "chrome/common/webui_url_constants.h"
+ #include "content/public/browser/browser_context.h"
++#include "content/public/browser/navigation_controller.h"
++#include "content/public/browser/web_contents.h"
++#include "content/public/common/referrer.h"
+ #include "ui/base/metadata/metadata_impl_macros.h"
++#include "ui/base/page_transition_types.h"
+ #include "ui/views/view_class_properties.h"
+ #include "url/gurl.h"
+ 
+@@ -20,6 +27,7 @@
+   SetProperty(views::kElementIdentifierKey,
+               kContextualTasksGhostLoaderViewElementId);
+   if (web_contents) {
++    is_showing_error_page_ = web_contents->GetVisibleURL().ref() == "error";
+     SetWebContents(web_contents);
+   } else {
+     LoadInitialURL(GURL(chrome::kChromeUIContextualTasksGhostLoaderURL));
+@@ -28,6 +36,19 @@
+ 
+ ContextualTasksGhostLoaderView::~ContextualTasksGhostLoaderView() = default;
+ 
++void ContextualTasksGhostLoaderView::SetShowErrorPage(bool show_error_page) {
++  if (is_showing_error_page_ == show_error_page || !web_contents()) {
++    return;
++  }
++  is_showing_error_page_ = show_error_page;
++  const GURL target_url(
++      base::StrCat({chrome::kChromeUIContextualTasksGhostLoaderURL,
++                    show_error_page ? "#error" : "#ghost-loader"}));
++  web_contents()->GetController().LoadURL(target_url, content::Referrer(),
++                                          ui::PAGE_TRANSITION_AUTO_TOPLEVEL,
++                                          std::string());
++}
++
+ BEGIN_METADATA(ContextualTasksGhostLoaderView)
+ END_METADATA
+ 
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ghost_loader_view.h b/chrome/browser/contextual_tasks/contextual_tasks_ghost_loader_view.h
+index ddf0089b..56b90ec 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ghost_loader_view.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ghost_loader_view.h
+@@ -30,6 +30,15 @@
+   ContextualTasksGhostLoaderView& operator=(
+       const ContextualTasksGhostLoaderView&) = delete;
+   ~ContextualTasksGhostLoaderView() override;
++
++  // Toggles whether the scrim displays the protected page error UI instead of
++  // the shimmering ghost loader cards.
++  void SetShowErrorPage(bool show_error_page);
++
++  bool is_showing_error_page() const { return is_showing_error_page_; }
++
++ private:
++  bool is_showing_error_page_ = false;
+ };
+ 
+ }  // namespace contextual_tasks
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_panel_controller.cc b/chrome/browser/contextual_tasks/contextual_tasks_panel_controller.cc
+index d634ebee..70bc6487 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_panel_controller.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_panel_controller.cc
+@@ -4,10 +4,18 @@
+ 
+ #include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
+ 
++#include "chrome/browser/contextual_tasks/contextual_tasks_panel_host.h"
++
+ namespace contextual_tasks {
+ 
+ bool ContextualTasksPanelController::IsOnboardingTooltipVisible() const {
+   return false;
+ }
+ 
++void ContextualTasksPanelHost::SetErrorPageVisible(bool visible) {}
++
++bool ContextualTasksPanelHost::IsErrorPageVisible() const {
++  return false;
++}
++
+ }  // namespace contextual_tasks
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h b/chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h
+index e79efb5..b7ae8d4 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h
+@@ -153,6 +153,12 @@
+   // Returns true if the onboarding or Ask Google tooltip bubble is visible.
+   virtual bool IsOnboardingTooltipVisible() const;
+ 
++  // Toggles the visibility of the protected page error scrim over the panel.
++  virtual void SetErrorPageVisible(bool visible) = 0;
++
++  // Returns whether the protected page error scrim is currently visible.
++  virtual bool IsErrorPageVisible() const = 0;
++
+   // Context management.
+   // Returns the tab handle of the auto suggested tab if the auto suggested tab
+   // chip is shown in the compose box.
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_panel_host.h b/chrome/browser/contextual_tasks/contextual_tasks_panel_host.h
+index 3122826a..3da2cbc2 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_panel_host.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_panel_host.h
+@@ -93,6 +93,12 @@
+ 
+   // Configures the panel to display the provided WebContents.
+   virtual void SetWebContents(content::WebContents* web_contents) = 0;
++
++  // Toggles the visibility of the protected page error scrim over the panel.
++  virtual void SetErrorPageVisible(bool visible);
++
++  // Returns whether the protected page error scrim is currently visible.
++  virtual bool IsErrorPageVisible() const;
+ };
+ 
+ }  // namespace contextual_tasks
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_panel_host_desktop.cc b/chrome/browser/contextual_tasks/contextual_tasks_panel_host_desktop.cc
+index 0a7932d0..b53b877 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_panel_host_desktop.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_panel_host_desktop.cc
+@@ -177,6 +177,20 @@
+   }
+ }
+ 
++void ContextualTasksPanelHostDesktop::SetErrorPageVisible(bool visible) {
++  is_error_page_visible_ = visible && GetIsProtectedPageErrorEnabled();
++  if (web_view_) {
++    web_view_->SetErrorPageVisible(is_error_page_visible_);
++  }
++}
++
++bool ContextualTasksPanelHostDesktop::IsErrorPageVisible() const {
++  if (web_view_) {
++    return web_view_->IsErrorPageVisible();
++  }
++  return is_error_page_visible_;
++}
++
+ void ContextualTasksPanelHostDesktop::OnEntryShown(SidePanelEntry* entry) {
+   NotifySurfaceStateChanged(
+       ContextualTasksPanelHost::SurfaceState::kVisible,
+@@ -200,6 +214,7 @@
+   web_view->SetPaintToLayer();
+   web_view->layer()->SetFillsBoundsOpaquely(false);
+   web_view_ = web_view->GetWeakPtr();
++  web_view->SetErrorPageVisible(is_error_page_visible_);
+ 
+   NotifySurfaceStateChanged(
+       ContextualTasksPanelHost::SurfaceState::kVisible,
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_panel_host_desktop.h b/chrome/browser/contextual_tasks/contextual_tasks_panel_host_desktop.h
+index 7213f83..f55981c8 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_panel_host_desktop.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_panel_host_desktop.h
+@@ -58,6 +58,8 @@
+   content::WebContents* GetWebContents() override;
+   content::WebContents* GetToolbarWebContents() override;
+   void SetWebContents(content::WebContents* web_contents) override;
++  void SetErrorPageVisible(bool visible) override;
++  bool IsErrorPageVisible() const override;
+ 
+   // SidePanelEntryObserver:
+   void OnEntryShown(SidePanelEntry* entry) override;
+@@ -100,6 +102,9 @@
+   // True if the panel should be suppressed for testing.
+   bool suppressed_for_testing_ = false;
+ 
++  // Whether the protected page error scrim should be visible over the panel.
++  bool is_error_page_visible_ = false;
++
+   base::WeakPtrFactory<ContextualTasksPanelHostDesktop> weak_factory_{this};
+ };
+ 
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
+index 38fa93c..8814ab8 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
+@@ -861,15 +861,17 @@
+       contextual_tasks::GetEffectivePinState(browser_window_->GetProfile());
+ 
+   base::AutoReset<bool> opening_in_zero_state(&is_opening_in_zero_state_, true);
++  // Pass the entry source explicitly, since `Show()` can't infer it for a new
++  // thread
+   Show(/*transition_from_tab=*/false,
+        is_pinned ? omnibox::ChromeAimEntryPoint::
+                        DESKTOP_CHROME_COBROWSE_PINNED_TOOLBAR_BUTTON
+                  : omnibox::ChromeAimEntryPoint::UNKNOWN_AIM_ENTRY_POINT,
+        /*use_no_animation=*/false, /*open_time_ticks=*/std::nullopt,
+-       is_pinned ? std::nullopt
+-                 : std::make_optional(
+-                       ContextualTasksPanelController::EntrySource::
+-                           kEphemeralToolbarButton));
++       is_pinned ? ContextualTasksPanelController::EntrySource::
++                       kPermanentToolbarButton
++                 : ContextualTasksPanelController::EntrySource::
++                       kEphemeralToolbarButton);
+ }
+ 
+ void ContextualTasksSidePanelCoordinator::OpenUrlInNewTab(const GURL& url) {
+@@ -2983,6 +2985,21 @@
+   }
+ }
+ 
++void ContextualTasksSidePanelCoordinator::SetErrorPageVisible(bool visible) {
++  if (!contextual_tasks_panel_host_) {
++    return;
++  }
++  if (visible && !GetIsProtectedPageErrorEnabled()) {
++    return;
++  }
++  contextual_tasks_panel_host_->SetErrorPageVisible(visible);
++}
++
++bool ContextualTasksSidePanelCoordinator::IsErrorPageVisible() const {
++  return contextual_tasks_panel_host_ &&
++         contextual_tasks_panel_host_->IsErrorPageVisible();
++}
++
+ std::optional<tabs::TabHandle>
+ ContextualTasksSidePanelCoordinator::GetAutoSuggestedTabHandle() {
+   auto* web_contents = GetActiveWebContents();
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h
+index 92a39149..7ecc187 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h
+@@ -207,6 +207,8 @@
+   ContextualTasksPanelController::EntrySource GetActiveEntrySource()
+       const override;
+   bool IsOnboardingTooltipVisible() const override;
++  void SetErrorPageVisible(bool visible) override;
++  bool IsErrorPageVisible() const override;
+   std::optional<tabs::TabHandle> GetAutoSuggestedTabHandle() override;
+   void OnTaskChanged(content::WebContents* web_contents,
+                      base::Uuid task_id) override;
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_utils.cc b/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
+index 684448856..7575def 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
+@@ -256,7 +256,12 @@
+           kContextualTasksForceEntryPointEligibility)) {
+     return true;
+   }
+-  if (!profile || profile->IsOffTheRecord()) {
++  if (!profile || (profile->IsOffTheRecord() &&
++                   !IsContextualTasksRearchitectureEnabled())) {
++    return false;
++  }
++  if (!contextual_search::ContextualSearchService::IsContextSharingEnabled(
++          profile->GetPrefs())) {
+     return false;
+   }
+   auto* aim_service = AimEligibilityServiceFactory::GetForProfile(profile);
+@@ -268,14 +273,12 @@
+   if (!base::FeatureList::IsEnabled(kContextualTasksUpdatedEntryPoints)) {
+     return false;
+   }
+-  if (!profile) {
++  if (!CanShareTabContext(profile)) {
+     return false;
+   }
+   auto* eligibility_manager =
+       ContextualTasksEligibilityManager::GetForProfile(profile);
+-  auto* aim_service = AimEligibilityServiceFactory::GetForProfile(profile);
+-  return eligibility_manager && eligibility_manager->IsSidePanelAvailable() &&
+-         aim_service && aim_service->IsAimEligible();
++  return eligibility_manager && eligibility_manager->IsSidePanelAvailable();
+ }
+ 
+ bool ShouldShowAskGoogleContextMenu(Profile* profile) {
+@@ -296,7 +299,10 @@
+ }
+ 
+ bool CanShareTabContext(Profile* profile) {
+-  if (!profile || profile->IsOffTheRecord() || !IsTabSharingEligible(profile)) {
++  if (!profile ||
++      (profile->IsOffTheRecord() &&
++       !IsContextualTasksRearchitectureEnabled()) ||
++      !IsTabSharingEligible(profile)) {
+     return false;
+   }
+   return contextual_search::ContextualSearchService::IsContextSharingEnabled(
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_utils.h b/chrome/browser/contextual_tasks/contextual_tasks_utils.h
+index 2bd99998..81784aa 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_utils.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_utils.h
+@@ -99,12 +99,13 @@
+     bool is_zero_state);
+ 
+ // Returns true if tab sharing and tab input capabilities are supported
+-// for the given profile (checking AIM and Fusebox eligibility).
++// for the given profile (checking context sharing policy, AIM, and Fusebox
++// eligibility).
+ bool IsTabSharingEligible(Profile* profile);
+ 
+ // Returns true if contextual tasks updated entry points are enabled for the
+ // given profile. Checks the feature flag, whether the contextual tasks side
+-// panel is available, and AIM eligibility.
++// panel is available, and whether tab context can be shared.
+ bool AreContextualTasksUpdatedEntryPointsEnabled(Profile* profile);
+ 
+ // Returns true if the "Ask Google..." context menu item should be shown.
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
+index 23cfafc..e427b2a3 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
+@@ -798,6 +798,11 @@
+ }
+ 
+ bool ContextualTasksWebContentsUserData::ShouldMountContextLibrary() {
++  Profile* profile =
++      Profile::FromBrowserContext(GetWebContents().GetBrowserContext());
++  if (!CanShareTabContext(profile)) {
++    return false;
++  }
+   return HasContextLibraryTabs() || IsSmartTabSharingActive();
+ }
+ 
+@@ -1119,7 +1124,9 @@
+   }
+ 
+   if (!base::FeatureList::IsEnabled(
+-          contextual_tasks::kContextualTasksContextLibrary)) {
++          contextual_tasks::kContextualTasksContextLibrary) ||
++      !CanShareTabContext(
++          Profile::FromBrowserContext(GetWebContents().GetBrowserContext()))) {
+     base::UmaHistogramEnumeration(
+         "ContextualTasks.ThreadContextLibrary.UpdateOutcome",
+         ThreadContextLibraryUpdateOutcome::kFeatureDisabled);
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc b/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc
+index ade03470..11b188b 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc
+@@ -159,7 +159,8 @@
+             browser_window->GetProfile(), ghost_loader_web_contents));
+     ConfigureWebContentsBackground(ghost_loader_view_->GetWebContents(),
+                                    browser_window->GetProfile());
+-    ghost_loader_view_->SetVisible(false);
++    is_error_page_visible_ = ghost_loader_view_->is_showing_error_page();
++    UpdateScrimVisibility();
+     webui::SetBrowserWindowInterface(ghost_loader_view_->GetWebContents(),
+                                      browser_window);
+ 
+@@ -269,11 +270,29 @@
+   if (visible && !GetIsGhostLoaderEnabled()) {
+     return;
+   }
+-  ghost_loader_view_->SetVisible(visible);
++  is_ghost_loader_visible_ = visible;
++  UpdateScrimVisibility();
+ }
+ 
+ bool ContextualTasksWebView::IsGhostLoaderVisible() const {
+-  return ghost_loader_view_ && ghost_loader_view_->GetVisible();
++  return ghost_loader_view_ && ghost_loader_view_->GetVisible() &&
++         !ghost_loader_view_->is_showing_error_page();
++}
++
++void ContextualTasksWebView::SetErrorPageVisible(bool visible) {
++  if (!ghost_loader_view_) {
++    return;
++  }
++  if (visible && !GetIsProtectedPageErrorEnabled()) {
++    return;
++  }
++  is_error_page_visible_ = visible;
++  UpdateScrimVisibility();
++}
++
++bool ContextualTasksWebView::IsErrorPageVisible() const {
++  return ghost_loader_view_ && ghost_loader_view_->GetVisible() &&
++         ghost_loader_view_->is_showing_error_page();
+ }
+ 
+ void ContextualTasksWebView::OnThemeChanged() {
+@@ -665,6 +684,19 @@
+   UpdateToolbarStateForUrl(url, ui_service, toolbar_ui);
+ }
+ 
++void ContextualTasksWebView::UpdateScrimVisibility() {
++  if (!ghost_loader_view_) {
++    return;
++  }
++  if (is_error_page_visible_) {
++    ghost_loader_view_->SetShowErrorPage(true);
++    ghost_loader_view_->SetVisible(true);
++    return;
++  }
++  ghost_loader_view_->SetShowErrorPage(false);
++  ghost_loader_view_->SetVisible(is_ghost_loader_visible_);
++}
++
+ BEGIN_METADATA(ContextualTasksWebView)
+ END_METADATA
+ 
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_view.h b/chrome/browser/contextual_tasks/contextual_tasks_web_view.h
+index 5c5394f81..3f50f3c 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_web_view.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_web_view.h
+@@ -86,6 +86,13 @@
+   // Returns whether the ghost loader overlay is currently visible.
+   bool IsGhostLoaderVisible() const;
+ 
++  // Toggles the visibility of the protected page error scrim overlay.
++  void SetErrorPageVisible(bool visible);
++
++  // Returns whether the protected page error scrim overlay is currently
++  // visible.
++  bool IsErrorPageVisible() const;
++
+   // views::View:
+   void OnThemeChanged() override;
+ 
+@@ -151,6 +158,10 @@
+   void UpdateToolbarStateFromWebContents(content::WebContents* wc,
+                                          bool use_last_committed_url = false);
+ 
++  // Synchronizes `ghost_loader_view_` mode and visibility with
++  // `is_ghost_loader_visible_` and `is_error_page_visible_`.
++  void UpdateScrimVisibility();
++
+   // The browser window interface associated with this view.
+   raw_ptr<BrowserWindowInterface> browser_window_ = nullptr;
+ 
+@@ -176,6 +187,11 @@
+   // about:blank navigation that should not dismiss the ghost loader.
+   bool ignore_next_stop_loading_for_about_blank_ = false;
+ 
++  // Desired visibility states for the ghost loader and protected page error
++  // scrims hosted in `ghost_loader_view_`.
++  bool is_ghost_loader_visible_ = false;
++  bool is_error_page_visible_ = false;
++
+   base::WeakPtrFactory<ContextualTasksWebView> weak_ptr_factory_{this};
+ };
+ 
+diff --git a/chrome/browser/contextual_tasks/entry_point_eligibility_manager.cc b/chrome/browser/contextual_tasks/entry_point_eligibility_manager.cc
+index 13d36415..3ce7c10 100644
+--- a/chrome/browser/contextual_tasks/entry_point_eligibility_manager.cc
++++ b/chrome/browser/contextual_tasks/entry_point_eligibility_manager.cc
+@@ -16,6 +16,7 @@
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/signin/identity_manager_factory.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
++#include "components/contextual_search/pref_names.h"
+ #include "components/contextual_tasks/public/account_utils.h"
+ #include "components/contextual_tasks/public/contextual_tasks_service.h"
+ #include "components/contextual_tasks/public/features.h"
+@@ -57,6 +58,14 @@
+                                     MaybeNotifyEntryPointEligibilityChanged,
+                                 base::Unretained(this)));
+   }
++  if (profile_ && profile_->GetPrefs()) {
++    pref_change_registrar_.Init(profile_->GetPrefs());
++    pref_change_registrar_.Add(
++        contextual_search::kSearchContentSharingSettings,
++        base::BindRepeating(&EntryPointEligibilityManager::
++                                MaybeNotifyEntryPointEligibilityChanged,
++                            base::Unretained(this)));
++  }
+   entry_points_are_eligible_ = AreEntryPointsEligible();
+   is_pinning_eligible_ = IsPinningEligible(profile_);
+ }
+diff --git a/chrome/browser/contextual_tasks/entry_point_eligibility_manager.h b/chrome/browser/contextual_tasks/entry_point_eligibility_manager.h
+index 6c959fba..bfd9c1e7 100644
+--- a/chrome/browser/contextual_tasks/entry_point_eligibility_manager.h
++++ b/chrome/browser/contextual_tasks/entry_point_eligibility_manager.h
+@@ -7,6 +7,7 @@
+ 
+ #include "base/callback_list.h"
+ #include "base/scoped_observation.h"
++#include "components/prefs/pref_change_registrar.h"
+ #include "components/prefs/pref_member.h"
+ #include "components/signin/public/identity_manager/identity_manager.h"
+ #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
+@@ -54,6 +55,7 @@
+   bool entry_points_are_eligible_ = false;
+   bool is_pinning_eligible_ = false;
+   raw_ptr<Profile> profile_ = nullptr;
++  PrefChangeRegistrar pref_change_registrar_;
+   ui::ScopedUnownedUserData<EntryPointEligibilityManager>
+       scoped_unowned_user_data_;
+   base::CallbackListSubscription eligibility_subscription_;
+diff --git a/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_controller.h b/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_controller.h
+index 07d8c09..482a024 100644
+--- a/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_controller.h
++++ b/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_controller.h
+@@ -75,6 +75,8 @@
+               (),
+               (const, override));
+   MOCK_METHOD(bool, IsOnboardingTooltipVisible, (), (const, override));
++  MOCK_METHOD(void, SetErrorPageVisible, (bool visible), (override));
++  MOCK_METHOD(bool, IsErrorPageVisible, (), (const, override));
+   MOCK_METHOD(std::optional<tabs::TabHandle>,
+               GetAutoSuggestedTabHandle,
+               (),
+diff --git a/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_host.cc b/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_host.cc
+index 5d5f5c2..7a85bb7 100644
+--- a/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_host.cc
++++ b/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_host.cc
+@@ -10,4 +10,12 @@
+ 
+ MockContextualTasksPanelHost::~MockContextualTasksPanelHost() = default;
+ 
++void MockContextualTasksPanelHost::SetErrorPageVisible(bool visible) {
++  is_error_page_visible_ = visible;
++}
++
++bool MockContextualTasksPanelHost::IsErrorPageVisible() const {
++  return is_error_page_visible_;
++}
++
+ }  // namespace contextual_tasks
+diff --git a/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_host.h b/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_host.h
+index 018df0c..c3a7cc9 100644
+--- a/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_host.h
++++ b/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_host.h
+@@ -36,9 +36,12 @@
+   void SetWebContents(content::WebContents* web_contents) override {
+     web_contents_ = web_contents ? web_contents->GetWeakPtr() : nullptr;
+   }
++  void SetErrorPageVisible(bool visible) override;
++  bool IsErrorPageVisible() const override;
+ 
+  private:
+   base::WeakPtr<content::WebContents> web_contents_ = nullptr;
++  bool is_error_page_visible_ = false;
+ };
+ 
+ }  // namespace contextual_tasks
+diff --git a/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.css b/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.css
+index 4fb4971..0bc8fe62 100644
+--- a/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.css
++++ b/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.css
+@@ -33,8 +33,12 @@
+    * pick up the page's font itself. */
+   --tab-picker-font-family: var(--cr-composebox-context-menu-font-family,
+       Arial, sans-serif);
++  /* Matches the hover state layer of the Search page's other (+) menu rows:
++   * on-surface-default (#0a0a0a light, #e6e8f0 dark) at the SDS med-emphasis
++   * hover opacity (0.08). Like the font above, this can't be inherited across
++   * the cross-origin iframe boundary, so the value is duplicated here. */
+   --tab-picker-hover-background-color:
+-      var(--color-context-menu-hover-background, rgba(0, 0, 0, 0.04));
++      var(--color-context-menu-hover-background, rgba(10, 10, 10, 0.08));
+   --tab-picker-menu-background-color: var(--color-composebox-background,
+       var(--search-background-color,
+           var(--color-menu-background, #fff)));
+@@ -52,7 +56,7 @@
+   --tab-picker-favicon-skeleton-color: rgb(68, 71, 70);
+   --tab-picker-focus-outline-color: #a8c7fa;
+   --tab-picker-hover-background-color:
+-      var(--color-context-menu-hover-background, rgba(53, 53, 53, 1));
++      var(--color-context-menu-hover-background, rgba(230, 232, 240, 0.08));
+   --tab-picker-menu-background-color: var(--color-composebox-background,
+       var(--search-background-color,
+           var(--color-menu-background, rgba(44, 46, 54, 1))));
+diff --git a/chrome/browser/resources/new_tab_page/app.ts b/chrome/browser/resources/new_tab_page/app.ts
+index 9809a0a..dea642b 100644
+--- a/chrome/browser/resources/new_tab_page/app.ts
++++ b/chrome/browser/resources/new_tab_page/app.ts
+@@ -1146,13 +1146,20 @@
+     this.$.searchbox.closeContextMenu();
+   }
+ 
+-  protected onCloseComposebox_(e: CustomEvent<{composeboxText?: string}>) {
++  protected onCloseComposebox_(
++      e: CustomEvent<{composeboxText?: string, afterSubmit?: boolean}>) {
+     if (!this.showComposebox_) {
+       return;
+     }
+     this.$.searchbox.closeContextMenu();
+     const composeboxText = e.detail.composeboxText;
+ 
++    if (!e.detail.afterSubmit) {
++      // Composebox initiates the backend reset on close via ComposeboxProxy;
++      // this only updates the searchbox's local UI state.
++      this.$.searchbox.resetSmartTabSharing();
++    }
++
+     if (composeboxText && composeboxText.trim()) {
+       this.$.searchbox.setInputText(composeboxText);
+     }
+diff --git a/chrome/browser/resources/new_tab_page/ntp_searchbox.ts b/chrome/browser/resources/new_tab_page/ntp_searchbox.ts
+index 3ce3c16..ac96dd7 100644
+--- a/chrome/browser/resources/new_tab_page/ntp_searchbox.ts
++++ b/chrome/browser/resources/new_tab_page/ntp_searchbox.ts
+@@ -284,6 +284,9 @@
+   private pageHandler_: PageHandlerInterface;
+   private autocompleteResultChangedListenerId_: number|null = null;
+   private inputStateListenerId_: number|null = null;
++  // <if expr="not is_android">
++  private smartTabSharingUpdateGeneration_: number = 0;
++  // </if>
+ 
+   constructor() {
+     performance.mark('searchbox-creation-start');
+@@ -324,8 +327,11 @@
+     }
+ 
+     // <if expr="not is_android">
+-    this.smartTabSharingActive =
+-        (await this.pageHandler().getSmartTabSharingActive()).active;
++    const stsGeneration = ++this.smartTabSharingUpdateGeneration_;
++    const {active} = await this.pageHandler().getSmartTabSharingActive();
++    if (stsGeneration === this.smartTabSharingUpdateGeneration_) {
++      this.smartTabSharingActive = active;
++    }
+     // </if>
+   }
+ 
+@@ -552,6 +558,7 @@
+   protected onSmartTabSharingActiveChanged_(
+       _e: CustomEvent<{active: boolean}>) {
+     // <if expr="not is_android">
++    this.smartTabSharingUpdateGeneration_++;
+     this.smartTabSharingActive = _e.detail.active;
+     this.pageHandler().setSmartTabSharingActive(_e.detail.active);
+     if (_e.detail.active) {
+@@ -560,6 +567,25 @@
+     // </if>
+   }
+ 
++  /**
++   * Resets local Smart Tab Sharing state, and optionally requests the browser
++   * backend to reset its state as well. By default, only local UI state is
++   * cleared because the composebox component initiates the backend reset.
++   */
++  resetSmartTabSharing(_resetBackend: boolean = false) {
++    // <if expr="not is_android">
++    this.smartTabSharingActive = false;
++    if (_resetBackend) {
++      const generation = ++this.smartTabSharingUpdateGeneration_;
++      this.pageHandler().resetSmartTabSharing()?.then(({active}) => {
++        if (generation === this.smartTabSharingUpdateGeneration_) {
++          this.smartTabSharingActive = active;
++        }
++      });
++    }
++    // </if>
++  }
++
+   protected onShareTabsFlyoutOpenChanged_(e: CustomEvent<{open: boolean}>) {
+     this.shareTabsFlyoutOpen = e.detail.open;
+   }
+diff --git a/ui/webui/resources/cr_components/composebox/composebox_match.css b/ui/webui/resources/cr_components/composebox/composebox_match.css
+index 52668c6..f660a39 100644
+--- a/ui/webui/resources/cr_components/composebox/composebox_match.css
++++ b/ui/webui/resources/cr_components/composebox/composebox_match.css
+@@ -97,6 +97,7 @@
+   height: 100%;
+   margin-inline-start: -4px;
+   position: absolute;
++  top: 0;
+   width: 8px;
+ }
+ 
+diff --git a/ui/webui/resources/cr_components/composebox/composebox_mixin.ts b/ui/webui/resources/cr_components/composebox/composebox_mixin.ts
+index 8926d4c..7ebe216b 100644
+--- a/ui/webui/resources/cr_components/composebox/composebox_mixin.ts
++++ b/ui/webui/resources/cr_components/composebox/composebox_mixin.ts
+@@ -2435,6 +2435,18 @@
+               /*shouldBlockAutoSuggestedTabs=*/ false);
+           this.resetToolsAndModels();
+           this.suggestInventory = null;
++          // <if expr="not is_android">
++          if (this.smartTabSharingVisible && !afterSubmit && !this.submitting) {
++            this.smartTabSharingActive = false;
++            const generation = ++this.smartTabSharingUpdateGeneration_;
++            ComposeboxProxyImpl.getInstance().resetSmartTabSharing().then(
++                ({active}) => {
++                  if (generation === this.smartTabSharingUpdateGeneration_) {
++                    this.smartTabSharingActive = active;
++                  }
++                });
++          }
++          // </if>
+           this.fire(
+               'close-composebox', {composeboxText: this.input, afterSubmit});
+         }
+diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
+index 31c243a..c940c8b 100644
+--- a/v8/include/v8-version.h
++++ b/v8/include/v8-version.h
+@@ -11,7 +11,7 @@
+ #define V8_MAJOR_VERSION 15
+ #define V8_MINOR_VERSION 8
+ #define V8_BUILD_NUMBER 62
+-#define V8_PATCH_LEVEL 12
++#define V8_PATCH_LEVEL 13
+ 
+ // Use 1 for candidates and 0 otherwise.
+ // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/maglev/maglev-known-node-aspects.h b/v8/src/maglev/maglev-known-node-aspects.h
+index 3e6b955..ebcb26d 100644
+--- a/v8/src/maglev/maglev-known-node-aspects.h
++++ b/v8/src/maglev/maglev-known-node-aspects.h
+@@ -450,12 +450,10 @@
+   }
+ 
+   const NodeInfo* TryGetInfoFor(ValueNode* node) const {
+-    node = node->Unwrap();
+     return const_cast<KnownNodeAspects*>(this)->TryGetInfoFor(node);
+   }
+ 
+   NodeInfo* TryGetInfoFor(ValueNode* node) {
+-    node = node->Unwrap();
+     auto info_it = FindInfo(node);
+     if (!IsValid(info_it)) return nullptr;
+     return &info_it->second;
+@@ -471,8 +469,8 @@
+ 
+   NodeInfo* GetOrCreateInfoFor(compiler::JSHeapBroker* broker,
+                                ValueNode* node) {
+-    node = node->Unwrap();
+-    auto info_it = FindInfo(node);
++    node = UnwrapNode(node);
++    auto info_it = node_infos_.find(node);
+     if (IsValid(info_it)) return &info_it->second;
+     auto res = &node_infos_.emplace(node, NodeInfo()).first->second;
+     res->IntersectType(node->GetStaticType(broker));
+@@ -480,7 +478,6 @@
+   }
+ 
+   ValueNode* TryGetAlternativeFor(ValueNode* node, UseRepresentation repr) {
+-    node = node->Unwrap();
+     auto info_it = FindInfo(node);
+     if (!IsValid(info_it)) return nullptr;
+     return info_it->second.alternative().get(repr);
+@@ -1015,12 +1012,58 @@
+     return it->second->UnwrapIdentities();
+   }
+ 
++  // Only unwrap conversions that preserve `NodeType` invariants across
++  // representations (e.g. `kSmi` means Smi-tagged for tagged values, but only
++  // Smi-sized for untagged values).
++  // TODO(496266449): Remove once `kTagged` is split into `kSmi` and
++  // `kTaggedPointer` representations.
++  static ValueNode* UnwrapNode(ValueNode* node) {
++    while (true) {
++      if (node->Is<Identity>() || node->Is<ReturnedValue>()) {
++        node = node->input_node(0);
++        continue;
++      }
++      if (!node->is_conversion()) break;
++      switch (node->opcode()) {
++        case Opcode::kCheckedNumberToInt32:
++        case Opcode::kCheckedNumberToFloat64:
++        case Opcode::kUnsafeNumberToFloat64:
++        case Opcode::kCheckedObjectToIndex:
++        case Opcode::kUnsafeInt32ToUint32:
++          return node;
++        // kForceHeapNumber allocates a HeapNumber even for Smi-sized inputs.
++        case Opcode::kInt32ToNumber:
++          if (node->Cast<Int32ToNumber>()->conversion_mode() ==
++              NumberConversionMode::kForceHeapNumber) {
++            return node;
++          }
++          break;
++        case Opcode::kFloat64ToTagged:
++          if (node->Cast<Float64ToTagged>()->conversion_mode() ==
++              NumberConversionMode::kForceHeapNumber) {
++            return node;
++          }
++          break;
++        case Opcode::kHoleyFloat64ToTagged:
++          if (node->Cast<HoleyFloat64ToTagged>()->conversion_mode() ==
++              NumberConversionMode::kForceHeapNumber) {
++            return node;
++          }
++          break;
++        default:
++          break;
++      }
++      node = node->input_node(0);
++    }
++    return node;
++  }
++
+   NodeInfos::iterator FindInfo(ValueNode* node) {
+-    node = node->Unwrap();
++    node = UnwrapNode(node);
+     return node_infos_.find(node);
+   }
+   NodeInfos::const_iterator FindInfo(ValueNode* node) const {
+-    node = node->Unwrap();
++    node = UnwrapNode(node);
+     return node_infos_.find(node);
+   }
+   bool IsValid(NodeInfos::iterator& it) { return it != node_infos_.end(); }
