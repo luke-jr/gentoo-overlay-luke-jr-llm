@@ -1,10 +1,10 @@
 Chromium 158.0.8127.23 + the later changes of its release branch, up to
-014b8d742cb2c546ff296e20592c1d0335d28d3b (refs/branch-heads/8127@{#1070}), for the
+f7cf9fa574714315395045da2d4c6707c1d63410 (refs/branch-heads/8127@{#1078}), for the
 158.0.8127.23 tree that chromium-158.0.8127.18-to-158.0.8127.23.patch makes.
 
-Generated from the upstream diffs chromium/src refs/tags/158.0.8127.23..014b8d742cb2c546ff296e20592c1d0335d28d3b
-and the dependencies whose DEPS revision changed (V8, ICU, Dawn, Skia), as served by Gitiles,
-with scripts/chromium-delta --branch-fixes: left out are files not in the
+Generated from the upstream diffs chromium/src refs/tags/158.0.8127.23..f7cf9fa574714315395045da2d4c6707c1d63410
+and the dependencies whose DEPS revision changed (V8, ICU, Dawn, Skia, ANGLE),
+as served by Gitiles, with scripts/chromium-delta --branch-fixes: left out are files not in the
 release tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
 translations, PGO/orderfile pointers, submodule pointer updates.
 chrome/VERSION, DEPS and the stamp files stay at 158.0.8127.23.
@@ -12,8 +12,9 @@ chrome/VERSION, DEPS and the stamp files stay at 158.0.8127.23.
 Commits contributing to it (oldest first; "Roll commits from side projects"
 are the V8 updates, with "[maglev] Do not unwrap lossy conversions in KNA",
 "[maglev] Fix bailouts messing up non-escaping use counting" and "[ic] Fix the
-megamorphic cache variant of the DefineNamedOwn-inside-class bug", Skia's (tests only), and
-the Dawn one, with "[vulkan] Reset the recording context in Queue::DestroyImpl";
+megamorphic cache variant of the DefineNamedOwn-inside-class bug", Skia's, with
+"Fix heap-buffer-overflow in RunBasedAdditiveBlitter and AAA convex walker",
+ANGLE's (an Intel/Mesa Vulkan workaround), and the Dawn one, with "[vulkan] Reset the recording context in Queue::DestroyImpl";
 the ICU roll has two security fixes: usearch index overflow, number formatting):
   5981b113f92f [M158] [Omnibox] Don't open AskG CoBrowse panel without tab sharin
   0ed1f4f49387 [M158] Attribute zero-state opens to correct pin buttons
@@ -54,6 +55,12 @@ the ICU roll has two security fixes: usearch index overflow, number formatting):
   d8073382d397 [M158] [test] Don't hang ScopedPageFocusOverride after a forced de
   3c95444de3c4 [M158] [Navigation] Skip BrowsingInstance swap for kCurrentProcess
   014b8d742cb2 [M158] Avoid iterating mutated trigger maps during snapshot update
+  51707c83e225 Roll commits from side projects in M158
+  7a4dba53c692 [M158] [ChroMenu Glowup] Skip section headers in keyboard navigati
+  d38cb6994bc5 [M158] [dbsc] Gate the spare attestation key pool on SSO
+  195fc9346762 [M158][glic] Merge invocation error recovery fixes behind feature 
+  97417afed5f2 [M158] [iOS] Add loading pills when waiting for zero state suggest
+  f7cf9fa57471 Roll commits from side projects in M158
 
 Checked: applies to the 158.0.8127.23 tree; every patched file is
 byte-identical to its version at the commits above.
@@ -1436,6 +1443,375 @@ index 018df0c..c3a7cc9 100644
  };
  
  }  // namespace contextual_tasks
+diff --git a/chrome/browser/glic/glic_selection_observer.cc b/chrome/browser/glic/glic_selection_observer.cc
+index 4a5a4d7f..e7e8f603 100644
+--- a/chrome/browser/glic/glic_selection_observer.cc
++++ b/chrome/browser/glic/glic_selection_observer.cc
+@@ -5,6 +5,7 @@
+ #include "chrome/browser/glic/glic_selection_observer.h"
+ 
+ #include "base/containers/flat_set.h"
++#include "base/feature_list.h"
+ #include "base/functional/callback_helpers.h"
+ #include "base/logging.h"
+ #include "base/strings/string_split.h"
+@@ -17,6 +18,7 @@
+ #include "chrome/browser/glic/glic_zero_state_suggestions_manager.h"
+ #include "chrome/browser/glic/host/context/glic_sharing_utils.h"
+ #include "chrome/browser/glic/host/glic.mojom.h"
++#include "chrome/browser/glic/public/features.h"
+ #include "chrome/browser/glic/public/glic_enabling.h"
+ #include "chrome/browser/glic/public/glic_instance.h"
+ #include "chrome/browser/glic/public/glic_invoke_options.h"
+@@ -478,6 +480,13 @@
+     }
+   }
+ 
++  // Clearing a previous selection only matters while the panel is open to
++  // display it; never start an invocation just to send an empty selection.
++  if (selected_text.empty() &&
++      base::FeatureList::IsEnabled(features::kGlicInvokeErrorRecoveryFixes)) {
++    return;
++  }
++
+   // Otherwise fall back to an invocation so the surface is resolved and shown
+   // the same way as before.
+   GlicInvokeOptions options(glic::Target(*tab_interface),
+diff --git a/chrome/browser/glic/host/glic_ui.cc b/chrome/browser/glic/host/glic_ui.cc
+index a21021a..2af5611 100644
+--- a/chrome/browser/glic/host/glic_ui.cc
++++ b/chrome/browser/glic/host/glic_ui.cc
+@@ -377,6 +377,9 @@
+   source->AddBoolean(
+       "enableStructuredYieldMetadata",
+       base::FeatureList::IsEnabled(features::kGlicStructuredYieldMetadata));
++  source->AddBoolean(
++      "glicInvokeErrorRecoveryFixes",
++      base::FeatureList::IsEnabled(features::kGlicInvokeErrorRecoveryFixes));
+ }
+ 
+ WEB_UI_CONTROLLER_TYPE_IMPL(GlicUI)
+diff --git a/chrome/browser/glic/host/glic_webui_contents_manager.cc b/chrome/browser/glic/host/glic_webui_contents_manager.cc
+index 5b57f4e..d1a1c8f 100644
+--- a/chrome/browser/glic/host/glic_webui_contents_manager.cc
++++ b/chrome/browser/glic/host/glic_webui_contents_manager.cc
+@@ -86,10 +86,12 @@
+ 
+ GlicWebUIContentsManager::~GlicWebUIContentsManager() {
+   page_handler_ = nullptr;
+-  auto callbacks = std::move(pending_wait_for_load_callbacks_);
+-  pending_wait_for_load_callbacks_.clear();
+-  for (auto& [_, callback] : callbacks) {
+-    std::move(callback).Run(/*failed=*/true);
++  if (!base::FeatureList::IsEnabled(features::kGlicInvokeErrorRecoveryFixes)) {
++    auto callbacks = std::move(pending_wait_for_load_callbacks_);
++    pending_wait_for_load_callbacks_.clear();
++    for (auto& [_, callback] : callbacks) {
++      std::move(callback).Run(/*failed=*/true);
++    }
+   }
+   SetContentsManagerForWebContents(web_contents(), nullptr);
+   Observe(nullptr);
+diff --git a/chrome/browser/glic/public/features.cc b/chrome/browser/glic/public/features.cc
+index 8378f037..22c4c496e 100644
+--- a/chrome/browser/glic/public/features.cc
++++ b/chrome/browser/glic/public/features.cc
+@@ -355,4 +355,7 @@
+     &kGlicShowNotTellTutorials, "tutorials_arm", 0};
+ 
+ BASE_FEATURE(kGlicActivityHub, base::FEATURE_DISABLED_BY_DEFAULT);
++
++BASE_FEATURE(kGlicInvokeErrorRecoveryFixes,
++             FEATURE_ENABLED_BY_DEFAULT_ALL_PLATFORMS);
+ }  // namespace features
+diff --git a/chrome/browser/glic/public/features.h b/chrome/browser/glic/public/features.h
+index 642f915..d792f265b 100644
+--- a/chrome/browser/glic/public/features.h
++++ b/chrome/browser/glic/public/features.h
+@@ -260,6 +260,8 @@
+ extern const base::FeatureParam<int> kGlicShowNotTellTutorialsArm;
+ 
+ BASE_DECLARE_FEATURE(kGlicActivityHub);
++
++BASE_DECLARE_FEATURE(kGlicInvokeErrorRecoveryFixes);
+ }  // namespace features
+ 
+ #endif  // CHROME_BROWSER_GLIC_PUBLIC_FEATURES_H_
+diff --git a/chrome/browser/glic/service/glic_instance_coordinator_impl.cc b/chrome/browser/glic/service/glic_instance_coordinator_impl.cc
+index fcf8347..decca19 100644
+--- a/chrome/browser/glic/service/glic_instance_coordinator_impl.cc
++++ b/chrome/browser/glic/service/glic_instance_coordinator_impl.cc
+@@ -167,7 +167,13 @@
+   for (auto& [id, instance] : instances_) {
+     for (auto& handler : TakeInvokeHandlers(instance.get())) {
+       if (handler) {
+-        handler->CancelForInstanceRemoval(InstanceRemovalReason::kShutdown);
++        if (base::FeatureList::IsEnabled(
++                features::kGlicInvokeErrorRecoveryFixes)) {
++          std::exchange(handler, nullptr)
++              ->CancelForInstanceRemoval(InstanceRemovalReason::kShutdown);
++        } else {
++          handler->CancelForInstanceRemoval(InstanceRemovalReason::kShutdown);
++        }
+       }
+     }
+     instance->CloseInstanceAndShutdown();
+@@ -234,27 +240,42 @@
+ void GlicInstanceCoordinatorImpl::CancelInvoke(GlicInstanceImpl* instance) {
+   for (auto& handler : TakeInvokeHandlers(instance)) {
+     if (handler) {
+-      handler->Cancel(GlicInvokeError::kCancelled);
++      if (base::FeatureList::IsEnabled(
++              features::kGlicInvokeErrorRecoveryFixes)) {
++        std::exchange(handler, nullptr)->Cancel(GlicInvokeError::kCancelled);
++      } else {
++        handler->Cancel(GlicInvokeError::kCancelled);
++      }
+     }
+   }
+ }
+ 
+-void GlicInstanceCoordinatorImpl::CancelShowOnlyInvokes(
++void GlicInstanceCoordinatorImpl::CancelInvokesOnPanelClose(
+     GlicInstanceImpl* instance,
+     GlicInvokeError error) {
+   // Take the handlers out first: cancelling one re-enters
+   // OnInvokeHandlerComplete(), which would otherwise mutate the map under us.
+-  std::vector<std::unique_ptr<GlicInvokeHandler>> show_only;
++  const bool fix_enabled =
++      base::FeatureList::IsEnabled(features::kGlicInvokeErrorRecoveryFixes);
++  const bool client_ready =
++      instance->host().client_load_state() == ClientLoadState::kReady;
++  std::vector<std::unique_ptr<GlicInvokeHandler>> to_cancel;
+   auto [begin, end] = invoke_handlers_.equal_range(instance);
+   for (auto it = begin; it != end;) {
+-    if (it->second && !it->second->requires_client_invoke()) {
+-      show_only.push_back(std::move(invoke_handlers_.extract(it++).mapped()));
++    GlicInvokeHandler* handler = it->second.get();
++    if (handler && ((!handler->requires_client_invoke() && !client_ready) ||
++                    (fix_enabled && handler->NeedsFreCompletion()))) {
++      to_cancel.push_back(std::move(invoke_handlers_.extract(it++).mapped()));
+     } else {
+       ++it;
+     }
+   }
+-  for (auto& handler : show_only) {
+-    handler->Cancel(error);
++  for (auto& handler : to_cancel) {
++    if (fix_enabled) {
++      std::exchange(handler, nullptr)->Cancel(error);
++    } else {
++      handler->Cancel(error);
++    }
+   }
+ }
+ 
+@@ -658,9 +679,18 @@
+ 
+   for (auto& [instance, handler] : handlers) {
+     if (handler) {
+-      handler->CancelForInstanceRemoval(InstanceRemovalReason::kShutdown);
++      if (base::FeatureList::IsEnabled(
++              features::kGlicInvokeErrorRecoveryFixes)) {
++        std::exchange(handler, nullptr)
++            ->CancelForInstanceRemoval(InstanceRemovalReason::kShutdown);
++      } else {
++        handler->CancelForInstanceRemoval(InstanceRemovalReason::kShutdown);
++      }
+     }
+   }
++  if (base::FeatureList::IsEnabled(features::kGlicInvokeErrorRecoveryFixes)) {
++    handlers.clear();
++  }
+ 
+   for (auto& [instance_id, instance] : instances_) {
+     instance->Shutdown();
+@@ -1331,7 +1361,12 @@
+   // Invocations hold a reference to `instance`, so end them first.
+   for (auto& handler : TakeInvokeHandlers(instance)) {
+     if (handler) {
+-      handler->CancelForInstanceRemoval(reason);
++      if (base::FeatureList::IsEnabled(
++              features::kGlicInvokeErrorRecoveryFixes)) {
++        std::exchange(handler, nullptr)->CancelForInstanceRemoval(reason);
++      } else {
++        handler->CancelForInstanceRemoval(reason);
++      }
+     }
+   }
+ 
+diff --git a/chrome/browser/glic/service/glic_instance_coordinator_impl.h b/chrome/browser/glic/service/glic_instance_coordinator_impl.h
+index 52d97ac0..83c1452f 100644
+--- a/chrome/browser/glic/service/glic_instance_coordinator_impl.h
++++ b/chrome/browser/glic/service/glic_instance_coordinator_impl.h
+@@ -116,8 +116,8 @@
+                                      bool enabled) override;
+   bool IsInvoking(const GlicInstanceImpl* instance) const override;
+   void CancelInvoke(GlicInstanceImpl* instance) override;
+-  void CancelShowOnlyInvokes(GlicInstanceImpl* instance,
+-                             GlicInvokeError error) override;
++  void CancelInvokesOnPanelClose(GlicInstanceImpl* instance,
++                                 GlicInvokeError error) override;
+   // TODO(crbug.com/545714879): Remove OnInvoked, OnUserInputSubmitted, and
+   // OnFreOptInShown delegate overrides when GlicOnboardingTracker is refactored
+   // to free-standing profile helper functions.
+diff --git a/chrome/browser/glic/service/glic_instance_impl.cc b/chrome/browser/glic/service/glic_instance_impl.cc
+index 04d7dc6..d2ffe58 100644
+--- a/chrome/browser/glic/service/glic_instance_impl.cc
++++ b/chrome/browser/glic/service/glic_instance_impl.cc
+@@ -1650,18 +1650,20 @@
+   // Must be called early to avoid use-after-free if instance is deleted.
+   if (reason == EmbedderCloseReason::kExplicitlyClosed) {
+     OnEmbedderClosed(key);
+-    // The user dismissed the UI this instance was showing before the client
+-    // became usable, so an invocation that only came to show that UI is
+-    // abandoned rather than left to time out. Only the active embedder
+-    // counts: closing an inactive one, or the old embedder while moving the
+-    // conversation to another surface (detach/attach), does not take the UI
+-    // away. Invocations that will send something to the client keep running,
+-    // as the client may still act on them (and keep the instance alive, see
+-    // MaybeRemoveBlankInstanceOnClose()).
+-    if (IsActiveEmbedder(key) &&
+-        host_.client_load_state() != ClientLoadState::kReady &&
+-        coordinator_delegate_) {
+-      coordinator_delegate_->CancelShowOnlyInvokes(
++    // The user dismissed the UI this instance was showing before the
++    // invocation could finish, so an invocation that only came to show that UI
++    // before the client became usable, or any invocation still waiting on FRE
++    // completion in that UI, is abandoned rather than left to time out. Only
++    // the active embedder counts: closing an inactive one, or the old embedder
++    // while moving the conversation to another surface (detach/attach), does
++    // not take the UI away. Invocations that will send something to a
++    // consented client keep running, as the client may still act on them (and
++    // keep the instance alive, see MaybeRemoveBlankInstanceOnClose()).
++    if (IsActiveEmbedder(key) && coordinator_delegate_ &&
++        (base::FeatureList::IsEnabled(
++             features::kGlicInvokeErrorRecoveryFixes) ||
++         host_.client_load_state() != ClientLoadState::kReady)) {
++      coordinator_delegate_->CancelInvokesOnPanelClose(
+           this, GlicInvokeError::kPanelClosed);
+     }
+   }
+diff --git a/chrome/browser/glic/service/glic_instance_impl.h b/chrome/browser/glic/service/glic_instance_impl.h
+index 5e83425..13e81ff3 100644
+--- a/chrome/browser/glic/service/glic_instance_impl.h
++++ b/chrome/browser/glic/service/glic_instance_impl.h
+@@ -119,12 +119,13 @@
+ 
+     virtual bool IsInvoking(const GlicInstanceImpl* instance) const = 0;
+     virtual void CancelInvoke(GlicInstanceImpl* instance) = 0;
+-    // Ends the in-flight invocations on `instance` that only show the UI
+-    // (see GlicInvokeHandler::requires_client_invoke()) with `error`.
+-    // Invocations that will send something to the web client are left
+-    // running, as the client may still act on them.
+-    virtual void CancelShowOnlyInvokes(GlicInstanceImpl* instance,
+-                                       GlicInvokeError error) = 0;
++    // Ends the in-flight invocations on `instance` that cannot proceed once
++    // the panel is closed (show-only invocations while the client is still
++    // loading, or any invocation still waiting on FRE completion in the panel)
++    // with `error`. Invocations that will send something to a consented web
++    // client are left running, as the client may still act on them.
++    virtual void CancelInvokesOnPanelClose(GlicInstanceImpl* instance,
++                                           GlicInvokeError error) = 0;
+ 
+     // TODO(crbug.com/545714879): Remove OnInvoked, OnUserInputSubmitted,
+     // and OnFreOptInShown from InstanceCoordinatorDelegate when onboarding
+diff --git a/chrome/browser/glic/service/glic_invoke_handler.cc b/chrome/browser/glic/service/glic_invoke_handler.cc
+index 5e9583c..977d3c9c 100644
+--- a/chrome/browser/glic/service/glic_invoke_handler.cc
++++ b/chrome/browser/glic/service/glic_invoke_handler.cc
+@@ -612,4 +612,18 @@
+   return main_task_->GetLastActiveTaskType();
+ }
+ 
++bool GlicInvokeHandler::NeedsFreCompletion() const {
++  if (GlicEnabling::HasConsentedForProfile(instance_->profile())) {
++    return false;
++  }
++  if (options_.fre_override != mojom::FreOverride::kTrustFirstClick &&
++      options_.fre_override != mojom::FreOverride::kUnspecified) {
++    return false;
++  }
++  return options_.fre_completion_wait_mode == FreCompletionWaitMode::kAlways ||
++         (options_.fre_completion_wait_mode ==
++              FreCompletionWaitMode::kDefault &&
++          requires_client_invoke_);
++}
++
+ }  // namespace glic
+diff --git a/chrome/browser/glic/service/glic_invoke_handler.h b/chrome/browser/glic/service/glic_invoke_handler.h
+index 3094efd..3777f0f 100644
+--- a/chrome/browser/glic/service/glic_invoke_handler.h
++++ b/chrome/browser/glic/service/glic_invoke_handler.h
+@@ -96,6 +96,10 @@
+   // See RequiresClientInvoke().
+   bool requires_client_invoke() const { return requires_client_invoke_; }
+ 
++  // Whether this invocation is waiting (or will wait) on the user completing
++  // the FRE in the panel before it can finish.
++  bool NeedsFreCompletion() const;
++
+   // The metrics invocation ID for this invocation.
+   uint64_t invocation_id() const { return metrics_->GetInvocationId(); }
+ 
+diff --git a/chrome/browser/glic/service/glic_invoke_task.cc b/chrome/browser/glic/service/glic_invoke_task.cc
+index efd2dc9..686035d 100644
+--- a/chrome/browser/glic/service/glic_invoke_task.cc
++++ b/chrome/browser/glic/service/glic_invoke_task.cc
+@@ -5,6 +5,7 @@
+ #include "chrome/browser/glic/service/glic_invoke_task.h"
+ 
+ #include "base/barrier_closure.h"
++#include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "base/functional/callback_helpers.h"
+ #include "base/strings/escape.h"
+@@ -15,6 +16,7 @@
+ #include "chrome/browser/actor/ui/actor_ui_state_manager.h"
+ #include "chrome/browser/enterprise/data_protection/data_protection_clipboard_utils.h"
+ #include "chrome/browser/glic/glic_enums.h"
++#include "chrome/browser/glic/public/features.h"
+ #include "chrome/browser/glic/public/glic_context_menu_invocation_helper.h"
+ #include "chrome/browser/glic/public/glic_enabling.h"
+ #include "chrome/browser/glic/public/glic_keyed_service.h"
+@@ -299,11 +301,13 @@
+ 
+ void WaitForClientReadyTask::Start(base::OnceClosure done_callback) {
+   done_callback_ = std::move(done_callback);
+-  if (host_->client_load_state() == ClientLoadState::kReady) {
+-    CheckState(ClientLoadState::kReady);
+-    return;
++  if (base::FeatureList::IsEnabled(features::kGlicInvokeErrorRecoveryFixes)) {
++    if (host_->client_load_state() == ClientLoadState::kReady) {
++      CheckState(ClientLoadState::kReady);
++      return;
++    }
++    observation_.Observe(&*host_);
+   }
+-  observation_.Observe(&*host_);
+   // TODO(b/573171097): Have Invoke send an explicit load request to the
+   // instance/host that is guaranteed to resolve, rather than triggering load
+   // and waiting for load separately.
+@@ -318,6 +322,9 @@
+     CheckState(ClientLoadState::kError);
+     return;
+   }
++  if (!base::FeatureList::IsEnabled(features::kGlicInvokeErrorRecoveryFixes)) {
++    observation_.Observe(&*host_);
++  }
+   CheckState(host_->client_load_state());
+ }
+ 
+@@ -325,7 +332,8 @@
+   // Before `WaitForLoad()` resolves, `ClientLoadState::kError` may reflect a
+   // stale error from before `IntentToShow()` triggered a reload. Readiness is
+   // authoritative in the browser process and can resolve immediately.
+-  if (state == ClientLoadState::kError && !wait_for_load_complete_) {
++  if (base::FeatureList::IsEnabled(features::kGlicInvokeErrorRecoveryFixes) &&
++      state == ClientLoadState::kError && !wait_for_load_complete_) {
+     return;
+   }
+   CheckState(state);
 diff --git a/chrome/browser/media/webrtc/native_desktop_media_list.cc b/chrome/browser/media/webrtc/native_desktop_media_list.cc
 index 7658533..56376b8 100644
 --- a/chrome/browser/media/webrtc/native_desktop_media_list.cc
@@ -1493,6 +1869,47 @@ index 8c6a3000..e086a5f2 100644
        this.toolbarBrowserProxy_.callbackRouter.onContextUpdated.addListener(
            (contextInfos: ContextInfo[]) => {
              this.contextInfos = contextInfos;
+diff --git a/chrome/browser/resources/glic/glic_app_controller.ts b/chrome/browser/resources/glic/glic_app_controller.ts
+index 75f32af..b5ecb978 100644
+--- a/chrome/browser/resources/glic/glic_app_controller.ts
++++ b/chrome/browser/resources/glic/glic_app_controller.ts
+@@ -30,6 +30,8 @@
+ const kMaxWaitTimeMs = loadTimeData.getInteger('maxLoadingTimeMs');
+ 
+ const kShowErrorAllowed = loadTimeData.getBoolean('showErrorAllowed');
++const kInvokeErrorRecoveryFixes =
++    loadTimeData.getBoolean('glicInvokeErrorRecoveryFixes');
+ 
+ interface PageElementTypes {
+   panelContainer: HTMLElement;
+@@ -794,9 +796,11 @@
+       return;
+     }
+     if (this.panelStateKind === PanelStateKind.kHidden) {
+-      this.cancelTimeout();
+-      this.trackLoadingStageEnd();
+-      this.setState(WebUiState.kWarmed);
++      if (!kInvokeErrorRecoveryFixes) {
++        this.cancelTimeout();
++        this.trackLoadingStageEnd();
++        this.setState(WebUiState.kWarmed);
++      }
+       return;
+     }
+     this.startClientLoadTimeout();
+@@ -988,7 +992,11 @@
+     if (this.panelStateKind !== PanelStateKind.kHidden) {
+       if (this.state === WebUiState.kWarmed) {
+         this.startWarmedTimeout();
+-      } else if (this.state === WebUiState.kGuestLoaded && !this.loadingTimer) {
++      } else if (
++          ((kInvokeErrorRecoveryFixes &&
++            this.state === WebUiState.kFinishLoading) ||
++           this.state === WebUiState.kGuestLoaded) &&
++          !this.loadingTimer) {
+         this.startClientLoadTimeout();
+       }
+     }
 diff --git a/chrome/browser/resources/new_tab_page/app.ts b/chrome/browser/resources/new_tab_page/app.ts
 index 9809a0a..dea642b 100644
 --- a/chrome/browser/resources/new_tab_page/app.ts
@@ -1581,6 +1998,44 @@ index 3ce3c16..ac96dd7 100644
    protected onShareTabsFlyoutOpenChanged_(e: CustomEvent<{open: boolean}>) {
      this.shareTabsFlyoutOpen = e.detail.open;
    }
+diff --git a/chrome/browser/signin/bound_session_credentials/unexportable_key_service_factory.cc b/chrome/browser/signin/bound_session_credentials/unexportable_key_service_factory.cc
+index 5b43017..6ab6066 100644
+--- a/chrome/browser/signin/bound_session_credentials/unexportable_key_service_factory.cc
++++ b/chrome/browser/signin/bound_session_credentials/unexportable_key_service_factory.cc
+@@ -8,6 +8,7 @@
+ 
+ #include "base/check_deref.h"
+ #include "base/containers/span.h"
++#include "base/feature_list.h"
+ #include "base/functional/callback.h"
+ #include "base/no_destructor.h"
+ #include "base/notreached.h"
+@@ -28,6 +29,7 @@
+ #include "crypto/hash.h"
+ #include "crypto/unexportable_key.h"
+ #include "mojo/public/cpp/bindings/pending_receiver.h"
++#include "net/base/features.h"
+ #include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
+ 
+ namespace {
+@@ -70,8 +72,16 @@
+ 
+   if (unexportable_keys::UnexportableKeyTaskManager* task_manager =
+           GetSharedTaskManagerInstance()) {
++    // Only DBSC single sign-on requests attestation keys. Check the origin
++    // first: reading a feature activates its field trial.
++    const bool enable_spare_attestation_key_pool =
++        task_origin == unexportable_keys::BackgroundTaskOrigin::
++                           kDeviceBoundSessionCredentials &&
++        base::FeatureList::IsEnabled(
++            net::features::kDeviceBoundSessionsForSingleSignOn);
+     return std::make_unique<unexportable_keys::UnexportableKeyServiceImpl>(
+-        *task_manager, task_origin, std::move(config));
++        *task_manager, task_origin, std::move(config),
++        enable_spare_attestation_key_pool);
+   }
+ 
+   return nullptr;
 diff --git a/chrome/browser/ui/browser_actions.cc b/chrome/browser/ui/browser_actions.cc
 index 411759d..a644380 100644
 --- a/chrome/browser/ui/browser_actions.cc
@@ -2199,6 +2654,57 @@ index 707a859..20e565a 100755
          '--force-message',
          commit_message,
      ]
+diff --git a/components/unexportable_keys/unexportable_key_service_impl.cc b/components/unexportable_keys/unexportable_key_service_impl.cc
+index 47ee9c6..aecdcf578 100644
+--- a/components/unexportable_keys/unexportable_key_service_impl.cc
++++ b/components/unexportable_keys/unexportable_key_service_impl.cc
+@@ -670,7 +670,8 @@
+ UnexportableKeyServiceImpl::UnexportableKeyServiceImpl(
+     UnexportableKeyTaskManager& task_manager,
+     BackgroundTaskOrigin task_origin,
+-    crypto::UnexportableKeyProvider::Config config)
++    crypto::UnexportableKeyProvider::Config config,
++    bool enable_spare_attestation_key_pool)
+     : task_manager_(task_manager),
+       task_origin_(task_origin),
+       config_(config),
+@@ -683,10 +684,12 @@
+         CreateGenerateKeyCallbackForSparePool<RefCountedUnexportableSigningKey>(
+             &task_manager, task_origin));
+ 
+-    spare_attestation_key_pool_ = std::make_unique<SpareAttestationKeyPool>(
+-        config_,
+-        CreateGenerateKeyCallbackForSparePool<
+-            RefCountedUnexportableAttestationKey>(&task_manager, task_origin));
++    if (enable_spare_attestation_key_pool) {
++      spare_attestation_key_pool_ = std::make_unique<SpareAttestationKeyPool>(
++          config_, CreateGenerateKeyCallbackForSparePool<
++                       RefCountedUnexportableAttestationKey>(&task_manager,
++                                                             task_origin));
++    }
+   }
+ }
+ 
+diff --git a/components/unexportable_keys/unexportable_key_service_impl.h b/components/unexportable_keys/unexportable_key_service_impl.h
+index 9a9e2a6..3ee6086 100644
+--- a/components/unexportable_keys/unexportable_key_service_impl.h
++++ b/components/unexportable_keys/unexportable_key_service_impl.h
+@@ -62,10 +62,14 @@
+     : public UnexportableKeyService {
+  public:
+   // `task_manager` must outlive `UnexportableKeyServiceImpl`.
++  // When the service creates its spare signing key pool, it also creates a
++  // spare attestation key pool if `enable_spare_attestation_key_pool` is true.
++  // Only DBSC single sign-on requests attestation keys.
+   explicit UnexportableKeyServiceImpl(
+       UnexportableKeyTaskManager& task_manager,
+       BackgroundTaskOrigin task_origin,
+-      crypto::UnexportableKeyProvider::Config config);
++      crypto::UnexportableKeyProvider::Config config,
++      bool enable_spare_attestation_key_pool = false);
+ 
+   ~UnexportableKeyServiceImpl() override;
+ 
 diff --git a/content/browser/bluetooth/bluetooth_device_chooser_controller.cc b/content/browser/bluetooth/bluetooth_device_chooser_controller.cc
 index 7097da8..a09e0f5c 100644
 --- a/content/browser/bluetooth/bluetooth_device_chooser_controller.cc
@@ -2383,6 +2889,44 @@ index 62053b7..72d74d6 100644
  BASE_DECLARE_FEATURE(kExtensionDebuggerStrictPolicyRestrictions);
  
  // If enabled (the default), ExtensionDownloader decides whether to require Web
+diff --git a/net/device_bound_sessions/unexportable_key_service_factory.cc b/net/device_bound_sessions/unexportable_key_service_factory.cc
+index 7686a6e3..1a2bb30d 100644
+--- a/net/device_bound_sessions/unexportable_key_service_factory.cc
++++ b/net/device_bound_sessions/unexportable_key_service_factory.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "net/device_bound_sessions/unexportable_key_service_factory.h"
+ 
++#include "base/feature_list.h"
+ #include "base/logging.h"
+ #include "build/branding_buildflags.h"
+ #include "components/unexportable_keys/background_task_origin.h"
+@@ -11,6 +12,7 @@
+ #include "components/unexportable_keys/unexportable_key_service_impl.h"
+ #include "components/unexportable_keys/unexportable_key_task_manager.h"
+ #include "crypto/unexportable_key.h"
++#include "net/base/features.h"
+ 
+ namespace {
+ 
+@@ -96,12 +98,16 @@
+     unexportable_keys::UnexportableKeyTaskManager* task_manager =
+         GetSharedTaskManagerInstance();
+     if (task_manager) {
++      // Only DBSC single sign-on requests attestation keys.
+       unexportable_key_service_ =
+           std::make_unique<unexportable_keys::UnexportableKeyServiceImpl>(
+               *task_manager,
+               unexportable_keys::BackgroundTaskOrigin::
+                   kDeviceBoundSessionCredentials,
+-              GetConfig());
++              GetConfig(),
++              /*enable_spare_attestation_key_pool=*/
++              base::FeatureList::IsEnabled(
++                  features::kDeviceBoundSessionsForSingleSignOn));
+     }
+   }
+ 
 diff --git a/third_party/blink/renderer/core/animation/scroll_snapshot_timeline.cc b/third_party/blink/renderer/core/animation/scroll_snapshot_timeline.cc
 index 9153b58..98aaedb 100644
 --- a/third_party/blink/renderer/core/animation/scroll_snapshot_timeline.cc
@@ -2476,6 +3020,27 @@ index 84e41cb1..4beb2ba 100644
 +      TAB_PICKER = 4;
      }
      InputType input_type = 2;
+ 
+diff --git a/ui/views/controls/menu/menu_item_view.cc b/ui/views/controls/menu/menu_item_view.cc
+index 77e8e87..27daaff 100644
+--- a/ui/views/controls/menu/menu_item_view.cc
++++ b/ui/views/controls/menu/menu_item_view.cc
+@@ -1100,8 +1100,14 @@
+ }
+ 
+ bool MenuItemView::IsTraversableByKeyboard() const {
+-  bool ignore_enabled =
+-      ui::AXPlatform::GetInstance().GetMode().has_mode(ui::AXMode::kNativeAPIs);
++  const ui::AXMode mode = ui::AXPlatform::GetInstance().GetMode();
++  // Disabled items are traversable with assistive technology so they can be
++  // discovered. Titles (section headers) aren't actionable, so they require
++  // screen-reader-class AT (kScreenReader, which also covers magnifiers).
++  // kNativeAPIs alone is often set on Windows by tools that aren't AT.
++  const bool ignore_enabled = type_ == Type::kTitle
++                                  ? mode.has_mode(ui::AXMode::kScreenReader)
++                                  : mode.has_mode(ui::AXMode::kNativeAPIs);
+   return GetVisible() && (ignore_enabled || GetEnabledInViewsSubtree());
+ }
  
 diff --git a/ui/webui/resources/cr_components/composebox/composebox_match.css b/ui/webui/resources/cr_components/composebox/composebox_match.css
 index 52668c6..f660a39 100644
@@ -4047,3 +4612,311 @@ index e396d87..a69e539 100644
  
      // Free any recycled command pools.
      mUnusedCommands.Use([&](auto unusedCommands) {
+diff --git a/third_party/skia/gn/tests.gni b/third_party/skia/gn/tests.gni
+index 4818502..bac07ea 100644
+--- a/third_party/skia/gn/tests.gni
++++ b/third_party/skia/gn/tests.gni
+@@ -186,6 +186,7 @@
+   "$_tests/RandomTest.cpp",
+   "$_tests/RasterPipelineBuilderTest.cpp",
+   "$_tests/RasterPipelineCodeGeneratorTest.cpp",
++  "$_tests/RasterizationTests.cpp",
+   "$_tests/RawPtrTest.cpp",
+   "$_tests/ReadPixelsTest.cpp",
+   "$_tests/RecordDrawTest.cpp",
+diff --git a/third_party/skia/src/core/SkAnalyticEdge.h b/third_party/skia/src/core/SkAnalyticEdge.h
+index 0578a38..4424205 100644
+--- a/third_party/skia/src/core/SkAnalyticEdge.h
++++ b/third_party/skia/src/core/SkAnalyticEdge.h
+@@ -62,12 +62,20 @@
+     // Update fX, fY of this edge so fY = y
+     inline void goY(SkFixed y) {
+         if (y == fY + SK_Fixed1) {
++#if defined(SK_LEGACY_ALPHA_RUNS)
+             fX = fX + fDX;
++#else
++            fX = Sk32_sat_add(fX, fDX);
++#endif
+             fY = y;
+         } else if (y != fY) {
+             // Drop lower digits as our alpha only has 8 bits
+             // (fDX and y - fUpperY may be greater than SK_Fixed1)
++#if defined(SK_LEGACY_ALPHA_RUNS)
+             fX = fUpperX + SkFixedMul(fDX, y - fUpperY);
++#else
++            fX = Sk64_pin_to_s32(fUpperX + ((int64_t)fDX * (y - fUpperY) >> 16));
++#endif
+             fY = y;
+         }
+     }
+@@ -76,7 +84,11 @@
+         SkASSERT(yShift >= 0 && yShift <= kDefaultAccuracy);
+         SkASSERT(fDX == 0 || y - fY == SK_Fixed1 >> yShift);
+         fY = y;
++#if defined(SK_LEGACY_ALPHA_RUNS)
+         fX += fDX >> yShift;
++#else
++        fX = Sk32_sat_add(fX, fDX >> yShift);
++#endif
+     }
+ 
+     bool setLine(const SkPoint& p0, const SkPoint& p1);
+diff --git a/third_party/skia/src/core/SkEdgeBuilder.cpp b/third_party/skia/src/core/SkEdgeBuilder.cpp
+index b1f4076..75df185 100644
+--- a/third_party/skia/src/core/SkEdgeBuilder.cpp
++++ b/third_party/skia/src/core/SkEdgeBuilder.cpp
+@@ -42,6 +42,11 @@
+         }
+         return kNo_Combine;
+     }
++#if !defined(SK_LEGACY_ALPHA_RUNS)
++    if (!fCanCullToTheRight) {
++        return kNo_Combine;
++    }
++#endif
+     if (edge->fFirstY == last->fFirstY) {
+         if (edge->fLastY == last->fLastY) {
+             return kTotal_Combine;
+@@ -91,6 +96,11 @@
+         }
+         return kNo_Combine;
+     }
++#if !defined(SK_LEGACY_ALPHA_RUNS)
++    if (!fCanCullToTheRight) {
++        return kNo_Combine;
++    }
++#endif
+     if (approximately_equal(edge->fUpperY, last->fUpperY)) {
+         if (approximately_equal(edge->fLowerY, last->fLowerY)) {
+             return kTotal_Combine;
+@@ -352,6 +362,9 @@
+                               const SkIRect* shiftedClip) {
+     // If we're convex, then we need both edges, even if the right edge is past the clip.
+     const bool canCullToTheRight = !raw.isKnownToBeConvex();
++#if !defined(SK_LEGACY_ALPHA_RUNS)
++    fCanCullToTheRight = canCullToTheRight;
++#endif
+ 
+     // We can use our buildPoly() optimization if all the segments are lines.
+     // (Edges are homogeneous and stored contiguously in memory, no need for indirection.)
+diff --git a/third_party/skia/src/core/SkEdgeBuilder.h b/third_party/skia/src/core/SkEdgeBuilder.h
+index 2668876..980e4d6 100644
+--- a/third_party/skia/src/core/SkEdgeBuilder.h
++++ b/third_party/skia/src/core/SkEdgeBuilder.h
+@@ -37,6 +37,9 @@
+     void**              fEdgeList = nullptr;
+     SkTDArray<void*>    fList;
+     SkSTArenaAlloc<512> fAlloc;
++#if !defined(SK_LEGACY_ALPHA_RUNS)
++    bool                fCanCullToTheRight = true;
++#endif
+ 
+     enum Combine {
+         kNo_Combine,
+diff --git a/third_party/skia/src/core/SkScan_AAAPath.cpp b/third_party/skia/src/core/SkScan_AAAPath.cpp
+index c08638b..06936f8 100644
+--- a/third_party/skia/src/core/SkScan_AAAPath.cpp
++++ b/third_party/skia/src/core/SkScan_AAAPath.cpp
+@@ -321,7 +321,11 @@
+ 
+     int fOffsetX;
+ 
++#if defined(SK_LEGACY_ALPHA_RUNS)
+     bool check(int x, int width) const { return x >= 0 && x + width <= fWidth; }
++#else
++    bool check(int x, int width) const { return x >= 0 && width >= 0 && x + width <= fWidth; }
++#endif
+ 
+     // extra one to store the zero at the end
+     int getRunsSz() const { return (fWidth + 1 + (fWidth + 2) / 2) * sizeof(int16_t); }
+@@ -410,6 +414,11 @@
+         x = 0;
+     }
+     len = std::min(len, fWidth - x);
++#if !defined(SK_LEGACY_ALPHA_RUNS)
++    if (len <= 0) {
++        return;
++    }
++#endif
+     SkASSERT(check(x, len));
+ 
+     if (x < fOffsetX) {
+@@ -446,6 +455,17 @@
+     checkY(y);
+     x -= fLeft;
+ 
++#if !defined(SK_LEGACY_ALPHA_RUNS)
++    if (x < 0) {
++        width += x;
++        x = 0;
++    }
++    width = std::min(width, fWidth - x);
++    if (width <= 0) {
++        return;
++    }
++#endif
++
+     if (x < fOffsetX) {
+         fOffsetX = 0;
+     }
+@@ -480,6 +500,11 @@
+         x = 0;
+     }
+     len = std::min(len, fWidth - x);
++#if !defined(SK_LEGACY_ALPHA_RUNS)
++    if (len <= 0) {
++        return;
++    }
++#endif
+     SkASSERT(check(x, len));
+ 
+     if (x < fOffsetX) {
+@@ -518,6 +543,17 @@
+     checkY(y);
+     x -= fLeft;
+ 
++#if !defined(SK_LEGACY_ALPHA_RUNS)
++    if (x < 0) {
++        width += x;
++        x = 0;
++    }
++    width = std::min(width, fWidth - x);
++    if (width <= 0) {
++        return;
++    }
++#endif
++
+     if (x < fOffsetX) {
+         fOffsetX = 0;
+     }
+@@ -1053,6 +1089,7 @@
+     for (;;) {
+         // We have to check fLowerY first because some edges might be alone (e.g., there's only
+         // a left edge but no right edge in a given y scan line) due to precision limit.
++#if defined(SK_LEGACY_ALPHA_RUNS)
+         while (leftE->fLowerY <= y) {  // Due to smooth jump, we may pass multiple short edges
+             if (!leftE->update(y)) {
+                 if (SkFixedFloorToInt(currE->fUpperY) >= stop_y) {
+@@ -1071,6 +1108,31 @@
+                 currE = (SkAnalyticEdge*)currE->fNext;
+             }
+         }
++#else
++        while (leftE->fLowerY <= y || riteE->fLowerY <= y) {
++            while (leftE->fLowerY <= y) {  // Due to smooth jump, we may pass multiple short edges
++                if (!leftE->update(y)) {
++                    if (SkFixedFloorToInt(currE->fUpperY) >= stop_y) {
++                        goto END_WALK;
++                    }
++                    leftE = currE;
++                    currE = (SkAnalyticEdge*)currE->fNext;
++                }
++            }
++            while (riteE->fLowerY <= y) {  // Due to smooth jump, we may pass multiple short edges
++                if (!riteE->update(y)) {
++                    if (SkFixedFloorToInt(currE->fUpperY) >= stop_y) {
++                        goto END_WALK;
++                    }
++                    riteE = currE;
++                    currE = (SkAnalyticEdge*)currE->fNext;
++                }
++            }
++            SkFixed prevY = y;
++            y = std::max({y, leftE->fUpperY, riteE->fUpperY});
++            blitter->flush_if_y_changed(prevY, y);
++        }
++#endif
+ 
+         SkASSERT(leftE);
+         SkASSERT(riteE);
+@@ -1096,9 +1158,15 @@
+         }
+         local_bot_fixed = std::min(local_bot_fixed, SkIntToFixed(stop_y));
+ 
++#if defined(SK_LEGACY_ALPHA_RUNS)
+         SkFixed left  = std::max(leftBound, leftE->fX);
+         SkFixed dLeft = leftE->fDX;
+         SkFixed rite  = std::min(riteBound, riteE->fX);
++#else
++        SkFixed left  = std::clamp(leftE->fX, leftBound, riteBound);
++        SkFixed dLeft = leftE->fDX;
++        SkFixed rite  = std::clamp(riteE->fX, leftBound, riteBound);
++#endif
+         SkFixed dRite = riteE->fDX;
+         if (0 == (dLeft | dRite)) {
+             int     fullLeft    = SkFixedCeilToInt(left);
+@@ -1196,6 +1264,10 @@
+             const SkFixed kSnapMask  = (-1 ^ (kSnapDigit - 1));
+             left += kSnapHalf;
+             rite += kSnapHalf;  // For fast rounding
++#if !defined(SK_LEGACY_ALPHA_RUNS)
++            const SkFixed minX = leftBound + kSnapHalf;
++            const SkFixed maxX = riteBound + kSnapHalf;
++#endif
+ 
+             // Number of blit_trapezoid_row calls we'll have
+             int count = SkFixedCeilToInt(local_bot_fixed) - SkFixedFloorToInt(y);
+@@ -1215,8 +1287,15 @@
+                     count--;
+                     SkFixed nextY    = SkFixedCeilToFixed(y + 1);
+                     SkFixed dY       = nextY - y;
++#if defined(SK_LEGACY_ALPHA_RUNS)
+                     SkFixed nextLeft = left + SkFixedMul(dLeft, dY);
+                     SkFixed nextRite = rite + SkFixedMul(dRite, dY);
++#else
++                    SkFixed nextLeft =
++                            std::clamp(Sk32_sat_add(left, SkFixedMul(dLeft, dY)), minX, maxX);
++                    SkFixed nextRite =
++                            std::clamp(Sk32_sat_add(rite, SkFixedMul(dRite, dY)), minX, maxX);
++#endif
+                     SkASSERT((left & kSnapMask) >= leftBound && (rite & kSnapMask) <= riteBound &&
+                              (nextLeft & kSnapMask) >= leftBound &&
+                              (nextRite & kSnapMask) <= riteBound);
+@@ -1242,7 +1321,13 @@
+                     if (isUsingMask) {
+                         maskRow = static_cast<MaskAdditiveBlitter*>(blitter)->getRow(y >> 16);
+                     }
++#if defined(SK_LEGACY_ALPHA_RUNS)
+                     SkFixed nextY = y + SK_Fixed1, nextLeft = left + dLeft, nextRite = rite + dRite;
++#else
++                    SkFixed nextY    = y + SK_Fixed1;
++                    SkFixed nextLeft = std::clamp(Sk32_sat_add(left, dLeft), minX, maxX);
++                    SkFixed nextRite = std::clamp(Sk32_sat_add(rite, dRite), minX, maxX);
++#endif
+                     SkASSERT((left & kSnapMask) >= leftBound && (rite & kSnapMask) <= riteBound &&
+                              (nextLeft & kSnapMask) >= leftBound &&
+                              (nextRite & kSnapMask) <= riteBound);
+@@ -1273,8 +1358,13 @@
+             // Smooth jumping to integer y may make the last nextLeft/nextRite out of bound.
+             // Take them back into the bound here.
+             // Note that we substract kSnapHalf later so we have to add them to leftBound/riteBound
++#if defined(SK_LEGACY_ALPHA_RUNS)
+             SkFixed nextLeft = std::max(left + SkFixedMul(dLeft, dY), leftBound + kSnapHalf);
+             SkFixed nextRite = std::min(rite + SkFixedMul(dRite, dY), riteBound + kSnapHalf);
++#else
++            SkFixed nextLeft = std::clamp(Sk32_sat_add(left, SkFixedMul(dLeft, dY)), minX, maxX);
++            SkFixed nextRite = std::clamp(Sk32_sat_add(rite, SkFixedMul(dRite, dY)), minX, maxX);
++#endif
+             SkASSERT((left & kSnapMask) >= leftBound && (rite & kSnapMask) <= riteBound &&
+                      (nextLeft & kSnapMask) >= leftBound && (nextRite & kSnapMask) <= riteBound);
+             blit_trapezoid_row(blitter,
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/vk_renderer.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/vk_renderer.cpp
+index dd2a0f1..dca0f29 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/vk_renderer.cpp
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/vk_renderer.cpp
+@@ -6670,11 +6670,14 @@
+     // SimpleStateChangeTestES31.FragWriteSSBOThenChangeDrawbuffersThenWriteSSBO*,
+     // VulkanPerformanceCounterTest_ES31.ColorMaskedFramebufferFetchDraw*, and
+     // VulkanPerformanceCounterTest_ES31.FramebufferFetchRenderPassThenColorMaskedDraw* tests.
++    //
++    // Disabled on Intel/mesa drivers, due to driver bugs.  http://crbug.com/577864200
+     ANGLE_FEATURE_CONDITION(
+         &mFeatures, supportsAlphaToCoverageEnableDynamicState,
+         mFeatures.supportsExtendedDynamicState3.enabled &&
+             mExtendedDynamicState3Features.extendedDynamicState3AlphaToCoverageEnable == VK_TRUE &&
+-            isRasterizerDiscardDynamicState && !(isIntel && IsWindows()));
++            isRasterizerDiscardDynamicState && !(isIntel && IsWindows()) &&
++            !(isIntel && IsLinux()));
+ 
+     // Disabled on Imagination drivers due to test failures and device loss.
+     ANGLE_FEATURE_CONDITION(
