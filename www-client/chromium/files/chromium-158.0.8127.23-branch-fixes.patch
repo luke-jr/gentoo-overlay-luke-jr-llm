@@ -1,16 +1,18 @@
 Chromium 158.0.8127.23 + the later changes of its release branch, up to
-2d22e0a403f7cdbbe3387e6ef7b3c84ddd7eb864 (refs/branch-heads/8127@{#1036}), for the
+a9c1251a7d2b77f99d0f36794af49f07cff0b6c4 (refs/branch-heads/8127@{#1055}), for the
 158.0.8127.23 tree that chromium-158.0.8127.18-to-158.0.8127.23.patch makes.
 
-Generated from the upstream diffs chromium/src refs/tags/158.0.8127.23..2d22e0a403f7cdbbe3387e6ef7b3c84ddd7eb864
-and the dependencies whose DEPS revision changed (V8, ICU, Dawn), as served by Gitiles,
+Generated from the upstream diffs chromium/src refs/tags/158.0.8127.23..a9c1251a7d2b77f99d0f36794af49f07cff0b6c4
+and the dependencies whose DEPS revision changed (V8, ICU, Dawn, Skia), as served by Gitiles,
 with scripts/chromium-delta --branch-fixes: left out are files not in the
 release tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
 translations, PGO/orderfile pointers, submodule pointer updates.
 chrome/VERSION, DEPS and the stamp files stay at 158.0.8127.23.
 
 Commits contributing to it (oldest first; "Roll commits from side projects"
-are the V8 update, with "[maglev] Do not unwrap lossy conversions in KNA", and
+are the V8 updates, with "[maglev] Do not unwrap lossy conversions in KNA",
+"[maglev] Fix bailouts messing up non-escaping use counting" and "[ic] Fix the
+megamorphic cache variant of the DefineNamedOwn-inside-class bug", Skia's (tests only), and
 the Dawn one, with "[vulkan] Reset the recording context in Queue::DestroyImpl";
 the ICU roll has two security fixes: usearch index overflow, number formatting):
   5981b113f92f [M158] [Omnibox] Don't open AskG CoBrowse panel without tab sharin
@@ -32,6 +34,16 @@ the ICU roll has two security fixes: usearch index overflow, number formatting):
   28262e2182de Roll commits from side projects in M158
   3aef340744ce [M158] [Passwords] Fix auto sign-in toast menu lifetime
   2d22e0a403f7 [M158] Revert CHECK to DCHECK for redirect URL in NavigationURLLoa
+  ceb96f4966e9 [M158] Revert CHECK macro in BrowsingInstance::RegisterSiteInstanc
+  3f76d46efba1 [M158] Revert CHECK back to DCHECK in PostErrorCallback
+  991c3eab5f78 [M158] Revert CHECK_GT for requested frame rate to DCHECK_GT in
+  a024c15fda2b [M158] [Extensions] Disable strict debugger policy restrictions by
+  41008a0ddc4e Pass -E to diff3 in Cronet Copybara imports
+  c29d37065f2f [M158] [iOS][Assistant] Keep app content filling scene under Assis
+  d89473131aad Roll commits from side projects in M158
+  21bd969b4a9a [M158] Prevent SiteDataClearer UAF during BrowserContext shutdown
+  191e7fb29210 Roll commits from side projects in M158
+  a9c1251a7d2b [M158] [ContextualTasks] Show protected page error scrim
 
 Checked: applies to the 158.0.8127.23 tree; every patched file is
 byte-identical to its version at the commits above.
@@ -236,10 +248,54 @@ index 7213f83..f55981c8 100644
  };
  
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
-index 38fa93c..8814ab8 100644
+index 38fa93c..5a6c2184 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
 +++ b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
-@@ -861,15 +861,17 @@
+@@ -28,6 +28,7 @@
+ #include "base/strings/string_number_conversions.h"
+ #include "base/strings/string_util.h"
+ #include "base/strings/utf_string_conversions.h"
++#include "base/types/optional_util.h"
+ #include "chrome/browser/content_settings/page_specific_content_settings_delegate.h"
+ #include "chrome/browser/contextual_search/contextual_search_service_factory.h"
+ #include "chrome/browser/contextual_search/contextual_search_web_contents_helper.h"
+@@ -607,6 +608,8 @@
+       TabListInterface::From(browser_window_)->GetActiveTab();
+   CHECK(active_tab_interface);
+   std::optional<ContextualTask> existing_task = GetCurrentTask();
++  const bool is_pending_error_page =
++      IsPendingErrorPageTask(base::OptionalToPtr(existing_task));
+   const bool is_new_ui_service_task =
+       existing_task.has_value() &&
+       !task_id_to_web_contents_cache_.contains(existing_task->GetTaskId()) &&
+@@ -615,7 +618,7 @@
+            ->GetCreationUrlForTask(existing_task->GetTaskId())
+            .has_value() ||
+        GetUiService()->IsTaskWaitingForUrl(existing_task->GetTaskId()) ||
+-       GetUiService()->IsPendingErrorPage(existing_task->GetTaskId()));
++       is_pending_error_page);
+   const bool is_continuing_existing_thread =
+       contextual_tasks::IsContextualTasksPinningV2Enabled() &&
+       entry_point == omnibox::ChromeAimEntryPoint::
+@@ -698,6 +701,9 @@
+         ContextualTasksPanelHost::AnimationStyle::kTransitionFromTab;
+   }
+ 
++  if (IsContextualTasksSidePanelRearchitectureEnabled()) {
++    SetErrorPageVisible(is_pending_error_page);
++  }
+   contextual_tasks_panel_host_->Show(animation_style);
+ 
+ #if !BUILDFLAG(IS_ANDROID)
+@@ -760,6 +766,7 @@
+     }
+   }
+   UpdateOpenState(/*is_open=*/false);
++  SetErrorPageVisible(false);
+   contextual_tasks_panel_host_->Close(
+       ContextualTasksPanelHost::AnimationStyle::kStandard);
+   MaybeRemoveImplicitTabContext();
+@@ -861,15 +868,17 @@
        contextual_tasks::GetEffectivePinState(browser_window_->GetProfile());
  
    base::AutoReset<bool> opening_in_zero_state(&is_opening_in_zero_state_, true);
@@ -261,7 +317,72 @@ index 38fa93c..8814ab8 100644
  }
  
  void ContextualTasksSidePanelCoordinator::OpenUrlInNewTab(const GURL& url) {
-@@ -2983,6 +2985,21 @@
+@@ -927,6 +936,7 @@
+     // duration metrics for the new thread's `WebContents`.
+     it->second->open_time_ticks = base::TimeTicks();
+   }
++  SetErrorPageVisible(false);
+   UpdateWebContentsForActiveTab();
+   UpdateContextualTaskUI();
+   NotifyActiveTaskContextProvider();
+@@ -1309,6 +1319,7 @@
+     it->second->link_click_count = 0;
+   }
+   UpdateOpenState(/*is_open=*/true);
++  SetErrorPageVisible(false);
+   UpdateWebContentsForActiveTab();
+   UpdateContextualTaskUI();
+ }
+@@ -1349,6 +1360,10 @@
+ 
+ void ContextualTasksSidePanelCoordinator::PrimaryPageChanged(
+     content::Page& page) {
++  if (GetIsProtectedPageErrorEnabled()) {
++    SetErrorPageVisible(false);
++  }
++
+   // Hide panel if contextual tasks pages is loaded on tab.
+   GURL url = page.GetMainDocument().GetLastCommittedURL();
+   if (auto* ui_service = GetUiService();
+@@ -1863,6 +1878,18 @@
+           active_tab_interface->GetContents()));
+ }
+ 
++bool ContextualTasksSidePanelCoordinator::IsPendingErrorPageTask(
++    const ContextualTask* task) const {
++  if (!task || task_id_to_web_contents_cache_.contains(task->GetTaskId())) {
++    return false;
++  }
++  ContextualTasksUiService* ui_service = GetUiService();
++  return ui_service &&
++         !ui_service->GetCreationUrlForTask(task->GetTaskId()).has_value() &&
++         !ui_service->IsTaskWaitingForUrl(task->GetTaskId()) &&
++         ui_service->IsPendingErrorPage(task->GetTaskId());
++}
++
+ void ContextualTasksSidePanelCoordinator::UpdatePanelVisibility() {
+   bool should_be_open = ShouldBeOpen();
+ 
+@@ -1977,6 +2004,10 @@
+ void ContextualTasksSidePanelCoordinator::OnActiveTabChanged(
+     TabListInterface& tab_list,
+     tabs::TabInterface* tab) {
++  if (GetIsProtectedPageErrorEnabled()) {
++    SetErrorPageVisible(false);
++  }
++
+   // crbug.com/477278769: Do not open panel if glic panel is already open on tab
+   // changed.
+   if (contextual_tasks_panel_host_->IsPanelSuppressed()) {
+@@ -2142,6 +2173,7 @@
+ }
+ 
+ void ContextualTasksSidePanelCoordinator::Hide() {
++  SetErrorPageVisible(false);
+   contextual_tasks_panel_host_->Close(
+       ContextualTasksPanelHost::AnimationStyle::kNoAnimation);
+   MaybeRemoveImplicitTabContext();
+@@ -2983,6 +3015,21 @@
    }
  }
  
@@ -284,7 +405,7 @@ index 38fa93c..8814ab8 100644
  ContextualTasksSidePanelCoordinator::GetAutoSuggestedTabHandle() {
    auto* web_contents = GetActiveWebContents();
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h
-index 92a39149..7ecc187 100644
+index 92a39149..026783f 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h
 +++ b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h
 @@ -207,6 +207,8 @@
@@ -296,6 +417,54 @@ index 92a39149..7ecc187 100644
    std::optional<tabs::TabHandle> GetAutoSuggestedTabHandle() override;
    void OnTaskChanged(content::WebContents* web_contents,
                       base::Uuid task_id) override;
+@@ -318,6 +320,10 @@
+   // mutating pending task state.
+   std::optional<ContextualTask> GetCurrentTask() const;
+ 
++  // Returns whether `task` is a new UI service task waiting to display the
++  // protected page error scrim.
++  bool IsPendingErrorPageTask(const ContextualTask* task) const;
++
+   // Clean up unused WebContents.
+   void CleanUpUnusedWebContents() override;
+ 
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc
+index 25e94f1..937c80b 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc
+@@ -821,6 +821,7 @@
+   if (!panel_controller) {
+     return;
+   }
++  panel_controller->SetErrorPageVisible(false);
+   content::WebContents* target_contents =
+       panel_controller->GetActiveWebContents();
+   if (!target_contents) {
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
+index fabefde3..f8859aa 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
+@@ -3883,6 +3883,10 @@
+   if (!panel_was_closed) {
+     if (auto* web_ui_interface = GetWebUiInterface(web_contents)) {
+       ShowAndRecordErrorPage(web_ui_interface->GetPageRemote(), source);
++    } else if (IsContextualTasksSidePanelRearchitectureEnabled()) {
++      controller->OnTaskChanged(web_contents, task_id);
++      controller->SetErrorPageVisible(true);
++      RecordErrorPageShown(source);
+     }
+   }
+ }
+@@ -3899,6 +3903,9 @@
+     return false;
+   }
+   RecordErrorPageShown(*it->second.pending_error_page_source);
++  if (IsContextualTasksSidePanelRearchitectureEnabled()) {
++    it->second.pending_error_page_source.reset();
++  }
+   return true;
+ }
+ 
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_utils.cc b/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
 index 684448856..7575def 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
@@ -364,7 +533,7 @@ index 2bd99998..81784aa 100644
  
  // Returns true if the "Ask Google..." context menu item should be shown.
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
-index 23cfafc..e427b2a3 100644
+index 23cfafc..7b0e48a 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
 +++ b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
 @@ -798,6 +798,11 @@
@@ -379,7 +548,65 @@ index 23cfafc..e427b2a3 100644
    return HasContextLibraryTabs() || IsSmartTabSharingActive();
  }
  
-@@ -1119,7 +1124,9 @@
+@@ -945,6 +950,9 @@
+   params.auto_suggested_chip_tabs = GetPendingDelayedTabs(*session_handle);
+   params.enable_smart_tab_selection =
+       !overlay_token.has_value() && is_smart_tab_sharing_active;
++  params.on_ineligible_callback = base::BindRepeating(
++      &ContextualTasksWebContentsUserData::OnPageContextIneligible,
++      weak_ptr_factory_.GetWeakPtr());
+   // The contextualizer's session handle is ignored: it is null when there was
+   // nothing to contextualize, so the callback gets the session handle itself.
+   params.complete_callback = base::IgnoreArgs<
+@@ -1000,6 +1008,24 @@
+       tabs.push_back(*tab_handle_id);
+     }
+   }
++
++  // Also include any manually attached tabs whose initial upload failed (for
++  // example, due to page context ineligibility on a CSE-protected tab) so
++  // `QueryContextualizer` re-checks their eligibility on submit.
++  for (const auto& attached_tab :
++       session_handle.GetTabContextState().attached) {
++    if (attached_tab.pending_delayed_upload ||
++        !attached_tab.tab_id.has_value() ||
++        !failed_context_uploads_.contains(attached_tab.context_token)) {
++      continue;
++    }
++    if (std::optional<int32_t> tab_handle_id =
++            ResolveAndRecordTabHandleForSessionTabId(*attached_tab.tab_id);
++        tab_handle_id.has_value() &&
++        !std::ranges::contains(tabs, *tab_handle_id)) {
++      tabs.push_back(*tab_handle_id);
++    }
++  }
+   return tabs;
+ }
+ 
+@@ -1061,6 +1087,22 @@
+   DoSubmitQueryCleanup();
+ }
+ 
++void ContextualTasksWebContentsUserData::OnPageContextIneligible() {
++  if (!submit_pending_ || !GetIsProtectedPageErrorEnabled()) {
++    return;
++  }
++  auto* browser = GetBrowserWindowInterface();
++  auto* controller =
++      browser ? ContextualTasksPanelController::From(browser) : nullptr;
++  if (!controller || !controller->IsPanelOpenForContextualTask() ||
++      controller->GetActiveWebContents() != &GetWebContents()) {
++    return;
++  }
++  RecordErrorPageShown(
++      contextual_search::ContextualSearchSource::kContextualTasks);
++  controller->SetErrorPageVisible(true);
++}
++
+ void ContextualTasksWebContentsUserData::OnPageChanged(bool is_zero_state) {
+   if (is_zero_state) {
+     zero_state_callbacks_.Notify();
+@@ -1119,7 +1161,9 @@
    }
  
    if (!base::FeatureList::IsEnabled(
@@ -390,6 +617,18 @@ index 23cfafc..e427b2a3 100644
      base::UmaHistogramEnumeration(
          "ContextualTasks.ThreadContextLibrary.UpdateOutcome",
          ThreadContextLibraryUpdateOutcome::kFeatureDisabled);
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h
+index 43b3215..556b80e 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h
+@@ -367,6 +367,7 @@
+       std::string query_text,
+       std::vector<lens::AddedContext> lens_added_contexts,
+       std::optional<base::UnguessableToken> overlay_token);
++  void OnPageContextIneligible();
+   void OnPageChanged(bool is_zero_state);
+   // Runs `on_tab_context_updated_cb` on every bound extension frame.
+   void NotifyExtensionFramesTabContextUpdated();
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc b/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc
 index ade03470..11b188b 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc
@@ -1281,6 +1520,125 @@ index b0d2b38..57f46e7a 100644
              icon == &vector_icons::kGoogleGLogoMonochromeIcon ||
              item->GetImage().IsImage()
  #else
+diff --git a/components/cronet/gn2bp/copybara_diff3.sh b/components/cronet/gn2bp/copybara_diff3.sh
+new file mode 100755
+index 0000000..68f7170
+--- /dev/null
++++ b/components/cronet/gn2bp/copybara_diff3.sh
+@@ -0,0 +1,11 @@
++#!/bin/sh
++# Copyright 2026 The Chromium Authors
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++# Wrapper passed to Copybara via --diff-bin so that diff3 runs with -E
++# (--show-overlap). Without -E, GNU diff3 -m defaults to -A (--show-all), which
++# produces spurious merge conflicts on hunks that changed identically in both
++# origin and destination whenever another part of the same file also differs
++# (b/392575734).
++exec diff3 -E "$@"
+diff --git a/components/cronet/gn2bp/run_gn2bp.py b/components/cronet/gn2bp/run_gn2bp.py
+index 707a859..20e565a 100755
+--- a/components/cronet/gn2bp/run_gn2bp.py
++++ b/components/cronet/gn2bp/run_gn2bp.py
+@@ -49,6 +49,9 @@
+ _COPYBARA_CONFIG_PATH = os.path.join(
+     REPOSITORY_ROOT, 'components/cronet/gn2bp/copy.bara.sky'
+ )
++_COPYBARA_DIFF3_WRAPPER_PATH = os.path.join(
++    REPOSITORY_ROOT, 'components/cronet/gn2bp/copybara_diff3.sh'
++)
+ _COPYBARA_PATH = os.path.join(
+     REPOSITORY_ROOT, 'tools/copybara/copybara/copybara_deploy.jar'
+ )
+@@ -409,6 +412,8 @@
+       """)
+     additional_parameters = [
+         '--ignore-noop',
++        '--diff-bin',
++        _COPYBARA_DIFF3_WRAPPER_PATH,
+         '--force-message',
+         commit_message,
+     ]
+diff --git a/content/browser/bluetooth/bluetooth_device_chooser_controller.cc b/content/browser/bluetooth/bluetooth_device_chooser_controller.cc
+index 7097da8..a09e0f5c 100644
+--- a/content/browser/bluetooth/bluetooth_device_chooser_controller.cc
++++ b/content/browser/bluetooth/bluetooth_device_chooser_controller.cc
+@@ -567,7 +567,9 @@
+ 
+ void BluetoothDeviceChooserController::PostErrorCallback(
+     WebBluetoothResult error) {
+-  CHECK(callback_, base::NotFatalUntil::M160);
++  // TODO(crbug.com/579165504): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(callback_);
+ 
+   if (!base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+           FROM_HERE,
+diff --git a/content/browser/browsing_data/clear_site_data_utils.cc b/content/browser/browsing_data/clear_site_data_utils.cc
+index a0d9d2b..7a29c31 100644
+--- a/content/browser/browsing_data/clear_site_data_utils.cc
++++ b/content/browser/browsing_data/clear_site_data_utils.cc
+@@ -69,6 +69,13 @@
+ 
+   void RunAndDestroySelfWhenDone() {
+     CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
++    // Keep a baseline count of 1 until all tasks have been scheduled so that
++    // synchronous task completion cannot destroy `this` before the method
++    // finishes, and so that `callback_` and self-deletion still run if no
++    // individual tasks are scheduled.
++    CHECK_EQ(pending_task_count_, 0, base::NotFatalUntil::M159);
++    pending_task_count_ = 1;
++
+     // Cookies and channel IDs are scoped to
+     // a) eTLD+1 of |origin|'s host if |origin|'s host is a registrable domain
+     //    or a subdomain thereof
+@@ -190,9 +197,7 @@
+                                   weak_factory_.GetWeakPtr(), 0));
+     }
+ 
+-    // TODO(crbug.com/573027744): CHECK-exclusion: Convert to a CHECK once we
+-    // are confident it won't be triggered.
+-    DCHECK_GT(pending_task_count_, 0);
++    OnBrowsingDataRemoverDone(/*failed_data_types=*/0);
+   }
+ 
+  private:
+@@ -203,8 +208,9 @@
+       return;
+     }
+ 
+-    std::move(callback_).Run();
++    base::OnceClosure callback = std::move(callback_);
+     delete this;
++    std::move(callback).Run();
+   }
+ 
+   const std::optional<StoragePartitionConfig> storage_partition_config_;
+@@ -242,7 +248,7 @@
+   CHECK(!clear_site_data_types.Has(ClearSiteDataType::kStorage) ||
+             storage_buckets_to_remove.empty(),
+         base::NotFatalUntil::M159);
+-  if (!browser_context) {
++  if (!browser_context || browser_context->ShutdownStarted()) {
+     std::move(callback).Run();
+     return;
+   }
+diff --git a/content/browser/browsing_instance.cc b/content/browser/browsing_instance.cc
+index 22c7f03..0ff18d9 100644
+--- a/content/browser/browsing_instance.cc
++++ b/content/browser/browsing_instance.cc
+@@ -193,7 +193,9 @@
+   // Explicitly prevent the default SiteInstance from being added since
+   // the map is only supposed to contain instances that map to a single site.
+   if (site_instance->IsDefaultSiteInstance()) {
+-    CHECK(!ShouldUseDefaultSiteInstanceGroup(), base::NotFatalUntil::M160);
++    // TODO(crbug.com/578414909): CHECK-exclusion: Convert to a CHECK once we
++    // are confident it won't be triggered.
++    DCHECK(!ShouldUseDefaultSiteInstanceGroup());
+     SiteShard shard = site_instance->GetSiteInfo().shard();
+     CHECK(!default_site_instances_.contains(shard));
+     default_site_instances_[shard] = site_instance;
 diff --git a/content/browser/loader/navigation_url_loader_impl.cc b/content/browser/loader/navigation_url_loader_impl.cc
 index b6cca80..b9cc368 100644
 --- a/content/browser/loader/navigation_url_loader_impl.cc
@@ -1296,6 +1654,77 @@ index b6cca80..b9cc368 100644
      // TODO(https://crbug.com/434182226): Turn this to `CHECK()`.
      DUMP_WILL_BE_CHECK_EQ(loader_holder_.state(),
                            LoaderHolder::State::kLoadingViaLoader);
+diff --git a/content/browser/media/capture/desktop_capture_device.cc b/content/browser/media/capture/desktop_capture_device.cc
+index 5866c4ae9..33f78f0 100644
+--- a/content/browser/media/capture/desktop_capture_device.cc
++++ b/content/browser/media/capture/desktop_capture_device.cc
+@@ -503,7 +503,9 @@
+   CHECK(task_runner_->BelongsToCurrentThread(), base::NotFatalUntil::M160);
+   CHECK_GT(params.requested_format.frame_size.GetArea(), 0,
+            base::NotFatalUntil::M160);
+-  CHECK_GT(params.requested_format.frame_rate, 0, base::NotFatalUntil::M160);
++  // TODO(crbug.com/578932753): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK_GT(params.requested_format.frame_rate, 0);
+   CHECK(desktop_capturer_, base::NotFatalUntil::M160);
+   CHECK(client, base::NotFatalUntil::M160);
+   CHECK(!client_, base::NotFatalUntil::M160);
+diff --git a/content/public/browser/clear_site_data_utils.h b/content/public/browser/clear_site_data_utils.h
+index 916f415..f30b267 100644
+--- a/content/public/browser/clear_site_data_utils.h
++++ b/content/public/browser/clear_site_data_utils.h
+@@ -40,7 +40,8 @@
+ // Removes browsing data associated with |origin|. Used when the Clear-Site-Data
+ // header is sent.
+ // Has to be called on the UI thread and will execute |callback| on the UI
+-// thread when done.
++// thread when done. If |browser_context| is null or has started shutdown,
++// |callback| is run immediately without clearing data.
+ CONTENT_EXPORT void ClearSiteData(
+     base::WeakPtr<BrowserContext> browser_context,
+     std::optional<StoragePartitionConfig> storage_partition_config,
+diff --git a/extensions/common/extension_features.cc b/extensions/common/extension_features.cc
+index 17ddf39..d0f9ea32 100644
+--- a/extensions/common/extension_features.cc
++++ b/extensions/common/extension_features.cc
+@@ -136,9 +136,8 @@
+ BASE_FEATURE(kExtensionAsyncListenerRegistration,
+              base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+-// TODO(crbug.com/561948316): Remove this kill switch in M160.
+ BASE_FEATURE(kExtensionDebuggerStrictPolicyRestrictions,
+-             base::FEATURE_ENABLED_BY_DEFAULT);
++             base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ // TODO(crbug.com/578677350): Remove this kill switch in M161.
+ BASE_FEATURE(kExtensionDownloaderPublisherProofByUpdateUrl,
+diff --git a/extensions/common/extension_features.h b/extensions/common/extension_features.h
+index 62053b7..72d74d6 100644
+--- a/extensions/common/extension_features.h
++++ b/extensions/common/extension_features.h
+@@ -196,14 +196,14 @@
+ // prompting the user.
+ BASE_DECLARE_FEATURE(kExtensionAutoRejectIncognitoConnectability);
+ 
+-// If enabled (the default), extensions calling chrome.debugger.attach are
+-// rejected upfront when enterprise policy configures runtime_blocked_hosts or
+-// disables/restricts screenshots. If disabled (kill switch), extension debugger
+-// attachment reverts to the pre-existing behavior prior to M155: falling back
+-// to per-URL IsPolicyBlockedHost checks and allowing attachment when
+-// screenshots are disabled. Note that disabling this feature has security
+-// implications.
+-// See https://developer.chrome.com/blog/debugger-enterprise-policy-restrictions.
++// If enabled, extensions calling chrome.debugger.attach are rejected upfront
++// when enterprise policy configures runtime_blocked_hosts or disables/restricts
++// screenshots. If disabled (the default), extension debugger attachment reverts
++// to the pre-existing behavior prior to M155: falling back to per-URL
++// IsPolicyBlockedHost checks and allowing attachment when screenshots are
++// disabled. Note that disabling this feature has security implications.
++// See
++// https://developer.chrome.com/blog/debugger-enterprise-policy-restrictions.
+ BASE_DECLARE_FEATURE(kExtensionDebuggerStrictPolicyRestrictions);
+ 
+ // If enabled (the default), ExtensionDownloader decides whether to require Web
 diff --git a/ui/webui/resources/cr_components/composebox/composebox_match.css b/ui/webui/resources/cr_components/composebox/composebox_match.css
 index 52668c6..f660a39 100644
 --- a/ui/webui/resources/cr_components/composebox/composebox_match.css
@@ -1332,7 +1761,7 @@ index 8926d4c..7ebe216b 100644
                'close-composebox', {composeboxText: this.input, afterSubmit});
          }
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index 31c243a..c940c8b 100644
+index 31c243a..0b8cff1 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -1340,10 +1769,580 @@ index 31c243a..c940c8b 100644
  #define V8_MINOR_VERSION 8
  #define V8_BUILD_NUMBER 62
 -#define V8_PATCH_LEVEL 12
-+#define V8_PATCH_LEVEL 13
++#define V8_PATCH_LEVEL 15
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/baseline/baseline-compiler.cc b/v8/src/baseline/baseline-compiler.cc
+index d599121..4fca757 100644
+--- a/v8/src/baseline/baseline-compiler.cc
++++ b/v8/src/baseline/baseline-compiler.cc
+@@ -1208,7 +1208,11 @@
+ }
+ 
+ void BaselineCompiler::VisitDefineNamedOwnPropertyInLiteral() {
+-  VisitDefineNamedOwnProperty();
++  CallBuiltin<Builtin::kDefineNamedOwnInLiteralICBaseline>(
++      RegisterOperand(0),               // object
++      Constant<Name>(1),                // name
++      kInterpreterAccumulatorRegister,  // value
++      FeedbackSlotAsTagged(2));         // slot
+ }
+ 
+ void BaselineCompiler::VisitSetKeyedProperty() {
+diff --git a/v8/src/builtins/builtins-definitions.h b/v8/src/builtins/builtins-definitions.h
+index b1d82f6..76f9995 100644
+--- a/v8/src/builtins/builtins-definitions.h
++++ b/v8/src/builtins/builtins-definitions.h
+@@ -892,6 +892,9 @@
+   TFH(DefineNamedOwnIC, StoreWithVector)                                       \
+   TFH(DefineNamedOwnICTrampoline, Store)                                       \
+   TFH(DefineNamedOwnICBaseline, StoreBaseline)                                 \
++  TFH(DefineNamedOwnInLiteralIC, StoreWithVector)                              \
++  TFH(DefineNamedOwnInLiteralICTrampoline, Store)                              \
++  TFH(DefineNamedOwnInLiteralICBaseline, StoreBaseline)                        \
+   TFH(KeyedStoreIC, StoreWithVector)                                           \
+   TFH(KeyedStoreICTrampoline, Store)                                           \
+   TFH(KeyedStoreICTrampoline_Megamorphic, Store)                               \
+diff --git a/v8/src/builtins/builtins-handler-gen.cc b/v8/src/builtins/builtins-handler-gen.cc
+index 5cde9dd..03ac859 100644
+--- a/v8/src/builtins/builtins-handler-gen.cc
++++ b/v8/src/builtins/builtins-handler-gen.cc
+@@ -69,6 +69,8 @@
+   StoreICNoFeedbackGenerator::Generate(state);
+ }
+ 
++// For the "no feedback" case, we don't need to distinguish between "in literal"
++// and "not in literal".
+ void Builtins::Generate_DefineNamedOwnIC_NoFeedback(
+     compiler::CodeAssemblerState* state) {
+   DefineNamedOwnICNoFeedbackGenerator::Generate(state);
+diff --git a/v8/src/builtins/builtins-ic-gen.cc b/v8/src/builtins/builtins-ic-gen.cc
+index a3aac16..4a101c8 100644
+--- a/v8/src/builtins/builtins-ic-gen.cc
++++ b/v8/src/builtins/builtins-ic-gen.cc
+@@ -187,17 +187,32 @@
+ }
+ void Builtins::Generate_DefineNamedOwnIC(compiler::CodeAssemblerState* state) {
+   AccessorAssembler assembler(state);
+-  assembler.GenerateDefineNamedOwnIC();
++  assembler.GenerateDefineNamedOwnIC(false);
+ }
+ void Builtins::Generate_DefineNamedOwnICTrampoline(
+     compiler::CodeAssemblerState* state) {
+   AccessorAssembler assembler(state);
+-  assembler.GenerateDefineNamedOwnICTrampoline();
++  assembler.GenerateDefineNamedOwnICTrampoline(false);
+ }
+ void Builtins::Generate_DefineNamedOwnICBaseline(
+     compiler::CodeAssemblerState* state) {
+   AccessorAssembler assembler(state);
+-  assembler.GenerateDefineNamedOwnICBaseline();
++  assembler.GenerateDefineNamedOwnICBaseline(false);
++}
++void Builtins::Generate_DefineNamedOwnInLiteralIC(
++    compiler::CodeAssemblerState* state) {
++  AccessorAssembler assembler(state);
++  assembler.GenerateDefineNamedOwnIC(true);
++}
++void Builtins::Generate_DefineNamedOwnInLiteralICTrampoline(
++    compiler::CodeAssemblerState* state) {
++  AccessorAssembler assembler(state);
++  assembler.GenerateDefineNamedOwnICTrampoline(true);
++}
++void Builtins::Generate_DefineNamedOwnInLiteralICBaseline(
++    compiler::CodeAssemblerState* state) {
++  AccessorAssembler assembler(state);
++  assembler.GenerateDefineNamedOwnICBaseline(true);
+ }
+ void Builtins::Generate_KeyedStoreIC(compiler::CodeAssemblerState* state) {
+   AccessorAssembler assembler(state);
+diff --git a/v8/src/codegen/code-factory.cc b/v8/src/codegen/code-factory.cc
+index d32820c..0609018 100644
+--- a/v8/src/codegen/code-factory.cc
++++ b/v8/src/codegen/code-factory.cc
+@@ -50,6 +50,16 @@
+   return Builtins::CallableFor(isolate, Builtin::kDefineNamedOwnIC);
+ }
+ 
++Callable CodeFactory::DefineNamedOwnInLiteralIC(Isolate* isolate) {
++  return Builtins::CallableFor(isolate,
++                               Builtin::kDefineNamedOwnInLiteralICTrampoline);
++}
++
++Callable CodeFactory::DefineNamedOwnInLiteralICInOptimizedCode(
++    Isolate* isolate) {
++  return Builtins::CallableFor(isolate, Builtin::kDefineNamedOwnInLiteralIC);
++}
++
+ // static
+ Callable CodeFactory::StringAdd(Isolate* isolate, StringAddFlags flags) {
+   return Builtins::CallableFor(isolate, Builtins::StringAdd(flags));
+diff --git a/v8/src/codegen/code-factory.h b/v8/src/codegen/code-factory.h
+index df32614..b421624 100644
+--- a/v8/src/codegen/code-factory.h
++++ b/v8/src/codegen/code-factory.h
+@@ -39,6 +39,8 @@
+                                               TypeofMode typeof_mode);
+   static Callable DefineNamedOwnIC(Isolate* isolate);
+   static Callable DefineNamedOwnICInOptimizedCode(Isolate* isolate);
++  static Callable DefineNamedOwnInLiteralIC(Isolate* isolate);
++  static Callable DefineNamedOwnInLiteralICInOptimizedCode(Isolate* isolate);
+ 
+   static Callable CallApiCallback(Isolate* isolate);
+ 
+diff --git a/v8/src/compiler/js-generic-lowering.cc b/v8/src/compiler/js-generic-lowering.cc
+index d0c877b..22c8c0b 100644
+--- a/v8/src/compiler/js-generic-lowering.cc
++++ b/v8/src/compiler/js-generic-lowering.cc
+@@ -483,13 +483,18 @@
+     node->InsertInput(zone(), 1, jsgraph()->ConstantNoHole(p.name(), broker()));
+     node->InsertInput(zone(), 3,
+                       jsgraph()->TaggedIndexConstant(p.feedback().index()));
+-    Callable callable = CodeFactory::DefineNamedOwnIC(isolate());
++    Callable callable = p.in_literal()
++                            ? CodeFactory::DefineNamedOwnInLiteralIC(isolate())
++                            : CodeFactory::DefineNamedOwnIC(isolate());
+     ReplaceWithBuiltinCall(node, callable, flags);
+   } else {
+     node->InsertInput(zone(), 1, jsgraph()->ConstantNoHole(p.name(), broker()));
+     node->InsertInput(zone(), 3,
+                       jsgraph()->TaggedIndexConstant(p.feedback().index()));
+-    Callable callable = CodeFactory::DefineNamedOwnICInOptimizedCode(isolate());
++    Callable callable =
++        p.in_literal()
++            ? CodeFactory::DefineNamedOwnInLiteralICInOptimizedCode(isolate())
++            : CodeFactory::DefineNamedOwnICInOptimizedCode(isolate());
+     ReplaceWithBuiltinCall(node, callable, flags);
+   }
+ }
+diff --git a/v8/src/compiler/turboshaft/turbolev-graph-builder.cc b/v8/src/compiler/turboshaft/turbolev-graph-builder.cc
+index 811af26..a17cbf2 100644
+--- a/v8/src/compiler/turboshaft/turbolev-graph-builder.cc
++++ b/v8/src/compiler/turboshaft/turbolev-graph-builder.cc
+@@ -2365,8 +2365,11 @@
+                            __ HeapConstant(node->feedback().vector),
+                            Map(node->ContextInput())};
+ 
+-    GENERATE_AND_MAP_BUILTIN_CALL(node, Builtin::kDefineNamedOwnIC, frame_state,
+-                                  base::VectorOf(arguments));
++    GENERATE_AND_MAP_BUILTIN_CALL(node,
++                                  node->in_literal()
++                                      ? Builtin::kDefineNamedOwnInLiteralIC
++                                      : Builtin::kDefineNamedOwnIC,
++                                  frame_state, base::VectorOf(arguments));
+     return maglev::ProcessResult::kContinue;
+   }
+ 
+diff --git a/v8/src/ic/accessor-assembler.cc b/v8/src/ic/accessor-assembler.cc
+index 22b44ad..4936b9c 100644
+--- a/v8/src/ic/accessor-assembler.cc
++++ b/v8/src/ic/accessor-assembler.cc
+@@ -1665,7 +1665,7 @@
+                         p->slot(), p->vector(), p->receiver(), p->name());
+       } else {
+         Runtime::FunctionId id;
+-        if (p->IsDefineNamedOwn()) {
++        if (p->IsAnyDefineNamedOwn()) {
+           id = Runtime::kDefineNamedOwnIC_Slow;
+         } else if (p->IsDefineKeyedOwn()) {
+           id = Runtime::kDefineKeyedOwnIC_Slow;
+@@ -2395,7 +2395,8 @@
+   BIND(&if_heap_object_field);
+   {
+     Comment("heap object field checks");
+-    CheckHeapObjectTypeMatchesDescriptor(handler_word, holder, value, miss);
++    CheckHeapObjectTypeMatchesDescriptor(handler_word, holder, value, mode,
++                                         miss);
+ 
+     Comment("store heap object field");
+     HandleStoreFieldAndReturn(handler_word, holder, value, std::nullopt,
+@@ -2432,15 +2433,19 @@
+ 
+ void AccessorAssembler::CheckHeapObjectTypeMatchesDescriptor(
+     TNode<Word32T> handler_word, TNode<JSObject> holder, TNode<Object> value,
+-    Label* bailout) {
++    StoreICMode mode, Label* bailout) {
+   GotoIf(TaggedIsSmi(value), bailout);
+ 
+   Label done(this);
+   // Skip field type check in favor of constant value check when storing
+   // to constant field.
+-  GotoIf(Word32Equal(DecodeWord32<StoreHandler::KindBits>(handler_word),
+-                     STORE_KIND(kConstField)),
+-         &done);
++  if (mode != StoreICMode::kDefineNamedOwnInLiteral) {
++    // DefineNamedOwnInLiteral skips the constant value check
++    // when storing, so we need to do this field type check here.
++    GotoIf(Word32Equal(DecodeWord32<StoreHandler::KindBits>(handler_word),
++                       STORE_KIND(kConstField)),
++           &done);
++  }
+   TNode<IntPtrT> descriptor =
+       Signed(DecodeWordFromWord32<StoreHandler::DescriptorBits>(handler_word));
+   TNode<MaybeObject> field_type =
+@@ -2523,6 +2528,9 @@
+   bool maybe_initializing_store;
+   switch (mode) {
+     case StoreICMode::kDefineNamedOwn:
++    // This might or might not be an initializing store; but this direction
++    // (setting maybe_initializing_store to true) is fine.
++    case StoreICMode::kDefineNamedOwnInLiteral:
+     case StoreICMode::kDefineKeyedOwn:
+       maybe_initializing_store = true;
+       break;
+@@ -2567,12 +2575,16 @@
+     offset = actual_offset.value();
+   }
+ 
+-  // Do constant value check if necessary.
++  // Do constant value check if necessary. In
++  // StoreICMode::kDefineNamedOwnInLiteral, we can store to const fields without
++  // invalidating the constness.
+   Label do_store(this);
+-  GotoIfNot(Word32Equal(DecodeWord32<StoreHandler::KindBits>(handler_word),
+-                        STORE_KIND(kConstField)),
+-            &do_store);
+-  {
++  if (mode == StoreICMode::kDefineNamedOwnInLiteral) {
++    Goto(&do_store);
++  } else {
++    GotoIfNot(Word32Equal(DecodeWord32<StoreHandler::KindBits>(handler_word),
++                          STORE_KIND(kConstField)),
++              &do_store);
+     if (store_value_as_double) {
+       CSA_DCHECK(this, IsHeapNumber(property_storage));
+       TNode<Float64T> current_value =
+@@ -4290,16 +4302,17 @@
+   {
+     // TODO(v8:12548): refactor SetNamedIC as a subclass of StoreIC, which can
+     // be called here and below when !p->IsDefineNamedOwn().
+-    auto builtin = p->IsDefineNamedOwn() ? Builtin::kDefineNamedOwnIC_NoFeedback
+-                                         : Builtin::kStoreIC_NoFeedback;
++    auto builtin = p->IsAnyDefineNamedOwn()
++                       ? Builtin::kDefineNamedOwnIC_NoFeedback
++                       : Builtin::kStoreIC_NoFeedback;
+     TailCallBuiltin(builtin, p->context(), p->receiver(), p->name(),
+                     p->value());
+   }
+ 
+   BIND(&miss);
+   {
+-    auto runtime = p->IsDefineNamedOwn() ? Runtime::kDefineNamedOwnIC_Miss
+-                                         : Runtime::kStoreIC_Miss;
++    auto runtime = p->IsAnyDefineNamedOwn() ? Runtime::kDefineNamedOwnIC_Miss
++                                            : Runtime::kStoreIC_Miss;
+     TailCallRuntime(runtime, p->context(), p->value(), p->slot(), p->vector(),
+                     p->receiver(), p->name());
+   }
+@@ -5573,7 +5586,7 @@
+                   vector);
+ }
+ 
+-void AccessorAssembler::GenerateDefineNamedOwnIC() {
++void AccessorAssembler::GenerateDefineNamedOwnIC(bool in_literal) {
+   using Descriptor = StoreWithVectorDescriptor;
+ 
+   auto receiver = Parameter<JSAny>(Descriptor::kReceiver);
+@@ -5586,13 +5599,14 @@
+ 
+   StoreICParameters p =
+       MakeStoreICParameters(context, receiver, name, value, flags, slot, vector,
+-                            StoreICMode::kDefineNamedOwn);
++                            in_literal ? StoreICMode::kDefineNamedOwnInLiteral
++                                       : StoreICMode::kDefineNamedOwn);
+   // StoreIC is a generic helper than handle both set and define own
+   // named stores.
+   StoreIC(&p);
+ }
+ 
+-void AccessorAssembler::GenerateDefineNamedOwnICTrampoline() {
++void AccessorAssembler::GenerateDefineNamedOwnICTrampoline(bool in_literal) {
+   using Descriptor = StoreDescriptor;
+ 
+   auto receiver = Parameter<JSAny>(Descriptor::kReceiver);
+@@ -5602,11 +5616,12 @@
+   auto context = Parameter<Context>(Descriptor::kContext);
+   TNode<FeedbackVector> vector = LoadFeedbackVectorForStub();
+ 
+-  TailCallBuiltin(Builtin::kDefineNamedOwnIC, context, receiver, name, value,
+-                  slot, vector);
++  Builtin builtin = in_literal ? Builtin::kDefineNamedOwnInLiteralIC
++                               : Builtin::kDefineNamedOwnIC;
++  TailCallBuiltin(builtin, context, receiver, name, value, slot, vector);
+ }
+ 
+-void AccessorAssembler::GenerateDefineNamedOwnICBaseline() {
++void AccessorAssembler::GenerateDefineNamedOwnICBaseline(bool in_literal) {
+   using Descriptor = StoreWithVectorDescriptor;
+ 
+   auto receiver = Parameter<JSAny>(Descriptor::kReceiver);
+@@ -5616,8 +5631,9 @@
+   TNode<FeedbackVector> vector = LoadFeedbackVectorFromBaseline();
+   TNode<Context> context = LoadContextFromBaseline();
+ 
+-  TailCallBuiltin(Builtin::kDefineNamedOwnIC, context, receiver, name, value,
+-                  slot, vector);
++  Builtin builtin = in_literal ? Builtin::kDefineNamedOwnInLiteralIC
++                               : Builtin::kDefineNamedOwnIC;
++  TailCallBuiltin(builtin, context, receiver, name, value, slot, vector);
+ }
+ 
+ void AccessorAssembler::GenerateKeyedStoreIC() {
+diff --git a/v8/src/ic/accessor-assembler.h b/v8/src/ic/accessor-assembler.h
+index 480f110..a4adde3 100644
+--- a/v8/src/ic/accessor-assembler.h
++++ b/v8/src/ic/accessor-assembler.h
+@@ -57,9 +57,9 @@
+   void GenerateStoreICTrampoline();
+   void GenerateStoreICTrampoline_Megamorphic();
+   void GenerateStoreICBaseline();
+-  void GenerateDefineNamedOwnIC();
+-  void GenerateDefineNamedOwnICTrampoline();
+-  void GenerateDefineNamedOwnICBaseline();
++  void GenerateDefineNamedOwnIC(bool in_literal);
++  void GenerateDefineNamedOwnICTrampoline(bool in_literal);
++  void GenerateDefineNamedOwnICBaseline(bool in_literal);
+   void GenerateStoreGlobalIC();
+   void GenerateStoreGlobalICTrampoline();
+   void GenerateStoreGlobalICBaseline();
+@@ -313,6 +313,8 @@
+     // TODO(v8:12548): rename to kDefineKeyedOwnInLiteral
+     kDefault,
+     kDefineNamedOwn,
++    // Initializing store inside a literal; does not invalidate constness.
++    kDefineNamedOwnInLiteral,
+     kDefineKeyedOwn,
+   };
+ 
+@@ -359,11 +361,18 @@
+     bool IsDefineNamedOwn() const {
+       return mode_ == StoreICMode::kDefineNamedOwn;
+     }
++    bool IsDefineNamedOwnInLiteral() const {
++      return mode_ == StoreICMode::kDefineNamedOwnInLiteral;
++    }
++    bool IsAnyDefineNamedOwn() const {
++      return IsDefineNamedOwn() || IsDefineNamedOwnInLiteral();
++    }
+     bool IsDefineKeyedOwn() const {
+       return mode_ == StoreICMode::kDefineKeyedOwn;
+     }
+     bool IsAnyDefineOwn() const {
+-      return IsDefineNamedOwn() || IsDefineKeyedOwn();
++      return IsDefineNamedOwn() || IsDefineNamedOwnInLiteral() ||
++             IsDefineKeyedOwn();
+     }
+ 
+     StubCache* stub_cache(Isolate* isolate) const {
+@@ -694,7 +703,7 @@
+   void CheckHeapObjectTypeMatchesDescriptor(TNode<Word32T> handler_word,
+                                             TNode<JSObject> holder,
+                                             TNode<Object> value,
+-                                            Label* bailout);
++                                            StoreICMode mode, Label* bailout);
+   // Double fields store double values in a mutable box, where stores are
+   // writes into this box rather than HeapNumber assignment.
+   void CheckDescriptorConsidersNumbersMutable(TNode<Word32T> handler_word,
+diff --git a/v8/src/ic/ic.cc b/v8/src/ic/ic.cc
+index 68ff2da..e512afc 100644
+--- a/v8/src/ic/ic.cc
++++ b/v8/src/ic/ic.cc
+@@ -2688,16 +2688,9 @@
+           return MaybeObjectHandle(StoreHandler::StoreSharedStructField(
+               isolate(), descriptor, index, lookup->representation()));
+         }
+-        PropertyConstness constness = lookup->constness();
+-        if (constness == PropertyConstness::kConst &&
+-            IsDefineNamedOwnICKind(nexus()->kind())) {
+-          // DefineNamedOwnICs are used for initializing object literals
+-          // therefore we must store the value unconditionally even to
+-          // VariableMode::kConst fields.
+-          constness = PropertyConstness::kMutable;
+-        }
+         return MaybeObjectHandle(StoreHandler::StoreField(
+-            isolate(), descriptor, index, constness, lookup->representation()));
++            isolate(), descriptor, index, lookup->constness(),
++            lookup->representation()));
+       }
+ 
+       // -------------- Constant properties --------------
+@@ -3501,10 +3494,9 @@
+ 
+   FeedbackSlot vector_slot = FeedbackVector::ToSlot(slot);
+ 
+-  // When there is no feedback vector it is OK to use the SetNamedStrict as
+-  // the feedback slot kind. We only reuse this for DefineNamedOwnIC when
+-  // installing the handler for storing const properties. This will happen only
+-  // when feedback vector is available.
++  // When there is no feedback vector it is OK to use SetNamedStrict as the
++  // feedback slot kind because StoreIC::Store deduces strictness from the
++  // caller frame rather than the feedback slot kind.
+   FeedbackSlotKind kind = FeedbackSlotKind::kSetNamedStrict;
+   Handle<FeedbackVector> vector = Handle<FeedbackVector>();
+   if (!IsUndefined(*maybe_vector)) {
+@@ -3520,6 +3512,9 @@
+   RETURN_RESULT_OR_FAILURE(isolate, ic.Store(receiver, key, value));
+ }
+ 
++// Shared between DefineNamedOwn and DefineNamedOwnInLiteral. This
++// is fine, since the IC handlers we create are identical - only when using the
++// handler we check whether we're in the "in literal" case or not.
+ RUNTIME_FUNCTION(Runtime_DefineNamedOwnIC_Miss) {
+   HandleScope scope(isolate);
+   DCHECK_EQ(5, args.length());
+@@ -3552,6 +3547,7 @@
+   RETURN_RESULT_OR_FAILURE(isolate, ic.Store(receiver, key, value));
+ }
+ 
++// Also usable for both DefineNamedOwn and DefineNamedOwnInLiteral.
+ RUNTIME_FUNCTION(Runtime_DefineNamedOwnIC_Slow) {
+   HandleScope scope(isolate);
+   DCHECK_EQ(3, args.length());
+diff --git a/v8/src/ic/keyed-store-generic.cc b/v8/src/ic/keyed-store-generic.cc
+index f213fb0..f41abca 100644
+--- a/v8/src/ic/keyed-store-generic.cc
++++ b/v8/src/ic/keyed-store-generic.cc
+@@ -1339,6 +1339,9 @@
+     // checks, strings and string wrappers, proxies) are handled in the runtime.
+     GotoIf(IsSpecialReceiverInstanceType(instance_type), &miss);
+     {
++      // Using KeyedStoreGenericAssembler for named stores is a hack (see
++      // DefineNamedOwnICNoFeedbackGenerator::Generate). For the "no feedback"
++      // case, using kDefineNamedOwn is fine below.
+       StoreICParameters p = MakeStoreICParameters(
+           context, receiver, receiver_map, name, value, std::nullopt, {},
+           UndefinedConstant(),
+diff --git a/v8/src/interpreter/interpreter-generator.cc b/v8/src/interpreter/interpreter-generator.cc
+index 09a8c73..062f797 100644
+--- a/v8/src/interpreter/interpreter-generator.cc
++++ b/v8/src/interpreter/interpreter-generator.cc
+@@ -756,7 +756,8 @@
+ // this.
+ IGNITION_HANDLER(DefineNamedOwnPropertyInLiteral,
+                  InterpreterSetNamedPropertyAssembler) {
+-  SetNamedProperty(Builtin::kDefineNamedOwnIC, NamedPropertyType::kOwn);
++  SetNamedProperty(Builtin::kDefineNamedOwnInLiteralIC,
++                   NamedPropertyType::kOwn);
+ }
+ 
+ // SetKeyedProperty <object> <key> <slot>
+diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
+index 56230c1..a06a9c5 100644
+--- a/v8/src/maglev/maglev-graph-builder.cc
++++ b/v8/src/maglev/maglev-graph-builder.cc
+@@ -7035,11 +7035,12 @@
+       broker()->GetFeedbackForPropertyAccess(
+           feedback_source, compiler::AccessMode::kStore, name);
+ 
+-  auto build_generic_access = [this, object, &name, &feedback_source]() {
++  auto build_generic_access = [this, object, &name, in_literal,
++                               &feedback_source]() {
+     ValueNode* context = GetContext();
+     ValueNode* value = GetAccumulator();
+     return AddNewNode<DefineNamedOwnGeneric>({context, object, value}, name,
+-                                             feedback_source);
++                                             in_literal, feedback_source);
+   };
+   switch (processed_feedback.kind()) {
+     case compiler::ProcessedFeedback::kInsufficient:
+diff --git a/v8/src/maglev/maglev-ir.cc b/v8/src/maglev/maglev-ir.cc
+index 0fd92f2..b5a67f4 100644
+--- a/v8/src/maglev/maglev-ir.cc
++++ b/v8/src/maglev/maglev-ir.cc
+@@ -5381,10 +5381,16 @@
+ 
+ int DefineNamedOwnGeneric::MaxCallStackArgs() const {
+   using D = CallInterfaceDescriptorFor<Builtin::kDefineNamedOwnIC>::type;
++  static_assert(
++      std::is_same_v<D, CallInterfaceDescriptorFor<
++                            Builtin::kDefineNamedOwnInLiteralIC>::type>);
+   return D::GetStackParameterCount();
+ }
+ void DefineNamedOwnGeneric::SetValueLocationConstraints() {
+   using D = CallInterfaceDescriptorFor<Builtin::kDefineNamedOwnIC>::type;
++  static_assert(
++      std::is_same_v<D, CallInterfaceDescriptorFor<
++                            Builtin::kDefineNamedOwnInLiteralIC>::type>);
+   UseFixed(ContextInput(), kContextRegister);
+   UseFixed(ObjectInput(), D::GetRegisterParameter(D::kReceiver));
+   UseFixed(ValueInput(), D::GetRegisterParameter(D::kValue));
+@@ -5392,14 +5398,25 @@
+ }
+ void DefineNamedOwnGeneric::GenerateCode(MaglevAssembler* masm,
+                                          const ProcessingState& state) {
+-  __ CallBuiltin<Builtin::kDefineNamedOwnIC>(
+-      ContextInput(),                               // context
+-      ObjectInput(),                                // receiver
+-      name().object(),                              // name
+-      ValueInput(),                                 // value
+-      TaggedIndex::FromIntptr(feedback().index()),  // feedback slot
+-      feedback().vector                             // feedback vector
+-  );
++  if (in_literal()) {
++    __ CallBuiltin<Builtin::kDefineNamedOwnInLiteralIC>(
++        ContextInput(),                               // context
++        ObjectInput(),                                // receiver
++        name().object(),                              // name
++        ValueInput(),                                 // value
++        TaggedIndex::FromIntptr(feedback().index()),  // feedback slot
++        feedback().vector                             // feedback vector
++    );
++  } else {
++    __ CallBuiltin<Builtin::kDefineNamedOwnIC>(
++        ContextInput(),                               // context
++        ObjectInput(),                                // receiver
++        name().object(),                              // name
++        ValueInput(),                                 // value
++        TaggedIndex::FromIntptr(feedback().index()),  // feedback slot
++        feedback().vector                             // feedback vector
++    );
++  }
+   masm->DefineExceptionHandlerAndLazyDeoptPoint(this);
+ }
+ 
+@@ -9401,7 +9418,7 @@
+ }
+ 
+ void DefineNamedOwnGeneric::PrintParams(std::ostream& os) const {
+-  os << "(" << *name_.object() << ")";
++  os << "(" << *name_.object() << ", in_literal:" << in_literal() << ")";
+ }
+ 
+ void GapMove::PrintParams(std::ostream& os) const {
+diff --git a/v8/src/maglev/maglev-ir.h b/v8/src/maglev/maglev-ir.h
+index d94bbaf..661a46e 100644
+--- a/v8/src/maglev/maglev-ir.h
++++ b/v8/src/maglev/maglev-ir.h
+@@ -9989,8 +9989,11 @@
+     : public FixedInputValueNodeT<3, DefineNamedOwnGeneric> {
+  public:
+   explicit DefineNamedOwnGeneric(uint64_t bitfield, compiler::NameRef name,
++                                 bool in_literal,
+                                  const compiler::FeedbackSource& feedback)
+-      : Base(bitfield), name_(name), feedback_(feedback) {}
++      : Base(bitfield | InLiteralField::encode(in_literal)),
++        name_(name),
++        feedback_(feedback) {}
+ 
+   // The implementation currently calls runtime.
+   static constexpr OpProperties kProperties = OpProperties::JSCall();
+@@ -10000,6 +10003,7 @@
+   compiler::NameRef name() const { return name_; }
+   compiler::FeedbackSource feedback() const { return feedback_; }
+ 
++  bool in_literal() const { return InLiteralField::decode(bitfield()); }
+ 
+   int MaxCallStackArgs() const;
+   void SetValueLocationConstraints();
+@@ -10007,6 +10011,7 @@
+   void PrintParams(std::ostream&) const;
+ 
+  private:
++  using InLiteralField = NextBitField<bool, 1>;
+   const compiler::NameRef name_;
+   const compiler::FeedbackSource feedback_;
+ };
 diff --git a/v8/src/maglev/maglev-known-node-aspects.h b/v8/src/maglev/maglev-known-node-aspects.h
 index 3e6b955..ebcb26d 100644
 --- a/v8/src/maglev/maglev-known-node-aspects.h
@@ -1441,6 +2440,33 @@ index 3e6b955..ebcb26d 100644
      return node_infos_.find(node);
    }
    bool IsValid(NodeInfos::iterator& it) { return it != node_infos_.end(); }
+diff --git a/v8/src/maglev/maglev-reducer-inl.h b/v8/src/maglev/maglev-reducer-inl.h
+index 4bb1704..12d7cd1 100644
+--- a/v8/src/maglev/maglev-reducer-inl.h
++++ b/v8/src/maglev/maglev-reducer-inl.h
+@@ -914,6 +914,8 @@
+   }
+ 
+   DCHECK(value->is_tagged());
++  RETURN_IF_ABORT(BuildStoreTaggedField(object, value, desc.offset, store_mode,
++                                        PropertyKey::None(), maybe_assigned));
+   if (InlinedAllocation* inlined_value = value->TryCast<InlinedAllocation>()) {
+     // Add to the escape set.
+     auto escape_deps = graph()->allocations_escape_map().find(object);
+@@ -923,11 +925,10 @@
+     auto& elided_map = graph()->allocations_elide_map();
+     auto elided_deps = elided_map.try_emplace(inlined_value, zone()).first;
+     elided_deps->second.push_back(object);
+-    inlined_value->AddNonEscapingUses();
++    AddNonEscapingUses(inlined_value, 1);
+   }
+ 
+-  return BuildStoreTaggedField(object, value, desc.offset, store_mode,
+-                               PropertyKey::None(), maybe_assigned);
++  return ReduceResult::Done();
+ }
+ 
+ template <typename BaseT>
 diff --git a/third_party/icu/README.chromium b/third_party/icu/README.chromium
 index 3e93de4..1ad19b3 100644
 --- a/third_party/icu/README.chromium
