@@ -1,8 +1,8 @@
 Chromium 158.0.8127.23 + the later changes of its release branch, up to
-28262e2182de4a0777e3492a0d037f725451e33e (refs/branch-heads/8127@{#1032}), for the
+2d22e0a403f7cdbbe3387e6ef7b3c84ddd7eb864 (refs/branch-heads/8127@{#1036}), for the
 158.0.8127.23 tree that chromium-158.0.8127.18-to-158.0.8127.23.patch makes.
 
-Generated from the upstream diffs chromium/src refs/tags/158.0.8127.23..28262e2182de4a0777e3492a0d037f725451e33e
+Generated from the upstream diffs chromium/src refs/tags/158.0.8127.23..2d22e0a403f7cdbbe3387e6ef7b3c84ddd7eb864
 and the dependencies whose DEPS revision changed (V8, ICU, Dawn), as served by Gitiles,
 with scripts/chromium-delta --branch-fixes: left out are files not in the
 release tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -30,6 +30,8 @@ the ICU roll has two security fixes: usearch index overflow, number formatting):
   ea9bddcd8d61 [M158] Revert CHECK on fetch_wallpaper_timer_.IsRunning() back to 
   2ae5b99567a0 [M158] Revert CHECK back to DCHECK for previous worker state in Re
   28262e2182de Roll commits from side projects in M158
+  3aef340744ce [M158] [Passwords] Fix auto sign-in toast menu lifetime
+  2d22e0a403f7 [M158] Revert CHECK to DCHECK for redirect URL in NavigationURLLoa
 
 Checked: applies to the 158.0.8127.23 tree; every patched file is
 byte-identical to its version at the commits above.
@@ -745,6 +747,204 @@ index 411759d..a644380 100644
  #else
        contextual_tasks_image = ui::ImageModel::FromVectorIcon(
            vector_icons::kGoogleColorIcon, ui::kColorIcon);
+diff --git a/chrome/browser/ui/passwords/manage_passwords_auto_signin_toast_delegate.cc b/chrome/browser/ui/passwords/manage_passwords_auto_signin_toast_delegate.cc
+index 9277fe32..ff23f08 100644
+--- a/chrome/browser/ui/passwords/manage_passwords_auto_signin_toast_delegate.cc
++++ b/chrome/browser/ui/passwords/manage_passwords_auto_signin_toast_delegate.cc
+@@ -5,8 +5,10 @@
+ #include "chrome/browser/ui/passwords/manage_passwords_auto_signin_toast_delegate.h"
+ 
+ #include <memory>
++#include <utility>
+ #include <vector>
+ 
++#include "base/functional/bind.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/chrome_pages.h"
+ #include "chrome/browser/ui/toasts/api/toast_id.h"
+@@ -15,22 +17,66 @@
+ #include "components/tabs/public/tab_interface.h"
+ #include "components/vector_icons/vector_icons.h"
+ #include "content/public/browser/web_contents.h"
++#include "ui/base/interaction/element_identifier.h"
+ #include "ui/base/models/image_model.h"
+ #include "ui/base/ui_base_features.h"
+ #include "ui/menus/simple_menu_model.h"
+ 
++namespace {
++
++class AutoSignInToastMenuModel : public ui::SimpleMenuModel::Delegate,
++                                 public ui::SimpleMenuModel {
++ public:
++  explicit AutoSignInToastMenuModel(
++      base::WeakPtr<ManagePasswordsAutoSigninToastDelegate> delegate)
++      : ui::SimpleMenuModel(/*delegate=*/this), delegate_(std::move(delegate)) {
++    AddItemWithStringIdAndIcon(
++        ManagePasswordsAutoSigninToastDelegate::
++            kAutoSignInOpenPasswordManagerSettingsCommand,
++        IDS_MANAGE,
++        ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
++                                           ? vector_icons::kSettingsFilledIcon
++                                           : vector_icons::kSettingsOldIcon,
++                                       ui::kColorMenuIcon,
++                                       ui::SimpleMenuModel::kDefaultIconSize));
++    SetElementIdentifierAt(0, ManagePasswordsAutoSigninToastDelegate::
++                                  kOpenPasswordManagerSettingsMenuItem);
++  }
++  AutoSignInToastMenuModel(const AutoSignInToastMenuModel&) = delete;
++  AutoSignInToastMenuModel& operator=(const AutoSignInToastMenuModel&) = delete;
++  ~AutoSignInToastMenuModel() override = default;
++
++  // ui::SimpleMenuModel::Delegate:
++  void ExecuteCommand(int command_id, int event_flags) override {
++    if (delegate_) {
++      delegate_->ExecuteCommand(command_id, event_flags);
++    }
++  }
++
++ private:
++  base::WeakPtr<ManagePasswordsAutoSigninToastDelegate> delegate_;
++};
++
++}  // namespace
++
++DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(ManagePasswordsAutoSigninToastDelegate,
++                                      kOpenPasswordManagerSettingsMenuItem);
++
+ ManagePasswordsAutoSigninToastDelegate::ManagePasswordsAutoSigninToastDelegate(
+     content::WebContents* web_contents)
+-    : web_contents_(web_contents) {}
++    : web_contents_(web_contents ? web_contents->GetWeakPtr() : nullptr) {}
+ 
+ ManagePasswordsAutoSigninToastDelegate::
+     ~ManagePasswordsAutoSigninToastDelegate() = default;
+ 
+ void ManagePasswordsAutoSigninToastDelegate::ExecuteCommand(int command_id,
+                                                             int event_flags) {
++  if (!web_contents_) {
++    return;
++  }
+   if (command_id == kAutoSignInOpenPasswordManagerSettingsCommand) {
+     if (auto* tab_interface =
+-            tabs::TabInterface::MaybeGetFromContents(web_contents_)) {
++            tabs::TabInterface::MaybeGetFromContents(web_contents_.get())) {
+       BrowserWindowInterface* browser =
+           tab_interface->GetBrowserWindowInterface();
+       if (browser) {
+@@ -47,6 +93,9 @@
+ 
+ void ManagePasswordsAutoSigninToastDelegate::OnAutoSignInToast(
+     const std::u16string& username) {
++  if (username.empty()) {
++    return;
++  }
+   ToastController* toast_controller = GetToastController();
+   if (!toast_controller) {
+     return;
+@@ -54,27 +103,19 @@
+   toast_observation_ =
+       toast_controller->RegisterOnWidgetDestroyed(base::BindRepeating(
+           &ManagePasswordsAutoSigninToastDelegate::OnToastWidgetDestroyed,
+-          base::Unretained(this)));
+-
+-  if (username.empty()) {
+-    return;
+-  }
++          weak_ptr_factory_.GetWeakPtr()));
+ 
+   ToastParams params(ToastId::kAutoSignIn);
+   params.body_string_replacement_params.push_back(username);
+-  auto menu_model = std::make_unique<ui::SimpleMenuModel>(this);
+-  menu_model->AddItemWithStringIdAndIcon(
+-      kAutoSignInOpenPasswordManagerSettingsCommand, IDS_MANAGE,
+-      ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+-                                         ? vector_icons::kSettingsFilledIcon
+-                                         : vector_icons::kSettingsOldIcon,
+-                                     ui::kColorMenuIcon, 16));
+-  params.menu_model = std::move(menu_model);
++  params.menu_model = std::make_unique<AutoSignInToastMenuModel>(
++      weak_ptr_factory_.GetWeakPtr());
+   toast_controller->MaybeShowToast(std::move(params));
+ }
+ 
+ ToastController* ManagePasswordsAutoSigninToastDelegate::GetToastController() {
+-  return ToastController::MaybeGetForWebContents(web_contents_);
++  return web_contents_
++             ? ToastController::MaybeGetForWebContents(web_contents_.get())
++             : nullptr;
+ }
+ 
+ void ManagePasswordsAutoSigninToastDelegate::NavigateToPasswordManagerSettings(
+diff --git a/chrome/browser/ui/passwords/manage_passwords_auto_signin_toast_delegate.h b/chrome/browser/ui/passwords/manage_passwords_auto_signin_toast_delegate.h
+index dae1cb6..681b390c 100644
+--- a/chrome/browser/ui/passwords/manage_passwords_auto_signin_toast_delegate.h
++++ b/chrome/browser/ui/passwords/manage_passwords_auto_signin_toast_delegate.h
+@@ -5,10 +5,12 @@
+ #ifndef CHROME_BROWSER_UI_PASSWORDS_MANAGE_PASSWORDS_AUTO_SIGNIN_TOAST_DELEGATE_H_
+ #define CHROME_BROWSER_UI_PASSWORDS_MANAGE_PASSWORDS_AUTO_SIGNIN_TOAST_DELEGATE_H_
+ 
++#include <string>
++
+ #include "base/callback_list.h"
+ #include "base/functional/callback.h"
+-#include "base/memory/raw_ptr.h"
+-#include "ui/menus/simple_menu_model.h"
++#include "base/memory/weak_ptr.h"
++#include "ui/base/interaction/element_identifier.h"
+ 
+ namespace content {
+ class WebContents;
+@@ -19,9 +21,10 @@
+ enum class ToastId;
+ 
+ // Delegate for handling actions from the auto sign-in toast.
+-class ManagePasswordsAutoSigninToastDelegate
+-    : public ui::SimpleMenuModel::Delegate {
++class ManagePasswordsAutoSigninToastDelegate {
+  public:
++  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kOpenPasswordManagerSettingsMenuItem);
++
+   static constexpr int kAutoSignInOpenPasswordManagerSettingsCommand = 1;
+ 
+   explicit ManagePasswordsAutoSigninToastDelegate(
+@@ -30,10 +33,9 @@
+       const ManagePasswordsAutoSigninToastDelegate&) = delete;
+   ManagePasswordsAutoSigninToastDelegate& operator=(
+       const ManagePasswordsAutoSigninToastDelegate&) = delete;
+-  ~ManagePasswordsAutoSigninToastDelegate() override;
++  virtual ~ManagePasswordsAutoSigninToastDelegate();
+ 
+-  // ui::SimpleMenuModel::Delegate:
+-  void ExecuteCommand(int command_id, int event_flags) override;
++  void ExecuteCommand(int command_id, int event_flags);
+ 
+   void SetOnToastClosedCallback(base::OnceClosure on_toast_closed_callback);
+ 
+@@ -47,9 +49,11 @@
+  private:
+   void OnToastWidgetDestroyed(ToastId toast_id);
+ 
+-  raw_ptr<content::WebContents> web_contents_;
++  base::WeakPtr<content::WebContents> web_contents_;
+   base::OnceClosure on_toast_closed_callback_;
+   base::CallbackListSubscription toast_observation_;
++  base::WeakPtrFactory<ManagePasswordsAutoSigninToastDelegate>
++      weak_ptr_factory_{this};
+ };
+ 
+ #endif  // CHROME_BROWSER_UI_PASSWORDS_MANAGE_PASSWORDS_AUTO_SIGNIN_TOAST_DELEGATE_H_
+diff --git a/chrome/browser/ui/passwords/manage_passwords_ui_controller.cc b/chrome/browser/ui/passwords/manage_passwords_ui_controller.cc
+index a0835688..49ed202 100644
+--- a/chrome/browser/ui/passwords/manage_passwords_ui_controller.cc
++++ b/chrome/browser/ui/passwords/manage_passwords_ui_controller.cc
+@@ -1502,6 +1502,7 @@
+     account_password_store->RemoveObserver(this);
+   }
+   dialog_controller_.reset();
++  auto_signin_toast_delegate_.reset();
+   HideBubble(/*initiated_by_bubble_manager=*/false);
+   Observe(nullptr);
+ }
 diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_button.cc b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_button.cc
 index 2708b5f9f..c16f61a 100644
 --- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_button.cc
@@ -1081,6 +1281,21 @@ index b0d2b38..57f46e7a 100644
              icon == &vector_icons::kGoogleGLogoMonochromeIcon ||
              item->GetImage().IsImage()
  #else
+diff --git a/content/browser/loader/navigation_url_loader_impl.cc b/content/browser/loader/navigation_url_loader_impl.cc
+index b6cca80..b9cc368 100644
+--- a/content/browser/loader/navigation_url_loader_impl.cc
++++ b/content/browser/loader/navigation_url_loader_impl.cc
+@@ -1167,7 +1167,9 @@
+   // redirect. No interceptors wanted to intercept the redirected request,
+   // so let the loader just follow the redirect.
+   if (loader_holder_.url_loader()) {
+-    CHECK(!redirect_info_.new_url.is_empty(), base::NotFatalUntil::M160);
++    // TODO(crbug.com/579071902): CHECK-exclusion: Convert to a CHECK once we
++    // are confident it won't be triggered.
++    DCHECK(!redirect_info_.new_url.is_empty());
+     // TODO(https://crbug.com/434182226): Turn this to `CHECK()`.
+     DUMP_WILL_BE_CHECK_EQ(loader_holder_.state(),
+                           LoaderHolder::State::kLoadingViaLoader);
 diff --git a/ui/webui/resources/cr_components/composebox/composebox_match.css b/ui/webui/resources/cr_components/composebox/composebox_match.css
 index 52668c6..f660a39 100644
 --- a/ui/webui/resources/cr_components/composebox/composebox_match.css
