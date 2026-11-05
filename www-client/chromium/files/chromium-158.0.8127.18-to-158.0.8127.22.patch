@@ -1,0 +1,1288 @@
+Chromium 158.0.8127.18 -> 158.0.8127.22, for the 158.0.8127.18 tarball.
+
+158.0.8127.22 is a tag on the 158 branch (refs/branch-heads/8127@{#862}) that
+has no source tarball (as of 2026-11-04). It adds 17 branch commits to
+158.0.8127.18 (#845): contextual tasks and omnibox WebUI changes, and
+PartitionAlloc's ThreadCache overflow churn during bulk purges.
+
+Generated from the upstream diff between the tags (chromium/src
+refs/tags/158.0.8127.18..158.0.8127.22; no dependency's DEPS revision
+changed), as served by Gitiles, with scripts/chromium-delta.
+
+Left out, as they cannot affect a Linux build: files not in the release
+tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
+translations, CI configuration, PGO pointers, DEPS.
+
+Added: the tarball's stamp files for the new commit (stamps.py:
+build/util/LASTCHANGE{,.committime} and gpu/config/gpu_lists_version.h;
+commit 58b666ad521f748090829ba302d391bfd3c784cf, refs/branch-heads/8127@{#862}).
+Skia's and Dawn's stamps and build/util/MINIBRANCH don't change.
+
+Checked: applies to the 158.0.8127.18 tarball; chrome/VERSION becomes
+158.0.8127.22; every patched source file is byte-identical to its version
+at the tag; it adds no files; the 158.0.8127.18 tarball's non-git files are
+all classified (tarball-generated.py with generated.conf).
+
+Apply with git apply.
+
+diff --git a/base/allocator/partition_allocator/src/partition_alloc/internal/thread_cache_internal.h b/base/allocator/partition_allocator/src/partition_alloc/internal/thread_cache_internal.h
+index fa15596..0301b787 100644
+--- a/base/allocator/partition_allocator/src/partition_alloc/internal/thread_cache_internal.h
++++ b/base/allocator/partition_allocator/src/partition_alloc/internal/thread_cache_internal.h
+@@ -287,9 +287,17 @@
+   // The slot comes from the bucket at index |bucket_index| from the partition
+   // this cache is for.
+   //
++  // When `allow_clear_bucket` is false, refuses insertion once the bucket
++  // reaches its post-clearing target (`(limit + 1) / 2`) so bulk callers that
++  // already batch-free to the root avoid repeatedly overflowing and walking the
++  // freelist via `ClearBucket()`.
++  // TODO(crbug.com/579744817): Remove `allow_clear_bucket` once dedicated
++  // batch-free support is implemented in `ThreadCache`.
++  //
+   // Returns the slot size if the insertion succeeds, `nullopt` otherwise.
+   // Insertion can fail either because the cache is full or the
+   // allocation was too large.
++  template <bool allow_clear_bucket = true>
+   PA_ALWAYS_INLINE std::optional<size_t> MaybePutInCache(
+       UntaggedSlotStart slot_start,
+       size_t bucket_index);
+@@ -463,6 +471,7 @@
+   friend class tools::ThreadCacheInspector;
+ };
+ 
++template <bool allow_clear_bucket>
+ PA_ALWAYS_INLINE std::optional<size_t> ThreadCache::MaybePutInCache(
+     UntaggedSlotStart slot_start,
+     size_t bucket_index) {
+@@ -478,18 +487,32 @@
+ 
+   PA_DCHECK(bucket.count != 0 || bucket.freelist_head == nullptr);
+ 
+-  PutInBucket(bucket, slot_start);
+-  cached_memory_ += bucket.slot_size;
+-  PA_INCREMENT_COUNTER(stats_.cache_fill_hits);
+-
+   // Relaxed ordering: we don't care about having an up-to-date or consistent
+   // value, just want it to not change while we are using it, hence using
+   // relaxed ordering, and loading into a local variable. Without it, we are
+   // gambling that the compiler would not issue multiple loads.
+   uint8_t limit = bucket.limit.load(std::memory_order_relaxed);
+-  // Batched deallocation, amortizing lock acquisitions.
+-  if (bucket.count > limit) [[unlikely]] {
+-    ClearBucket(bucket, limit / 2);
++  if constexpr (!allow_clear_bucket) {
++    if (bucket.count >= (limit + 1) / 2) {
++      PA_INCREMENT_COUNTER(stats_.cache_fill_misses);
++      if (should_purge_.load(std::memory_order_relaxed)) [[unlikely]] {
++        PurgeInternal();
++      }
++      return std::nullopt;
++    }
++  }
++
++  PutInBucket(bucket, slot_start);
++  cached_memory_ += bucket.slot_size;
++  PA_INCREMENT_COUNTER(stats_.cache_fill_hits);
++
++  if constexpr (allow_clear_bucket) {
++    // Batched deallocation, amortizing lock acquisitions.
++    if (bucket.count > limit) [[unlikely]] {
++      ClearBucket(bucket, limit / 2);
++    }
++  } else {
++    PA_DCHECK(bucket.count <= limit);
+   }
+ 
+   if (should_purge_.load(std::memory_order_relaxed)) [[unlikely]] {
+diff --git a/base/allocator/partition_allocator/src/partition_alloc/scheduler_loop_quarantine.cc b/base/allocator/partition_allocator/src/partition_alloc/scheduler_loop_quarantine.cc
+index a019f71..74d9cf5 100644
+--- a/base/allocator/partition_allocator/src/partition_alloc/scheduler_loop_quarantine.cc
++++ b/base/allocator/partition_allocator/src/partition_alloc/scheduler_loop_quarantine.cc
+@@ -39,6 +39,8 @@
+ template <QuarantineTarget quarantine_target>
+ class BatchFreeQueue {
+  public:
++  constexpr static size_t kQueueSize = 16;
++
+   PA_ALWAYS_INLINE explicit BatchFreeQueue(PartitionRoot* root) : root_(root) {}
+   PA_ALWAYS_INLINE ~BatchFreeQueue() { Purge(); }
+ 
+@@ -74,7 +76,6 @@
+   PartitionRoot* const root_;
+   size_t size_ = 0;
+ 
+-  constexpr static size_t kQueueSize = 16;
+   std::array<Entry, kQueueSize> queue_;
+ };
+ 
+@@ -164,7 +165,9 @@
+ // `queue` amortizes the root lock over `kQueueSize` slots and is constructed
+ // lazily on first use.
+ // `tcache` is the cache owning this branch, and is null unless `thread_bound`.
+-template <bool thread_bound, QuarantineTarget quarantine_target>
++template <bool thread_bound,
++          QuarantineTarget quarantine_target,
++          bool allow_clear_bucket>
+ PA_ALWAYS_INLINE void ReleaseDequarantinedSlot(
+     PartitionRoot* root,
+     UntaggedSlotStart slot_start,
+@@ -185,7 +188,7 @@
+     return;
+   } else {
+     std::optional<size_t> slot_size_opt =
+-        tcache->MaybePutInCache(slot_start, bucket_index);
++        tcache->MaybePutInCache<allow_clear_bucket>(slot_start, bucket_index);
+ 
+     if (slot_size_opt.has_value()) [[likely]] {
+       PA_DCHECK(slot_size_opt.value() == slot_size);
+@@ -482,6 +485,17 @@
+   // zero-initializes its storage.
+   std::optional<BatchFreeQueue<quarantine_target>> queue;
+ 
++  // During a bulk full purge (`target_size_in_bytes == 0`, e.g. end-of-task),
++  // once `ThreadCache` buckets already hold at least half their limit, bypass
++  // `ThreadCache` insertion and batch-free the remaining cold slots directly
++  // through `BatchFreeQueue`. This avoids repeatedly overflowing buckets,
++  // walking freelists in `ClearBucket()`, and evicting warm cached slots, while
++  // keeping single-slot/small purges on the lock-free `ThreadCache` path.
++  const bool avoid_tcache_overflow =
++      kThreadBound && quarantine_target == QuarantineTarget::kMiracleObjects &&
++      target_size_in_bytes == 0 &&
++      slots_.size() >= BatchFreeQueue<quarantine_target>::kQueueSize;
++
+   // Dequarantine some entries as required.
+   while (target_size_in_bytes < branch_size_in_bytes_) {
+     PA_DCHECK(!slots_.empty());
+@@ -512,9 +526,17 @@
+ #endif  // PA_BUILDFLAG(DCHECKS_ARE_ON)
+     }
+ 
+-    ReleaseDequarantinedSlot<kThreadBound, quarantine_target>(
+-        allocator_root_, slot_start.Untag(), bucket_index, slot_size, queue,
+-        tcache_);
++    if (avoid_tcache_overflow) {
++      ReleaseDequarantinedSlot<kThreadBound, quarantine_target,
++                               /*allow_clear_bucket=*/false>(
++          allocator_root_, slot_start.Untag(), bucket_index, slot_size, queue,
++          tcache_);
++    } else {
++      ReleaseDequarantinedSlot<kThreadBound, quarantine_target,
++                               /*allow_clear_bucket=*/true>(
++          allocator_root_, slot_start.Untag(), bucket_index, slot_size, queue,
++          tcache_);
++    }
+   }
+ 
+   unpublished_stats_.dequarantined_count += freed_count;
+diff --git a/chrome/VERSION b/chrome/VERSION
+index 42a35f4..f1474db4 100644
+--- a/chrome/VERSION
++++ b/chrome/VERSION
+@@ -1,4 +1,4 @@
+ MAJOR=158
+ MINOR=0
+ BUILD=8127
+-PATCH=18
++PATCH=22
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
+index 2023cf2..7eb0caf 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
+@@ -14,6 +14,8 @@
+ #include "base/containers/adapters.h"
+ #include "base/containers/flat_set.h"
+ #include "base/functional/bind.h"
++#include "base/logging.h"
++#include "base/memory/weak_ptr.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/metrics/user_metrics.h"
+ #include "base/metrics/user_metrics_action.h"
+@@ -42,7 +44,6 @@
+ #include "content/public/browser/web_contents.h"
+ #include "mojo/public/cpp/base/proto_wrapper.h"
+ #include "third_party/lens_server_proto/aim_communication.pb.h"
+-#include "third_party/lens_server_proto/search_communication.pb.h"
+ #include "ui/base/mojom/window_open_disposition.mojom.h"
+ 
+ #if !BUILDFLAG(IS_ANDROID)
+@@ -51,7 +52,6 @@
+ #include "chrome/browser/ui/lens/lens_overlay_controller.h"
+ #include "chrome/browser/ui/lens/lens_search_controller.h"
+ #include "chrome/browser/ui/webui/cr_components/searchbox/contextual_searchbox_handler.h"
+-#include "chrome/browser/ui/webui/webui_embedding_context.h"
+ #include "ui/webui/tracked_element/tracked_element_handler.h"
+ #endif
+ 
+@@ -253,12 +253,6 @@
+   if (auto* user_data = GetOrCreateWebContentsUserData()) {
+     user_data->UpdateExtensionFrameBound(
+         this, /*is_page_bound=*/true,
+-        base::BindRepeating(
+-            &ContextualTasksExtensionHandler::SendSearchMessageToBoundPage,
+-            weak_ptr_factory_.GetWeakPtr()),
+-        base::BindRepeating(
+-            &ContextualTasksExtensionHandler::OnHandshakeComplete,
+-            weak_ptr_factory_.GetWeakPtr()),
+         base::BindRepeating(&ContextualTasksExtensionHandler::OnLensCropUpdated,
+                             weak_ptr_factory_.GetWeakPtr()));
+   }
+@@ -290,58 +284,18 @@
+ void ContextualTasksExtensionHandler::OnWebviewMessage(
+     const std::vector<uint8_t>& message,
+     const std::optional<std::string>& document_id) {
+-  if (!contextual_tasks_page_.is_bound()) {
+-    return;
+-  }
+-  constexpr size_t kMaxWebviewMessageBytes = 1024 * 1024;
+-  if (message.size() > kMaxWebviewMessageBytes) {
+-    return;
+-  }
+-
+-  // Try parsing SearchToClientMessage first via
+-  // ContextualTasksWebContentsUserData.
+-  if (auto* user_data = GetOrCreateWebContentsUserData()) {
+-    if (user_data->OnSearchMessageReceived(message, this)) {
+-      return;
+-    }
+-  }
+-
+-  // Fall back to legacy AimToClientMessage.
+-  lens::AimToClientMessage aim_to_client_message;
+-  if (!aim_to_client_message.ParseFromArray(message.data(), message.size())) {
+-    return;
+-  }
+-
+-  if (aim_to_client_message.has_handshake_response()) {
+-    OnHandshakeComplete();
+-    RecordTimeToHandshakeComplete();
+-  } else if (aim_to_client_message.has_open_link_in_side_panel_mode()) {
+-    if (auto* user_data = GetOrCreateWebContentsUserData()) {
+-      user_data->HandleOpenLinkInSidePanelMode(
+-          aim_to_client_message.open_link_in_side_panel_mode().url());
+-    }
+-  }
+-}
+-
+-void ContextualTasksExtensionHandler::RecordTimeToHandshakeComplete() {
+-#if !BUILDFLAG(IS_ANDROID)
+-  if (auto* wc =
+-          content::WebContents::FromRenderFrameHost(&render_frame_host())) {
+-    if (auto* browser = webui::GetBrowserWindowInterface(wc)) {
+-      if (auto* panel_controller =
+-              contextual_tasks::ContextualTasksPanelController::From(browser)) {
+-        panel_controller->RecordTimeToHandshakeComplete(wc);
+-      }
+-    }
+-  }
+-#endif
++  // Only implemented on `ContextualTasksExtensionServiceWorkerHandler`.
++  DLOG(WARNING)
++      << "Unexpected call to ContextualTasksExtensionHandler::OnWebviewMessage";
+ }
+ 
+ void ContextualTasksExtensionHandler::GetHandshakeMessage(
+     const std::optional<std::string>& document_id,
+     GetHandshakeMessageCallback callback) {
+-  std::move(callback).Run(
+-      mojo_base::ProtoWrapper(contextual_tasks::GetHandshakeMessageProto()));
++  // Only implemented on `ContextualTasksExtensionServiceWorkerHandler`.
++  DLOG(WARNING) << "Unexpected call to "
++                   "ContextualTasksExtensionHandler::GetHandshakeMessage";
++  std::move(callback).Run(mojo_base::ProtoWrapper(lens::ClientToAimMessage()));
+ }
+ 
+ void ContextualTasksExtensionHandler::GetLensCropPreview(
+@@ -627,6 +581,7 @@
+         tab, session_handle->GetMetricsRecorder(),
+         /*is_tab_suggestion_chip=*/true, GetBrowserWindowInterface());
+     user_data->AssociateTabWithTask(session_id);
++    UpdateInputStateModelContext();
+     std::move(callback).Run(base::ok(token));
+     return;
+   }
+@@ -638,7 +593,8 @@
+           [](base::WeakPtr<contextual_tasks::ContextualTasksWebContentsUserData>
+                  ud) {
+             if (ud) {
+-              if (auto model = ud->GetOrCreateInputStateModel()) {
++              if (base::WeakPtr<contextual_search::InputStateModel> model =
++                      ud->GetOrCreateInputStateModel()) {
+                 model->OnContextChanged();
+               }
+               ud->RefreshActiveTaskContext();
+@@ -660,6 +616,7 @@
+     // Associate the tab with the task as soon as it is attached as context so
+     // the task knows which tabs are part of it.
+     user_data->AssociateTabWithTask(session_id);
++    UpdateInputStateModelContext();
+     user_data->RefreshActiveTaskContext();
+   }
+ 
+@@ -681,6 +638,7 @@
+ void ContextualTasksExtensionHandler::DeleteTabContext(int32_t tab_id) {
+   if (auto* user_data = GetOrCreateWebContentsUserData()) {
+     user_data->DeleteTabContext(tab_id);
++    UpdateInputStateModelContext();
+   }
+ }
+ 
+@@ -745,20 +703,6 @@
+   }
+ }
+ 
+-void ContextualTasksExtensionHandler::SendSearchMessageToBoundPage(
+-    const lens::ClientToSearchMessage& message) {
+-  if (contextual_tasks_page_.is_bound()) {
+-    contextual_tasks_page_->PostSearchMessage(mojo_base::ProtoWrapper(message),
+-                                              std::nullopt);
+-  }
+-}
+-
+-void ContextualTasksExtensionHandler::OnHandshakeComplete() {
+-  if (contextual_tasks_page_.is_bound()) {
+-    contextual_tasks_page_->OnHandshakeComplete();
+-  }
+-}
+-
+ void ContextualTasksExtensionHandler::OnLensCropUpdated(const GURL& data_uri) {
+   if (contextual_tasks_page_.is_bound()) {
+     contextual_tasks_page_->OnLensCropUpdated(data_uri);
+@@ -850,6 +794,15 @@
+   return input_state_model_;
+ }
+ 
++void ContextualTasksExtensionHandler::UpdateInputStateModelContext() {
++  // Ask the input state model to recalculate input limits based on the
++  // updated context.
++  if (base::WeakPtr<contextual_search::InputStateModel> model =
++          GetOrCreateInputStateModel()) {
++    model->OnContextChanged();
++  }
++}
++
+ void ContextualTasksExtensionHandler::OnSessionChanged(
+     contextual_search::ContextualSearchSessionHandle* session_handle) {
+   if (subscribed_session_handle_.get() == session_handle &&
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
+index 888e305..86a90ca 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
+@@ -54,10 +54,6 @@
+ class WebContents;
+ }  // namespace content
+ 
+-namespace lens {
+-class ClientToSearchMessage;
+-}  // namespace lens
+-
+ namespace contextual_tasks {
+ class ContextualTasksWebContentsUserData;
+ }  // namespace contextual_tasks
+@@ -280,6 +276,7 @@
+   void OnInputStateChanged(const omnibox::InputState& state);
+   base::WeakPtr<contextual_search::InputStateModel>
+   GetOrCreateInputStateModel();
++  void UpdateInputStateModelContext();
+   void OnSessionChanged(
+       contextual_search::ContextualSearchSessionHandle* session_handle);
+   // Updates the tab context subscription callback if there is a new session.
+@@ -291,9 +288,6 @@
+   void SendTabContextToExtensionPage(
+       const contextual_search::TabContextState& state);
+   void OnLensThumbnailCreated(const std::string& thumbnail_uri);
+-  void RecordTimeToHandshakeComplete();
+-  void SendSearchMessageToBoundPage(const lens::ClientToSearchMessage& message);
+-  void OnHandshakeComplete();
+   void OnLensCropUpdated(const GURL& data_uri);
+ 
+   mojo::Receiver<contextual_tasks::mojom::ExtensionPageHandlerFactory>
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_internals_page_handler.cc b/chrome/browser/contextual_tasks/contextual_tasks_internals_page_handler.cc
+index 768afc2f..7afc66a 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_internals_page_handler.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_internals_page_handler.cc
+@@ -242,7 +242,7 @@
+       user_data_state->extension_frames.push_back(
+           contextual_tasks_internals::mojom::ExtensionFrameDebug::New(
+               base::checked_cast<uint32_t>(i), frames[i].is_page_bound,
+-              frames[i].is_handshake_complete));
++              /*is_handshake_complete=*/false));
+     }
+ 
+     user_data_state->submit_pending = user_data->submit_pending();
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
+index a797882..adbf1f8d 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
+@@ -8,7 +8,6 @@
+ #include <iterator>
+ #include <utility>
+ 
+-#include "base/containers/adapters.h"
+ #include "base/functional/callback_helpers.h"
+ #include "base/metrics/field_trial_params.h"
+ #include "base/metrics/histogram_functions.h"
+@@ -530,30 +529,13 @@
+ void ContextualTasksWebContentsUserData::UpdateExtensionFrameBound(
+     const void* handler_id,
+     bool is_page_bound,
+-    base::RepeatingCallback<void(const lens::ClientToSearchMessage&)>
+-        post_search_message_cb,
+-    base::RepeatingClosure on_handshake_complete_cb,
+     base::RepeatingCallback<void(const GURL&)> on_lens_crop_updated_cb,
+     base::RepeatingClosure on_tab_context_updated_cb) {
+-  bool had_bound_frame = HasBoundExtensionFrame();
+   for (auto& frame : extension_frames_) {
+     if (frame.handler_id == handler_id) {
+       frame.is_page_bound = is_page_bound;
+-      if (!is_page_bound) {
+-        frame.is_handshake_complete = false;
+-      }
+-      frame.post_search_message_cb = std::move(post_search_message_cb);
+-      frame.on_handshake_complete_cb = std::move(on_handshake_complete_cb);
+       frame.on_lens_crop_updated_cb = std::move(on_lens_crop_updated_cb);
+       frame.on_tab_context_updated_cb = std::move(on_tab_context_updated_cb);
+-      if (is_page_bound && !had_bound_frame &&
+-          !IsServiceWorkerPortConnected()) {
+-        auto& page_state = GetPrimaryPageSearchState();
+-        page_state.is_lens_crop_mounted = false;
+-        page_state.last_lens_crop_data_uri.clear();
+-        page_state.last_sent_context_state = ContextState::kNone;
+-        page_state.last_sent_suggest_inputs_serialized.clear();
+-      }
+       return;
+     }
+   }
+@@ -561,34 +543,9 @@
+ 
+ void ContextualTasksWebContentsUserData::UnregisterExtensionFrame(
+     const void* handler_id) {
+-  if (last_active_search_handler_id_ == handler_id) {
+-    last_active_search_handler_id_ = nullptr;
+-  }
+-  bool was_bound = false;
+   std::erase_if(extension_frames_, [&](const ExtensionFrameInfo& frame) {
+-    if (frame.handler_id == handler_id) {
+-      was_bound = frame.is_page_bound;
+-      return true;
+-    }
+-    return false;
++    return frame.handler_id == handler_id;
+   });
+-
+-  if (was_bound) {
+-    if (const ExtensionFrameInfo* target_frame = FindTargetExtensionFrame();
+-        target_frame && target_frame->is_handshake_complete &&
+-        !GetWebContents().IsBeingDestroyed() &&
+-        GetWebContents().GetPrimaryMainFrame() &&
+-        !IsServiceWorkerPortConnected()) {
+-      // An unmounting extension iframe (such as `tab_picker.html` when the `+`
+-      // menu closes) may have been the last frame to postMessage to Search,
+-      // leaving Search's `ChromePostMessageService.activeChromeWindow` pointing
+-      // to the detached window. Re-sending the current context state through a
+-      // surviving handshake-complete frame (such as `context_library.html`)
+-      // forces Search to switch `activeChromeWindow` to the surviving frame.
+-      last_active_search_handler_id_ = target_frame->handler_id;
+-      UpdateContextState(/*force_send=*/true);
+-    }
+-  }
+ }
+ 
+ bool ContextualTasksWebContentsUserData::HasBoundExtensionFrame() const {
+@@ -684,8 +641,7 @@
+ }
+ 
+ bool ContextualTasksWebContentsUserData::OnSearchMessageReceived(
+-    base::span<const uint8_t> message,
+-    const void* source_handler_id) {
++    base::span<const uint8_t> message) {
+   if (message.size() > kMaxSearchMessageBytes) {
+     return false;
+   }
+@@ -696,12 +652,6 @@
+     return false;
+   }
+ 
+-  if (search_to_client_message.event_message_case() !=
+-          lens::SearchToClientMessage::EVENT_MESSAGE_NOT_SET &&
+-      source_handler_id) {
+-    last_active_search_handler_id_ = source_handler_id;
+-  }
+-
+   switch (search_to_client_message.event_message_case()) {
+     case lens::SearchToClientMessage::kHandshakeResponse: {
+       int32_t raw_auth_index =
+@@ -710,7 +660,7 @@
+       if (auto* session_handle = GetOrCreateContextualSessionHandle()) {
+         session_handle->set_auth_user_index(auth_user_index);
+       }
+-      OnHandshakeComplete(source_handler_id);
++      OnHandshakeComplete();
+       return true;
+     }
+     case lens::SearchToClientMessage::kOnSubmitQueryRequest:
+@@ -734,31 +684,9 @@
+   return false;
+ }
+ 
+-void ContextualTasksWebContentsUserData::OnHandshakeComplete(
+-    const void* source_handler_id) {
+-  if (source_handler_id) {
+-    last_active_search_handler_id_ = source_handler_id;
+-    for (auto& frame : extension_frames_) {
+-      if (frame.handler_id == source_handler_id && frame.is_page_bound) {
+-        frame.is_handshake_complete = true;
+-        if (frame.on_handshake_complete_cb) {
+-          frame.on_handshake_complete_cb.Run();
+-        }
+-        break;
+-      }
+-    }
+-  } else {
+-    for (auto& frame : extension_frames_) {
+-      if (frame.is_page_bound) {
+-        frame.is_handshake_complete = true;
+-        if (frame.on_handshake_complete_cb) {
+-          frame.on_handshake_complete_cb.Run();
+-        }
+-      }
+-    }
+-  }
++void ContextualTasksWebContentsUserData::OnHandshakeComplete() {
+   auto& page_state = GetPrimaryPageSearchState();
+-  if (!source_handler_id && page_state.handshake_start_time.has_value() &&
++  if (page_state.handshake_start_time.has_value() &&
+       !page_state.handshake_status_recorded) {
+     page_state.handshake_status_recorded = true;
+     RecordExtensionHandshakeLatency(base::TimeTicks::Now() -
+@@ -772,21 +700,12 @@
+   }
+   page_state.is_handshake_complete = true;
+ 
+-  const bool had_queued_messages = !page_state.pending_search_messages.empty();
+   std::vector<std::vector<uint8_t>> queued =
+       std::exchange(page_state.pending_search_messages, {});
+   for (const auto& msg_bytes : queued) {
+     DispatchSerializedSearchMessage(msg_bytes);
+   }
+ 
+-  if (!had_queued_messages && !IsServiceWorkerPortConnected()) {
+-    if (is_first_page_handshake) {
+-      page_state.context_library_is_active = false;
+-    }
+-    page_state.last_sent_context_state = ContextState::kNone;
+-    page_state.last_sent_suggest_inputs_serialized.clear();
+-  }
+-
+   if (ContextualTasksPanelController::IsWebContentsInPanel(&GetWebContents())) {
+     UpdateImplicitTabContext();
+   }
+@@ -810,33 +729,6 @@
+   message.SerializeToArray(bytes.data(), size);
+ 
+   auto& page_state = GetPrimaryPageSearchState();
+-  if (IsServiceWorkerPortConnected()) {
+-    if (!page_state.is_handshake_complete) {
+-      if (page_state.pending_search_messages.size() <
+-          kMaxPendingSearchMessages) {
+-        page_state.pending_search_messages.push_back(std::move(bytes));
+-      } else {
+-        ++page_state.dropped_overflow_messages;
+-      }
+-      return;
+-    }
+-    DispatchSerializedSearchMessage(bytes);
+-    return;
+-  }
+-
+-  // Fallback when Service Worker Port is not connected: route via the active
+-  // bound extension iframe if present.
+-  if (const ExtensionFrameInfo* target_frame = FindTargetExtensionFrame()) {
+-    target_frame->post_search_message_cb.Run(message);
+-    if (search_message_dispatcher_for_testing_) {
+-      search_message_dispatcher_for_testing_.Run(message);
+-    }
+-    return;
+-  }
+-
+-  // Zero bound extension frames and no Service Worker Port connected yet:
+-  // queue until handshake completes (or dispatch to testing callback if
+-  // handshake already completed).
+   if (!page_state.is_handshake_complete) {
+     if (page_state.pending_search_messages.size() < kMaxPendingSearchMessages) {
+       page_state.pending_search_messages.push_back(std::move(bytes));
+@@ -1638,10 +1530,10 @@
+   return ContextState::kNone;
+ }
+ 
+-void ContextualTasksWebContentsUserData::UpdateContextState(bool force_send) {
++void ContextualTasksWebContentsUserData::UpdateContextState() {
+   ContextState current_state = ComputeContextState();
+   auto& page_state = GetPrimaryPageSearchState();
+-  if (!force_send && current_state == page_state.last_sent_context_state) {
++  if (current_state == page_state.last_sent_context_state) {
+     return;
+   }
+   page_state.last_sent_context_state = current_state;
+@@ -2518,52 +2410,60 @@
+         removed_id;
+   }
+ 
+-  const auto selected_tabs = GetSelectedTabs();
+-  const auto& attached_tabs = session_handle->GetTabContextState().attached;
+   size_t explicit_tab_count = 0;
+   size_t implicit_tab_count = 0;
+-  // Add uploaded tab contexts directly from the session handle.
+-  for (const auto& file_info : session_handle->GetUploadedContextFileInfos()) {
+-    if (!file_info.request_id.has_value()) {
+-      continue;
+-    }
+-    // If this file corresponds to the lens overlay token, it will be handled
+-    // separately when Lens crop is finalized.
+-    if (overlay_token.has_value() && file_info.file_token == *overlay_token) {
+-      continue;
+-    }
+-    const bool is_implicit_upload =
+-        file_info.is_implicit_upload ||
+-        (file_info.input_data && file_info.input_data->is_implicit_upload);
+-    const bool is_implicit_smart_tab =
+-        is_implicit_upload &&
+-        ((file_info.input_data &&
+-          file_info.input_data->was_smart_tab_selection) ||
+-         contextual_search::TabInfo::ContainsToken(attached_tabs,
+-                                                   file_info.file_token));
+-    const bool is_selected_manual_tab =
+-        contextual_search::TabInfo::ContainsToken(selected_tabs,
+-                                                  file_info.file_token);
+-    if (!is_selected_manual_tab && !is_implicit_smart_tab) {
+-      continue;
+-    }
+-    auto* added = on_submit_response->add_added_contexts();
+-    added->set_search_session_id(session_handle->search_session_id());
+-    *added->mutable_request_id() = *file_info.request_id;
+-    const auto upload_type =
+-        (file_info.input_data && file_info.input_data->upload_type.has_value())
+-            ? *file_info.input_data->upload_type
+-            : lens::LensOverlayContextualInputUploadType::
+-                  CONTEXTUAL_INPUT_UPLOAD_TYPE_EXPLICIT;
+-    added->set_contextual_input_upload_type(upload_type);
+-    const bool is_implicit =
+-        is_implicit_upload || upload_type !=
+-                                  lens::LensOverlayContextualInputUploadType::
+-                                      CONTEXTUAL_INPUT_UPLOAD_TYPE_EXPLICIT;
+-    if (is_implicit) {
+-      ++implicit_tab_count;
+-    } else {
+-      ++explicit_tab_count;
++  const std::string session_id = session_handle->search_session_id();
++  if (!session_id.empty()) {
++    const auto selected_tabs = GetSelectedTabs();
++    const auto& attached_tabs = session_handle->GetTabContextState().attached;
++    // Add uploaded tab contexts directly from the session handle.
++    for (const auto& file_info :
++         session_handle->GetUploadedContextFileInfos()) {
++      if (file_info.is_superceded ||
++          !contextual_search::IsValidContextUploadStatusForMultimodalRequest(
++              file_info.upload_status) ||
++          !file_info.request_id.has_value()) {
++        continue;
++      }
++      // If this file corresponds to the lens overlay token, it will be handled
++      // separately when Lens crop is finalized.
++      if (overlay_token.has_value() && file_info.file_token == *overlay_token) {
++        continue;
++      }
++      const bool is_implicit_upload =
++          file_info.is_implicit_upload ||
++          (file_info.input_data && file_info.input_data->is_implicit_upload);
++      const bool is_implicit_smart_tab =
++          is_implicit_upload &&
++          ((file_info.input_data &&
++            file_info.input_data->was_smart_tab_selection) ||
++           contextual_search::TabInfo::ContainsToken(attached_tabs,
++                                                     file_info.file_token));
++      const bool is_selected_manual_tab =
++          contextual_search::TabInfo::ContainsToken(selected_tabs,
++                                                    file_info.file_token);
++      if (!is_selected_manual_tab && !is_implicit_smart_tab) {
++        continue;
++      }
++      auto* added = on_submit_response->add_added_contexts();
++      added->set_search_session_id(session_id);
++      *added->mutable_request_id() = *file_info.request_id;
++      const auto upload_type =
++          (file_info.input_data &&
++           file_info.input_data->upload_type.has_value())
++              ? *file_info.input_data->upload_type
++              : lens::LensOverlayContextualInputUploadType::
++                    CONTEXTUAL_INPUT_UPLOAD_TYPE_EXPLICIT;
++      added->set_contextual_input_upload_type(upload_type);
++      const bool is_implicit =
++          is_implicit_upload || upload_type !=
++                                    lens::LensOverlayContextualInputUploadType::
++                                        CONTEXTUAL_INPUT_UPLOAD_TYPE_EXPLICIT;
++      if (is_implicit) {
++        ++implicit_tab_count;
++      } else {
++        ++explicit_tab_count;
++      }
+     }
+   }
+   base::UmaHistogramCounts100(
+@@ -2610,6 +2510,8 @@
+   if (overlay_token.has_value()) {
+     for (const auto& info : uploaded_files) {
+       if (info.file_token == *overlay_token && !info.is_superceded &&
++          contextual_search::IsValidContextUploadStatusForMultimodalRequest(
++              info.upload_status) &&
+           info.request_id.has_value()) {
+         file_info = &info;
+         break;
+@@ -2617,8 +2519,11 @@
+     }
+   } else {
+     for (const auto& info : uploaded_files) {
+-      if (!info.is_superceded && info.request_id.has_value() &&
+-          info.is_implicit_upload && info.input_data &&
++      if (!info.is_superceded &&
++          contextual_search::IsValidContextUploadStatusForMultimodalRequest(
++              info.upload_status) &&
++          info.request_id.has_value() && info.is_implicit_upload &&
++          info.input_data &&
+           info.input_data->upload_type ==
+               lens::LensOverlayContextualInputUploadType::
+                   CONTEXTUAL_INPUT_UPLOAD_TYPE_CONTEXTUAL_SEARCHBOX_INITIAL_QUERY) {
+@@ -2632,15 +2537,18 @@
+     return {};
+   }
+ 
+-  if (!overlay_token.has_value()) {
+-    overlay_token = file_info->file_token;
+-  }
+-
+   auto* query_controller = controller->lens_overlay_query_controller();
+   std::string search_session_id = session_handle->search_session_id();
+   if (search_session_id.empty() && query_controller) {
+     search_session_id = query_controller->search_session_id();
+   }
++  if (search_session_id.empty()) {
++    return {};
++  }
++
++  if (!overlay_token.has_value()) {
++    overlay_token = file_info->file_token;
++  }
+ 
+   lens::LensOverlayContextualInputUploadType upload_type =
+       lens::LensOverlayContextualInputUploadType::
+@@ -2704,36 +2612,6 @@
+ #endif
+ }
+ 
+-const ContextualTasksWebContentsUserData::ExtensionFrameInfo*
+-ContextualTasksWebContentsUserData::FindTargetExtensionFrame() const {
+-  // TODO(crbug.com/573125119): Clean up per-frame handshake tracking and
+-  // routing fallback once Service Worker communication lands.
+-  // `extension_frames_` is ordered from oldest to newest registration. Prefer
+-  // `last_active_search_handler_id_`, then the most recently registered frame
+-  // that has completed its handshake, and finally fall back to the first bound
+-  // frame if no frame has completed handshake yet.
+-  if (last_active_search_handler_id_) {
+-    for (const auto& frame : extension_frames_) {
+-      if (frame.handler_id == last_active_search_handler_id_ &&
+-          frame.is_page_bound && frame.post_search_message_cb) {
+-        return &frame;
+-      }
+-    }
+-  }
+-  for (const auto& frame : base::Reversed(extension_frames_)) {
+-    if (frame.is_page_bound && frame.is_handshake_complete &&
+-        frame.post_search_message_cb) {
+-      return &frame;
+-    }
+-  }
+-  for (const auto& frame : extension_frames_) {
+-    if (frame.is_page_bound && frame.post_search_message_cb) {
+-      return &frame;
+-    }
+-  }
+-  return nullptr;
+-}
+-
+ void ContextualTasksWebContentsUserData::DispatchSerializedSearchMessage(
+     const std::vector<uint8_t>& message_bytes) {
+   if (search_message_dispatcher_for_testing_) {
+@@ -2748,14 +2626,6 @@
+     if (page_state.service_worker_post_message_cb) {
+       page_state.service_worker_post_message_cb.Run(message_bytes);
+     }
+-    return;
+-  }
+-
+-  if (const ExtensionFrameInfo* target_frame = FindTargetExtensionFrame()) {
+-    lens::ClientToSearchMessage parsed;
+-    if (parsed.ParseFromArray(message_bytes.data(), message_bytes.size())) {
+-      target_frame->post_search_message_cb.Run(parsed);
+-    }
+   }
+ }
+ 
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h
+index a540376..43b3215 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h
+@@ -109,10 +109,6 @@
+ 
+     raw_ptr<const void> handler_id = nullptr;
+     bool is_page_bound = false;
+-    bool is_handshake_complete = false;
+-    base::RepeatingCallback<void(const lens::ClientToSearchMessage&)>
+-        post_search_message_cb;
+-    base::RepeatingClosure on_handshake_complete_cb;
+     base::RepeatingCallback<void(const GURL&)> on_lens_crop_updated_cb;
+     base::RepeatingClosure on_tab_context_updated_cb;
+   };
+@@ -163,9 +159,6 @@
+   void UpdateExtensionFrameBound(
+       const void* handler_id,
+       bool is_page_bound,
+-      base::RepeatingCallback<void(const lens::ClientToSearchMessage&)>
+-          post_search_message_cb,
+-      base::RepeatingClosure on_handshake_complete_cb,
+       base::RepeatingCallback<void(const GURL&)> on_lens_crop_updated_cb,
+       base::RepeatingClosure on_tab_context_updated_cb = base::NullCallback());
+   void UnregisterExtensionFrame(const void* handler_id);
+@@ -188,13 +181,11 @@
+   // Parses and handles an incoming SearchToClientMessage. Returns true if the
+   // message was a valid SearchToClientMessage with a recognized payload, or
+   // false if the caller should fall back to legacy AimToClientMessage parsing.
+-  bool OnSearchMessageReceived(base::span<const uint8_t> message,
+-                               const void* source_handler_id = nullptr);
+-  void OnHandshakeComplete(const void* source_handler_id = nullptr);
++  bool OnSearchMessageReceived(base::span<const uint8_t> message);
++  void OnHandshakeComplete();
+ 
+-  // Sends a ClientToSearchMessage to the AIM page via the Service Worker Port
+-  // (if connected), queuing if the handshake is not yet complete, or falling
+-  // back to the primary bound extension iframe.
++  // Sends a `ClientToSearchMessage` to the AIM page via the Service Worker
++  // Port, queuing if the handshake is not yet complete.
+   void PostSearchMessage(const lens::ClientToSearchMessage& message);
+ 
+   void OnTabContextUploadStarted(const base::UnguessableToken& context_token);
+@@ -357,7 +348,7 @@
+   void ObserveContextController(
+       contextual_search::ContextualSearchContextController* controller);
+   ContextState ComputeContextState();
+-  void UpdateContextState(bool force_send = false);
++  void UpdateContextState();
+   std::vector<lens::AddedContext> ComputeSuggestInputContexts();
+   void UpdateSuggestInputs();
+   void RecordTimeToHandshakeComplete();
+@@ -385,7 +376,6 @@
+       const std::optional<base::UnguessableToken>& overlay_token);
+   std::vector<lens::AddedContext> GetLensAddedContexts(
+       std::optional<base::UnguessableToken>& overlay_token);
+-  const ExtensionFrameInfo* FindTargetExtensionFrame() const;
+   void DispatchSerializedSearchMessage(
+       const std::vector<uint8_t>& message_bytes);
+   PageSearchState& GetPrimaryPageSearchState();
+@@ -427,9 +417,6 @@
+   std::optional<base::Uuid> task_id_;
+ 
+   std::vector<ExtensionFrameInfo> extension_frames_;
+-  // TODO(crbug.com/573125119): Clean up per-frame handshake tracking and
+-  // routing fallback once Service Worker communication lands.
+-  raw_ptr<const void> last_active_search_handler_id_ = nullptr;
+   base::flat_set<base::UnguessableToken> pending_context_uploads_;
+   base::flat_set<base::UnguessableToken> failed_context_uploads_;
+ 
+diff --git a/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.css b/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.css
+index 7e60d0b9..4fb4971 100644
+--- a/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.css
++++ b/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.css
+@@ -183,6 +183,17 @@
+   outline: none;
+ }
+ 
++
++#tabMenu .dropdown-item[disabled] {
++  color: var(--tab-picker-disabled-text-color);
++  cursor: default;
++}
++
++#tabMenu .dropdown-item[disabled]:hover,
++#tabMenu .dropdown-item[disabled]:focus {
++  background-color: transparent;
++}
++
+ :host-context(.focus-outline-visible) #tabMenu .dropdown-item:focus {
+   outline: 2px solid var(--cr-focus-outline-color);
+   outline-offset: -2px;
+diff --git a/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.html.ts b/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.html.ts
+index 3c0c764..e8bca78 100644
+--- a/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.html.ts
++++ b/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.html.ts
+@@ -42,6 +42,7 @@
+       ${this.tabSuggestions.map((tab, index) => html`
+         <div class="suggestion-container" role="presentation">
+           <button class="dropdown-item"
++              ?disabled="${this.isTabDisabled_(tab)}"
+               role="menuitem"
+               title="${tab.title}" data-index="${index}"
+               aria-label="${tab.title}"
+diff --git a/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.ts b/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.ts
+index 505fa85..e264dda 100644
+--- a/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.ts
++++ b/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.ts
+@@ -20,6 +20,8 @@
+ import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+ import type {PropertyValues} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+ import type {TabInfo} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
++import {InputType} from 'chrome://resources/mojo/components/omnibox/composebox/composebox_query.mojom-webui.js';
++import type {InputState} from 'chrome://resources/mojo/components/omnibox/composebox/composebox_query.mojom-webui.js';
+ 
+ import {getCss} from './tab_picker_app.css.js';
+ import {getHtml} from './tab_picker_app.html.js';
+@@ -74,6 +76,7 @@
+         type: Boolean,
+         reflect: true,
+       },
++      inputState: {type: Object},
+     };
+   }
+ 
+@@ -83,6 +86,7 @@
+   accessor recentTabId: number|null = null;
+   accessor useUnbounded: boolean = true;
+   accessor darkMode: boolean = false;
++  accessor inputState: InputState|null = null;
+ 
+   protected accessor sharingTabsText_: string = '';
+ 
+@@ -96,7 +100,8 @@
+   // Tracks the latest suggestions fetch so out-of-order getRecentTabs()
+   // responses do not overwrite newer suggestions.
+   private fetchSuggestionsRequestId_: number = 0;
+-  private listenerIds_: number[] = [];
++  private extensionListenerIds_: number[] = [];
++  private searchboxListenerIds_: number[] = [];
+   private browserProxy_: TabPickerBrowserProxy =
+       TabPickerBrowserProxyImpl.getInstance();
+   // Caches the pending setUnbounded() call initiated in firstUpdated() so that
+@@ -114,8 +119,25 @@
+ 
+     const callbackRouter =
+         ExtensionBrowserProxyImpl.getInstance().callbackRouter;
+-    this.listenerIds_.push(callbackRouter.onTabContextUpdated.addListener(
+-        async (tabs: TabInfo[]) => {
++    const searchboxCallbackRouter =
++        this.browserProxy_.getSearchboxCallbackRouter();
++
++    this.browserProxy_.getInputState()
++        .then(({state}) => {
++          if (this.isConnected && state && this.inputState === null) {
++            this.inputState = state;
++          }
++        })
++        .catch(() => {});
++
++    this.searchboxListenerIds_.push(
++        searchboxCallbackRouter.onInputStateChanged.addListener(
++            (state: InputState) => {
++              this.inputState = state;
++            }));
++    this.extensionListenerIds_.push(
++        callbackRouter.onTabContextUpdated.addListener(
++            async (tabs: TabInfo[]) => {
+           this.selectedTabs = tabs;
+           if (this.$.tabMenu.open) {
+             await this.fetchTabSuggestions_();
+@@ -132,12 +154,19 @@
+     ++this.openMenuRequestId_;
+     ++this.fetchSuggestionsRequestId_;
+     this.cancelCloseTimer_();
++    this.inputState = null;
+     const callbackRouter =
+         ExtensionBrowserProxyImpl.getInstance().callbackRouter;
+-    for (const id of this.listenerIds_) {
++    for (const id of this.extensionListenerIds_) {
+       callbackRouter.removeListener(id);
+     }
+-    this.listenerIds_ = [];
++    this.extensionListenerIds_ = [];
++    const searchboxCallbackRouter =
++        this.browserProxy_.getSearchboxCallbackRouter();
++    for (const id of this.searchboxListenerIds_) {
++      searchboxCallbackRouter.removeListener(id);
++    }
++    this.searchboxListenerIds_ = [];
+   }
+ 
+   override firstUpdated() {
+@@ -253,6 +282,26 @@
+     return this.selectedTabs.some(t => t.tabId === tab.tabId);
+   }
+ 
++  protected isTabDisabled_(tab: TabInfo): boolean {
++    if (this.isTabSelected_(tab)) {
++      return false;
++    }
++
++    // If browser tab input type is disabled, all unselected tabs are disabled.
++    if (this.inputState?.disabledInputTypes.includes(InputType.kBrowserTab)) {
++      return true;
++    }
++
++    // UI-side check in case the browser process input state model has not yet
++    // updated its limits. InputStateModel disables the browser tab input type
++    // when over the maximum attached tabs.
++    if (this.inputState && this.inputState.maxTotalInputs > 0) {
++      return this.selectedTabs.length >= this.inputState.maxTotalInputs;
++    }
++
++    return false;
++  }
++
+   // FocusOutlineManager defaults to visible=true and only listens to keydown
+   // and mousedown (not pointerenter/pointermove), while cr-action-menu checks
+   // FocusOutlineManager.visible on open and calls .focus() on mouseover.
+@@ -404,7 +453,11 @@
+     if (!tab) {
+       return;
+     }
++    if (this.isTabDisabled_(tab)) {
++      return;
++    }
+     const isSelected = this.isTabSelected_(tab);
++
+     if (isSelected) {
+       this.selectedTabs = this.selectedTabs.filter(t => t.tabId !== tab.tabId);
+       this.browserProxy_.deleteTabContext(tab.tabId);
+diff --git a/chrome/browser/resources/contextual_tasks/extension/tab_picker_browser_proxy.ts b/chrome/browser/resources/contextual_tasks/extension/tab_picker_browser_proxy.ts
+index 70c3148..327cf12 100644
+--- a/chrome/browser/resources/contextual_tasks/extension/tab_picker_browser_proxy.ts
++++ b/chrome/browser/resources/contextual_tasks/extension/tab_picker_browser_proxy.ts
+@@ -5,10 +5,13 @@
+ import {ComposeboxProxyImpl} from 'chrome://resources/cr_components/composebox/composebox_proxy.js';
+ import {MojoPluralStringProxy} from 'chrome://resources/cr_components/search/mojo_plural_string_proxy.js';
+ import {TabAttachmentSource} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
+-import type {TabInfo} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
++import type {PageCallbackRouter as SearchboxPageCallbackRouter, TabInfo} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
++import type {InputState} from 'chrome://resources/mojo/components/omnibox/composebox/composebox_query.mojom-webui.js';
+ 
+ export interface TabPickerBrowserProxy {
+   getRecentTabs(): Promise<{tabs: TabInfo[]}>;
++  getInputState(): Promise<{state: InputState|null}>;
++  getSearchboxCallbackRouter(): SearchboxPageCallbackRouter;
+   getPluralString(messageName: string, count: number): Promise<string>;
+   addTabContext(tabId: number): void;
+   deleteTabContext(tabId: number): void;
+@@ -21,6 +24,14 @@
+     return ComposeboxProxyImpl.getInstance().searchboxHandler.getRecentTabs();
+   }
+ 
++  getInputState(): Promise<{state: InputState|null}> {
++    return ComposeboxProxyImpl.getInstance().searchboxHandler.getInputState();
++  }
++
++  getSearchboxCallbackRouter(): SearchboxPageCallbackRouter {
++    return ComposeboxProxyImpl.getInstance().searchboxCallbackRouter;
++  }
++
+   getPluralString(messageName: string, count: number): Promise<string> {
+     return MojoPluralStringProxy.getInstance().getPluralString(
+         messageName, count);
+diff --git a/chrome/browser/resources/new_tab_page/left_hand_side.html.ts b/chrome/browser/resources/new_tab_page/left_hand_side.html.ts
+index 75cea51..48f9b7d 100644
+--- a/chrome/browser/resources/new_tab_page/left_hand_side.html.ts
++++ b/chrome/browser/resources/new_tab_page/left_hand_side.html.ts
+@@ -22,7 +22,7 @@
+       style="${this.enableThreadsRailHybrid_
+                  ? `width: ${this.expandedWidth_}px;`
+                  : ''}"
+-      src="${this.getExpandedLhsUrl_()}"
++      src="${this.expandedLhsUrl_}"
+       ?inert="${!this.isExpandedReady_}"
+       ?hidden="${this.enableThreadsRailHybrid_ &&
+                  (!this.isExpandedReady_ || !this.isExpanded_)}">
+diff --git a/chrome/browser/resources/new_tab_page/left_hand_side.ts b/chrome/browser/resources/new_tab_page/left_hand_side.ts
+index d6798b1..b59556b2 100644
+--- a/chrome/browser/resources/new_tab_page/left_hand_side.ts
++++ b/chrome/browser/resources/new_tab_page/left_hand_side.ts
+@@ -119,15 +119,6 @@
+     this.eventTracker_.removeAll();
+   }
+ 
+-  protected getExpandedLhsUrl_(): string {
+-    if (!this.expandedLhsUrl_ || this.isDark === undefined) {
+-      return this.expandedLhsUrl_;
+-    }
+-    const url = new URL(this.expandedLhsUrl_);
+-    url.searchParams.set('cs', this.isDark ? '1' : '0');
+-    return url.toString();
+-  }
+-
+   protected onFoldedClick_(): void {
+     this.isExpanded_ = true;
+   }
+diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
+index a2062d1..111f7ca 100644
+--- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
++++ b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
+@@ -253,10 +253,6 @@
+ void ContextualTasksEphemeralButtonController::OnTaskAssociatedToTab(
+     const base::Uuid& task_id,
+     SessionID tab_id) {
+-  if (contextual_tasks::IsContextualTasksPinningV2Enabled() && IsPanelOpen() &&
+-      GetCurrentTabSessionId() == tab_id) {
+-    MarkActiveTaskTabsEligible();
+-  }
+   MaybeNotifyVisibilityShouldChange();
+ }
+ 
+@@ -282,9 +278,6 @@
+   is_hiding_contextual_tasks_panel_ = false;
+   if (IsEphemeralEntryPointEnabled() ||
+       contextual_tasks::IsContextualTasksPinningV2Enabled()) {
+-    if (contextual_tasks::IsContextualTasksPinningV2Enabled()) {
+-      MarkActiveTaskTabsEligible();
+-    }
+     CancelAutoDismissTimersForActiveTask();
+     MaybeNotifyVisibilityShouldChange();
+   } else {
+@@ -613,6 +606,10 @@
+   if (!service) {
+     return false;
+   }
++  if (contextual_tasks::IsContextualTasksPinningV2Enabled() && IsPanelOpen() &&
++      GetActiveTaskId() == task_id) {
++    return true;
++  }
+   return std::ranges::any_of(
+       service->GetTabsAssociatedWithTask(task_id), [this](SessionID tab_id) {
+         return std::ranges::contains(ephemeral_button_eligible_tabs_, tab_id);
+@@ -695,26 +692,6 @@
+   }
+ }
+ 
+-void ContextualTasksEphemeralButtonController::MarkActiveTaskTabsEligible() {
+-  std::optional<base::Uuid> task_id = GetActiveTaskId();
+-  if (!task_id.has_value()) {
+-    return;
+-  }
+-
+-  contextual_tasks::ContextualTasksService* service =
+-      GetContextualTasksService();
+-  if (!service) {
+-    return;
+-  }
+-
+-  for (SessionID tab_id :
+-       service->GetTabsAssociatedWithTask(*task_id)) {
+-    if (!std::ranges::contains(ephemeral_button_eligible_tabs_, tab_id)) {
+-      ephemeral_button_eligible_tabs_.emplace_back(tab_id);
+-    }
+-  }
+-}
+-
+ contextual_tasks::ContextualTasksService*
+ ContextualTasksEphemeralButtonController::GetContextualTasksService() {
+   return contextual_tasks::ContextualTasksServiceFactory::GetForProfile(
+diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.h b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.h
+index 7679060..a655e050 100644
+--- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.h
++++ b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.h
+@@ -172,7 +172,6 @@
+   void DismissEphemeralButtonForTab(SessionID tab_id);
+   void DisassociateNavigatedTab();
+   void CancelAutoDismissTimersForActiveTask();
+-  void MarkActiveTaskTabsEligible();
+ 
+   bool is_contextual_tasks_panel_open_ = false;
+   bool is_hiding_contextual_tasks_panel_ = false;
+diff --git a/components/contextual_search/contextual_search_types.cc b/components/contextual_search/contextual_search_types.cc
+index 62f2973..58f7582e 100644
+--- a/components/contextual_search/contextual_search_types.cc
++++ b/components/contextual_search/contextual_search_types.cc
+@@ -16,6 +16,14 @@
+          status == ContextUploadStatus::kUploadReplaced;
+ }
+ 
++bool IsValidContextUploadStatusForMultimodalRequest(
++    ContextUploadStatus upload_status) {
++  return upload_status == ContextUploadStatus::kProcessing ||
++         upload_status == ContextUploadStatus::kProcessingSuggestSignalsReady ||
++         upload_status == ContextUploadStatus::kUploadStarted ||
++         upload_status == ContextUploadStatus::kUploadSuccessful;
++}
++
+ FileInfo::FileInfo() = default;
+ FileInfo::FileInfo(const FileInfo& other) {
+   *this = other;
+diff --git a/components/contextual_search/contextual_search_types.h b/components/contextual_search/contextual_search_types.h
+index 27f7089..15da4685 100644
+--- a/components/contextual_search/contextual_search_types.h
++++ b/components/contextual_search/contextual_search_types.h
+@@ -57,6 +57,11 @@
+ // Returns true if the upload status is considered terminal.
+ bool IsTerminalContextStatus(ContextUploadStatus status);
+ 
++// Returns true if the context upload status is valid to include in the
++// multimodal request.
++bool IsValidContextUploadStatusForMultimodalRequest(
++    ContextUploadStatus upload_status);
++
+ // LINT.IfChange(ContextUploadErrorType)
+ // For upload error notifications and metrics.
+ // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.components.contextual_search
+diff --git a/components/contextual_search/internal/composebox_query_controller.cc b/components/contextual_search/internal/composebox_query_controller.cc
+index c6704f58..3c01a13 100644
+--- a/components/contextual_search/internal/composebox_query_controller.cc
++++ b/components/contextual_search/internal/composebox_query_controller.cc
+@@ -340,19 +340,6 @@
+   std::move(callback).Run(request, /*error_type=*/std::nullopt);
+ }
+ 
+-// Returns true if the context upload status is valid to include in the
+-// multimodal request.
+-bool IsValidContextUploadStatusForMultimodalRequest(
+-    contextual_search::ContextUploadStatus upload_status) {
+-  return upload_status == contextual_search::ContextUploadStatus::kProcessing ||
+-         upload_status == contextual_search::ContextUploadStatus::
+-                              kProcessingSuggestSignalsReady ||
+-         upload_status ==
+-             contextual_search::ContextUploadStatus::kUploadStarted ||
+-         upload_status ==
+-             contextual_search::ContextUploadStatus::kUploadSuccessful;
+-}
+-
+ // Returns true if the request id corresponds to an image upload.
+ bool RequestIdHasImage(const lens::LensOverlayRequestId& request_id) {
+   lens::LensOverlayRequestId::MediaType media_type = request_id.media_type();
+diff --git a/build/util/LASTCHANGE b/build/util/LASTCHANGE
+--- a/build/util/LASTCHANGE
++++ b/build/util/LASTCHANGE
+@@ -1,2 +1,2 @@
+-LASTCHANGE=6449d9f9a6a906edff724b7b220199b3fde4615c-refs/branch-heads/8127@{#845}
++LASTCHANGE=58b666ad521f748090829ba302d391bfd3c784cf-refs/branch-heads/8127@{#862}
+ LASTCHANGE_YEAR=2026
+diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
+--- a/build/util/LASTCHANGE.committime
++++ b/build/util/LASTCHANGE.committime
+@@ -1 +1 @@
+-1793754506
+\ No newline at end of file
++1793759866
+\ No newline at end of file
+diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
+--- a/gpu/config/gpu_lists_version.h
++++ b/gpu/config/gpu_lists_version.h
+@@ -3,6 +3,6 @@
+ #ifndef GPU_CONFIG_GPU_LISTS_VERSION_H_
+ #define GPU_CONFIG_GPU_LISTS_VERSION_H_
+ 
+-#define GPU_LISTS_VERSION "6449d9f9a6a906edff724b7b220199b3fde4615c"
++#define GPU_LISTS_VERSION "58b666ad521f748090829ba302d391bfd3c784cf"
+ 
+ #endif  // GPU_CONFIG_GPU_LISTS_VERSION_H_

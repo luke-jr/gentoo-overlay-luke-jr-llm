@@ -1,0 +1,2767 @@
+Chromium 158.0.8127.22 + the later changes of its release branch, up to
+73ceed4a05f14e47864a1394c271883480bdadf4 (refs/branch-heads/8127@{#948}), for the
+158.0.8127.22 tree that chromium-158.0.8127.18-to-158.0.8127.22.patch makes.
+
+Generated from the upstream diffs chromium/src refs/tags/158.0.8127.22..73ceed4a05f14e47864a1394c271883480bdadf4
+and the dependencies whose DEPS revision changed (DevTools, Skia, V8,
+WebRTC), as served by Gitiles, with scripts/chromium-delta --branch-fixes:
+left out are files not in the release tarball, iOS/Android/ChromeOS/Mac/
+Windows-only files, tests and docs, translations, PGO/orderfile pointers,
+submodule pointer updates. chrome/VERSION, DEPS and the stamp files stay
+at 158.0.8127.22.
+
+Commits contributing to it (oldest first; "Roll commits from side projects"
+are the DevTools, Skia, V8 and WebRTC updates):
+  03f44f8a4da3 [M158] [omnibox][webui] Explain allow_exact_keyword_match instead 
+  0bec2f376d47 [M158] [contextual_tasks] Show the searchbox in Incognito; hide ex
+  647eaf16da18 [M158] [contextual-tasks] Treat stub WebContents as side panel in 
+  b05fcbcab47a [M158] [contextual-tasks] Align updated entry points with Omnibox 
+  63b2b38c47e6 [M158] Don't send Connection-Allowlist reports for history navigat
+  fd329b3354f3 [M158] Revert CHECK to DCHECK in EnterFullscreenModeForTab()
+  af9d201a9750 Roll commits from side projects in M158
+  44283757eb91 [M158] Revert CHECK to DCHECK in ScanService::OnPageReceived
+  83aceb8a0b6c [M158] Revert BrowserThread check in OnNetworkServiceProcessGone t
+  790b5ad8c77a [M158] Revert CHECK back to DCHECK in DoDetermineLocalPath
+  30da923b3d67 Roll commits from side projects in M158
+  bcef5752bdfc Roll commits from side projects in M158
+  ad5495a50c5a [M158] Copy timelines before servicing animations
+  b9feb1aecc45 [M158] Add wallet reminder notice and disclose field trial
+  c6e69a49109d [M158] Only pass verified integrity metadata on ModuleMap CSP re-c
+  154dc44bbf9b Roll commits from side projects in M158
+  d59f28ecb329 Roll commits from side projects in M158
+  584208d50ddf [M158][occlusion] Don't count parent windows as occluders on Mac
+  d3d80b170848 [M158][occlusion] Share key-window state across window trees on Ma
+  b21d69439868 [Cherry pick M158][iOS] Complete Level Up Gemini task when the Gem
+  03217d3d1568 [M158][Find-in-Page] Add new FindInPage.SessionOutcome metric
+  6f8d3f9ed0c9 Roll commits from side projects in M158
+  7efb1c34066b [M158 cherry pick][iOS] Fix Level Up walkthrough IPH when manually
+  865ba6fb4e2e [M158] [iOS][Assistant] Keep VoiceOver focus on grabber after dete
+  988aa36ffb4b Roll commits from side projects in M158
+  8a4e38aef30e [M158] [iOS][Cobrowse] Add button accessibility trait to header ti
+  06b88e81cec0 [M158][bookmarks] Match dialog check to DialogWhenLarge's qualifie
+  f2e39afe4c40 [M158] [ozone/drm] Allow larger protected NativePixmap
+  91d45b01d23c [M158] [iOS] Migrate page content preference handling to mediator
+  0b2b813add20 [M158] [Reading mode] Measure omnibox ignored dwell time from when
+  98d17cba792b Roll commits from side projects in M158
+  5852826d1baf [M158] [glic] Resolve WaitForClientReadyTask immediately on Client
+  3b96210f2a84 [M158] [ChroMenu Glowup] Fix notification button clipping
+  cbafe2c5ce1b [M158] [ChroMenu] Update Tools and Actions header to sentence case
+  57a384742abe [M158] [ChroMenu] Adjust submenu positioning so that hover state b
+  1c8975eb8510 Roll commits from side projects in M158
+  6f6b72105914 [M158] Fix CanCreateSession() callback handling in ModelSubscriber
+  73ceed4a05f1 [M158] Reland "[glic] Stop treating a client waiting for sign-in a
+
+Checked: applies to the 158.0.8127.22 tree; every patched file is
+byte-identical to its version at the commits above.
+
+diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
+index a0e09ac9..6807b65 100644
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -1524,8 +1524,8 @@
+         <message name="IDS_APP_MENU_SEARCH_TAB_GROUPS_HEADER" desc="Section header for tab group matches in the App Menu search results.">
+           Tab groups
+         </message>
+-        <message name="IDS_APP_MENU_TOOLS_AND_ACTIONS_HEADER" desc="Header title for the Tools and Actions section in the main App Menu">
+-          Tools and Actions
++        <message name="IDS_APP_MENU_TOOLS_AND_ACTIONS_HEADER" desc="Header title for the Tools and actions section in the main App Menu">
++          Tools and actions
+         </message>
+         <message name="IDS_APP_MENU_INCOGNITO" desc="Label for the Incognito block button in the main App Menu">
+           Incognito
+diff --git a/chrome/app/generated_resources_grd/IDS_APP_MENU_TOOLS_AND_ACTIONS_HEADER.png.sha1 b/chrome/app/generated_resources_grd/IDS_APP_MENU_TOOLS_AND_ACTIONS_HEADER.png.sha1
+index aa8023d..e2403825 100644
+--- a/chrome/app/generated_resources_grd/IDS_APP_MENU_TOOLS_AND_ACTIONS_HEADER.png.sha1
++++ b/chrome/app/generated_resources_grd/IDS_APP_MENU_TOOLS_AND_ACTIONS_HEADER.png.sha1
+@@ -1 +1 @@
+-7e27764da07c17fe51abb503571e946a4d06c4f7
+\ No newline at end of file
++148ea3dc3a280d3d725abaace00f286e5160c61d
+\ No newline at end of file
+diff --git a/chrome/app/resources/generated_resources_en-GB.xtb b/chrome/app/resources/generated_resources_en-GB.xtb
+index f1a1cd5..7b7f428 100644
+--- a/chrome/app/resources/generated_resources_en-GB.xtb
++++ b/chrome/app/resources/generated_resources_en-GB.xtb
+@@ -934,6 +934,7 @@
+ <translation id="1703666494654169921">Don't allow sites to use virtual reality devices or data</translation>
+ <translation id="1704097193565924901">Capitalise</translation>
+ <translation id="1704230497453185209">Don't allow sites to play sound</translation>
++<translation id="170494114379308411">Neither your conversations with Gemini nor your <ph name="BEGIN_LINK_WORKSPACE_DATA_PRIVACY" />Google Workspace data<ph name="END_LINK_WORKSPACE_DATA_PRIVACY" /> will be reviewed or used to train generative AI models. Gemini is AI and can make mistakes.</translation>
+ <translation id="170658918174941828">Your Chrome version, operating system version, cast settings,
+     mirroring performance stats and communication channel diagnostic
+     logs will be submitted in addition to any information that you choose
+@@ -1168,6 +1169,7 @@
+ <translation id="1881445033931614352">Keyboard layout</translation>
+ <translation id="1881577802939775675">{COUNT,plural, =1{Item}other{# items}}</translation>
+ <translation id="188177382966899059">Deep Search</translation>
++<translation id="1883018549404920116">Gemini history</translation>
+ <translation id="1884340228047885921">Current visibility setting is some contacts</translation>
+ <translation id="1884705339276589024">Resize Linux disk</translation>
+ <translation id="1885066963699478692">XML files that are being used to set the policies.</translation>
+@@ -1184,7 +1186,6 @@
+ <translation id="1892453608039100484">1. Click <ph name="BUTTON_LABEL" /> below
+ 2. Click <ph name="BUTTON_2" /> in your Windows settings</translation>
+ <translation id="1895658205118569222">Shutdown</translation>
+-<translation id="1896353439080510710">Chats are reviewed and used to improve Google AI. Gemini is AI and can make mistakes. You can <ph name="BEGIN_LINK_MANAGE_ACTIVITY" />manage your activity<ph name="END_LINK_MANAGE_ACTIVITY" />, including info about your location. <ph name="BEGIN_LINK_LEARN_MORE" />Learn more about your choices<ph name="END_LINK_LEARN_MORE" /></translation>
+ <translation id="1897120393475391208">Use strong password</translation>
+ <translation id="1897860317037652061">Scan failed</translation>
+ <translation id="1898804291554630487">Ask about this page</translation>
+@@ -1240,7 +1241,6 @@
+ <translation id="1929774028758671973">Contacts can share with you when they're nearby. You'll be asked to approve these requests. You won't need to approve sharing from devices that are signed into <ph name="USER_EMAIL" />.</translation>
+ <translation id="1931152874660185993">No components installed.</translation>
+ <translation id="1932125073382155239">Back up your stuff?</translation>
+-<translation id="1933070475689690969">Gemini Apps activity</translation>
+ <translation id="1933489278505808700">Allowed to read and change</translation>
+ <translation id="1935303383381416800">Allowed to see your location</translation>
+ <translation id="193565226207940518">Support Tool</translation>
+@@ -1637,6 +1637,7 @@
+ <translation id="2246549592927364792">Get image descriptions from Google?</translation>
+ <translation id="2247738527273549923">Your device is managed by your organisation</translation>
+ <translation id="2247870315273396641">Voice preview</translation>
++<translation id="2247960558975094922">Gemini history</translation>
+ <translation id="224835741840550119">Sanitise your device</translation>
+ <translation id="2249111429176737533">Open as tabbed window</translation>
+ <translation id="2249605167705922988">e.g. 1-5, 8, 11-13</translation>
+@@ -2269,7 +2270,6 @@
+ <translation id="2727712005121231835">Actual Size</translation>
+ <translation id="2729310339366257582">Collapse tabs</translation>
+ <translation id="2729577602370119849">Easily access and manage printers</translation>
+-<translation id="2729940704980595903">View and manage your Gemini Apps activity</translation>
+ <translation id="2730550884708194161">About work profiles</translation>
+ <translation id="2730596696987224099">Choose your own</translation>
+ <translation id="2730647855013151888">Include all personal information</translation>
+@@ -2307,7 +2307,6 @@
+ <translation id="2749836841884031656">SIM</translation>
+ <translation id="2749881179542288782">Check Grammar With Spelling</translation>
+ <translation id="2750020734439919571">More Chrome app settings and permissions</translation>
+-<translation id="275010360476017464">Use your microphone to chat with Gemini. When you speak to Gemini, audio is stored in Gemini Apps activity (if it's on).</translation>
+ <translation id="2750602041558385535">Unverified download blocked</translation>
+ <translation id="2751320815618312249">+ <ph name="NUM" /> more</translation>
+ <translation id="2751454300227269244">Move your mouth right</translation>
+@@ -2697,6 +2696,7 @@
+ <translation id="3030772324014024606">Edit</translation>
+ <translation id="3030795534674718505">Allowed to use information that they've saved about you</translation>
+ <translation id="3030967311408872958">Sunset to sunrise</translation>
++<translation id="3030970046240311592">View and manage your Gemini history</translation>
+ <translation id="3031417829280473749">Agent X</translation>
+ <translation id="3031532026314193077">Use touchpad and keyboard to right-click</translation>
+ <translation id="3031557471081358569">Select items to be imported:</translation>
+@@ -3220,7 +3220,6 @@
+ <translation id="343578350365773421">Out of paper</translation>
+ <translation id="3435896845095436175">Enable</translation>
+ <translation id="3436118221454753036">Ask AI Mode</translation>
+-<translation id="3437072258256045988">Manage your Gemini Apps activity</translation>
+ <translation id="3437397693214267762">See your Outlook calendar, and SharePoint and OneDrive files</translation>
+ <translation id="3437494162908353428">DevTools are not allowed for this URL.</translation>
+ <translation id="3437498061222607130">You're signed in to Search with your <ph name="USER_EMAIL" /> account</translation>
+@@ -4154,6 +4153,7 @@
+ <translation id="4107793386654579933">Select a shortcut for <ph name="ACTION_NAME" /> action</translation>
+ <translation id="4109135793348361820">Move window to <ph name="USER_NAME" /> (<ph name="USER_EMAIL" />)</translation>
+ <translation id="4110485659976215879">Restore warning</translation>
++<translation id="4110984310437592352">Use your microphone to chat with Gemini. When you speak to Gemini, audio is saved in Gemini History (if it's on).</translation>
+ <translation id="4112194537011183136"><ph name="DEVICE_NAME" /> (offline)</translation>
+ <translation id="4112282889480354965">Extensions and skills</translation>
+ <translation id="4113743276555482284">File password</translation>
+@@ -4244,6 +4244,7 @@
+ <translation id="419427585139779713">Input a syllable at a time</translation>
+ <translation id="4195643157523330669">Open in new tab</translation>
+ <translation id="4195814663415092787">Continue where you left off</translation>
++<translation id="4196632390211257612">Neither your conversations with Gemini nor your <ph name="BEGIN_LINK_WORKSPACE_DATA_PRIVACY" />Google Workspace data<ph name="END_LINK_WORKSPACE_DATA_PRIVACY" /> will be reviewed or used to train generative AI models. Gemini is AI and can make mistakes. Some content may not be suitable for everyone.</translation>
+ <translation id="4198268995694216131">Additional sites</translation>
+ <translation id="4200609364258658652">Copy video frame</translation>
+ <translation id="4200689466366162458">Customised words</translation>
+@@ -4846,6 +4847,7 @@
+ <translation id="4665035764476941598">Click here to bring your other tabs back</translation>
+ <translation id="4665446389743427678">All data stored by <ph name="SITE" /> will be deleted.</translation>
+ <translation id="4666472247053585787">View notifications from your phone on your <ph name="DEVICE_TYPE" /></translation>
++<translation id="4666483368282673356">Manage your Gemini history</translation>
+ <translation id="4666911709726371538">More apps</translation>
+ <translation id="4668929960204016307">,</translation>
+ <translation id="4668936527507421457">PIN must use numbers only</translation>
+@@ -5319,6 +5321,7 @@
+ <translation id="5012523644916800014">Manage passwords and passkeys</translation>
+ <translation id="501394389332262641">Low battery sound</translation>
+ <translation id="5014286001996333986">Replace or create new group?</translation>
++<translation id="5014385104640320445">Use your microphone to chat with Gemini. When you speak to Gemini, audio is saved in Gemini History (if it's on). Your data is not used to improve generative AI models.</translation>
+ <translation id="5015344424288992913">Resolving proxy...</translation>
+ <translation id="5016305686459575361">By connecting your phone, you can:</translation>
+ <translation id="5016491575926936899">You can text from your computer, share your Internet connection, reply to conversation notifications and unlock your <ph name="DEVICE_TYPE" /> with your phone.<ph name="FOOTNOTE_POINTER" /> <ph name="LINK_BEGIN" />Learn more<ph name="LINK_END" /></translation>
+@@ -5694,7 +5697,6 @@
+ <translation id="5298315677001348398">Do you want to continue and allow this software to make changes to your device?</translation>
+ <translation id="5299109548848736476">Do Not Track</translation>
+ <translation id="5299558715747014286">View and manage your tab groups</translation>
+-<translation id="5300667117276823109">Neither your conversations with Gemini nor your <ph name="BEGIN_LINK_WORKSPACE_DATA_PRIVACY" />Google Workspace data<ph name="END_LINK_WORKSPACE_DATA_PRIVACY" /> will be reviewed or used to improve generative AI models. Gemini is AI and can make mistakes.</translation>
+ <translation id="5301398529256275325">Try asking things like 'summarise this page' or your own question.</translation>
+ <translation id="5301954838959518834">OK, got it</translation>
+ <translation id="5302032366299160685">Wait for the file to open before trying again</translation>
+@@ -6850,7 +6852,6 @@
+ <translation id="62229737360959019">Tabs opened from a chat or a shared tab are also shared with Gemini. In Live mode, only the current tab is shared by default.</translation>
+ <translation id="622484624075952240">Down</translation>
+ <translation id="622537739776246443">Profile will be deleted</translation>
+-<translation id="622568138962270592">Gemini Apps activity</translation>
+ <translation id="6226777517901268232">Private key file (optional)</translation>
+ <translation id="6227280783235722609">extension</translation>
+ <translation id="6228999859806946695"><ph name="TASK_TITLE" />: Gemini stopped working on this task</translation>
+@@ -8007,6 +8008,7 @@
+ <translation id="710224247908684995">An extension turned off Safe Browsing</translation>
+ <translation id="7102832101143475489">The request timed out</translation>
+ <translation id="7103944802169726298">PC and casting device on the same Wi-Fi network</translation>
++<translation id="7104134653119992646">Chats are reviewed and used to train generative AI models. Gemini is AI and can make mistakes. You can <ph name="BEGIN_LINK_MANAGE_HISTORY" />manage your history<ph name="END_LINK_MANAGE_HISTORY" />, including info about your location. <ph name="BEGIN_LINK_LEARN_MORE" />Learn more about your choices<ph name="END_LINK_LEARN_MORE" /></translation>
+ <translation id="7105387152460258846"><ph name="PROFILE_NAME" />. Google membership</translation>
+ <translation id="7107609441453408294">Play the same audio through all speakers</translation>
+ <translation id="7108338896283013870">Hide</translation>
+@@ -8386,7 +8388,6 @@
+ <translation id="7395774987022469191">Entire screen</translation>
+ <translation id="7396017167185131589">Shared folders will appear here</translation>
+ <translation id="7396845648024431313"><ph name="APP_NAME" /> will launch at system startup and continue to run in the background, even once you've closed all other <ph name="PRODUCT_NAME" /> windows.</translation>
+-<translation id="7398815534290329738">Chats are reviewed and used to improve Google AI. Gemini is AI and can make mistakes. Some content may not be suitable for everyone. You can <ph name="BEGIN_LINK_MANAGE_ACTIVITY" />manage your activity<ph name="END_LINK_MANAGE_ACTIVITY" />, including info about your location. <ph name="BEGIN_LINK_LEARN_MORE" />Learn more about your choices<ph name="END_LINK_LEARN_MORE" /></translation>
+ <translation id="7399045143794278225">Customise sync</translation>
+ <translation id="7399616692258236448">Location requests are automatically blocked for all sites except ones that you allow</translation>
+ <translation id="7399802613464275309">Safety check</translation>
+@@ -8900,7 +8901,6 @@
+ <translation id="7777624210360383048">Shortcut <ph name="SHORTCUT" /> for <ph name="EXTENSION_NAME" /></translation>
+ <translation id="777852709704682967">&amp;Open Bookmark Manager</translation>
+ <translation id="7779840061887151693">display</translation>
+-<translation id="7780716468751073938">Neither your conversations with Gemini nor your <ph name="BEGIN_LINK_WORKSPACE_DATA_PRIVACY" />Google Workspace data<ph name="END_LINK_WORKSPACE_DATA_PRIVACY" /> will be reviewed or used to improve generative AI models. Gemini is AI and can make mistakes. Some content may not be suitable for everyone.</translation>
+ <translation id="7780992949171378848">Send an opt-out request to sites regarding use of your data</translation>
+ <translation id="7782102568078991263">No more suggestions from Google</translation>
+ <translation id="7782717250816686129">Store persistent data on the login screen and inject credentials into the session.</translation>
+@@ -9039,6 +9039,7 @@
+ <translation id="7903925330883316394">Utility: <ph name="UTILITY_TYPE" /></translation>
+ <translation id="7903984238293908205">Katakana</translation>
+ <translation id="7904492297081735975">&amp;Open Bookmark Manager</translation>
++<translation id="7904508617992122201">Chats are reviewed and used to train generative AI models. Gemini is AI and can make mistakes. Some content may not be suitable for everyone. You can <ph name="BEGIN_LINK_MANAGE_HISTORY" />manage your history<ph name="END_LINK_MANAGE_HISTORY" />, including info about your location. <ph name="BEGIN_LINK_LEARN_MORE" />Learn more about your choices<ph name="END_LINK_LEARN_MORE" /></translation>
+ <translation id="7904526211178107182">Make Linux ports available to other devices on your network.</translation>
+ <translation id="7907312522152480478">To get your tabs from your other devices, verify that it's you and sync your history and tabs. You can stop syncing at any time in settings. Google may personalise Search and other services based on your history.</translation>
+ <translation id="7907502219904644296">Change access</translation>
+@@ -10432,7 +10433,6 @@
+ <translation id="8945274638472141382">Icon size</translation>
+ <translation id="8945508919180478719">Studio-style mic</translation>
+ <translation id="8946954897220903437">Collapse all requests in the address bar</translation>
+-<translation id="8946996840522387154">Use your microphone to chat with Gemini. When you speak to Gemini, audio is stored in Gemini Apps activity (if it's on). Your data is not used to improve generative AI models.</translation>
+ <translation id="894763922177556086">Good</translation>
+ <translation id="895054485242522631">Sites can use motion sensors</translation>
+ <translation id="8951465597020890363">Exit guest mode anyway?</translation>
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_bridge_factory.cc b/chrome/browser/contextual_tasks/contextual_tasks_extension_bridge_factory.cc
+index 5f188fc4..0e5e4e19 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_extension_bridge_factory.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_extension_bridge_factory.cc
+@@ -33,8 +33,11 @@
+     : ProfileKeyedServiceFactory(
+           "ContextualTasksExtensionBridge",
+           ProfileSelections::Builder()
+-              .WithRegular(ProfileSelection::kOriginalOnly)
+-              .WithGuest(ProfileSelection::kOriginalOnly)
++              // Off-the-record profiles get their own bridge, since the
++              // extension runs a separate instance in each of them (split
++              // incognito mode).
++              .WithRegular(ProfileSelection::kOwnInstance)
++              .WithGuest(ProfileSelection::kOwnInstance)
+               .Build()) {
+   DependsOn(extensions::ExtensionConfigMapFactory::GetInstance());
+   DependsOn(extensions::ExtensionMojoBinderRegistryFactory::GetInstance());
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc b/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc
+index dea4a50..453ff3dc 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc
+@@ -11,6 +11,7 @@
+ #include "base/functional/bind.h"
+ #include "base/time/time.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
++#include "chrome/browser/contextual_tasks/contextual_tasks_utils.h"
+ #include "chrome/browser/feature_engagement/tracker_factory.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
+@@ -228,8 +229,7 @@
+   if (bubble_widget_) {
+     CloseBubbleWidget();
+   }
+-  if (IsAskGoogleEntryPointEligible() &&
+-      base::FeatureList::IsEnabled(omnibox::kWebUIOmniboxAskGAboutThisPage)) {
++  if (IsAskGoogleEntryPointEligible()) {
+     if (ShouldShowVariant(
+             ContextualTasksOnboardingBubbleView::Variant::kAskGoogle)) {
+       bubble_widget_ = ContextualTasksOnboardingBubbleView::CreateAndShow(
+@@ -288,15 +288,28 @@
+ 
+ bool ContextualTasksOnboardingTooltipController::IsAskGoogleEntryPointEligible()
+     const {
+-  return entry_point_ == omnibox::ChromeAimEntryPoint::
+-                             DESKTOP_CHROME_COBROWSE_OMNIBOX_TAB_SEARCH ||
+-         entry_point_ == omnibox::ChromeAimEntryPoint::
+-                             DESKTOP_CHROME_COBROWSE_OMNIBOX_ACTION ||
+-         entry_point_ ==
+-             omnibox::ChromeAimEntryPoint::
+-                 DESKTOP_CHROME_COBROWSE_OMNIBOX_CONTEXTUAL_SUGGESTION ||
+-         entry_point_ == omnibox::ChromeAimEntryPoint::
+-                             DESKTOP_CHROME_COBROWSE_OMNIBOX_POPUP_BUTTON;
++  const bool is_omnibox_entry_point =
++      base::FeatureList::IsEnabled(omnibox::kWebUIOmniboxAskGAboutThisPage) &&
++      (entry_point_ == omnibox::ChromeAimEntryPoint::
++                           DESKTOP_CHROME_COBROWSE_OMNIBOX_TAB_SEARCH ||
++       entry_point_ == omnibox::ChromeAimEntryPoint::
++                           DESKTOP_CHROME_COBROWSE_OMNIBOX_ACTION ||
++       entry_point_ ==
++           omnibox::ChromeAimEntryPoint::
++               DESKTOP_CHROME_COBROWSE_OMNIBOX_CONTEXTUAL_SUGGESTION ||
++       entry_point_ == omnibox::ChromeAimEntryPoint::
++                           DESKTOP_CHROME_COBROWSE_OMNIBOX_POPUP_BUTTON);
++
++  const bool is_updated_entry_point =
++      AreContextualTasksUpdatedEntryPointsEnabled(profile_) &&
++      (entry_point_ == omnibox::ChromeAimEntryPoint::
++                           DESKTOP_CHROME_PAGE_CONTEXT_MENU_ASK_GOOGLE ||
++       entry_point_ ==
++           omnibox::ChromeAimEntryPoint::DESKTOP_CHROME_APP_MENU_ASK_GOOGLE ||
++       entry_point_ == omnibox::ChromeAimEntryPoint::
++                           DESKTOP_CHROME_CHROMNIENT_HOMEWORK_ACTION_CHIP);
++
++  return is_omnibox_entry_point || is_updated_entry_point;
+ }
+ 
+ bool ContextualTasksOnboardingTooltipController::HasAutomaticActiveTab() const {
+@@ -325,8 +338,7 @@
+       base::FeatureList::IsEnabled(kContextualTasksBypassDismissedCap);
+ 
+   if (variant == ContextualTasksOnboardingBubbleView::Variant::kAskGoogle) {
+-    if (!base::FeatureList::IsEnabled(
+-            omnibox::kWebUIOmniboxAskGAboutThisPage)) {
++    if (!IsAskGoogleEntryPointEligible()) {
+       return false;
+     }
+     if (!bypass_cap &&
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.h b/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.h
+index e21021e..a0d175a9 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.h
+@@ -56,6 +56,9 @@
+     return active_variant_;
+   }
+   views::Widget* bubble_widget_for_testing() { return bubble_widget_.get(); }
++  bool is_ask_google_entry_point_eligible_for_testing() const {
++    return IsAskGoogleEntryPointEligible();
++  }
+ 
+   // views::WidgetObserver:
+   void OnWidgetDestroying(views::Widget* widget) override;
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui.cc
+index bf3fdf31..aff9d61 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui.cc
+@@ -248,6 +248,12 @@
+       return "omnibox_popup_button";
+     case omnibox::DESKTOP_CHROME_CONTEXTUAL_CUE:
+       return "contextual_cue";
++    case omnibox::DESKTOP_CHROME_PAGE_CONTEXT_MENU_ASK_GOOGLE:
++      return "page_context_menu";
++    case omnibox::DESKTOP_CHROME_APP_MENU_ASK_GOOGLE:
++      return "app_menu";
++    case omnibox::DESKTOP_CHROME_CHROMNIENT_HOMEWORK_ACTION_CHIP:
++      return "homework_action_chip";
+     default:
+       return "unknown";
+   }
+@@ -562,8 +568,12 @@
+   dict.Set(
+       "webUIOmniboxAskGAboutThisPageEnabled",
+       base::FeatureList::IsEnabled(omnibox::kWebUIOmniboxAskGAboutThisPage));
++  dict.Set(
++      "contextualTasksUpdatedEntryPointsEnabled",
++      contextual_tasks::AreContextualTasksUpdatedEntryPointsEnabled(profile));
+ #else
+   dict.Set("webUIOmniboxAskGAboutThisPageEnabled", false);
++  dict.Set("contextualTasksUpdatedEntryPointsEnabled", false);
+ #endif
+ 
+   dict.Set("composeboxFileMaxSize",
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
+index 638c93e..fabefde3 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
+@@ -253,18 +253,30 @@
+ }
+ 
+ #if !BUILDFLAG(IS_ANDROID)
+-bool ShouldResetZeroStateForOmniboxAction(
++bool ShouldResetZeroStateForAskGoogleEntryPoint(
+     const GURL& url,
+     ContextualTasksUiService* service,
+     omnibox::ChromeAimEntryPoint entry_point) {
+-  return base::FeatureList::IsEnabled(
+-             omnibox::kWebUIOmniboxAskGAboutThisPage) &&
+-         entry_point == omnibox::ChromeAimEntryPoint::
+-                            DESKTOP_CHROME_COBROWSE_OMNIBOX_ACTION &&
++  const bool is_omnibox_action =
++      base::FeatureList::IsEnabled(omnibox::kWebUIOmniboxAskGAboutThisPage) &&
++      entry_point ==
++          omnibox::ChromeAimEntryPoint::DESKTOP_CHROME_COBROWSE_OMNIBOX_ACTION;
++
++  const bool is_updated_entry_point =
++      contextual_tasks::AreContextualTasksUpdatedEntryPointsEnabled(
++          service->profile()) &&
++      (entry_point == omnibox::ChromeAimEntryPoint::
++                          DESKTOP_CHROME_PAGE_CONTEXT_MENU_ASK_GOOGLE ||
++       entry_point ==
++           omnibox::ChromeAimEntryPoint::DESKTOP_CHROME_APP_MENU_ASK_GOOGLE ||
++       entry_point == omnibox::ChromeAimEntryPoint::
++                          DESKTOP_CHROME_CHROMNIENT_HOMEWORK_ACTION_CHIP);
++
++  return (is_omnibox_action || is_updated_entry_point) &&
+          ContextualTasksUI::IsZeroState(url, service);
+ }
+ #else
+-bool ShouldResetZeroStateForOmniboxAction(
++bool ShouldResetZeroStateForAskGoogleEntryPoint(
+     const GURL& url,
+     ContextualTasksUiService* service,
+     omnibox::ChromeAimEntryPoint entry_point) {
+@@ -3690,11 +3702,12 @@
+     return;
+   }
+ 
+-  // If the side panel is already open and an Omnibox page action triggers an
++  // If the side panel is already open and an Ask Google entry point triggers an
+   // in-place zero-state reset, reset the panel with the new task and forward
+   // the session handle directly to it.
+   if (!IsContextualTasksSidePanelRearchitectureEnabled() &&
+-      ShouldResetZeroStateForOmniboxAction(url, this, options.entry_point)) {
++      ShouldResetZeroStateForAskGoogleEntryPoint(url, this,
++                                                 options.entry_point)) {
+     ResetZeroStateInOpenSidePanel(panel_contents, tab_interface, url,
+                                   std::move(session_handle),
+                                   options.entry_point);
+@@ -3725,7 +3738,8 @@
+   }
+ 
+   if (IsContextualTasksSidePanelRearchitectureEnabled()) {
+-    if (ShouldResetZeroStateForOmniboxAction(url, this, options.entry_point)) {
++    if (ShouldResetZeroStateForAskGoogleEntryPoint(url, this,
++                                                   options.entry_point)) {
+       // TODO(crbug.com/537842795): Understand if this flow is possible in the
+       // rearchitecture and handle accordingly. For now, just load the URL.
+     }
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_service.h b/chrome/browser/contextual_tasks/contextual_tasks_ui_service.h
+index db6e167..e6d26bc 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui_service.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_service.h
+@@ -123,6 +123,8 @@
+   void AddObserver(Observer* observer);
+   void RemoveObserver(Observer* observer);
+ 
++  Profile* profile() const { return profile_; }
++
+   // Registers a tracked window with its ID, associated task ID, and URL.
+   void RegisterWindow(ContextualTaskId task_id,
+                       const GURL& url,
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_url_loader_throttle.cc b/chrome/browser/contextual_tasks/contextual_tasks_url_loader_throttle.cc
+index 537c069..c4a3e41 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_url_loader_throttle.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_url_loader_throttle.cc
+@@ -41,7 +41,11 @@
+     return false;
+   }
+ 
+-  if (!profile || profile->IsOffTheRecord()) {
++  // Incognito profiles are eligible too, since the extension runs in
++  // split incognito mode. Without the header, Search treats them as legacy
++  // clients and hides the searchbox.
++  if (!profile ||
++      (!profile->IsRegularProfile() && !profile->IsIncognitoProfile())) {
+     return false;
+   }
+ 
+diff --git a/chrome/browser/download/download_target_determiner.cc b/chrome/browser/download/download_target_determiner.cc
+index d54830e8f..3fc1b3d 100644
+--- a/chrome/browser/download/download_target_determiner.cc
++++ b/chrome/browser/download/download_target_determiner.cc
+@@ -830,7 +830,9 @@
+ DownloadTargetDeterminer::Result
+     DownloadTargetDeterminer::DoDetermineLocalPath() {
+   CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M161);
+-  CHECK(!virtual_path_.empty(), base::NotFatalUntil::M161);
++  // TODO(crbug.com/578820126): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(!virtual_path_.empty());
+   CHECK(local_path_.empty(), base::NotFatalUntil::M161);
+ 
+   next_state_ = STATE_DETERMINE_MIME_TYPE;
+diff --git a/chrome/browser/glic/host/context/glic_share_image_handler.cc b/chrome/browser/glic/host/context/glic_share_image_handler.cc
+index 5e9a719..bb7a6a8 100644
+--- a/chrome/browser/glic/host/context/glic_share_image_handler.cc
++++ b/chrome/browser/glic/host/context/glic_share_image_handler.cc
+@@ -294,6 +294,10 @@
+     case GlicInvokeError::kClientLoadError:
+       ShareComplete(ShareImageResult::kFailedUnknown);
+       break;
++    case GlicInvokeError::kSignInRequired:
++      // The invocation timed out waiting for the user to sign in.
++      ShareComplete(ShareImageResult::kFailedTimedOut);
++      break;
+     case GlicInvokeError::kInstanceDestroyedBlankInstanceClosed:
+     case GlicInvokeError::kInstanceDestroyedUnbound:
+     case GlicInvokeError::kInstanceDestroyedArchived:
+diff --git a/chrome/browser/glic/host/host.cc b/chrome/browser/glic/host/host.cc
+index 84084e0..970f0b12 100644
+--- a/chrome/browser/glic/host/host.cc
++++ b/chrome/browser/glic/host/host.cc
+@@ -653,11 +653,17 @@
+ }
+ 
+ void Host::ClientLoadErrorOccurred(ClientLoadErrorReason reason) {
++  client_load_error_reason_ = reason;
+   observers_.Notify(&Observer::ClientLoadErrorOccurred, reason);
+ }
+ 
+ void Host::SetClientLoadFailed(bool failed) {
+   client_load_failed_ = failed;
++  if (!failed) {
++    // The failure is withdrawn (reload, retry on show), and with it its cause.
++    // A host that fails again reports the new cause before the new failure.
++    client_load_error_reason_.reset();
++  }
+   UpdateClientLoadState();
+ }
+ 
+@@ -683,6 +689,7 @@
+   if (web_state == mojom::WebClientState::kResponsive ||
+       web_state == mojom::WebClientState::kUnresponsive) {
+     state = ClientLoadState::kReady;
++    client_load_error_reason_.reset();
+   } else if (client_load_failed_) {
+     state = ClientLoadState::kError;
+   } else {
+diff --git a/chrome/browser/glic/host/host.h b/chrome/browser/glic/host/host.h
+index 1c5971e..0603b1f5 100644
+--- a/chrome/browser/glic/host/host.h
++++ b/chrome/browser/glic/host/host.h
+@@ -6,6 +6,7 @@
+ #define CHROME_BROWSER_GLIC_HOST_HOST_H_
+ 
+ #include <deque>
++#include <optional>
+ #include <vector>
+ 
+ #include "base/callback_list.h"
+@@ -347,6 +348,18 @@
+   // `web_client_state()` is `kResponsive` or `kUnresponsive`.
+   ClientLoadState client_load_state() const { return client_load_state_; }
+ 
++  // Why the client is in `ClientLoadState::kError`, when the host said. Hosts
++  // report a cause (`ClientLoadErrorOccurred()`) only for failures the user
++  // can see, and always before the failure bit that puts the client into
++  // `kError`, so this is set by the time `client_load_state()` reads `kError`
++  // for a visible failure, and empty for one the user never saw (a hidden
++  // panel, or `WebClientInitializeFailed()`). Cleared whenever the failure is
++  // withdrawn or the client becomes ready, so it never describes an earlier
++  // load.
++  std::optional<ClientLoadErrorReason> client_load_error_reason() const {
++    return client_load_error_reason_;
++  }
++
+   // Called by whatever is hosting the client (the glic WebUI, or
+   // `GlicNoWebviewContentsManager`) when the client enters or leaves a state it
+   // cannot recover from without being reloaded.
+@@ -512,6 +525,9 @@
+   mojom::WebUiState primary_webui_state_ = mojom::WebUiState::kUninitialized;
+   // The last value passed to `SetClientLoadFailed()`.
+   bool client_load_failed_ = false;
++  // The cause reported for the current failure, if any; see
++  // `client_load_error_reason()`.
++  std::optional<ClientLoadErrorReason> client_load_error_reason_;
+   // Derived from `client_load_failed_` and web client connectivity.
+   ClientLoadState client_load_state_ = ClientLoadState::kLoading;
+   std::optional<mojom::PanelState> pending_panel_state_;
+diff --git a/chrome/browser/glic/public/glic_invoke_options.cc b/chrome/browser/glic/public/glic_invoke_options.cc
+index 4d93e8c..a6d6e69 100644
+--- a/chrome/browser/glic/public/glic_invoke_options.cc
++++ b/chrome/browser/glic/public/glic_invoke_options.cc
+@@ -203,6 +203,8 @@
+       return "Glic instance was destroyed: shutdown";
+     case GlicInvokeError::kPanelClosed:
+       return "Panel was closed before the client was ready";
++    case GlicInvokeError::kSignInRequired:
++      return "User did not sign in before the invocation timed out";
+   }
+   NOTREACHED();
+ }
+diff --git a/chrome/browser/glic/public/glic_invoke_options.h b/chrome/browser/glic/public/glic_invoke_options.h
+index b53144a..881516b3 100644
+--- a/chrome/browser/glic/public/glic_invoke_options.h
++++ b/chrome/browser/glic/public/glic_invoke_options.h
+@@ -270,7 +270,15 @@
+   // the client became usable (see Host::client_load_state()). Invocations
+   // that already have a usable client are not affected by a close.
+   kPanelClosed = 26,
+-  kMaxValue = kPanelClosed,
++  // The invocation needed the client, the client stopped on the sign-in panel
++  // (ClientLoadErrorReason::kSignIn), and the user had not signed in when the
++  // invocation timed out. Not a failure of the client, and not a kTimeout
++  // either: nothing the product did ran late. (An invocation that only shows
++  // the panel succeeds at that point instead; see SignInBehavior.) Counted as
++  // ABANDONED, which is what CUI 1 recorded for the sign-in panel before it
++  // was resolved from the invocation.
++  kSignInRequired = 27,
++  kMaxValue = kSignInRequired,
+ };
+ // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicInvokeResult,//chrome/browser/glic/public/glic_invoke_options.cc:GlicInvokeErrorToString)
+ 
+diff --git a/chrome/browser/glic/service/glic_invoke_handler.cc b/chrome/browser/glic/service/glic_invoke_handler.cc
+index 383a2e13..5e9583c 100644
+--- a/chrome/browser/glic/service/glic_invoke_handler.cc
++++ b/chrome/browser/glic/service/glic_invoke_handler.cc
+@@ -282,9 +282,8 @@
+       options_.GetInvocationSource());
+ 
+   timeout_timer_.Start(FROM_HERE, options_.timeout.value_or(kDefaultTimeout),
+-                       base::BindOnce(&GlicInvokeHandler::OnError,
+-                                      weak_ptr_factory_.GetWeakPtr(),
+-                                      GlicInvokeError::kTimeout));
++                       base::BindOnce(&GlicInvokeHandler::OnTimeout,
++                                      weak_ptr_factory_.GetWeakPtr()));
+ 
+   if (auto_submit_options_.on_conversation_id_ready) {
+     if (auto conv_id = instance_->conversation_id()) {
+@@ -366,9 +365,16 @@
+   // `client_load_state()` is `kReady` exactly while the client is connected and
+   // responsive. Unlike a bare connection wait, this fails the invocation if the
+   // client never loads instead of hanging until the invocation times out.
++  //
++  // A client stopped on the sign-in panel is the exception: an invocation
++  // that only shows the panel is done at that point, while one that needs the
++  // client waits for the user to sign in (see SignInBehavior and OnTimeout()).
+   tasks.push_back(std::make_unique<WaitForClientReadyTask>(
+-      instance_->host(), base::BindOnce(&GlicInvokeHandler::OnError,
+-                                        weak_ptr_factory_.GetWeakPtr())));
++      instance_->host(),
++      requires_client_invoke_ ? SignInBehavior::kWaits
++                              : SignInBehavior::kCompletes,
++      base::BindOnce(&GlicInvokeHandler::OnError,
++                     weak_ptr_factory_.GetWeakPtr())));
+   if (options_.on_client_connected) {
+     tasks.push_back(std::make_unique<PostCallbackTask>(base::BindOnce(
+         [](base::WeakPtr<GlicInstanceImpl> instance,
+@@ -506,6 +512,18 @@
+   }
+ }
+ 
++void GlicInvokeHandler::OnTimeout() {
++  // An invocation that needed the client and spent its time on the sign-in
++  // panel (SignInBehavior::kWaits) did not run out of time for anything the
++  // product did; the user did not sign in. Report that rather than a timeout.
++  const Host& host = instance_->host();
++  OnError(host.client_load_state() == ClientLoadState::kError &&
++                  host.client_load_error_reason() ==
++                      ClientLoadErrorReason::kSignIn
++              ? GlicInvokeError::kSignInRequired
++              : GlicInvokeError::kTimeout);
++}
++
+ void GlicInvokeHandler::OnError(GlicInvokeError error) {
+   timeout_timer_.Stop();
+   instance_->SuppressShowOnNextTabAddedToTask(false);
+diff --git a/chrome/browser/glic/service/glic_invoke_handler.h b/chrome/browser/glic/service/glic_invoke_handler.h
+index 81b97a12..3094efd 100644
+--- a/chrome/browser/glic/service/glic_invoke_handler.h
++++ b/chrome/browser/glic/service/glic_invoke_handler.h
+@@ -109,6 +109,9 @@
+   // Deletes `this`. Exactly one of these methods will be called.
+   void OnSuccess();
+   void OnError(GlicInvokeError error);
++  // The timeout timer fired. Ends the invocation with kTimeout, or with
++  // kSignInRequired if it spent the time waiting for the user to sign in.
++  void OnTimeout();
+ 
+   void OnTabWillDetach(tabs::TabInterface* tab,
+                        tabs::TabInterface::DetachReason reason);
+diff --git a/chrome/browser/glic/service/glic_invoke_task.cc b/chrome/browser/glic/service/glic_invoke_task.cc
+index 1c256de..efd2dc9 100644
+--- a/chrome/browser/glic/service/glic_invoke_task.cc
++++ b/chrome/browser/glic/service/glic_invoke_task.cc
+@@ -14,6 +14,7 @@
+ #include "chrome/browser/actor/actor_keyed_service.h"
+ #include "chrome/browser/actor/ui/actor_ui_state_manager.h"
+ #include "chrome/browser/enterprise/data_protection/data_protection_clipboard_utils.h"
++#include "chrome/browser/glic/glic_enums.h"
+ #include "chrome/browser/glic/public/glic_context_menu_invocation_helper.h"
+ #include "chrome/browser/glic/public/glic_enabling.h"
+ #include "chrome/browser/glic/public/glic_keyed_service.h"
+@@ -288,13 +289,21 @@
+ 
+ WaitForClientReadyTask::WaitForClientReadyTask(
+     Host& host,
++    SignInBehavior sign_in_behavior,
+     base::OnceCallback<void(GlicInvokeError)> error_callback)
+-    : host_(host), error_callback_(std::move(error_callback)) {}
++    : host_(host),
++      sign_in_behavior_(sign_in_behavior),
++      error_callback_(std::move(error_callback)) {}
+ 
+ WaitForClientReadyTask::~WaitForClientReadyTask() = default;
+ 
+ void WaitForClientReadyTask::Start(base::OnceClosure done_callback) {
+   done_callback_ = std::move(done_callback);
++  if (host_->client_load_state() == ClientLoadState::kReady) {
++    CheckState(ClientLoadState::kReady);
++    return;
++  }
++  observation_.Observe(&*host_);
+   // TODO(b/573171097): Have Invoke send an explicit load request to the
+   // instance/host that is guaranteed to resolve, rather than triggering load
+   // and waiting for load separately.
+@@ -304,15 +313,21 @@
+ }
+ 
+ void WaitForClientReadyTask::OnWaitForLoadComplete(bool failed) {
++  wait_for_load_complete_ = true;
+   if (failed) {
+     CheckState(ClientLoadState::kError);
+     return;
+   }
+-  observation_.Observe(&*host_);
+   CheckState(host_->client_load_state());
+ }
+ 
+ void WaitForClientReadyTask::ClientLoadStateChanged(ClientLoadState state) {
++  // Before `WaitForLoad()` resolves, `ClientLoadState::kError` may reflect a
++  // stale error from before `IntentToShow()` triggered a reload. Readiness is
++  // authoritative in the browser process and can resolve immediately.
++  if (state == ClientLoadState::kError && !wait_for_load_complete_) {
++    return;
++  }
+   CheckState(state);
+ }
+ 
+@@ -328,6 +343,15 @@
+       break;
+ 
+     case ClientLoadState::kError:
++      if (host_->client_load_error_reason() == ClientLoadErrorReason::kSignIn) {
++        // The client is waiting for the user, not broken. See SignInBehavior.
++        if (sign_in_behavior_ == SignInBehavior::kWaits) {
++          break;
++        }
++        observation_.Reset();
++        std::move(done_callback_).Run();
++        break;
++      }
+       observation_.Reset();
+       if (error_callback_) {
+         std::move(error_callback_).Run(GlicInvokeError::kClientLoadError);
+diff --git a/chrome/browser/glic/service/glic_invoke_task.h b/chrome/browser/glic/service/glic_invoke_task.h
+index 02cc032..9c450b11 100644
+--- a/chrome/browser/glic/service/glic_invoke_task.h
++++ b/chrome/browser/glic/service/glic_invoke_task.h
+@@ -224,6 +224,20 @@
+   base::OnceClosure done_callback_;
+ };
+ 
++// What WaitForClientReadyTask does when the client stops on the sign-in panel
++// (`Host::client_load_state()` is `kError` with `client_load_error_reason()`
++// `kSignIn`). Unlike other load failures the client has not given up: it
++// reloads and becomes ready once the user signs in.
++enum class SignInBehavior {
++  // The task completes. An invocation with nothing to send the client is done
++  // once the panel shows what it should, and the sign-in panel is that.
++  kCompletes,
++  // The task keeps waiting for the user to sign in. An invocation that needs
++  // the client can do nothing before then; if the user never does, the
++  // invocation times out (GlicInvokeHandler reports that as kSignInRequired).
++  kWaits,
++};
++
+ // Task that waits for the client load state to reach kReady.
+ class WaitForClientReadyTask : public GlicInvokeTask, public Host::Observer {
+  public:
+@@ -231,6 +245,7 @@
+ 
+   WaitForClientReadyTask(
+       Host& host,
++      SignInBehavior sign_in_behavior,
+       base::OnceCallback<void(GlicInvokeError)> error_callback);
+   ~WaitForClientReadyTask() override;
+   void Start(base::OnceClosure done_callback) override;
+@@ -243,9 +258,11 @@
+   void CheckState(ClientLoadState state);
+ 
+   const base::raw_ref<Host> host_;
++  const SignInBehavior sign_in_behavior_;
+   base::OnceCallback<void(GlicInvokeError)> error_callback_;
+   base::ScopedObservation<Host, Host::Observer> observation_{this};
+   base::OnceClosure done_callback_;
++  bool wait_for_load_complete_ = false;
+   base::WeakPtrFactory<WaitForClientReadyTask> weak_ptr_factory_{this};
+ };
+ 
+diff --git a/chrome/browser/glic/service/metrics/glic_invoke_metrics.cc b/chrome/browser/glic/service/metrics/glic_invoke_metrics.cc
+index f2543c00..167b466f 100644
+--- a/chrome/browser/glic/service/metrics/glic_invoke_metrics.cc
++++ b/chrome/browser/glic/service/metrics/glic_invoke_metrics.cc
+@@ -95,6 +95,7 @@
+     case GlicInvokeError::kInstanceDestroyedSignedOut:
+     case GlicInvokeError::kInstanceDestroyedShutdown:
+     case GlicInvokeError::kPanelClosed:
++    case GlicInvokeError::kSignInRequired:
+       return glic::GlicCuiOutcome::kAbandoned;
+     default:
+       return glic::GlicCuiOutcome::kFailed;
+diff --git a/chrome/browser/predictors/loading_predictor_tab_helper.cc b/chrome/browser/predictors/loading_predictor_tab_helper.cc
+index 7179e87dd..964e07f 100644
+--- a/chrome/browser/predictors/loading_predictor_tab_helper.cc
++++ b/chrome/browser/predictors/loading_predictor_tab_helper.cc
+@@ -10,6 +10,7 @@
+ 
+ #include "base/check_is_test.h"
+ #include "base/command_line.h"
++#include "base/feature_list.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/metrics/histogram_macros.h"
+ #include "base/timer/elapsed_timer.h"
+@@ -36,7 +37,9 @@
+ #include "content/public/browser/render_frame_host.h"
+ #include "net/base/network_anonymization_key.h"
+ #include "services/metrics/public/cpp/ukm_source_id.h"
++#include "services/network/public/cpp/connection_allowlist.h"
+ #include "services/network/public/cpp/constants.h"
++#include "services/network/public/cpp/features.h"
+ #include "services/network/public/mojom/fetch_api.mojom.h"
+ #include "third_party/blink/public/common/features.h"
+ #include "third_party/blink/public/common/loader/lcp_critical_path_predictor_util.h"
+@@ -73,6 +76,33 @@
+   }
+ }
+ 
++// Returns true if `navigation_handle` is a session history navigation whose
++// initiator has an enforced or report-only Connection-Allowlist. The URL of a
++// history navigation comes from the session history entry rather than from the
++// initiator, so speculative requests made on its behalf must not be checked
++// against (and reported to) the initiator's Connection-Allowlist, as that would
++// disclose the history entry's URL and its predicted subresources to the
++// initiator's reporting endpoint.
++bool IsHistoryNavigationFromConnectionAllowlistInitiator(
++    content::NavigationHandle* navigation_handle) {
++  if (!base::FeatureList::IsEnabled(network::features::kConnectionAllowlists) ||
++      !navigation_handle->IsHistory() ||
++      !navigation_handle->GetInitiatorFrameToken().has_value()) {
++    return false;
++  }
++  content::RenderFrameHost* initiator_rfh =
++      content::RenderFrameHost::FromFrameToken(
++          content::GlobalRenderFrameHostToken(
++              navigation_handle->GetInitiatorProcessId(),
++              *navigation_handle->GetInitiatorFrameToken()));
++  if (!initiator_rfh || !initiator_rfh->HasPolicyContainerHost()) {
++    return false;
++  }
++  const network::ConnectionAllowlists& allowlists =
++      initiator_rfh->GetConnectionAllowlists();
++  return allowlists.enforced.has_value() || allowlists.report_only.has_value();
++}
++
+ // Called only for subresources.
+ // platform/loader/fetch/README.md in blink contains more details on
+ // prioritization as well as links to all of the relevant places in the code
+@@ -389,6 +419,13 @@
+     return;
+   }
+ 
++  // Likewise skip history navigations initiated by a document with a
++  // Connection-Allowlist, so that the speculative requests made for them don't
++  // queue reports to the initiator that reveal the session history entry.
++  if (IsHistoryNavigationFromConnectionAllowlistInitiator(navigation_handle)) {
++    return;
++  }
++
+   MaybeSetLCPPNavigationHint(*navigation_handle, *predictor_);
+ 
+   MaybePrewarmMainResourceAndSubresourcesOnNavigation(*navigation_handle,
+diff --git a/chrome/browser/resources/contextual_tasks/app.ts b/chrome/browser/resources/contextual_tasks/app.ts
+index 7e8cbde8..d63eb92 100644
+--- a/chrome/browser/resources/contextual_tasks/app.ts
++++ b/chrome/browser/resources/contextual_tasks/app.ts
+@@ -891,21 +891,28 @@
+ 
+   // LINT.IfChange(ContextualTasksTooltipLogic)
+   private get isAskGEntryPointEligible_(): boolean {
++    const isOmniboxAskGEnabled =
++        loadTimeData.valueExists('webUIOmniboxAskGAboutThisPageEnabled') &&
++        loadTimeData.getBoolean('webUIOmniboxAskGAboutThisPageEnabled');
+     if (this.isShownInTab_) {
+-      return this.entryPoint_ === 'omnibox_tab_search';
++      return isOmniboxAskGEnabled && this.entryPoint_ === 'omnibox_tab_search';
+     }
+-    return this.entryPoint_ === 'omnibox_tab_search' ||
+-        this.entryPoint_ === 'omnibox_action' ||
+-        this.entryPoint_ === 'omnibox_contextual_suggestion' ||
+-        this.entryPoint_ === 'omnibox_popup_button';
+-  }
++    const isOmniboxEntryPoint = isOmniboxAskGEnabled &&
++        (this.entryPoint_ === 'omnibox_tab_search' ||
++         this.entryPoint_ === 'omnibox_action' ||
++         this.entryPoint_ === 'omnibox_contextual_suggestion' ||
++         this.entryPoint_ === 'omnibox_popup_button');
+ 
+-  // <if expr="not is_android">
+-  private get isAskGEligible_(): boolean {
+-    return loadTimeData.getBoolean('webUIOmniboxAskGAboutThisPageEnabled') &&
+-        this.isAskGEntryPointEligible_;
++    const isUpdatedEntryPointsEnabled =
++        loadTimeData.valueExists('contextualTasksUpdatedEntryPointsEnabled') &&
++        loadTimeData.getBoolean('contextualTasksUpdatedEntryPointsEnabled');
++    const isUpdatedEntryPoint = isUpdatedEntryPointsEnabled &&
++        (this.entryPoint_ === 'page_context_menu' ||
++         this.entryPoint_ === 'app_menu' ||
++         this.entryPoint_ === 'homework_action_chip');
++
++    return isOmniboxEntryPoint || isUpdatedEntryPoint;
+   }
+-  // </if>
+ 
+   private updateTooltipVisibility_() {
+     const onboardingTooltip =
+@@ -944,15 +951,13 @@
+ 
+     // Calculate AskG tooltip
+     this.askGTooltipTarget_ = this.updateInfoTooltip_(
+-        this.askGTooltipState_, this.isAskGEligible_, activeTabChipTarget,
+-        askGTooltip);
++        this.askGTooltipState_, this.isAskGEntryPointEligible_,
++        activeTabChipTarget, askGTooltip);
+     // </if>
+ 
+     // 3. Calculate Onboarding tooltip (Suppressed if AskG is eligible)
+     if (onboardingTooltip) {
+-      const suppressOnboarding =
+-          loadTimeData.getBoolean('webUIOmniboxAskGAboutThisPageEnabled') &&
+-          this.isAskGEntryPointEligible_;
++      const suppressOnboarding = this.isAskGEntryPointEligible_;
+       const hasToken = crComposebox.getHasAutomaticActiveTabChipToken() &&
+           !suppressOnboarding;
+       onboardingTooltip.updateTooltipVisibility(
+diff --git a/chrome/browser/resources/contextual_tasks/contextual_tasks_inner_composebox.ts b/chrome/browser/resources/contextual_tasks/contextual_tasks_inner_composebox.ts
+index 0401f246..ebacf73 100644
+--- a/chrome/browser/resources/contextual_tasks/contextual_tasks_inner_composebox.ts
++++ b/chrome/browser/resources/contextual_tasks/contextual_tasks_inner_composebox.ts
+@@ -174,6 +174,12 @@
+         loadTimeData.getBoolean('webUIOmniboxAskGAboutThisPageEnabled');
+   }
+ 
++  private get contextualTasksUpdatedEntryPointsEnabled_(): boolean {
++    return loadTimeData.valueExists(
++               'contextualTasksUpdatedEntryPointsEnabled') &&
++        loadTimeData.getBoolean('contextualTasksUpdatedEntryPointsEnabled');
++  }
++
+   override getPageHandler(): PageHandlerRemote {
+     return this.pageHandler_;
+   }
+@@ -344,10 +350,17 @@
+       }
+       return;
+     }
+-    // AutoSuggestedTabContext is routed differently for Omnibox Page Action.
+-    // when it opens a side panel to cobrowse.
+-    const askGAndPageAction = this.webUIOmniboxAskGAboutThisPageEnabled_ &&
+-        invocationSource === 'OmniboxPageAction' && this.isSidePanel;
++    // AutoSuggestedTabContext is routed differently for Ask Google entry points
++    // when opening a side panel to cobrowse.
++    const isUpdatedEntryPoint =
++        this.contextualTasksUpdatedEntryPointsEnabled_ &&
++        (invocationSource === 'ContentAreaContextMenuPage' ||
++         invocationSource === 'AppMenu' ||
++         invocationSource === 'HomeworkActionChip');
++    const isOmniboxAskG = this.webUIOmniboxAskGAboutThisPageEnabled_ &&
++        invocationSource === 'OmniboxPageAction';
++    const askGAndPageAction =
++        (isOmniboxAskG || isUpdatedEntryPoint) && this.isSidePanel;
+ 
+     // We should delete the automatic active tab if it is different from the
+     // current tab when webUIOmniboxAskGAboutThisPageEnabled_ is true. Make sure
+diff --git a/chrome/browser/resources/contextual_tasks/extension/manifest.json b/chrome/browser/resources/contextual_tasks/extension/manifest.json
+index b63686a8..368fbd3 100644
+--- a/chrome/browser/resources/contextual_tasks/extension/manifest.json
++++ b/chrome/browser/resources/contextual_tasks/extension/manifest.json
+@@ -8,6 +8,9 @@
+     "service_worker": "background.js",
+     "type": "module"
+   },
++  // Runs a separate instance in each off-the-record profile, which binds to
++  // that profile's ContextualTasksExtensionBridge.
++  "incognito": "split",
+   "permissions": [
+     "contextualTasksPrivate",
+     "metricsPrivate",
+diff --git a/chrome/browser/ui/exclusive_access/fullscreen_controller.cc b/chrome/browser/ui/exclusive_access/fullscreen_controller.cc
+index 8559775..a4d416e 100644
+--- a/chrome/browser/ui/exclusive_access/fullscreen_controller.cc
++++ b/chrome/browser/ui/exclusive_access/fullscreen_controller.cc
+@@ -207,8 +207,9 @@
+   // could cause requestFullscreen promises to hang. If we are in this function,
+   // the renderer expects a visual property update to call
+   // |blink::FullscreenController::DidEnterFullscreen| to resolve promises.
+-  CHECK(CanEnterFullscreenModeForTab(requesting_frame),
+-        base::NotFatalUntil::M162);
++  // CHECK-exclusion: CanEnterFullscreenModeForTab() can return false when
++  // EnterFullscreenModeForTab() is called on Android (crbug.com/576177579).
++  DCHECK(CanEnterFullscreenModeForTab(requesting_frame));
+   auto* web_contents = WebContents::FromRenderFrameHost(requesting_frame);
+   CHECK(web_contents, base::NotFatalUntil::M162);
+ 
+diff --git a/chrome/browser/ui/find_bar/find_bar_controller.cc b/chrome/browser/ui/find_bar/find_bar_controller.cc
+index 82a52b4..9adf0a9 100644
+--- a/chrome/browser/ui/find_bar/find_bar_controller.cc
++++ b/chrome/browser/ui/find_bar/find_bar_controller.cc
+@@ -307,6 +307,7 @@
+     find_in_page::FindTabHelper* find_tab_helper =
+         find_in_page::FindTabHelper::FromWebContents(web_contents());
+     if (find_tab_helper) {
++      find_tab_helper->RecordAndResetSessionMetrics();
+       find_tab_helper->StopFinding(find_in_page::SelectionAction::kClear);
+       // Use UpdateUIForFindResult instead of ClearResults to preserve the text
+       // field content.
+@@ -335,7 +336,8 @@
+   // we're only highlighting results (when first opening the find bar).
+   // See https://crbug.com/40721569
+   if (!find_tab_helper->find_result().final_update() ||
+-      !find_tab_helper->should_find_match()) {
++      !find_tab_helper->should_find_match() ||
++      !find_tab_helper->should_scroll_to_match()) {
+     return;
+   }
+ 
+@@ -349,10 +351,6 @@
+                         current_search, base::CompareCase::SENSITIVE)) {
+     GetOrCreateFindBar()->AudibleAlert();
+   }
+-
+-  // Record the completion of the search to suppress future alerts, even if the
+-  // page's contents change.
+-  find_tab_helper->set_last_completed_find_text(current_search);
+ }
+ 
+ void FindBarController::UpdateFindBarForCurrentResult() {
+diff --git a/chrome/browser/ui/read_anything/read_anything_omnibox_controller.cc b/chrome/browser/ui/read_anything/read_anything_omnibox_controller.cc
+index c9c21a7..7a79fbe6 100644
+--- a/chrome/browser/ui/read_anything/read_anything_omnibox_controller.cc
++++ b/chrome/browser/ui/read_anything/read_anything_omnibox_controller.cc
+@@ -115,6 +115,7 @@
+   if (read_anything_controller->GetPresentationState() ==
+           ReadAnythingController::PresentationState::kInactive &&
+       last_close_reason_ == ReadAnythingCloseReason::kClosedByUser) {
++    entry_point_shown_time_ = base::TimeTicks::Now();
+     read_anything::ReadAnythingEntryPointController::UpdatePageActionVisibility(
+         /*should_show_page_action=*/true, tab_);
+   }
+@@ -146,7 +147,7 @@
+   StopTimers();
+   was_last_checked_page_distillable_ = false;
+   was_page_checked_ = false;
+-  candidate_check_triggered_time_ms_ = base::TimeTicks();
++  entry_point_shown_time_ = base::TimeTicks();
+ }
+ 
+ void ReadAnythingOmniboxController::PrimaryPageChanged(content::Page& page) {
+@@ -157,6 +158,7 @@
+   was_last_checked_page_distillable_ = false;
+   was_page_checked_ = false;
+   if (IsIrrelevant()) {
++    entry_point_shown_time_ = base::TimeTicks();
+     return;
+   }
+ 
+@@ -164,6 +166,7 @@
+   // The entry point re-shows after RM is closed, but it wasn't ignored if it
+   // was used on this page.
+   UpdateIgnored(GetCurrentPageActionState().showing && !was_triggered);
++  entry_point_shown_time_ = base::TimeTicks();
+   DebounceCheckSuggestion();
+ }
+ 
+@@ -178,7 +181,6 @@
+     return;
+   }
+ 
+-  candidate_check_triggered_time_ms_ = base::TimeTicks::Now();
+   if (!check_suggestion_debouncer_) {
+     check_suggestion_debouncer_ = std::make_unique<base::OneShotTimer>();
+   }
+@@ -227,6 +229,11 @@
+     return;
+   }
+ 
++  // Start the ignored timer when shown so page load and suggestion check
++  // latency don't count toward it.
++  if (should_show) {
++    entry_point_shown_time_ = base::TimeTicks::Now();
++  }
+   read_anything::ReadAnythingEntryPointController::UpdatePageActionVisibility(
+       should_show, tab_,
+       base::BindOnce(&ReadAnythingOmniboxController::OnShowPromoResult,
+@@ -244,16 +251,15 @@
+   }
+ 
+   // Indicate that the omnibox entrypoint was ignored if it's still showing when
+-  // the page changes or tab closes, and the user was on the previous page for a
+-  // non-trivial amount of time. Without this time check, the omnibox would be
+-  // snoozed if the user is quickly clicking through links without reading them,
+-  // so they aren't truly ignoring the Reading mode entrypoint.
+-  base::TimeDelta time_on_previous_page =
+-      candidate_check_triggered_time_ms_.is_null()
++  // the page changes or tab closes, and it was showing for a non-trivial amount
++  // of time. Without this time check, the omnibox would be snoozed if the user
++  // is quickly clicking through links without reading them, so they aren't
++  // truly ignoring the Reading mode entrypoint.
++  base::TimeDelta time_shown =
++      entry_point_shown_time_.is_null()
+           ? base::Milliseconds(0)
+-          : base::TimeTicks::Now() - candidate_check_triggered_time_ms_;
+-  if (time_on_previous_page.InMilliseconds() >
+-      kTimeOnPreviousPageBeforeIgnored) {
++          : base::TimeTicks::Now() - entry_point_shown_time_;
++  if (time_shown.InMilliseconds() > kTimeOnPreviousPageBeforeIgnored) {
+     read_anything::ReadAnythingEntryPointController::OnPageActionIgnored(
+         tab_->GetBrowserWindowInterface());
+   }
+diff --git a/chrome/browser/ui/read_anything/read_anything_omnibox_controller.h b/chrome/browser/ui/read_anything/read_anything_omnibox_controller.h
+index 96c3627..977cfb9 100644
+--- a/chrome/browser/ui/read_anything/read_anything_omnibox_controller.h
++++ b/chrome/browser/ui/read_anything/read_anything_omnibox_controller.h
+@@ -45,7 +45,7 @@
+   void OnWillClose(ReadAnythingCloseReason reason) override;
+ 
+   void SetDwellTimeForTesting(base::TimeTicks test_time) {
+-    candidate_check_triggered_time_ms_ = test_time;
++    entry_point_shown_time_ = test_time;
+   }
+ 
+   // tabs::ContentsObservingTabFeature:
+@@ -65,8 +65,8 @@
+   virtual void CheckIfShouldSuggestReadingMode();
+ 
+  private:
+-  // The amount of time the user must spend on the previous page before it seems
+-  // they are ignoring the omnibox entry point.
++  // The amount of time the omnibox entry point must be showing on the previous
++  // page before it seems the user is ignoring it.
+   static const int kTimeOnPreviousPageBeforeIgnored = 3000;
+   // Delay before logging whether the user opened RM after seeing the IPH for
+   // the omnibox entrypoint. If they don't open RM within this time, log that
+@@ -111,8 +111,9 @@
+   // Logs the UKM metrics for the omnibox entry point.
+   void LogUkm();
+ 
+-  // The time when CheckIfShouldSuggestReadingMode was triggered.
+-  base::TimeTicks candidate_check_triggered_time_ms_;
++  // When the entry point was last shown on the current page. Null if it hasn't
++  // been shown.
++  base::TimeTicks entry_point_shown_time_;
+ 
+   // The cached result of CheckIfShouldSuggestReadingMode.
+   bool was_last_checked_page_distillable_ = false;
+diff --git a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
+index a736ab1..14f60db 100644
+--- a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
++++ b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
+@@ -1566,8 +1566,12 @@
+                   : metrics::OmniboxFocusType::INTERACTION_DEFAULT);
+   autocomplete_input.set_prevent_inline_autocomplete(
+       prevent_inline_autocomplete);
+-  // TODO(b/504669216): `set_allow_exact_keyword_match()` should be true even
+-  //   when not in keyword mode.
++  // Outside keyword mode this must stay false, so that e.g. pasted
++  // "<keyword> <query>" text doesn't produce a default keyword match. Views
++  // also sets it for one autocomplete pass after a space is typed in the middle
++  // of "<keyword><query>", to enter keyword mode via the result. The WebUI
++  // detects that case in `keyword_mode_manager.ts` and queries with the keyword
++  // instead, so `is_keyword_selected` is already true here.
+   autocomplete_input.set_allow_exact_keyword_match(is_keyword_selected);
+   autocomplete_input.set_in_keyword_mode(is_keyword_selected);
+   // Set the lens overlay suggest inputs, if available.
+diff --git a/components/find_in_page/find_tab_helper.cc b/components/find_in_page/find_tab_helper.cc
+index 04848ef..36b4d85 100644
+--- a/components/find_in_page/find_tab_helper.cc
++++ b/components/find_in_page/find_tab_helper.cc
+@@ -6,6 +6,7 @@
+ 
+ #include <utility>
+ 
++#include "base/metrics/histogram_functions.h"
+ #include "base/observer_list.h"
+ #include "base/strings/string_util.h"
+ #include "build/build_config.h"
+@@ -26,6 +27,9 @@
+       content::WebContentsObserver(web_contents) {}
+ 
+ FindTabHelper::~FindTabHelper() {
++  // Ensure session metrics are recorded if the tab is destroyed while a find
++  // session is still active.
++  RecordAndResetSessionMetrics();
+   for (auto& observer : observers_)
+     observer.OnFindTabHelperDestroyed(this);
+ }
+@@ -54,6 +58,9 @@
+     delegate_->SetLastSearchText(search_string, &GetWebContents());
+ 
+   if (search_string.empty()) {
++    if (last_completed_match_count_.has_value()) {
++      ended_with_empty_query_ = true;
++    }
+     StopFinding(find_in_page::SelectionAction::kClear);
+     for (auto& observer : observers_)
+       observer.OnFindEmptyText(&GetWebContents());
+@@ -74,6 +81,7 @@
+   last_search_case_sensitive_ = case_sensitive;
+   find_op_aborted_ = false;
+   should_find_match_ = find_match;
++  should_scroll_to_match_ = scroll_to_match;
+ 
+   auto options = blink::mojom::FindOptions::New();
+   options->forward = forward_direction;
+@@ -98,6 +106,9 @@
+     // previously remembered search (http://crbug.com/42639).
+     previous_find_text_ = std::u16string();
+   } else {
++    // The find UI is being dismissed; record and reset metrics for this
++    // session.
++    RecordAndResetSessionMetrics();
+     find_ui_active_ = false;
+     if (!find_text_.empty())
+       previous_find_text_ = find_text_;
+@@ -107,6 +118,7 @@
+   find_op_aborted_ = true;
+   last_search_result_ = FindNotificationDetails();
+   should_find_match_ = false;
++  should_scroll_to_match_ = false;
+   is_find_session_active_ = false;
+ 
+   content::StopFindAction action;
+@@ -126,6 +138,56 @@
+   GetWebContents().StopFinding(action);
+ }
+ 
++void FindTabHelper::OnSearchCompleted() {
++  const int number_of_matches = last_search_result_.number_of_matches();
++
++  // Check if the current search is a prefix of (or identical to) the previous
++  // search. A prefix match may indicate that a backspace was performed, while
++  // an identical match indicates a repeat search. Neither of these cases is
++  // treated as a "zero-match" instance.
++  const bool is_backspace_or_repeat = base::StartsWith(
++      last_completed_find_text_, find_text_, base::CompareCase::SENSITIVE);
++  if (!is_backspace_or_repeat && number_of_matches == 0) {
++    had_zero_match_ = true;
++  }
++
++  // Update the session's latest match count. Avoid overwriting a positive
++  // match count with 0 on a repeat search of the same text.
++  if (find_text_ != last_completed_find_text_ ||
++      !last_completed_match_count_.has_value() || number_of_matches > 0) {
++    last_completed_match_count_ = number_of_matches;
++  }
++
++  ended_with_empty_query_ = false;
++  last_completed_find_text_ = find_text_;
++}
++
++void FindTabHelper::RecordAndResetSessionMetrics() {
++#if !BUILDFLAG(IS_ANDROID)
++  // Only record metrics if at least one active search completed during the
++  // session.
++  if (last_completed_match_count_.has_value()) {
++    FindSessionOutcome outcome;
++    if (ended_with_empty_query_) {
++      outcome =
++          had_zero_match_
++              ? FindSessionOutcome::kEndedWithEmptyQueryAfterSeeingZeroMatch
++              : FindSessionOutcome::kEndedWithEmptyQueryWithoutSeeingZeroMatch;
++    } else if (*last_completed_match_count_ == 0) {
++      outcome = FindSessionOutcome::kEndedWithZeroMatches;
++    } else if (had_zero_match_) {
++      outcome = FindSessionOutcome::kMatchedAfterSeeingZeroMatch;
++    } else {
++      outcome = FindSessionOutcome::kMatchedWithoutSeeingZeroMatch;
++    }
++    base::UmaHistogramEnumeration("FindInPage.SessionOutcome", outcome);
++  }
++#endif
++  last_completed_match_count_.reset();
++  had_zero_match_ = false;
++  ended_with_empty_query_ = false;
++}
++
+ void FindTabHelper::ActivateFindInPageResultForAccessibility() {
+   GetWebContents()
+       .GetPrimaryMainFrame()
+@@ -182,6 +244,14 @@
+                                 active_match_ordinal, final_update);
+     for (auto& observer : observers_)
+       observer.OnFindResultAvailable(&GetWebContents());
++
++    // Record the completion of the search for session metrics and to suppress
++    // future alerts if the page's contents change. Exclude passive
++    // pre-population when the Find bar is first opened (where either
++    // `should_find_match_` or `should_scroll_to_match_` is false).
++    if (final_update && should_find_match_ && should_scroll_to_match_) {
++      OnSearchCompleted();
++    }
+   }
+ }
+ 
+diff --git a/components/find_in_page/find_tab_helper.h b/components/find_in_page/find_tab_helper.h
+index 06632ff..bf53519 100644
+--- a/components/find_in_page/find_tab_helper.h
++++ b/components/find_in_page/find_tab_helper.h
+@@ -5,6 +5,7 @@
+ #ifndef COMPONENTS_FIND_IN_PAGE_FIND_TAB_HELPER_H_
+ #define COMPONENTS_FIND_IN_PAGE_FIND_TAB_HELPER_H_
+ 
++#include <optional>
+ #include <string>
+ 
+ #include "base/memory/raw_ptr.h"
+@@ -112,10 +113,9 @@
+     return last_completed_find_text_;
+   }
+ 
+-  void set_last_completed_find_text(
+-      const std::u16string& last_completed_find_text) {
+-    last_completed_find_text_ = last_completed_find_text;
+-  }
++  // Records and resets metrics for the current find session, provided at least
++  // one active search completed during the session.
++  void RecordAndResetSessionMetrics();
+ 
+   gfx::Range selected_range() const { return selected_range_; }
+   void set_selected_range(const gfx::Range& selected_range) {
+@@ -128,6 +128,7 @@
+   }
+ 
+   bool should_find_match() const { return should_find_match_; }
++  bool should_scroll_to_match() const { return should_scroll_to_match_; }
+ 
+ #if BUILDFLAG(IS_ANDROID)
+   // Selects and zooms to the find result nearest to the point (x, y)
+@@ -143,10 +144,25 @@
+   // Used to determine if the find session is active for this WebContents.
+   bool is_find_session_active() const { return is_find_session_active_; }
+ 
++  // content::WebContentsObserver:
++  // Receives search replies from WebContents. `final_update` indicates
++  // whether all frames in the page have finished scoping (whether this is the
++  // final result for `request_id`).
++  void DidReceiveFindReply(int request_id,
++                           int number_of_matches,
++                           const gfx::Rect& selection_rect,
++                           int active_match_ordinal,
++                           bool final_update) override;
++
+  private:
+   explicit FindTabHelper(content::WebContents* web_contents);
+   friend class content::WebContentsUserData<FindTabHelper>;
+ 
++  // Records the completion of the current active search (where
++  // `should_find_match_` and `should_scroll_to_match_` were true and a
++  // `final_update` result was received) and updates session metrics state.
++  void OnSearchCompleted();
++
+   // True if the Find UI is active for this tab.
+   bool find_ui_active_ = false;
+ 
+@@ -183,9 +199,24 @@
+   // to notify the user more than once that a search came up empty, and we never
+   // want to notify the user that a previously successful search's results were
+   // removed because, for instance, the page is being torn down during
+-  // navigation.
++  // navigation. Also used by session metrics to distinguish new forward
++  // searches from backspaces and repeat/teardown updates on the same query.
+   std::u16string last_completed_find_text_;
+ 
++  // Match count of the most recently completed active search in the current
++  // find session, or std::nullopt if no active search has completed yet.
++  std::optional<int> last_completed_match_count_;
++
++  // Whether at least one "zero-match" condition was triggered during the
++  // current find session. A zero-match constitutes a find request that
++  // yields 0 matches, ignoring repeat searches and backspacing.
++  bool had_zero_match_ = false;
++
++  // Whether the user cleared the search box to an empty query after completing
++  // at least one active search in the current session. Reset if a subsequent
++  // search completes in the same session.
++  bool ended_with_empty_query_ = false;
++
+   // The selection within the text.
+   gfx::Range selected_range_;
+ 
+@@ -201,6 +232,11 @@
+   // there is no active search.
+   bool should_find_match_ = false;
+ 
++  // The value of the `scroll_to_match` option for the active search. False
++  // during passive pre-population when the Find bar is first opened (including
++  // when pre-populated from the current page selection).
++  bool should_scroll_to_match_ = false;
++
+   // Whether a find session is active for this WebContents.
+   bool is_find_session_active_ = false;
+ 
+@@ -209,16 +245,6 @@
+ 
+   base::ObserverList<FindResultObserver> observers_;
+ 
+-  // content::WebContentsObserver:
+-  // Receives search replies from WebContents. `final_update` indicates
+-  // whether all frames in the page have finished scoping (whether this is the
+-  // final result for `request_id`).
+-  void DidReceiveFindReply(int request_id,
+-                           int number_of_matches,
+-                           const gfx::Rect& selection_rect,
+-                           int active_match_ordinal,
+-                           bool final_update) override;
+-
+   WEB_CONTENTS_USER_DATA_KEY_DECL();
+ };
+ 
+diff --git a/components/find_in_page/find_types.h b/components/find_in_page/find_types.h
+index d5a8576..ef63298 100644
+--- a/components/find_in_page/find_types.h
++++ b/components/find_in_page/find_types.h
+@@ -22,6 +22,30 @@
+   kKeep,   // Leave the results untouched.
+ };
+ 
++// Outcome of a Find-in-Page user session, recorded once per session when the
++// session ends (provided at least one active search completed).
++// These values are persisted to logs. Entries should not be renumbered and
++// numeric values should never be reused.
++// LINT.IfChange(FindInPageSessionOutcome)
++enum class FindSessionOutcome {
++  // Every completed search in the session found at least one match, and the
++  // session ended with a non-empty query.
++  kMatchedWithoutSeeingZeroMatch = 0,
++  // At least one search in the session yielded zero matches, but the session
++  // ended on a non-empty query with one or more matches.
++  kMatchedAfterSeeingZeroMatch = 1,
++  // The session ended on a non-empty query with zero matches.
++  kEndedWithZeroMatches = 2,
++  // Every completed search in the session found at least one match, and the
++  // user cleared the search box before ending the session.
++  kEndedWithEmptyQueryWithoutSeeingZeroMatch = 3,
++  // At least one search in the session yielded zero matches, and the user
++  // cleared the search box before ending the session.
++  kEndedWithEmptyQueryAfterSeeingZeroMatch = 4,
++  kMaxValue = kEndedWithEmptyQueryAfterSeeingZeroMatch,
++};
++// LINT.ThenChange(//tools/metrics/histograms/metadata/others/enums.xml:FindInPageSessionOutcome)
++
+ }  // namespace find_in_page
+ 
+ #endif  // COMPONENTS_FIND_IN_PAGE_FIND_TYPES_H_
+diff --git a/components/optimization_guide/core/model_execution/model_broker_client.cc b/components/optimization_guide/core/model_execution/model_broker_client.cc
+index 6f1040d2..a3053ef 100644
+--- a/components/optimization_guide/core/model_execution/model_broker_client.cc
++++ b/components/optimization_guide/core/model_execution/model_broker_client.cc
+@@ -5,7 +5,12 @@
+ #include "components/optimization_guide/core/model_execution/model_broker_client.h"
+ 
+ #include <memory>
++#include <utility>
++#include <vector>
+ 
++#include "base/containers/extend.h"
++#include "base/functional/bind.h"
++#include "base/functional/callback.h"
+ #include "base/functional/callback_helpers.h"
+ #include "base/memory/weak_ptr.h"
+ #include "base/strings/to_string.h"
+@@ -36,6 +41,12 @@
+   return client->CreateSession(config_params, logger);
+ }
+ 
++void RunAll(std::vector<base::OnceClosure> closures) {
++  for (auto& closure : closures) {
++    std::move(closure).Run();
++  }
++}
++
+ }  // namespace
+ 
+ class ModelClient::OnDeviceOptionsClient final
+@@ -133,7 +144,7 @@
+   TRACE_EVENT("optimization_guide", "ModelSubscriberImpl::WaitForClient",
+               perfetto::Flow::FromPointer(this));
+   callbacks_.emplace_back(std::move(callback));
+-  FlushCallbacks();
++  RunAll(FlushModelClientCallbacks());
+ }
+ 
+ void ModelSubscriberImpl::CanCreateSession(
+@@ -149,7 +160,7 @@
+   }
+ 
+   can_create_session_callbacks_.emplace_back(capabilities, std::move(callback));
+-  FlushCanCreateSessionCallbacks();
++  RunAll(FlushCanCreateSessionCallbacks());
+ }
+ 
+ void ModelSubscriberImpl::Unavailable(
+@@ -160,8 +171,7 @@
+   unavailable_reason_ = reason;
+   detailed_reason_ = detailed_reason;
+   client_.reset();
+-  FlushCallbacks();
+-  FlushCanCreateSessionCallbacks();
++  RunAll(FlushAllCallbacks());
+ }
+ 
+ void ModelSubscriberImpl::Available(
+@@ -173,8 +183,7 @@
+   detailed_reason_ = std::nullopt;
+   client_.emplace(std::move(remote), std::move(config),
+                   capabilities_.value_or(on_device_model::Capabilities()));
+-  FlushCallbacks();
+-  FlushCanCreateSessionCallbacks();
++  RunAll(FlushAllCallbacks());
+ }
+ 
+ void ModelSubscriberImpl::CapabilitiesUpdated(
+@@ -182,39 +191,39 @@
+   TRACE_EVENT("optimization_guide", "ModelSubscriberImpl::CapabilitiesUpdated",
+               perfetto::Flow::FromPointer(this));
+   capabilities_ = capabilities;
+-  FlushCanCreateSessionCallbacks();
++  RunAll(FlushCanCreateSessionCallbacks());
+ }
+ 
+-void ModelSubscriberImpl::FlushCallbacks() {
++std::vector<base::OnceClosure>
++ModelSubscriberImpl::FlushModelClientCallbacks() {
++  std::vector<base::OnceClosure> closures;
+   if (client_) {
+-    std::vector to_call(std::move(callbacks_));
+-    callbacks_.clear();
+-    for (auto& callback : to_call) {
+-      std::move(callback).Run(client_->GetWeakPtr());
++    base::WeakPtr<ModelClient> client = client_->GetWeakPtr();
++    for (auto& callback : std::exchange(callbacks_, {})) {
++      closures.push_back(base::BindOnce(std::move(callback), client));
+     }
+-    return;
+-  }
+-  if (unavailable_reason_ == mojom::ModelUnavailableReason::kNotSupported) {
+-    std::vector to_call(std::move(callbacks_));
+-    callbacks_.clear();
+-    for (auto& callback : to_call) {
+-      std::move(callback).Run(nullptr);
++  } else if (unavailable_reason_ ==
++             mojom::ModelUnavailableReason::kNotSupported) {
++    for (auto& callback : std::exchange(callbacks_, {})) {
++      closures.push_back(base::BindOnce(std::move(callback), nullptr));
+     }
+-    return;
+   }
++  return closures;
+ }
+ 
+-void ModelSubscriberImpl::FlushCanCreateSessionCallbacks() {
+-  // Make sure |capabilities_| and solution both are updated.
+-  if (!capabilities_.has_value() ||
+-      (!client_ && !unavailable_reason_.has_value())) {
+-    return;
++std::vector<base::OnceClosure>
++ModelSubscriberImpl::FlushCanCreateSessionCallbacks() {
++  std::vector<base::OnceClosure> closures;
++  // Wait until `CapabilitiesUpdated()` has reported device capabilities and
++  // either `Available()` or `Unavailable()` has reported the solution state.
++  const bool is_solution_state_known =
++      client_.has_value() || unavailable_reason_.has_value();
++  if (!capabilities_.has_value() || !is_solution_state_known) {
++    return closures;
+   }
+ 
+-  std::vector to_call(std::move(can_create_session_callbacks_));
+-  can_create_session_callbacks_.clear();
+-
+-  for (auto& [capability, callback] : to_call) {
++  for (auto& [capability, callback] :
++       std::exchange(can_create_session_callbacks_, {})) {
+     std::optional<mojom::ModelUnavailableReason> unavailable_reason =
+         unavailable_reason_;
+     std::optional<mojom::ModelNotSupportedDetailedReason> detailed_reason =
+@@ -229,8 +238,16 @@
+           mojom::ModelNotSupportedDetailedReason::kModelAdaptationNotAvailable;
+     }
+ 
+-    std::move(callback).Run(unavailable_reason, detailed_reason);
++    closures.push_back(base::BindOnce(std::move(callback), unavailable_reason,
++                                      detailed_reason));
+   }
++  return closures;
++}
++
++std::vector<base::OnceClosure> ModelSubscriberImpl::FlushAllCallbacks() {
++  std::vector<base::OnceClosure> closures = FlushModelClientCallbacks();
++  base::Extend(closures, FlushCanCreateSessionCallbacks());
++  return closures;
+ }
+ 
+ ModelSubscriber::ModelSubscriber(
+@@ -243,6 +260,10 @@
+ 
+ void ModelSubscriber::OnDisconnect() {
+   TRACE_EVENT("optimization_guide", "ModelSubscriber::OnDisconnect");
++  // Disconnects only occur if `BindModelBroker()` rejected the initial
++  // connection (e.g. on-device execution is disabled or stubbed out) or if
++  // `ModelBrokerImpl` is destroyed during browser shutdown.
++  capabilities_.emplace();
+   Unavailable(mojom::ModelUnavailableReason::kNotSupported, std::nullopt);
+ }
+ 
+diff --git a/components/optimization_guide/core/model_execution/model_broker_client.h b/components/optimization_guide/core/model_execution/model_broker_client.h
+index ec82f7a..3a0efa44 100644
+--- a/components/optimization_guide/core/model_execution/model_broker_client.h
++++ b/components/optimization_guide/core/model_execution/model_broker_client.h
+@@ -125,11 +125,16 @@
+   void CapabilitiesUpdated(
+       const on_device_model::Capabilities& capabilities) override;
+ 
+-  // Fire all pending callbacks
+-  void FlushCallbacks();
++  // Collect ready `WaitForClient()` callbacks to run once `this` is no longer
++  // needed on the stack.
++  [[nodiscard]] std::vector<base::OnceClosure> FlushModelClientCallbacks();
+ 
+-  // Fire all pending CanCreateSession callbacks.
+-  void FlushCanCreateSessionCallbacks();
++  // Collect ready `CanCreateSession()` callbacks to run once `this` is no
++  // longer needed on the stack.
++  [[nodiscard]] std::vector<base::OnceClosure> FlushCanCreateSessionCallbacks();
++
++  // Collect all ready callbacks from both queues.
++  [[nodiscard]] std::vector<base::OnceClosure> FlushAllCallbacks();
+ 
+   std::vector<ClientCallback> callbacks_;
+   std::optional<mojom::ModelUnavailableReason> unavailable_reason_;
+diff --git a/content/browser/network_service_instance_impl.cc b/content/browser/network_service_instance_impl.cc
+index 47f137e..20870c22 100644
+--- a/content/browser/network_service_instance_impl.cc
++++ b/content/browser/network_service_instance_impl.cc
+@@ -476,8 +476,9 @@
+ }
+ 
+ void OnNetworkServiceProcessGone(bool crashed) {
+-  CHECK(BrowserThread::CurrentlyOn(BrowserThread::UI),
+-        base::NotFatalUntil::M160);
++  // TODO(crbug.com/578652641): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
+   CHECK(g_observed_network_service, base::NotFatalUntil::M160);
+   CHECK(g_observed_network_service->remote().is_bound(),
+         base::NotFatalUntil::M160);
+diff --git a/content/browser/renderer_host/navigation_request.cc b/content/browser/renderer_host/navigation_request.cc
+index 4c35b98..96562d88a 100644
+--- a/content/browser/renderer_host/navigation_request.cc
++++ b/content/browser/renderer_host/navigation_request.cc
+@@ -2201,13 +2201,14 @@
+   if (NeedsUrlLoader() && common_params_->url.SchemeIsHTTPOrHTTPS()) {
+     if (GetContentClient()->browser()->ShouldPreconnectNavigation(
+             frame_tree_node_->current_frame_host()) &&
+-        IsAllowedByConnectionAllowlist(/*is_redirect=*/false)) {
++        IsAllowedByConnectionAllowlist(/*is_redirect=*/false,
++                                       /*should_report=*/false)) {
+       auto* storage_partition =
+           frame_tree_node_->current_frame_host()->GetStoragePartition();
+ 
+       // Initiator frame's `network_restriction_id` is not passed because the
+       // preconnection has already been checked against the connection-allowlist
+-      // by the `IsAllowedByConnectionAllowlist(false)` call above.
++      // by the `IsAllowedByConnectionAllowlist()` call above.
+       storage_partition->GetNetworkContext()->PreconnectSockets(
+           1, common_params_->url, network::mojom::CredentialsMode::kInclude,
+           GetIsolationInfo().network_anonymization_key(),
+@@ -3038,7 +3039,8 @@
+   }
+ 
+   // Connection Allowlist: check whether navigation to the url is allowed.
+-  if (!IsAllowedByConnectionAllowlist(/*is_redirect=*/false)) {
++  if (!IsAllowedByConnectionAllowlist(/*is_redirect=*/false,
++                                      /*should_report=*/true)) {
+     // Record that this navigation is blocked by the initiator's
+     // Connection-Allowlist before StartNavigation() notifies observers. This
+     // lets observers (e.g. //chrome's LoadingPredictor) suppress speculative
+@@ -3826,7 +3828,8 @@
+   ScopedCrashKeys crash_keys(*this);
+ 
+   if (!was_redirected_ &&
+-      !IsAllowedByConnectionAllowlist(/*is_redirect=*/true)) {
++      !IsAllowedByConnectionAllowlist(/*is_redirect=*/true,
++                                      /*should_report=*/true)) {
+     // As in BeginNavigationImpl(), record that this navigation is blocked by
+     // the initiator's Connection-Allowlist so observers can suppress
+     // speculative network activity for it. (Today no speculative work runs
+@@ -8230,7 +8233,8 @@
+   SetExpectedProcess(post_redirect_process);
+ }
+ 
+-bool NavigationRequest::IsAllowedByConnectionAllowlist(bool is_redirect) {
++bool NavigationRequest::IsAllowedByConnectionAllowlist(bool is_redirect,
++                                                       bool should_report) {
+   // The connection allowlist base feature is the kill switch for the feature.
+   // It is checked first. Then connection allowlist also requires origin trial
+   // enabled. In order to check the origin trial status, the initiator policy
+@@ -8265,8 +8269,13 @@
+   net::NetworkAnonymizationKey network_anonymization_key;
+   std::optional<base::UnguessableToken> reporting_source;
+ 
++  // A null `network_context` means no violation reports will be queued. Don't
++  // report when the caller asks not to (e.g. for speculative preconnect
++  // checks), or for history navigations: their URLs come from session history,
++  // not from the initiator, so reporting them to the initiator would leak
++  // URLs of other pages in the session history. See crbug.com/572312779.
+   RenderFrameHostImpl* initiator_rfh = GetInitiatorDocumentRenderFrameHost();
+-  if (initiator_rfh) {
++  if (initiator_rfh && should_report && !IsHistory()) {
+     network_context =
+         initiator_rfh->GetProcess()->GetStoragePartition()->GetNetworkContext();
+     network_anonymization_key = initiator_rfh->GetIsolationInfoForSubresources()
+diff --git a/content/browser/renderer_host/navigation_request.h b/content/browser/renderer_host/navigation_request.h
+index 00922a2..30f56a1ba 100644
+--- a/content/browser/renderer_host/navigation_request.h
++++ b/content/browser/renderer_host/navigation_request.h
+@@ -2255,9 +2255,10 @@
+ 
+   // Checks whether this navigation is allowed based on the connection
+   // allowlist header, if present. Side effect:
+-  // - If a CA is configured to send reports and the request violates the CA,
+-  //   a report will be sent.
+-  bool IsAllowedByConnectionAllowlist(bool is_redirect);
++  // - If `should_report` is true, the navigation is not a history navigation,
++  //   and a CA is configured to send reports, a report will be sent when the
++  //   request violates the CA.
++  bool IsAllowedByConnectionAllowlist(bool is_redirect, bool should_report);
+ 
+   // Checks if the specified CSP context's relevant CSP directive
+   // allows the navigation. This is called to perform the frame-src check.
+diff --git a/testing/variations/fieldtrial_testing_config.json b/testing/variations/fieldtrial_testing_config.json
+index b0551dda..c5aa239 100644
+--- a/testing/variations/fieldtrial_testing_config.json
++++ b/testing/variations/fieldtrial_testing_config.json
+@@ -1806,6 +1806,27 @@
+             ]
+         }
+     ],
++    "AutofillAiWalletReminderAndDisclosureNotice": [
++        {
++            "platforms": [
++                "android",
++                "chromeos",
++                "ios",
++                "linux",
++                "mac",
++                "windows"
++            ],
++            "experiments": [
++                {
++                    "name": "Enabled",
++                    "enable_features": [
++                        "AutofillEnableWalletDisclosureNoticePublicPass",
++                        "AutofillEnableWalletReminderNoticePublicPass"
++                    ]
++                }
++            ]
++        }
++    ],
+     "AutofillAiWalletServerProvidedDeepLink": [
+         {
+             "platforms": [
+diff --git a/third_party/blink/renderer/core/animation/document_animations.cc b/third_party/blink/renderer/core/animation/document_animations.cc
+index 7ca61f5a..a439556 100644
+--- a/third_party/blink/renderer/core/animation/document_animations.cc
++++ b/third_party/blink/renderer/core/animation/document_animations.cc
+@@ -68,10 +68,12 @@
+ 
+ void UpdateAnimationTiming(
+     Document& document,
+-    HeapHashSet<WeakMember<AnimationTimeline>>& timelines,
++    const HeapHashSet<WeakMember<AnimationTimeline>>& timelines,
+     TimingUpdateReason reason) {
+-  for (auto& timeline : timelines)
++  HeapVector<Member<AnimationTimeline>> timelines_to_service(timelines);
++  for (auto& timeline : timelines_to_service) {
+     timeline->ServiceAnimations(reason);
++  }
+   document.GetWorkletAnimationController().UpdateAnimationTimings(reason);
+ }
+ }  // namespace
+diff --git a/third_party/blink/renderer/core/script/module_map.cc b/third_party/blink/renderer/core/script/module_map.cc
+index 8ac1e04e..d197628 100644
+--- a/third_party/blink/renderer/core/script/module_map.cc
++++ b/third_party/blink/renderer/core/script/module_map.cc
+@@ -238,8 +238,10 @@
+                               loader_registry_, entry);
+   } else {
+     // https://github.com/whatwg/html/pull/12922
+-    if (!MatchIntegrityMetadata(request.Options().GetIntegrityMetadata(),
+-                                entry->GetIntegrityMetadata())) {
++    const bool integrity_matches =
++        MatchIntegrityMetadata(request.Options().GetIntegrityMetadata(),
++                               entry->GetIntegrityMetadata());
++    if (!integrity_matches) {
+       if (modulator_->HasValidContext()) {
+         UseCounter::Count(ExecutionContext::From(modulator_->GetScriptState()),
+                           WebFeature::kSRIModuleMapIntegrityMismatch);
+@@ -250,14 +252,21 @@
+     // performs. Because of this, it may bypass CSP script-src policies when
+     // strict-dynamic is enabled. To avoid a CSP bypass by a preloaded module,
+     // double check that CSP allows the script load now that we have the correct
+-    // parser state. If not, abort the load.
++    // parser state. If not, abort the load. Only pass the request's integrity
++    // metadata if it matches the entry's SRI-verified metadata; otherwise an
++    // unverified integrity attribute could satisfy hash-based CSP without SRI
++    // enforcement.
++    IntegrityMetadataSet verified_integrity_metadata;
++    if (integrity_matches) {
++      verified_integrity_metadata = request.Options().GetIntegrityMetadata();
++    }
+     bool csp_allows_load =
+         ExecutionContext::From(modulator_->GetScriptState())
+             ->GetContentSecurityPolicy()
+             ->AllowScriptFromSource(
+                 request.Url(), request.Options().Nonce(),
+-                request.Options().GetIntegrityMetadata(),
+-                request.Options().ParserState(), request.Url(),
++                verified_integrity_metadata, request.Options().ParserState(),
++                request.Url(),
+                 ResourceRequestHead::RedirectStatus::kNoRedirect);
+     if (!csp_allows_load) {
+       UseCounter::Count(ExecutionContext::From(modulator_->GetScriptState()),
+diff --git a/tools/metrics/histograms/metadata/others/histograms.xml b/tools/metrics/histograms/metadata/others/histograms.xml
+index b6a6dd8..3798e31 100644
+--- a/tools/metrics/histograms/metadata/others/histograms.xml
++++ b/tools/metrics/histograms/metadata/others/histograms.xml
+@@ -2069,6 +2069,23 @@
+   </summary>
+ </histogram>
+ 
++<histogram name="FindInPage.SessionOutcome" enum="FindInPageSessionOutcome"
++    expires_after="2027-04-08">
++  <owner>cuianthony@chromium.org</owner>
++  <owner>top-chrome-desktop-ui@google.com</owner>
++  <summary>
++    Records the outcome of an active Find-in-Page session on Desktop when the
++    session ends (e.g. when the Find bar is closed, the page navigates, or the
++    tab is closed). Only recorded for sessions where at least one user-initiated
++    search query completed (excluding passive pre-population from previous
++    searches or page selection when the Find bar is first opened, unless the
++    user edits the query or explicitly steps through matches). A session has
++    seen a zero-match if any completed search yielded 0 matches. A 0-match
++    result does not count as a zero-match if the query was a prefix of the
++    previous query (e.g. the user backspaced) or the same query repeated.
++  </summary>
++</histogram>
++
+ <histogram name="Finds.ExecutionTime" units="ms" expires_after="2027-06-01">
+   <owner>wylieb@chromium.org</owner>
+   <owner>bjfong@google.com</owner>
+diff --git a/ui/ozone/platform/drm/gpu/gbm_surface_factory.cc b/ui/ozone/platform/drm/gpu/gbm_surface_factory.cc
+index 7bf78ed..5ecbf8c 100644
+--- a/ui/ozone/platform/drm/gpu/gbm_surface_factory.cc
++++ b/ui/ozone/platform/drm/gpu/gbm_surface_factory.cc
+@@ -20,6 +20,8 @@
+ #include "third_party/angle/include/EGL/egl.h"
+ #include "ui/gfx/buffer_types.h"
+ #include "ui/gfx/extension_set.h"
++#include "ui/gfx/geometry/rect.h"
++#include "ui/gfx/geometry/size.h"
+ #include "ui/gfx/linux/drm_util_linux.h"
+ #include "ui/gfx/linux/gbm_defines.h"
+ #include "ui/gfx/linux/scoped_gbm_device.h"
+@@ -414,15 +416,17 @@
+     auto protected_pixmap = get_protected_native_pixmap_callback_.Run(handle);
+     if (protected_pixmap) {
+       // The substituted pixmap is used in place of the supplied handle, so it
+-      // must match the geometry the caller will use to bind it.
+-      // See https://crbug.com/501762862
+-      if (protected_pixmap->GetBufferSize() != size ||
++      // must be able to contain the geometry the caller will use to bind it
++      // (the backing pixmap may be larger due to hardware decoder alignment).
++      // See https://crbug.com/501762862 and https://crbug.com/575535958
++      if (!gfx::Rect(protected_pixmap->GetBufferSize())
++               .Contains(gfx::Rect(size)) ||
+           protected_pixmap->GetSharedImageFormat() != format) {
+         LOG(ERROR) << "Protected pixmap ("
+                    << protected_pixmap->GetBufferSize().ToString() << ", "
+                    << protected_pixmap->GetSharedImageFormat().ToString()
+-                   << ") does not match requested geometry (" << size.ToString()
+-                   << ", " << format.ToString() << ")";
++                   << ") is incompatible with requested geometry ("
++                   << size.ToString() << ", " << format.ToString() << ")";
+         return nullptr;
+       }
+       return protected_pixmap;
+diff --git a/ui/views/controls/menu/menu_controller.cc b/ui/views/controls/menu/menu_controller.cc
+index 9b5abde..805d762 100644
+--- a/ui/views/controls/menu/menu_controller.cc
++++ b/ui/views/controls/menu/menu_controller.cc
+@@ -284,6 +284,19 @@
+   return nullptr;
+ }
+ 
++gfx::Rect GetChildMenuAnchorBounds(MenuItemView* item) {
++  gfx::Rect bounds;
++  if (const View* anchor_view = item->GetAnchorView()) {
++    bounds = anchor_view->GetBoundsInScreen();
++  } else {
++    bounds = item->GetBoundsInScreen();
++    bounds.Inset(item->GetHighlightInsets());
++  }
++  // TODO(pkasting): Not clear to me why we want to set the height to 1 dip.
++  bounds.set_height(1);
++  return bounds;
++}
++
+ MenuPartType GetScrollButtonAt(SubmenuView* source,
+                                const gfx::Point& location) {
+   MenuScrollViewContainer* scroll_view = source->GetScrollViewContainer();
+@@ -2994,17 +3007,10 @@
+   DCHECK(submenu);
+ 
+   // For the first menu, anchor_rect is initial bounds. Otherwise, it is the top
+-  // of the menu item that spawned this menu.
+-  // TODO(pkasting): Not clear to me why we want to set the height to 1 dip.
++  // of the highlight (or anchor view) of the menu item that spawned this menu.
+   const bool is_child_menu = !!item->GetParentMenuItem();
+-  gfx::Rect anchor_bounds =
+-      is_child_menu
+-          ? (item->GetAnchorView() ? item->GetAnchorView()->GetBoundsInScreen()
+-                                   : item->GetBoundsInScreen())
+-          : state_.initial_bounds;
+-  if (is_child_menu) {
+-    anchor_bounds.set_height(1);
+-  }
++  const gfx::Rect anchor_bounds =
++      is_child_menu ? GetChildMenuAnchorBounds(item) : state_.initial_bounds;
+   anchor->anchor_rect = anchor_bounds;
+ 
+   SetAnchorParametersForItem(item, anchor_bounds.origin(), anchor);
+@@ -3179,17 +3185,10 @@
+   DCHECK(anchor);
+ 
+   // For the first menu, anchor_rect is initial bounds. Otherwise, it is the top
+-  // of the menu item that spawned this menu.
+-  // TODO(pkasting): Not clear to me why we want to set the height to 1 dip.
++  // of the highlight (or anchor view) of the menu item that spawned this menu.
+   const bool is_child_menu = !!item->GetParentMenuItem();
+-  gfx::Rect anchor_bounds =
+-      is_child_menu
+-          ? (item->GetAnchorView() ? item->GetAnchorView()->GetBoundsInScreen()
+-                                   : item->GetBoundsInScreen())
+-          : state_.initial_bounds;
+-  if (is_child_menu) {
+-    anchor_bounds.set_height(1);
+-  }
++  const gfx::Rect anchor_bounds =
++      is_child_menu ? GetChildMenuAnchorBounds(item) : state_.initial_bounds;
+   anchor->anchor_rect = anchor_bounds;
+ 
+   SetAnchorParametersForItem(item, anchor_bounds.origin(), anchor);
+diff --git a/ui/views/controls/menu/menu_item_view.cc b/ui/views/controls/menu/menu_item_view.cc
+index bd15021..77e8e87 100644
+--- a/ui/views/controls/menu/menu_item_view.cc
++++ b/ui/views/controls/menu/menu_item_view.cc
+@@ -1440,13 +1440,8 @@
+     SkVector radii[4]{{0, 0}, {0, 0}, {0, 0}, {0, 0}};
+     bool clip_to_background = false;
+     if (menu_item_background_.has_value()) {
+-      const int horizontal_margin =
+-          menu_item_background_->horizontal_margin.value_or(
+-              GetItemHorizontalBorder());
+       // The highlight covers only the row, not the background's padding.
+-      highlight_bounds.Inset(gfx::InsetsF::TLBR(
+-          menu_item_background_->top_padding, horizontal_margin,
+-          menu_item_background_->bottom_padding, horizontal_margin));
++      highlight_bounds.Inset(gfx::InsetsF(GetHighlightInsets()));
+       const SkScalar top_r = SkIntToScalar(menu_item_background_->top_radius);
+       const SkScalar bot_r =
+           SkIntToScalar(menu_item_background_->bottom_radius);
+@@ -1480,14 +1475,7 @@
+     }
+   } else if (paint_as_selected) {
+     gfx::Rect item_bounds = GetLocalBounds();
+-    if (menu_item_background_.has_value()) {
+-      const int horizontal_margin =
+-          menu_item_background_->horizontal_margin.value_or(
+-              GetItemHorizontalBorder());
+-      item_bounds.Inset(gfx::Insets::TLBR(
+-          menu_item_background_->top_padding, horizontal_margin,
+-          menu_item_background_->bottom_padding, horizontal_margin));
+-    }
++    item_bounds.Inset(GetHighlightInsets());
+     if (type_ == Type::kActionableSubMenu) {
+       if (submenu_area_of_actionable_submenu_selected_) {
+         item_bounds = GetSubmenuAreaOfActionableSubmenu();
+@@ -2039,6 +2027,17 @@
+                            menu_item_background_->bottom_padding, 0);
+ }
+ 
++gfx::Insets MenuItemView::GetHighlightInsets() const {
++  if (!menu_item_background_.has_value()) {
++    return gfx::Insets();
++  }
++  // Used by PaintBackground() and for positioning child menus.
++  const int horizontal_margin =
++      menu_item_background_->horizontal_margin.value_or(
++          GetItemHorizontalBorder());
++  return GetBackgroundPadding() + gfx::Insets::VH(0, horizontal_margin);
++}
++
+ ViewAccessibility* MenuItemView::GetSubmenuViewAccessibility() {
+   return submenu_ ? &submenu_->GetViewAccessibility() : nullptr;
+ }
+diff --git a/ui/views/controls/menu/menu_item_view.h b/ui/views/controls/menu/menu_item_view.h
+index c8c840e..c752be3 100644
+--- a/ui/views/controls/menu/menu_item_view.h
++++ b/ui/views/controls/menu/menu_item_view.h
+@@ -241,6 +241,9 @@
+     return menu_item_background_;
+   }
+ 
++  // Returns how far the hover highlight is inset from this item's bounds.
++  gfx::Insets GetHighlightInsets() const;
++
+   void SetSelectedColorId(std::optional<ui::ColorId> selected_color_id) {
+     selected_color_id_ = selected_color_id;
+   }
+diff --git a/ui/views/controls/menu/submenu_view.cc b/ui/views/controls/menu/submenu_view.cc
+index 0a775c6..cb3a68f3 100644
+--- a/ui/views/controls/menu/submenu_view.cc
++++ b/ui/views/controls/menu/submenu_view.cc
+@@ -309,6 +309,16 @@
+           std::max(max_complex_width, child->GetPreferredSize({}).width());
+     }
+   }
++  // Pinned items aren't in `children()`, but their titles are painted using
++  // this submenu's minor text column, so include them to avoid eliding.
++  for (const MenuItemView* item : GetMenuItems()) {
++    if (item->IsPinned() && item->GetVisible()) {
++      const auto& dimensions = item->GetDimensions();
++      max_simple_width = std::max(max_simple_width, dimensions.standard_width);
++      max_minor_text_width_ =
++          std::max(max_minor_text_width_, dimensions.minor_text_width);
++    }
++  }
+   const auto& config = MenuConfig::instance();
+   if (max_minor_text_width_ > 0) {
+     max_minor_text_width_ += config.item_horizontal_padding;
+diff --git a/ui/webui/resources/cr_components/composebox/composebox.ts b/ui/webui/resources/cr_components/composebox/composebox.ts
+index d7c68b2..afdb1af 100644
+--- a/ui/webui/resources/cr_components/composebox/composebox.ts
++++ b/ui/webui/resources/cr_components/composebox/composebox.ts
+@@ -155,6 +155,11 @@
+     return loadTimeData.valueExists('webUIOmniboxAskGAboutThisPageEnabled') &&
+         loadTimeData.getBoolean('webUIOmniboxAskGAboutThisPageEnabled');
+   }
++  private get contextualTasksUpdatedEntryPointsEnabled_(): boolean {
++    return loadTimeData.valueExists(
++               'contextualTasksUpdatedEntryPointsEnabled') &&
++        loadTimeData.getBoolean('contextualTasksUpdatedEntryPointsEnabled');
++  }
+   private pageHandler_: PageHandlerRemote;
+   private searchboxHandler_: SearchboxPageHandlerRemote;
+   private resizeObservers_: ResizeObserver[] = [];
+@@ -447,12 +452,19 @@
+       }
+       return;
+     }
+-    // AutoSuggestedTabContext is routed differently for Omnibox Page Action.
+-    // when it opens a side panel to cobrowse.
++    // AutoSuggestedTabContext is routed differently for Ask Google entry points
++    // when opening a side panel to cobrowse.
+     // TODO(crbug.com/486707842): Move check to the
+     // Contextual Tasks embedder.
+-    const askGAndPageAction = this.webUIOmniboxAskGAboutThisPageEnabled_ &&
+-        invocationSource === 'OmniboxPageAction' && this.isSidePanel;
++    const isOmniboxAskG = this.webUIOmniboxAskGAboutThisPageEnabled_ &&
++        invocationSource === 'OmniboxPageAction';
++    const isUpdatedEntryPoint =
++        this.contextualTasksUpdatedEntryPointsEnabled_ &&
++        (invocationSource === 'ContentAreaContextMenuPage' ||
++         invocationSource === 'AppMenu' ||
++         invocationSource === 'HomeworkActionChip');
++    const askGAndPageAction =
++        (isOmniboxAskG || isUpdatedEntryPoint) && this.isSidePanel;
+ 
+     // We should delete the automatic active tab if it is different from the
+     // current tab when webUIOmniboxAskGAboutThisPageEnabled_ is true. Make sure
+diff --git a/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.test.ts b/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.test.ts
+index ee93f86..a7a1c96 100644
+--- a/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.test.ts
++++ b/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.test.ts
+@@ -827,6 +827,67 @@
+          }
+        });
+ 
++    it('fetches and renders children of the document element when the document root is expanded manually', async () => {
++      // Models the Console case: the root is a document, it is rendered
++      // (omitRootDOMNode = false) and not expanded by default
++      // (expandRoot = false). Children are fetched lazily.
++      const {domTree, domModel} = setupDOMTreeWidget(target);
++      try {
++        const docNode = SDK.DOMModel.DOMNode.create(domModel, null, false, {
++          nodeId: 1 as Protocol.DOM.NodeId,
++          backendNodeId: 1 as Protocol.DOM.BackendNodeId,
++          nodeType: Node.DOCUMENT_NODE,
++          nodeName: '#document',
++          localName: '',
++          nodeValue: '',
++          childNodeCount: 1,
++        });
++        const rootElementNode = SDK.DOMModel.DOMNode.create(domModel, null, false, {
++          nodeId: 2 as Protocol.DOM.NodeId,
++          backendNodeId: 2 as Protocol.DOM.BackendNodeId,
++          parentId: 1 as Protocol.DOM.NodeId,
++          nodeType: Node.ELEMENT_NODE,
++          nodeName: 'root',
++          localName: 'root',
++          nodeValue: '',
++          childNodeCount: 1,
++        });
++        rootElementNode.parentNode = docNode;
++        sinon.stub(docNode, 'getChildNodes').callsFake(callback => {
++          docNode.childrenInternal = [rootElementNode];
++          callback(docNode.childrenInternal);
++        });
++        const getRootElementChildNodes = sinon.stub(rootElementNode, 'getChildNodes').callsFake(callback => {
++          const childNode = createTestDOMTree(domModel, {nodeId: 3, nodeName: 'child'});
++          childNode.parentNode = rootElementNode;
++          rootElementNode.childrenInternal = [childNode];
++          callback(rootElementNode.childrenInternal);
++        });
++
++        domTree.rootDOMNode = docNode;
++        domTree.performUpdate();
++        await waitForTreeUpdates();
++
++        domTree.setNodeExpanded(docNode, true);
++        await waitForTreeUpdates();
++
++        sinon.assert.calledOnce(getRootElementChildNodes);
++        assert.isTrue(domTree.isNodeExpanded(rootElementNode));
++
++        const tree = domTree.contentElement.querySelector<UI.TreeOutline.TreeViewElement>('devtools-tree');
++        assert.exists(tree);
++        const internalTree = tree.getInternalTreeOutlineForTest();
++        const docTreeElement = internalTree.rootElement().children()[0];
++        assert.lengthOf(docTreeElement.children(), 1);
++        const rootTreeElement = docTreeElement.children()[0];
++        assert.isTrue(rootTreeElement.expanded);
++        // The child element and the closing tag.
++        assert.lengthOf(rootTreeElement.children(), 2);
++      } finally {
++        domTree.detach();
++      }
++    });
++
+     it('renders screenshot', async () => {
+       const {domTree, domModel} = setupDOMTreeWidget(target, {includeCommonStyles: true});
+       try {
+diff --git a/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.ts b/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.ts
+index 81e74b9..98bf8fc 100644
+--- a/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.ts
++++ b/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.ts
+@@ -1545,10 +1545,24 @@
+     }
+     if (expanded) {
+       this.#expandedNodes.add(node);
++      // Children that are not collapsible (e.g. the document element) render
++      // without an expand arrow, so their children must be fetched eagerly.
++      const expandNotCollapsibleChildren = (): void => {
++        for (const child of node.children() ?? []) {
++          // Check the Set directly instead of isNodeExpanded(), because
++          // isNodeExpanded() always returns true for non-collapsible nodes.
++          if (isNotCollapsible(child) && !this.#expandedNodes.has(child)) {
++            this.setNodeExpanded(child, true);
++          }
++        }
++      };
+       if (!node.children() && (node.childNodeCount() || node.isIframe() || node.nodeType() === Node.DOCUMENT_NODE)) {
+         void node.getChildNodes(() => {
++          expandNotCollapsibleChildren();
+           this.performUpdate();
+         });
++      } else {
++        expandNotCollapsibleChildren();
+       }
+       this.onElementExpanded();
+     } else {
+diff --git a/third_party/skia/src/gpu/ganesh/Device.cpp b/third_party/skia/src/gpu/ganesh/Device.cpp
+index d61e230..125fb0a 100644
+--- a/third_party/skia/src/gpu/ganesh/Device.cpp
++++ b/third_party/skia/src/gpu/ganesh/Device.cpp
+@@ -1402,46 +1402,14 @@
+                                        SkStrikeCache::GlobalStrikeCache());
+ }
+ 
+-#if defined(SK_DEBUG)
+-static bool valid_slug_matrices(const SkMatrix& creationMatrix, const SkMatrix& positionMatrix) {
+-    // A Slug can be drawn with:
+-    //   The exact same matrix that was used for creation
+-    // - OR -
+-    //   A non-perspective matrix that has the same 2x2 and a relative integer translation
+-    //
+-    // For the second case, calculate the translation in source space to a translation in
+-    // device space by mapping (0, 0) through both the creationMatrix and the positionMatrix;
+-    // take the difference.
+-    if (creationMatrix == positionMatrix) {
+-        return true;
+-    }
+-
+-    SkVector translation = positionMatrix.mapOrigin() - creationMatrix.mapOrigin();
+-    return creationMatrix.getScaleX() == positionMatrix.getScaleX() &&
+-           creationMatrix.getScaleY() == positionMatrix.getScaleY() &&
+-           creationMatrix.getSkewX() == positionMatrix.getSkewX() &&
+-           creationMatrix.getSkewY() == positionMatrix.getSkewY() &&
+-           !positionMatrix.hasPerspective() && !creationMatrix.hasPerspective() &&
+-           SkScalarIsInt(translation.x()) && SkScalarIsInt(translation.y());
+-}
+-#endif
+-
+-
+ void Device::drawSlug(SkCanvas* canvas, const sktext::gpu::Slug* slug, const SkPaint& paint) {
+     SkASSERT(canvas);
+     SkASSERT(slug);
+     const sktext::gpu::SlugImpl* slugImpl = static_cast<const sktext::gpu::SlugImpl*>(slug);
+-#if defined(SK_DEBUG)
+-    if (!fContext->priv().options().fSupportBilerpFromGlyphAtlas) {
+-        // We can draw a slug if the atlas has padding or if the creation matrix and the
+-        // drawing matrix are the same (up to integer translation).
+-        // If they are the same, then the Slug will use the direct drawing code and not use bi-lerp.
+-        SkMatrix slugMatrix = slugImpl->initialPositionMatrix();
+-        SkMatrix positionMatrix = this->localToDevice();
+-        positionMatrix.preTranslate(slugImpl->origin().x(), slugImpl->origin().y());
+-        SkASSERT(valid_slug_matrices(slugMatrix, positionMatrix));
++    if (!slugImpl->canDraw(this->localToDevice(),
++                           fContext->priv().options().fSupportBilerpFromGlyphAtlas)) {
++        return;
+     }
+-#endif
+     auto atlasDelegate = [&](const sktext::gpu::AtlasSubRun* subRun,
+                              SkPoint drawOrigin,
+                              const SkPaint& paint,
+diff --git a/third_party/skia/src/gpu/ganesh/ops/AALinearizingConvexPathRenderer.cpp b/third_party/skia/src/gpu/ganesh/ops/AALinearizingConvexPathRenderer.cpp
+index a8a5fd1..4441a41 100644
+--- a/third_party/skia/src/gpu/ganesh/ops/AALinearizingConvexPathRenderer.cpp
++++ b/third_party/skia/src/gpu/ganesh/ops/AALinearizingConvexPathRenderer.cpp
+@@ -151,20 +151,21 @@
+         fPaths.emplace_back(
+                 PathData{viewMatrix, path, color, strokeWidth, miterLimit, style, join});
+ 
+-        // compute bounds
+-        SkRect bounds = path.getBounds();
+-        SkScalar w = strokeWidth;
+-        if (w > 0) {
+-            w /= 2;
+-            SkScalar maxScale = viewMatrix.getMaxScale();
+-            // We should not have a perspective matrix, thus we should have a valid scale.
+-            SkASSERT(maxScale != -1);
+-            if (SkPaint::kMiter_Join == join && w * maxScale > 1.f) {
+-                w *= miterLimit;
+-            }
+-            bounds.outset(w, w);
++        // Compute bounds in device space, which is the coordinate space that GrAAConvexTessellator
++        // operates in. This does not support perspective, so getMaxScale() should be valid.
++        // NOTE: strokeWidth is negative for fills; pin the outset to be above 0 in that case
++        SkASSERT(viewMatrix.getMaxScale() > 0);
++        const float effectiveStrokeWidth = viewMatrix.getMaxScale() * strokeWidth;
++        float devOutset = std::max(0.f, 0.5f * effectiveStrokeWidth) + 0.5f; // + 1/2 for AA
++        if (join == SkPaint::kMiter_Join) {
++            // A miter limit below 1 cannot shrink the stroke
++            devOutset *= std::max(miterLimit, 1.f);
+         }
+-        this->setTransformedBounds(bounds, viewMatrix, HasAABloat::kYes, IsHairline::kNo);
++        // Slack for the AA ring's own bevel/miter around a bevelled stroke corner and for the
++        // rounding of coordinates near pixel centers.
++        devOutset += 1.f;
++        SkRect devBounds = viewMatrix.mapRect(path.getBounds()).makeOutset(devOutset, devOutset);
++        this->setBounds(devBounds, HasAABloat::kYes, IsHairline::kNo);
+     }
+ 
+     const char* name() const override { return "AAFlatteningConvexPathOp"; }
+diff --git a/third_party/skia/src/gpu/ganesh/ops/SoftwarePathRenderer.cpp b/third_party/skia/src/gpu/ganesh/ops/SoftwarePathRenderer.cpp
+index a9cea5e..a03dccc 100644
+--- a/third_party/skia/src/gpu/ganesh/ops/SoftwarePathRenderer.cpp
++++ b/third_party/skia/src/gpu/ganesh/ops/SoftwarePathRenderer.cpp
+@@ -239,7 +239,6 @@
+         const GrUserStencilSettings& userStencilSettings,
+         const GrClip* clip,
+         const SkMatrix& viewMatrix,
+-        const SkIPoint& textureOriginInDeviceSpace,
+         const SkIRect& deviceSpaceRectToDraw) {
+     SkMatrix invert;
+     if (!viewMatrix.invert(&invert)) {
+@@ -253,12 +252,30 @@
+     // We use device coords to compute the texture coordinates. We take the device coords and apply
+     // a translation so that the top-left of the device bounds maps to 0,0, and then a scaling
+     // matrix to normalized coords.
+-    SkMatrix maskMatrix = SkMatrix::Translate(SkIntToScalar(-textureOriginInDeviceSpace.fX),
+-                                              SkIntToScalar(-textureOriginInDeviceSpace.fY));
++    SkMatrix maskMatrix = SkMatrix::Translate(SkIntToScalar(-deviceSpaceRectToDraw.fLeft),
++                                              SkIntToScalar(-deviceSpaceRectToDraw.fTop));
+     maskMatrix.preConcat(viewMatrix);
+ 
+-    paint.setCoverageFragmentProcessor(GrTextureEffect::Make(
+-            std::move(view), kPremul_SkAlphaType, maskMatrix, GrSamplerState::Filter::kNearest));
++    // The coverage mask effect and the GrPaint start from the same local coordinates, but the paint
++    // has already created its FPs so we can't use the SW mask's coords as the starting point. We
++    // have to adjust the draw's local coords into mask space. However, since we are filling dstRect
++    // with an identity view matrix, the draw's local coords are derived from invert*dstRect.
++    //
++    // When `viewMatrix` has absurdly large translations (which can be canceled out via the original
++    // shape's coordinates when preparing the mask), maskMatrix*(invert*dstRect) may lose precision
++    // due to intermediate rounding in floating point (after invert*dstRect is computed on the CPU,
++    // for instance). In that case, it may no longer map to within the mask subset that was
++    // initialized (0,0 to deviceSpaceRectToDraw.size()). To combat this, manually pass in the
++    // subset and domain to enable subset clamping.
++    SkRect maskSubset = SkRect::Make(deviceSpaceRectToDraw.size());
++    SkRect maskDomain = maskMatrix.mapRect(invert.mapRect(dstRect.makeInset(0.5f, 0.5f)));
++    paint.setCoverageFragmentProcessor(GrTextureEffect::MakeSubset(std::move(view),
++                                                                   kPremul_SkAlphaType,
++                                                                   maskMatrix,
++                                                                   GrSamplerState::Filter::kNearest,
++                                                                   maskSubset,
++                                                                   maskDomain,
++                                                                   *sdc->caps()));
+     DrawNonAARect(sdc, std::move(paint), userStencilSettings, clip, SkMatrix::I(),
+                   dstRect, invert);
+ }
+@@ -432,7 +449,7 @@
+     }
+     DrawToTargetWithShapeMask(std::move(view), args.fSurfaceDrawContext, std::move(args.fPaint),
+                               *args.fUserStencilSettings, args.fClip, *args.fViewMatrix,
+-                              SkIPoint{boundsForMask->fLeft, boundsForMask->fTop}, *boundsForMask);
++                              *boundsForMask);
+ 
+     return true;
+ }
+diff --git a/third_party/skia/src/gpu/ganesh/ops/SoftwarePathRenderer.h b/third_party/skia/src/gpu/ganesh/ops/SoftwarePathRenderer.h
+index 589600b..96816d0 100644
+--- a/third_party/skia/src/gpu/ganesh/ops/SoftwarePathRenderer.h
++++ b/third_party/skia/src/gpu/ganesh/ops/SoftwarePathRenderer.h
+@@ -69,7 +69,6 @@
+                                           const GrUserStencilSettings&,
+                                           const GrClip*,
+                                           const SkMatrix& viewMatrix,
+-                                          const SkIPoint& textureOriginInDeviceSpace,
+                                           const SkIRect& deviceSpaceRectToDraw);
+ 
+     StencilSupport onGetStencilSupport(const GrStyledShape&) const override {
+diff --git a/third_party/skia/src/gpu/ganesh/vk/GrVkOpsRenderPass.h b/third_party/skia/src/gpu/ganesh/vk/GrVkOpsRenderPass.h
+index 90c60ae..5af6d55 100644
+--- a/third_party/skia/src/gpu/ganesh/vk/GrVkOpsRenderPass.h
++++ b/third_party/skia/src/gpu/ganesh/vk/GrVkOpsRenderPass.h
+@@ -126,7 +126,7 @@
+ 
+     sk_sp<GrVkFramebuffer>                      fFramebuffer;
+     std::unique_ptr<GrVkSecondaryCommandBuffer> fCurrentSecondaryCommandBuffer;
+-    const GrVkRenderPass*                       fCurrentRenderPass;
++    const GrVkRenderPass*                       fCurrentRenderPass = nullptr;
+     SkIRect                                     fCurrentPipelineBounds;
+     GrVkPipelineState*                          fCurrentPipelineState = nullptr;
+     bool                                        fCurrentCBIsEmpty = true;
+diff --git a/third_party/skia/src/gpu/graphite/Device.cpp b/third_party/skia/src/gpu/graphite/Device.cpp
+index f8e2b2e..9cccd07 100644
+--- a/third_party/skia/src/gpu/graphite/Device.cpp
++++ b/third_party/skia/src/gpu/graphite/Device.cpp
+@@ -1572,7 +1572,13 @@
+     auto& glyphData = subRun->glyphVector().accessBackendData<GlyphData>();
+ 
+     auto [bounds, maskToDevice] =
+-            subRun->vertexFiller().boundsAndDeviceMatrix(localToDevice, drawOrigin);
++            subRun->vertexFiller().boundsAndDeviceMatrix(
++                    localToDevice, drawOrigin,
++                    fRecorder->priv().caps()->supportBilerpFromGlyphAtlas());
++
++    if (bounds.isEmpty()) {
++        return;
++    }
+ 
+     for (int subRunCursor = 0; subRunCursor < subRunEnd;) {
+         // For the remainder of the run, add any atlas uploads to the Recorder's TextAtlasManager
+@@ -2556,6 +2562,10 @@
+ 
+ void Device::drawSlug(SkCanvas* canvas, const sktext::gpu::Slug* slug, const SkPaint& paint) {
+     auto slugImpl = static_cast<const sktext::gpu::SlugImpl*>(slug);
++    if (!slugImpl->canDraw(this->localToDevice(),
++                           fRecorder->priv().caps()->supportBilerpFromGlyphAtlas())) {
++        return;
++    }
+     slugImpl->subRuns()->draw(canvas, slugImpl->origin(), paint, slugImpl, this->atlasDelegate());
+ }
+ 
+diff --git a/third_party/skia/src/gpu/graphite/RasterPathUtils.cpp b/third_party/skia/src/gpu/graphite/RasterPathUtils.cpp
+index 5f40b31..ee9b989 100644
+--- a/third_party/skia/src/gpu/graphite/RasterPathUtils.cpp
++++ b/third_party/skia/src/gpu/graphite/RasterPathUtils.cpp
+@@ -10,6 +10,9 @@
+ #include "include/core/SkStrokeRec.h"
+ #include "include/private/SkAttributes.h"
+ #include "include/private/SkFixed.h"
++#include "include/private/SkFloatingPoint.h"
++#include "include/private/SkTFitsIn.h"
++#include "include/private/SkTo.h"
+ #include "src/core/SkBlitter_A8.h"
+ #include "src/core/SkFloatBits.h"
+ #include "src/gpu/graphite/geom/Shape.h"
+@@ -186,56 +189,72 @@
+     skgpu::UniqueKey maskKey;
+     // if the element list is too large we just use the stackRecordID
+     if (elementsForMask->size() <= kMaxShapeCountForKey) {
+-        static constexpr int kXformKeySize = 5;
+-        uint16_t keySize = includeBounds ? 2 : 0;
+-        // Iterate through to get key size; given kMaxShapeCountForKey and Shape's own key size
+-        // limitations, this should always fit safely within a 16-bit number
+-        for (int i = 0; i < elementsForMask->size(); ++i) {
+-            keySize += kXformKeySize + (*elementsForMask)[i]->fShape.keySize();
+-        }
+-
+-        skgpu::UniqueKey::Builder builder(&maskKey, kDomain, keySize, "Clip Path Mask");
+-        int elementKeyIndex = 0;
+         Rect unclippedBounds = Rect::InfiniteInverted();
+         for (int i = 0; i < elementsForMask->size(); ++i) {
+             const ClipStack::Element* element = (*elementsForMask)[i];
+-
+-            // Add transform key and get packed fractional translation bits
+-            uint32_t fracBits = add_transform_key(&builder,
+-                                                    elementKeyIndex,
+-                                                    element->fLocalToDevice);
+-            uint32_t opBits = static_cast<uint32_t>(element->fOp);
+-            builder[elementKeyIndex + 4] = fracBits | (opBits << 16);
+-
+-            const Shape& shape = element->fShape;
+-            shape.writeKey(&builder[elementKeyIndex + kXformKeySize],
+-                            /*includeInverted=*/true);
+-
+-            elementKeyIndex += kXformKeySize + shape.keySize();
+-
+-            Rect transformedBounds = element->fLocalToDevice.mapRect(element->fShape.bounds());
+-            unclippedBounds.join(transformedBounds);
++            unclippedBounds.join(element->fLocalToDevice.mapRect(element->fShape.bounds()));
+         }
+ 
+         // The keyBounds are the maskDeviceBounds relative to the full transformed mask. We use
+         // this to ensure we capture the situation where the maskDeviceBounds are equal in two
+         // cases but actually enclose different regions of the full mask due to an integer
+         // translation (which is not captured in the key) in the element transforms.
+-        *keyBounds = maskDeviceBounds.makeOffset(-unclippedBounds.left(),
+-                                                    -unclippedBounds.top());
++        const SkIRect pathKeyBounds =
++                maskDeviceBounds.makeOffset(-sk_float_floor2int(unclippedBounds.left()),
++                                            -sk_float_floor2int(unclippedBounds.top()));
+ 
+-        if (includeBounds) {
+-            SkASSERT(SkTFitsIn<int16_t>(keyBounds->left()));
+-            SkASSERT(SkTFitsIn<int16_t>(keyBounds->top()));
+-            SkASSERT(SkTFitsIn<int16_t>(keyBounds->right()));
+-            SkASSERT(SkTFitsIn<int16_t>(keyBounds->bottom()));
++        // The clip atlas relies on keyBounds being an exact translation of maskDeviceBounds, and
++        // the ProxyCache key packs them into 16 bits. If the result can't fit within 16 bits,
++        // fall back to the SaveRecord key below.
++        if (SkTFitsIn<int16_t>(pathKeyBounds.left()) &&
++            SkTFitsIn<int16_t>(pathKeyBounds.top()) &&
++            SkTFitsIn<int16_t>(pathKeyBounds.right()) &&
++            SkTFitsIn<int16_t>(pathKeyBounds.bottom())) {
++            SkASSERT(pathKeyBounds.size() == maskDeviceBounds.size());
+ 
+-            builder[elementKeyIndex] = keyBounds->left() | (keyBounds->top() << 16);
+-            builder[elementKeyIndex+1] = keyBounds->right() | (keyBounds->bottom() << 16);
++            static constexpr int kXformKeySize = 5;
++            uint16_t keySize = includeBounds ? 2 : 0;
++            // Iterate through to get key size; given kMaxShapeCountForKey and Shape's own key size
++            // limitations, this should always fit safely within a 16-bit number
++            for (int i = 0; i < elementsForMask->size(); ++i) {
++                keySize += kXformKeySize + (*elementsForMask)[i]->fShape.keySize();
++            }
++
++            skgpu::UniqueKey::Builder builder(&maskKey, kDomain, keySize, "Clip Path Mask");
++            int elementKeyIndex = 0;
++            for (int i = 0; i < elementsForMask->size(); ++i) {
++                const ClipStack::Element* element = (*elementsForMask)[i];
++
++                // Add transform key and get packed fractional translation bits
++                uint32_t fracBits = add_transform_key(&builder,
++                                                      elementKeyIndex,
++                                                      element->fLocalToDevice);
++                uint32_t opBits = static_cast<uint32_t>(element->fOp);
++                builder[elementKeyIndex + 4] = fracBits | (opBits << 16);
++
++                const Shape& shape = element->fShape;
++                shape.writeKey(&builder[elementKeyIndex + kXformKeySize],
++                               /*includeInverted=*/true);
++
++                elementKeyIndex += kXformKeySize + shape.keySize();
++            }
++
++            *keyBounds = pathKeyBounds;
++
++            if (includeBounds) {
++                // Take each value's 16-bit bits before widening so a negative value doesn't
++                // sign-extend and overwrite the other half of the word.
++                auto pack = [](int32_t lo, int32_t hi) {
++                    return static_cast<uint32_t>(static_cast<uint16_t>(SkTo<int16_t>(lo))) |
++                           (static_cast<uint32_t>(static_cast<uint16_t>(SkTo<int16_t>(hi))) << 16);
++                };
++                builder[elementKeyIndex]     = pack(keyBounds->left(), keyBounds->top());
++                builder[elementKeyIndex + 1] = pack(keyBounds->right(), keyBounds->bottom());
++            }
++
++            *usesPathKey = true;
++            return maskKey;
+         }
+-
+-        *usesPathKey = true;
+-        return maskKey;
+     }
+ 
+     // Either we have too many elements or at least one shape can't create a key
+diff --git a/third_party/skia/src/gpu/graphite/geom/Shape.cpp b/third_party/skia/src/gpu/graphite/geom/Shape.cpp
+index bb288c9..33d43ed 100644
+--- a/third_party/skia/src/gpu/graphite/geom/Shape.cpp
++++ b/third_party/skia/src/gpu/graphite/geom/Shape.cpp
+@@ -146,8 +146,10 @@
+                                 float strokeWidth) const {
+     SkASSERT(miterLimit >= 0.f && strokeWidth > 0.f);
+     // Rectangles, rounded rectangles, and lines do not produce miters so don't count the
+-    // pessimistic limit against their draw bounds.
+-    const float effectiveMiterLimit = this->isPath() ? miterLimit : 1.f;
++    // pessimistic limit against their draw bounds. Arcs that don't fill the center do not
++    // form miters (but wedges can).
++    const float effectiveMiterLimit =
++            (this->isPath() || (this->isArc() && this->arc().isWedge())) ? miterLimit : 1.f;
+     // Rectangles and rounded rectangles don't have caps, so don't count that against their
+     // draw bounds (if we could efficiently know a path was a closed contour, it could
+     // be included here too).
+diff --git a/third_party/skia/src/text/gpu/SlugImpl.cpp b/third_party/skia/src/text/gpu/SlugImpl.cpp
+index 738a7db..4e135f0 100644
+--- a/third_party/skia/src/text/gpu/SlugImpl.cpp
++++ b/third_party/skia/src/text/gpu/SlugImpl.cpp
+@@ -66,11 +66,35 @@
+             initializer.initialize(std::move(alloc), std::move(container), sourceBounds, origin));
+ }
+ 
++namespace {
+ SkMatrix position_matrix(const SkMatrix& drawMatrix, SkPoint drawOrigin) {
+     SkMatrix position_matrix = drawMatrix;
+     return position_matrix.preTranslate(drawOrigin.x(), drawOrigin.y());
+ }
+ 
++bool valid_slug_matrices(const SkMatrix& creationMatrix, const SkMatrix& positionMatrix) {
++    if (creationMatrix == positionMatrix) {
++        return true;
++    }
++
++    SkVector translation = positionMatrix.mapOrigin() - creationMatrix.mapOrigin();
++    return creationMatrix.getScaleX() == positionMatrix.getScaleX() &&
++           creationMatrix.getScaleY() == positionMatrix.getScaleY() &&
++           creationMatrix.getSkewX()  == positionMatrix.getSkewX()  &&
++           creationMatrix.getSkewY()  == positionMatrix.getSkewY()  &&
++           !positionMatrix.hasPerspective() && !creationMatrix.hasPerspective() &&
++           SkScalarIsInt(translation.x()) && SkScalarIsInt(translation.y());
++}
++}  // namespace
++
++bool SlugImpl::canDraw(const SkMatrix& drawMatrix, bool supportBilerpAtlas) const {
++    if (supportBilerpAtlas) {
++        return true;
++    }
++    const SkMatrix positionMatrix = position_matrix(drawMatrix, fOrigin);
++    return valid_slug_matrices(this->initialPositionMatrix(), positionMatrix);
++}
++
+ sk_sp<SlugImpl> SlugImpl::Make(const SkMatrix& viewMatrix,
+                                const sktext::GlyphRunList& glyphRunList,
+                                const SkPaint& paint,
+diff --git a/third_party/skia/src/text/gpu/SlugImpl.h b/third_party/skia/src/text/gpu/SlugImpl.h
+index b8b89f9..bc04837 100644
+--- a/third_party/skia/src/text/gpu/SlugImpl.h
++++ b/third_party/skia/src/text/gpu/SlugImpl.h
+@@ -56,6 +56,8 @@
+ 
+     const gpu::SubRunContainerOwner& subRuns() const { return fSubRuns; }
+ 
++    bool canDraw(const SkMatrix& drawMatrix, bool supportBilerpAtlas) const;
++
+     // Change memory management to handle the data after Slug, but in the same allocation
+     // of memory. Only allow placement new.
+     void operator delete(void* p) { ::operator delete(p); }
+diff --git a/third_party/skia/src/text/gpu/VertexFiller.cpp b/third_party/skia/src/text/gpu/VertexFiller.cpp
+index 7a3672a..baee3b7 100644
+--- a/third_party/skia/src/text/gpu/VertexFiller.cpp
++++ b/third_party/skia/src/text/gpu/VertexFiller.cpp
+@@ -98,7 +98,8 @@
+ }
+ 
+ std::tuple<SkRect, SkMatrix> VertexFiller::boundsAndDeviceMatrix(const SkMatrix& localToDevice,
+-                                                                 SkPoint drawOrigin) const {
++                                                                 SkPoint drawOrigin,
++                                                                 bool supportBilerpAtlas) const {
+     // The baked-in matrix differs from the current localToDevice by a translation if the
+     // upper 2x2 remains the same, and there's no perspective. Since there's no projection,
+     // Z is irrelevant, so it's okay that fCreationMatrix is an SkMatrix and has
+@@ -121,6 +122,13 @@
+         }
+     }
+ 
++    if (fCanDrawDirect && !supportBilerpAtlas) {
++        // Direct-mask glyphs have no padding in the atlas when atlas bilerp is unsupported.
++        // Drawing with a fractional translation or non-identical matrix causes sampling
++        // outside the glyph's atlas bounds, leaking neighboring atlas texels.
++        return {SkRect::MakeEmpty(), SkMatrix::I()};
++    }
++
+     // Otherwise compute the relative transformation from fCreationMatrix to
+     // localToDevice, with the drawOrigin applied. If fCreationMatrix or the
+     // concatenation is not invertible the returned Transform is marked invalid and the draw
+diff --git a/third_party/skia/src/text/gpu/VertexFiller.h b/third_party/skia/src/text/gpu/VertexFiller.h
+index 06a1af8..e7fc157 100644
+--- a/third_party/skia/src/text/gpu/VertexFiller.h
++++ b/third_party/skia/src/text/gpu/VertexFiller.h
+@@ -29,8 +29,8 @@
+ }
+ 
+ namespace sktext::gpu {
+-class SubRunAllocator;
+ class AtlasSubRun;
++class SubRunAllocator;
+ 
+ enum FillerType {
+     kIsDirect,
+@@ -65,7 +65,8 @@
+     int unflattenSize() const { return fLeftTop.size_bytes(); }
+ 
+     std::tuple<SkRect, SkMatrix> boundsAndDeviceMatrix(const SkMatrix& localToDevice,
+-                                                       SkPoint drawOrigin) const;
++                                                       SkPoint drawOrigin,
++                                                       bool supportBilerpAtlas = true) const;
+ 
+     // Return true if the positionMatrix represents an integer translation. Return the device
+     // bounding box of all the glyphs. If the bounding box is empty, then something went singular
+diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
+index 9258925..2230b1c 100644
+--- a/v8/include/v8-version.h
++++ b/v8/include/v8-version.h
+@@ -11,7 +11,7 @@
+ #define V8_MAJOR_VERSION 15
+ #define V8_MINOR_VERSION 8
+ #define V8_BUILD_NUMBER 62
+-#define V8_PATCH_LEVEL 9
++#define V8_PATCH_LEVEL 11
+ 
+ // Use 1 for candidates and 0 otherwise.
+ // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
+index ece949c..56230c1 100644
+--- a/v8/src/maglev/maglev-graph-builder.cc
++++ b/v8/src/maglev/maglev-graph-builder.cc
+@@ -9056,19 +9056,12 @@
+ 
+ MaybeReduceResult MaglevGraphBuilder::TryReduceFunctionPrototypeApply(
+     compiler::JSFunctionRef target, CallArguments& args) {
+-  compiler::OptionalHeapObjectRef maybe_receiver;
+-  if (current_speculation_feedback().IsValid()) {
+-    const compiler::ProcessedFeedback& processed_feedback =
+-        broker()->GetFeedbackForCall(current_speculation_feedback());
+-    DCHECK_EQ(processed_feedback.kind(), compiler::ProcessedFeedback::kCall);
+-    const compiler::CallFeedback& call_feedback = processed_feedback.AsCall();
+-    if (call_feedback.call_feedback_content() ==
+-        CallFeedbackContent::kReceiver) {
+-      maybe_receiver = call_feedback.target();
+-    }
+-  }
++  // We should have taken the `BuildCallWithFeedback` path for the typical
++  // Function.prototype.apply speculation-based optimization. If we are on this
++  // code path, we must be inside an apply inside another inlining and shouldn't
++  // use the feedback receiver.
+   return TryReduceFunctionPrototypeApplyCallWithReceiver(
+-      maybe_receiver, args, current_speculation_feedback());
++      {}, args, current_speculation_feedback());
+ }
+ 
+ namespace {
+@@ -11578,7 +11571,7 @@
+ 
+ MaybeReduceResult
+ MaglevGraphBuilder::TryReduceFunctionPrototypeApplyCallWithReceiver(
+-    compiler::OptionalHeapObjectRef maybe_receiver, CallArguments& args,
++    compiler::OptionalJSFunctionRef maybe_receiver, CallArguments& args,
+     const compiler::FeedbackSource& feedback_source) {
+   if (args.mode() != CallArguments::kDefault) return {};
+ 
+diff --git a/v8/src/maglev/maglev-graph-builder.h b/v8/src/maglev/maglev-graph-builder.h
+index 7ddf071..42caa99 100644
+--- a/v8/src/maglev/maglev-graph-builder.h
++++ b/v8/src/maglev/maglev-graph-builder.h
+@@ -1068,7 +1068,7 @@
+       compiler::OptionalSharedFunctionInfoRef maybe_shared,
+       CallArguments& args);
+   MaybeReduceResult TryReduceFunctionPrototypeApplyCallWithReceiver(
+-      compiler::OptionalHeapObjectRef maybe_receiver, CallArguments& args,
++      compiler::OptionalJSFunctionRef maybe_receiver, CallArguments& args,
+       const compiler::FeedbackSource& feedback_source);
+ 
+   template <typename CallNode, typename... Args>
+diff --git a/v8/src/objects/map-updater.cc b/v8/src/objects/map-updater.cc
+index 84999a3..8bc114f 100644
+--- a/v8/src/objects/map-updater.cc
++++ b/v8/src/objects/map-updater.cc
+@@ -5,9 +5,9 @@
+ #include "src/objects/map-updater.h"
+ 
+ #include <optional>
+-#include <queue>
+ 
+ #include "src/base/platform/mutex.h"
++#include "src/base/small-vector.h"
+ #include "src/common/globals.h"
+ #include "src/execution/frames.h"
+ #include "src/execution/isolate.h"
+@@ -1278,18 +1278,21 @@
+     JSObject::InvalidatePrototypeChains(*map);
+   }
+ 
+-  std::queue<Tagged<Map>> backlog;
+-  backlog.push(*map);
+-  std::vector<Tagged<Map>> sidestep_transition;
++  // Use SmallVector with an index cursor for BFS traversal instead of
++  // std::queue (backed by std::deque) to avoid a 4 KiB heap allocation for
++  // typical transition trees.
++  base::SmallVector<Tagged<Map>, 64> backlog;
++  backlog.push_back(*map);
++  base::SmallVector<Tagged<Map>, 16> sidestep_transition;
+ 
+   ReadOnlyRoots roots(isolate);
+-  while (!backlog.empty()) {
+-    Tagged<Map> current = backlog.front();
+-    backlog.pop();
++  size_t i = 0;
++  while (i < backlog.size()) {
++    Tagged<Map> current = backlog[i++];
+ 
+     TransitionsAccessor transitions(isolate, current);
+     transitions.ForEachTransition(
+-        &no_gc, [&](Tagged<Map> target) { backlog.push(target); },
++        &no_gc, [&](Tagged<Map> target) { backlog.push_back(target); },
+         [&](Tagged<Object> target) {
+           if (!target.IsSmi() && !Cast<Map>(target)->is_deprecated()) {
+             sidestep_transition.push_back(Cast<Map>(target));
+diff --git a/third_party/webrtc/modules/audio_processing/aec3/neural_residual_echo_estimator/neural_residual_echo_estimator_impl.cc b/third_party/webrtc/modules/audio_processing/aec3/neural_residual_echo_estimator/neural_residual_echo_estimator_impl.cc
+index d3b18a8..68d04e8 100644
+--- a/third_party/webrtc/modules/audio_processing/aec3/neural_residual_echo_estimator/neural_residual_echo_estimator_impl.cc
++++ b/third_party/webrtc/modules/audio_processing/aec3/neural_residual_echo_estimator/neural_residual_echo_estimator_impl.cc
+@@ -512,7 +512,7 @@
+   output_mask_unbounded_.fill(0.0f);
+ 
+   init_queue_ = env.task_queue_factory().CreateTaskQueue(
+-      "ReeInit", TaskQueueFactory::Priority::kLow);
++      "ReeInit", TaskQueueFactory::Priority::kNormal);
+ 
+   const Timestamp post_time = env.clock().CurrentTime();
+ 

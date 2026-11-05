@@ -7,12 +7,12 @@ EAPI=8
 # version: upstream's pins (set before inherit: the eclass's global scope uses them), and
 # the patches and fixes it applies.
 
-GN_MIN_VER=0.2595
+GN_MIN_VER=0.2603
 # chromium-tools/get-chromium-toolchain-strings.py (or just use Chromicler)
 # Node for M145+ should be 24.12.0 but that's not packaged in Gentoo yet. See #969145
 TEST_FONT="9c07d19d9c5ee1ff94f717e6fb17e0c8c354e6f9"
-BUNDLED_CLANG_VER="llvmorg-24-init-7747-g62397f8b-67"
-BUNDLED_RUST_VER="1edd55dcfcd573872c727fa3e086369a71661ee0-1125"
+BUNDLED_CLANG_VER="llvmorg-24-init-14453-ge063be79-1"
+BUNDLED_RUST_VER="8a9dd7abdf013ec10cfeaaa3685feba18ef1c90c-1"
 NODE_VER="24.12.0"
 GO_MIN_VER="1.25.0"
 ESBUILD_VER="0.28.2"
@@ -40,12 +40,12 @@ RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit build (rustc driver, ti
 # The dev-util/crubit this version needs: <Rust version>_p<CRUBIT_DATE>, the commit date of
 # CRUBIT_REVISION in tools/rust/update_rust.py (each Crubit version has its own slot). BDEPEND
 # names the one for RUST_MIN_VER, the only Rust that goes with LLVM_COMPAT.
-CRUBIT_DATE="20260930"
+CRUBIT_DATE="20261015"
 PPC64_HASH="7aae8a84e327fc2078ce1625c9c70bfda77d626f"
-COPIUM_COMMIT="027d15ffdcd1816b7935cee9ea4a4f6bae0bbe60"
-# 157.0.8103.45 is a tag without a tarball: built from the 157.0.8103.30 tarball plus
-# files/chromium-157.0.8103.30-to-157.0.8103.45.patch (see its header).
-CHROMIUM_TARBALL_PV="157.0.8103.30"
+COPIUM_COMMIT="84aa29c73d11981f56eb9a9fbbf35ec993f9d7ff"
+# 158.0.8127.22 is a tag without a tarball: built from the 158.0.8127.18 tarball plus
+# files/chromium-158.0.8127.18-to-158.0.8127.22.patch (see its header).
+CHROMIUM_TARBALL_PV="158.0.8127.18"
 # Inputs of ANGLE's code generators that the tarball lacks (files/chromium-angle-regen.py):
 # Khronos' registries at ANGLE's (and, for Vulkan, Chromium's) DEPS revisions; perfect-hash,
 # the version its built-in symbols generator is written for. Its Vulkan back-end's shaders are
@@ -53,7 +53,7 @@ CHROMIUM_TARBALL_PV="157.0.8103.30"
 ANGLE_GL_REGISTRY_COMMIT=9cb90ca4902d588bef3c830fbb1da484893bd5fb
 ANGLE_EGL_REGISTRY_COMMIT=7dea2ed79187cd13f76183c4b9100159b9e3e071
 ANGLE_CL_DOCS_COMMIT=5b4ca15f0e5a5be87b56b99f652f728e05cab587
-VULKAN_HEADERS_COMMIT=c46850864f4661461b0f6cb9922c058ffea4915e
+VULKAN_HEADERS_COMMIT=73814d006638aa00bd553215b054f0f02e457e22
 ANGLE_PERFECT_HASH_VER=0.2.1
 # Inputs of ICU's generated files (files/chromium-icu-regen.sh): Unicode's release files for
 # the Unicode version of the bundled ICU, and the generators from ICU's repository that its
@@ -78,8 +78,8 @@ DAWN_GO_MODULES="
 	github.com/tidwall/jsonc@v0.3.3
 "
 # Vulkan-Docs' header generator script, which Vulkan-Headers (third_party/vulkan-headers) doesn't
-# ship (its registry has the rest), at the tag of the headers' version (v1.4.365).
-VULKAN_DOCS_COMMIT="8c9361ba8180c1f4164c0bf79de2f6e817770b0d"
+# ship (its registry has the rest), at the tag of the headers' version (v1.4.366).
+VULKAN_DOCS_COMMIT="a8b088a3fae12c8575407ea90c7c09bd653db923"
 # SwiftShader's Vulkan headers (third_party/swiftshader/include): its C headers come from the
 # registry of Vulkan-Headers v1.4.355 (the video headers: v1.4.322's), made with Vulkan-Docs'
 # genvk.py at the same tags, its C++ headers from Vulkan-Hpp v1.4.355's generator (with the
@@ -93,14 +93,11 @@ SWS_TINYXML2_COMMIT="ff61650517cc32d524689366f977716e73d4f924"
 # SwiftShader's minimized LLVM for Subzero (third_party/llvm-subzero), on amd64: its TableGen'd
 # files come from LLVM trunk r290449 (llvm-mirror's 759dd39, per SwiftShader's history).
 SWS_LLVM_COMMIT="759dd39154f0bbf1adc87bf613c95f9564f64aa8"
-# The Khronos registries the copies of Khronos' generated headers in third_party/khronos and
-# ANGLE's include/ were generated from (their registries' api/ copies at these commits):
+# The Khronos registries the copies of Khronos' generated headers in ANGLE's include/ were
+# generated from (158 removed third_party/khronos) (their registries' api/ copies at these commits):
 # "repository:commit:directory:registry:destination:headers", headers as genheaders.py names
 # them, "=path" where the copy is elsewhere under the destination.
 KHRONOS_HEADERS="
-	OpenGL-Registry:f37a01b810c6b02dd22979352df995555b51ae50:xml:gl.xml:third_party/khronos:../api/GLES3/gl31.h,../api/GLES3/gl32.h
-	OpenGL-Registry:accf5ad3cd89ddb5cd6e09b6823bf28bce444c3d:xml:gl.xml:third_party/khronos:../api/GLES3/gl3.h
-	EGL-Registry:992aa3914f8fea801b1034c992db389911d9f3c3:api:egl.xml:third_party/khronos:EGL/egl.h
 	OpenGL-Registry:9cb90ca4902d588bef3c830fbb1da484893bd5fb:xml:gl.xml:third_party/angle/include:../api/GLES2/gl2.h,../api/GLES2/gl2ext.h,../api/GLES3/gl3.h,../api/GLES3/gl31.h,../api/GLES3/gl32.h
 	OpenGL-Registry:08549e96bd581527e38b492e92f6fbdb965b5d77:xml:glx.xml:third_party/angle/include:../api/GL/glxext.h=GLX/glxext.h
 	OpenGL-Registry:89acc93eaa6acd97159fb069e66acb92f12d7b87:xml:wgl.xml:third_party/angle/include:../api/GL/wgl.h=WGL/wgl.h
@@ -111,7 +108,9 @@ KHRONOS_HEADERS="
 OPENXR_VER="1.1.53"
 
 # The generators of pdfium's OpenJPEG and libtiff tables, which pdfium doesn't bundle, at the
-# revisions in their README.pdfium (see the eclass's src_prepare).
+# revisions in their README.pdfium (see the eclass's src_prepare). Since 158 their upstream
+# sources are in a src/ subdirectory.
+CHROMIUM_PDFIUM_SRC_SUBDIR=src
 PDFIUM_OPENJPEG_COMMIT="6c4a29b00211eb0430fa0e5e890f1ce5c80f409f"
 PDFIUM_LIBTIFF_COMMIT="d01a94be176f5f6a87f7ee1c0b32e65416aa2b4d"
 
@@ -126,6 +125,7 @@ CHROMIUM_BIDI_SPECS="
 	WICG/nav-speculation:55f0c9565659d4af2fda2cb93060c17a04feb7fd:prefetch.bs
 	WICG/ua-client-hints:6cf1025597fe4ee96063f32e94442613a7fa77f9:index.bs
 	w3c-fedid/digital-credentials:b31343b4890a39ad3aa6d2bf066db1069458da4f:index.html
+	WICG/autofill-event:ddcf69cabfd980a21df118ed19e933bf5bb9f7bf:index.bs
 "
 
 # The Go module Skia's GL interface generator (tools/ganesh/gl/interface) imports, at the version in
@@ -133,9 +133,10 @@ CHROMIUM_BIDI_SPECS="
 SKIA_GO_MODULES="github.com/flynn/json5@v0.0.0-20160717195620-7620272ed633"
 
 # Wuffs' sources at the commit that generated the release/c/wuffs-v0.3.c Chromium vendors
-# ("wuffs gen -version=0.3.5", v0.3 branch; third_party/wuffs/src/sync.txt), for its generator.
-WUFFS_COMMIT="d1a6f2c3de7e52b8775782028e5a49946a7f9184"
-WUFFS_RELEASE_VER="0.3.5"
+# ("wuffs gen -version=0.3.6", v0.3 branch: tag v0.3.6; third_party/wuffs/src/sync.txt), for its
+# generator.
+WUFFS_COMMIT="b69ebf4606d8dbf2a67accf6ca2ce88434c5062a"
+WUFFS_RELEASE_VER="0.3.6"
 
 # simdutf's sources at the release Chromium's amalgamation (third_party/simdutf) was made from
 # (7.7.0; its README.chromium names an older revision), for singleheader/amalgamate.py.
@@ -172,20 +173,12 @@ LICENSE+=" Unicode-DFS-2015 Unlicense UoI-NCSA ZLIB libtiff openssl"
 LICENSE+=" rar? ( unRAR )"
 
 SLOT="stable"
-KEYWORDS="amd64 ~arm64"
+KEYWORDS="~amd64 ~arm64"
 
-# Security fixes this version hasn't got yet, applied first (see their headers).
+# The 158 branch's changes after the 158.0.8127.22 tag, and the fixes it lacks (see their headers).
 CHROMIUM_FIXES=(
-	chromium-157-cve-2026-76026.patch
-	chromium-157-svg-image-retain.patch
-	chromium-157-length-calc-value-gc.patch
-	chromium-157-gtk-file-dialog-accept.patch
-	chromium-157-paint-stability-first-paint.patch
-	chromium-157-page-stability-start-delay.patch
-	chromium-157-connection-allowlist-history-reports.patch
-	chromium-157-popup-bounds-clamp-revert.patch
-	chromium-157-v8-skia-roll.patch
-	chromium-157-animation-timelines-copy.patch
+	chromium-158.0.8127.22-branch-fixes.patch
+	chromium-158-gpu-query-flush-fbo.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
@@ -194,7 +187,7 @@ CHROMIUM_PATCHES=(
 	# what web pages themselves load): Widevine CDM, Screen AI, SODA,
 	# TranslateKit, the WASM TTS engine, component-extension JS updates
 	# and the remote DevTools front-end.
-	chromium-157-no-runtime-executable-downloads.patch
+	chromium-158-no-runtime-executable-downloads.patch
 	chromium-157-v8-metagen-resource-dir.patch
 	# V8's keyword table generator, for the system gperf (see the eclass's src_prepare).
 	chromium-156-v8-keywords-gperf.patch
@@ -216,9 +209,10 @@ CHROMIUM_PATCHES=(
 	chromium-156-crash-bubble-once.patch
 	# BoringSSL's generators, run offline from the tarball (see the eclass).
 	chromium-156-boringssl-pregenerate-offline.patch
-	chromium-156-boringssl-curve25519-tables.patch
 	# A reproducible header for ICU's generated rbbirpt.h (see the eclass).
 	chromium-156-icu-rbbicst-header.patch
+	# abseil's BUILD.gn converter without gn features 158's gn lacks (see the patch).
+	chromium-158-abseil-gn-no-strict-includes.patch
 )
 
 # Copium's patches (with the system toolchain).
@@ -233,12 +227,12 @@ CHROMIUM_COPIUM_PATCHES=(
 	cr156-v8-no-san-trap.patch
 )
 
-# With the system toolchain, after the Gentoo patchset's other categories.
-CHROMIUM_TOOLCHAIN_PATCHES=(
-	# Use the system Crubit (dev-util/crubit) with the prebuilt system Rust stdlib
-	# (generates the stdlib's C++ bindings from its .rmeta files); see the patch header.
-	chromium-157-system-crubit.patch
-)
+# 158 supports a system Crubit (dev-util/crubit, rust_crubit_root) with the prebuilt system
+# Rust stdlib itself: no Crubit patch.
+CHROMIUM_UPSTREAM_CRUBIT=1
+# 158's list of the prebuilt stdlib's crates follows its newer Rust; Rust 1.98's std still links
+# these.
+CHROMIUM_RUST_STDLIB_ADDED=( addr2line adler2 gimli miniz_oxide )
 
 # With USE=hardened.
 CHROMIUM_HARDENED_PATCHES=(
@@ -250,6 +244,8 @@ CHROMIUM_HARDENED_PATCHES=(
 	chromium-156-hardened-0178-seccomp-restrict-dynamic-code.patch
 	chromium-156-hardened-0183-seccomp-restrict-dynamic-code-support.patch
 	chromium-156-hardened-0212-wasm-interpreter-without-jit.patch
+	# DrumBrake (v8_enable_drumbrake, below) doesn't build in 158 without these V8 main fixes.
+	chromium-158-hardened-v8-drumbrake-build-fixes.patch
 	# Page info bubble toggles for the JavaScript JIT and optimizer site
 	# settings (JIT off makes the above apply to that site).
 	chromium-156-hardened-page-info-jsjit.patch
@@ -274,16 +270,16 @@ CHROMIUM_HARDENED_PATCHES=(
 
 # Bundled sources kept besides the eclass's list.
 CHROMIUM_KEEPLIBS=(
+	third_party/oak/src/oak_session/tls
 	third_party/sframe
 )
-
-# Called by src_prepare with the system toolchain, after the patches: points the files
-# chromium-157-system-crubit.patch and cr152-fix-rust-2-oxidize-harder.patch add or change at the selected Rust's rustfmt
-# ($1: its suffix, as for bindgen in src_prepare).
-chromium_crubit_rustfmt() {
-	local f
-	for f in build/rust/gni_impl/crubit_shared_args.gni build/rust/std/prebuilt_std_bindings.gni; do
-		sed -i "s|/rustfmt\"|/rustfmt${1}\"|" "${f}" && grep -q "/rustfmt${1}\"" "${f}" ||
-			die "Failed to update rustfmt path for Crubit in ${f}"
-	done
-}
+# 158 removed the schema of this extension API TypeScript declaration (ChromeOS' wallpaper API):
+# kept as source.
+CHROMIUM_TS_DEFINITIONS_KEPT=(
+	tools/typescript/definitions/wallpaper.d.ts
+)
+# Those of the eclass's list that 158 no longer has.
+CHROMIUM_KEEPLIBS_DROP=(
+	third_party/khronos
+	third_party/libsecret
+)
