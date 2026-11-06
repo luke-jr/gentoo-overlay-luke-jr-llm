@@ -1,0 +1,104 @@
+Chromium 158.0.8127.28 + the later changes of its release branch, up to
+acbe32f2d5a5e382f483481e7c895824399f5ad6 (refs/branch-heads/8127@{#1207}), for the
+158.0.8127.28 tree that chromium-158.0.8127.18-to-158.0.8127.28.patch makes.
+
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.28..acbe32f2d5a5e382f483481e7c895824399f5ad6
+and V8, whose DEPS revision changed, as served by Gitiles, with
+scripts/chromium-delta --branch-fixes (against the .28 tree's files, renames
+included): left out are files not in the release tarball, iOS/Android/ChromeOS/
+Mac/Windows-only files, tests and docs, translations, PGO/orderfile pointers,
+submodule pointer updates. chrome/VERSION, DEPS and the stamp files stay at
+158.0.8127.28.
+
+Commits contributing to it (oldest first; "Roll commits from side projects" is
+the V8 update, with "[ic] Fix handling of detached globals"):
+  411fd2709a3f [M158] [iOS][NTPRedesign] Fix Fakebox Extended Touch Targets for
+  acbe32f2d5a5 Roll commits from side projects in M158
+
+Checked: applies to the 158.0.8127.28 tree; every patched file is
+byte-identical to its version at the last commit above.
+
+diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
+index 837c049..42097a0 100644
+--- a/v8/include/v8-version.h
++++ b/v8/include/v8-version.h
+@@ -11,7 +11,7 @@
+ #define V8_MAJOR_VERSION 15
+ #define V8_MINOR_VERSION 8
+ #define V8_BUILD_NUMBER 62
+-#define V8_PATCH_LEVEL 22
++#define V8_PATCH_LEVEL 23
+ 
+ // Use 1 for candidates and 0 otherwise.
+ // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/d8/d8.cc b/v8/src/d8/d8.cc
+index 9ce0e0c..bcb3fe2 100644
+--- a/v8/src/d8/d8.cc
++++ b/v8/src/d8/d8.cc
+@@ -4768,8 +4768,10 @@
+   global_template->Set(Symbol::GetToStringTag(isolate),
+                        String::NewFromUtf8Literal(isolate, "global"));
+   global_template->Set(isolate, "onerror", v8::Null(isolate));
+-  global_template->Set(isolate, "version",
+-                       FunctionTemplate::New(isolate, Version));
++  Local<FunctionTemplate> version_func_template =
++      FunctionTemplate::New(isolate, Version);
++  version_func_template->SetAcceptAnyReceiver(false);
++  global_template->Set(isolate, "version", version_func_template);
+ 
+   global_template->Set(isolate, "print", FunctionTemplate::New(isolate, Print));
+   global_template->Set(isolate, "printErr",
+diff --git a/v8/src/execution/isolate.cc b/v8/src/execution/isolate.cc
+index fb3809f..61e238e 100644
+--- a/v8/src/execution/isolate.cc
++++ b/v8/src/execution/isolate.cc
+@@ -8055,6 +8055,9 @@
+   // Set security token back to default (unique) state making sure that only
+   // accesses from the same native context are allowed.
+   env->set_security_token(env->global_object());
++  // Invalidate LoadGlobalIC/StoreGlobalIC handlers to enforce access checks
++  // for the rewired global proxy from the detached context.
++  JSObject::InvalidatePrototypeValidityCell(env->global_object());
+ }
+ 
+ void Isolate::SetIsLoading(bool is_loading) {
+diff --git a/v8/src/ic/ic.cc b/v8/src/ic/ic.cc
+index 1bf68f5..9a957dd 100644
+--- a/v8/src/ic/ic.cc
++++ b/v8/src/ic/ic.cc
+@@ -1102,6 +1102,18 @@
+         TraceIC("LoadGlobalIC", lookup->name());
+         return;
+       }
++      // Own DATA properties above are accessed directly via PropertyCell on the
++      // JSGlobalObject and don't involve the JSGlobalProxy. For anything else
++      // (e.g. prototype accessors), the handler would substitute global_proxy
++      // as the receiver without performing an access check on it, and
++      // LookupIterator didn't fail an access check because JSGlobalObject
++      // belongs to the current (detached) native context while its global_proxy
++      // may have been rebound to a new cross-origin context.
++      if (Cast<JSGlobalObject>(*lookup->GetReceiver())->IsDetached()) {
++        SetCache(lookup->GetName(), LoadHandler::LoadSlow(isolate()));
++        TraceIC("LoadGlobalIC", lookup->GetName());
++        return;
++      }
+     }
+     handler = ComputeHandler(lookup);
+     CHECK(lookup->state() == LookupIterator::STRING_LOOKUP_START_OBJECT ||
+@@ -2420,6 +2432,16 @@
+         TraceIC("StoreGlobalIC", lookup->GetName());
+         return;
+       }
++      // See comment in LoadIC::UpdateCaches: own DATA properties above use
++      // PropertyCell on the JSGlobalObject directly, whereas other handlers
++      // (e.g. prototype accessors) substitute global_proxy as the receiver,
++      // which may have been rebound to a cross-origin context upon detachment.
++      if (Cast<JSGlobalObject>(*lookup->GetReceiver())->IsDetached()) {
++        set_slow_stub_reason("detached global object");
++        SetCache(lookup->GetName(), StoreHandler::StoreSlow(isolate()));
++        TraceIC("StoreGlobalIC", lookup->GetName());
++        return;
++      }
+     }
+     handler = ComputeHandler(lookup);
+   } else {
