@@ -1,8 +1,8 @@
 Chromium 158.0.8127.23 + the later changes of its release branch, up to
-dde82c0384769a0baaf879f45642dec0b4bc8933 (refs/branch-heads/8127@{#1081}), for the
+2bc82d6df7a15ab2ab482dfa0bbe6944ef05d49c (refs/branch-heads/8127@{#1106}), for the
 158.0.8127.23 tree that chromium-158.0.8127.18-to-158.0.8127.23.patch makes.
 
-Generated from the upstream diffs chromium/src refs/tags/158.0.8127.23..dde82c0384769a0baaf879f45642dec0b4bc8933
+Generated from the upstream diffs chromium/src refs/tags/158.0.8127.23..2bc82d6df7a15ab2ab482dfa0bbe6944ef05d49c
 and the dependencies whose DEPS revision changed (V8, ICU, Dawn, Skia, ANGLE),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes: left out are files not in the
 release tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -13,8 +13,9 @@ Commits contributing to it (oldest first; "Roll commits from side projects"
 are the V8 updates, with "[maglev] Do not unwrap lossy conversions in KNA",
 "[maglev] Fix bailouts messing up non-escaping use counting" and "[ic] Fix the
 megamorphic cache variant of the DefineNamedOwn-inside-class bug", Skia's, with
-"Fix heap-buffer-overflow in RunBasedAdditiveBlitter and AAA convex walker",
-ANGLE's (an Intel/Mesa Vulkan workaround), and the Dawn one, with "[vulkan] Reset the recording context in Queue::DestroyImpl";
+"Fix heap-buffer-overflow in RunBasedAdditiveBlitter and AAA convex walker" and
+"[graphite] Fix A->RGBx GPU to CPU transfers", ANGLE's (an Intel/Mesa Vulkan
+workaround, a GL blend state fix), and the Dawn one, with "[vulkan] Reset the recording context in Queue::DestroyImpl";
 the ICU roll has two security fixes: usearch index overflow, number formatting):
   5981b113f92f [M158] [Omnibox] Don't open AskG CoBrowse panel without tab sharin
   0ed1f4f49387 [M158] Attribute zero-state opens to correct pin buttons
@@ -62,10 +63,62 @@ the ICU roll has two security fixes: usearch index overflow, number formatting):
   97417afed5f2 [M158] [iOS] Add loading pills when waiting for zero state suggest
   f7cf9fa57471 Roll commits from side projects in M158
   dde82c038476 [M158] Swap pending snap sets before iterating in ExecutePendingSn
+  560658c66409 Roll commits from side projects in M158
+  536b9943ff63 [M158] [GMC] Keep media dialog open when PiP takes focus on Waylan
+  37a3fa2f0e03 [M158] Let Android document PiP windows focus their opener
+  3048d517897e [M158] [WebShare] Do not follow links when storing shared files
+  e8b0a3a64004 [M158] android: Disable app zygote after DFM install
+  0fb1f6dfd6b7 Roll commits from side projects in M158
+  64a3711aea7f [M158] Fix CHECK crash in GenerateHostVariantsToCheckV5 for escape
+  53e8f1ce72e4 [M158] glic: Register a What's New Page module for Luminous
+  9d9c5da531a5 [M158] [omnibox][mac] Make Ctrl+Cmd+F work while the Full WebUI om
+  d20b944ea95c [M158] [webui] Add `umaReportLongTimeSpan()` to `MetricsReporter`
+  4d1347b2d04a [M158] [AIM]: Expose the persistent AIM button flags on Android
+  69275920b00a [M158] [html-in-canvas] Fix display-locked painting in PaintReplac
+  5f162395a8bf [M158] Dismiss Contextual Tasks pinning promo when the side panel 
+  0a40c4d59a52 [M158] Add ctrs CGI parameter to queries from sessions reopened vi
+  874e0c248151 [M158] Dismiss active contextual task thread on nav when panel is 
+  f88130511f6a [M158] Preserve contextual tasks button highlight when interacting
+  b7d2a067a434 [M158] [AIM]: Keep the AIM button in place on composebox open
+  2bc82d6df7a1 [M158] [AIM]: Key the compose button's hover highlight to the butt
 
 Checked: applies to the 158.0.8127.23 tree; every patched file is
 byte-identical to its version at the commits above.
 
+diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
+index 05bbf0b..8d9168b 100644
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -7469,23 +7469,25 @@
+     {"composebox-persistent-aim-button-realbox",
+      flag_descriptions::kComposeboxPersistentAimButtonRealboxName,
+      flag_descriptions::kComposeboxPersistentAimButtonRealboxDescription,
+-     kOsDesktop,
++     kOsDesktop | kOsAndroid,
+      FEATURE_VALUE_TYPE(omnibox::kComposeboxPersistentAimButtonRealbox)},
+ 
+     {"composebox-persistent-aim-button-with-x",
+      flag_descriptions::kComposeboxPersistentAimButtonWithXName,
+      flag_descriptions::kComposeboxPersistentAimButtonWithXDescription,
+-     kOsDesktop,
++     kOsDesktop | kOsAndroid,
+      FEATURE_VALUE_TYPE(omnibox::kComposeboxPersistentAimButtonWithX)},
+ 
+     {"composebox-personalized-hint-text",
+      flag_descriptions::kComposeboxPersonalizedHintTextName,
+-     flag_descriptions::kComposeboxPersonalizedHintTextDescription, kOsDesktop,
++     flag_descriptions::kComposeboxPersonalizedHintTextDescription,
++     kOsDesktop | kOsAndroid,
+      FEATURE_VALUE_TYPE(omnibox::kComposeboxPersonalizedHintText)},
+ 
+     {"composebox-realbox-outside-click",
+      flag_descriptions::kComposeboxRealboxOutsideClickName,
+-     flag_descriptions::kComposeboxRealboxOutsideClickDescription, kOsDesktop,
++     flag_descriptions::kComposeboxRealboxOutsideClickDescription,
++     kOsDesktop | kOsAndroid,
+      FEATURE_VALUE_TYPE(omnibox::kComposeboxRealboxOutsideClick)},
+ 
+     {"composebox-skills-contextual-tasks",
 diff --git a/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc b/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
 index 8be77fd..6f696e5 100644
 --- a/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
@@ -82,6 +135,18 @@ index 8be77fd..6f696e5 100644
      return false;
    }
  
+diff --git a/chrome/browser/contextual_tasks/BUILD.gn b/chrome/browser/contextual_tasks/BUILD.gn
+index b406627d..18c8744 100644
+--- a/chrome/browser/contextual_tasks/BUILD.gn
++++ b/chrome/browser/contextual_tasks/BUILD.gn
+@@ -718,6 +718,7 @@
+       "//chrome/browser/ui:browser_commands",
+       "//chrome/browser/ui:browser_tabstrip",
+       "//chrome/browser/ui/browser_window:create_browser_window",
++      "//chrome/browser/ui/browser_window/test:test_support",
+       "//chrome/browser/ui/hats:test_support",
+       "//chrome/browser/ui/interaction",
+       "//chrome/browser/ui/lens",
 diff --git a/chrome/browser/contextual_tasks/active_task_context_provider_impl.cc b/chrome/browser/contextual_tasks/active_task_context_provider_impl.cc
 index 0c82814..6473bb08 100644
 --- a/chrome/browser/contextual_tasks/active_task_context_provider_impl.cc
@@ -212,6 +277,76 @@ index c459311..af01d7c 100644
    // Called by the browser process (C++) when the Lens overlay is shown/hidden.
    OnLensOverlayStateChanged(bool is_showing);
  
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_composebox_handler.cc b/chrome/browser/contextual_tasks/contextual_tasks_composebox_handler.cc
+index fb8e732a..9810ccf2 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_composebox_handler.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_composebox_handler.cc
+@@ -24,6 +24,7 @@
+ #include "chrome/browser/contextual_tasks/active_task_context_provider.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks.mojom.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_context_service_factory.h"
++#include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_service_factory.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_ui.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_utils.h"
+@@ -83,6 +84,19 @@
+ 
+ namespace {
+ 
++// CGI param attached to every query submitted while the side panel's current
++// open session reopened a previously collapsed thread via a toolbar button (as
++// opposed to opening fresh or resuming a thread from thread history, which
++// navigates the panel). Lets the server distinguish queries after a
++// toolbar-button reopen, which otherwise carry no client-side marker because
++// reopening the collapsed panel does not navigate it. The value encodes which
++// toolbar button reopened the panel: absent = not reopened via toolbar button,
++// `kReopenedViaPinnedToolbarButton` = permanently pinned toolbar button,
++// `kReopenedViaEphemeralToolbarButton` = ephemeral toolbar button.
++inline constexpr char kReopenedViaToolbarQueryParameterKey[] = "ctrs";
++inline constexpr char kReopenedViaPinnedToolbarButton[] = "1";
++inline constexpr char kReopenedViaEphemeralToolbarButton[] = "2";
++
+ std::string ExtractMimeType(const base::FilePath& path) {
+ #if BUILDFLAG(IS_ANDROID)
+   if (path.IsContentUri()) {
+@@ -931,13 +945,36 @@
+       DeactivateSmartTabSharing();
+     }
+ 
++    // Tag queries submitted during a side panel session that was reopened via a
++    // toolbar button so the server can attribute them separately from queries
++    // in never-collapsed sessions or threads selected from thread history, and
++    // tell apart which toolbar button reopened the panel.
++    std::map<std::string, std::string> cgi_params = additional_cgi_params;
++    if (auto* browser_window_interface = webui::GetBrowserWindowInterface(
++            web_ui_interface_->GetWebUIWebContents())) {
++      auto* panel_controller =
++          contextual_tasks::ContextualTasksPanelController::From(
++              browser_window_interface);
++      if (panel_controller &&
++          panel_controller->IsPanelOpenForContextualTask() &&
++          panel_controller->IsActiveSessionReopenedViaToolbarButton()) {
++        using EntrySource =
++            contextual_tasks::ContextualTasksPanelController::EntrySource;
++        cgi_params[kReopenedViaToolbarQueryParameterKey] =
++            panel_controller->GetActiveEntrySource() ==
++                    EntrySource::kPermanentToolbarButton
++                ? kReopenedViaPinnedToolbarButton
++                : kReopenedViaEphemeralToolbarButton;
++      }
++    }
++
+     // Create a client to aim message and send it to the page.
+     auto create_client_to_aim_request_info =
+         contextual_tasks::PrepareClientToAimRequestInfo(
+             query, session_handle, web_ui_interface_,
+             GetInputState().active_tool, GetInputState().active_model,
+             GetActiveTabContextId(), overlay_token, is_voice_search,
+-            additional_cgi_params);
++            cgi_params);
+ 
+     // Delay submission if context still uploading.
+     if (IsAnyContextUploading()) {
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
 index 7667c3f..d4e50799 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
@@ -405,10 +540,21 @@ index d634ebee..70bc6487 100644
 +
  }  // namespace contextual_tasks
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h b/chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h
-index e79efb5..b7ae8d4 100644
+index e79efb5..0289ed16 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h
 +++ b/chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h
-@@ -153,6 +153,12 @@
+@@ -150,9 +150,23 @@
+   // Returns the entry source of the currently active panel.
+   virtual EntrySource GetActiveEntrySource() const = 0;
+ 
++  // Returns true if the currently active panel's open session reopened a
++  // previously collapsed panel for an existing thread via the permanently
++  // pinned or ephemeral toolbar button (rather than opening fresh from an
++  // entry point or switching threads via thread history). Used to tag queries
++  // submitted after reopening the panel from the toolbar so they can be
++  // distinguished server-side.
++  virtual bool IsActiveSessionReopenedViaToolbarButton() const = 0;
++
    // Returns true if the onboarding or Ask Google tooltip bubble is visible.
    virtual bool IsOnboardingTooltipVisible() const;
  
@@ -495,7 +641,7 @@ index 7213f83..f55981c8 100644
  };
  
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
-index 38fa93c..5a6c2184 100644
+index 38fa93c..e21fb5a 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
 +++ b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
 @@ -28,6 +28,7 @@
@@ -524,7 +670,36 @@ index 38fa93c..5a6c2184 100644
    const bool is_continuing_existing_thread =
        contextual_tasks::IsContextualTasksPinningV2Enabled() &&
        entry_point == omnibox::ChromeAimEntryPoint::
-@@ -698,6 +701,9 @@
+@@ -656,6 +659,19 @@
+   }
+ 
+   CloseLensSessionIfActive(active_tab_interface, entry_point, entry_source);
++
++  // Track whether this open session is reopening a previously collapsed panel
++  // for a task that already existed before this call via a toolbar button: the
++  // pinned button continuing an existing thread under Pinning v2, or the
++  // ephemeral button, which only ever reopens an existing task. Fresh
++  // zero-state opens, other entry points, and threads selected from thread
++  // history are excluded.
++  const bool is_reopened_via_toolbar_button =
++      is_continuing_existing_thread ||
++      (entry_source == ContextualTasksPanelController::EntrySource::
++                           kEphemeralToolbarButton &&
++       existing_task.has_value() && !is_opening_in_zero_state_);
++
+   if (!existing_task) {
+     // If no task is found, create a new task and associate it with the active
+     // tab.
+@@ -675,6 +691,8 @@
+     if (it != task_id_to_web_contents_cache_.end()) {
+       it->second->entry_source = entry_source;
+       it->second->entry_point = entry_point;
++      it->second->is_reopened_via_toolbar_button =
++          is_reopened_via_toolbar_button;
+       it->second->last_active_time_ticks = base::TimeTicks::Now();
+       it->second->open_time_ticks =
+           open_time_ticks.value_or(base::TimeTicks::Now());
+@@ -698,6 +716,9 @@
          ContextualTasksPanelHost::AnimationStyle::kTransitionFromTab;
    }
  
@@ -534,7 +709,7 @@ index 38fa93c..5a6c2184 100644
    contextual_tasks_panel_host_->Show(animation_style);
  
  #if !BUILDFLAG(IS_ANDROID)
-@@ -760,6 +766,7 @@
+@@ -760,6 +781,7 @@
      }
    }
    UpdateOpenState(/*is_open=*/false);
@@ -542,7 +717,7 @@ index 38fa93c..5a6c2184 100644
    contextual_tasks_panel_host_->Close(
        ContextualTasksPanelHost::AnimationStyle::kStandard);
    MaybeRemoveImplicitTabContext();
-@@ -861,15 +868,17 @@
+@@ -861,15 +883,17 @@
        contextual_tasks::GetEffectivePinState(browser_window_->GetProfile());
  
    base::AutoReset<bool> opening_in_zero_state(&is_opening_in_zero_state_, true);
@@ -564,7 +739,7 @@ index 38fa93c..5a6c2184 100644
  }
  
  void ContextualTasksSidePanelCoordinator::OpenUrlInNewTab(const GURL& url) {
-@@ -927,6 +936,7 @@
+@@ -927,6 +951,7 @@
      // duration metrics for the new thread's `WebContents`.
      it->second->open_time_ticks = base::TimeTicks();
    }
@@ -572,7 +747,26 @@ index 38fa93c..5a6c2184 100644
    UpdateWebContentsForActiveTab();
    UpdateContextualTaskUI();
    NotifyActiveTaskContextProvider();
-@@ -1309,6 +1319,7 @@
+@@ -1246,6 +1271,18 @@
+   return ContextualTasksPanelController::EntrySource::kOther;
+ }
+ 
++bool ContextualTasksSidePanelCoordinator::
++    IsActiveSessionReopenedViaToolbarButton() const {
++  if (content::WebContents* active_web_contents = GetActiveWebContents()) {
++    for (const auto& it : task_id_to_web_contents_cache_) {
++      if (it.second->web_contents.get() == active_web_contents) {
++        return it.second->is_reopened_via_toolbar_button;
++      }
++    }
++  }
++  return false;
++}
++
+ bool ContextualTasksSidePanelCoordinator::IsOnboardingTooltipVisible() const {
+ #if !BUILDFLAG(IS_ANDROID)
+   return onboarding_controller_->IsBubbleShowing();
+@@ -1309,6 +1346,7 @@
      it->second->link_click_count = 0;
    }
    UpdateOpenState(/*is_open=*/true);
@@ -580,7 +774,7 @@ index 38fa93c..5a6c2184 100644
    UpdateWebContentsForActiveTab();
    UpdateContextualTaskUI();
  }
-@@ -1349,6 +1360,10 @@
+@@ -1349,6 +1387,10 @@
  
  void ContextualTasksSidePanelCoordinator::PrimaryPageChanged(
      content::Page& page) {
@@ -591,7 +785,20 @@ index 38fa93c..5a6c2184 100644
    // Hide panel if contextual tasks pages is loaded on tab.
    GURL url = page.GetMainDocument().GetLastCommittedURL();
    if (auto* ui_service = GetUiService();
-@@ -1863,6 +1878,18 @@
+@@ -1457,6 +1499,12 @@
+       existing_new_task_link_clicks = it->second->link_click_count;
+       MaybeDetachWebContents(it->second->web_contents.get());
+     }
++    if (old_task_id && *old_task_id != new_task_id) {
++      // Switching to a different task (e.g. picking a thread from thread
++      // history or starting a new chat in the panel) means the active session
++      // is no longer the thread that was reopened via a toolbar button.
++      cache_item->is_reopened_via_toolbar_button = false;
++    }
+     if (split_from_old_task) {
+       cache_item->link_click_count = existing_new_task_link_clicks;
+     }
+@@ -1863,6 +1911,18 @@
            active_tab_interface->GetContents()));
  }
  
@@ -610,7 +817,7 @@ index 38fa93c..5a6c2184 100644
  void ContextualTasksSidePanelCoordinator::UpdatePanelVisibility() {
    bool should_be_open = ShouldBeOpen();
  
-@@ -1977,6 +2004,10 @@
+@@ -1977,6 +2037,10 @@
  void ContextualTasksSidePanelCoordinator::OnActiveTabChanged(
      TabListInterface& tab_list,
      tabs::TabInterface* tab) {
@@ -621,7 +828,7 @@ index 38fa93c..5a6c2184 100644
    // crbug.com/477278769: Do not open panel if glic panel is already open on tab
    // changed.
    if (contextual_tasks_panel_host_->IsPanelSuppressed()) {
-@@ -2142,6 +2173,7 @@
+@@ -2142,6 +2206,7 @@
  }
  
  void ContextualTasksSidePanelCoordinator::Hide() {
@@ -629,7 +836,7 @@ index 38fa93c..5a6c2184 100644
    contextual_tasks_panel_host_->Close(
        ContextualTasksPanelHost::AnimationStyle::kNoAnimation);
    MaybeRemoveImplicitTabContext();
-@@ -2983,6 +3015,21 @@
+@@ -2983,6 +3048,21 @@
    }
  }
  
@@ -652,19 +859,34 @@ index 38fa93c..5a6c2184 100644
  ContextualTasksSidePanelCoordinator::GetAutoSuggestedTabHandle() {
    auto* web_contents = GetActiveWebContents();
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h
-index 92a39149..026783f 100644
+index 92a39149..2c3e7353 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h
 +++ b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h
-@@ -207,6 +207,8 @@
+@@ -130,6 +130,12 @@
+     omnibox::ChromeAimEntryPoint entry_point =
+         omnibox::ChromeAimEntryPoint::UNKNOWN_AIM_ENTRY_POINT;
+ 
++    // Whether the current open session reopened a previously collapsed panel
++    // for an existing thread via the pinned or ephemeral toolbar button
++    // (rather than starting from a fresh entry point or switching threads via
++    // thread history). Reset on `Show()` and when switching tasks.
++    bool is_reopened_via_toolbar_button = false;
++
+     // The time when this task's panel was opened.
+     base::TimeTicks open_time_ticks;
+ 
+@@ -206,7 +212,10 @@
+   bool HasResults() const override;
    ContextualTasksPanelController::EntrySource GetActiveEntrySource()
        const override;
++  bool IsActiveSessionReopenedViaToolbarButton() const override;
    bool IsOnboardingTooltipVisible() const override;
 +  void SetErrorPageVisible(bool visible) override;
 +  bool IsErrorPageVisible() const override;
    std::optional<tabs::TabHandle> GetAutoSuggestedTabHandle() override;
    void OnTaskChanged(content::WebContents* web_contents,
                       base::Uuid task_id) override;
-@@ -318,6 +320,10 @@
+@@ -318,6 +327,10 @@
    // mutating pending task state.
    std::optional<ContextualTask> GetCurrentTask() const;
  
@@ -1398,12 +1620,17 @@ index 4119cd0d..f57ffec 100644
    MOCK_METHOD(
        void,
 diff --git a/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_controller.h b/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_controller.h
-index 07d8c09..482a024 100644
+index 07d8c09..27f7c7a 100644
 --- a/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_controller.h
 +++ b/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_controller.h
-@@ -75,6 +75,8 @@
+@@ -74,7 +74,13 @@
+               GetActiveEntrySource,
                (),
                (const, override));
++  MOCK_METHOD(bool,
++              IsActiveSessionReopenedViaToolbarButton,
++              (),
++              (const, override));
    MOCK_METHOD(bool, IsOnboardingTooltipVisible, (), (const, override));
 +  MOCK_METHOD(void, SetErrorPageVisible, (bool visible), (override));
 +  MOCK_METHOD(bool, IsErrorPageVisible, (), (const, override));
@@ -1514,25 +1741,29 @@ index 5b57f4e..d1a1c8f 100644
    SetContentsManagerForWebContents(web_contents(), nullptr);
    Observe(nullptr);
 diff --git a/chrome/browser/glic/public/features.cc b/chrome/browser/glic/public/features.cc
-index 8378f037..22c4c496e 100644
+index 8378f037..6f58411 100644
 --- a/chrome/browser/glic/public/features.cc
 +++ b/chrome/browser/glic/public/features.cc
-@@ -355,4 +355,7 @@
+@@ -355,4 +355,9 @@
      &kGlicShowNotTellTutorials, "tutorials_arm", 0};
  
  BASE_FEATURE(kGlicActivityHub, base::FEATURE_DISABLED_BY_DEFAULT);
++
++BASE_FEATURE(kGlicWhatsNewLuminous, base::FEATURE_DISABLED_BY_DEFAULT);
 +
 +BASE_FEATURE(kGlicInvokeErrorRecoveryFixes,
 +             FEATURE_ENABLED_BY_DEFAULT_ALL_PLATFORMS);
  }  // namespace features
 diff --git a/chrome/browser/glic/public/features.h b/chrome/browser/glic/public/features.h
-index 642f915..d792f265b 100644
+index 642f915..f2cf84d 100644
 --- a/chrome/browser/glic/public/features.h
 +++ b/chrome/browser/glic/public/features.h
-@@ -260,6 +260,8 @@
+@@ -260,6 +260,10 @@
  extern const base::FeatureParam<int> kGlicShowNotTellTutorialsArm;
  
  BASE_DECLARE_FEATURE(kGlicActivityHub);
++
++BASE_DECLARE_FEATURE(kGlicWhatsNewLuminous);
 +
 +BASE_DECLARE_FEATURE(kGlicInvokeErrorRecoveryFixes);
  }  // namespace features
@@ -1999,6 +2230,107 @@ index 3ce3c16..ac96dd7 100644
    protected onShareTabsFlyoutOpenChanged_(e: CustomEvent<{open: boolean}>) {
      this.shareTabsFlyoutOpen = e.detail.open;
    }
+diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.css b/chrome/browser/resources/omnibox_everywhere/omnibox.css
+index 7d682fdc..417ed24 100644
+--- a/chrome/browser/resources/omnibox_everywhere/omnibox.css
++++ b/chrome/browser/resources/omnibox_everywhere/omnibox.css
+@@ -313,12 +313,12 @@
+ #composeButton::part(hoverBackground) {
+   background-color: var(--color-sys-state-hover-dim-blend-protection);
+   display: block;
+-  opacity: 0;
++  opacity: var(--compose-button-hover-background-opacity, 0);
+   transition: opacity 250ms linear;
+ }
+ 
+-#composeButton:hover::part(hoverBackground) {
+-  opacity: 1;
++#composeButton::part(compose-button):hover {
++  --compose-button-hover-background-opacity: 1;
+ }
+ 
+ :host([is-fusebox-enabled]) #composeButton {
+diff --git a/chrome/browser/resources/omnibox_popup/omnibox_composebox.css b/chrome/browser/resources/omnibox_popup/omnibox_composebox.css
+index 8343dbf..287889004 100644
+--- a/chrome/browser/resources/omnibox_popup/omnibox_composebox.css
++++ b/chrome/browser/resources/omnibox_popup/omnibox_composebox.css
+@@ -166,7 +166,7 @@
+ :host([is-aim-button-shown_]) #composeboxInput {
+   --cr-composebox-icon-container-height: 40px;
+   --cr-composebox-input-padding-block: 8px;
+-  --text-input-inline-end-spacing: 12px;
++  --text-input-inline-end-spacing: 15px;
+   --text-input-inline-start-spacing: 16px;
+ }
+ 
+@@ -177,8 +177,8 @@
+   --cr-composebox-aim-button-icon-size: 16px;
+   --cr-composebox-aim-button-leading-glyph-size: 16px;
+   font-size: 12px;
+-  margin-block-start: 12px;
+-  margin-inline-end: 14px;
++  margin-block-start: 10px;
++  margin-inline-end: 11px;
+ }
+ 
+ #context {
+diff --git a/chrome/browser/resources/omnibox_popup/omnibox_popup_searchbox.css b/chrome/browser/resources/omnibox_popup/omnibox_popup_searchbox.css
+index 3dc4074..f435b00 100644
+--- a/chrome/browser/resources/omnibox_popup/omnibox_popup_searchbox.css
++++ b/chrome/browser/resources/omnibox_popup/omnibox_popup_searchbox.css
+@@ -352,6 +352,12 @@
+   padding-inline-start: 8px;
+ }
+ 
++:host([persistent-aim-button-enabled_]) #composeButton::part(compose-button) {
++  font-family: var(--omnibox-chip-font-family);
++  font-size: var(--omnibox-chip-font-size);
++  font-weight: var(--omnibox-chip-font-weight);
++}
++
+ #composeButton[dynamic]::part(compose-button) {
+   padding-inline-end: 11px;
+ }
+@@ -438,12 +444,12 @@
+ #composeButton::part(hoverBackground) {
+   background-color: var(--color-sys-state-hover-dim-blend-protection);
+   display: block;
+-  opacity: 0;
++  opacity: var(--compose-button-hover-background-opacity, 0);
+   transition: opacity 250ms linear;
+ }
+ 
+-#composeButton:hover::part(hoverBackground) {
+-  opacity: 1;
++#composeButton::part(compose-button):hover {
++  --compose-button-hover-background-opacity: 1;
+ }
+ 
+ :host-context([webui-rounded-icons]):host(:not([use-webkit-search-icons_])) #voiceSearchButton {
+diff --git a/chrome/browser/resources/omnibox_popup/omnibox_popup_searchbox.ts b/chrome/browser/resources/omnibox_popup/omnibox_popup_searchbox.ts
+index 0d0035f..7b58e36 100644
+--- a/chrome/browser/resources/omnibox_popup/omnibox_popup_searchbox.ts
++++ b/chrome/browser/resources/omnibox_popup/omnibox_popup_searchbox.ts
+@@ -153,6 +153,10 @@
+         type: Boolean,
+         reflect: true,
+       },
++      persistentAimButtonEnabled_: {
++        type: Boolean,
++        reflect: true,
++      },
+       multiLineEnabled: {
+         type: Boolean,
+         reflect: true,
+@@ -260,6 +264,8 @@
+       loadTimeData.getBoolean('searchboxMultiline');
+   protected accessor webuiShadowEnabled_: boolean =
+       loadTimeData.getBoolean('omniboxFullWebUIShadowEnabled');
++  protected accessor persistentAimButtonEnabled_: boolean =
++      loadTimeData.getBoolean('composeboxPersistentAimButton');
+   protected accessor searchboxDynamicColorScheme_: boolean =
+       loadTimeData.getBoolean('searchboxDynamicColorScheme');
+   protected accessor searchboxDynamicAnimation_: boolean =
 diff --git a/chrome/browser/signin/bound_session_credentials/unexportable_key_service_factory.cc b/chrome/browser/signin/bound_session_credentials/unexportable_key_service_factory.cc
 index 5b43017..6ab6066 100644
 --- a/chrome/browser/signin/bound_session_credentials/unexportable_key_service_factory.cc
@@ -2261,8 +2593,20 @@ index a0835688..49ed202 100644
    HideBubble(/*initiated_by_bubble_manager=*/false);
    Observe(nullptr);
  }
+diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_browser_controller.cc b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_browser_controller.cc
+index 8602a82d..a7d82d4 100644
+--- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_browser_controller.cc
++++ b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_browser_controller.cc
+@@ -55,6 +55,7 @@
+ 
+ #if !BUILDFLAG(IS_ANDROID)
+   if (kShowEntryPoint.Get() == EntryPointOption::kToolbarEphemeralBranded ||
++      IsContextualTasksPinningV2Enabled() ||
+       IsContextualTasksPinnedButtonActiveIndicatorEnabled() ||
+       IsContextualTasksEphemeralPinButtonRefactorEnabled()) {
+     ephemeral_button_controller_ =
 diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_button.cc b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_button.cc
-index 2708b5f9f..c16f61a 100644
+index 2708b5f9f..eaa4a6d 100644
 --- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_button.cc
 +++ b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_button.cc
 @@ -11,6 +11,7 @@
@@ -2273,15 +2617,18 @@ index 2708b5f9f..c16f61a 100644
  #include "chrome/app/vector_icons/vector_icons.h"
  #include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
  #include "chrome/browser/contextual_tasks/entry_point_eligibility_manager.h"
-@@ -52,6 +53,7 @@
+@@ -50,8 +51,10 @@
+ #include "ui/compositor/layer_animator.h"
+ #include "ui/compositor/layer_owner.h"
  #include "ui/gfx/canvas.h"
++#include "ui/gfx/geometry/point.h"
  #include "ui/gfx/geometry/skia_conversions.h"
  #include "ui/gfx/image/image_skia.h"
 +#include "ui/gfx/image/image_skia_operations.h"
  #include "ui/gfx/scoped_canvas.h"
  #include "ui/gfx/skia_paint_util.h"
  #include "ui/gfx/vector_icon_types.h"
-@@ -72,7 +74,6 @@
+@@ -72,7 +75,6 @@
  // is 34.
  const int kPillShapeShadowInset = 1;
  
@@ -2289,7 +2636,37 @@ index 2708b5f9f..c16f61a 100644
  const int kGLogoPillShapeIconSize = 15;
  
  // The flat edge's top corner radius is needed to avoid the toolbar upper
-@@ -488,6 +489,32 @@
+@@ -233,6 +235,10 @@
+   SetVisible(false);
+   SetProperty(views::kElementIdentifierKey,
+               kContextualTasksEphemeralToolbarButtonElementId);
++  // The "side panel open" highlight is the ink drop's ACTIVATED state. Keep it
++  // when the context menu opens; otherwise Button::ShowContextMenu() hides the
++  // ink drop and the highlight is lost for as long as the panel stays open.
++  SetHideInkDropWhenShowingContextMenu(false);
+   status_indicator_ =
+       PinnedToolbarButtonStatusIndicator::Install(image_container_view());
+   status_indicator_->SetColorId(kColorToolbarActionItemEngaged,
+@@ -396,6 +402,18 @@
+          ToolbarButton::ShouldShowMenu();
+ }
+ 
++void ContextualTasksButton::ShowContextMenu(
++    const gfx::Point& p,
++    ui::mojom::MenuSourceType source_type) {
++  // With nothing to show (e.g. the side panel is open and the user is not
++  // pinning eligible), a right-click must be a no-op. Bail out before
++  // Button::ShowContextMenu() resets the button state and ink drop.
++  if (!ShouldShowMenu()) {
++    return;
++  }
++  ToolbarButton::ShowContextMenu(p, source_type);
++}
++
+ void ContextualTasksButton::UpdateColorsAndInsets() {
+   if (contextual_tasks::IsContextualTasksPinningV2Enabled()) {
+     SetDefaultBackgroundColorId(ShouldShowCircleHighlight()
+@@ -488,6 +506,32 @@
    }
  }
  
@@ -2322,7 +2699,7 @@ index 2708b5f9f..c16f61a 100644
  void ContextualTasksButton::OnViewLayerBoundsSet(views::View* observed_view) {
    CHECK_EQ(observed_view, this);
    ToolbarButton::OnViewLayerBoundsSet(observed_view);
-@@ -860,6 +887,21 @@
+@@ -860,6 +904,21 @@
          GetShape() == EphemeralButtonShape::kCircle ? GetIconSize()
                                                      : kGLogoPillShapeIconSize);
    }
@@ -2344,7 +2721,7 @@ index 2708b5f9f..c16f61a 100644
    if (contextual_tasks::ShouldUseGraySuperGIconForPinButtons()) {
      const gfx::VectorIcon& gray_super_g_icon =
  #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-@@ -873,15 +915,6 @@
+@@ -873,15 +932,6 @@
          GetShape() == EphemeralButtonShape::kCircle ? GetIconSize()
                                                      : kGLogoPillShapeIconSize);
    }
@@ -2360,7 +2737,7 @@ index 2708b5f9f..c16f61a 100644
    const gfx::VectorIcon& contextual_tasks_icon =
  #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
        vector_icons::kGoogleGLogoIcon;
-@@ -891,7 +924,7 @@
+@@ -891,7 +941,7 @@
  #endif
    return ui::ImageModel::FromVectorIcon(
        contextual_tasks_icon, icon_color_id,
@@ -2370,10 +2747,26 @@ index 2708b5f9f..c16f61a 100644
  }
  
 diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_button.h b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_button.h
-index 0de0304a..252d368f 100644
+index 0de0304a..e589c87f 100644
 --- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_button.h
 +++ b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_button.h
-@@ -55,6 +55,7 @@
+@@ -20,10 +20,15 @@
+ #include "chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_utils.h"
+ #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
+ #include "ui/base/metadata/metadata_header_macros.h"
++#include "ui/base/mojom/menu_source_type.mojom-forward.h"
+ 
+ class BrowserWindowInterface;
+ class PinnedToolbarButtonStatusIndicator;
+ 
++namespace gfx {
++class Point;
++}  // namespace gfx
++
+ namespace ui {
+ class ImageModel;
+ class Layer;
+@@ -55,6 +60,7 @@
    // ToolbarButton:
    void Layout(PassKey) override;
    void UpdateIcon() override;
@@ -2381,6 +2774,371 @@ index 0de0304a..252d368f 100644
  
    // contextual_tasks::ContextualTasksPanelController::Observer:
    void OnSurfaceStateChanged(
+@@ -73,6 +79,8 @@
+ 
+   // views::View:
+   void RemoveLayerFromRegions(ui::Layer* old_layer) override;
++  void ShowContextMenu(const gfx::Point& p,
++                       ui::mojom::MenuSourceType source_type) override;
+ 
+  protected:
+   bool ShouldShowMenu() override;
+diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
+index 4420bfd..5e69d98 100644
+--- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
++++ b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
+@@ -290,6 +290,15 @@
+     SidePanelEntry* entry,
+     SidePanelEntryHideReason reason) {
+   is_hiding_contextual_tasks_panel_ = true;
++
++  // The pinning promo is only meaningful while the Contextual Tasks panel is
++  // showing. Dismiss it explicitly when the panel is hidden.
++  if (auto* user_education =
++          BrowserUserEducationInterface::From(browser_window_interface_)) {
++    user_education->AbortFeaturePromo(
++        feature_engagement::kIPHSidePanelContextualTasksPinnableFeature);
++  }
++
+   std::optional<base::Uuid> task_id = GetActiveTaskId();
+   if (!task_id.has_value() ||
+       reason == SidePanelEntryHideReason::kBackgrounded) {
+@@ -969,17 +978,6 @@
+ }
+ 
+ void ContextualTasksEphemeralButtonController::DisassociateNavigatedTab() {
+-  // Only disassociate the navigated tab when the ephemeral button is eligible
+-  // to show (e.g., not permanently pinned without
+-  // `kEphemeralPinningVisibleWhenPermanentlyPinned`), so navigation only
+-  // dismisses an active ephemeral entry point.
+-  if (!base::FeatureList::IsEnabled(
+-          contextual_tasks::kEphemeralPinningVisibleWhenPermanentlyPinned) &&
+-      contextual_tasks::GetEffectivePinState(
+-          browser_window_interface_->GetProfile())) {
+-    return;
+-  }
+-
+   std::optional<SessionID> current_tab_session_id = GetCurrentTabSessionId();
+   contextual_tasks::ContextualTasksService* service =
+       GetContextualTasksService();
+@@ -1012,24 +1010,26 @@
+ 
+ void ContextualTasksEphemeralButtonController::PrimaryPageChanged(
+     content::Page& page) {
+-  if (IsEphemeralEntryPointEnabled()) {
+-    std::optional<base::AutoReset<std::optional<RemovalReason>>> reset_reason;
+-    if (!IsPanelOpen()) {
+-      DisassociateNavigatedTab();
+-      if (!removal_reason_.has_value()) {
+-        reset_reason.emplace(&removal_reason_,
+-                             RemovalReason::kTaskDisassociated);
+-      }
+-    }
+-    MaybeNotifyVisibilityShouldChange();
+-  } else if (contextual_tasks::
+-                 IsContextualTasksPinnedButtonActiveIndicatorEnabled()) {
+-    MaybeNotifyVisibilityShouldChange();
++  if (!IsEphemeralEntryPointEnabled() &&
++      !contextual_tasks::IsContextualTasksPinningV2Enabled() &&
++      !contextual_tasks::
++          IsContextualTasksPinnedButtonActiveIndicatorEnabled()) {
++    return;
+   }
++  std::optional<base::AutoReset<std::optional<RemovalReason>>> reset_reason;
++  if (!IsPanelOpen()) {
++    DisassociateNavigatedTab();
++    if (!removal_reason_.has_value()) {
++      reset_reason.emplace(&removal_reason_,
++                           RemovalReason::kTaskDisassociated);
++    }
++  }
++  MaybeNotifyVisibilityShouldChange();
+ }
+ 
+ void ContextualTasksEphemeralButtonController::UpdateActiveTabObservation() {
+   if (!IsEphemeralEntryPointEnabled() &&
++      !contextual_tasks::IsContextualTasksPinningV2Enabled() &&
+       !contextual_tasks::
+           IsContextualTasksPinnedButtonActiveIndicatorEnabled()) {
+     return;
+diff --git a/chrome/browser/ui/views/global_media_controls/BUILD.gn b/chrome/browser/ui/views/global_media_controls/BUILD.gn
+index b4e99dcd..9de97a9a 100644
+--- a/chrome/browser/ui/views/global_media_controls/BUILD.gn
++++ b/chrome/browser/ui/views/global_media_controls/BUILD.gn
+@@ -2,6 +2,7 @@
+ # Use of this source code is governed by a BSD-style license that can be
+ # found in the LICENSE file.
+ 
++import("//build/config/ozone.gni")
+ import("//build/config/ui.gni")
+ import("//crypto/features.gni")
+ 
+@@ -64,6 +65,7 @@
+     "//chrome/browser/feedback",
+     "//chrome/browser/language",
+     "//chrome/browser/media/router:media_router_feature",
++    "//chrome/browser/picture_in_picture",
+     "//chrome/browser/ui:browser_element_identifiers",
+     "//chrome/browser/ui:singleton_tabs",
+     "//chrome/browser/ui/navigator",
+@@ -81,6 +83,9 @@
+     "//components/vector_icons",
+     "//ui/strings:ui_strings",
+   ]
++  if (use_ozone) {
++    deps += [ "//ui/ozone" ]
++  }
+ }
+ 
+ source_set("test_support") {
+diff --git a/chrome/browser/ui/views/global_media_controls/media_dialog_view.cc b/chrome/browser/ui/views/global_media_controls/media_dialog_view.cc
+index 906b03d..66a2ae8 100644
+--- a/chrome/browser/ui/views/global_media_controls/media_dialog_view.cc
++++ b/chrome/browser/ui/views/global_media_controls/media_dialog_view.cc
+@@ -9,11 +9,18 @@
+ #include <utility>
+ 
+ #include "base/functional/bind.h"
++#include "base/location.h"
+ #include "base/memory/raw_ptr.h"
++#include "base/memory/weak_ptr.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/observer_list.h"
++#include "base/scoped_multi_source_observation.h"
++#include "base/scoped_observation.h"
++#include "base/task/single_thread_task_runner.h"
++#include "build/build_config.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/media/router/media_router_feature.h"
++#include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
+ #include "chrome/browser/ui/global_media_controls/media_notification_service.h"
+@@ -58,6 +65,12 @@
+ #include "ui/views/layout/fill_layout.h"
+ #include "ui/views/layout/layout_provider.h"
+ #include "ui/views/view_class_properties.h"
++#include "ui/views/widget/widget.h"
++#include "ui/views/widget/widget_observer.h"
++
++#if BUILDFLAG(IS_OZONE)
++#include "ui/ozone/public/ozone_platform.h"
++#endif
+ 
+ using global_media_controls::GlobalMediaControlsEntryPoint;
+ using media_session::mojom::MediaSessionAction;
+@@ -73,6 +86,19 @@
+ static constexpr int kImageWidthDip = 20;
+ static constexpr int kVerticalMarginDip = 10;
+ 
++// Whether the platform may activate windows that were shown inactive, such as
++// Picture-in-Picture windows.
++bool PlatformMayActivateInactiveWindows() {
++#if BUILDFLAG(IS_OZONE)
++  return ui::OzonePlatform::IsInitialized() &&
++         !ui::OzonePlatform::GetInstance()
++              ->GetPlatformProperties()
++              .supports_inactive_window_show;
++#else
++  return false;
++#endif
++}
++
+ std::u16string GetLiveCaptionTitle(PrefService* profile_prefs) {
+   // The selected language is only shown when Live Caption is enabled.
+   if (profile_prefs->GetBoolean(prefs::kLiveCaptionEnabled)) {
+@@ -87,6 +113,97 @@
+ 
+ }  // namespace
+ 
++// Picture-in-Picture windows are shown inactive, but some platforms (e.g.
++// Wayland) let the compositor focus them anyway, which would deactivate and
++// close the dialog right after its Picture-in-Picture button is pressed. This
++// keeps the dialog open while the Picture-in-Picture window has focus, until
++// the dialog or its anchor widget is activated again or Picture-in-Picture
++// ends.
++class MediaDialogView::PictureInPictureFocusHandler
++    : public PictureInPictureWindowManager::Observer,
++      public views::WidgetObserver {
++ public:
++  explicit PictureInPictureFocusHandler(MediaDialogView* dialog)
++      : dialog_(dialog) {
++    pip_observation_.Observe(PictureInPictureWindowManager::GetInstance());
++  }
++  PictureInPictureFocusHandler(const PictureInPictureFocusHandler&) = delete;
++  PictureInPictureFocusHandler& operator=(const PictureInPictureFocusHandler&) =
++      delete;
++  ~PictureInPictureFocusHandler() override = default;
++
++  // PictureInPictureWindowManager::Observer:
++  void OnEnterPictureInPicture() override {
++    views::Widget* widget = dialog_->GetWidget();
++    if (!widget || close_on_deactivate_pin_) {
++      return;
++    }
++    close_on_deactivate_pin_ = dialog_->PreventCloseOnDeactivate();
++    widget_observations_.AddObservation(widget);
++    views::Widget* anchor_widget = dialog_->anchor_widget();
++    if (anchor_widget && anchor_widget != widget) {
++      widget_observations_.AddObservation(anchor_widget);
++    }
++  }
++  void OnExitPictureInPicture() override {
++    // If the dialog has not been activated since Picture-in-Picture started,
++    // it is still inactive, and no further deactivation will close it. Close
++    // it now, unless it gets activated in the meantime.
++    if (close_on_deactivate_pin_) {
++      Reset();
++      PostCloseDialogIfInactive();
++    }
++  }
++
++  // views::WidgetObserver:
++  void OnWidgetActivationChanged(views::Widget* widget, bool active) override {
++    if (!active) {
++      return;
++    }
++    const bool anchor_activated = widget != dialog_->GetWidget();
++    Reset();
++    if (anchor_activated) {
++      // The user returned to the browser window. Unless that was by clicking
++      // the dialog, which activates it in the same event batch, close the
++      // dialog as if it had lost focus.
++      PostCloseDialogIfInactive();
++    }
++  }
++  void OnWidgetDestroying(views::Widget* widget) override {
++    widget_observations_.RemoveObservation(widget);
++  }
++
++ private:
++  void Reset() {
++    widget_observations_.RemoveAllObservations();
++    close_on_deactivate_pin_.reset();
++  }
++
++  void PostCloseDialogIfInactive() {
++    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
++        FROM_HERE,
++        base::BindOnce(&PictureInPictureFocusHandler::CloseDialogIfInactive,
++                       weak_factory_.GetWeakPtr()));
++  }
++
++  void CloseDialogIfInactive() {
++    views::Widget* widget = dialog_->GetWidget();
++    if (widget && !widget->IsActive() && dialog_->ShouldCloseOnDeactivate()) {
++      widget->CloseWithReason(views::Widget::ClosedReason::kLostFocus);
++    }
++  }
++
++  const raw_ptr<MediaDialogView> dialog_;
++  std::unique_ptr<views::BubbleDialogDelegate::CloseOnDeactivatePin>
++      close_on_deactivate_pin_;
++  base::ScopedObservation<PictureInPictureWindowManager,
++                          PictureInPictureWindowManager::Observer>
++      pip_observation_{this};
++  base::ScopedMultiSourceObservation<views::Widget, views::WidgetObserver>
++      widget_observations_{this};
++  base::WeakPtrFactory<PictureInPictureFocusHandler> weak_factory_{this};
++};
++
+ // static
+ MediaDialogView* MediaDialogView::instance_ = nullptr;
+ 
+@@ -386,6 +503,10 @@
+       l10n_util::GetStringUTF16(IDS_GLOBAL_MEDIA_CONTROLS_DIALOG_NAME));
+   CHECK(service_);
+ 
++  if (PlatformMayActivateInactiveWindows()) {
++    pip_focus_handler_ = std::make_unique<PictureInPictureFocusHandler>(this);
++  }
++
+   pref_change_registrar_ = std::make_unique<PrefChangeRegistrar>();
+   // Observe the prefs the dialog reads and writes: always the original
+   // profile.
+diff --git a/chrome/browser/ui/views/global_media_controls/media_dialog_view.h b/chrome/browser/ui/views/global_media_controls/media_dialog_view.h
+index 8dd0ed9..159a2145 100644
+--- a/chrome/browser/ui/views/global_media_controls/media_dialog_view.h
++++ b/chrome/browser/ui/views/global_media_controls/media_dialog_view.h
+@@ -130,6 +130,10 @@
+ 
+   ~MediaDialogView() override;
+ 
++  // Keeps the dialog open when a Picture-in-Picture window takes focus on
++  // platforms that can't show windows inactive. Defined in the .cc file.
++  class PictureInPictureFocusHandler;
++
+   static MediaDialogView* instance_;
+ 
+   // True if the dialog has been opened this session.
+@@ -210,6 +214,8 @@
+   const global_media_controls::GlobalMediaControlsEntryPoint entry_point_;
+ 
+   media_message_center::MediaColorTheme media_color_theme_;
++
++  std::unique_ptr<PictureInPictureFocusHandler> pip_focus_handler_;
+ };
+ 
+ #endif  // CHROME_BROWSER_UI_VIEWS_GLOBAL_MEDIA_CONTROLS_MEDIA_DIALOG_VIEW_H_
+diff --git a/chrome/browser/ui/views/location_bar/BUILD.gn b/chrome/browser/ui/views/location_bar/BUILD.gn
+index 38a48221..58fd6d16 100644
+--- a/chrome/browser/ui/views/location_bar/BUILD.gn
++++ b/chrome/browser/ui/views/location_bar/BUILD.gn
+@@ -176,6 +176,7 @@
+       "//components/omnibox/browser",
+       "//components/omnibox/browser:vector_icons",
+       "//components/omnibox/common",
++      "//components/omnibox/common:features",
+       "//components/performance_manager",
+       "//components/record_replay/core/browser",
+       "//components/record_replay/core/common",
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+index 972bd7b..5a4f868 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -106,6 +106,7 @@
+ #include "components/omnibox/browser/omnibox_prefs.h"
+ #include "components/omnibox/browser/page_classification_functions.h"
+ #include "components/omnibox/browser/vector_icons.h"
++#include "components/omnibox/common/composebox_features.h"
+ #include "components/omnibox/common/input_state.h"
+ #include "components/omnibox/common/omnibox_feature_configs.h"
+ #include "components/omnibox/common/omnibox_features.h"
+@@ -490,6 +491,13 @@
+       AddChildView(std::make_unique<page_actions::PageActionContainerView>(
+           page_action_items, page_actions::PageActionPropertiesProvider(),
+           page_action_params));
++  if (base::FeatureList::IsEnabled(
++          omnibox::kComposeboxPersistentAimButtonOmnibox)) {
++    if (auto* ai_mode_page_action_view =
++            page_action_container_->GetPageActionView(kActionAiMode)) {
++      ai_mode_page_action_view->SetFontList(omnibox_chip_font_list);
++    }
++  }
+ 
+   auto clear_all_button = views::CreateVectorImageButton(base::BindRepeating(
+       static_cast<void (OmniboxView::*)(const std::u16string&)>(
+diff --git a/chrome/browser/ui/views/omnibox/BUILD.gn b/chrome/browser/ui/views/omnibox/BUILD.gn
+index 9ce0ec4..bd8b720 100644
+--- a/chrome/browser/ui/views/omnibox/BUILD.gn
++++ b/chrome/browser/ui/views/omnibox/BUILD.gn
+@@ -241,6 +241,16 @@
+     "//ui/base/clipboard:clipboard_test_support",
+     "//ui/display:test_support",
+   ]
++
++  if (is_mac) {
++    sources += [ "omnibox_popup_native_widget_mac_unittest.mm" ]
++    deps += [
++      ":native_widget_mac",
++      "//base",
++      "//ui/gfx/geometry",
++      "//ui/views",
++    ]
++  }
+ }
+ 
+ source_set("test_support") {
 diff --git a/chrome/browser/ui/views/toolbar/BUILD.gn b/chrome/browser/ui/views/toolbar/BUILD.gn
 index 9719e01b..fcc7a53 100644
 --- a/chrome/browser/ui/views/toolbar/BUILD.gn
@@ -2455,6 +3213,62 @@ index 1e36dc7c..8e58f07 100644
  
    void UpdateStatusIndicator();
    void HideStatusIndicator();
+diff --git a/chrome/browser/ui/webui/metrics_reporter/metrics_reporter.cc b/chrome/browser/ui/webui/metrics_reporter/metrics_reporter.cc
+index 2047bf7f..77a52f3 100644
+--- a/chrome/browser/ui/webui/metrics_reporter/metrics_reporter.cc
++++ b/chrome/browser/ui/webui/metrics_reporter/metrics_reporter.cc
+@@ -6,6 +6,10 @@
+ 
+ #include "base/logging.h"
+ #include "base/metrics/histogram_functions.h"
++#include "base/trace_event/trace_event.h"
++#include "base/trace_event/trace_id_helper.h"
++#include "third_party/perfetto/include/perfetto/tracing/string_helpers.h"
++#include "third_party/perfetto/include/perfetto/tracing/track.h"
+ 
+ MetricsReporter::MetricsReporter() {
+   page_receiver_ = page_.BindNewPipeAndPassReceiver();
+@@ -129,3 +133,26 @@
+                                       base::TimeDelta time) {
+   base::UmaHistogramTimes(name, time);
+ }
++
++void MetricsReporter::OnUmaReportLongTimeSpan(const std::string& name,
++                                              base::TimeTicks start,
++                                              base::TimeTicks end) {
++  // The page reports both times, so drop spans that can't be real. `end` can
++  // be up to a frame in the future, since some platforms report the next vsync
++  // as a frame's presentation time (see `SanitizePresentationFeedback()` in
++  // components/viz/service/display/display.cc).
++  if (start.is_null() || end < start) {
++    return;
++  }
++  const base::TimeDelta time = end - start;
++  // Uses 100 buckets like `Startup.FirstWebContents.NonEmptyPaint3`.
++  base::UmaHistogramLongTimes100(name, time);
++
++  // Each span gets its own track, named after the histogram, so that
++  // overlapping spans can't mis-nest. Perfetto merges same-named tracks.
++  const perfetto::NamedTrack track(perfetto::DynamicString(name),
++                                   base::trace_event::GetNextGlobalTraceId());
++  TRACE_EVENT_BEGIN("ui", perfetto::DynamicString(name), track, start,
++                    "latency_ms", time.InMillisecondsF());
++  TRACE_EVENT_END("ui", track, end);
++}
+diff --git a/chrome/browser/ui/webui/metrics_reporter/metrics_reporter.h b/chrome/browser/ui/webui/metrics_reporter/metrics_reporter.h
+index 4f73bce..3181d08a 100644
+--- a/chrome/browser/ui/webui/metrics_reporter/metrics_reporter.h
++++ b/chrome/browser/ui/webui/metrics_reporter/metrics_reporter.h
+@@ -51,6 +51,9 @@
+   void OnGetMark(const std::string& name, OnGetMarkCallback callback) override;
+   void OnClearMark(const std::string& name) override;
+   void OnUmaReportTime(const std::string& name, base::TimeDelta time) override;
++  void OnUmaReportLongTimeSpan(const std::string& name,
++                               base::TimeTicks start,
++                               base::TimeTicks end) override;
+ 
+  private:
+   friend MetricsReporterClient;
 diff --git a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/BUILD.gn b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/BUILD.gn
 index 9588da9..406e02b 100644
 --- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/BUILD.gn
@@ -2597,6 +3411,104 @@ index b0d2b38..57f46e7a 100644
              icon == &vector_icons::kGoogleGLogoMonochromeIcon ||
              item->GetImage().IsImage()
  #else
+diff --git a/chrome/browser/ui/webui/whats_new/whats_new_registrar.cc b/chrome/browser/ui/webui/whats_new/whats_new_registrar.cc
+index 4aebd2c..f80d160 100644
+--- a/chrome/browser/ui/webui/whats_new/whats_new_registrar.cc
++++ b/chrome/browser/ui/webui/whats_new/whats_new_registrar.cc
+@@ -5,6 +5,7 @@
+ #include "chrome/browser/ui/webui/whats_new/whats_new_registrar.h"
+ 
+ #include "chrome/browser/browser_process.h"
++#include "chrome/browser/glic/public/features.h"
+ #include "chrome/browser/ui/webui/whats_new/whats_new_storage_service_impl.h"
+ #include "chrome/common/buildflags.h"
+ #include "chrome/common/chrome_features.h"
+@@ -42,6 +43,11 @@
+   // M157
+   registry->RegisterModule(
+       WhatsNewModule("SendTabToSelfEnhancedHandoff", "treib@google.com"));
++
++  // M158
++  registry->RegisterModule(WhatsNewModule(::features::kGlicWhatsNewLuminous,
++                                          "iwells@chromium.org",
++                                          BrowserCommand::kOpenGlic));
+ }
+ 
+ void RegisterWhatsNewEditions(whats_new::WhatsNewRegistry* registry) {
+diff --git a/chrome/browser/webshare/BUILD.gn b/chrome/browser/webshare/BUILD.gn
+index d26fc50..c7a264c 100644
+--- a/chrome/browser/webshare/BUILD.gn
++++ b/chrome/browser/webshare/BUILD.gn
+@@ -208,7 +208,10 @@
+   sources = [ "share_service_unittest.cc" ]
+ 
+   if (is_chromeos || is_mac) {
+-    sources += [ "prepare_directory_task_unittest.cc" ]
++    sources += [
++      "prepare_directory_task_unittest.cc",
++      "store_file_task_unittest.cc",
++    ]
+   }
+ 
+   if (is_mac) {
+diff --git a/chrome/browser/webshare/store_file_task.cc b/chrome/browser/webshare/store_file_task.cc
+index db8c761..127abe0 100644
+--- a/chrome/browser/webshare/store_file_task.cc
++++ b/chrome/browser/webshare/store_file_task.cc
+@@ -4,7 +4,12 @@
+ 
+ #include "chrome/browser/webshare/store_file_task.h"
+ 
++#include "base/check.h"
++#include "base/check_op.h"
+ #include "base/containers/span.h"
++#include "base/files/file_util.h"
++#include "base/logging.h"
++#include "base/not_fatal_until.h"
+ #include "base/numerics/safe_conversions.h"
+ #include "base/strings/string_util.h"
+ #include "base/strings/string_view_util.h"
+@@ -28,10 +33,10 @@
+       callback_(std::move(callback)),
+       read_pipe_watcher_(FROM_HERE,
+                          mojo::SimpleWatcher::ArmingPolicy::AUTOMATIC) {
+-  // |filename| is generated by GenerateFileName().
++  // |filename| is generated by GenerateFileName(). Its parent directory is
++  // share<N> (ChromeOS) or share-<uuid> (Mac).
+   CHECK(!filename_.ReferencesParent(), base::NotFatalUntil::M162);
+-  CHECK(filename_.BaseName().MaybeAsASCII().find("share") >= 0,
+-        base::NotFatalUntil::M162);
++  CHECK(base::StartsWith(filename_.DirName().BaseName().value(), "share"));
+ }
+ 
+ StoreFileTask::~StoreFileTask() = default;
+@@ -40,8 +45,24 @@
+   {
+     base::ScopedBlockingCall scoped_blocking_call(
+         FROM_HERE, base::BlockingType::WILL_BLOCK);
+-    output_file_.Initialize(
+-        filename_, base::File::FLAG_CREATE_ALWAYS | base::File::FLAG_WRITE);
++    // Remove any stale entry first, as share directory names can be reused
++    // (e.g. after a restart on ChromeOS). DeleteFile() does not follow a
++    // symbolic link at |filename_|, and removing a hard link leaves its target
++    // untouched.
++    base::DeleteFile(filename_);
++    // FLAG_CREATE (O_CREAT | O_EXCL) fails if any entry, including a symbolic
++    // link, reappears at |filename_|. FLAG_NO_FOLLOW is defense in depth.
++    output_file_.Initialize(filename_, base::File::FLAG_CREATE |
++                                           base::File::FLAG_WRITE |
++                                           base::File::FLAG_NO_FOLLOW);
++  }
++
++  if (!output_file_.IsValid()) {
++    VLOG(1) << "Could not create shared file: "
++            << base::File::ErrorToString(output_file_.error_details());
++    // Return immediately, as the callback may delete |this|.
++    std::move(callback_).Run(blink::mojom::ShareError::PERMISSION_DENIED);
++    return;
+   }
+ 
+   if (g_skip_copying_for_testing) {
 diff --git a/components/contextual_tasks/public/features.h b/components/contextual_tasks/public/features.h
 index 047ac61..fc7cd06 100644
 --- a/components/contextual_tasks/public/features.h
@@ -2655,6 +3567,32 @@ index 707a859..20e565a 100755
          '--force-message',
          commit_message,
      ]
+diff --git a/components/safe_browsing/core/browser/db/sb_protocol_manager_util.cc b/components/safe_browsing/core/browser/db/sb_protocol_manager_util.cc
+index 6e18460..4d0c716 100644
+--- a/components/safe_browsing/core/browser/db/sb_protocol_manager_util.cc
++++ b/components/safe_browsing/core/browser/db/sb_protocol_manager_util.cc
+@@ -98,11 +98,19 @@
+   // wasted on the eTLD).
+   // Note: This will automatically fall back to TLD+1 for unknown registries.
+   const size_t kMaxHostsToCheck = 4;
++  // `host` was canonicalized by SBProtocolManagerUtil::CanonicalizeUrl(), whose
++  // final steps run Unescape() followed by Escape() (which leaves printable
++  // ASCII characters like '*' unescaped, while escaping characters like spaces,
++  // '#', and '%'). GetDomainAndRegistry() internally runs
++  // net::CanonicalizeHost(), which applies standard GURL host escaping and
++  // re-escapes characters like '*' to "%2A". Re-apply Unescape() and Escape()
++  // to the returned eTLD+1 so it uses the same Safe Browsing escaping as
++  // `host`.
+   std::string etld_plus_one =
+-      net::registry_controlled_domains::GetDomainAndRegistry(
++      Escape(Unescape(net::registry_controlled_domains::GetDomainAndRegistry(
+           host,
+           /*filter=*/
+-          net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES);
++          net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES)));
+ 
+   if (etld_plus_one.empty()) {
+     // eTLD+1 is only empty when a TLD+1 does not exist (e.g., single-label
 diff --git a/components/unexportable_keys/unexportable_key_service_impl.cc b/components/unexportable_keys/unexportable_key_service_impl.cc
 index 47ee9c6..aecdcf578 100644
 --- a/components/unexportable_keys/unexportable_key_service_impl.cc
@@ -3095,6 +4033,115 @@ index 99ceefd..7343fa23 100644
    }
  }
  
+diff --git a/third_party/blink/renderer/core/frame/picture_in_picture_controller.cc b/third_party/blink/renderer/core/frame/picture_in_picture_controller.cc
+index e98a5a2..3dbecf0 100644
+--- a/third_party/blink/renderer/core/frame/picture_in_picture_controller.cc
++++ b/third_party/blink/renderer/core/frame/picture_in_picture_controller.cc
+@@ -4,13 +4,28 @@
+ 
+ #include "third_party/blink/renderer/core/frame/picture_in_picture_controller.h"
+ 
++#include "third_party/blink/renderer/core/buildflags.h"
+ #include "third_party/blink/renderer/core/core_initializer.h"
+ #include "third_party/blink/renderer/core/dom/document.h"
+ #include "third_party/blink/renderer/core/dom/element.h"
+ #include "third_party/blink/renderer/core/frame/local_dom_window.h"
++#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ 
+ namespace blink {
+ 
++namespace {
++
++bool IsDocumentPictureInPictureWindowLookupEnabled() {
++#if BUILDFLAG(TARGET_OS_IS_ANDROID)
++  return RuntimeEnabledFeatures::
++      DocumentPictureInPictureWindowLookupAndroidEnabled();
++#else
++  return true;
++#endif  // BUILDFLAG(TARGET_OS_IS_ANDROID)
++}
++
++}  // namespace
++
+ PictureInPictureController::PictureInPictureController(Document& document)
+     : Supplement<Document>(document) {}
+ 
+@@ -58,25 +73,23 @@
+ // static
+ LocalDOMWindow* PictureInPictureController::GetDocumentPictureInPictureWindow(
+     const Document& document) {
+-#if !BUILDFLAG(TARGET_OS_IS_ANDROID)
++  if (!IsDocumentPictureInPictureWindowLookupEnabled()) {
++    return nullptr;
++  }
+   PictureInPictureController* controller =
+       Supplement<Document>::From<PictureInPictureController>(document);
+   return controller ? controller->GetDocumentPictureInPictureWindow() : nullptr;
+-#else
+-  return nullptr;
+-#endif  // !BUILDFLAG(TARGET_OS_IS_ANDROID)
+ }
+ 
+ // static
+ LocalDOMWindow* PictureInPictureController::GetDocumentPictureInPictureOwner(
+     const Document& document) {
+-#if !BUILDFLAG(TARGET_OS_IS_ANDROID)
++  if (!IsDocumentPictureInPictureWindowLookupEnabled()) {
++    return nullptr;
++  }
+   PictureInPictureController* controller =
+       Supplement<Document>::From<PictureInPictureController>(document);
+   return controller ? controller->GetDocumentPictureInPictureOwner() : nullptr;
+-#else
+-  return nullptr;
+-#endif  // !BUILDFLAG(TARGET_OS_IS_ANDROID)
+ }
+ 
+ void PictureInPictureController::Trace(Visitor* visitor) const {
+diff --git a/third_party/blink/renderer/core/frame/picture_in_picture_controller.h b/third_party/blink/renderer/core/frame/picture_in_picture_controller.h
+index e2ec899..cbad4ec 100644
+--- a/third_party/blink/renderer/core/frame/picture_in_picture_controller.h
++++ b/third_party/blink/renderer/core/frame/picture_in_picture_controller.h
+@@ -8,7 +8,6 @@
+ #include "services/media_session/public/mojom/media_session.mojom-blink.h"
+ #include "third_party/blink/public/mojom/picture_in_picture/picture_in_picture.mojom-blink.h"
+ #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
+-#include "third_party/blink/renderer/core/buildflags.h"
+ #include "third_party/blink/renderer/core/core_export.h"
+ #include "third_party/blink/renderer/platform/supplementable.h"
+ 
+diff --git a/third_party/blink/renderer/core/layout/layout_embedded_object.cc b/third_party/blink/renderer/core/layout/layout_embedded_object.cc
+index 00f3df3..c90f4b34 100644
+--- a/third_party/blink/renderer/core/layout/layout_embedded_object.cc
++++ b/third_party/blink/renderer/core/layout/layout_embedded_object.cc
+@@ -90,6 +90,9 @@
+     const PaintInfo& paint_info,
+     const PhysicalOffset& paint_offset) const {
+   NOT_DESTROYED();
++  if (ChildPaintBlockedByDisplayLock()) {
++    return;
++  }
+   CountSvgFilterPaint();
+   EmbeddedObjectPainter(*this).PaintReplaced(paint_info, paint_offset);
+ }
+diff --git a/third_party/blink/renderer/platform/runtime_enabled_features.json5 b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+index e627f2b..7fa945d1 100644
+--- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
++++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+@@ -2670,6 +2670,13 @@
+         "default": "stable",
+       },
+     },
++    // Kill switch for letting Blink look up a document's picture-in-picture
++    // window and owner on Android, which lets the window focus its opener
++    // (crbug.com/581052751). Only checked on Android.
++    {
++      name: "DocumentPictureInPictureWindowLookupAndroid",
++      status: "stable",
++    },
+     // Enables the ability to use Document Policy header to control feature
+     // DocumentDomain.
+     {
 diff --git a/third_party/lens_server_proto/search_communication.proto b/third_party/lens_server_proto/search_communication.proto
 index 84e41cb1..4beb2ba 100644
 --- a/third_party/lens_server_proto/search_communication.proto
@@ -3108,6 +4155,62 @@ index 84e41cb1..4beb2ba 100644
      }
      InputType input_type = 2;
  
+diff --git a/tools/metrics/actions/actions.xml b/tools/metrics/actions/actions.xml
+index 48fd2158..e25368cf 100644
+--- a/tools/metrics/actions/actions.xml
++++ b/tools/metrics/actions/actions.xml
+@@ -1126,6 +1126,7 @@
+       summary="Gemini Site Search Shortcut"/>
+   <variant name=".GenerativeThemes" summary="Generative Themes"/>
+   <variant name=".GenerativeTheming" summary="Generative Theming"/>
++  <variant name=".GlicWhatsNewLuminous" summary="Gemini in Chrome: Luminous"/>
+   <variant name=".GoogleLens" summary="Google Lens"/>
+   <variant name=".Googlepayreauth" summary="Google Pay Re-auth"/>
+   <variant name=".HeadlessLiveCaption" summary="Headless Live Caption"/>
+diff --git a/tools/metrics/histograms/metadata/user_education/histograms.xml b/tools/metrics/histograms/metadata/user_education/histograms.xml
+index 7df85eeb..4fcfe1ba 100644
+--- a/tools/metrics/histograms/metadata/user_education/histograms.xml
++++ b/tools/metrics/histograms/metadata/user_education/histograms.xml
+@@ -132,6 +132,8 @@
+   <variant name="GenerativeThemes" summary="the module for Generative Themes"/>
+   <variant name="GenerativeTheming"
+       summary="the module for Generative Theming"/>
++  <variant name="GlicWhatsNewLuminous"
++      summary="the module for Gemini in Chrome: Luminous"/>
+   <variant name="GlitterAIFeaturesVideo"
+       summary="the module for Glitter AI Features Video"/>
+   <variant name="GlitterAIMode" summary="the module for Glitter AI Mode"/>
+diff --git a/ui/ozone/platform/wayland/ozone_platform_wayland.cc b/ui/ozone/platform/wayland/ozone_platform_wayland.cc
+index 39b1aa8..9e0af3d 100644
+--- a/ui/ozone/platform/wayland/ozone_platform_wayland.cc
++++ b/ui/ozone/platform/wayland/ozone_platform_wayland.cc
+@@ -366,6 +366,10 @@
+       // arbitrary position.
+       properties->supports_global_screen_coordinates = false;
+ 
++      // Wayland has no way to map a toplevel without giving it focus, so
++      // compositors may activate windows shown with `inactive` set.
++      properties->supports_inactive_window_show = false;
++
+       // Sever communicates a preferred drm device for chrome to both composite
+       // and decode video. This is a workaround to prevent decoding and
+       // compositing on different GPUs.
+diff --git a/ui/ozone/public/ozone_platform.h b/ui/ozone/public/ozone_platform.h
+index 4537244..723691a 100644
+--- a/ui/ozone/public/ozone_platform.h
++++ b/ui/ozone/public/ozone_platform.h
+@@ -154,6 +154,11 @@
+     // global screen coordinates. Wayland, for example, disallow it by design.
+     bool supports_global_screen_coordinates = true;
+ 
++    // Indicates that windows shown inactive (e.g. via
++    // `PlatformWindow::Show(/*inactive=*/true)`) stay inactive. Wayland, for
++    // example, lets the compositor focus newly mapped toplevels regardless.
++    bool supports_inactive_window_show = true;
++
+     // Indicates that the platform exposes webgpu via interop gl interop with
+     // vulkan.
+     // TODO(https://crbug.com/500609035): Remove when active gpu device info is
 diff --git a/ui/views/controls/menu/menu_item_view.cc b/ui/views/controls/menu/menu_item_view.cc
 index 77e8e87..27daaff 100644
 --- a/ui/views/controls/menu/menu_item_view.cc
@@ -3164,6 +4267,90 @@ index 8926d4c..7ebe216b 100644
            this.fire(
                'close-composebox', {composeboxText: this.input, afterSubmit});
          }
+diff --git a/ui/webui/resources/js/metrics_reporter/browser_proxy.ts b/ui/webui/resources/js/metrics_reporter/browser_proxy.ts
+index 77a16d7..0cfec2b 100644
+--- a/ui/webui/resources/js/metrics_reporter/browser_proxy.ts
++++ b/ui/webui/resources/js/metrics_reporter/browser_proxy.ts
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-import type {TimeDelta} from '//resources/mojo/mojo/public/mojom/base/time.mojom-webui.js';
++import type {TimeDelta, TimeTicks} from '//resources/mojo/mojo/public/mojom/base/time.mojom-webui.js';
+ 
+ import type {PageMetricsHostRemote} from '../metrics_reporter.mojom-webui.js';
+ import {PageMetricsCallbackRouter, PageMetricsHost} from '../metrics_reporter.mojom-webui.js';
+@@ -11,6 +11,7 @@
+   getMark(name: string): Promise<{markedTime: TimeDelta | null}>;
+   clearMark(name: string): void;
+   umaReportTime(name: string, time: TimeDelta): void;
++  umaReportLongTimeSpan(name: string, start: TimeTicks, end: TimeTicks): void;
+   getCallbackRouter(): PageMetricsCallbackRouter;
+   now(): bigint;
+ }
+@@ -38,6 +39,10 @@
+     this.host.onUmaReportTime(name, time);
+   }
+ 
++  umaReportLongTimeSpan(name: string, start: TimeTicks, end: TimeTicks) {
++    this.host.onUmaReportLongTimeSpan(name, start, end);
++  }
++
+   now(): bigint {
+     return chrome.timeTicks.nowInMicroseconds();
+   }
+diff --git a/ui/webui/resources/js/metrics_reporter/metrics_reporter.mojom b/ui/webui/resources/js/metrics_reporter/metrics_reporter.mojom
+index 1605b0e..02ed3068 100644
+--- a/ui/webui/resources/js/metrics_reporter/metrics_reporter.mojom
++++ b/ui/webui/resources/js/metrics_reporter/metrics_reporter.mojom
+@@ -23,6 +23,12 @@
+ 
+   // Record a time in UMA histogram.
+   OnUmaReportTime(string name, mojo_base.mojom.TimeDelta time);
++
++  // Record the time from `start` to `end`, of up to an hour, in UMA histogram,
++  // and trace it as a slice from `start` to `end`.
++  OnUmaReportLongTimeSpan(string name,
++                          mojo_base.mojom.TimeTicks start,
++                          mojo_base.mojom.TimeTicks end);
+ };
+ 
+ // WebUI-side handler for requests from the browser.
+diff --git a/ui/webui/resources/js/metrics_reporter/metrics_reporter.ts b/ui/webui/resources/js/metrics_reporter/metrics_reporter.ts
+index 052cc702..8b93099 100644
+--- a/ui/webui/resources/js/metrics_reporter/metrics_reporter.ts
++++ b/ui/webui/resources/js/metrics_reporter/metrics_reporter.ts
+@@ -28,6 +28,10 @@
+  *     Use measure(startMark[, endMark]) to measure the duration between two
+  * marks. If `endMark` is not given, current time will be used.
+  *   - Use umaReportTime(metricsName, duration) to record UMA histogram.
++ *     Use umaReportLongTimeSpan(metricsName, start, end) instead to record the
++ *     time between two TimeTicks values in microseconds, of up to an hour,
++ *     e.g. from a start time that the browser sent to a presentation time. The
++ *     browser also traces the span.
+  *   - You can call these functions from the C++ side. The marks are accessible
+  * from both C++ and WebUI Javascript.
+  *
+@@ -77,6 +81,7 @@
+   hasLocalMark(name: string): boolean;
+   clearMark(name: string): void;
+   umaReportTime(histogram: string, time: bigint): void;
++  umaReportLongTimeSpan(histogram: string, start: bigint, end: bigint): void;
+ }
+ 
+ export class MetricsReporterImpl implements MetricsReporter {
+@@ -150,6 +155,11 @@
+   umaReportTime(histogram: string, time: bigint) {
+     this.browserProxy_.umaReportTime(histogram, timeToMojo(time));
+   }
++
++  umaReportLongTimeSpan(histogram: string, start: bigint, end: bigint) {
++    this.browserProxy_.umaReportLongTimeSpan(
++        histogram, {internalValue: start}, {internalValue: end});
++  }
+ }
+ 
+ let instance: MetricsReporter|null = null;
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
 index 31c243a..a8a89fa 100644
 --- a/v8/include/v8-version.h
@@ -4987,6 +6174,368 @@ index c08638b..06936f8 100644
              SkASSERT((left & kSnapMask) >= leftBound && (rite & kSnapMask) <= riteBound &&
                       (nextLeft & kSnapMask) >= leftBound && (nextRite & kSnapMask) <= riteBound);
              blit_trapezoid_row(blitter,
+diff --git a/third_party/skia/src/gpu/graphite/TextureFormatXferFn.cpp b/third_party/skia/src/gpu/graphite/TextureFormatXferFn.cpp
+index cbaa809..387d522 100644
+--- a/third_party/skia/src/gpu/graphite/TextureFormatXferFn.cpp
++++ b/third_party/skia/src/gpu/graphite/TextureFormatXferFn.cpp
+@@ -574,7 +574,12 @@
+                     // so instead it can just use kForceOpaque
+                     finalOps |= kForceOpaque;
+                 }
+-            } else if (!SkColorTypeIsAlwaysOpaque(*dstCT)) {
++            } else if (!SkColorTypeIsAlwaysOpaque(*dstCT) ||
++                       (!TextureIsDst && rgbx_to_rgba(dstCT))) {
++                // An RGBx CPU dst color type needs to be lifted to RGBA or the "src" texture format
++                // detection will pick a 3-channel format that would have normally included the
++                // FormatXferOp::kDropAlpha flag to handle the missing channel for CPU conversion.
++                // Since kIgnoreSrc is playing texture format games, it has to be handled manually.
+                 finalOps |= kForceOpaque;
+             }
+ 
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp
+index 38103f2..51eb6bf 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp
+@@ -963,10 +963,10 @@
+     SetDirtyBitIfStateDifferent(a.clipDepthMode, b.clipDepthMode, bits,
+                                 gl::state::DIRTY_BIT_CLIP_CONTROL);
+     SetDirtyBitIfStateDifferent(a.blendColor, b.blendColor, bits, gl::state::DIRTY_BIT_BLEND_COLOR);
+-    SetDirtyBitIfStateDifferent(a.blendState.getAllEnabledMask(), b.blendState.getAllEnabledMask(),
+-                                bits, gl::state::DIRTY_BIT_COLOR_MASK);
++    SetDirtyBitIfStateDifferent(a.blendState.getEnabledMask(), b.blendState.getEnabledMask(), bits,
++                                gl::state::DIRTY_BIT_BLEND_ENABLED);
+     SetDirtyBitIfStateDifferent(a.blendState.getColorMaskBits(), b.blendState.getColorMaskBits(),
+-                                bits, gl::state::DIRTY_BIT_BLEND_ENABLED);
++                                bits, gl::state::DIRTY_BIT_COLOR_MASK);
+     SetDirtyBitIfStateDifferent(a.blendState.getSrcColorBits(), b.blendState.getSrcColorBits(),
+                                 bits, gl::state::DIRTY_BIT_BLEND_FUNCS);
+     SetDirtyBitIfStateDifferent(a.blendState.getDstColorBits(), b.blendState.getDstColorBits(),
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL_unittest.cpp b/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL_unittest.cpp
+index 27ea7a3..54a0cd5 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL_unittest.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL_unittest.cpp
+@@ -4,19 +4,38 @@
+ // found in the LICENSE file.
+ //
+ 
++#include "gmock/gmock.h"
+ #include "gtest/gtest.h"
+ 
+ #include "common/unsafe_buffers.h"
+ #include "libANGLE/Caps.h"
++#include "libANGLE/Context.h"
++#include "libANGLE/Display.h"
++#include "libANGLE/Framebuffer.h"
++#include "libANGLE/renderer/gl/FramebufferGL.h"
+ #include "libANGLE/renderer/gl/FunctionsGL.h"
+ #include "libANGLE/renderer/gl/QueryGL.h"
+ #include "libANGLE/renderer/gl/StateManagerGL.h"
++#include "libGLESv2/global_state.h"
++#include "tests/angle_unittests_utils.h"
++#include "tests/test_utils/angle_test_instantiate.h"
+ 
+ namespace rx
+ {
+ namespace
+ {
+ 
++struct MockDriverState
++{
++    GLboolean blendEnabled             = GL_FALSE;
++    std::array<GLboolean, 4> colorMask = {GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE};
++    int enableBlendCallCount           = 0;
++    int disableBlendCallCount          = 0;
++    int colorMaskCallCount             = 0;
++};
++
++MockDriverState *gDriverState = nullptr;
++
+ void GL_APIENTRY StubBeginQuery(GLenum, GLuint) {}
+ void GL_APIENTRY StubEndQuery(GLenum) {}
+ GLenum GL_APIENTRY StubGetError()
+@@ -27,6 +46,7 @@
+ {
+     if (pname == GL_VIEWPORT || pname == GL_SCISSOR_BOX)
+     {
++        // SAFETY: Spec requires 4 GLints.
+         ANGLE_UNSAFE_BUFFERS({
+             data[0] = 0;
+             data[1] = 0;
+@@ -34,10 +54,77 @@
+             data[3] = 0;
+         });
+     }
++    else if (pname == GL_ACTIVE_TEXTURE)
++    {
++        *data = GL_TEXTURE0;
++    }
++    else if (pname == GL_COLOR_WRITEMASK && gDriverState != nullptr)
++    {
++        // SAFETY: Spec requires 4 GLints.
++        ANGLE_UNSAFE_BUFFERS({
++            data[0] = gDriverState->colorMask[0];
++            data[1] = gDriverState->colorMask[1];
++            data[2] = gDriverState->colorMask[2];
++            data[3] = gDriverState->colorMask[3];
++        });
++    }
+ }
++void GL_APIENTRY StubGetFloatv(GLenum, GLfloat *) {}
++void GL_APIENTRY StubGetBooleanv(GLenum, GLboolean *) {}
++GLboolean GL_APIENTRY StubIsEnabled(GLenum cap)
++{
++    if (cap == GL_BLEND && gDriverState != nullptr)
++    {
++        return gDriverState->blendEnabled;
++    }
++    return GL_FALSE;
++}
++void GL_APIENTRY StubEnable(GLenum cap)
++{
++    if (cap == GL_BLEND && gDriverState != nullptr)
++    {
++        gDriverState->enableBlendCallCount++;
++    }
++}
++void GL_APIENTRY StubDisable(GLenum cap)
++{
++    if (cap == GL_BLEND && gDriverState != nullptr)
++    {
++        gDriverState->disableBlendCallCount++;
++    }
++}
++void GL_APIENTRY StubColorMask(GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha)
++{
++    if (gDriverState != nullptr)
++    {
++        gDriverState->colorMaskCallCount++;
++    }
++}
++void GL_APIENTRY StubGenFramebuffers(GLsizei, GLuint *framebuffers)
++{
++    *framebuffers = 1;
++}
++void GL_APIENTRY StubBindFramebuffer(GLenum, GLuint) {}
++void GL_APIENTRY StubDeleteFramebuffers(GLsizei, const GLuint *) {}
++void GL_APIENTRY StubGenRenderbuffers(GLsizei, GLuint *renderbuffers)
++{
++    *renderbuffers = 1;
++}
++void GL_APIENTRY StubBindRenderbuffer(GLenum, GLuint) {}
++void GL_APIENTRY StubDeleteRenderbuffers(GLsizei, const GLuint *) {}
++void GL_APIENTRY StubRenderbufferStorage(GLenum, GLenum, GLsizei, GLsizei) {}
++void GL_APIENTRY StubFramebufferRenderbuffer(GLenum, GLenum, GLenum, GLuint) {}
++GLenum GL_APIENTRY StubCheckFramebufferStatus(GLenum)
++{
++    return GL_FRAMEBUFFER_COMPLETE;
++}
++void GL_APIENTRY StubActiveTexture(GLenum) {}
++void GL_APIENTRY StubBindVertexArray(GLuint) {}
++void GL_APIENTRY StubGetVertexAttribiv(GLuint, GLenum, GLint *) {}
++void GL_APIENTRY StubGetVertexAttribfv(GLuint, GLenum, GLfloat *) {}
++void GL_APIENTRY StubGetVertexAttribPointerv(GLuint, GLenum, void **) {}
+ 
+-// Minimal FunctionsGL that never calls into a real driver. Only the entry
+-// points touched by StateManagerGL::beginQuery/endQuery are populated.
++// Minimal FunctionsGL that never calls into a real driver.
+ class TestFunctionsGL : public FunctionsGL
+ {
+   public:
+@@ -47,10 +134,30 @@
+         version  = gl::Version(3, 0);
+         profile  = 0;
+ 
+-        beginQuery  = StubBeginQuery;
+-        endQuery    = StubEndQuery;
+-        getError    = StubGetError;
+-        getIntegerv = StubGetIntegerv;
++        beginQuery              = StubBeginQuery;
++        endQuery                = StubEndQuery;
++        getError                = StubGetError;
++        getIntegerv             = StubGetIntegerv;
++        getFloatv               = StubGetFloatv;
++        getBooleanv             = StubGetBooleanv;
++        isEnabled               = StubIsEnabled;
++        enable                  = StubEnable;
++        disable                 = StubDisable;
++        colorMask               = StubColorMask;
++        genFramebuffers         = StubGenFramebuffers;
++        bindFramebuffer         = StubBindFramebuffer;
++        deleteFramebuffers      = StubDeleteFramebuffers;
++        genRenderbuffers        = StubGenRenderbuffers;
++        bindRenderbuffer        = StubBindRenderbuffer;
++        deleteRenderbuffers     = StubDeleteRenderbuffers;
++        renderbufferStorage     = StubRenderbufferStorage;
++        framebufferRenderbuffer = StubFramebufferRenderbuffer;
++        checkFramebufferStatus  = StubCheckFramebufferStatus;
++        activeTexture           = StubActiveTexture;
++        bindVertexArray         = StubBindVertexArray;
++        getVertexAttribiv       = StubGetVertexAttribiv;
++        getVertexAttribfv       = StubGetVertexAttribfv;
++        getVertexAttribPointerv = StubGetVertexAttribPointerv;
+     }
+ 
+   private:
+@@ -123,11 +230,18 @@
+   protected:
+     StateManagerGLTest()
+         : mCaps(MakeMinimalCaps()), mStateManager(&mFunctions, mCaps, mExtensions, mFeatures)
+-    {}
++    {
++        gDriverState = &mDriverState;
++    }
++
++    ~StateManagerGLTest() override { gDriverState = nullptr; }
+ 
+     StateManagerGL &stateManager() { return mStateManager; }
++    MockDriverState &driverState() { return mDriverState; }
++    const TestFunctionsGL &functions() const { return mFunctions; }
+ 
+   private:
++    MockDriverState mDriverState;
+     TestFunctionsGL mFunctions;
+     gl::Caps mCaps;
+     gl::Extensions mExtensions;
+@@ -197,5 +311,139 @@
+     EXPECT_EQ(1, query.resumeCount());
+ }
+ 
++class TestFboFactory : public NullFactory
++{
++  public:
++    TestFboFactory(const FunctionsGL *functions, StateManagerGL *stateManager)
++        : mFunctions(functions), mStateManager(stateManager)
++    {}
++
++    FramebufferImpl *createFramebuffer(const gl::FramebufferState &data) override
++    {
++        return new FramebufferGL(data, 0, false, mFunctions, mStateManager);
++    }
++
++    MemoryObjectImpl *createMemoryObject() override { return nullptr; }
++
++  private:
++    const FunctionsGL *mFunctions = nullptr;
++    StateManagerGL *mStateManager = nullptr;
++};
++
++class ScopedTestContext
++{
++  public:
++    ScopedTestContext(const FunctionsGL *functions, StateManagerGL *stateManager)
++        : mFboFactory(functions, stateManager)
++    {
++        egl::AttributeMap displayAttribs;
++        displayAttribs.insert(EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_NULL_ANGLE);
++        mDisplay = egl::Display::GetDisplayFromNativeDisplay(EGL_PLATFORM_ANGLE_ANGLE,
++                                                             EGL_DEFAULT_DISPLAY, displayAttribs);
++        if (!mDisplay)
++        {
++            return;
++        }
++        egl::ScopedDisplayMutexLock lock(*mDisplay);
++        EXPECT_EQ(EGL_SUCCESS, mDisplay->initialize().getCode());
++
++        egl::AttributeMap contextAttribs;
++        contextAttribs.insert(EGL_CONTEXT_CLIENT_VERSION, 3);
++        EXPECT_EQ(EGL_SUCCESS,
++                  mDisplay->createContext(nullptr, nullptr, contextAttribs, &mContext).getCode());
++        EXPECT_NE(nullptr, mContext);
++
++        mDefaultFbo = new gl::Framebuffer(mContext, &mFboFactory);
++        const_cast<gl::State &>(mContext->getState()).setDrawFramebufferBinding(mDefaultFbo);
++    }
++
++    ~ScopedTestContext()
++    {
++        if (!mDisplay)
++        {
++            return;
++        }
++        egl::ScopedDisplayMutexLock lock(*mDisplay);
++        const_cast<gl::State &>(mContext->getState()).setDrawFramebufferBinding(nullptr);
++        mDefaultFbo->onDestroy(mContext);
++        delete mDefaultFbo;
++        EXPECT_EQ(EGL_SUCCESS,
++                  mDisplay->destroyContext(egl::GetCurrentThread(), mContext).getCode());
++        EXPECT_EQ(EGL_SUCCESS,
++                  mDisplay->terminate(egl::GetCurrentThread(), egl::Display::TerminateReason::Api)
++                      .getCode());
++    }
++
++    gl::Context *context() const { return mContext; }
++
++  private:
++    TestFboFactory mFboFactory;
++    egl::Display *mDisplay       = nullptr;
++    gl::Context *mContext        = nullptr;
++    gl::Framebuffer *mDefaultFbo = nullptr;
++};
++
++// Verify that when the native driver has blend enabled while StateManagerGL
++// tracks blend as disabled, syncFromNativeContext sets DIRTY_BIT_BLEND_ENABLED
++// (and not DIRTY_BIT_COLOR_MASK) so a subsequent syncState re-applies blend
++// enable state without spuriously touching color mask.
++TEST_F(StateManagerGLTest, SyncFromNativeContextBlendEnabled)
++{
++    ScopedTestContext testContext(&functions(), &stateManager());
++    ANGLE_SKIP_TEST_IF(!testContext.context());  // Skip if GL not available.
++    gl::Context *context = testContext.context();
++
++    // Native driver has GL_BLEND enabled while frontend context has blend disabled.
++    driverState().blendEnabled = GL_TRUE;
++
++    std::unique_ptr<ContextStateGL> nativeState = stateManager().createContextStateGL();
++    EXPECT_EQ(angle::Result::Continue,
++              stateManager().syncFromNativeContext(context, nativeState.get()));
++
++    driverState().enableBlendCallCount  = 0;
++    driverState().disableBlendCallCount = 0;
++    driverState().colorMaskCallCount    = 0;
++
++    EXPECT_EQ(
++        angle::Result::Continue,
++        stateManager().syncState(context, gl::state::DirtyBits(), gl::state::DirtyBits().set(),
++                                 gl::state::ExtendedDirtyBits(), gl::state::ExtendedDirtyBits()));
++
++    EXPECT_EQ(1, driverState().disableBlendCallCount);
++    EXPECT_EQ(0, driverState().enableBlendCallCount);
++    EXPECT_EQ(0, driverState().colorMaskCallCount);
++}
++
++// Verify that when the native driver has a different color mask than
++// StateManagerGL, syncFromNativeContext sets DIRTY_BIT_COLOR_MASK (and not
++// DIRTY_BIT_BLEND_ENABLED) so a subsequent syncState re-applies color mask
++// without spuriously touching blend enable state.
++TEST_F(StateManagerGLTest, SyncFromNativeContextColorMask)
++{
++    ScopedTestContext testContext(&functions(), &stateManager());
++    ANGLE_SKIP_TEST_IF(!testContext.context());  // Skip if GL not available.
++    gl::Context *context = testContext.context();
++
++    // Native driver has red write disabled while frontend context has RGBA all enabled.
++    driverState().colorMask = {GL_FALSE, GL_TRUE, GL_TRUE, GL_TRUE};
++
++    std::unique_ptr<ContextStateGL> nativeState = stateManager().createContextStateGL();
++    EXPECT_EQ(angle::Result::Continue,
++              stateManager().syncFromNativeContext(context, nativeState.get()));
++
++    driverState().enableBlendCallCount  = 0;
++    driverState().disableBlendCallCount = 0;
++    driverState().colorMaskCallCount    = 0;
++
++    EXPECT_EQ(
++        angle::Result::Continue,
++        stateManager().syncState(context, gl::state::DirtyBits(), gl::state::DirtyBits().set(),
++                                 gl::state::ExtendedDirtyBits(), gl::state::ExtendedDirtyBits()));
++
++    EXPECT_EQ(1, driverState().colorMaskCallCount);
++    EXPECT_EQ(0, driverState().enableBlendCallCount);
++    EXPECT_EQ(0, driverState().disableBlendCallCount);
++}
++
+ }  // namespace
+ }  // namespace rx
 diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/vk_renderer.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/vk_renderer.cpp
 index dd2a0f1..dca0f29 100644
 --- a/third_party/angle/src/libANGLE/renderer/vulkan/vk_renderer.cpp
