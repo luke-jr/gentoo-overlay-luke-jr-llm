@@ -1,8 +1,8 @@
 Chromium 158.0.8127.24 + the later changes of its release branch, up to
-da934201f4f2320a53c412bfd6697c2c8f91e492 (refs/branch-heads/8127@{#1118}), for the
+27b8fb62a761ec8965dee18df9f7b023323c26a6 (refs/branch-heads/8127@{#1132}), for the
 158.0.8127.24 tree that chromium-158.0.8127.18-to-158.0.8127.24.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.24..da934201f4f2320a53c412bfd6697c2c8f91e492
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.24..27b8fb62a761ec8965dee18df9f7b023323c26a6
 (no dependency's DEPS revision changed), as served by Gitiles, with
 scripts/chromium-delta --branch-fixes: left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -11,10 +11,45 @@ chrome/VERSION, DEPS and the stamp files stay at 158.0.8127.24.
 
 Commits contributing to it (oldest first):
   da934201f4f2 [m158][blink] Store ScriptRunIterator script sets inline on the
+  84d4b40b6f28 [M158] [OmniboxEverywhere] Use kTranslucent widget opacity for
+  27b8fb62a761 [M158] Use std::ranges::fill and base::span in PartitionRoot
 
 Checked: applies to the 158.0.8127.24 tree; every patched file is
-byte-identical to its version at the commit above.
+byte-identical to its version at the last commit above.
 
+diff --git a/base/allocator/partition_allocator/src/partition_alloc/partition_root.cc b/base/allocator/partition_allocator/src/partition_alloc/partition_root.cc
+index 1b5cdd9c..3fd1caa 100644
+--- a/base/allocator/partition_allocator/src/partition_alloc/partition_root.cc
++++ b/base/allocator/partition_allocator/src/partition_alloc/partition_root.cc
+@@ -23,6 +23,7 @@
+ #include "partition_alloc/partition_alloc_base/bits.h"
+ #include "partition_alloc/partition_alloc_base/compiler_specific.h"
+ #include "partition_alloc/partition_alloc_base/component_export.h"
++#include "partition_alloc/partition_alloc_base/containers/span.h"
+ #include "partition_alloc/partition_alloc_base/thread_annotations.h"
+ #include "partition_alloc/partition_alloc_check.h"
+ #include "partition_alloc/partition_alloc_config.h"
+@@ -420,7 +421,7 @@
+   // DiscardVirtualMemory makes the contents of discarded memory undefined.
+   size_t last_slot = static_cast<size_t>(-1);
+ #endif
+-  std::fill_n(slot_usage.begin(), num_provisioned_slots, 1);
++  std::ranges::fill(base::span(slot_usage).first(num_provisioned_slots), 1);
+   SlotSpanStart slot_span_start =
+       internal::SlotSpanMetadata::ToSlotSpanStart(slot_span, root);
+   // First, walk the freelist for this slot span and make a bitmap of which
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_region_select_overlay.cc b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_region_select_overlay.cc
+index f5fef131..600e4c1 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_region_select_overlay.cc
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_region_select_overlay.cc
+@@ -971,6 +971,7 @@
+       views::Widget::InitParams::CLIENT_OWNS_WIDGET,
+       views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
+   params.name = "OmniboxEverywhereRegionSelectOverlay";
++  params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
+   params.shadow_type = views::Widget::InitParams::ShadowType::kNone;
+ #if BUILDFLAG(IS_MAC)
+   // Required to support Widget::SetActivationIndependence().
 diff --git a/third_party/blink/renderer/platform/fonts/script_run_iterator.cc b/third_party/blink/renderer/platform/fonts/script_run_iterator.cc
 index e203c8b..9c62a639 100644
 --- a/third_party/blink/renderer/platform/fonts/script_run_iterator.cc
