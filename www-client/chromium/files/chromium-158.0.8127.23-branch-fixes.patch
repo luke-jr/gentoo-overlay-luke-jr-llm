@@ -1,17 +1,20 @@
 Chromium 158.0.8127.23 + the later changes of its release branch, up to
-2d22e0a403f7cdbbe3387e6ef7b3c84ddd7eb864 (refs/branch-heads/8127@{#1036}), for the
+dde82c0384769a0baaf879f45642dec0b4bc8933 (refs/branch-heads/8127@{#1081}), for the
 158.0.8127.23 tree that chromium-158.0.8127.18-to-158.0.8127.23.patch makes.
 
-Generated from the upstream diffs chromium/src refs/tags/158.0.8127.23..2d22e0a403f7cdbbe3387e6ef7b3c84ddd7eb864
-and the dependencies whose DEPS revision changed (V8, ICU, Dawn), as served by Gitiles,
-with scripts/chromium-delta --branch-fixes: left out are files not in the
+Generated from the upstream diffs chromium/src refs/tags/158.0.8127.23..dde82c0384769a0baaf879f45642dec0b4bc8933
+and the dependencies whose DEPS revision changed (V8, ICU, Dawn, Skia, ANGLE),
+as served by Gitiles, with scripts/chromium-delta --branch-fixes: left out are files not in the
 release tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
 translations, PGO/orderfile pointers, submodule pointer updates.
 chrome/VERSION, DEPS and the stamp files stay at 158.0.8127.23.
 
 Commits contributing to it (oldest first; "Roll commits from side projects"
-are the V8 update, with "[maglev] Do not unwrap lossy conversions in KNA", and
-the Dawn one, with "[vulkan] Reset the recording context in Queue::DestroyImpl";
+are the V8 updates, with "[maglev] Do not unwrap lossy conversions in KNA",
+"[maglev] Fix bailouts messing up non-escaping use counting" and "[ic] Fix the
+megamorphic cache variant of the DefineNamedOwn-inside-class bug", Skia's, with
+"Fix heap-buffer-overflow in RunBasedAdditiveBlitter and AAA convex walker",
+ANGLE's (an Intel/Mesa Vulkan workaround), and the Dawn one, with "[vulkan] Reset the recording context in Queue::DestroyImpl";
 the ICU roll has two security fixes: usearch index overflow, number formatting):
   5981b113f92f [M158] [Omnibox] Don't open AskG CoBrowse panel without tab sharin
   0ed1f4f49387 [M158] Attribute zero-state opens to correct pin buttons
@@ -32,6 +35,33 @@ the ICU roll has two security fixes: usearch index overflow, number formatting):
   28262e2182de Roll commits from side projects in M158
   3aef340744ce [M158] [Passwords] Fix auto sign-in toast menu lifetime
   2d22e0a403f7 [M158] Revert CHECK to DCHECK for redirect URL in NavigationURLLoa
+  ceb96f4966e9 [M158] Revert CHECK macro in BrowsingInstance::RegisterSiteInstanc
+  3f76d46efba1 [M158] Revert CHECK back to DCHECK in PostErrorCallback
+  991c3eab5f78 [M158] Revert CHECK_GT for requested frame rate to DCHECK_GT in
+  a024c15fda2b [M158] [Extensions] Disable strict debugger policy restrictions by
+  41008a0ddc4e Pass -E to diff3 in Cronet Copybara imports
+  c29d37065f2f [M158] [iOS][Assistant] Keep app content filling scene under Assis
+  d89473131aad Roll commits from side projects in M158
+  21bd969b4a9a [M158] Prevent SiteDataClearer UAF during BrowserContext shutdown
+  191e7fb29210 Roll commits from side projects in M158
+  a9c1251a7d2b [M158] [ContextualTasks] Show protected page error scrim
+  2ada0a0343ad [M158] [contextual-tasks] Add Kombucha tests for Omnibox tab conte
+  988aab282884 [M158] [a11y-android] Observe Settings.Secure for touch exploratio
+  ae246ce52ffd [M158] [ContextualTasks] Gate tab picker on eligible tabs
+  c63f3d43a143 [M158] Reland "[omnibox] Emulate page focus in OmniboxPopupFullTes
+  f18725a879e8 [M158] Dynamically update contextual tasks side panel pin button e
+  addc786b8539 [M158] [ContextualTasks] Remove iframe search Mojo
+  e8138300df86 Roll commits from side projects in M158
+  d8073382d397 [M158] [test] Don't hang ScopedPageFocusOverride after a forced de
+  3c95444de3c4 [M158] [Navigation] Skip BrowsingInstance swap for kCurrentProcess
+  014b8d742cb2 [M158] Avoid iterating mutated trigger maps during snapshot update
+  51707c83e225 Roll commits from side projects in M158
+  7a4dba53c692 [M158] [ChroMenu Glowup] Skip section headers in keyboard navigati
+  d38cb6994bc5 [M158] [dbsc] Gate the spare attestation key pool on SSO
+  195fc9346762 [M158][glic] Merge invocation error recovery fixes behind feature 
+  97417afed5f2 [M158] [iOS] Add loading pills when waiting for zero state suggest
+  f7cf9fa57471 Roll commits from side projects in M158
+  dde82c038476 [M158] Swap pending snap sets before iterating in ExecutePendingSn
 
 Checked: applies to the 158.0.8127.23 tree; every patched file is
 byte-identical to its version at the commits above.
@@ -52,6 +82,235 @@ index 8be77fd..6f696e5 100644
      return false;
    }
  
+diff --git a/chrome/browser/contextual_tasks/active_task_context_provider_impl.cc b/chrome/browser/contextual_tasks/active_task_context_provider_impl.cc
+index 0c82814..6473bb08 100644
+--- a/chrome/browser/contextual_tasks/active_task_context_provider_impl.cc
++++ b/chrome/browser/contextual_tasks/active_task_context_provider_impl.cc
+@@ -6,6 +6,7 @@
+ 
+ #include <algorithm>
+ #include <map>
++#include <set>
+ 
+ #include "base/feature_list.h"
+ #include "base/memory/raw_ref.h"
+@@ -338,6 +339,7 @@
+                                                tabs::TabInterface* tab,
+                                                int index) {
+   ObserveTab(tab);
++  UpdateTabPickerVisibility();
+ }
+ 
+ void ActiveTaskContextProviderImpl::OnActiveTabChanged(
+@@ -371,6 +373,7 @@
+   }
+ 
+   RefreshContext();
++  UpdateTabPickerVisibility();
+ }
+ 
+ void ActiveTaskContextProviderImpl::OnWebContentsReplaced(
+@@ -387,6 +390,7 @@
+   } else {
+     ObserveTab(tab);
+   }
++  UpdateTabPickerVisibility();
+ }
+ 
+ void ActiveTaskContextProviderImpl::OnTabListDestroyed(
+@@ -438,6 +442,7 @@
+   }
+ 
+   RefreshContext();
++  UpdateTabPickerVisibility();
+ }
+ 
+ bool ActiveTaskContextProviderImpl::NotifyTabClosedOrNavigated(
+@@ -513,6 +518,36 @@
+   return any_removed;
+ }
+ 
++void ActiveTaskContextProviderImpl::UpdateTabPickerVisibility() {
++  std::set<content::WebContents*> notified_web_contents;
++  auto update_web_contents = [&](content::WebContents* wc) {
++    if (!wc || !notified_web_contents.insert(wc).second) {
++      return;
++    }
++    if (auto* user_data =
++            ContextualTasksWebContentsUserData::FromWebContents(wc)) {
++      user_data->UpdateTabPickerVisibility();
++    }
++  };
++
++  if (contextual_tasks_panel_controller_) {
++    for (content::WebContents* panel_wc :
++         contextual_tasks_panel_controller_->GetPanelWebContentsList()) {
++      update_web_contents(panel_wc);
++    }
++    update_web_contents(
++        contextual_tasks_panel_controller_->GetActiveWebContents());
++  }
++
++  if (auto* tab_list = TabListInterface::From(browser_window_)) {
++    for (int i = 0; i < tab_list->GetTabCount(); ++i) {
++      if (tabs::TabInterface* open_tab = tab_list->GetTab(i)) {
++        update_web_contents(open_tab->GetContents());
++      }
++    }
++  }
++}
++
+ void ActiveTaskContextProviderImpl::PrimaryPageChanged(content::Page& page) {
+   GURL url = page.GetMainDocument().GetLastCommittedURL();
+   bool is_aim_page = (url.scheme() == content::kChromeUIScheme &&
+diff --git a/chrome/browser/contextual_tasks/active_task_context_provider_impl.h b/chrome/browser/contextual_tasks/active_task_context_provider_impl.h
+index eb23d14..a20326b 100644
+--- a/chrome/browser/contextual_tasks/active_task_context_provider_impl.h
++++ b/chrome/browser/contextual_tasks/active_task_context_provider_impl.h
+@@ -97,6 +97,7 @@
+   bool NotifyTabClosedOrNavigated(SessionID tab_session_id,
+                                   std::optional<GURL> current_url,
+                                   std::optional<std::string> current_title);
++  void UpdateTabPickerVisibility();
+ 
+   // Callback for when GetContextForTask() completes.
+   void OnGetContextForTask(int callback_id,
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks.mojom b/chrome/browser/contextual_tasks/contextual_tasks.mojom
+index c459311..af01d7c 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks.mojom
++++ b/chrome/browser/contextual_tasks/contextual_tasks.mojom
+@@ -370,29 +370,17 @@
+ // Implemented in HTML/TS and called from C++
+ // (ContextualTasksExtensionHandler or
+ // ContextualTasksExtensionServiceWorkerHandler) to control the extension UI and
+-// forward messages from the browser to the webview or connected search page.
++// forward messages from the browser to the connected search page.
+ interface ExtensionPage {
+-  // Sends a message from the browser to the extension to be forwarded to GWS.
+-  // Called by C++ to deliver data (e.g. from the AIM server) to the guest.
+-  //
+-  // Inputs:
+-  // - `message`: The raw bytes of the serialized protobuf message.
+-  // TODO(crbug.com/462788705): Use `ProtoWrapper` instead of `array<uint8>`
+-  PostAimMessage(array<uint8> message);
+-
+   // Sends a search communication message (e.g.
+   // lens.chrome.ClientToSearchMessage) from the browser to the extension to be
+   // forwarded to the search page. `document_id` is the target frame's
+   // serialized `ExtensionApiFrameIdMap::DocumentId` when routing through the
+-  // extension Service Worker, or null when routing to a document-bound
+-  // extension frame.
++  // extension Service Worker, or null in unit/browser tests that do not target
++  // a specific frame.
+   PostSearchMessage(
+       mojo_base.mojom.ProtoWrapper message, string? document_id);
+ 
+-  // Signals to the extension that the handshake with GWS is complete.
+-  // Called by C++ after the browser processes the handshake response.
+-  OnHandshakeComplete();
+-
+   // Called by the browser process (C++) when the Lens overlay is shown/hidden.
+   OnLensOverlayStateChanged(bool is_showing);
+ 
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
+index 7667c3f..d4e50799 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
+@@ -129,28 +129,6 @@
+   }
+ }
+ 
+-// static
+-ContextualTasksExtensionHandler*
+-ContextualTasksExtensionHandler::FromWebContents(
+-    content::WebContents* web_contents) {
+-  if (!web_contents) {
+-    return nullptr;
+-  }
+-  ContextualTasksExtensionHandler* target_handler = nullptr;
+-  web_contents->ForEachRenderFrameHostWithAction(
+-      [&target_handler](content::RenderFrameHost* rfh) {
+-        if (auto* handler =
+-                ContextualTasksExtensionHandler::GetForCurrentDocument(rfh)) {
+-          if (handler->contextual_tasks_page_.is_bound()) {
+-            target_handler = handler;
+-            return content::RenderFrameHost::FrameIterationAction::kStop;
+-          }
+-        }
+-        return content::RenderFrameHost::FrameIterationAction::kContinue;
+-      });
+-  return target_handler;
+-}
+-
+ contextual_tasks::ContextualTasksWebContentsUserData*
+ ContextualTasksExtensionHandler::GetOrCreateWebContentsUserData() const {
+   content::WebContents* web_contents =
+@@ -727,16 +705,6 @@
+ }
+ void ContextualTasksExtensionHandler::OnThumbnailRemoved() {}
+ 
+-void ContextualTasksExtensionHandler::PostAimMessage(
+-    const lens::ClientToAimMessage& message) {
+-  if (contextual_tasks_page_.is_bound()) {
+-    const size_t size = message.ByteSizeLong();
+-    std::vector<uint8_t> serialized_message(size);
+-    message.SerializeToArray(serialized_message.data(), size);
+-    contextual_tasks_page_->PostAimMessage(std::move(serialized_message));
+-  }
+-}
+-
+ void ContextualTasksExtensionHandler::OnLensCropUpdated(const GURL& data_uri) {
+   if (contextual_tasks_page_.is_bound()) {
+     contextual_tasks_page_->OnLensCropUpdated(data_uri);
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
+index 309ea0f..99613ed 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
+@@ -15,7 +15,6 @@
+ #include "base/time/time.h"
+ #include "base/uuid.h"
+ #include "build/build_config.h"
+-#include "chrome/browser/contextual_tasks/aim_message_poster.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks.mojom.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_types.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_ui_service.h"
+@@ -50,10 +49,6 @@
+ struct TabContextState;
+ }  // namespace contextual_search
+ 
+-namespace content {
+-class WebContents;
+-}  // namespace content
+-
+ namespace contextual_tasks {
+ class ContextualTasksWebContentsUserData;
+ }  // namespace contextual_tasks
+@@ -71,25 +66,16 @@
+       public composebox::mojom::PageHandlerFactory,
+       public composebox::mojom::PageHandler,
+       public searchbox::mojom::PageHandler,
+-      public contextual_tasks::AimMessagePoster,
+       public PermissionPromptObserver::Observer {
+  public:
+   ~ContextualTasksExtensionHandler() override;
+ 
+-  // Returns the bound ContextualTasksExtensionHandler associated with the
+-  // extension document in `web_contents`, or nullptr if not found or unbound.
+-  static ContextualTasksExtensionHandler* FromWebContents(
+-      content::WebContents* web_contents);
+-
+   void OnLensOverlayStateChanged(bool is_showing);
+ 
+   // PermissionPromptObserver::Observer:
+   void OnPermissionPromptChanged(bool is_showing,
+                                  const gfx::Size& prompt_size) override;
+ 
+-  // contextual_tasks::AimMessagePoster:
+-  void PostAimMessage(const lens::ClientToAimMessage& message) override;
+-
+   void BindContextualTasksFactory(
+       mojo::PendingReceiver<
+           contextual_tasks::mojom::ExtensionPageHandlerFactory> receiver);
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ghost_loader_view.cc b/chrome/browser/contextual_tasks/contextual_tasks_ghost_loader_view.cc
 index 52d6b72..77734e6c 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_ghost_loader_view.cc
@@ -236,10 +495,54 @@ index 7213f83..f55981c8 100644
  };
  
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
-index 38fa93c..8814ab8 100644
+index 38fa93c..5a6c2184 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
 +++ b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
-@@ -861,15 +861,17 @@
+@@ -28,6 +28,7 @@
+ #include "base/strings/string_number_conversions.h"
+ #include "base/strings/string_util.h"
+ #include "base/strings/utf_string_conversions.h"
++#include "base/types/optional_util.h"
+ #include "chrome/browser/content_settings/page_specific_content_settings_delegate.h"
+ #include "chrome/browser/contextual_search/contextual_search_service_factory.h"
+ #include "chrome/browser/contextual_search/contextual_search_web_contents_helper.h"
+@@ -607,6 +608,8 @@
+       TabListInterface::From(browser_window_)->GetActiveTab();
+   CHECK(active_tab_interface);
+   std::optional<ContextualTask> existing_task = GetCurrentTask();
++  const bool is_pending_error_page =
++      IsPendingErrorPageTask(base::OptionalToPtr(existing_task));
+   const bool is_new_ui_service_task =
+       existing_task.has_value() &&
+       !task_id_to_web_contents_cache_.contains(existing_task->GetTaskId()) &&
+@@ -615,7 +618,7 @@
+            ->GetCreationUrlForTask(existing_task->GetTaskId())
+            .has_value() ||
+        GetUiService()->IsTaskWaitingForUrl(existing_task->GetTaskId()) ||
+-       GetUiService()->IsPendingErrorPage(existing_task->GetTaskId()));
++       is_pending_error_page);
+   const bool is_continuing_existing_thread =
+       contextual_tasks::IsContextualTasksPinningV2Enabled() &&
+       entry_point == omnibox::ChromeAimEntryPoint::
+@@ -698,6 +701,9 @@
+         ContextualTasksPanelHost::AnimationStyle::kTransitionFromTab;
+   }
+ 
++  if (IsContextualTasksSidePanelRearchitectureEnabled()) {
++    SetErrorPageVisible(is_pending_error_page);
++  }
+   contextual_tasks_panel_host_->Show(animation_style);
+ 
+ #if !BUILDFLAG(IS_ANDROID)
+@@ -760,6 +766,7 @@
+     }
+   }
+   UpdateOpenState(/*is_open=*/false);
++  SetErrorPageVisible(false);
+   contextual_tasks_panel_host_->Close(
+       ContextualTasksPanelHost::AnimationStyle::kStandard);
+   MaybeRemoveImplicitTabContext();
+@@ -861,15 +868,17 @@
        contextual_tasks::GetEffectivePinState(browser_window_->GetProfile());
  
    base::AutoReset<bool> opening_in_zero_state(&is_opening_in_zero_state_, true);
@@ -261,7 +564,72 @@ index 38fa93c..8814ab8 100644
  }
  
  void ContextualTasksSidePanelCoordinator::OpenUrlInNewTab(const GURL& url) {
-@@ -2983,6 +2985,21 @@
+@@ -927,6 +936,7 @@
+     // duration metrics for the new thread's `WebContents`.
+     it->second->open_time_ticks = base::TimeTicks();
+   }
++  SetErrorPageVisible(false);
+   UpdateWebContentsForActiveTab();
+   UpdateContextualTaskUI();
+   NotifyActiveTaskContextProvider();
+@@ -1309,6 +1319,7 @@
+     it->second->link_click_count = 0;
+   }
+   UpdateOpenState(/*is_open=*/true);
++  SetErrorPageVisible(false);
+   UpdateWebContentsForActiveTab();
+   UpdateContextualTaskUI();
+ }
+@@ -1349,6 +1360,10 @@
+ 
+ void ContextualTasksSidePanelCoordinator::PrimaryPageChanged(
+     content::Page& page) {
++  if (GetIsProtectedPageErrorEnabled()) {
++    SetErrorPageVisible(false);
++  }
++
+   // Hide panel if contextual tasks pages is loaded on tab.
+   GURL url = page.GetMainDocument().GetLastCommittedURL();
+   if (auto* ui_service = GetUiService();
+@@ -1863,6 +1878,18 @@
+           active_tab_interface->GetContents()));
+ }
+ 
++bool ContextualTasksSidePanelCoordinator::IsPendingErrorPageTask(
++    const ContextualTask* task) const {
++  if (!task || task_id_to_web_contents_cache_.contains(task->GetTaskId())) {
++    return false;
++  }
++  ContextualTasksUiService* ui_service = GetUiService();
++  return ui_service &&
++         !ui_service->GetCreationUrlForTask(task->GetTaskId()).has_value() &&
++         !ui_service->IsTaskWaitingForUrl(task->GetTaskId()) &&
++         ui_service->IsPendingErrorPage(task->GetTaskId());
++}
++
+ void ContextualTasksSidePanelCoordinator::UpdatePanelVisibility() {
+   bool should_be_open = ShouldBeOpen();
+ 
+@@ -1977,6 +2004,10 @@
+ void ContextualTasksSidePanelCoordinator::OnActiveTabChanged(
+     TabListInterface& tab_list,
+     tabs::TabInterface* tab) {
++  if (GetIsProtectedPageErrorEnabled()) {
++    SetErrorPageVisible(false);
++  }
++
+   // crbug.com/477278769: Do not open panel if glic panel is already open on tab
+   // changed.
+   if (contextual_tasks_panel_host_->IsPanelSuppressed()) {
+@@ -2142,6 +2173,7 @@
+ }
+ 
+ void ContextualTasksSidePanelCoordinator::Hide() {
++  SetErrorPageVisible(false);
+   contextual_tasks_panel_host_->Close(
+       ContextualTasksPanelHost::AnimationStyle::kNoAnimation);
+   MaybeRemoveImplicitTabContext();
+@@ -2983,6 +3015,21 @@
    }
  }
  
@@ -284,7 +652,7 @@ index 38fa93c..8814ab8 100644
  ContextualTasksSidePanelCoordinator::GetAutoSuggestedTabHandle() {
    auto* web_contents = GetActiveWebContents();
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h
-index 92a39149..7ecc187 100644
+index 92a39149..026783f 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h
 +++ b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h
 @@ -207,6 +207,8 @@
@@ -296,6 +664,254 @@ index 92a39149..7ecc187 100644
    std::optional<tabs::TabHandle> GetAutoSuggestedTabHandle() override;
    void OnTaskChanged(content::WebContents* web_contents,
                       base::Uuid task_id) override;
+@@ -318,6 +320,10 @@
+   // mutating pending task state.
+   std::optional<ContextualTask> GetCurrentTask() const;
+ 
++  // Returns whether `task` is a new UI service task waiting to display the
++  // protected page error scrim.
++  bool IsPendingErrorPageTask(const ContextualTask* task) const;
++
+   // Clean up unused WebContents.
+   void CleanUpUnusedWebContents() override;
+ 
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_toolbar.mojom b/chrome/browser/contextual_tasks/contextual_tasks_toolbar.mojom
+index 5923638..659502ab 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_toolbar.mojom
++++ b/chrome/browser/contextual_tasks/contextual_tasks_toolbar.mojom
+@@ -126,6 +126,12 @@
+   // changes.
+   OnSidePanelPinStateChanged(bool is_pinned);
+ 
++  // Called by the browser process (C++) when the user's eligibility to pin
++  // the side panel changes (e.g. the account becomes ineligible while the side
++  // panel is open). The UI hides the pin/unpin menu item when `is_eligible` is
++  // false.
++  OnPinButtonEligibilityChanged(bool is_eligible);
++
+   // Called by the browser process (C++) to notify the UI when the AI page
+   // status changes.
+   OnAiPageStatusChanged(bool is_ai_page);
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui.cc
+index aff9d61..138a7493 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui.cc
+@@ -596,9 +596,12 @@
+       contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
+           profile);
+   dict.Set("enablePinButton", is_pinning_eligible);
++  // Intentionally not gated on pinning eligibility: eligibility can change
++  // while the page is open and is pushed separately via
++  // `OnPinButtonEligibilityChanged()`, which the WebUI already combines with
++  // this flag.
+   dict.Set("enablePinButtonOnSrp",
+-           is_pinning_eligible &&
+-               contextual_tasks::IsContextualTasksPinButtonOnSrpEnabled());
++           contextual_tasks::IsContextualTasksPinButtonOnSrpEnabled());
+   dict.Set("isSidePanelPinned",
+            is_pinning_eligible &&
+                contextual_tasks::GetEffectivePinState(profile));
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc
+index 25e94f1..756d6b6 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc
+@@ -14,6 +14,7 @@
+ #include <vector>
+ 
+ #include "base/functional/bind.h"
++#include "base/functional/callback_helpers.h"
+ #include "base/memory/raw_ref.h"
+ #include "base/memory/ref_counted_memory.h"
+ #include "base/memory/weak_ptr.h"
+@@ -24,6 +25,7 @@
+ #include "chrome/browser/autocomplete/aim_eligibility_service_factory.h"
+ #include "chrome/browser/contextual_search/contextual_search_web_contents_helper.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_context_service_factory.h"
++#include "chrome/browser/contextual_tasks/contextual_tasks_eligibility_manager.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_internals_page_handler.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_permission_controller.h"
+@@ -324,12 +326,33 @@
+   is_contextual_tasks_eligible_on_init_ =
+       contextual_tasks::EntryPointEligibilityManager::IsEligible(profile);
+ #if !BUILDFLAG(IS_ANDROID)
+-  if (contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
+-          profile)) {
++  is_pinning_eligible_ =
++      contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
++          profile);
++  if (is_pinning_eligible_) {
+     if (auto* model = PinnedToolbarActionsModel::Get(profile)) {
+       pinned_toolbar_actions_model_observation_.Observe(model);
+     }
+   }
++  // Pinning eligibility depends on both Contextual Tasks eligibility and AIM
++  // (Fusebox) eligibility. Either can change while the side panel is open, so
++  // listen to both and push updates to the WebUI.
++  if (auto* eligibility_manager =
++          contextual_tasks::ContextualTasksEligibilityManager::GetForProfile(
++              profile)) {
++    eligibility_subscription_ =
++        eligibility_manager->RegisterEligibilityChangedCallback(
++            base::IgnoreArgs<bool>(base::BindRepeating(
++                &ContextualTasksUIBase::OnPinningEligibilityMaybeChanged,
++                base::Unretained(this))));
++  }
++  if (auto* aim_service =
++          AimEligibilityServiceFactory::GetForProfile(profile)) {
++    aim_eligibility_subscription_ =
++        aim_service->RegisterEligibilityChangedCallback(base::BindRepeating(
++            &ContextualTasksUIBase::OnPinningEligibilityMaybeChanged,
++            base::Unretained(this)));
++  }
+ #endif
+ 
+   std::vector<ui::ElementIdentifier> tracked_element_ids = {
+@@ -521,9 +544,12 @@
+       contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
+           profile);
+   dict.Set("enablePinButton", is_pinning_eligible);
++  // Intentionally not gated on pinning eligibility: eligibility can change
++  // while the page is open and is pushed separately via
++  // `OnPinButtonEligibilityChanged()`, which the WebUI already combines with
++  // this flag.
+   dict.Set("enablePinButtonOnSrp",
+-           is_pinning_eligible &&
+-               contextual_tasks::IsContextualTasksPinButtonOnSrpEnabled());
++           contextual_tasks::IsContextualTasksPinButtonOnSrpEnabled());
+   dict.Set(
+       "isSidePanelPinned",
+       is_pinning_eligible && contextual_tasks::GetEffectivePinState(profile));
+@@ -595,8 +621,13 @@
+   toolbar_page_handler_receiver_.Bind(std::move(page_handler));
+ #if !BUILDFLAG(IS_ANDROID)
+   Profile* profile = GetProfile();
+-  if (contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
+-          profile)) {
++  is_pinning_eligible_ =
++      contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
++          profile);
++  if (auto* toolbar_page = GetToolbarPageRemote()) {
++    toolbar_page->OnPinButtonEligibilityChanged(is_pinning_eligible_);
++  }
++  if (is_pinning_eligible_) {
+     if (auto* model = PinnedToolbarActionsModel::Get(profile)) {
+       if (!pinned_toolbar_actions_model_observation_.IsObserving()) {
+         pinned_toolbar_actions_model_observation_.Observe(model);
+@@ -768,6 +799,39 @@
+     toolbar_page->OnSidePanelPinStateChanged(effective_pin_state);
+   }
+ }
++
++void ContextualTasksUIBase::OnPinningEligibilityMaybeChanged() {
++  Profile* profile = GetProfile();
++  const bool is_pinning_eligible =
++      contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
++          profile);
++  if (is_pinning_eligible == is_pinning_eligible_) {
++    return;
++  }
++  is_pinning_eligible_ = is_pinning_eligible;
++
++  if (is_pinning_eligible_) {
++    // The user just became eligible: start tracking the pinned state so the
++    // pin/unpin label stays accurate.
++    if (auto* model = PinnedToolbarActionsModel::Get(profile)) {
++      if (!pinned_toolbar_actions_model_observation_.IsObserving()) {
++        pinned_toolbar_actions_model_observation_.Observe(model);
++      }
++    }
++  } else {
++    // No longer eligible: the pin item is hidden, so stop tracking the model.
++    pinned_toolbar_actions_model_observation_.Reset();
++  }
++
++  if (auto* toolbar_page = GetToolbarPageRemote()) {
++    toolbar_page->OnPinButtonEligibilityChanged(is_pinning_eligible_);
++    // Keep the pin state in sync too; it is reported as unpinned when the
++    // user is ineligible, matching the load-time `isSidePanelPinned` value.
++    toolbar_page->OnSidePanelPinStateChanged(
++        is_pinning_eligible_ &&
++        contextual_tasks::GetEffectivePinState(profile));
++  }
++}
+ #endif
+ 
+ void ContextualTasksUIBase::OnTabClickedFromSourcesMenu(int32_t tab_id,
+@@ -821,6 +885,7 @@
+   if (!panel_controller) {
+     return;
+   }
++  panel_controller->SetErrorPageVisible(false);
+   content::WebContents* target_contents =
+       panel_controller->GetActiveWebContents();
+   if (!target_contents) {
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_base.h b/chrome/browser/contextual_tasks/contextual_tasks_ui_base.h
+index d19d472b8..04b306cb 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui_base.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_base.h
+@@ -22,6 +22,7 @@
+ #include "ui/webui/resources/cr_components/help_bubble/help_bubble.mojom.h"  // nogncheck
+ 
+ #if !BUILDFLAG(IS_ANDROID)
++#include "base/callback_list.h"
+ #include "base/scoped_observation.h"
+ #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.h"
+ #endif
+@@ -267,6 +268,14 @@
+   // already inherits `signin::IdentityManager::Observer`.
+   class CookieJarObserver;
+ 
++#if !BUILDFLAG(IS_ANDROID)
++  // Re-evaluates whether the user may pin the side panel (e.g. after the
++  // Contextual Tasks or AIM eligibility changes while the side panel is open)
++  // and pushes the result to the toolbar WebUI so the pin/unpin menu item can
++  // be shown or hidden.
++  void OnPinningEligibilityMaybeChanged();
++#endif
++
+   mojo::Receiver<contextual_tasks_toolbar::mojom::PageHandlerFactory>
+       toolbar_page_factory_receiver_{this};
+   mojo::Receiver<contextual_tasks_toolbar::mojom::PageHandler>
+@@ -288,6 +297,13 @@
+   base::ScopedObservation<PinnedToolbarActionsModel,
+                           PinnedToolbarActionsModel::Observer>
+       pinned_toolbar_actions_model_observation_{this};
++
++  // Last pinning eligibility pushed to the WebUI, so we only notify on change.
++  bool is_pinning_eligible_ = false;
++  // Subscriptions to the two signals that feed
++  // `EntryPointEligibilityManager::IsPinningEligible()`.
++  base::CallbackListSubscription eligibility_subscription_;
++  base::CallbackListSubscription aim_eligibility_subscription_;
+ #endif
+ 
+   std::unique_ptr<CookieJarObserver> cookie_jar_observer_;
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
+index fabefde3..f8859aa 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
+@@ -3883,6 +3883,10 @@
+   if (!panel_was_closed) {
+     if (auto* web_ui_interface = GetWebUiInterface(web_contents)) {
+       ShowAndRecordErrorPage(web_ui_interface->GetPageRemote(), source);
++    } else if (IsContextualTasksSidePanelRearchitectureEnabled()) {
++      controller->OnTaskChanged(web_contents, task_id);
++      controller->SetErrorPageVisible(true);
++      RecordErrorPageShown(source);
+     }
+   }
+ }
+@@ -3899,6 +3903,9 @@
+     return false;
+   }
+   RecordErrorPageShown(*it->second.pending_error_page_source);
++  if (IsContextualTasksSidePanelRearchitectureEnabled()) {
++    it->second.pending_error_page_source.reset();
++  }
+   return true;
+ }
+ 
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_utils.cc b/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
 index 684448856..7575def 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
@@ -364,10 +980,53 @@ index 2bd99998..81784aa 100644
  
  // Returns true if the "Ask Google..." context menu item should be shown.
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
-index 23cfafc..e427b2a3 100644
+index 23cfafc..9b1d655 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
 +++ b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
-@@ -798,6 +798,11 @@
+@@ -51,6 +51,7 @@
+ #include "components/omnibox/common/input_state.h"
+ #include "components/omnibox/common/omnibox_features.h"
+ #include "components/prefs/pref_service.h"
++#include "components/search_engines/util.h"
+ #include "components/sessions/content/session_tab_helper.h"
+ #include "components/sessions/core/session_id.h"
+ #include "components/signin/public/identity_manager/identity_manager.h"
+@@ -309,6 +310,7 @@
+   bool is_lens_crop_mounted = false;
+   std::string last_lens_crop_data_uri;
+   bool context_library_is_active = false;
++  bool tab_picker_is_active = false;
+   bool is_zero_state = false;
+   std::vector<contextual_tasks::UrlResource> committed_url_resources;
+   ContextState last_sent_context_state = ContextState::kNone;
+@@ -579,6 +581,7 @@
+   page_state.pending_search_messages.clear();
+   page_state.is_lens_crop_mounted = false;
+   page_state.context_library_is_active = false;
++  page_state.tab_picker_is_active = false;
+   page_state.is_zero_state = false;
+   page_state.committed_url_resources.clear();
+   page_state.last_sent_context_state = ContextState::kNone;
+@@ -712,6 +715,7 @@
+   if (ShouldMountContextLibrary() && !page_state.context_library_is_active) {
+     SendMountContextLibrary();
+   }
++  UpdateTabPickerVisibility();
+   if (auto model = GetOrCreateInputStateModel()) {
+     if (model->lens_crop().has_value() && !page_state.is_lens_crop_mounted) {
+       page_state.is_lens_crop_mounted = true;
+@@ -754,6 +758,10 @@
+       inject_input->set_input_type(
+           lens::ClientToSearchMessage::InjectChromeInput::LENS_CHIP);
+       break;
++    case InjectedInputType::kTabPicker:
++      inject_input->set_input_type(
++          lens::ClientToSearchMessage::InjectChromeInput::TAB_PICKER);
++      break;
+   }
+   inject_input->set_is_active(is_active);
+   PostSearchMessage(inject_msg);
+@@ -798,6 +806,11 @@
  }
  
  bool ContextualTasksWebContentsUserData::ShouldMountContextLibrary() {
@@ -379,7 +1038,65 @@ index 23cfafc..e427b2a3 100644
    return HasContextLibraryTabs() || IsSmartTabSharingActive();
  }
  
-@@ -1119,7 +1124,9 @@
+@@ -945,6 +958,9 @@
+   params.auto_suggested_chip_tabs = GetPendingDelayedTabs(*session_handle);
+   params.enable_smart_tab_selection =
+       !overlay_token.has_value() && is_smart_tab_sharing_active;
++  params.on_ineligible_callback = base::BindRepeating(
++      &ContextualTasksWebContentsUserData::OnPageContextIneligible,
++      weak_ptr_factory_.GetWeakPtr());
+   // The contextualizer's session handle is ignored: it is null when there was
+   // nothing to contextualize, so the callback gets the session handle itself.
+   params.complete_callback = base::IgnoreArgs<
+@@ -1000,6 +1016,24 @@
+       tabs.push_back(*tab_handle_id);
+     }
+   }
++
++  // Also include any manually attached tabs whose initial upload failed (for
++  // example, due to page context ineligibility on a CSE-protected tab) so
++  // `QueryContextualizer` re-checks their eligibility on submit.
++  for (const auto& attached_tab :
++       session_handle.GetTabContextState().attached) {
++    if (attached_tab.pending_delayed_upload ||
++        !attached_tab.tab_id.has_value() ||
++        !failed_context_uploads_.contains(attached_tab.context_token)) {
++      continue;
++    }
++    if (std::optional<int32_t> tab_handle_id =
++            ResolveAndRecordTabHandleForSessionTabId(*attached_tab.tab_id);
++        tab_handle_id.has_value() &&
++        !std::ranges::contains(tabs, *tab_handle_id)) {
++      tabs.push_back(*tab_handle_id);
++    }
++  }
+   return tabs;
+ }
+ 
+@@ -1061,6 +1095,22 @@
+   DoSubmitQueryCleanup();
+ }
+ 
++void ContextualTasksWebContentsUserData::OnPageContextIneligible() {
++  if (!submit_pending_ || !GetIsProtectedPageErrorEnabled()) {
++    return;
++  }
++  auto* browser = GetBrowserWindowInterface();
++  auto* controller =
++      browser ? ContextualTasksPanelController::From(browser) : nullptr;
++  if (!controller || !controller->IsPanelOpenForContextualTask() ||
++      controller->GetActiveWebContents() != &GetWebContents()) {
++    return;
++  }
++  RecordErrorPageShown(
++      contextual_search::ContextualSearchSource::kContextualTasks);
++  controller->SetErrorPageVisible(true);
++}
++
+ void ContextualTasksWebContentsUserData::OnPageChanged(bool is_zero_state) {
+   if (is_zero_state) {
+     zero_state_callbacks_.Notify();
+@@ -1119,7 +1169,9 @@
    }
  
    if (!base::FeatureList::IsEnabled(
@@ -390,6 +1107,108 @@ index 23cfafc..e427b2a3 100644
      base::UmaHistogramEnumeration(
          "ContextualTasks.ThreadContextLibrary.UpdateOutcome",
          ThreadContextLibraryUpdateOutcome::kFeatureDisabled);
+@@ -2084,6 +2136,7 @@
+ }
+ 
+ void ContextualTasksWebContentsUserData::UpdateImplicitTabContext() {
++  UpdateTabPickerVisibility();
+   BrowserWindowInterface* browser_window = GetBrowserWindowInterface();
+   auto* panel_controller =
+       browser_window ? ContextualTasksPanelController::From(browser_window)
+@@ -2218,6 +2271,21 @@
+   RefreshActiveTaskContext();
+ }
+ 
++void ContextualTasksWebContentsUserData::UpdateTabPickerVisibility() {
++  auto* page_state =
++      PageSearchState::GetForPage(GetWebContents().GetPrimaryPage());
++  if (!page_state || !page_state->is_handshake_complete) {
++    return;
++  }
++  const bool should_show = HasEligibleTabsForTabPicker();
++  if (should_show == page_state->tab_picker_is_active) {
++    return;
++  }
++  page_state->tab_picker_is_active = should_show;
++  SendInjectChromeInput(InjectedInputType::kTabPicker,
++                        /*is_active=*/should_show);
++}
++
+ void ContextualTasksWebContentsUserData::OnManualTabContextAdded(
+     const GURL& url,
+     SessionID tab_session_id) {
+@@ -2654,4 +2722,30 @@
+       const_cast<content::WebContents&>(GetWebContents()).GetPrimaryPage());
+ }
+ 
++bool ContextualTasksWebContentsUserData::HasEligibleTabsForTabPicker() const {
++  BrowserWindowInterface* browser_window_interface =
++      GetBrowserWindowInterface();
++  if (!browser_window_interface) {
++    return false;
++  }
++  auto* tab_list = TabListInterface::From(browser_window_interface);
++  if (!tab_list) {
++    return false;
++  }
++  for (tabs::TabInterface* tab : tab_list->GetAllTabs()) {
++    if (!tab || tab->GetContents() == &GetWebContents()) {
++      continue;
++    }
++    GURL url = tab->GetURL();
++    if (url.is_empty() && tab->GetContents()) {
++      url = tab->GetContents()->GetLastCommittedURL();
++    }
++    if (IsUrlValidForContextSharing(url) && !IsAimURL(url) &&
++        !IsAimZeroStateURL(url)) {
++      return true;
++    }
++  }
++  return false;
++}
++
+ }  // namespace contextual_tasks
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h
+index 43b3215..1284317 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h
+@@ -276,6 +276,10 @@
+ 
+   // Syncs the zero-state active-tab delayed attachment with panel/tab state.
+   void UpdateImplicitTabContext();
++  // Injects `TAB_PICKER` (`is_active = true`) when eligible tabs exist, or
++  // sends `INJECT_INPUT` (`is_active = false`) to hide the tab picker when no
++  // eligible tabs exist.
++  void UpdateTabPickerVisibility();
+   // Unblocks `url` and clears `implicit_tab_` when manually attaching a tab.
+   void OnManualTabContextAdded(const GURL& url, SessionID tab_session_id);
+   std::optional<tabs::TabHandle> GetAutoSuggestedTabHandle() const;
+@@ -328,6 +332,7 @@
+   enum class InjectedInputType {
+     kContextLibrary,
+     kLensChip,
++    kTabPicker,
+   };
+   struct PageSearchState;
+ 
+@@ -367,6 +372,7 @@
+       std::string query_text,
+       std::vector<lens::AddedContext> lens_added_contexts,
+       std::optional<base::UnguessableToken> overlay_token);
++  void OnPageContextIneligible();
+   void OnPageChanged(bool is_zero_state);
+   // Runs `on_tab_context_updated_cb` on every bound extension frame.
+   void NotifyExtensionFramesTabContextUpdated();
+@@ -389,6 +395,9 @@
+   // (either because the session has tabs to show or Smart Tab Sharing is
+   // active).
+   bool ShouldMountContextLibrary();
++  // Returns true if any open tab in the browser window is eligible to be shown
++  // in the tab picker.
++  bool HasEligibleTabsForTabPicker() const;
+ 
+   struct ImplicitTab {
+     base::UnguessableToken token;
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc b/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc
 index ade03470..11b188b 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc
@@ -544,6 +1363,40 @@ index 6c959fba..bfd9c1e7 100644
    ui::ScopedUnownedUserData<EntryPointEligibilityManager>
        scoped_unowned_user_data_;
    base::CallbackListSubscription eligibility_subscription_;
+diff --git a/chrome/browser/contextual_tasks/mock_contextual_tasks_page.h b/chrome/browser/contextual_tasks/mock_contextual_tasks_page.h
+index 4119cd0d..f57ffec 100644
+--- a/chrome/browser/contextual_tasks/mock_contextual_tasks_page.h
++++ b/chrome/browser/contextual_tasks/mock_contextual_tasks_page.h
+@@ -92,10 +92,6 @@
+   mojo::PendingRemote<mojom::ExtensionPage> BindAndGetRemote();
+   void FlushForTesting() { receiver_.FlushForTesting(); }
+ 
+-  MOCK_METHOD(void,
+-              PostAimMessage,
+-              (const std::vector<uint8_t>& message),
+-              (override));
+   MOCK_METHOD(void, PostSearchMessage, (mojo_base::ProtoWrapper message), ());
+   MOCK_METHOD(void,
+               PostSearchMessageWithDocumentId,
+@@ -111,7 +107,6 @@
+       PostSearchMessage(std::move(message));
+     }
+   }
+-  MOCK_METHOD(void, OnHandshakeComplete, (), (override));
+   MOCK_METHOD(void, OnLensOverlayStateChanged, (bool is_showing), (override));
+   MOCK_METHOD(void, OnLensCropUpdated, (const GURL& data_uri), (override));
+   MOCK_METHOD(void,
+@@ -135,6 +130,10 @@
+   void FlushForTesting() { receiver_.FlushForTesting(); }
+ 
+   MOCK_METHOD(void, OnSidePanelPinStateChanged, (bool is_pinned), (override));
++  MOCK_METHOD(void,
++              OnPinButtonEligibilityChanged,
++              (bool is_eligible),
++              (override));
+   MOCK_METHOD(void, OnAiPageStatusChanged, (bool is_ai_page), (override));
+   MOCK_METHOD(
+       void,
 diff --git a/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_controller.h b/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_controller.h
 index 07d8c09..482a024 100644
 --- a/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_controller.h
@@ -591,6 +1444,375 @@ index 018df0c..c3a7cc9 100644
  };
  
  }  // namespace contextual_tasks
+diff --git a/chrome/browser/glic/glic_selection_observer.cc b/chrome/browser/glic/glic_selection_observer.cc
+index 4a5a4d7f..e7e8f603 100644
+--- a/chrome/browser/glic/glic_selection_observer.cc
++++ b/chrome/browser/glic/glic_selection_observer.cc
+@@ -5,6 +5,7 @@
+ #include "chrome/browser/glic/glic_selection_observer.h"
+ 
+ #include "base/containers/flat_set.h"
++#include "base/feature_list.h"
+ #include "base/functional/callback_helpers.h"
+ #include "base/logging.h"
+ #include "base/strings/string_split.h"
+@@ -17,6 +18,7 @@
+ #include "chrome/browser/glic/glic_zero_state_suggestions_manager.h"
+ #include "chrome/browser/glic/host/context/glic_sharing_utils.h"
+ #include "chrome/browser/glic/host/glic.mojom.h"
++#include "chrome/browser/glic/public/features.h"
+ #include "chrome/browser/glic/public/glic_enabling.h"
+ #include "chrome/browser/glic/public/glic_instance.h"
+ #include "chrome/browser/glic/public/glic_invoke_options.h"
+@@ -478,6 +480,13 @@
+     }
+   }
+ 
++  // Clearing a previous selection only matters while the panel is open to
++  // display it; never start an invocation just to send an empty selection.
++  if (selected_text.empty() &&
++      base::FeatureList::IsEnabled(features::kGlicInvokeErrorRecoveryFixes)) {
++    return;
++  }
++
+   // Otherwise fall back to an invocation so the surface is resolved and shown
+   // the same way as before.
+   GlicInvokeOptions options(glic::Target(*tab_interface),
+diff --git a/chrome/browser/glic/host/glic_ui.cc b/chrome/browser/glic/host/glic_ui.cc
+index a21021a..2af5611 100644
+--- a/chrome/browser/glic/host/glic_ui.cc
++++ b/chrome/browser/glic/host/glic_ui.cc
+@@ -377,6 +377,9 @@
+   source->AddBoolean(
+       "enableStructuredYieldMetadata",
+       base::FeatureList::IsEnabled(features::kGlicStructuredYieldMetadata));
++  source->AddBoolean(
++      "glicInvokeErrorRecoveryFixes",
++      base::FeatureList::IsEnabled(features::kGlicInvokeErrorRecoveryFixes));
+ }
+ 
+ WEB_UI_CONTROLLER_TYPE_IMPL(GlicUI)
+diff --git a/chrome/browser/glic/host/glic_webui_contents_manager.cc b/chrome/browser/glic/host/glic_webui_contents_manager.cc
+index 5b57f4e..d1a1c8f 100644
+--- a/chrome/browser/glic/host/glic_webui_contents_manager.cc
++++ b/chrome/browser/glic/host/glic_webui_contents_manager.cc
+@@ -86,10 +86,12 @@
+ 
+ GlicWebUIContentsManager::~GlicWebUIContentsManager() {
+   page_handler_ = nullptr;
+-  auto callbacks = std::move(pending_wait_for_load_callbacks_);
+-  pending_wait_for_load_callbacks_.clear();
+-  for (auto& [_, callback] : callbacks) {
+-    std::move(callback).Run(/*failed=*/true);
++  if (!base::FeatureList::IsEnabled(features::kGlicInvokeErrorRecoveryFixes)) {
++    auto callbacks = std::move(pending_wait_for_load_callbacks_);
++    pending_wait_for_load_callbacks_.clear();
++    for (auto& [_, callback] : callbacks) {
++      std::move(callback).Run(/*failed=*/true);
++    }
+   }
+   SetContentsManagerForWebContents(web_contents(), nullptr);
+   Observe(nullptr);
+diff --git a/chrome/browser/glic/public/features.cc b/chrome/browser/glic/public/features.cc
+index 8378f037..22c4c496e 100644
+--- a/chrome/browser/glic/public/features.cc
++++ b/chrome/browser/glic/public/features.cc
+@@ -355,4 +355,7 @@
+     &kGlicShowNotTellTutorials, "tutorials_arm", 0};
+ 
+ BASE_FEATURE(kGlicActivityHub, base::FEATURE_DISABLED_BY_DEFAULT);
++
++BASE_FEATURE(kGlicInvokeErrorRecoveryFixes,
++             FEATURE_ENABLED_BY_DEFAULT_ALL_PLATFORMS);
+ }  // namespace features
+diff --git a/chrome/browser/glic/public/features.h b/chrome/browser/glic/public/features.h
+index 642f915..d792f265b 100644
+--- a/chrome/browser/glic/public/features.h
++++ b/chrome/browser/glic/public/features.h
+@@ -260,6 +260,8 @@
+ extern const base::FeatureParam<int> kGlicShowNotTellTutorialsArm;
+ 
+ BASE_DECLARE_FEATURE(kGlicActivityHub);
++
++BASE_DECLARE_FEATURE(kGlicInvokeErrorRecoveryFixes);
+ }  // namespace features
+ 
+ #endif  // CHROME_BROWSER_GLIC_PUBLIC_FEATURES_H_
+diff --git a/chrome/browser/glic/service/glic_instance_coordinator_impl.cc b/chrome/browser/glic/service/glic_instance_coordinator_impl.cc
+index fcf8347..decca19 100644
+--- a/chrome/browser/glic/service/glic_instance_coordinator_impl.cc
++++ b/chrome/browser/glic/service/glic_instance_coordinator_impl.cc
+@@ -167,7 +167,13 @@
+   for (auto& [id, instance] : instances_) {
+     for (auto& handler : TakeInvokeHandlers(instance.get())) {
+       if (handler) {
+-        handler->CancelForInstanceRemoval(InstanceRemovalReason::kShutdown);
++        if (base::FeatureList::IsEnabled(
++                features::kGlicInvokeErrorRecoveryFixes)) {
++          std::exchange(handler, nullptr)
++              ->CancelForInstanceRemoval(InstanceRemovalReason::kShutdown);
++        } else {
++          handler->CancelForInstanceRemoval(InstanceRemovalReason::kShutdown);
++        }
+       }
+     }
+     instance->CloseInstanceAndShutdown();
+@@ -234,27 +240,42 @@
+ void GlicInstanceCoordinatorImpl::CancelInvoke(GlicInstanceImpl* instance) {
+   for (auto& handler : TakeInvokeHandlers(instance)) {
+     if (handler) {
+-      handler->Cancel(GlicInvokeError::kCancelled);
++      if (base::FeatureList::IsEnabled(
++              features::kGlicInvokeErrorRecoveryFixes)) {
++        std::exchange(handler, nullptr)->Cancel(GlicInvokeError::kCancelled);
++      } else {
++        handler->Cancel(GlicInvokeError::kCancelled);
++      }
+     }
+   }
+ }
+ 
+-void GlicInstanceCoordinatorImpl::CancelShowOnlyInvokes(
++void GlicInstanceCoordinatorImpl::CancelInvokesOnPanelClose(
+     GlicInstanceImpl* instance,
+     GlicInvokeError error) {
+   // Take the handlers out first: cancelling one re-enters
+   // OnInvokeHandlerComplete(), which would otherwise mutate the map under us.
+-  std::vector<std::unique_ptr<GlicInvokeHandler>> show_only;
++  const bool fix_enabled =
++      base::FeatureList::IsEnabled(features::kGlicInvokeErrorRecoveryFixes);
++  const bool client_ready =
++      instance->host().client_load_state() == ClientLoadState::kReady;
++  std::vector<std::unique_ptr<GlicInvokeHandler>> to_cancel;
+   auto [begin, end] = invoke_handlers_.equal_range(instance);
+   for (auto it = begin; it != end;) {
+-    if (it->second && !it->second->requires_client_invoke()) {
+-      show_only.push_back(std::move(invoke_handlers_.extract(it++).mapped()));
++    GlicInvokeHandler* handler = it->second.get();
++    if (handler && ((!handler->requires_client_invoke() && !client_ready) ||
++                    (fix_enabled && handler->NeedsFreCompletion()))) {
++      to_cancel.push_back(std::move(invoke_handlers_.extract(it++).mapped()));
+     } else {
+       ++it;
+     }
+   }
+-  for (auto& handler : show_only) {
+-    handler->Cancel(error);
++  for (auto& handler : to_cancel) {
++    if (fix_enabled) {
++      std::exchange(handler, nullptr)->Cancel(error);
++    } else {
++      handler->Cancel(error);
++    }
+   }
+ }
+ 
+@@ -658,9 +679,18 @@
+ 
+   for (auto& [instance, handler] : handlers) {
+     if (handler) {
+-      handler->CancelForInstanceRemoval(InstanceRemovalReason::kShutdown);
++      if (base::FeatureList::IsEnabled(
++              features::kGlicInvokeErrorRecoveryFixes)) {
++        std::exchange(handler, nullptr)
++            ->CancelForInstanceRemoval(InstanceRemovalReason::kShutdown);
++      } else {
++        handler->CancelForInstanceRemoval(InstanceRemovalReason::kShutdown);
++      }
+     }
+   }
++  if (base::FeatureList::IsEnabled(features::kGlicInvokeErrorRecoveryFixes)) {
++    handlers.clear();
++  }
+ 
+   for (auto& [instance_id, instance] : instances_) {
+     instance->Shutdown();
+@@ -1331,7 +1361,12 @@
+   // Invocations hold a reference to `instance`, so end them first.
+   for (auto& handler : TakeInvokeHandlers(instance)) {
+     if (handler) {
+-      handler->CancelForInstanceRemoval(reason);
++      if (base::FeatureList::IsEnabled(
++              features::kGlicInvokeErrorRecoveryFixes)) {
++        std::exchange(handler, nullptr)->CancelForInstanceRemoval(reason);
++      } else {
++        handler->CancelForInstanceRemoval(reason);
++      }
+     }
+   }
+ 
+diff --git a/chrome/browser/glic/service/glic_instance_coordinator_impl.h b/chrome/browser/glic/service/glic_instance_coordinator_impl.h
+index 52d97ac0..83c1452f 100644
+--- a/chrome/browser/glic/service/glic_instance_coordinator_impl.h
++++ b/chrome/browser/glic/service/glic_instance_coordinator_impl.h
+@@ -116,8 +116,8 @@
+                                      bool enabled) override;
+   bool IsInvoking(const GlicInstanceImpl* instance) const override;
+   void CancelInvoke(GlicInstanceImpl* instance) override;
+-  void CancelShowOnlyInvokes(GlicInstanceImpl* instance,
+-                             GlicInvokeError error) override;
++  void CancelInvokesOnPanelClose(GlicInstanceImpl* instance,
++                                 GlicInvokeError error) override;
+   // TODO(crbug.com/545714879): Remove OnInvoked, OnUserInputSubmitted, and
+   // OnFreOptInShown delegate overrides when GlicOnboardingTracker is refactored
+   // to free-standing profile helper functions.
+diff --git a/chrome/browser/glic/service/glic_instance_impl.cc b/chrome/browser/glic/service/glic_instance_impl.cc
+index 04d7dc6..d2ffe58 100644
+--- a/chrome/browser/glic/service/glic_instance_impl.cc
++++ b/chrome/browser/glic/service/glic_instance_impl.cc
+@@ -1650,18 +1650,20 @@
+   // Must be called early to avoid use-after-free if instance is deleted.
+   if (reason == EmbedderCloseReason::kExplicitlyClosed) {
+     OnEmbedderClosed(key);
+-    // The user dismissed the UI this instance was showing before the client
+-    // became usable, so an invocation that only came to show that UI is
+-    // abandoned rather than left to time out. Only the active embedder
+-    // counts: closing an inactive one, or the old embedder while moving the
+-    // conversation to another surface (detach/attach), does not take the UI
+-    // away. Invocations that will send something to the client keep running,
+-    // as the client may still act on them (and keep the instance alive, see
+-    // MaybeRemoveBlankInstanceOnClose()).
+-    if (IsActiveEmbedder(key) &&
+-        host_.client_load_state() != ClientLoadState::kReady &&
+-        coordinator_delegate_) {
+-      coordinator_delegate_->CancelShowOnlyInvokes(
++    // The user dismissed the UI this instance was showing before the
++    // invocation could finish, so an invocation that only came to show that UI
++    // before the client became usable, or any invocation still waiting on FRE
++    // completion in that UI, is abandoned rather than left to time out. Only
++    // the active embedder counts: closing an inactive one, or the old embedder
++    // while moving the conversation to another surface (detach/attach), does
++    // not take the UI away. Invocations that will send something to a
++    // consented client keep running, as the client may still act on them (and
++    // keep the instance alive, see MaybeRemoveBlankInstanceOnClose()).
++    if (IsActiveEmbedder(key) && coordinator_delegate_ &&
++        (base::FeatureList::IsEnabled(
++             features::kGlicInvokeErrorRecoveryFixes) ||
++         host_.client_load_state() != ClientLoadState::kReady)) {
++      coordinator_delegate_->CancelInvokesOnPanelClose(
+           this, GlicInvokeError::kPanelClosed);
+     }
+   }
+diff --git a/chrome/browser/glic/service/glic_instance_impl.h b/chrome/browser/glic/service/glic_instance_impl.h
+index 5e83425..13e81ff3 100644
+--- a/chrome/browser/glic/service/glic_instance_impl.h
++++ b/chrome/browser/glic/service/glic_instance_impl.h
+@@ -119,12 +119,13 @@
+ 
+     virtual bool IsInvoking(const GlicInstanceImpl* instance) const = 0;
+     virtual void CancelInvoke(GlicInstanceImpl* instance) = 0;
+-    // Ends the in-flight invocations on `instance` that only show the UI
+-    // (see GlicInvokeHandler::requires_client_invoke()) with `error`.
+-    // Invocations that will send something to the web client are left
+-    // running, as the client may still act on them.
+-    virtual void CancelShowOnlyInvokes(GlicInstanceImpl* instance,
+-                                       GlicInvokeError error) = 0;
++    // Ends the in-flight invocations on `instance` that cannot proceed once
++    // the panel is closed (show-only invocations while the client is still
++    // loading, or any invocation still waiting on FRE completion in the panel)
++    // with `error`. Invocations that will send something to a consented web
++    // client are left running, as the client may still act on them.
++    virtual void CancelInvokesOnPanelClose(GlicInstanceImpl* instance,
++                                           GlicInvokeError error) = 0;
+ 
+     // TODO(crbug.com/545714879): Remove OnInvoked, OnUserInputSubmitted,
+     // and OnFreOptInShown from InstanceCoordinatorDelegate when onboarding
+diff --git a/chrome/browser/glic/service/glic_invoke_handler.cc b/chrome/browser/glic/service/glic_invoke_handler.cc
+index 5e9583c..977d3c9c 100644
+--- a/chrome/browser/glic/service/glic_invoke_handler.cc
++++ b/chrome/browser/glic/service/glic_invoke_handler.cc
+@@ -612,4 +612,18 @@
+   return main_task_->GetLastActiveTaskType();
+ }
+ 
++bool GlicInvokeHandler::NeedsFreCompletion() const {
++  if (GlicEnabling::HasConsentedForProfile(instance_->profile())) {
++    return false;
++  }
++  if (options_.fre_override != mojom::FreOverride::kTrustFirstClick &&
++      options_.fre_override != mojom::FreOverride::kUnspecified) {
++    return false;
++  }
++  return options_.fre_completion_wait_mode == FreCompletionWaitMode::kAlways ||
++         (options_.fre_completion_wait_mode ==
++              FreCompletionWaitMode::kDefault &&
++          requires_client_invoke_);
++}
++
+ }  // namespace glic
+diff --git a/chrome/browser/glic/service/glic_invoke_handler.h b/chrome/browser/glic/service/glic_invoke_handler.h
+index 3094efd..3777f0f 100644
+--- a/chrome/browser/glic/service/glic_invoke_handler.h
++++ b/chrome/browser/glic/service/glic_invoke_handler.h
+@@ -96,6 +96,10 @@
+   // See RequiresClientInvoke().
+   bool requires_client_invoke() const { return requires_client_invoke_; }
+ 
++  // Whether this invocation is waiting (or will wait) on the user completing
++  // the FRE in the panel before it can finish.
++  bool NeedsFreCompletion() const;
++
+   // The metrics invocation ID for this invocation.
+   uint64_t invocation_id() const { return metrics_->GetInvocationId(); }
+ 
+diff --git a/chrome/browser/glic/service/glic_invoke_task.cc b/chrome/browser/glic/service/glic_invoke_task.cc
+index efd2dc9..686035d 100644
+--- a/chrome/browser/glic/service/glic_invoke_task.cc
++++ b/chrome/browser/glic/service/glic_invoke_task.cc
+@@ -5,6 +5,7 @@
+ #include "chrome/browser/glic/service/glic_invoke_task.h"
+ 
+ #include "base/barrier_closure.h"
++#include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "base/functional/callback_helpers.h"
+ #include "base/strings/escape.h"
+@@ -15,6 +16,7 @@
+ #include "chrome/browser/actor/ui/actor_ui_state_manager.h"
+ #include "chrome/browser/enterprise/data_protection/data_protection_clipboard_utils.h"
+ #include "chrome/browser/glic/glic_enums.h"
++#include "chrome/browser/glic/public/features.h"
+ #include "chrome/browser/glic/public/glic_context_menu_invocation_helper.h"
+ #include "chrome/browser/glic/public/glic_enabling.h"
+ #include "chrome/browser/glic/public/glic_keyed_service.h"
+@@ -299,11 +301,13 @@
+ 
+ void WaitForClientReadyTask::Start(base::OnceClosure done_callback) {
+   done_callback_ = std::move(done_callback);
+-  if (host_->client_load_state() == ClientLoadState::kReady) {
+-    CheckState(ClientLoadState::kReady);
+-    return;
++  if (base::FeatureList::IsEnabled(features::kGlicInvokeErrorRecoveryFixes)) {
++    if (host_->client_load_state() == ClientLoadState::kReady) {
++      CheckState(ClientLoadState::kReady);
++      return;
++    }
++    observation_.Observe(&*host_);
+   }
+-  observation_.Observe(&*host_);
+   // TODO(b/573171097): Have Invoke send an explicit load request to the
+   // instance/host that is guaranteed to resolve, rather than triggering load
+   // and waiting for load separately.
+@@ -318,6 +322,9 @@
+     CheckState(ClientLoadState::kError);
+     return;
+   }
++  if (!base::FeatureList::IsEnabled(features::kGlicInvokeErrorRecoveryFixes)) {
++    observation_.Observe(&*host_);
++  }
+   CheckState(host_->client_load_state());
+ }
+ 
+@@ -325,7 +332,8 @@
+   // Before `WaitForLoad()` resolves, `ClientLoadState::kError` may reflect a
+   // stale error from before `IntentToShow()` triggered a reload. Readiness is
+   // authoritative in the browser process and can resolve immediately.
+-  if (state == ClientLoadState::kError && !wait_for_load_complete_) {
++  if (base::FeatureList::IsEnabled(features::kGlicInvokeErrorRecoveryFixes) &&
++      state == ClientLoadState::kError && !wait_for_load_complete_) {
+     return;
+   }
+   CheckState(state);
 diff --git a/chrome/browser/media/webrtc/native_desktop_media_list.cc b/chrome/browser/media/webrtc/native_desktop_media_list.cc
 index 7658533..56376b8 100644
 --- a/chrome/browser/media/webrtc/native_desktop_media_list.cc
@@ -633,6 +1855,62 @@ index 4fb4971..0bc8fe62 100644
    --tab-picker-menu-background-color: var(--color-composebox-background,
        var(--search-background-color,
            var(--color-menu-background, rgba(44, 46, 54, 1))));
+diff --git a/chrome/browser/resources/contextual_tasks/top_toolbar.ts b/chrome/browser/resources/contextual_tasks/top_toolbar.ts
+index 8c6a3000..e086a5f2 100644
+--- a/chrome/browser/resources/contextual_tasks/top_toolbar.ts
++++ b/chrome/browser/resources/contextual_tasks/top_toolbar.ts
+@@ -181,6 +181,10 @@
+           .addListener((isPinned: boolean) => {
+             this.isPinned = isPinned;
+           }),
++      this.toolbarBrowserProxy_.callbackRouter.onPinButtonEligibilityChanged
++          .addListener((isEligible: boolean) => {
++            this.isPinButtonEnabled = isEligible;
++          }),
+       this.toolbarBrowserProxy_.callbackRouter.onContextUpdated.addListener(
+           (contextInfos: ContextInfo[]) => {
+             this.contextInfos = contextInfos;
+diff --git a/chrome/browser/resources/glic/glic_app_controller.ts b/chrome/browser/resources/glic/glic_app_controller.ts
+index 75f32af..b5ecb978 100644
+--- a/chrome/browser/resources/glic/glic_app_controller.ts
++++ b/chrome/browser/resources/glic/glic_app_controller.ts
+@@ -30,6 +30,8 @@
+ const kMaxWaitTimeMs = loadTimeData.getInteger('maxLoadingTimeMs');
+ 
+ const kShowErrorAllowed = loadTimeData.getBoolean('showErrorAllowed');
++const kInvokeErrorRecoveryFixes =
++    loadTimeData.getBoolean('glicInvokeErrorRecoveryFixes');
+ 
+ interface PageElementTypes {
+   panelContainer: HTMLElement;
+@@ -794,9 +796,11 @@
+       return;
+     }
+     if (this.panelStateKind === PanelStateKind.kHidden) {
+-      this.cancelTimeout();
+-      this.trackLoadingStageEnd();
+-      this.setState(WebUiState.kWarmed);
++      if (!kInvokeErrorRecoveryFixes) {
++        this.cancelTimeout();
++        this.trackLoadingStageEnd();
++        this.setState(WebUiState.kWarmed);
++      }
+       return;
+     }
+     this.startClientLoadTimeout();
+@@ -988,7 +992,11 @@
+     if (this.panelStateKind !== PanelStateKind.kHidden) {
+       if (this.state === WebUiState.kWarmed) {
+         this.startWarmedTimeout();
+-      } else if (this.state === WebUiState.kGuestLoaded && !this.loadingTimer) {
++      } else if (
++          ((kInvokeErrorRecoveryFixes &&
++            this.state === WebUiState.kFinishLoading) ||
++           this.state === WebUiState.kGuestLoaded) &&
++          !this.loadingTimer) {
+         this.startClientLoadTimeout();
+       }
+     }
 diff --git a/chrome/browser/resources/new_tab_page/app.ts b/chrome/browser/resources/new_tab_page/app.ts
 index 9809a0a..dea642b 100644
 --- a/chrome/browser/resources/new_tab_page/app.ts
@@ -721,6 +1999,44 @@ index 3ce3c16..ac96dd7 100644
    protected onShareTabsFlyoutOpenChanged_(e: CustomEvent<{open: boolean}>) {
      this.shareTabsFlyoutOpen = e.detail.open;
    }
+diff --git a/chrome/browser/signin/bound_session_credentials/unexportable_key_service_factory.cc b/chrome/browser/signin/bound_session_credentials/unexportable_key_service_factory.cc
+index 5b43017..6ab6066 100644
+--- a/chrome/browser/signin/bound_session_credentials/unexportable_key_service_factory.cc
++++ b/chrome/browser/signin/bound_session_credentials/unexportable_key_service_factory.cc
+@@ -8,6 +8,7 @@
+ 
+ #include "base/check_deref.h"
+ #include "base/containers/span.h"
++#include "base/feature_list.h"
+ #include "base/functional/callback.h"
+ #include "base/no_destructor.h"
+ #include "base/notreached.h"
+@@ -28,6 +29,7 @@
+ #include "crypto/hash.h"
+ #include "crypto/unexportable_key.h"
+ #include "mojo/public/cpp/bindings/pending_receiver.h"
++#include "net/base/features.h"
+ #include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
+ 
+ namespace {
+@@ -70,8 +72,16 @@
+ 
+   if (unexportable_keys::UnexportableKeyTaskManager* task_manager =
+           GetSharedTaskManagerInstance()) {
++    // Only DBSC single sign-on requests attestation keys. Check the origin
++    // first: reading a feature activates its field trial.
++    const bool enable_spare_attestation_key_pool =
++        task_origin == unexportable_keys::BackgroundTaskOrigin::
++                           kDeviceBoundSessionCredentials &&
++        base::FeatureList::IsEnabled(
++            net::features::kDeviceBoundSessionsForSingleSignOn);
+     return std::make_unique<unexportable_keys::UnexportableKeyServiceImpl>(
+-        *task_manager, task_origin, std::move(config));
++        *task_manager, task_origin, std::move(config),
++        enable_spare_attestation_key_pool);
+   }
+ 
+   return nullptr;
 diff --git a/chrome/browser/ui/browser_actions.cc b/chrome/browser/ui/browser_actions.cc
 index 411759d..a644380 100644
 --- a/chrome/browser/ui/browser_actions.cc
@@ -1281,6 +2597,194 @@ index b0d2b38..57f46e7a 100644
              icon == &vector_icons::kGoogleGLogoMonochromeIcon ||
              item->GetImage().IsImage()
  #else
+diff --git a/components/contextual_tasks/public/features.h b/components/contextual_tasks/public/features.h
+index 047ac61..fc7cd06 100644
+--- a/components/contextual_tasks/public/features.h
++++ b/components/contextual_tasks/public/features.h
+@@ -676,7 +676,12 @@
+ 
+ inline constexpr char kContextualTasksSearchCapabilitiesHeaderName[] =
+     "Chrome-Search-Capabilities-Version";
+-inline constexpr char kContextualTasksSearchCapabilitiesDefaultVersion[] = "1";
++// The default version for the `Chrome-Search-Capabilities-Version` HTTP header.
++// Version 1: Initial version/implementation.
++// Version 1.1: Adds `TAB_PICKER` `InjectChromeInput` support to show and hide
++//              the tab picker based on eligible open tabs.
++inline constexpr char kContextualTasksSearchCapabilitiesDefaultVersion[] =
++    "1.1";
+ 
+ extern const base::FeatureParam<std::string>
+     kContextualTasksSearchCapabilitiesVersion;
+diff --git a/components/cronet/gn2bp/copybara_diff3.sh b/components/cronet/gn2bp/copybara_diff3.sh
+new file mode 100755
+index 0000000..68f7170
+--- /dev/null
++++ b/components/cronet/gn2bp/copybara_diff3.sh
+@@ -0,0 +1,11 @@
++#!/bin/sh
++# Copyright 2026 The Chromium Authors
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++# Wrapper passed to Copybara via --diff-bin so that diff3 runs with -E
++# (--show-overlap). Without -E, GNU diff3 -m defaults to -A (--show-all), which
++# produces spurious merge conflicts on hunks that changed identically in both
++# origin and destination whenever another part of the same file also differs
++# (b/392575734).
++exec diff3 -E "$@"
+diff --git a/components/cronet/gn2bp/run_gn2bp.py b/components/cronet/gn2bp/run_gn2bp.py
+index 707a859..20e565a 100755
+--- a/components/cronet/gn2bp/run_gn2bp.py
++++ b/components/cronet/gn2bp/run_gn2bp.py
+@@ -49,6 +49,9 @@
+ _COPYBARA_CONFIG_PATH = os.path.join(
+     REPOSITORY_ROOT, 'components/cronet/gn2bp/copy.bara.sky'
+ )
++_COPYBARA_DIFF3_WRAPPER_PATH = os.path.join(
++    REPOSITORY_ROOT, 'components/cronet/gn2bp/copybara_diff3.sh'
++)
+ _COPYBARA_PATH = os.path.join(
+     REPOSITORY_ROOT, 'tools/copybara/copybara/copybara_deploy.jar'
+ )
+@@ -409,6 +412,8 @@
+       """)
+     additional_parameters = [
+         '--ignore-noop',
++        '--diff-bin',
++        _COPYBARA_DIFF3_WRAPPER_PATH,
+         '--force-message',
+         commit_message,
+     ]
+diff --git a/components/unexportable_keys/unexportable_key_service_impl.cc b/components/unexportable_keys/unexportable_key_service_impl.cc
+index 47ee9c6..aecdcf578 100644
+--- a/components/unexportable_keys/unexportable_key_service_impl.cc
++++ b/components/unexportable_keys/unexportable_key_service_impl.cc
+@@ -670,7 +670,8 @@
+ UnexportableKeyServiceImpl::UnexportableKeyServiceImpl(
+     UnexportableKeyTaskManager& task_manager,
+     BackgroundTaskOrigin task_origin,
+-    crypto::UnexportableKeyProvider::Config config)
++    crypto::UnexportableKeyProvider::Config config,
++    bool enable_spare_attestation_key_pool)
+     : task_manager_(task_manager),
+       task_origin_(task_origin),
+       config_(config),
+@@ -683,10 +684,12 @@
+         CreateGenerateKeyCallbackForSparePool<RefCountedUnexportableSigningKey>(
+             &task_manager, task_origin));
+ 
+-    spare_attestation_key_pool_ = std::make_unique<SpareAttestationKeyPool>(
+-        config_,
+-        CreateGenerateKeyCallbackForSparePool<
+-            RefCountedUnexportableAttestationKey>(&task_manager, task_origin));
++    if (enable_spare_attestation_key_pool) {
++      spare_attestation_key_pool_ = std::make_unique<SpareAttestationKeyPool>(
++          config_, CreateGenerateKeyCallbackForSparePool<
++                       RefCountedUnexportableAttestationKey>(&task_manager,
++                                                             task_origin));
++    }
+   }
+ }
+ 
+diff --git a/components/unexportable_keys/unexportable_key_service_impl.h b/components/unexportable_keys/unexportable_key_service_impl.h
+index 9a9e2a6..3ee6086 100644
+--- a/components/unexportable_keys/unexportable_key_service_impl.h
++++ b/components/unexportable_keys/unexportable_key_service_impl.h
+@@ -62,10 +62,14 @@
+     : public UnexportableKeyService {
+  public:
+   // `task_manager` must outlive `UnexportableKeyServiceImpl`.
++  // When the service creates its spare signing key pool, it also creates a
++  // spare attestation key pool if `enable_spare_attestation_key_pool` is true.
++  // Only DBSC single sign-on requests attestation keys.
+   explicit UnexportableKeyServiceImpl(
+       UnexportableKeyTaskManager& task_manager,
+       BackgroundTaskOrigin task_origin,
+-      crypto::UnexportableKeyProvider::Config config);
++      crypto::UnexportableKeyProvider::Config config,
++      bool enable_spare_attestation_key_pool = false);
+ 
+   ~UnexportableKeyServiceImpl() override;
+ 
+diff --git a/content/browser/bluetooth/bluetooth_device_chooser_controller.cc b/content/browser/bluetooth/bluetooth_device_chooser_controller.cc
+index 7097da8..a09e0f5c 100644
+--- a/content/browser/bluetooth/bluetooth_device_chooser_controller.cc
++++ b/content/browser/bluetooth/bluetooth_device_chooser_controller.cc
+@@ -567,7 +567,9 @@
+ 
+ void BluetoothDeviceChooserController::PostErrorCallback(
+     WebBluetoothResult error) {
+-  CHECK(callback_, base::NotFatalUntil::M160);
++  // TODO(crbug.com/579165504): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(callback_);
+ 
+   if (!base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+           FROM_HERE,
+diff --git a/content/browser/browsing_data/clear_site_data_utils.cc b/content/browser/browsing_data/clear_site_data_utils.cc
+index a0d9d2b..7a29c31 100644
+--- a/content/browser/browsing_data/clear_site_data_utils.cc
++++ b/content/browser/browsing_data/clear_site_data_utils.cc
+@@ -69,6 +69,13 @@
+ 
+   void RunAndDestroySelfWhenDone() {
+     CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
++    // Keep a baseline count of 1 until all tasks have been scheduled so that
++    // synchronous task completion cannot destroy `this` before the method
++    // finishes, and so that `callback_` and self-deletion still run if no
++    // individual tasks are scheduled.
++    CHECK_EQ(pending_task_count_, 0, base::NotFatalUntil::M159);
++    pending_task_count_ = 1;
++
+     // Cookies and channel IDs are scoped to
+     // a) eTLD+1 of |origin|'s host if |origin|'s host is a registrable domain
+     //    or a subdomain thereof
+@@ -190,9 +197,7 @@
+                                   weak_factory_.GetWeakPtr(), 0));
+     }
+ 
+-    // TODO(crbug.com/573027744): CHECK-exclusion: Convert to a CHECK once we
+-    // are confident it won't be triggered.
+-    DCHECK_GT(pending_task_count_, 0);
++    OnBrowsingDataRemoverDone(/*failed_data_types=*/0);
+   }
+ 
+  private:
+@@ -203,8 +208,9 @@
+       return;
+     }
+ 
+-    std::move(callback_).Run();
++    base::OnceClosure callback = std::move(callback_);
+     delete this;
++    std::move(callback).Run();
+   }
+ 
+   const std::optional<StoragePartitionConfig> storage_partition_config_;
+@@ -242,7 +248,7 @@
+   CHECK(!clear_site_data_types.Has(ClearSiteDataType::kStorage) ||
+             storage_buckets_to_remove.empty(),
+         base::NotFatalUntil::M159);
+-  if (!browser_context) {
++  if (!browser_context || browser_context->ShutdownStarted()) {
+     std::move(callback).Run();
+     return;
+   }
+diff --git a/content/browser/browsing_instance.cc b/content/browser/browsing_instance.cc
+index 22c7f03..0ff18d9 100644
+--- a/content/browser/browsing_instance.cc
++++ b/content/browser/browsing_instance.cc
+@@ -193,7 +193,9 @@
+   // Explicitly prevent the default SiteInstance from being added since
+   // the map is only supposed to contain instances that map to a single site.
+   if (site_instance->IsDefaultSiteInstance()) {
+-    CHECK(!ShouldUseDefaultSiteInstanceGroup(), base::NotFatalUntil::M160);
++    // TODO(crbug.com/578414909): CHECK-exclusion: Convert to a CHECK once we
++    // are confident it won't be triggered.
++    DCHECK(!ShouldUseDefaultSiteInstanceGroup());
+     SiteShard shard = site_instance->GetSiteInfo().shard();
+     CHECK(!default_site_instances_.contains(shard));
+     default_site_instances_[shard] = site_instance;
 diff --git a/content/browser/loader/navigation_url_loader_impl.cc b/content/browser/loader/navigation_url_loader_impl.cc
 index b6cca80..b9cc368 100644
 --- a/content/browser/loader/navigation_url_loader_impl.cc
@@ -1296,6 +2800,335 @@ index b6cca80..b9cc368 100644
      // TODO(https://crbug.com/434182226): Turn this to `CHECK()`.
      DUMP_WILL_BE_CHECK_EQ(loader_holder_.state(),
                            LoaderHolder::State::kLoadingViaLoader);
+diff --git a/content/browser/media/capture/desktop_capture_device.cc b/content/browser/media/capture/desktop_capture_device.cc
+index 5866c4ae9..33f78f0 100644
+--- a/content/browser/media/capture/desktop_capture_device.cc
++++ b/content/browser/media/capture/desktop_capture_device.cc
+@@ -503,7 +503,9 @@
+   CHECK(task_runner_->BelongsToCurrentThread(), base::NotFatalUntil::M160);
+   CHECK_GT(params.requested_format.frame_size.GetArea(), 0,
+            base::NotFatalUntil::M160);
+-  CHECK_GT(params.requested_format.frame_rate, 0, base::NotFatalUntil::M160);
++  // TODO(crbug.com/578932753): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK_GT(params.requested_format.frame_rate, 0);
+   CHECK(desktop_capturer_, base::NotFatalUntil::M160);
+   CHECK(client, base::NotFatalUntil::M160);
+   CHECK(!client_, base::NotFatalUntil::M160);
+diff --git a/content/browser/renderer_host/render_frame_host_manager.cc b/content/browser/renderer_host/render_frame_host_manager.cc
+index 97b080c..2c6cd48 100644
+--- a/content/browser/renderer_host/render_frame_host_manager.cc
++++ b/content/browser/renderer_host/render_frame_host_manager.cc
+@@ -2764,6 +2764,14 @@
+         ShouldSwapBrowsingInstance::kNo_SameDocumentNavigation);
+   }
+ 
++  // If this is an error page that must stay in the current process (see
++  // DetermineSiteInstanceForURL), do not swap BrowsingInstances, as the error
++  // page must reuse `current_instance`.
++  if (error_page_process == ErrorPageProcess::kCurrentProcess) {
++    return BrowsingContextGroupSwap::CreateNoSwap(
++        ShouldSwapBrowsingInstance::kNo_AlreadyHasMatchingBrowsingInstance);
++  }
++
+   // Check for reasons to swap processes even if we are in a process model that
+   // doesn't usually swap (e.g., process-per-tab).  Any time we return true,
+   // the new URL will be rendered in a new SiteInstance AND BrowsingInstance.
+diff --git a/content/public/browser/clear_site_data_utils.h b/content/public/browser/clear_site_data_utils.h
+index 916f415..f30b267 100644
+--- a/content/public/browser/clear_site_data_utils.h
++++ b/content/public/browser/clear_site_data_utils.h
+@@ -40,7 +40,8 @@
+ // Removes browsing data associated with |origin|. Used when the Clear-Site-Data
+ // header is sent.
+ // Has to be called on the UI thread and will execute |callback| on the UI
+-// thread when done.
++// thread when done. If |browser_context| is null or has started shutdown,
++// |callback| is run immediately without clearing data.
+ CONTENT_EXPORT void ClearSiteData(
+     base::WeakPtr<BrowserContext> browser_context,
+     std::optional<StoragePartitionConfig> storage_partition_config,
+diff --git a/extensions/common/extension_features.cc b/extensions/common/extension_features.cc
+index 17ddf39..d0f9ea32 100644
+--- a/extensions/common/extension_features.cc
++++ b/extensions/common/extension_features.cc
+@@ -136,9 +136,8 @@
+ BASE_FEATURE(kExtensionAsyncListenerRegistration,
+              base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+-// TODO(crbug.com/561948316): Remove this kill switch in M160.
+ BASE_FEATURE(kExtensionDebuggerStrictPolicyRestrictions,
+-             base::FEATURE_ENABLED_BY_DEFAULT);
++             base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ // TODO(crbug.com/578677350): Remove this kill switch in M161.
+ BASE_FEATURE(kExtensionDownloaderPublisherProofByUpdateUrl,
+diff --git a/extensions/common/extension_features.h b/extensions/common/extension_features.h
+index 62053b7..72d74d6 100644
+--- a/extensions/common/extension_features.h
++++ b/extensions/common/extension_features.h
+@@ -196,14 +196,14 @@
+ // prompting the user.
+ BASE_DECLARE_FEATURE(kExtensionAutoRejectIncognitoConnectability);
+ 
+-// If enabled (the default), extensions calling chrome.debugger.attach are
+-// rejected upfront when enterprise policy configures runtime_blocked_hosts or
+-// disables/restricts screenshots. If disabled (kill switch), extension debugger
+-// attachment reverts to the pre-existing behavior prior to M155: falling back
+-// to per-URL IsPolicyBlockedHost checks and allowing attachment when
+-// screenshots are disabled. Note that disabling this feature has security
+-// implications.
+-// See https://developer.chrome.com/blog/debugger-enterprise-policy-restrictions.
++// If enabled, extensions calling chrome.debugger.attach are rejected upfront
++// when enterprise policy configures runtime_blocked_hosts or disables/restricts
++// screenshots. If disabled (the default), extension debugger attachment reverts
++// to the pre-existing behavior prior to M155: falling back to per-URL
++// IsPolicyBlockedHost checks and allowing attachment when screenshots are
++// disabled. Note that disabling this feature has security implications.
++// See
++// https://developer.chrome.com/blog/debugger-enterprise-policy-restrictions.
+ BASE_DECLARE_FEATURE(kExtensionDebuggerStrictPolicyRestrictions);
+ 
+ // If enabled (the default), ExtensionDownloader decides whether to require Web
+diff --git a/net/device_bound_sessions/unexportable_key_service_factory.cc b/net/device_bound_sessions/unexportable_key_service_factory.cc
+index 7686a6e3..1a2bb30d 100644
+--- a/net/device_bound_sessions/unexportable_key_service_factory.cc
++++ b/net/device_bound_sessions/unexportable_key_service_factory.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "net/device_bound_sessions/unexportable_key_service_factory.h"
+ 
++#include "base/feature_list.h"
+ #include "base/logging.h"
+ #include "build/branding_buildflags.h"
+ #include "components/unexportable_keys/background_task_origin.h"
+@@ -11,6 +12,7 @@
+ #include "components/unexportable_keys/unexportable_key_service_impl.h"
+ #include "components/unexportable_keys/unexportable_key_task_manager.h"
+ #include "crypto/unexportable_key.h"
++#include "net/base/features.h"
+ 
+ namespace {
+ 
+@@ -96,12 +98,16 @@
+     unexportable_keys::UnexportableKeyTaskManager* task_manager =
+         GetSharedTaskManagerInstance();
+     if (task_manager) {
++      // Only DBSC single sign-on requests attestation keys.
+       unexportable_key_service_ =
+           std::make_unique<unexportable_keys::UnexportableKeyServiceImpl>(
+               *task_manager,
+               unexportable_keys::BackgroundTaskOrigin::
+                   kDeviceBoundSessionCredentials,
+-              GetConfig());
++              GetConfig(),
++              /*enable_spare_attestation_key_pool=*/
++              base::FeatureList::IsEnabled(
++                  features::kDeviceBoundSessionsForSingleSignOn));
+     }
+   }
+ 
+diff --git a/third_party/blink/renderer/core/animation/scroll_snapshot_timeline.cc b/third_party/blink/renderer/core/animation/scroll_snapshot_timeline.cc
+index 9153b58..98aaedb 100644
+--- a/third_party/blink/renderer/core/animation/scroll_snapshot_timeline.cc
++++ b/third_party/blink/renderer/core/animation/scroll_snapshot_timeline.cc
+@@ -19,6 +19,7 @@
+ #include "third_party/blink/renderer/core/layout/layout_box.h"
+ #include "third_party/blink/renderer/core/paint/paint_layer_scrollable_area.h"
+ #include "third_party/blink/renderer/platform/geometry/physical_direction.h"
++#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
+ #include "third_party/blink/renderer/platform/text/writing_direction_mode.h"
+ 
+ namespace blink {
+@@ -251,30 +252,45 @@
+ 
+   if (RuntimeEnabledFeatures::TimelineTriggerEnabled() &&
+       (snapshot_changed || update_triggers_)) {
+-    for (TimelineTrigger* trigger : GetTriggers()) {
+-      bool trigger_changed = !trigger->Update();
+-      if (trigger_changed) {
+-        for (auto& [animation, behaviors] : trigger->BehaviorMap()) {
+-          // A time-driven animation triggered by a TimelineTrigger should not
+-          // be idle (it should have a resolved current time) because triggers
+-          // should not remain attached to idle animations.
+-          // scroll-driven animations pick up their start times post-layout
+-          // and may not yet have resolved current times.
+-          if (animation->timeline() &&
+-              animation->timeline()->IsMonotonicallyIncreasing()) {
+-            DCHECK(animation->CurrentTimeInternal());
+-          }
+-          // Avoid superfluous snapshot validation, by skipping the call if it
+-          // will be invoked in the loop below.
+-          if (!animations.Contains(animation)) {
+-            if (should_skip_validation(animation)) {
+-              continue;
+-            }
+-            animation->OnValidateSnapshot(true);
+-          }
+-        }
++    // Resolving style-dependent timeline offsets during TimelineTrigger::Update
++    // or Animation::OnValidateSnapshot can synchronously recalculate slot
++    // assignments, detaching elements and cancelling CSS animations. That
++    // disassociates animations from triggers and removes emptied triggers from
++    // `triggers_`, so copy the triggers upfront and collect triggered
++    // animations before validating snapshots.
++    HeapVector<Member<TimelineTrigger>> triggers(GetTriggers());
++    HeapVector<Member<Animation>> animations_to_validate;
++    for (TimelineTrigger* trigger : triggers) {
++      if (trigger->Update()) {
++        continue;
+       }
+-      snapshot_changed |= trigger_changed;
++      snapshot_changed = true;
++      for (Animation* animation : trigger->BehaviorMap().Keys()) {
++        // A time-driven animation triggered by a TimelineTrigger should not
++        // be idle (it should have a resolved current time) because triggers
++        // should not remain attached to idle animations.
++        // scroll-driven animations pick up their start times post-layout
++        // and may not yet have resolved current times.
++        if (animation->timeline() &&
++            animation->timeline()->IsMonotonicallyIncreasing()) {
++          DCHECK(animation->CurrentTimeInternal());
++        }
++        // Avoid superfluous snapshot validation, by skipping the call if it
++        // will be invoked in the loop below.
++        if (animations.Contains(animation) ||
++            should_skip_validation(animation)) {
++          continue;
++        }
++        animations_to_validate.push_back(animation);
++      }
++    }
++    for (Animation* animation : animations_to_validate) {
++      // A later TimelineTrigger::Update or earlier OnValidateSnapshot call may
++      // have cancelled `animation` and disassociated it from its trigger.
++      if (animation->GetTriggers().empty()) {
++        continue;
++      }
++      animation->OnValidateSnapshot(true);
+     }
+     update_triggers_ = false;
+   }
+diff --git a/third_party/blink/renderer/core/frame/local_frame_view.cc b/third_party/blink/renderer/core/frame/local_frame_view.cc
+index 99ceefd..7343fa23 100644
+--- a/third_party/blink/renderer/core/frame/local_frame_view.cc
++++ b/third_party/blink/renderer/core/frame/local_frame_view.cc
+@@ -2994,7 +2994,11 @@
+     frame_view.PerformScrollAnchoringAdjustments();
+   });
+ 
+-  ExecutePendingSnapUpdates();
++  {
++    SlotAssignmentRecalcForbiddenScope forbid_slot_recalc(
++        *frame_->GetDocument());
++    ExecutePendingSnapUpdates();
++  }
+ 
+   ExecutePendingScrollMarkerSelectionUpdates();
+ 
+@@ -5866,38 +5870,55 @@
+   if (pending_snap_updates_) {
+     pending_snap_updates_->erase(object);
+   }
++  if (pending_perform_snap_) {
++    pending_perform_snap_->erase(object);
++  }
+ }
+ 
+ void LocalFrameView::ExecutePendingSnapUpdates() {
+-  if (pending_snap_updates_) {
+-    // Some scroll containers might be mid-scroll animation. Defer snapping
+-    // those containers until after the scroll animation is done.
+-    HeapHashSet<Member<PaintLayerScrollableArea>> deferred_updates;
++  if (pending_snap_updates_ && !pending_snap_updates_->empty()) {
++    // Move to a local set before iterating, since updating snap container data
++    // may detach layout objects and mutate `pending_snap_updates_`.
++    HeapHashSet<Member<PaintLayerScrollableArea>> snap_updates;
++    pending_snap_updates_->swap(snap_updates);
++
+     // Iteration order of the objects doesn't matter as the snap-areas are
+     // contained within each scroll-container.
+-    for (PaintLayerScrollableArea* scrollable_area : *pending_snap_updates_) {
++    for (PaintLayerScrollableArea* scrollable_area : snap_updates) {
+       auto* snap_container = scrollable_area->GetLayoutBox();
++      if (!snap_container) {
++        continue;
++      }
+       DCHECK(snap_container->IsScrollContainer());
+       if (SnapCoordinator::UpdateSnapContainerData(*snap_container)) {
+-        if (!pending_perform_snap_) {
+-          pending_perform_snap_ = MakeGarbageCollected<
+-              GCedHeapHashSet<Member<PaintLayerScrollableArea>>>();
++        if (!scrollable_area->GetLayoutBox()) {
++          continue;
+         }
+         if (scrollable_area->HasRunningAnimation()) {
+-          deferred_updates.insert(scrollable_area);
++          // Some scroll containers might be mid-scroll animation. Defer
++          // snapping those containers until after the scroll animation is done.
++          pending_snap_updates_->insert(scrollable_area);
+         } else {
++          if (!pending_perform_snap_) {
++            pending_perform_snap_ = MakeGarbageCollected<
++                GCedHeapHashSet<Member<PaintLayerScrollableArea>>>();
++          }
+           pending_perform_snap_->insert(scrollable_area);
+         }
+       }
+     }
+-    pending_snap_updates_->swap(deferred_updates);
+   }
+ 
+-  if (pending_perform_snap_ && !ShouldDeferLayoutSnap()) {
+-    for (PaintLayerScrollableArea* scrollable_area : *pending_perform_snap_) {
++  if (pending_perform_snap_ && !pending_perform_snap_->empty() &&
++      !ShouldDeferLayoutSnap()) {
++    HeapHashSet<Member<PaintLayerScrollableArea>> perform_snap;
++    pending_perform_snap_->swap(perform_snap);
++    for (PaintLayerScrollableArea* scrollable_area : perform_snap) {
++      if (!scrollable_area->GetLayoutBox()) {
++        continue;
++      }
+       scrollable_area->SnapAfterLayout();
+     }
+-    pending_perform_snap_->clear();
+   }
+ }
+ 
+diff --git a/third_party/lens_server_proto/search_communication.proto b/third_party/lens_server_proto/search_communication.proto
+index 84e41cb1..4beb2ba 100644
+--- a/third_party/lens_server_proto/search_communication.proto
++++ b/third_party/lens_server_proto/search_communication.proto
+@@ -42,6 +42,8 @@
+       CONTEXT_LIBRARY = 2;
+       // Lens button / selection active state.
+       LENS_BUTTON = 3;
++      // Tab picker / open tabs menu item.
++      TAB_PICKER = 4;
+     }
+     InputType input_type = 2;
+ 
+diff --git a/ui/views/controls/menu/menu_item_view.cc b/ui/views/controls/menu/menu_item_view.cc
+index 77e8e87..27daaff 100644
+--- a/ui/views/controls/menu/menu_item_view.cc
++++ b/ui/views/controls/menu/menu_item_view.cc
+@@ -1100,8 +1100,14 @@
+ }
+ 
+ bool MenuItemView::IsTraversableByKeyboard() const {
+-  bool ignore_enabled =
+-      ui::AXPlatform::GetInstance().GetMode().has_mode(ui::AXMode::kNativeAPIs);
++  const ui::AXMode mode = ui::AXPlatform::GetInstance().GetMode();
++  // Disabled items are traversable with assistive technology so they can be
++  // discovered. Titles (section headers) aren't actionable, so they require
++  // screen-reader-class AT (kScreenReader, which also covers magnifiers).
++  // kNativeAPIs alone is often set on Windows by tools that aren't AT.
++  const bool ignore_enabled = type_ == Type::kTitle
++                                  ? mode.has_mode(ui::AXMode::kScreenReader)
++                                  : mode.has_mode(ui::AXMode::kNativeAPIs);
+   return GetVisible() && (ignore_enabled || GetEnabledInViewsSubtree());
+ }
+ 
 diff --git a/ui/webui/resources/cr_components/composebox/composebox_match.css b/ui/webui/resources/cr_components/composebox/composebox_match.css
 index 52668c6..f660a39 100644
 --- a/ui/webui/resources/cr_components/composebox/composebox_match.css
@@ -1332,7 +3165,7 @@ index 8926d4c..7ebe216b 100644
                'close-composebox', {composeboxText: this.input, afterSubmit});
          }
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index 31c243a..c940c8b 100644
+index 31c243a..a8a89fa 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -1340,10 +3173,580 @@ index 31c243a..c940c8b 100644
  #define V8_MINOR_VERSION 8
  #define V8_BUILD_NUMBER 62
 -#define V8_PATCH_LEVEL 12
-+#define V8_PATCH_LEVEL 13
++#define V8_PATCH_LEVEL 16
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/baseline/baseline-compiler.cc b/v8/src/baseline/baseline-compiler.cc
+index d599121..4fca757 100644
+--- a/v8/src/baseline/baseline-compiler.cc
++++ b/v8/src/baseline/baseline-compiler.cc
+@@ -1208,7 +1208,11 @@
+ }
+ 
+ void BaselineCompiler::VisitDefineNamedOwnPropertyInLiteral() {
+-  VisitDefineNamedOwnProperty();
++  CallBuiltin<Builtin::kDefineNamedOwnInLiteralICBaseline>(
++      RegisterOperand(0),               // object
++      Constant<Name>(1),                // name
++      kInterpreterAccumulatorRegister,  // value
++      FeedbackSlotAsTagged(2));         // slot
+ }
+ 
+ void BaselineCompiler::VisitSetKeyedProperty() {
+diff --git a/v8/src/builtins/builtins-definitions.h b/v8/src/builtins/builtins-definitions.h
+index b1d82f6..76f9995 100644
+--- a/v8/src/builtins/builtins-definitions.h
++++ b/v8/src/builtins/builtins-definitions.h
+@@ -892,6 +892,9 @@
+   TFH(DefineNamedOwnIC, StoreWithVector)                                       \
+   TFH(DefineNamedOwnICTrampoline, Store)                                       \
+   TFH(DefineNamedOwnICBaseline, StoreBaseline)                                 \
++  TFH(DefineNamedOwnInLiteralIC, StoreWithVector)                              \
++  TFH(DefineNamedOwnInLiteralICTrampoline, Store)                              \
++  TFH(DefineNamedOwnInLiteralICBaseline, StoreBaseline)                        \
+   TFH(KeyedStoreIC, StoreWithVector)                                           \
+   TFH(KeyedStoreICTrampoline, Store)                                           \
+   TFH(KeyedStoreICTrampoline_Megamorphic, Store)                               \
+diff --git a/v8/src/builtins/builtins-handler-gen.cc b/v8/src/builtins/builtins-handler-gen.cc
+index 5cde9dd..03ac859 100644
+--- a/v8/src/builtins/builtins-handler-gen.cc
++++ b/v8/src/builtins/builtins-handler-gen.cc
+@@ -69,6 +69,8 @@
+   StoreICNoFeedbackGenerator::Generate(state);
+ }
+ 
++// For the "no feedback" case, we don't need to distinguish between "in literal"
++// and "not in literal".
+ void Builtins::Generate_DefineNamedOwnIC_NoFeedback(
+     compiler::CodeAssemblerState* state) {
+   DefineNamedOwnICNoFeedbackGenerator::Generate(state);
+diff --git a/v8/src/builtins/builtins-ic-gen.cc b/v8/src/builtins/builtins-ic-gen.cc
+index a3aac16..4a101c8 100644
+--- a/v8/src/builtins/builtins-ic-gen.cc
++++ b/v8/src/builtins/builtins-ic-gen.cc
+@@ -187,17 +187,32 @@
+ }
+ void Builtins::Generate_DefineNamedOwnIC(compiler::CodeAssemblerState* state) {
+   AccessorAssembler assembler(state);
+-  assembler.GenerateDefineNamedOwnIC();
++  assembler.GenerateDefineNamedOwnIC(false);
+ }
+ void Builtins::Generate_DefineNamedOwnICTrampoline(
+     compiler::CodeAssemblerState* state) {
+   AccessorAssembler assembler(state);
+-  assembler.GenerateDefineNamedOwnICTrampoline();
++  assembler.GenerateDefineNamedOwnICTrampoline(false);
+ }
+ void Builtins::Generate_DefineNamedOwnICBaseline(
+     compiler::CodeAssemblerState* state) {
+   AccessorAssembler assembler(state);
+-  assembler.GenerateDefineNamedOwnICBaseline();
++  assembler.GenerateDefineNamedOwnICBaseline(false);
++}
++void Builtins::Generate_DefineNamedOwnInLiteralIC(
++    compiler::CodeAssemblerState* state) {
++  AccessorAssembler assembler(state);
++  assembler.GenerateDefineNamedOwnIC(true);
++}
++void Builtins::Generate_DefineNamedOwnInLiteralICTrampoline(
++    compiler::CodeAssemblerState* state) {
++  AccessorAssembler assembler(state);
++  assembler.GenerateDefineNamedOwnICTrampoline(true);
++}
++void Builtins::Generate_DefineNamedOwnInLiteralICBaseline(
++    compiler::CodeAssemblerState* state) {
++  AccessorAssembler assembler(state);
++  assembler.GenerateDefineNamedOwnICBaseline(true);
+ }
+ void Builtins::Generate_KeyedStoreIC(compiler::CodeAssemblerState* state) {
+   AccessorAssembler assembler(state);
+diff --git a/v8/src/codegen/code-factory.cc b/v8/src/codegen/code-factory.cc
+index d32820c..0609018 100644
+--- a/v8/src/codegen/code-factory.cc
++++ b/v8/src/codegen/code-factory.cc
+@@ -50,6 +50,16 @@
+   return Builtins::CallableFor(isolate, Builtin::kDefineNamedOwnIC);
+ }
+ 
++Callable CodeFactory::DefineNamedOwnInLiteralIC(Isolate* isolate) {
++  return Builtins::CallableFor(isolate,
++                               Builtin::kDefineNamedOwnInLiteralICTrampoline);
++}
++
++Callable CodeFactory::DefineNamedOwnInLiteralICInOptimizedCode(
++    Isolate* isolate) {
++  return Builtins::CallableFor(isolate, Builtin::kDefineNamedOwnInLiteralIC);
++}
++
+ // static
+ Callable CodeFactory::StringAdd(Isolate* isolate, StringAddFlags flags) {
+   return Builtins::CallableFor(isolate, Builtins::StringAdd(flags));
+diff --git a/v8/src/codegen/code-factory.h b/v8/src/codegen/code-factory.h
+index df32614..b421624 100644
+--- a/v8/src/codegen/code-factory.h
++++ b/v8/src/codegen/code-factory.h
+@@ -39,6 +39,8 @@
+                                               TypeofMode typeof_mode);
+   static Callable DefineNamedOwnIC(Isolate* isolate);
+   static Callable DefineNamedOwnICInOptimizedCode(Isolate* isolate);
++  static Callable DefineNamedOwnInLiteralIC(Isolate* isolate);
++  static Callable DefineNamedOwnInLiteralICInOptimizedCode(Isolate* isolate);
+ 
+   static Callable CallApiCallback(Isolate* isolate);
+ 
+diff --git a/v8/src/compiler/js-generic-lowering.cc b/v8/src/compiler/js-generic-lowering.cc
+index d0c877b..22c8c0b 100644
+--- a/v8/src/compiler/js-generic-lowering.cc
++++ b/v8/src/compiler/js-generic-lowering.cc
+@@ -483,13 +483,18 @@
+     node->InsertInput(zone(), 1, jsgraph()->ConstantNoHole(p.name(), broker()));
+     node->InsertInput(zone(), 3,
+                       jsgraph()->TaggedIndexConstant(p.feedback().index()));
+-    Callable callable = CodeFactory::DefineNamedOwnIC(isolate());
++    Callable callable = p.in_literal()
++                            ? CodeFactory::DefineNamedOwnInLiteralIC(isolate())
++                            : CodeFactory::DefineNamedOwnIC(isolate());
+     ReplaceWithBuiltinCall(node, callable, flags);
+   } else {
+     node->InsertInput(zone(), 1, jsgraph()->ConstantNoHole(p.name(), broker()));
+     node->InsertInput(zone(), 3,
+                       jsgraph()->TaggedIndexConstant(p.feedback().index()));
+-    Callable callable = CodeFactory::DefineNamedOwnICInOptimizedCode(isolate());
++    Callable callable =
++        p.in_literal()
++            ? CodeFactory::DefineNamedOwnInLiteralICInOptimizedCode(isolate())
++            : CodeFactory::DefineNamedOwnICInOptimizedCode(isolate());
+     ReplaceWithBuiltinCall(node, callable, flags);
+   }
+ }
+diff --git a/v8/src/compiler/turboshaft/turbolev-graph-builder.cc b/v8/src/compiler/turboshaft/turbolev-graph-builder.cc
+index 811af26..a17cbf2 100644
+--- a/v8/src/compiler/turboshaft/turbolev-graph-builder.cc
++++ b/v8/src/compiler/turboshaft/turbolev-graph-builder.cc
+@@ -2365,8 +2365,11 @@
+                            __ HeapConstant(node->feedback().vector),
+                            Map(node->ContextInput())};
+ 
+-    GENERATE_AND_MAP_BUILTIN_CALL(node, Builtin::kDefineNamedOwnIC, frame_state,
+-                                  base::VectorOf(arguments));
++    GENERATE_AND_MAP_BUILTIN_CALL(node,
++                                  node->in_literal()
++                                      ? Builtin::kDefineNamedOwnInLiteralIC
++                                      : Builtin::kDefineNamedOwnIC,
++                                  frame_state, base::VectorOf(arguments));
+     return maglev::ProcessResult::kContinue;
+   }
+ 
+diff --git a/v8/src/ic/accessor-assembler.cc b/v8/src/ic/accessor-assembler.cc
+index 22b44ad..4936b9c 100644
+--- a/v8/src/ic/accessor-assembler.cc
++++ b/v8/src/ic/accessor-assembler.cc
+@@ -1665,7 +1665,7 @@
+                         p->slot(), p->vector(), p->receiver(), p->name());
+       } else {
+         Runtime::FunctionId id;
+-        if (p->IsDefineNamedOwn()) {
++        if (p->IsAnyDefineNamedOwn()) {
+           id = Runtime::kDefineNamedOwnIC_Slow;
+         } else if (p->IsDefineKeyedOwn()) {
+           id = Runtime::kDefineKeyedOwnIC_Slow;
+@@ -2395,7 +2395,8 @@
+   BIND(&if_heap_object_field);
+   {
+     Comment("heap object field checks");
+-    CheckHeapObjectTypeMatchesDescriptor(handler_word, holder, value, miss);
++    CheckHeapObjectTypeMatchesDescriptor(handler_word, holder, value, mode,
++                                         miss);
+ 
+     Comment("store heap object field");
+     HandleStoreFieldAndReturn(handler_word, holder, value, std::nullopt,
+@@ -2432,15 +2433,19 @@
+ 
+ void AccessorAssembler::CheckHeapObjectTypeMatchesDescriptor(
+     TNode<Word32T> handler_word, TNode<JSObject> holder, TNode<Object> value,
+-    Label* bailout) {
++    StoreICMode mode, Label* bailout) {
+   GotoIf(TaggedIsSmi(value), bailout);
+ 
+   Label done(this);
+   // Skip field type check in favor of constant value check when storing
+   // to constant field.
+-  GotoIf(Word32Equal(DecodeWord32<StoreHandler::KindBits>(handler_word),
+-                     STORE_KIND(kConstField)),
+-         &done);
++  if (mode != StoreICMode::kDefineNamedOwnInLiteral) {
++    // DefineNamedOwnInLiteral skips the constant value check
++    // when storing, so we need to do this field type check here.
++    GotoIf(Word32Equal(DecodeWord32<StoreHandler::KindBits>(handler_word),
++                       STORE_KIND(kConstField)),
++           &done);
++  }
+   TNode<IntPtrT> descriptor =
+       Signed(DecodeWordFromWord32<StoreHandler::DescriptorBits>(handler_word));
+   TNode<MaybeObject> field_type =
+@@ -2523,6 +2528,9 @@
+   bool maybe_initializing_store;
+   switch (mode) {
+     case StoreICMode::kDefineNamedOwn:
++    // This might or might not be an initializing store; but this direction
++    // (setting maybe_initializing_store to true) is fine.
++    case StoreICMode::kDefineNamedOwnInLiteral:
+     case StoreICMode::kDefineKeyedOwn:
+       maybe_initializing_store = true;
+       break;
+@@ -2567,12 +2575,16 @@
+     offset = actual_offset.value();
+   }
+ 
+-  // Do constant value check if necessary.
++  // Do constant value check if necessary. In
++  // StoreICMode::kDefineNamedOwnInLiteral, we can store to const fields without
++  // invalidating the constness.
+   Label do_store(this);
+-  GotoIfNot(Word32Equal(DecodeWord32<StoreHandler::KindBits>(handler_word),
+-                        STORE_KIND(kConstField)),
+-            &do_store);
+-  {
++  if (mode == StoreICMode::kDefineNamedOwnInLiteral) {
++    Goto(&do_store);
++  } else {
++    GotoIfNot(Word32Equal(DecodeWord32<StoreHandler::KindBits>(handler_word),
++                          STORE_KIND(kConstField)),
++              &do_store);
+     if (store_value_as_double) {
+       CSA_DCHECK(this, IsHeapNumber(property_storage));
+       TNode<Float64T> current_value =
+@@ -4290,16 +4302,17 @@
+   {
+     // TODO(v8:12548): refactor SetNamedIC as a subclass of StoreIC, which can
+     // be called here and below when !p->IsDefineNamedOwn().
+-    auto builtin = p->IsDefineNamedOwn() ? Builtin::kDefineNamedOwnIC_NoFeedback
+-                                         : Builtin::kStoreIC_NoFeedback;
++    auto builtin = p->IsAnyDefineNamedOwn()
++                       ? Builtin::kDefineNamedOwnIC_NoFeedback
++                       : Builtin::kStoreIC_NoFeedback;
+     TailCallBuiltin(builtin, p->context(), p->receiver(), p->name(),
+                     p->value());
+   }
+ 
+   BIND(&miss);
+   {
+-    auto runtime = p->IsDefineNamedOwn() ? Runtime::kDefineNamedOwnIC_Miss
+-                                         : Runtime::kStoreIC_Miss;
++    auto runtime = p->IsAnyDefineNamedOwn() ? Runtime::kDefineNamedOwnIC_Miss
++                                            : Runtime::kStoreIC_Miss;
+     TailCallRuntime(runtime, p->context(), p->value(), p->slot(), p->vector(),
+                     p->receiver(), p->name());
+   }
+@@ -5573,7 +5586,7 @@
+                   vector);
+ }
+ 
+-void AccessorAssembler::GenerateDefineNamedOwnIC() {
++void AccessorAssembler::GenerateDefineNamedOwnIC(bool in_literal) {
+   using Descriptor = StoreWithVectorDescriptor;
+ 
+   auto receiver = Parameter<JSAny>(Descriptor::kReceiver);
+@@ -5586,13 +5599,14 @@
+ 
+   StoreICParameters p =
+       MakeStoreICParameters(context, receiver, name, value, flags, slot, vector,
+-                            StoreICMode::kDefineNamedOwn);
++                            in_literal ? StoreICMode::kDefineNamedOwnInLiteral
++                                       : StoreICMode::kDefineNamedOwn);
+   // StoreIC is a generic helper than handle both set and define own
+   // named stores.
+   StoreIC(&p);
+ }
+ 
+-void AccessorAssembler::GenerateDefineNamedOwnICTrampoline() {
++void AccessorAssembler::GenerateDefineNamedOwnICTrampoline(bool in_literal) {
+   using Descriptor = StoreDescriptor;
+ 
+   auto receiver = Parameter<JSAny>(Descriptor::kReceiver);
+@@ -5602,11 +5616,12 @@
+   auto context = Parameter<Context>(Descriptor::kContext);
+   TNode<FeedbackVector> vector = LoadFeedbackVectorForStub();
+ 
+-  TailCallBuiltin(Builtin::kDefineNamedOwnIC, context, receiver, name, value,
+-                  slot, vector);
++  Builtin builtin = in_literal ? Builtin::kDefineNamedOwnInLiteralIC
++                               : Builtin::kDefineNamedOwnIC;
++  TailCallBuiltin(builtin, context, receiver, name, value, slot, vector);
+ }
+ 
+-void AccessorAssembler::GenerateDefineNamedOwnICBaseline() {
++void AccessorAssembler::GenerateDefineNamedOwnICBaseline(bool in_literal) {
+   using Descriptor = StoreWithVectorDescriptor;
+ 
+   auto receiver = Parameter<JSAny>(Descriptor::kReceiver);
+@@ -5616,8 +5631,9 @@
+   TNode<FeedbackVector> vector = LoadFeedbackVectorFromBaseline();
+   TNode<Context> context = LoadContextFromBaseline();
+ 
+-  TailCallBuiltin(Builtin::kDefineNamedOwnIC, context, receiver, name, value,
+-                  slot, vector);
++  Builtin builtin = in_literal ? Builtin::kDefineNamedOwnInLiteralIC
++                               : Builtin::kDefineNamedOwnIC;
++  TailCallBuiltin(builtin, context, receiver, name, value, slot, vector);
+ }
+ 
+ void AccessorAssembler::GenerateKeyedStoreIC() {
+diff --git a/v8/src/ic/accessor-assembler.h b/v8/src/ic/accessor-assembler.h
+index 480f110..a4adde3 100644
+--- a/v8/src/ic/accessor-assembler.h
++++ b/v8/src/ic/accessor-assembler.h
+@@ -57,9 +57,9 @@
+   void GenerateStoreICTrampoline();
+   void GenerateStoreICTrampoline_Megamorphic();
+   void GenerateStoreICBaseline();
+-  void GenerateDefineNamedOwnIC();
+-  void GenerateDefineNamedOwnICTrampoline();
+-  void GenerateDefineNamedOwnICBaseline();
++  void GenerateDefineNamedOwnIC(bool in_literal);
++  void GenerateDefineNamedOwnICTrampoline(bool in_literal);
++  void GenerateDefineNamedOwnICBaseline(bool in_literal);
+   void GenerateStoreGlobalIC();
+   void GenerateStoreGlobalICTrampoline();
+   void GenerateStoreGlobalICBaseline();
+@@ -313,6 +313,8 @@
+     // TODO(v8:12548): rename to kDefineKeyedOwnInLiteral
+     kDefault,
+     kDefineNamedOwn,
++    // Initializing store inside a literal; does not invalidate constness.
++    kDefineNamedOwnInLiteral,
+     kDefineKeyedOwn,
+   };
+ 
+@@ -359,11 +361,18 @@
+     bool IsDefineNamedOwn() const {
+       return mode_ == StoreICMode::kDefineNamedOwn;
+     }
++    bool IsDefineNamedOwnInLiteral() const {
++      return mode_ == StoreICMode::kDefineNamedOwnInLiteral;
++    }
++    bool IsAnyDefineNamedOwn() const {
++      return IsDefineNamedOwn() || IsDefineNamedOwnInLiteral();
++    }
+     bool IsDefineKeyedOwn() const {
+       return mode_ == StoreICMode::kDefineKeyedOwn;
+     }
+     bool IsAnyDefineOwn() const {
+-      return IsDefineNamedOwn() || IsDefineKeyedOwn();
++      return IsDefineNamedOwn() || IsDefineNamedOwnInLiteral() ||
++             IsDefineKeyedOwn();
+     }
+ 
+     StubCache* stub_cache(Isolate* isolate) const {
+@@ -694,7 +703,7 @@
+   void CheckHeapObjectTypeMatchesDescriptor(TNode<Word32T> handler_word,
+                                             TNode<JSObject> holder,
+                                             TNode<Object> value,
+-                                            Label* bailout);
++                                            StoreICMode mode, Label* bailout);
+   // Double fields store double values in a mutable box, where stores are
+   // writes into this box rather than HeapNumber assignment.
+   void CheckDescriptorConsidersNumbersMutable(TNode<Word32T> handler_word,
+diff --git a/v8/src/ic/ic.cc b/v8/src/ic/ic.cc
+index 68ff2da..e512afc 100644
+--- a/v8/src/ic/ic.cc
++++ b/v8/src/ic/ic.cc
+@@ -2688,16 +2688,9 @@
+           return MaybeObjectHandle(StoreHandler::StoreSharedStructField(
+               isolate(), descriptor, index, lookup->representation()));
+         }
+-        PropertyConstness constness = lookup->constness();
+-        if (constness == PropertyConstness::kConst &&
+-            IsDefineNamedOwnICKind(nexus()->kind())) {
+-          // DefineNamedOwnICs are used for initializing object literals
+-          // therefore we must store the value unconditionally even to
+-          // VariableMode::kConst fields.
+-          constness = PropertyConstness::kMutable;
+-        }
+         return MaybeObjectHandle(StoreHandler::StoreField(
+-            isolate(), descriptor, index, constness, lookup->representation()));
++            isolate(), descriptor, index, lookup->constness(),
++            lookup->representation()));
+       }
+ 
+       // -------------- Constant properties --------------
+@@ -3501,10 +3494,9 @@
+ 
+   FeedbackSlot vector_slot = FeedbackVector::ToSlot(slot);
+ 
+-  // When there is no feedback vector it is OK to use the SetNamedStrict as
+-  // the feedback slot kind. We only reuse this for DefineNamedOwnIC when
+-  // installing the handler for storing const properties. This will happen only
+-  // when feedback vector is available.
++  // When there is no feedback vector it is OK to use SetNamedStrict as the
++  // feedback slot kind because StoreIC::Store deduces strictness from the
++  // caller frame rather than the feedback slot kind.
+   FeedbackSlotKind kind = FeedbackSlotKind::kSetNamedStrict;
+   Handle<FeedbackVector> vector = Handle<FeedbackVector>();
+   if (!IsUndefined(*maybe_vector)) {
+@@ -3520,6 +3512,9 @@
+   RETURN_RESULT_OR_FAILURE(isolate, ic.Store(receiver, key, value));
+ }
+ 
++// Shared between DefineNamedOwn and DefineNamedOwnInLiteral. This
++// is fine, since the IC handlers we create are identical - only when using the
++// handler we check whether we're in the "in literal" case or not.
+ RUNTIME_FUNCTION(Runtime_DefineNamedOwnIC_Miss) {
+   HandleScope scope(isolate);
+   DCHECK_EQ(5, args.length());
+@@ -3552,6 +3547,7 @@
+   RETURN_RESULT_OR_FAILURE(isolate, ic.Store(receiver, key, value));
+ }
+ 
++// Also usable for both DefineNamedOwn and DefineNamedOwnInLiteral.
+ RUNTIME_FUNCTION(Runtime_DefineNamedOwnIC_Slow) {
+   HandleScope scope(isolate);
+   DCHECK_EQ(3, args.length());
+diff --git a/v8/src/ic/keyed-store-generic.cc b/v8/src/ic/keyed-store-generic.cc
+index f213fb0..f41abca 100644
+--- a/v8/src/ic/keyed-store-generic.cc
++++ b/v8/src/ic/keyed-store-generic.cc
+@@ -1339,6 +1339,9 @@
+     // checks, strings and string wrappers, proxies) are handled in the runtime.
+     GotoIf(IsSpecialReceiverInstanceType(instance_type), &miss);
+     {
++      // Using KeyedStoreGenericAssembler for named stores is a hack (see
++      // DefineNamedOwnICNoFeedbackGenerator::Generate). For the "no feedback"
++      // case, using kDefineNamedOwn is fine below.
+       StoreICParameters p = MakeStoreICParameters(
+           context, receiver, receiver_map, name, value, std::nullopt, {},
+           UndefinedConstant(),
+diff --git a/v8/src/interpreter/interpreter-generator.cc b/v8/src/interpreter/interpreter-generator.cc
+index 09a8c73..062f797 100644
+--- a/v8/src/interpreter/interpreter-generator.cc
++++ b/v8/src/interpreter/interpreter-generator.cc
+@@ -756,7 +756,8 @@
+ // this.
+ IGNITION_HANDLER(DefineNamedOwnPropertyInLiteral,
+                  InterpreterSetNamedPropertyAssembler) {
+-  SetNamedProperty(Builtin::kDefineNamedOwnIC, NamedPropertyType::kOwn);
++  SetNamedProperty(Builtin::kDefineNamedOwnInLiteralIC,
++                   NamedPropertyType::kOwn);
+ }
+ 
+ // SetKeyedProperty <object> <key> <slot>
+diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
+index 56230c1..a06a9c5 100644
+--- a/v8/src/maglev/maglev-graph-builder.cc
++++ b/v8/src/maglev/maglev-graph-builder.cc
+@@ -7035,11 +7035,12 @@
+       broker()->GetFeedbackForPropertyAccess(
+           feedback_source, compiler::AccessMode::kStore, name);
+ 
+-  auto build_generic_access = [this, object, &name, &feedback_source]() {
++  auto build_generic_access = [this, object, &name, in_literal,
++                               &feedback_source]() {
+     ValueNode* context = GetContext();
+     ValueNode* value = GetAccumulator();
+     return AddNewNode<DefineNamedOwnGeneric>({context, object, value}, name,
+-                                             feedback_source);
++                                             in_literal, feedback_source);
+   };
+   switch (processed_feedback.kind()) {
+     case compiler::ProcessedFeedback::kInsufficient:
+diff --git a/v8/src/maglev/maglev-ir.cc b/v8/src/maglev/maglev-ir.cc
+index 0fd92f2..b5a67f4 100644
+--- a/v8/src/maglev/maglev-ir.cc
++++ b/v8/src/maglev/maglev-ir.cc
+@@ -5381,10 +5381,16 @@
+ 
+ int DefineNamedOwnGeneric::MaxCallStackArgs() const {
+   using D = CallInterfaceDescriptorFor<Builtin::kDefineNamedOwnIC>::type;
++  static_assert(
++      std::is_same_v<D, CallInterfaceDescriptorFor<
++                            Builtin::kDefineNamedOwnInLiteralIC>::type>);
+   return D::GetStackParameterCount();
+ }
+ void DefineNamedOwnGeneric::SetValueLocationConstraints() {
+   using D = CallInterfaceDescriptorFor<Builtin::kDefineNamedOwnIC>::type;
++  static_assert(
++      std::is_same_v<D, CallInterfaceDescriptorFor<
++                            Builtin::kDefineNamedOwnInLiteralIC>::type>);
+   UseFixed(ContextInput(), kContextRegister);
+   UseFixed(ObjectInput(), D::GetRegisterParameter(D::kReceiver));
+   UseFixed(ValueInput(), D::GetRegisterParameter(D::kValue));
+@@ -5392,14 +5398,25 @@
+ }
+ void DefineNamedOwnGeneric::GenerateCode(MaglevAssembler* masm,
+                                          const ProcessingState& state) {
+-  __ CallBuiltin<Builtin::kDefineNamedOwnIC>(
+-      ContextInput(),                               // context
+-      ObjectInput(),                                // receiver
+-      name().object(),                              // name
+-      ValueInput(),                                 // value
+-      TaggedIndex::FromIntptr(feedback().index()),  // feedback slot
+-      feedback().vector                             // feedback vector
+-  );
++  if (in_literal()) {
++    __ CallBuiltin<Builtin::kDefineNamedOwnInLiteralIC>(
++        ContextInput(),                               // context
++        ObjectInput(),                                // receiver
++        name().object(),                              // name
++        ValueInput(),                                 // value
++        TaggedIndex::FromIntptr(feedback().index()),  // feedback slot
++        feedback().vector                             // feedback vector
++    );
++  } else {
++    __ CallBuiltin<Builtin::kDefineNamedOwnIC>(
++        ContextInput(),                               // context
++        ObjectInput(),                                // receiver
++        name().object(),                              // name
++        ValueInput(),                                 // value
++        TaggedIndex::FromIntptr(feedback().index()),  // feedback slot
++        feedback().vector                             // feedback vector
++    );
++  }
+   masm->DefineExceptionHandlerAndLazyDeoptPoint(this);
+ }
+ 
+@@ -9401,7 +9418,7 @@
+ }
+ 
+ void DefineNamedOwnGeneric::PrintParams(std::ostream& os) const {
+-  os << "(" << *name_.object() << ")";
++  os << "(" << *name_.object() << ", in_literal:" << in_literal() << ")";
+ }
+ 
+ void GapMove::PrintParams(std::ostream& os) const {
+diff --git a/v8/src/maglev/maglev-ir.h b/v8/src/maglev/maglev-ir.h
+index d94bbaf..661a46e 100644
+--- a/v8/src/maglev/maglev-ir.h
++++ b/v8/src/maglev/maglev-ir.h
+@@ -9989,8 +9989,11 @@
+     : public FixedInputValueNodeT<3, DefineNamedOwnGeneric> {
+  public:
+   explicit DefineNamedOwnGeneric(uint64_t bitfield, compiler::NameRef name,
++                                 bool in_literal,
+                                  const compiler::FeedbackSource& feedback)
+-      : Base(bitfield), name_(name), feedback_(feedback) {}
++      : Base(bitfield | InLiteralField::encode(in_literal)),
++        name_(name),
++        feedback_(feedback) {}
+ 
+   // The implementation currently calls runtime.
+   static constexpr OpProperties kProperties = OpProperties::JSCall();
+@@ -10000,6 +10003,7 @@
+   compiler::NameRef name() const { return name_; }
+   compiler::FeedbackSource feedback() const { return feedback_; }
+ 
++  bool in_literal() const { return InLiteralField::decode(bitfield()); }
+ 
+   int MaxCallStackArgs() const;
+   void SetValueLocationConstraints();
+@@ -10007,6 +10011,7 @@
+   void PrintParams(std::ostream&) const;
+ 
+  private:
++  using InLiteralField = NextBitField<bool, 1>;
+   const compiler::NameRef name_;
+   const compiler::FeedbackSource feedback_;
+ };
 diff --git a/v8/src/maglev/maglev-known-node-aspects.h b/v8/src/maglev/maglev-known-node-aspects.h
 index 3e6b955..ebcb26d 100644
 --- a/v8/src/maglev/maglev-known-node-aspects.h
@@ -1441,6 +3844,51 @@ index 3e6b955..ebcb26d 100644
      return node_infos_.find(node);
    }
    bool IsValid(NodeInfos::iterator& it) { return it != node_infos_.end(); }
+diff --git a/v8/src/maglev/maglev-reducer-inl.h b/v8/src/maglev/maglev-reducer-inl.h
+index 4bb1704..12d7cd1 100644
+--- a/v8/src/maglev/maglev-reducer-inl.h
++++ b/v8/src/maglev/maglev-reducer-inl.h
+@@ -914,6 +914,8 @@
+   }
+ 
+   DCHECK(value->is_tagged());
++  RETURN_IF_ABORT(BuildStoreTaggedField(object, value, desc.offset, store_mode,
++                                        PropertyKey::None(), maybe_assigned));
+   if (InlinedAllocation* inlined_value = value->TryCast<InlinedAllocation>()) {
+     // Add to the escape set.
+     auto escape_deps = graph()->allocations_escape_map().find(object);
+@@ -923,11 +925,10 @@
+     auto& elided_map = graph()->allocations_elide_map();
+     auto elided_deps = elided_map.try_emplace(inlined_value, zone()).first;
+     elided_deps->second.push_back(object);
+-    inlined_value->AddNonEscapingUses();
++    AddNonEscapingUses(inlined_value, 1);
+   }
+ 
+-  return BuildStoreTaggedField(object, value, desc.offset, store_mode,
+-                               PropertyKey::None(), maybe_assigned);
++  return ReduceResult::Done();
+ }
+ 
+ template <typename BaseT>
+diff --git a/v8/src/profiler/sampling-heap-profiler.cc b/v8/src/profiler/sampling-heap-profiler.cc
+index c6e49a4..b0343a1 100644
+--- a/v8/src/profiler/sampling-heap-profiler.cc
++++ b/v8/src/profiler/sampling-heap-profiler.cc
+@@ -158,7 +158,12 @@
+       AllocationNode::function_id(script_id, start_position, name);
+   AllocationNode* child = parent->FindChildNode(id);
+   if (child) {
+-    DCHECK_EQ(strcmp(child->name_, name), 0);
++    // For script functions, the inferred debug name may change across bytecode
++    // flushing and SFI reclamation, or synthetic functions (e.g. default class
++    // constructors at offset 0) may share (script_id, start_position) with the
++    // top-level script. Only kNoScriptId nodes are keyed by name pointer.
++    DCHECK_IMPLIES(script_id == v8::UnboundScript::kNoScriptId,
++                   strcmp(child->name_, name) == 0);
+     return child;
+   }
+   auto new_child = std::make_unique<AllocationNode>(
 diff --git a/third_party/icu/README.chromium b/third_party/icu/README.chromium
 index 3e93de4..1ad19b3 100644
 --- a/third_party/icu/README.chromium
@@ -2251,3 +4699,311 @@ index e396d87..a69e539 100644
  
      // Free any recycled command pools.
      mUnusedCommands.Use([&](auto unusedCommands) {
+diff --git a/third_party/skia/gn/tests.gni b/third_party/skia/gn/tests.gni
+index 4818502..bac07ea 100644
+--- a/third_party/skia/gn/tests.gni
++++ b/third_party/skia/gn/tests.gni
+@@ -186,6 +186,7 @@
+   "$_tests/RandomTest.cpp",
+   "$_tests/RasterPipelineBuilderTest.cpp",
+   "$_tests/RasterPipelineCodeGeneratorTest.cpp",
++  "$_tests/RasterizationTests.cpp",
+   "$_tests/RawPtrTest.cpp",
+   "$_tests/ReadPixelsTest.cpp",
+   "$_tests/RecordDrawTest.cpp",
+diff --git a/third_party/skia/src/core/SkAnalyticEdge.h b/third_party/skia/src/core/SkAnalyticEdge.h
+index 0578a38..4424205 100644
+--- a/third_party/skia/src/core/SkAnalyticEdge.h
++++ b/third_party/skia/src/core/SkAnalyticEdge.h
+@@ -62,12 +62,20 @@
+     // Update fX, fY of this edge so fY = y
+     inline void goY(SkFixed y) {
+         if (y == fY + SK_Fixed1) {
++#if defined(SK_LEGACY_ALPHA_RUNS)
+             fX = fX + fDX;
++#else
++            fX = Sk32_sat_add(fX, fDX);
++#endif
+             fY = y;
+         } else if (y != fY) {
+             // Drop lower digits as our alpha only has 8 bits
+             // (fDX and y - fUpperY may be greater than SK_Fixed1)
++#if defined(SK_LEGACY_ALPHA_RUNS)
+             fX = fUpperX + SkFixedMul(fDX, y - fUpperY);
++#else
++            fX = Sk64_pin_to_s32(fUpperX + ((int64_t)fDX * (y - fUpperY) >> 16));
++#endif
+             fY = y;
+         }
+     }
+@@ -76,7 +84,11 @@
+         SkASSERT(yShift >= 0 && yShift <= kDefaultAccuracy);
+         SkASSERT(fDX == 0 || y - fY == SK_Fixed1 >> yShift);
+         fY = y;
++#if defined(SK_LEGACY_ALPHA_RUNS)
+         fX += fDX >> yShift;
++#else
++        fX = Sk32_sat_add(fX, fDX >> yShift);
++#endif
+     }
+ 
+     bool setLine(const SkPoint& p0, const SkPoint& p1);
+diff --git a/third_party/skia/src/core/SkEdgeBuilder.cpp b/third_party/skia/src/core/SkEdgeBuilder.cpp
+index b1f4076..75df185 100644
+--- a/third_party/skia/src/core/SkEdgeBuilder.cpp
++++ b/third_party/skia/src/core/SkEdgeBuilder.cpp
+@@ -42,6 +42,11 @@
+         }
+         return kNo_Combine;
+     }
++#if !defined(SK_LEGACY_ALPHA_RUNS)
++    if (!fCanCullToTheRight) {
++        return kNo_Combine;
++    }
++#endif
+     if (edge->fFirstY == last->fFirstY) {
+         if (edge->fLastY == last->fLastY) {
+             return kTotal_Combine;
+@@ -91,6 +96,11 @@
+         }
+         return kNo_Combine;
+     }
++#if !defined(SK_LEGACY_ALPHA_RUNS)
++    if (!fCanCullToTheRight) {
++        return kNo_Combine;
++    }
++#endif
+     if (approximately_equal(edge->fUpperY, last->fUpperY)) {
+         if (approximately_equal(edge->fLowerY, last->fLowerY)) {
+             return kTotal_Combine;
+@@ -352,6 +362,9 @@
+                               const SkIRect* shiftedClip) {
+     // If we're convex, then we need both edges, even if the right edge is past the clip.
+     const bool canCullToTheRight = !raw.isKnownToBeConvex();
++#if !defined(SK_LEGACY_ALPHA_RUNS)
++    fCanCullToTheRight = canCullToTheRight;
++#endif
+ 
+     // We can use our buildPoly() optimization if all the segments are lines.
+     // (Edges are homogeneous and stored contiguously in memory, no need for indirection.)
+diff --git a/third_party/skia/src/core/SkEdgeBuilder.h b/third_party/skia/src/core/SkEdgeBuilder.h
+index 2668876..980e4d6 100644
+--- a/third_party/skia/src/core/SkEdgeBuilder.h
++++ b/third_party/skia/src/core/SkEdgeBuilder.h
+@@ -37,6 +37,9 @@
+     void**              fEdgeList = nullptr;
+     SkTDArray<void*>    fList;
+     SkSTArenaAlloc<512> fAlloc;
++#if !defined(SK_LEGACY_ALPHA_RUNS)
++    bool                fCanCullToTheRight = true;
++#endif
+ 
+     enum Combine {
+         kNo_Combine,
+diff --git a/third_party/skia/src/core/SkScan_AAAPath.cpp b/third_party/skia/src/core/SkScan_AAAPath.cpp
+index c08638b..06936f8 100644
+--- a/third_party/skia/src/core/SkScan_AAAPath.cpp
++++ b/third_party/skia/src/core/SkScan_AAAPath.cpp
+@@ -321,7 +321,11 @@
+ 
+     int fOffsetX;
+ 
++#if defined(SK_LEGACY_ALPHA_RUNS)
+     bool check(int x, int width) const { return x >= 0 && x + width <= fWidth; }
++#else
++    bool check(int x, int width) const { return x >= 0 && width >= 0 && x + width <= fWidth; }
++#endif
+ 
+     // extra one to store the zero at the end
+     int getRunsSz() const { return (fWidth + 1 + (fWidth + 2) / 2) * sizeof(int16_t); }
+@@ -410,6 +414,11 @@
+         x = 0;
+     }
+     len = std::min(len, fWidth - x);
++#if !defined(SK_LEGACY_ALPHA_RUNS)
++    if (len <= 0) {
++        return;
++    }
++#endif
+     SkASSERT(check(x, len));
+ 
+     if (x < fOffsetX) {
+@@ -446,6 +455,17 @@
+     checkY(y);
+     x -= fLeft;
+ 
++#if !defined(SK_LEGACY_ALPHA_RUNS)
++    if (x < 0) {
++        width += x;
++        x = 0;
++    }
++    width = std::min(width, fWidth - x);
++    if (width <= 0) {
++        return;
++    }
++#endif
++
+     if (x < fOffsetX) {
+         fOffsetX = 0;
+     }
+@@ -480,6 +500,11 @@
+         x = 0;
+     }
+     len = std::min(len, fWidth - x);
++#if !defined(SK_LEGACY_ALPHA_RUNS)
++    if (len <= 0) {
++        return;
++    }
++#endif
+     SkASSERT(check(x, len));
+ 
+     if (x < fOffsetX) {
+@@ -518,6 +543,17 @@
+     checkY(y);
+     x -= fLeft;
+ 
++#if !defined(SK_LEGACY_ALPHA_RUNS)
++    if (x < 0) {
++        width += x;
++        x = 0;
++    }
++    width = std::min(width, fWidth - x);
++    if (width <= 0) {
++        return;
++    }
++#endif
++
+     if (x < fOffsetX) {
+         fOffsetX = 0;
+     }
+@@ -1053,6 +1089,7 @@
+     for (;;) {
+         // We have to check fLowerY first because some edges might be alone (e.g., there's only
+         // a left edge but no right edge in a given y scan line) due to precision limit.
++#if defined(SK_LEGACY_ALPHA_RUNS)
+         while (leftE->fLowerY <= y) {  // Due to smooth jump, we may pass multiple short edges
+             if (!leftE->update(y)) {
+                 if (SkFixedFloorToInt(currE->fUpperY) >= stop_y) {
+@@ -1071,6 +1108,31 @@
+                 currE = (SkAnalyticEdge*)currE->fNext;
+             }
+         }
++#else
++        while (leftE->fLowerY <= y || riteE->fLowerY <= y) {
++            while (leftE->fLowerY <= y) {  // Due to smooth jump, we may pass multiple short edges
++                if (!leftE->update(y)) {
++                    if (SkFixedFloorToInt(currE->fUpperY) >= stop_y) {
++                        goto END_WALK;
++                    }
++                    leftE = currE;
++                    currE = (SkAnalyticEdge*)currE->fNext;
++                }
++            }
++            while (riteE->fLowerY <= y) {  // Due to smooth jump, we may pass multiple short edges
++                if (!riteE->update(y)) {
++                    if (SkFixedFloorToInt(currE->fUpperY) >= stop_y) {
++                        goto END_WALK;
++                    }
++                    riteE = currE;
++                    currE = (SkAnalyticEdge*)currE->fNext;
++                }
++            }
++            SkFixed prevY = y;
++            y = std::max({y, leftE->fUpperY, riteE->fUpperY});
++            blitter->flush_if_y_changed(prevY, y);
++        }
++#endif
+ 
+         SkASSERT(leftE);
+         SkASSERT(riteE);
+@@ -1096,9 +1158,15 @@
+         }
+         local_bot_fixed = std::min(local_bot_fixed, SkIntToFixed(stop_y));
+ 
++#if defined(SK_LEGACY_ALPHA_RUNS)
+         SkFixed left  = std::max(leftBound, leftE->fX);
+         SkFixed dLeft = leftE->fDX;
+         SkFixed rite  = std::min(riteBound, riteE->fX);
++#else
++        SkFixed left  = std::clamp(leftE->fX, leftBound, riteBound);
++        SkFixed dLeft = leftE->fDX;
++        SkFixed rite  = std::clamp(riteE->fX, leftBound, riteBound);
++#endif
+         SkFixed dRite = riteE->fDX;
+         if (0 == (dLeft | dRite)) {
+             int     fullLeft    = SkFixedCeilToInt(left);
+@@ -1196,6 +1264,10 @@
+             const SkFixed kSnapMask  = (-1 ^ (kSnapDigit - 1));
+             left += kSnapHalf;
+             rite += kSnapHalf;  // For fast rounding
++#if !defined(SK_LEGACY_ALPHA_RUNS)
++            const SkFixed minX = leftBound + kSnapHalf;
++            const SkFixed maxX = riteBound + kSnapHalf;
++#endif
+ 
+             // Number of blit_trapezoid_row calls we'll have
+             int count = SkFixedCeilToInt(local_bot_fixed) - SkFixedFloorToInt(y);
+@@ -1215,8 +1287,15 @@
+                     count--;
+                     SkFixed nextY    = SkFixedCeilToFixed(y + 1);
+                     SkFixed dY       = nextY - y;
++#if defined(SK_LEGACY_ALPHA_RUNS)
+                     SkFixed nextLeft = left + SkFixedMul(dLeft, dY);
+                     SkFixed nextRite = rite + SkFixedMul(dRite, dY);
++#else
++                    SkFixed nextLeft =
++                            std::clamp(Sk32_sat_add(left, SkFixedMul(dLeft, dY)), minX, maxX);
++                    SkFixed nextRite =
++                            std::clamp(Sk32_sat_add(rite, SkFixedMul(dRite, dY)), minX, maxX);
++#endif
+                     SkASSERT((left & kSnapMask) >= leftBound && (rite & kSnapMask) <= riteBound &&
+                              (nextLeft & kSnapMask) >= leftBound &&
+                              (nextRite & kSnapMask) <= riteBound);
+@@ -1242,7 +1321,13 @@
+                     if (isUsingMask) {
+                         maskRow = static_cast<MaskAdditiveBlitter*>(blitter)->getRow(y >> 16);
+                     }
++#if defined(SK_LEGACY_ALPHA_RUNS)
+                     SkFixed nextY = y + SK_Fixed1, nextLeft = left + dLeft, nextRite = rite + dRite;
++#else
++                    SkFixed nextY    = y + SK_Fixed1;
++                    SkFixed nextLeft = std::clamp(Sk32_sat_add(left, dLeft), minX, maxX);
++                    SkFixed nextRite = std::clamp(Sk32_sat_add(rite, dRite), minX, maxX);
++#endif
+                     SkASSERT((left & kSnapMask) >= leftBound && (rite & kSnapMask) <= riteBound &&
+                              (nextLeft & kSnapMask) >= leftBound &&
+                              (nextRite & kSnapMask) <= riteBound);
+@@ -1273,8 +1358,13 @@
+             // Smooth jumping to integer y may make the last nextLeft/nextRite out of bound.
+             // Take them back into the bound here.
+             // Note that we substract kSnapHalf later so we have to add them to leftBound/riteBound
++#if defined(SK_LEGACY_ALPHA_RUNS)
+             SkFixed nextLeft = std::max(left + SkFixedMul(dLeft, dY), leftBound + kSnapHalf);
+             SkFixed nextRite = std::min(rite + SkFixedMul(dRite, dY), riteBound + kSnapHalf);
++#else
++            SkFixed nextLeft = std::clamp(Sk32_sat_add(left, SkFixedMul(dLeft, dY)), minX, maxX);
++            SkFixed nextRite = std::clamp(Sk32_sat_add(rite, SkFixedMul(dRite, dY)), minX, maxX);
++#endif
+             SkASSERT((left & kSnapMask) >= leftBound && (rite & kSnapMask) <= riteBound &&
+                      (nextLeft & kSnapMask) >= leftBound && (nextRite & kSnapMask) <= riteBound);
+             blit_trapezoid_row(blitter,
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/vk_renderer.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/vk_renderer.cpp
+index dd2a0f1..dca0f29 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/vk_renderer.cpp
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/vk_renderer.cpp
+@@ -6670,11 +6670,14 @@
+     // SimpleStateChangeTestES31.FragWriteSSBOThenChangeDrawbuffersThenWriteSSBO*,
+     // VulkanPerformanceCounterTest_ES31.ColorMaskedFramebufferFetchDraw*, and
+     // VulkanPerformanceCounterTest_ES31.FramebufferFetchRenderPassThenColorMaskedDraw* tests.
++    //
++    // Disabled on Intel/mesa drivers, due to driver bugs.  http://crbug.com/577864200
+     ANGLE_FEATURE_CONDITION(
+         &mFeatures, supportsAlphaToCoverageEnableDynamicState,
+         mFeatures.supportsExtendedDynamicState3.enabled &&
+             mExtendedDynamicState3Features.extendedDynamicState3AlphaToCoverageEnable == VK_TRUE &&
+-            isRasterizerDiscardDynamicState && !(isIntel && IsWindows()));
++            isRasterizerDiscardDynamicState && !(isIntel && IsWindows()) &&
++            !(isIntel && IsLinux()));
+ 
+     // Disabled on Imagination drivers due to test failures and device loss.
+     ANGLE_FEATURE_CONDITION(
