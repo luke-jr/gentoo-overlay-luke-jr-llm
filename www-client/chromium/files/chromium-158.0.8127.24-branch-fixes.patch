@@ -1,8 +1,8 @@
 Chromium 158.0.8127.24 + the later changes of its release branch, up to
-e97dbdc3bf88cd03d74beb215e503c64eb3e3919 (refs/branch-heads/8127@{#1143}), for the
+74ff20d9a24cd988731c1c0746154f3a1b656836 (refs/branch-heads/8127@{#1147}), for the
 158.0.8127.24 tree that chromium-158.0.8127.18-to-158.0.8127.24.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.24..e97dbdc3bf88cd03d74beb215e503c64eb3e3919
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.24..74ff20d9a24cd988731c1c0746154f3a1b656836
 and V8, whose DEPS revision changed, as served by Gitiles, with
 scripts/chromium-delta --branch-fixes: left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -16,6 +16,8 @@ the V8 update, with "[maglev] Merge dead subgraph loops on early abort"):
   27b8fb62a761 [M158] Use std::ranges::fill and base::span in PartitionRoot
   4f3372a3d2f0 [M158] Revert CHECK to DCHECK in DeveloperPrivateAPI::AddUnpacked
   e97dbdc3bf88 Roll commits from side projects in M158
+  7a2dd56e8eaf Import third_party/rust/small_ctor to Cronet in Android
+  74ff20d9a24c [M158] Defer WorkerProcessHandle destruction via DeleteSoon in
 
 Checked: applies to the 158.0.8127.24 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -68,6 +70,121 @@ index f5fef131..600e4c1 100644
    params.shadow_type = views::Widget::InitParams::ShadowType::kNone;
  #if BUILDFLAG(IS_MAC)
    // Required to support Widget::SetActivationIndependence().
+diff --git a/components/cronet/gn2bp/copy.bara.sky b/components/cronet/gn2bp/copy.bara.sky
+index dcfa1f9..27547de7 100644
+--- a/components/cronet/gn2bp/copy.bara.sky
++++ b/components/cronet/gn2bp/copy.bara.sky
+@@ -257,6 +257,8 @@
+     "third_party/rust/chromium_crates_io/vendor/serde_derive-v*/**",
+     "third_party/rust/serde_json_lenient/**",
+     "third_party/rust/chromium_crates_io/vendor/serde_json_lenient-v*/**",
++    "third_party/rust/small_ctor/**",
++    "third_party/rust/chromium_crates_io/vendor/small_ctor-v*/**",
+     "third_party/rust/smallvec/**",
+     "third_party/rust/chromium_crates_io/vendor/smallvec-v*/**",
+     "third_party/rust/sfv/**",
+diff --git a/components/cronet/gn2bp/translation_config.py b/components/cronet/gn2bp/translation_config.py
+index c7b191f9..c8180a21 100644
+--- a/components/cronet/gn2bp/translation_config.py
++++ b/components/cronet/gn2bp/translation_config.py
+@@ -164,8 +164,8 @@
+     # when generating the cxxbindings and build scripts (build scripts is a
+     # rust concept, it's an rust binary that generates flags used to compile
+     # other rust binaries).
+-    # For CXXBindings, we use AOSP's binary which already have the configuration
+-    # specified depending on which arch it's building for.
++    # For CXXBindings, create_rust_cxx_modules in translators.py invokes
++    # cxxbridge directly and passes the required --cfg flags explicitly.
+     # For build scripts, we generate those on Chromium side in a JSON file and
+     # inject them in the pipeline.
+     #
+diff --git a/components/cronet/gn2bp/translators.py b/components/cronet/gn2bp/translators.py
+index b235c74..bb732222 100644
+--- a/components/cronet/gn2bp/translators.py
++++ b/components/cronet/gn2bp/translators.py
+@@ -96,6 +96,12 @@
+         is_test_target,
+         context,
+     )[0].name
++    # All Soong targets built for Cronet (Android device architectures and Linux
++    # host) belong to the Unix target family. Pass this cfg explicitly (with
++    # single quotes so the shell preserves the inner double quotes required by
++    # cxxbridge's syn LitStr parser) since gn2bp invokes cxxbridge directly
++    # instead of via run_cxxbridge.py + rustc_print_cfg.
++    cxx_flags = "--cfg 'target_family=\"unix\"'"
+     modules = []
+     for i, src in enumerate(sorted(target.common.sources)):
+         header_genrule = soong_ast.create_module(
+@@ -106,9 +112,7 @@
+             is_test=is_test_target,
+         )
+         header_genrule.tools = {cxx_bridge_module_name}
+-        header_genrule.cmd = (
+-            f"$(location {cxx_bridge_module_name}) $(in) --header > $(out)"
+-        )
++        header_genrule.cmd = f"$(location {cxx_bridge_module_name}) $(in) --header {cxx_flags} > $(out)"
+         header_genrule.srcs = {gn_utils.label_to_path(src)}
+         header_genrule.out = {f"{gn_utils.label_to_path(src)}.h"}
+ 
+@@ -120,7 +124,9 @@
+             is_test=is_test_target,
+         )
+         cc_genrule.tools = {cxx_bridge_module_name}
+-        cc_genrule.cmd = f"$(location {cxx_bridge_module_name}) $(in) > $(out)"
++        cc_genrule.cmd = (
++            f"$(location {cxx_bridge_module_name}) $(in) {cxx_flags} > $(out)"
++        )
+         cc_genrule.srcs = {gn_utils.label_to_path(src)}
+         cc_genrule.genrule_srcs = {f":{cc_genrule.name}"}
+         cc_genrule.out = {f"{gn_utils.label_to_path(src)}.cc"}
+@@ -1196,6 +1202,10 @@
+             "-Wl,-mllvm,-enable-ml-inliner",
+             "-Wl,-mllvm,-ml-inliner-model-selector",
+             "-Wl,-mllvm,-ml-inliner-skip-policy",
++            # Chromium-internal pseudo-flag intercepted by gcc_link_wrapper.py /
++            # whole_archive.py to link Rust gtest rlibs with --whole-archive.
++            # Soong already links rust_ffi_static dependencies via whole_static_libs.
++            "-LinkWrapper,",
+         ]
+     )
+ 
+diff --git a/content/browser/service_worker/embedded_worker_instance.cc b/content/browser/service_worker/embedded_worker_instance.cc
+index 4984b41..721bf7f4 100644
+--- a/content/browser/service_worker/embedded_worker_instance.cc
++++ b/content/browser/service_worker/embedded_worker_instance.cc
+@@ -13,6 +13,7 @@
+ #include "base/functional/callback.h"
+ #include "base/functional/callback_helpers.h"
+ #include "base/observer_list.h"
++#include "base/task/sequenced_task_runner.h"
+ #include "base/time/time.h"
+ #include "base/trace_event/trace_event.h"
+ #include "content/browser/bad_message.h"
+@@ -190,7 +191,9 @@
+ 
+   ~WorkerProcessHandle() {
+     CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
+-    process_manager_->ReleaseWorkerProcess(embedded_worker_id_);
++    if (process_manager_) {
++      process_manager_->ReleaseWorkerProcess(embedded_worker_id_);
++    }
+   }
+ 
+   ChildProcessId process_id() const { return process_id_; }
+@@ -1053,7 +1056,12 @@
+ 
+   instance_host_receiver_.reset();
+   devtools_proxy_.reset();
+-  process_handle_.reset();
++  if (in_dtor_ && process_handle_) {
++    base::SequencedTaskRunner::GetCurrentDefault()->DeleteSoon(
++        FROM_HERE, std::move(process_handle_));
++  } else {
++    process_handle_.reset();
++  }
+   subresource_loader_updater_.reset();
+   coep_reporter_.reset();
+   status_ = blink::EmbeddedWorkerStatus::kStopped;
 diff --git a/third_party/blink/renderer/platform/fonts/script_run_iterator.cc b/third_party/blink/renderer/platform/fonts/script_run_iterator.cc
 index e203c8b..9c62a639 100644
 --- a/third_party/blink/renderer/platform/fonts/script_run_iterator.cc
