@@ -1,18 +1,21 @@
 Chromium 158.0.8127.24 + the later changes of its release branch, up to
-27b8fb62a761ec8965dee18df9f7b023323c26a6 (refs/branch-heads/8127@{#1132}), for the
+e97dbdc3bf88cd03d74beb215e503c64eb3e3919 (refs/branch-heads/8127@{#1143}), for the
 158.0.8127.24 tree that chromium-158.0.8127.18-to-158.0.8127.24.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.24..27b8fb62a761ec8965dee18df9f7b023323c26a6
-(no dependency's DEPS revision changed), as served by Gitiles, with
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.24..e97dbdc3bf88cd03d74beb215e503c64eb3e3919
+and V8, whose DEPS revision changed, as served by Gitiles, with
 scripts/chromium-delta --branch-fixes: left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
 translations, PGO/orderfile pointers, submodule pointer updates.
 chrome/VERSION, DEPS and the stamp files stay at 158.0.8127.24.
 
-Commits contributing to it (oldest first):
+Commits contributing to it (oldest first; "Roll commits from side projects" is
+the V8 update, with "[maglev] Merge dead subgraph loops on early abort"):
   da934201f4f2 [m158][blink] Store ScriptRunIterator script sets inline on the
   84d4b40b6f28 [M158] [OmniboxEverywhere] Use kTranslucent widget opacity for
   27b8fb62a761 [M158] Use std::ranges::fill and base::span in PartitionRoot
+  4f3372a3d2f0 [M158] Revert CHECK to DCHECK in DeveloperPrivateAPI::AddUnpacked
+  e97dbdc3bf88 Roll commits from side projects in M158
 
 Checked: applies to the 158.0.8127.24 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -38,6 +41,21 @@ index 1b5cdd9c..3fd1caa 100644
    SlotSpanStart slot_span_start =
        internal::SlotSpanMetadata::ToSlotSpanStart(slot_span, root);
    // First, walk the freelist for this slot span and make a bitmap of which
+diff --git a/chrome/browser/extensions/api/developer_private/developer_private_api.cc b/chrome/browser/extensions/api/developer_private/developer_private_api.cc
+index 023a3d0..4947930a 100644
+--- a/chrome/browser/extensions/api/developer_private/developer_private_api.cc
++++ b/chrome/browser/extensions/api/developer_private/developer_private_api.cc
+@@ -107,7 +107,9 @@
+ DeveloperPrivateAPI::UnpackedRetryId DeveloperPrivateAPI::AddUnpackedPath(
+     content::WebContents* web_contents,
+     const base::FilePath& path) {
+-  CHECK(web_contents, base::NotFatalUntil::M161);
++  // TODO(crbug.com/580039993): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(web_contents);
+   last_unpacked_directory_ = path;
+   WebContentsData* data = GetOrCreateWebContentsData(web_contents);
+   IdToPathMap& paths = data->allowed_unpacked_paths;
 diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_region_select_overlay.cc b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_region_select_overlay.cc
 index f5fef131..600e4c1 100644
 --- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_region_select_overlay.cc
@@ -86,3 +104,108 @@ index f4c3adf..2242f36f 100644
  
    // The initial value of ahead_character_ is not used.
    UChar32 ahead_character_ = 0;
+diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
+index a8a89fa..f6bb1de 100644
+--- a/v8/include/v8-version.h
++++ b/v8/include/v8-version.h
+@@ -11,7 +11,7 @@
+ #define V8_MAJOR_VERSION 15
+ #define V8_MINOR_VERSION 8
+ #define V8_BUILD_NUMBER 62
+-#define V8_PATCH_LEVEL 16
++#define V8_PATCH_LEVEL 17
+ 
+ // Use 1 for candidates and 0 otherwise.
+ // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
+index a06a9c5..e2afd30 100644
+--- a/v8/src/maglev/maglev-graph-builder.cc
++++ b/v8/src/maglev/maglev-graph-builder.cc
+@@ -284,14 +284,31 @@
+   builder_->lazy_deopt_result_location_scope_ = previous_;
+ }
+ 
+-class MaglevGraphBuilder::MaglevSubGraphBuilder::LoopLabel {
++class V8_NODISCARD MaglevGraphBuilder::MaglevSubGraphBuilder::LoopLabel {
+  public:
++  LoopLabel(const LoopLabel&) = delete;
++  LoopLabel(LoopLabel&&) = delete;
++  LoopLabel& operator=(const LoopLabel&) = delete;
++  LoopLabel& operator=(LoopLabel&&) = delete;
++
++  ~LoopLabel() {
++    if (merge_state_ != nullptr) {
++      // An early abort exited the subgraph before EndLoop was reached.
++      DCHECK_NULL(sub_builder_->builder_->current_block());
++      merge_state_->MergeDeadLoop(*sub_builder_->dummy_unit_);
++    }
++  }
++
+  private:
+-  explicit LoopLabel(LoopMergePointInterpreterFrameState* merge_state,
+-                     BasicBlock* loop_header)
+-      : merge_state_(merge_state), loop_header_(loop_header) {}
++  LoopLabel(MaglevSubGraphBuilder* sub_builder,
++            LoopMergePointInterpreterFrameState* merge_state,
++            BasicBlock* loop_header)
++      : sub_builder_(sub_builder),
++        merge_state_(merge_state),
++        loop_header_(loop_header) {}
+ 
+   friend class MaglevSubGraphBuilder;
++  MaglevSubGraphBuilder* sub_builder_;
+   LoopMergePointInterpreterFrameState* merge_state_ = nullptr;
+   BasicBlock* loop_header_;
+ };
+@@ -426,7 +443,7 @@
+   builder_->ProcessMergePointPredecessors(*loop_state, loop_header_ref);
+   builder_->StartNewBlock(nullptr, loop_state, loop_header_ref);
+ 
+-  return LoopLabel{loop_state, loop_header_ref.block_ptr()};
++  return LoopLabel{this, loop_state, loop_header_ref.block_ptr()};
+ }
+ 
+ template <typename ControlNodeT, typename... Args>
+@@ -483,8 +500,12 @@
+ }
+ 
+ void MaglevGraphBuilder::MaglevSubGraphBuilder::EndLoop(LoopLabel* loop_label) {
++  // Ensure EndLoop is called only once and disarm ~LoopLabel().
++  LoopMergePointInterpreterFrameState* merge_state = loop_label->merge_state_;
++  DCHECK_NOT_NULL(merge_state);
++  loop_label->merge_state_ = nullptr;
+   if (builder_->current_block() == nullptr) {
+-    loop_label->merge_state_->MergeDeadLoop(*dummy_unit_);
++    merge_state->MergeDeadLoop(*dummy_unit_);
+     return;
+   }
+ 
+@@ -492,11 +513,11 @@
+       builder_->FinishBlockNoAbort<JumpLoop>({}, loop_label->loop_header_);
+   {
+     BorrowParentKnownNodeAspectsAndVOs borrow(this);
+-    loop_label->merge_state_->MergeLoop(
+-        builder_->graph(), builder_->is_tracing(), *dummy_unit_,
+-        variable_frame_, block, builder_->GetLatestCheckpointedFrame());
++    merge_state->MergeLoop(builder_->graph(), builder_->is_tracing(),
++                           *dummy_unit_, variable_frame_, block,
++                           builder_->GetLatestCheckpointedFrame());
+   }
+-  block->set_predecessor_id(loop_label->merge_state_->predecessor_count() - 1);
++  block->set_predecessor_id(merge_state->predecessor_count() - 1);
+ }
+ 
+ void MaglevGraphBuilder::MaglevSubGraphBuilder::Bind(Label* label) {
+diff --git a/v8/src/maglev/maglev-graph-builder.h b/v8/src/maglev/maglev-graph-builder.h
+index 42caa99..cfd02a5 100644
+--- a/v8/src/maglev/maglev-graph-builder.h
++++ b/v8/src/maglev/maglev-graph-builder.h
+@@ -309,7 +309,7 @@
+     using Label = Base::Label;
+     using LabelForTrackingInterpreterFrameState =
+         Base::LabelForTrackingInterpreterFrameState;
+-    class LoopLabel;
++    class V8_NODISCARD LoopLabel;
+ 
+     MaglevSubGraphBuilder(MaglevGraphBuilder* builder, int variable_count);
+     LoopLabel BeginLoop(std::initializer_list<Variable*> loop_vars);
