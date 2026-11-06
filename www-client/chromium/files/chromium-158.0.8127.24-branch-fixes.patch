@@ -1,16 +1,17 @@
 Chromium 158.0.8127.24 + the later changes of its release branch, up to
-74ff20d9a24cd988731c1c0746154f3a1b656836 (refs/branch-heads/8127@{#1147}), for the
+01f2171b87913db7fd4ee80f948a444cb6f8c0de (refs/branch-heads/8127@{#1148}), for the
 158.0.8127.24 tree that chromium-158.0.8127.18-to-158.0.8127.24.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.24..74ff20d9a24cd988731c1c0746154f3a1b656836
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.24..01f2171b87913db7fd4ee80f948a444cb6f8c0de
 and V8, whose DEPS revision changed, as served by Gitiles, with
 scripts/chromium-delta --branch-fixes: left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
 translations, PGO/orderfile pointers, submodule pointer updates.
 chrome/VERSION, DEPS and the stamp files stay at 158.0.8127.24.
 
-Commits contributing to it (oldest first; "Roll commits from side projects" is
-the V8 update, with "[maglev] Merge dead subgraph loops on early abort"):
+Commits contributing to it (oldest first; "Roll commits from side projects" are
+the V8 updates, with "[maglev] Merge dead subgraph loops on early abort" and
+"[maglev] CreateObjectLiteral and CreateArrayLiteral can write"):
   da934201f4f2 [m158][blink] Store ScriptRunIterator script sets inline on the
   84d4b40b6f28 [M158] [OmniboxEverywhere] Use kTranslucent widget opacity for
   27b8fb62a761 [M158] Use std::ranges::fill and base::span in PartitionRoot
@@ -18,6 +19,7 @@ the V8 update, with "[maglev] Merge dead subgraph loops on early abort"):
   e97dbdc3bf88 Roll commits from side projects in M158
   7a2dd56e8eaf Import third_party/rust/small_ctor to Cronet in Android
   74ff20d9a24c [M158] Defer WorkerProcessHandle destruction via DeleteSoon in
+  01f2171b8791 Roll commits from side projects in M158
 
 Checked: applies to the 158.0.8127.24 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -222,7 +224,7 @@ index f4c3adf..2242f36f 100644
    // The initial value of ahead_character_ is not used.
    UChar32 ahead_character_ = 0;
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index a8a89fa..f6bb1de 100644
+index a8a89fa..db816aa 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -230,7 +232,7 @@ index a8a89fa..f6bb1de 100644
  #define V8_MINOR_VERSION 8
  #define V8_BUILD_NUMBER 62
 -#define V8_PATCH_LEVEL 16
-+#define V8_PATCH_LEVEL 17
++#define V8_PATCH_LEVEL 18
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
@@ -326,3 +328,29 @@ index 42caa99..cfd02a5 100644
  
      MaglevSubGraphBuilder(MaglevGraphBuilder* builder, int variable_count);
      LoopLabel BeginLoop(std::initializer_list<Variable*> loop_vars);
+diff --git a/v8/src/maglev/maglev-ir.h b/v8/src/maglev/maglev-ir.h
+index 661a46e..48c80c5 100644
+--- a/v8/src/maglev/maglev-ir.h
++++ b/v8/src/maglev/maglev-ir.h
+@@ -5412,7 +5412,9 @@
+   static constexpr OpProperties kProperties =
+       OpProperties::Call() | OpProperties::CanAllocate() |
+       OpProperties::CanThrow() | OpProperties::LazyDeopt() |
+-      OpProperties::NotIdempotent();
++      OpProperties::NotIdempotent() |
++      // The runtime call may make prototype maps fast.
++      OpProperties::CanWrite();
+ 
+   int MaxCallStackArgs() const;
+   void SetValueLocationConstraints();
+@@ -5480,7 +5482,9 @@
+   static constexpr OpProperties kProperties =
+       OpProperties::Call() | OpProperties::CanAllocate() |
+       OpProperties::CanThrow() | OpProperties::LazyDeopt() |
+-      OpProperties::NotIdempotent();
++      OpProperties::NotIdempotent() |
++      // The runtime call may make prototype maps fast.
++      OpProperties::CanWrite();
+ 
+   int MaxCallStackArgs() const;
+   void SetValueLocationConstraints();
