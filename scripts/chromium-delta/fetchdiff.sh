@@ -39,10 +39,26 @@ def path(header):
     n = (len(rest) - 5) // 2           # "a/" X " b/" X
     return rest[2:2 + n]
 
+def unquote(s):
+    if not s.startswith('"'):
+        return s
+    q = s[1:-1].encode("latin-1", "backslashreplace").decode("unicode_escape")
+    return q.encode("latin-1").decode("utf-8", "surrogateescape")
+
 paths, bad = set(), []
 for s in re.split(r"^(?=diff --git )", diff, flags=re.M)[1:]:
-    p = path(s.split("\n", 1)[0])
-    paths.add(p)
+    # A rename's (copy's) "diff --git" line has two different paths: take them from its
+    # "rename from/to" lines. Without --no-renames the raw diff lists both as changed.
+    frm = re.search(r"^(?:rename|copy) from (.*)$", s, re.M)
+    to = re.search(r"^(?:rename|copy) to (.*)$", s, re.M)
+    if frm and to:
+        paths.update((unquote(frm.group(1)), unquote(to.group(1))))
+        p = unquote(to.group(1))
+        if re.search(r"^similarity index 100%$", s, re.M):
+            continue                    # an unchanged rename has no hunks
+    else:
+        p = path(s.split("\n", 1)[0])
+        paths.add(p)
     # A section without hunks is fine for an empty file added or deleted, or a mode change.
     empty = re.search(r"^index (0+\.\.e69de29|e69de29\w*\.\.0+)\b", s, re.M)
     if "\n@@ " not in s and "GIT binary patch" not in s and not empty and "\nold mode " not in s:

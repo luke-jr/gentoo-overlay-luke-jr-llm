@@ -46,14 +46,15 @@ PLATFORM = re.compile(
     r"^tools/metrics/")
 
 
-def decide(f, p, tree, inputs, branch_fixes):
+def decide(f, p, tree, inputs, branch_fixes, old=None):
+    """old: the source path of a rename or copy (the file the base tree has), else f."""
     new = re.search(r"(?m)^--- /dev/null", p) is not None
     binary = "\nBinary files differ" in p or "\nGIT binary patch" in p
     if re.search(r"(?m)^index \S+ 160000|^\+Subproject commit", p):
         return None, "submodule pointer"
     if f == "DEPS" or (branch_fixes and f == "chrome/VERSION"):
         return None, "version/DEPS"
-    if not new and f not in tree:
+    if not new and (old or f) not in tree:
         return None, "not in the tarball"
     if TRANSLATION.search(f):
         return None, "translation"
@@ -98,8 +99,10 @@ def main():
             for p in re.split(r"(?m)^(?=diff --git )", text):
                 if not p.startswith("diff --git"):
                     continue
-                f = prefix + header_path(p.split("\n", 1)[0])
-                keep, why = decide(f, p, tree, inputs, branch_fixes)
+                old, new = section_paths(p)
+                f = prefix + new
+                keep, why = decide(f, p, tree, inputs, branch_fixes,
+                                   prefix + old if old != new else None)
                 stats[("keep: " if keep else "drop: ") + why] += 1
                 report.write(f"{f}\t{'keep' if keep else 'drop'}\t{why}\n")
                 if keep:
@@ -109,6 +112,26 @@ def main():
                 k.write("".join(kept))
     for k, v in sorted(stats.items()):
         print(f"{v:6}  {k}")
+
+
+def unquote(s):
+    """A path as git writes it: plain, or C-quoted."""
+    if not s.startswith('"'):
+        return s
+    q = s[1:-1].encode("latin-1", "backslashreplace").decode("unicode_escape")
+    return q.encode("latin-1").decode("utf-8", "surrogateescape")
+
+
+def section_paths(p):
+    """(old, new) paths of a diff section. A rename or copy names both in its "rename from/to"
+    ("copy from/to") lines; its "diff --git" line has two different paths, which header_path's
+    a/X b/X rule can't split."""
+    frm = re.search(r"(?m)^(?:rename|copy) from (.*)$", p)
+    to = re.search(r"(?m)^(?:rename|copy) to (.*)$", p)
+    if frm and to:
+        return unquote(frm.group(1)), unquote(to.group(1))
+    f = header_path(p.split("\n", 1)[0])
+    return f, f
 
 
 def header_path(header):

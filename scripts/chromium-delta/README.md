@@ -73,6 +73,19 @@ GCS dependency nor covered by generated.conf. In 156.0.8078.12's tarball, 37201 
 Each entry says what was found, and whether it was wrong or intentional. For the wrong ones
 it also says what fixes it.
 
+### 158.0.8127.24 (patch 158.0.8127.18 → .24): renames
+
+**Wrong:** the first diff with renames (20 files moved into `omnibox_popup/aim/`, `full/` and
+`shared/`). Both scripts took a section's path from its `diff --git a/X b/Y` line with the
+a/X b/X rule, which garbles it when X and Y differ. `filter.py` then dropped every rename as
+"not in the tarball", and `fetchdiff.sh`'s check reported the unchanged ones (`similarity index
+100%`, no hunks) as binary. The patch would have lacked those files.
+- Fix: both take a rename's (copy's) paths from its `rename from/to` (`copy from/to`) lines.
+  `filter.py` checks the source path against the base tree and applies its other rules to the
+  new path; `fetchdiff.sh` counts both paths as present and accepts a rename without hunks.
+  `git apply` handles renames itself. Check renamed files by the new path's blob id, and that
+  the old path is gone.
+
 ### 156.0.8078.47 (patches 156.0.8078.12 → .35 → .47, compared with Google's .47 tarball)
 
 Comparing the upgraded tree with the real tarball turned up 650 differences.
