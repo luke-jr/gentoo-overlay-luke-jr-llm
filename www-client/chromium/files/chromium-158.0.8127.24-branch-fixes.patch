@@ -1,8 +1,8 @@
 Chromium 158.0.8127.24 + the later changes of its release branch, up to
-01f2171b87913db7fd4ee80f948a444cb6f8c0de (refs/branch-heads/8127@{#1148}), for the
+7a0e9ba518e06dc2e21f49e3bd7c479058a9ca8c (refs/branch-heads/8127@{#1157}), for the
 158.0.8127.24 tree that chromium-158.0.8127.18-to-158.0.8127.24.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.24..01f2171b87913db7fd4ee80f948a444cb6f8c0de
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.24..7a0e9ba518e06dc2e21f49e3bd7c479058a9ca8c
 and V8, whose DEPS revision changed, as served by Gitiles, with
 scripts/chromium-delta --branch-fixes: left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -11,7 +11,9 @@ chrome/VERSION, DEPS and the stamp files stay at 158.0.8127.24.
 
 Commits contributing to it (oldest first; "Roll commits from side projects" are
 the V8 updates, with "[maglev] Merge dead subgraph loops on early abort" and
-"[maglev] CreateObjectLiteral and CreateArrayLiteral can write"):
+"[maglev] CreateObjectLiteral and CreateArrayLiteral can write", then "[ic] Use
+StoreGlobalProxy handler for non-contextual stores to global" and "[wasm] Fix
+exception propagation check on secondary stacks"):
   da934201f4f2 [m158][blink] Store ScriptRunIterator script sets inline on the
   84d4b40b6f28 [M158] [OmniboxEverywhere] Use kTranslucent widget opacity for
   27b8fb62a761 [M158] Use std::ranges::fill and base::span in PartitionRoot
@@ -20,6 +22,10 @@ the V8 updates, with "[maglev] Merge dead subgraph loops on early abort" and
   7a2dd56e8eaf Import third_party/rust/small_ctor to Cronet in Android
   74ff20d9a24c [M158] Defer WorkerProcessHandle destruction via DeleteSoon in
   01f2171b8791 Roll commits from side projects in M158
+  96e5252e97e7 [M158] [Variations] Add Observer::OnCountryOrAdminAreaChanged for
+  0f16b074ad7d [M158] [UOO] Update eligibility on OnCountryOrAdminAreaChanged be
+  25d0c458b02c [M158] ash: Erase TokenHandleStore checks before replying
+  7a0e9ba518e0 Roll commits from side projects in M158
 
 Checked: applies to the 158.0.8127.24 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -150,6 +156,270 @@ index b235c74..bb732222 100644
          ]
      )
  
+diff --git a/components/universal_optout/features.cc b/components/universal_optout/features.cc
+index 93232b9a..45aa2b27 100644
+--- a/components/universal_optout/features.cc
++++ b/components/universal_optout/features.cc
+@@ -28,6 +28,9 @@
+ 
+ BASE_FEATURE(kUniversalOptOutSettings, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
++BASE_FEATURE(kUniversalOptOutUpdateOnGeoLocationChanged,
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
+ const base::FeatureParam<bool> kUniversalOptOutExtensionSilentControllerOnly{
+     &kUniversalOptOutExtensionSilent, "controller-only", false};
+ 
+diff --git a/components/universal_optout/features.h b/components/universal_optout/features.h
+index be23cfc..8134dfd 100644
+--- a/components/universal_optout/features.h
++++ b/components/universal_optout/features.h
+@@ -37,6 +37,11 @@
+ // Feature flag for the settings page development.
+ BASE_DECLARE_FEATURE(kUniversalOptOutSettings);
+ 
++// Controls whether `UniversalOptOutService` updates location history and
++// eligibility on `VariationsService::Observer::OnCountryOrAdminAreaChanged()`
++// notifications instead of `OnSeedFetched()`.
++BASE_DECLARE_FEATURE(kUniversalOptOutUpdateOnGeoLocationChanged);
++
+ // Returns whether the Universal Opt-Out feature is enabled.
+ // On non-iOS platforms, returns `kUniversalOptOut`.
+ // On iOS < 18.4, returns false.
+diff --git a/components/universal_optout/universal_optout_service.cc b/components/universal_optout/universal_optout_service.cc
+index bfb7798e..e588c14fe 100644
+--- a/components/universal_optout/universal_optout_service.cc
++++ b/components/universal_optout/universal_optout_service.cc
+@@ -155,7 +155,17 @@
+ }
+ 
+ void UniversalOptOutService::OnSeedFetched() {
+-  RecordLocationAndUpdateEligibility();
++  if (!base::FeatureList::IsEnabled(
++          features::kUniversalOptOutUpdateOnGeoLocationChanged)) {
++    RecordLocationAndUpdateEligibility();
++  }
++}
++
++void UniversalOptOutService::OnCountryOrAdminAreaChanged() {
++  if (base::FeatureList::IsEnabled(
++          features::kUniversalOptOutUpdateOnGeoLocationChanged)) {
++    RecordLocationAndUpdateEligibility();
++  }
+ }
+ 
+ void UniversalOptOutService::OnVariationsServiceDestroyed() {
+diff --git a/components/universal_optout/universal_optout_service.h b/components/universal_optout/universal_optout_service.h
+index 218525c9..aef44c69 100644
+--- a/components/universal_optout/universal_optout_service.h
++++ b/components/universal_optout/universal_optout_service.h
+@@ -93,6 +93,7 @@
+ 
+   // variations::VariationsService::Observer:
+   void OnSeedFetched() override;
++  void OnCountryOrAdminAreaChanged() override;
+   void OnVariationsServiceDestroyed() override;
+ 
+   // Returns whether the profile is eligible for Universal Opt Out.
+diff --git a/components/variations/service/variations_service.cc b/components/variations/service/variations_service.cc
+index 555f8454..a54b220 100644
+--- a/components/variations/service/variations_service.cc
++++ b/components/variations/service/variations_service.cc
+@@ -863,9 +863,19 @@
+                                   bool is_gzip_compressed) {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+ 
+-  base::OnceCallback<void(bool, VariationsSeed)> done_callback =
+-      base::BindOnce(&VariationsService::OnSeedStoreResult,
+-                     weak_ptr_factory_.GetWeakPtr(), is_delta_compressed);
++  const UpdateSeedDateResult date_result =
++      field_trial_creator_.seed_store()->GetSeedDateUpdateResult(seed_date);
++  const bool day_changed = date_result == UpdateSeedDateResult::kNewDay ||
++                           date_result == UpdateSeedDateResult::kNoOldDate;
++  const bool geo_changed =
++      !country_code.empty() &&
++      (country_code != field_trial_creator_.seed_store()->GetLatestCountry() ||
++       geo_level1 != field_trial_creator_.seed_store()->GetLatestGeoLevel1());
++  const bool geo_or_day_changed = geo_changed || day_changed;
++
++  base::OnceCallback<void(bool, VariationsSeed)> done_callback = base::BindOnce(
++      &VariationsService::OnSeedStoreResult, weak_ptr_factory_.GetWeakPtr(),
++      is_delta_compressed, geo_or_day_changed);
+   field_trial_creator_.seed_store()->StoreSeedData(
+       std::move(done_callback), std::move(seed_data), std::move(seed_signature),
+       std::move(country_code), std::move(geo_level1), seed_date,
+@@ -874,6 +884,7 @@
+ }
+ 
+ void VariationsService::OnSeedStoreResult(bool is_delta_compressed,
++                                          bool geo_or_day_changed,
+                                           bool store_success,
+                                           VariationsSeed seed) {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+@@ -905,6 +916,9 @@
+     }
+ 
+     NotifySeedFetched();
++    if (geo_or_day_changed) {
++      NotifyCountryOrAdminAreaChanged();
++    }
+   }
+ }
+ 
+@@ -1177,6 +1191,14 @@
+   }
+ }
+ 
++void VariationsService::NotifyCountryOrAdminAreaChanged() {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++
++  for (auto& observer : observer_list_) {
++    observer.OnCountryOrAdminAreaChanged();
++  }
++}
++
+ void VariationsService::OnSimpleLoaderComplete(
+     std::optional<std::string> response_body) {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+@@ -1695,10 +1717,16 @@
+   // Callers set `response_date` to std::nullopt for insecure HTTP retries
+   // because unauthenticated Date headers cannot be trusted. A null date logs
+   // kNoNewDate and keeps the stored seed date.
+-  field_trial_creator_.seed_store()->UpdateSeedDateAndLogDayChange(
+-      response_date.value_or(base::Time()));
+-  field_trial_creator_.seed_store()->UpdateSessionCountryAndGeoLevel1(
+-      country_code, geo_level1);
++  const UpdateSeedDateResult date_result =
++      field_trial_creator_.seed_store()->UpdateSeedDateAndLogDayChange(
++          response_date.value_or(base::Time()));
++  const bool geo_changed =
++      field_trial_creator_.seed_store()->UpdateSessionCountryAndGeoLevel1(
++          country_code, geo_level1);
++  if (geo_changed || date_result == UpdateSeedDateResult::kNewDay ||
++      date_result == UpdateSeedDateResult::kNoOldDate) {
++    NotifyCountryOrAdminAreaChanged();
++  }
+ }
+ 
+ VariationsSeedStore* VariationsService::GetSeedStoreForTesting() {
+diff --git a/components/variations/service/variations_service.h b/components/variations/service/variations_service.h
+index 16033d97..f29feee 100644
+--- a/components/variations/service/variations_service.h
++++ b/components/variations/service/variations_service.h
+@@ -106,6 +106,12 @@
+     // variations server.
+     virtual void OnSeedFetched() {}
+ 
++    // Called when a seed fetch (200 OK or 304 Not Modified) updates the stored
++    // country or administrative area.
++    // ATTENTION: This is also called when the seed date crosses a UTC day
++    // boundary so that observers are notified at least once per day.
++    virtual void OnCountryOrAdminAreaChanged() {}
++
+     // Called when the VariationsService is being destroyed.
+     virtual void OnVariationsServiceDestroyed() {}
+ 
+@@ -351,6 +357,7 @@
+ 
+   // Processes the result of StoreSeed().
+   void OnSeedStoreResult(bool is_delta_compressed,
++                         bool geo_or_day_changed,
+                          bool store_success,
+                          VariationsSeed seed);
+ 
+@@ -394,7 +401,9 @@
+   // time and clears failure streaks. If `response_date` has a value (present on
+   // secure HTTPS responses), updates the stored seed date. If `country_code` is
+   // non-empty (present on secure HTTPS responses), updates the stored session
+-  // country and administrative area.
++  // country and administrative area. Notifies observers via
++  // `OnCountryOrAdminAreaChanged()` if the stored country or administrative
++  // area changed or the seed date crossed a UTC day boundary.
+   void RecordSuccessfulFetchSeedNotModified(
+       std::optional<base::Time> response_date,
+       std::string_view country_code = std::string_view(),
+@@ -410,6 +419,8 @@
+   FRIEND_TEST_ALL_PREFIXES(VariationsServiceTest,
+                            Observer_OnExperimentChangesDetected);
+   FRIEND_TEST_ALL_PREFIXES(VariationsServiceTest, Observer_OnSeedFetched);
++  FRIEND_TEST_ALL_PREFIXES(VariationsServiceTest,
++                           Observer_OnCountryOrAdminAreaChanged);
+   FRIEND_TEST_ALL_PREFIXES(VariationsServiceTest, SeedStoredWhenOKStatus);
+   FRIEND_TEST_ALL_PREFIXES(VariationsServiceTest, SeedNotStoredWhenNonOKStatus);
+   FRIEND_TEST_ALL_PREFIXES(VariationsServiceTest, InstanceManipulations);
+@@ -456,6 +467,10 @@
+   // Notify observers that a variations seed has been successfully fetched.
+   void NotifySeedFetched();
+ 
++  // Notifies observers that the country, administrative area, or seed date day
++  // has changed.
++  void NotifyCountryOrAdminAreaChanged();
++
+   // Called by SimpleURLLoader when |pending_seed_request_| load completes.
+   void OnSimpleLoaderComplete(std::optional<std::string> response_body);
+ 
+diff --git a/components/variations/variations_seed_store.cc b/components/variations/variations_seed_store.cc
+index fb7fe68..d42e17ab 100644
+--- a/components/variations/variations_seed_store.cc
++++ b/components/variations/variations_seed_store.cc
+@@ -25,6 +25,7 @@
+ #include "components/prefs/pref_registry_simple.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/variations/client_filterable_state.h"
++#include "components/variations/metrics.h"
+ #include "components/variations/pref_names.h"
+ #include "components/variations/proto/variations_seed.pb.h"
+ #include "components/variations/seed_reader_writer.h"
+@@ -510,9 +511,12 @@
+   }
+ }
+ 
+-void VariationsSeedStore::UpdateSeedDateAndLogDayChange(base::Time seed_date) {
++UpdateSeedDateResult VariationsSeedStore::UpdateSeedDateAndLogDayChange(
++    base::Time seed_date) {
++  const UpdateSeedDateResult result = GetSeedDateUpdateResult(seed_date);
+   LogSeedDayChange(seed_date);
+   seed_reader_writer_->SetSeedDate(seed_date);
++  return result;
+ }
+ 
+ bool VariationsSeedStore::UpdateSessionCountryAndGeoLevel1(
+diff --git a/components/variations/variations_seed_store.h b/components/variations/variations_seed_store.h
+index 157cc6d..3a94d1b 100644
+--- a/components/variations/variations_seed_store.h
++++ b/components/variations/variations_seed_store.h
+@@ -224,8 +224,8 @@
+   base::Time GetTimeForStudyDateChecks(bool is_safe_seed);
+ 
+   // Updates |kVariationsSeedDate| and logs when previous date was from a
+-  // different day.
+-  void UpdateSeedDateAndLogDayChange(base::Time seed_date);
++  // different day. Returns the result of the seed date update.
++  UpdateSeedDateResult UpdateSeedDateAndLogDayChange(base::Time seed_date);
+ 
+   // Updates the latest country code and administrative area code (geo_level1)
+   // if `country_code` is non-empty. Returns true if either stored value
+@@ -233,6 +233,10 @@
+   bool UpdateSessionCountryAndGeoLevel1(std::string_view country_code,
+                                         std::string_view geo_level1);
+ 
++  // Computes the result of a seed date update without mutating stored state or
++  // logging metrics.
++  UpdateSeedDateResult GetSeedDateUpdateResult(base::Time seed_date) const;
++
+   // Returns the serial number of the most recently received seed, or an empty
+   // string if there is no seed (or if it could not be read).
+   // Side-effect: If there is a failure while attempting to read the latest seed
+@@ -357,9 +361,6 @@
+     SeedProcessingResult& operator=(SeedProcessingResult&& other);
+   };
+ 
+-  // Computes the result of the seed date update.
+-  UpdateSeedDateResult GetSeedDateUpdateResult(base::Time seed_date) const;
+-
+   // Creates a histogram for the result of the update of the seed date.
+   void LogSeedDayChange(base::Time seed_date);
+ 
 diff --git a/content/browser/service_worker/embedded_worker_instance.cc b/content/browser/service_worker/embedded_worker_instance.cc
 index 4984b41..721bf7f4 100644
 --- a/content/browser/service_worker/embedded_worker_instance.cc
@@ -224,7 +494,7 @@ index f4c3adf..2242f36f 100644
    // The initial value of ahead_character_ is not used.
    UChar32 ahead_character_ = 0;
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index a8a89fa..db816aa 100644
+index a8a89fa..4de7deb 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -232,10 +502,232 @@ index a8a89fa..db816aa 100644
  #define V8_MINOR_VERSION 8
  #define V8_BUILD_NUMBER 62
 -#define V8_PATCH_LEVEL 16
-+#define V8_PATCH_LEVEL 18
++#define V8_PATCH_LEVEL 20
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/execution/isolate.cc b/v8/src/execution/isolate.cc
+index 841c808..fb3809f 100644
+--- a/v8/src/execution/isolate.cc
++++ b/v8/src/execution/isolate.cc
+@@ -4637,8 +4637,7 @@
+   stack_guard()->SetStackLimitForStackSwitching(limit);
+ 
+   // Update the central stack info.
+-  if (!thread_local_top()->is_on_central_stack_flag_ &&
+-      to->jmpbuf()->is_on_central_stack) {
++  if (to->jmpbuf()->is_on_central_stack) {
+     DCHECK(is_suspend || is_return);
+     DCHECK_EQ(expected_target_state, wasm::JumpBuffer::Inactive);
+     thread_local_top()->is_on_central_stack_flag_ = true;
+@@ -4648,8 +4647,7 @@
+ #endif
+     thread_local_top()->central_stack_limit_ =
+         reinterpret_cast<Address>(to->jmpbuf()->stack_limit);
+-  } else if (thread_local_top()->is_on_central_stack_flag_ &&
+-             !to->jmpbuf()->is_on_central_stack) {
++  } else if (thread_local_top()->is_on_central_stack_flag_) {
+     thread_local_top()->is_on_central_stack_flag_ = false;
+     if (is_resume) {
+       // Record the current central stack SP, we will switch back to it for
+@@ -5551,9 +5549,23 @@
+     // "C++ -> JS" or "C++ -> Api callback" boundary.
+     return;
+   }
+-  if (it.done() ||
+-      (ext_callback_scope &&
+-       ext_callback_scope->JSStackComparableAddress() < it.frame()->fp())) {
++  bool is_direct_api_throw = it.done();
++  if (!is_direct_api_throw && ext_callback_scope != nullptr) {
++    Address comparable_fp = it.frame()->fp();
++#if V8_ENABLE_WEBASSEMBLY
++    if (!IsOnCentralStack(comparable_fp)) {
++      // The topmost frame is on a Wasm secondary stack, whereas
++      // |ext_callback_scope| is always on the central stack. Compare against
++      // the central-stack SP saved when switching to the secondary stack.
++      comparable_fp = thread_local_top()->central_stack_sp_;
++      DCHECK_NE(comparable_fp, kNullAddress);
++      DCHECK(IsOnCentralStack(comparable_fp));
++    }
++#endif  // V8_ENABLE_WEBASSEMBLY
++    is_direct_api_throw =
++        ext_callback_scope->JSStackComparableAddress() < comparable_fp;
++  }
++  if (is_direct_api_throw) {
+     // There were no crossings of "C++ -> JS" boundary at all or they happened
+     // earlier than the last crossing of the  "C++ -> Api callback" boundary.
+     // In this case all the data about Api callback is available in the
+@@ -5664,6 +5676,9 @@
+       // These frames are not created yet.
+       UNREACHABLE();
+     case StackFrame::TURBOFAN_JS:
++#if V8_ENABLE_WEBASSEMBLY
++    case StackFrame::WASM_TO_JS:
++#endif  // V8_ENABLE_WEBASSEMBLY
+       // This must be a fast Api call.
+       CHECK(it.frame()->InFastCCall());
+       // TODO(ishell): support fast Api calls.
+@@ -5674,6 +5689,7 @@
+       return;
+ #if V8_ENABLE_WEBASSEMBLY
+     case StackFrame::WASM:
++    case StackFrame::WASM_EXIT:
+       // No more info.
+       return;
+ #endif  // V8_ENABLE_WEBASSEMBLY
+diff --git a/v8/src/ic/accessor-assembler.cc b/v8/src/ic/accessor-assembler.cc
+index 4936b9c..81d135b 100644
+--- a/v8/src/ic/accessor-assembler.cc
++++ b/v8/src/ic/accessor-assembler.cc
+@@ -1556,7 +1556,7 @@
+     ICMode ic_mode, ElementSupport support_elements) {
+   Label if_smi_handler(this), if_nonsmi_handler(this);
+   Label if_proto_handler(this), call_handler(this),
+-      store_transition_or_global_or_accessor(this);
++      store_transition_or_accessor(this);
+ 
+   Branch(TaggedIsSmi(handler), &if_smi_handler, &if_nonsmi_handler);
+ 
+@@ -1688,8 +1688,7 @@
+   BIND(&if_nonsmi_handler);
+   {
+     TNode<HeapObjectReference> ref_handler = CAST(handler);
+-    GotoIf(IsWeakOrCleared(ref_handler),
+-           &store_transition_or_global_or_accessor);
++    GotoIf(IsWeakOrCleared(ref_handler), &store_transition_or_accessor);
+     TNode<HeapObject> strong_handler = CAST(handler);
+     TNode<Map> handler_map = LoadMap(strong_handler);
+     Branch(IsCodeMap(handler_map), &call_handler, &if_proto_handler);
+@@ -1714,39 +1713,17 @@
+     }
+   }
+ 
+-  BIND(&store_transition_or_global_or_accessor);
++  BIND(&store_transition_or_accessor);
+   {
+     // Load value or miss if the {handler} weak cell is cleared.
+     CSA_DCHECK(this, IsWeakOrCleared(handler));
+     TNode<HeapObject> strong_handler = GetHeapObjectAssumeWeak(handler, miss);
+ 
+-    Label store_global(this), store_transition(this), store_accessor(this);
++    Label store_transition(this), store_accessor(this);
+     TNode<Map> strong_handler_map = LoadMap(strong_handler);
+-    GotoIf(IsPropertyCellMap(strong_handler_map), &store_global);
+     Branch(IsAccessorPairMap(strong_handler_map), &store_accessor,
+            &store_transition);
+ 
+-    BIND(&store_global);
+-    {
+-      if (p->IsDefineNamedOwn()) {
+-        // The global proxy has its attributes set in the global object,
+-        // which can't be handled by StoreGlobalIC_PropertyCellCase when
+-        // defining public fields. Handle it in runtime.
+-        GotoIf(IsJSGlobalProxy(CAST(p->receiver())), &if_slow);
+-      } else if (p->IsDefineKeyedOwn()) {
+-        Label proceed_defining(this);
+-        // StoreGlobalIC_PropertyCellCase doesn't support definition
+-        // of private fields, so handle them in runtime.
+-        GotoIfNot(IsSymbol(CAST(p->name())), &proceed_defining);
+-        Branch(IsAnyPrivateName(CAST(p->name())), &if_slow, &proceed_defining);
+-        BIND(&proceed_defining);
+-      }
+-
+-      TNode<PropertyCell> property_cell = CAST(strong_handler);
+-      ExitPoint direct_exit(this);
+-      StoreGlobalIC_PropertyCellCase(property_cell, p->value(), &direct_exit,
+-                                     miss);
+-    }
+     BIND(&store_accessor);
+     {
+       TNode<AccessorPair> pair = CAST(strong_handler);
+diff --git a/v8/src/ic/handler-configuration.cc b/v8/src/ic/handler-configuration.cc
+index 855b04c..5b98ad9 100644
+--- a/v8/src/ic/handler-configuration.cc
++++ b/v8/src/ic/handler-configuration.cc
+@@ -533,11 +533,6 @@
+ }
+ 
+ // static
+-MaybeObjectHandle StoreHandler::StoreGlobal(Handle<PropertyCell> cell) {
+-  return MaybeObjectHandle::Weak(cell);
+-}
+-
+-// static
+ Handle<Object> StoreHandler::StoreProxy(Isolate* isolate,
+                                         DirectHandle<Map> receiver_map,
+                                         Handle<JSProxy> proxy,
+diff --git a/v8/src/ic/handler-configuration.h b/v8/src/ic/handler-configuration.h
+index 6e85b8f..5883a35 100644
+--- a/v8/src/ic/handler-configuration.h
++++ b/v8/src/ic/handler-configuration.h
+@@ -369,10 +369,6 @@
+                                    Handle<JSProxy> proxy,
+                                    DirectHandle<JSReceiver> receiver);
+ 
+-  // Creates a handler for storing a property to the property cell of a global
+-  // object.
+-  static MaybeObjectHandle StoreGlobal(Handle<PropertyCell> cell);
+-
+   // Creates a Smi-handler for storing a property to a global proxy object.
+   static inline DirectHandle<Smi> StoreGlobalProxy(Isolate* isolate);
+ 
+diff --git a/v8/src/ic/ic-inl.h b/v8/src/ic/ic-inl.h
+index e19ce57..842a941 100644
+--- a/v8/src/ic/ic-inl.h
++++ b/v8/src/ic/ic-inl.h
+@@ -30,8 +30,7 @@
+   Tagged<HeapObject> heap_object;
+   return (IsSmi(object) && (object.ptr() != kNullAddress)) ||
+          (object.GetHeapObjectIfWeak(&heap_object) &&
+-          (IsMap(heap_object) || IsPropertyCell(heap_object) ||
+-           IsAccessorPair(heap_object))) ||
++          (IsMap(heap_object) || IsAccessorPair(heap_object))) ||
+          (object.GetHeapObjectIfStrong(&heap_object) &&
+           (IsDataHandler(heap_object) || IsCode(heap_object)));
+ }
+diff --git a/v8/src/ic/ic.cc b/v8/src/ic/ic.cc
+index e512afc..1bf68f5 100644
+--- a/v8/src/ic/ic.cc
++++ b/v8/src/ic/ic.cc
+@@ -2440,16 +2440,6 @@
+       if (IsJSGlobalObject(*store_target)) {
+         TRACE_HANDLER_STATS(isolate(), StoreIC_StoreGlobalTransitionDH);
+ 
+-        if (IsJSGlobalObject(*lookup_start_object_map())) {
+-          DCHECK(IsStoreGlobalIC());
+-#ifdef DEBUG
+-          DirectHandle<JSObject> holder = lookup->GetHolder<JSObject>();
+-          DCHECK_EQ(*lookup->GetReceiver(), *holder);
+-          DCHECK_EQ(*store_target, *holder);
+-#endif
+-          return StoreHandler::StoreGlobal(
+-              indirect_handle(lookup->transition_cell(), isolate()));
+-        }
+         if (IsDefineKeyedOwnIC()) {
+           // Private field can't be deleted from this global object and can't
+           // be overwritten, so install slow handler in order to make store IC
+@@ -2666,9 +2656,19 @@
+       }
+       if (lookup->is_dictionary_holder()) {
+         if (IsJSGlobalObject(*holder)) {
++          DCHECK(!IsStoreGlobalIC());
++          DCHECK(IsJSGlobalProxy(*receiver));
++          if (IsAnyDefineOwn()) {
++            TRACE_HANDLER_STATS(isolate(), StoreIC_SlowStub);
++            return MaybeObjectHandle(StoreHandler::StoreSlow(isolate()));
++          }
+           TRACE_HANDLER_STATS(isolate(), StoreIC_StoreGlobalDH);
+-          return MaybeObjectHandle(StoreHandler::StoreGlobal(
+-              indirect_handle(lookup->GetPropertyCell(), isolate())));
++          DirectHandle<Smi> smi_handler =
++              StoreHandler::StoreGlobalProxy(isolate());
++          Handle<Object> handler = StoreHandler::StoreThroughPrototype(
++              isolate(), lookup_start_object_map(), holder, *smi_handler,
++              MaybeObjectDirectHandle::Weak(lookup->GetPropertyCell()));
++          return MaybeObjectHandle(handler);
+         }
+         TRACE_HANDLER_STATS(isolate(), StoreIC_StoreNormalDH);
+         DCHECK(holder.is_identical_to(receiver));
 diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
 index a06a9c5..e2afd30 100644
 --- a/v8/src/maglev/maglev-graph-builder.cc
