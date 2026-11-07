@@ -1,17 +1,17 @@
-Chromium 158.0.8127.18 -> 158.0.8127.28, for the 158.0.8127.18 tarball.
+Chromium 158.0.8127.18 -> 158.0.8127.29, for the 158.0.8127.18 tarball.
 
-158.0.8127.28 is a tag on the 158 branch (refs/branch-heads/8127@{#1201}) that
-has no source tarball (as of 2026-11-06). It adds 356 branch commits to
-158.0.8127.18 (#845), 181 of them not PGO/orderfile/AFDO rolls or VERSION increments:
+158.0.8127.29 is a tag on the 158 branch (refs/branch-heads/8127@{#1241}) that
+has no source tarball (as of 2026-11-07). It adds 396 branch commits to
+158.0.8127.18 (#845), 205 of them not PGO/orderfile/AFDO rolls or VERSION increments:
 security fixes (MSE, the extension install move, the password auto sign-in toast,
 SiteDataClearer, WebShare, PartitionAlloc's purge, service worker teardown, Blink's
 animation triggers, scroll snap, nested pseudo-elements, display-locked painting and
-video snapshots, and the V8, Skia, ICU, Dawn and ANGLE ones in the 28 "Roll commits
+video snapshots, the V8 detached-globals one, and the V8, Skia, ICU, Dawn and ANGLE ones in the 30 "Roll commits
 from side projects" and the ICU roll), contextual tasks, composebox/omnibox and new tab
 page WebUI changes, PartitionAlloc's ThreadCache overflow churn.
 
 Generated from the upstream diffs between the tags: chromium/src
-refs/tags/158.0.8127.18..158.0.8127.28 and the dependencies whose DEPS
+refs/tags/158.0.8127.18..158.0.8127.29 and the dependencies whose DEPS
 revision changed (ANGLE, Dawn, DevTools, ICU, Skia, V8, WebRTC), as served by
 Gitiles, with scripts/chromium-delta.
 
@@ -23,11 +23,11 @@ updates, DEPS.
 Added: the tarball's stamp files for the new commit (stamps.py:
 build/util/LASTCHANGE{,.committime}, gpu/config/gpu_lists_version.h,
 skia/ext/skia_commit_hash.h, gpu/webgpu/DAWN_VERSION and
-gpu/webgpu/dawn_commit_hash.h; commit 3120c1c0cc1de3dbec7292e4bcb73d3874c21792,
-refs/branch-heads/8127@{#1201}). build/util/MINIBRANCH doesn't change.
+gpu/webgpu/dawn_commit_hash.h; commit 98d10de160431ede7b8615cc387b5067821dbcfe,
+refs/branch-heads/8127@{#1241}). build/util/MINIBRANCH doesn't change.
 
 Checked: applies to the 158.0.8127.18 tarball; chrome/VERSION becomes
-158.0.8127.28; every patched source file is byte-identical to its version
+158.0.8127.29; every patched source file is byte-identical to its version
 at the tag (or the dependency's DEPS revision); it adds 12 files and renames
 20 (within chrome/browser/resources/omnibox_popup/; the old paths are gone); the
 158.0.8127.18 tarball's non-git files are all classified (tarball-generated.py
@@ -207,7 +207,7 @@ index a019f71..74d9cf5 100644
  
    unpublished_stats_.dequarantined_count += freed_count;
 diff --git a/chrome/VERSION b/chrome/VERSION
-index 42a35f4..037df19 100644
+index 42a35f4..2e6a52d 100644
 --- a/chrome/VERSION
 +++ b/chrome/VERSION
 @@ -1,4 +1,4 @@
@@ -215,7 +215,7 @@ index 42a35f4..037df19 100644
  MINOR=0
  BUILD=8127
 -PATCH=18
-+PATCH=28
++PATCH=29
 diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
 index a0e09ac9..6807b65 100644
 --- a/chrome/app/generated_resources.grd
@@ -1624,7 +1624,7 @@ index ddf0089b..56b90ec 100644
  
  }  // namespace contextual_tasks
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_internals_page_handler.cc b/chrome/browser/contextual_tasks/contextual_tasks_internals_page_handler.cc
-index 768afc2f..7afc66a 100644
+index 768afc2f..da3d5366 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_internals_page_handler.cc
 +++ b/chrome/browser/contextual_tasks/contextual_tasks_internals_page_handler.cc
 @@ -242,7 +242,7 @@
@@ -1636,6 +1636,19 @@ index 768afc2f..7afc66a 100644
      }
  
      user_data_state->submit_pending = user_data->submit_pending();
+@@ -277,8 +277,12 @@
+   switch (*source) {
+     case Source::kAppMenu:
+       return "kAppMenu";
++    case Source::kAppMenuAskGoogle:
++      return "kAppMenuAskGoogle";
+     case Source::kContentAreaContextMenuPage:
+       return "kContentAreaContextMenuPage";
++    case Source::kContentAreaContextMenuPageAskGoogle:
++      return "kContentAreaContextMenuPageAskGoogle";
+     case Source::kContentAreaContextMenuImage:
+       return "kContentAreaContextMenuImage";
+     case Source::kToolbar:
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc b/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc
 index dea4a50..453ff3dc 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc
@@ -2119,7 +2132,7 @@ index 5923638..659502ab 100644
    // status changes.
    OnAiPageStatusChanged(bool is_ai_page);
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui.cc
-index bf3fdf31..138a7493 100644
+index bf3fdf31..d84685d 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_ui.cc
 +++ b/chrome/browser/contextual_tasks/contextual_tasks_ui.cc
 @@ -248,6 +248,12 @@
@@ -2148,10 +2161,17 @@ index bf3fdf31..138a7493 100644
  #endif
  
    dict.Set("composeboxFileMaxSize",
-@@ -586,9 +596,12 @@
-       contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
-           profile);
-   dict.Set("enablePinButton", is_pinning_eligible);
+@@ -582,16 +592,17 @@
+   dict.Set(
+       "composeboxSkillsEnabled",
+       base::FeatureList::IsEnabled(omnibox::kComposeboxSkillsContextualTasks));
+-  const bool is_pinning_eligible =
+-      contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
+-          profile);
+-  dict.Set("enablePinButton", is_pinning_eligible);
++  const bool can_pin_or_unpin =
++      contextual_tasks::EntryPointEligibilityManager::CanPinOrUnpin(profile);
++  dict.Set("enablePinButton", can_pin_or_unpin);
 +  // Intentionally not gated on pinning eligibility: eligibility can change
 +  // while the page is open and is pushed separately via
 +  // `OnPinButtonEligibilityChanged()`, which the WebUI already combines with
@@ -2161,10 +2181,24 @@ index bf3fdf31..138a7493 100644
 -               contextual_tasks::IsContextualTasksPinButtonOnSrpEnabled());
 +           contextual_tasks::IsContextualTasksPinButtonOnSrpEnabled());
    dict.Set("isSidePanelPinned",
-            is_pinning_eligible &&
-                contextual_tasks::GetEffectivePinState(profile));
+-           is_pinning_eligible &&
+-               contextual_tasks::GetEffectivePinState(profile));
++           contextual_tasks::GetEffectivePinState(profile));
+   dict.Set("showOnboardingTooltip",
+            base::FeatureList::IsEnabled(
+                contextual_tasks::kContextualTasksShowOnboardingTooltip));
+@@ -1225,8 +1236,7 @@
+   }
+ 
+   if (!contextual_tasks::IsContextualTasksPinningV2Enabled() ||
+-      !contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
+-          profile)) {
++      !contextual_tasks::EntryPointEligibilityManager::CanPinOrUnpin(profile)) {
+     return;
+   }
+ 
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc
-index 50e57b8..756d6b6 100644
+index 50e57b8..a5ac269 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc
 +++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc
 @@ -14,6 +14,7 @@
@@ -2193,21 +2227,20 @@ index 50e57b8..756d6b6 100644
        "info_tooltip.css.js",
        "info_tooltip.html.js",
        "info_tooltip.js",
-@@ -327,12 +326,33 @@
+@@ -327,12 +326,32 @@
    is_contextual_tasks_eligible_on_init_ =
        contextual_tasks::EntryPointEligibilityManager::IsEligible(profile);
  #if !BUILDFLAG(IS_ANDROID)
 -  if (contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
 -          profile)) {
-+  is_pinning_eligible_ =
-+      contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
-+          profile);
-+  if (is_pinning_eligible_) {
++  can_pin_or_unpin_ =
++      contextual_tasks::EntryPointEligibilityManager::CanPinOrUnpin(profile);
++  if (can_pin_or_unpin_) {
      if (auto* model = PinnedToolbarActionsModel::Get(profile)) {
        pinned_toolbar_actions_model_observation_.Observe(model);
      }
    }
-+  // Pinning eligibility depends on both Contextual Tasks eligibility and AIM
++  // Pin/unpin eligibility depends on both Contextual Tasks eligibility and AIM
 +  // (Fusebox) eligibility. Either can change while the side panel is open, so
 +  // listen to both and push updates to the WebUI.
 +  if (auto* eligibility_manager =
@@ -2216,20 +2249,20 @@ index 50e57b8..756d6b6 100644
 +    eligibility_subscription_ =
 +        eligibility_manager->RegisterEligibilityChangedCallback(
 +            base::IgnoreArgs<bool>(base::BindRepeating(
-+                &ContextualTasksUIBase::OnPinningEligibilityMaybeChanged,
++                &ContextualTasksUIBase::OnCanPinOrUnpinMaybeChanged,
 +                base::Unretained(this))));
 +  }
 +  if (auto* aim_service =
 +          AimEligibilityServiceFactory::GetForProfile(profile)) {
 +    aim_eligibility_subscription_ =
 +        aim_service->RegisterEligibilityChangedCallback(base::BindRepeating(
-+            &ContextualTasksUIBase::OnPinningEligibilityMaybeChanged,
++            &ContextualTasksUIBase::OnCanPinOrUnpinMaybeChanged,
 +            base::Unretained(this)));
 +  }
  #endif
  
    std::vector<ui::ElementIdentifier> tracked_element_ids = {
-@@ -498,6 +518,10 @@
+@@ -498,6 +517,10 @@
        {"newThreadTooltip", IDS_CONTEXTUAL_TASKS_SIDE_PANEL_NEW_THREAD_TOOL_TIP},
        {"openInNewTab", IDS_CONTEXTUAL_TASKS_MENU_OPEN_IN_NEW_TAB},
        {"pinTooltip", IDS_SIDE_PANEL_HEADER_PIN_BUTTON_TOOLTIP},
@@ -2240,10 +2273,17 @@ index 50e57b8..756d6b6 100644
        {"reopenTab", IDS_CONTEXTUAL_TASKS_REOPEN_TABS_BUTTON_TEXT},
        {"sourcesMenuTitle", IDS_CONTEXTUAL_TASKS_SOURCES_MENU_TITLE},
        {"threadHistoryTooltip",
-@@ -520,9 +544,12 @@
-       contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
-           profile);
-   dict.Set("enablePinButton", is_pinning_eligible);
+@@ -516,16 +539,17 @@
+   bool is_eligible =
+       contextual_tasks::EntryPointEligibilityManager::IsEligible(profile);
+   dict.Set("isCobrowseEligible", is_eligible);
+-  const bool is_pinning_eligible =
+-      contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
+-          profile);
+-  dict.Set("enablePinButton", is_pinning_eligible);
++  const bool can_pin_or_unpin =
++      contextual_tasks::EntryPointEligibilityManager::CanPinOrUnpin(profile);
++  dict.Set("enablePinButton", can_pin_or_unpin);
 +  // Intentionally not gated on pinning eligibility: eligibility can change
 +  // while the page is open and is pushed separately via
 +  // `OnPinButtonEligibilityChanged()`, which the WebUI already combines with
@@ -2251,42 +2291,75 @@ index 50e57b8..756d6b6 100644
    dict.Set("enablePinButtonOnSrp",
 -           is_pinning_eligible &&
 -               contextual_tasks::IsContextualTasksPinButtonOnSrpEnabled());
+-  dict.Set(
+-      "isSidePanelPinned",
+-      is_pinning_eligible && contextual_tasks::GetEffectivePinState(profile));
 +           contextual_tasks::IsContextualTasksPinButtonOnSrpEnabled());
-   dict.Set(
-       "isSidePanelPinned",
-       is_pinning_eligible && contextual_tasks::GetEffectivePinState(profile));
-@@ -594,8 +621,13 @@
++  dict.Set("isSidePanelPinned",
++           contextual_tasks::GetEffectivePinState(profile));
+   dict.Set("contextualTasksSidePanelRearchitectureEnabled",
+            contextual_tasks::IsContextualTasksSidePanelRearchitectureEnabled());
+   dict.Set("hideMenuOnAiPageEnabled",
+@@ -594,8 +618,12 @@
    toolbar_page_handler_receiver_.Bind(std::move(page_handler));
  #if !BUILDFLAG(IS_ANDROID)
    Profile* profile = GetProfile();
 -  if (contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
 -          profile)) {
-+  is_pinning_eligible_ =
-+      contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
-+          profile);
++  can_pin_or_unpin_ =
++      contextual_tasks::EntryPointEligibilityManager::CanPinOrUnpin(profile);
 +  if (auto* toolbar_page = GetToolbarPageRemote()) {
-+    toolbar_page->OnPinButtonEligibilityChanged(is_pinning_eligible_);
++    toolbar_page->OnPinButtonEligibilityChanged(can_pin_or_unpin_);
 +  }
-+  if (is_pinning_eligible_) {
++  if (can_pin_or_unpin_) {
      if (auto* model = PinnedToolbarActionsModel::Get(profile)) {
        if (!pinned_toolbar_actions_model_observation_.IsObserving()) {
          pinned_toolbar_actions_model_observation_.Observe(model);
-@@ -767,6 +799,39 @@
-     toolbar_page->OnSidePanelPinStateChanged(effective_pin_state);
+@@ -626,8 +654,7 @@
+ void ContextualTasksUIBase::PinSidePanel() {
+ #if !BUILDFLAG(IS_ANDROID)
+   Profile* profile = GetProfile();
+-  if (!contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
+-          profile)) {
++  if (!contextual_tasks::EntryPointEligibilityManager::CanPinOrUnpin(profile)) {
+     return;
    }
- }
+   if (auto* model = PinnedToolbarActionsModel::Get(profile)) {
+@@ -639,8 +666,7 @@
+ void ContextualTasksUIBase::UnpinSidePanel() {
+ #if !BUILDFLAG(IS_ANDROID)
+   Profile* profile = GetProfile();
+-  if (!contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
+-          profile)) {
++  if (!contextual_tasks::EntryPointEligibilityManager::CanPinOrUnpin(profile)) {
+     return;
+   }
+   if (auto* model = PinnedToolbarActionsModel::Get(profile)) {
+@@ -759,12 +785,39 @@
+ #if !BUILDFLAG(IS_ANDROID)
+ void ContextualTasksUIBase::OnActionsChanged() {
+   if (auto* toolbar_page = GetToolbarPageRemote()) {
+-    Profile* profile = GetProfile();
+-    bool effective_pin_state =
+-        contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
+-            profile) &&
+-        contextual_tasks::GetEffectivePinState(profile);
+-    toolbar_page->OnSidePanelPinStateChanged(effective_pin_state);
++    toolbar_page->OnSidePanelPinStateChanged(
++        contextual_tasks::GetEffectivePinState(GetProfile()));
++  }
++}
 +
-+void ContextualTasksUIBase::OnPinningEligibilityMaybeChanged() {
++void ContextualTasksUIBase::OnCanPinOrUnpinMaybeChanged() {
 +  Profile* profile = GetProfile();
-+  const bool is_pinning_eligible =
-+      contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
-+          profile);
-+  if (is_pinning_eligible == is_pinning_eligible_) {
++  const bool can_pin_or_unpin =
++      contextual_tasks::EntryPointEligibilityManager::CanPinOrUnpin(profile);
++  if (can_pin_or_unpin == can_pin_or_unpin_) {
 +    return;
 +  }
-+  is_pinning_eligible_ = is_pinning_eligible;
++  can_pin_or_unpin_ = can_pin_or_unpin;
 +
-+  if (is_pinning_eligible_) {
++  if (can_pin_or_unpin_) {
 +    // The user just became eligible: start tracking the pinned state so the
 +    // pin/unpin label stays accurate.
 +    if (auto* model = PinnedToolbarActionsModel::Get(profile)) {
@@ -2300,18 +2373,15 @@ index 50e57b8..756d6b6 100644
 +  }
 +
 +  if (auto* toolbar_page = GetToolbarPageRemote()) {
-+    toolbar_page->OnPinButtonEligibilityChanged(is_pinning_eligible_);
-+    // Keep the pin state in sync too; it is reported as unpinned when the
-+    // user is ineligible, matching the load-time `isSidePanelPinned` value.
++    toolbar_page->OnPinButtonEligibilityChanged(can_pin_or_unpin_);
++    // Keep the pin state in sync too, since the model wasn't observed while
++    // the user was ineligible.
 +    toolbar_page->OnSidePanelPinStateChanged(
-+        is_pinning_eligible_ &&
 +        contextual_tasks::GetEffectivePinState(profile));
-+  }
-+}
+   }
+ }
  #endif
- 
- void ContextualTasksUIBase::OnTabClickedFromSourcesMenu(int32_t tab_id,
-@@ -820,6 +885,7 @@
+@@ -820,6 +873,7 @@
    if (!panel_controller) {
      return;
    }
@@ -2319,8 +2389,18 @@ index 50e57b8..756d6b6 100644
    content::WebContents* target_contents =
        panel_controller->GetActiveWebContents();
    if (!target_contents) {
+@@ -926,8 +980,7 @@
+   }
+ 
+   if (!contextual_tasks::IsContextualTasksPinningV2Enabled() ||
+-      !contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
+-          profile)) {
++      !contextual_tasks::EntryPointEligibilityManager::CanPinOrUnpin(profile)) {
+     return;
+   }
+ 
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_base.h b/chrome/browser/contextual_tasks/contextual_tasks_ui_base.h
-index d19d472b8..04b306cb 100644
+index d19d472b8..c8c17f97 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_ui_base.h
 +++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_base.h
 @@ -22,6 +22,7 @@
@@ -2336,32 +2416,33 @@ index d19d472b8..04b306cb 100644
    class CookieJarObserver;
  
 +#if !BUILDFLAG(IS_ANDROID)
-+  // Re-evaluates whether the user may pin the side panel (e.g. after the
-+  // Contextual Tasks or AIM eligibility changes while the side panel is open)
-+  // and pushes the result to the toolbar WebUI so the pin/unpin menu item can
-+  // be shown or hidden.
-+  void OnPinningEligibilityMaybeChanged();
++  // Re-evaluates whether the user may pin or unpin the side panel (e.g. after
++  // the Contextual Tasks or AIM eligibility changes while the side panel is
++  // open) and pushes the result to the toolbar WebUI so the pin/unpin menu item
++  // can be shown or hidden.
++  void OnCanPinOrUnpinMaybeChanged();
 +#endif
 +
    mojo::Receiver<contextual_tasks_toolbar::mojom::PageHandlerFactory>
        toolbar_page_factory_receiver_{this};
    mojo::Receiver<contextual_tasks_toolbar::mojom::PageHandler>
-@@ -288,6 +297,13 @@
+@@ -288,6 +297,14 @@
    base::ScopedObservation<PinnedToolbarActionsModel,
                            PinnedToolbarActionsModel::Observer>
        pinned_toolbar_actions_model_observation_{this};
 +
-+  // Last pinning eligibility pushed to the WebUI, so we only notify on change.
-+  bool is_pinning_eligible_ = false;
++  // Last pin/unpin eligibility pushed to the WebUI, so we only notify on
++  // change.
++  bool can_pin_or_unpin_ = false;
 +  // Subscriptions to the two signals that feed
-+  // `EntryPointEligibilityManager::IsPinningEligible()`.
++  // `EntryPointEligibilityManager::CanPinOrUnpin()`.
 +  base::CallbackListSubscription eligibility_subscription_;
 +  base::CallbackListSubscription aim_eligibility_subscription_;
  #endif
  
    std::unique_ptr<CookieJarObserver> cookie_jar_observer_;
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
-index 638c93e..f8859aa 100644
+index 638c93e..d910cc6 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
 +++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
 @@ -253,18 +253,30 @@
@@ -2401,7 +2482,67 @@ index 638c93e..f8859aa 100644
      const GURL& url,
      ContextualTasksUiService* service,
      omnibox::ChromeAimEntryPoint entry_point) {
-@@ -3690,11 +3702,12 @@
+@@ -1536,6 +1548,17 @@
+     return false;
+   }
+ 
++  // Only apply side-panel-specific URL changes to in-place navigations inside
++  // the side panel without text-fragment citations. Navigations explicitly
++  // opening a new tab/window (e.g. via
++  // `ContextualTasksWebView::OpenURLFromTab`) or citation links must not be
++  // reloaded inside the side panel.
++  if (url_params.disposition != ui::mojom::WindowOpenDisposition::kCurrentTab ||
++      !shared_highlighting::ExtractTextFragments(url_params.url.GetRef())
++           .empty()) {
++    return false;
++  }
++
+   const GURL& url = url_params.url;
+ 
+   // Only apply to HTTP and HTTPS URLs.
+@@ -2239,12 +2262,25 @@
+     nav_params.opener = message_proxy_web_contents->GetPrimaryMainFrame();
+   }
+ 
+-  // Capture the active tab before navigating, since a foreground navigation
+-  // activates the new tab.
++  // Capture the active tab and its current task before navigating, since a
++  // foreground navigation activates the new tab and changes the active tab's
++  // task lookup in `ContextualTasksPanelController::GetCurrentTask()`.
+   TabListInterface* opener_tab_list =
+       browser ? TabListInterface::From(browser) : nullptr;
+   tabs::TabInterface* opener_tab =
+       opener_tab_list ? opener_tab_list->GetActiveTab() : nullptr;
++  std::optional<ContextualTask> current_task;
++  if (browser) {
++    if (auto* controller = ContextualTasksPanelController::From(browser)) {
++      current_task = controller->GetCurrentTask();
++    }
++  }
++  if (opener_tab && opener_tab->GetContents() &&
++      nav_params.disposition != ui::mojom::WindowOpenDisposition::kCurrentTab) {
++    nav_params.source_contents = opener_tab->GetContents();
++    nav_params.tabstrip_add_types |= AddTabTypes::ADD_INHERIT_OPENER;
++    nav_params.transition = ui::PAGE_TRANSITION_LINK;
++  }
+ 
+   // Perform the navigation
+   Navigate(&nav_params);
+@@ -2260,11 +2296,8 @@
+ 
+   if (new_contents_ptr) {
+     if (browser) {
+-      if (auto* controller = ContextualTasksPanelController::From(browser)) {
+-        if (auto current_task = controller->GetCurrentTask()) {
+-          AssociateWebContentsToTask(new_contents_ptr,
+-                                     current_task->GetTaskId());
+-        }
++      if (current_task) {
++        AssociateWebContentsToTask(new_contents_ptr, current_task->GetTaskId());
+       }
+       if (opener_tab_list && opener_tab) {
+         tabs::TabInterface* new_tab =
+@@ -3690,11 +3723,12 @@
      return;
    }
  
@@ -2416,7 +2557,7 @@ index 638c93e..f8859aa 100644
      ResetZeroStateInOpenSidePanel(panel_contents, tab_interface, url,
                                    std::move(session_handle),
                                    options.entry_point);
-@@ -3725,7 +3738,8 @@
+@@ -3725,7 +3759,8 @@
    }
  
    if (IsContextualTasksSidePanelRearchitectureEnabled()) {
@@ -2426,7 +2567,7 @@ index 638c93e..f8859aa 100644
        // TODO(crbug.com/537842795): Understand if this flow is possible in the
        // rearchitecture and handle accordingly. For now, just load the URL.
      }
-@@ -3869,6 +3883,10 @@
+@@ -3869,6 +3904,10 @@
    if (!panel_was_closed) {
      if (auto* web_ui_interface = GetWebUiInterface(web_contents)) {
        ShowAndRecordErrorPage(web_ui_interface->GetPageRemote(), source);
@@ -2437,7 +2578,7 @@ index 638c93e..f8859aa 100644
      }
    }
  }
-@@ -3885,6 +3903,9 @@
+@@ -3885,6 +3924,9 @@
      return false;
    }
    RecordErrorPageShown(*it->second.pending_error_page_source);
@@ -3492,18 +3633,45 @@ index a540376..1284317 100644
    base::flat_set<base::UnguessableToken> failed_context_uploads_;
  
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc b/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc
-index ee18d93..11b188b 100644
+index ee18d93..dbe07fd 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc
 +++ b/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc
-@@ -12,7 +12,6 @@
+@@ -10,9 +10,10 @@
+ 
+ #include "base/functional/callback.h"
  #include "base/logging.h"
++#include "base/time/time.h"
  #include "chrome/browser/contextual_search/contextual_search_web_contents_helper.h"
  #include "chrome/browser/contextual_tasks/contextual_tasks_ghost_loader_view.h"
 -#include "chrome/browser/contextual_tasks/contextual_tasks_ui.h"
++#include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
  #include "chrome/browser/contextual_tasks/contextual_tasks_ui_base.h"
  #include "chrome/browser/contextual_tasks/contextual_tasks_ui_service.h"
  #include "chrome/browser/contextual_tasks/contextual_tasks_ui_service_factory.h"
-@@ -55,7 +54,25 @@
+@@ -20,11 +21,14 @@
+ #include "chrome/browser/file_select_helper.h"
+ #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
+ #include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/tab_list/constants.h"
++#include "chrome/browser/tab_list/tab_list_interface.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/lens/lens_search_controller.h"
+ #include "chrome/browser/ui/webui/webui_embedding_context.h"
+ #include "chrome/common/webui_url_constants.h"
++#include "components/contextual_tasks/public/contextual_task.h"
+ #include "components/contextual_tasks/public/features.h"
+ #include "components/lens/lens_overlay_dismissal_source.h"
+ #include "components/tabs/public/tab_interface.h"
+@@ -39,6 +43,7 @@
+ #include "extensions/browser/view_type_utils.h"
+ #include "net/base/url_util.h"
+ #include "third_party/blink/public/common/web_preferences/web_preferences.h"
++#include "third_party/blink/public/mojom/window_features/window_features.mojom.h"
+ #include "third_party/skia/include/core/SkColor.h"
+ #include "ui/base/base_window.h"
+ #include "ui/base/metadata/metadata_impl_macros.h"
+@@ -55,7 +60,25 @@
  namespace contextual_tasks {
  
  namespace {
@@ -3529,7 +3697,7 @@ index ee18d93..11b188b 100644
  }  // namespace
  
  // static
-@@ -142,7 +159,8 @@
+@@ -142,7 +165,8 @@
              browser_window->GetProfile(), ghost_loader_web_contents));
      ConfigureWebContentsBackground(ghost_loader_view_->GetWebContents(),
                                     browser_window->GetProfile());
@@ -3539,7 +3707,7 @@ index ee18d93..11b188b 100644
      webui::SetBrowserWindowInterface(ghost_loader_view_->GetWebContents(),
                                       browser_window);
  
-@@ -252,11 +270,29 @@
+@@ -252,11 +276,29 @@
    if (visible && !GetIsGhostLoaderEnabled()) {
      return;
    }
@@ -3571,7 +3739,7 @@ index ee18d93..11b188b 100644
  }
  
  void ContextualTasksWebView::OnThemeChanged() {
-@@ -401,20 +437,7 @@
+@@ -401,20 +443,7 @@
          browser_window_->GetProfile());
    }
  
@@ -3593,7 +3761,76 @@ index ee18d93..11b188b 100644
    toolbar_ui->MaybeTriggerPinningPromo();
  
    if (ui_service) {
-@@ -658,20 +681,20 @@
+@@ -537,8 +566,7 @@
+   // cleared by `Navigator::RequestOpenURL()`, so checking
+   // `!params.started_from_context_menu` ensures those IPCs are still validated.
+   if (params.is_renderer_initiated || !params.started_from_context_menu) {
+-    if (modified_params.user_gesture &&
+-        (!source_rfh || !source_rfh->HasTransientUserActivation())) {
++    if (modified_params.user_gesture && !ConsumeUserActivation(source_rfh)) {
+       modified_params.user_gesture = false;
+     }
+ 
+@@ -559,12 +587,56 @@
+   // target navigation controller.
+   modified_params.frame_tree_node_id = content::FrameTreeNodeId();
+ 
++  auto* ui_service = ContextualTasksUiServiceFactory::GetForBrowserContext(
++      source->GetBrowserContext());
++  auto* controller = ContextualTasksPanelController::From(browser_window_);
++  std::optional<ContextualTask> current_task =
++      controller ? controller->GetCurrentTask() : std::nullopt;
++
++  // For verified user-activated navigations in the rearchitected side panel
++  // (such as links clicked in subframes or `window.open()` with `noopener`),
++  // route through `ContextualTasksUiService::HandleNavigation` so that side
++  // panel parameter injection, citation handling, active-tab clobbering, and
++  // task association apply consistently. Unactivated requests must continue to
++  // fall through to the active tab's delegate so `PopupBlockerTabHelper` can
++  // block them.
++  if (modified_params.user_gesture && !params.started_from_context_menu &&
++      IsContextualTasksSidePanelRearchitectureEnabled() && ui_service &&
++      ui_service->HandleNavigation(
++          modified_params, source, /*is_from_embedded_page=*/false,
++          /*from_can_create_window=*/false, /*is_same_site_or_from_ui=*/false,
++          /*is_mobile_ua=*/false, modified_params.initiator_origin,
++          source_rfh ? std::make_optional(source_rfh->GetGlobalFrameToken())
++                     : std::nullopt,
++          blink::mojom::WindowFeatures())) {
++    return nullptr;
++  }
++
+   // Pass the active tab's WebContents as the source so the navigation pipeline
+   // has the correct context to evaluate disposition and popup blocking rules.
+   content::WebContents* tab_contents = active_tab->GetContents();
+   if (tab_contents && tab_contents->GetDelegate()) {
+-    return tab_contents->GetDelegate()->OpenURLFromTab(
+-        tab_contents, modified_params, std::move(navigation_handle_callback));
++    content::WebContents* new_contents =
++        tab_contents->GetDelegate()->OpenURLFromTab(
++            tab_contents, modified_params,
++            std::move(navigation_handle_callback));
++    if (new_contents && new_contents != tab_contents &&
++        new_contents->GetBrowserContext() == source->GetBrowserContext()) {
++      if (ui_service && current_task) {
++        ui_service->AssociateWebContentsToTask(new_contents,
++                                               current_task->GetTaskId());
++      }
++      TabListInterface* tab_list = TabListInterface::From(browser_window_);
++      tabs::TabInterface* new_tab =
++          tabs::TabInterface::MaybeGetFromContents(new_contents);
++      if (tab_list && new_tab && new_tab != active_tab &&
++          tab_list->GetIndexOfTab(new_tab->GetHandle()) !=
++              ::tab_list::kNoTabIndex) {
++        tab_list->SetOpenerForTab(new_tab->GetHandle(),
++                                  active_tab->GetHandle());
++      }
++    }
++    return new_contents;
+   }
+   return nullptr;
+ }
+@@ -658,20 +730,42 @@
        browser_window_->GetProfile());
    const GURL& url =
        use_last_committed_url ? wc->GetLastCommittedURL() : wc->GetVisibleURL();
@@ -3621,14 +3858,44 @@ index ee18d93..11b188b 100644
    }
 +  ghost_loader_view_->SetShowErrorPage(false);
 +  ghost_loader_view_->SetVisible(is_ghost_loader_visible_);
++}
++
++bool ContextualTasksWebView::ConsumeUserActivation(
++    content::RenderFrameHost* source_rfh) {
++  if (!source_rfh) {
++    return false;
++  }
++  if (source_rfh->ConsumeTransientUserActivation()) {
++    return true;
++  }
++  content::WebContents* source_wc =
++      content::WebContents::FromRenderFrameHost(source_rfh);
++  if (!source_wc || !source_wc->HasRecentInteraction()) {
++    return false;
++  }
++  const base::TimeTicks interaction_time =
++      source_wc->GetLastInteractionTimeTicks();
++  if (interaction_time <= last_consumed_interaction_time_) {
++    return false;
++  }
++  last_consumed_interaction_time_ = interaction_time;
++  return true;
  }
  
  BEGIN_METADATA(ContextualTasksWebView)
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_view.h b/chrome/browser/contextual_tasks/contextual_tasks_web_view.h
-index 5c5394f81..3f50f3c 100644
+index 5c5394f81..4eb5cd4 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_web_view.h
 +++ b/chrome/browser/contextual_tasks/contextual_tasks_web_view.h
-@@ -86,6 +86,13 @@
+@@ -10,6 +10,7 @@
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/memory/weak_ptr.h"
++#include "base/time/time.h"
+ #include "components/web_modal/web_contents_modal_dialog_manager_delegate.h"
+ #include "content/public/browser/media_stream_request.h"
+ #include "content/public/browser/web_contents_delegate.h"
+@@ -86,6 +87,13 @@
    // Returns whether the ghost loader overlay is currently visible.
    bool IsGhostLoaderVisible() const;
  
@@ -3642,7 +3909,7 @@ index 5c5394f81..3f50f3c 100644
    // views::View:
    void OnThemeChanged() override;
  
-@@ -151,6 +158,10 @@
+@@ -151,6 +159,16 @@
    void UpdateToolbarStateFromWebContents(content::WebContents* wc,
                                           bool use_last_committed_url = false);
  
@@ -3650,10 +3917,16 @@ index 5c5394f81..3f50f3c 100644
 +  // `is_ghost_loader_visible_` and `is_error_page_visible_`.
 +  void UpdateScrimVisibility();
 +
++  // Consumes and returns whether `source_rfh` has a valid transient user
++  // activation or a recent unconsumed browser-verified user interaction (when
++  // Blink already consumed the transient activation before sending `OpenURL()`,
++  // e.g. for Cmd+Click).
++  bool ConsumeUserActivation(content::RenderFrameHost* source_rfh);
++
    // The browser window interface associated with this view.
    raw_ptr<BrowserWindowInterface> browser_window_ = nullptr;
  
-@@ -176,6 +187,11 @@
+@@ -176,6 +194,15 @@
    // about:blank navigation that should not dismiss the ghost loader.
    bool ignore_next_stop_loading_for_about_blank_ = false;
  
@@ -3662,11 +3935,15 @@ index 5c5394f81..3f50f3c 100644
 +  bool is_ghost_loader_visible_ = false;
 +  bool is_error_page_visible_ = false;
 +
++  // Timestamp of the last browser-verified user interaction consumed by
++  // `ConsumeUserActivation()` to prevent replay.
++  base::TimeTicks last_consumed_interaction_time_;
++
    base::WeakPtrFactory<ContextualTasksWebView> weak_ptr_factory_{this};
  };
  
 diff --git a/chrome/browser/contextual_tasks/entry_point_eligibility_manager.cc b/chrome/browser/contextual_tasks/entry_point_eligibility_manager.cc
-index 13d36415..3ce7c10 100644
+index 13d36415..d0177b37 100644
 --- a/chrome/browser/contextual_tasks/entry_point_eligibility_manager.cc
 +++ b/chrome/browser/contextual_tasks/entry_point_eligibility_manager.cc
 @@ -16,6 +16,7 @@
@@ -3692,8 +3969,20 @@ index 13d36415..3ce7c10 100644
    entry_points_are_eligible_ = AreEntryPointsEligible();
    is_pinning_eligible_ = IsPinningEligible(profile_);
  }
+@@ -119,6 +128,11 @@
+   return eligibility_manager && eligibility_manager->IsSidePanelAvailable();
+ }
+ 
++// static
++bool EntryPointEligibilityManager::CanPinOrUnpin(Profile* profile) {
++  return profile && profile->IsRegularProfile() && IsPinningEligible(profile);
++}
++
+ void EntryPointEligibilityManager::MaybeNotifyEntryPointEligibilityChanged() {
+   const bool updated_eligibility = AreEntryPointsEligible();
+   const bool updated_pinning_eligible = IsPinningEligible(profile_);
 diff --git a/chrome/browser/contextual_tasks/entry_point_eligibility_manager.h b/chrome/browser/contextual_tasks/entry_point_eligibility_manager.h
-index 6c959fba..bfd9c1e7 100644
+index 6c959fba..ac08a52 100644
 --- a/chrome/browser/contextual_tasks/entry_point_eligibility_manager.h
 +++ b/chrome/browser/contextual_tasks/entry_point_eligibility_manager.h
 @@ -7,6 +7,7 @@
@@ -3704,7 +3993,19 @@ index 6c959fba..bfd9c1e7 100644
  #include "components/prefs/pref_member.h"
  #include "components/signin/public/identity_manager/identity_manager.h"
  #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
-@@ -54,6 +55,7 @@
+@@ -40,6 +41,11 @@
+   // profile. Returns false otherwise.
+   static bool IsPinningEligible(Profile* profile);
+ 
++  // Returns true if the user can pin or unpin the contextual tasks button for
++  // the given profile. Unlike `IsPinningEligible()`, this also requires a
++  // regular profile, matching the generic toolbar pin/unpin menu.
++  static bool CanPinOrUnpin(Profile* profile);
++
+   // Runs callback when the entry point eligibility changes
+   using EntryPointEligibilityChangeCallbackList =
+       base::RepeatingCallbackList<void(bool)>;
+@@ -54,6 +60,7 @@
    bool entry_points_are_eligible_ = false;
    bool is_pinning_eligible_ = false;
    raw_ptr<Profile> profile_ = nullptr;
@@ -4606,6 +4907,20 @@ index 7179e87dd..964e07f 100644
    MaybeSetLCPPNavigationHint(*navigation_handle, *predictor_);
  
    MaybePrewarmMainResourceAndSubresourcesOnNavigation(*navigation_handle,
+diff --git a/chrome/browser/renderer_context_menu/render_view_context_menu.cc b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+index bd85827..92debc3 100644
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+@@ -4141,7 +4141,8 @@
+     case IDC_CONTENT_CONTEXT_ASK_GOOGLE_ABOUT_THIS_PAGE:
+       chrome::ExecAskGoogleAboutThisPage(
+           GetBrowser(),
+-          lens::LensOverlayInvocationSource::kContentAreaContextMenuPage,
++          lens::LensOverlayInvocationSource::
++              kContentAreaContextMenuPageAskGoogle,
+           omnibox::ChromeAimEntryPoint::
+               DESKTOP_CHROME_PAGE_CONTEXT_MENU_ASK_GOOGLE);
+       break;
 diff --git a/chrome/browser/resources/contextual_tasks/app.ts b/chrome/browser/resources/contextual_tasks/app.ts
 index 7e8cbde8..d63eb92 100644
 --- a/chrome/browser/resources/contextual_tasks/app.ts
@@ -4718,7 +5033,7 @@ index 742efbb..9c284cec 100644
 +  width: auto;
 +}
 diff --git a/chrome/browser/resources/contextual_tasks/contextual_tasks_inner_composebox.ts b/chrome/browser/resources/contextual_tasks/contextual_tasks_inner_composebox.ts
-index 0401f246..ebacf73 100644
+index 0401f246..3972fbd8 100644
 --- a/chrome/browser/resources/contextual_tasks/contextual_tasks_inner_composebox.ts
 +++ b/chrome/browser/resources/contextual_tasks/contextual_tasks_inner_composebox.ts
 @@ -174,6 +174,12 @@
@@ -4734,7 +5049,7 @@ index 0401f246..ebacf73 100644
    override getPageHandler(): PageHandlerRemote {
      return this.pageHandler_;
    }
-@@ -344,10 +350,17 @@
+@@ -344,10 +350,16 @@
        }
        return;
      }
@@ -4743,12 +5058,11 @@ index 0401f246..ebacf73 100644
 -    const askGAndPageAction = this.webUIOmniboxAskGAboutThisPageEnabled_ &&
 -        invocationSource === 'OmniboxPageAction' && this.isSidePanel;
 +    // AutoSuggestedTabContext is routed differently for Ask Google entry points
-+    // when opening a side panel to cobrowse.
++    // (except homework action chip) when opening a side panel to cobrowse.
 +    const isUpdatedEntryPoint =
 +        this.contextualTasksUpdatedEntryPointsEnabled_ &&
-+        (invocationSource === 'ContentAreaContextMenuPage' ||
-+         invocationSource === 'AppMenu' ||
-+         invocationSource === 'HomeworkActionChip');
++        (invocationSource === 'ContentAreaContextMenuPageAskGoogle' ||
++         invocationSource === 'AppMenuAskGoogle');
 +    const isOmniboxAskG = this.webUIOmniboxAskGAboutThisPageEnabled_ &&
 +        invocationSource === 'OmniboxPageAction';
 +    const askGAndPageAction =
@@ -5506,11 +5820,41 @@ index 26742ef..e0e42db 100644
              .showDropdown="${this.showDropdown}"
              .inputPlaceholder="${this.inputPlaceholder}"
              .input="${this.input}"
+diff --git a/chrome/browser/resources/new_tab_page/ntp_searchbox.html.ts b/chrome/browser/resources/new_tab_page/ntp_searchbox.html.ts
+index 4f19733b..d52680d 100644
+--- a/chrome/browser/resources/new_tab_page/ntp_searchbox.html.ts
++++ b/chrome/browser/resources/new_tab_page/ntp_searchbox.html.ts
+@@ -72,6 +72,8 @@
+     ${this.showComposeButton_ ? html`
+       <cr-searchbox-compose-button id="composeButton" slot="compose-button"
+           ?dynamic="${this.ntpRealboxDynamicAiModeButtonEnabled_}"
++          ?inherit-visibility="${
++              this.ntpRealboxDynamicAiModeButtonPreventEarlyPaint_}"
+           ?has-user-input="${this.hasUserInput_}"
+           ?virtual-focus-enabled="${this.virtualFocusEnabled}"
+           ?has-virtual-focus="${this.isAiModeVirtualFocused()}"
 diff --git a/chrome/browser/resources/new_tab_page/ntp_searchbox.ts b/chrome/browser/resources/new_tab_page/ntp_searchbox.ts
-index 3ce3c16..ac96dd7 100644
+index 3ce3c16..c6eefa1 100644
 --- a/chrome/browser/resources/new_tab_page/ntp_searchbox.ts
 +++ b/chrome/browser/resources/new_tab_page/ntp_searchbox.ts
-@@ -284,6 +284,9 @@
+@@ -208,6 +208,7 @@
+       energyEffectAnimationEnabled: {type: Boolean},
+       hasUserInput_: {type: Boolean},
+       ntpRealboxDynamicAiModeButtonEnabled_: {type: Boolean},
++      ntpRealboxDynamicAiModeButtonPreventEarlyPaint_: {type: Boolean},
+       contextManagementInComposeboxEnabled: {type: Boolean},
+       composeboxContextMenuTooltipsEnabled: {type: Boolean},
+       keepMenuOpenOnTabSelectForRealbox: {type: Boolean},
+@@ -271,6 +272,8 @@
+       loadTimeData.getBoolean('searchboxLensSearch');
+   protected accessor ntpRealboxDynamicAiModeButtonEnabled_: boolean =
+       loadTimeData.getBoolean('ntpRealboxDynamicAiModeButton');
++  protected accessor ntpRealboxDynamicAiModeButtonPreventEarlyPaint_: boolean =
++      loadTimeData.getBoolean('ntpRealboxDynamicAiModeButtonPreventEarlyPaint');
+   protected accessor useWebkitSearchIcons_: boolean = false;
+   protected accessor hasUserInput_: boolean = false;
+   protected dragAndDropHandler: DragAndDropHandler|null = null;
+@@ -284,6 +287,9 @@
    private pageHandler_: PageHandlerInterface;
    private autocompleteResultChangedListenerId_: number|null = null;
    private inputStateListenerId_: number|null = null;
@@ -5520,7 +5864,7 @@ index 3ce3c16..ac96dd7 100644
  
    constructor() {
      performance.mark('searchbox-creation-start');
-@@ -324,8 +327,11 @@
+@@ -324,8 +330,11 @@
      }
  
      // <if expr="not is_android">
@@ -5534,7 +5878,7 @@ index 3ce3c16..ac96dd7 100644
      // </if>
    }
  
-@@ -552,6 +558,7 @@
+@@ -552,6 +561,7 @@
    protected onSmartTabSharingActiveChanged_(
        _e: CustomEvent<{active: boolean}>) {
      // <if expr="not is_android">
@@ -5542,7 +5886,7 @@ index 3ce3c16..ac96dd7 100644
      this.smartTabSharingActive = _e.detail.active;
      this.pageHandler().setSmartTabSharingActive(_e.detail.active);
      if (_e.detail.active) {
-@@ -560,6 +567,25 @@
+@@ -560,6 +570,25 @@
      // </if>
    }
  
@@ -5685,6 +6029,40 @@ index 7d682fdc..417ed24 100644
  }
  
  :host([is-fusebox-enabled]) #composeButton {
+diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.html.ts b/chrome/browser/resources/omnibox_everywhere/omnibox.html.ts
+index 764d176f..76ee878 100644
+--- a/chrome/browser/resources/omnibox_everywhere/omnibox.html.ts
++++ b/chrome/browser/resources/omnibox_everywhere/omnibox.html.ts
+@@ -41,6 +41,8 @@
+       this.composeButtonEnabled ? html`
+           <cr-searchbox-compose-button id="composeButton" slot="compose-button"
+               ?dynamic="${this.ntpRealboxDynamicAiModeButtonEnabled_}"
++              ?inherit-visibility="${
++                  this.ntpRealboxDynamicAiModeButtonPreventEarlyPaint_}"
+               ?has-user-input="${this.hasUserInput_}"
+               ?virtual-focus-enabled="${this.virtualFocusEnabled}"
+               ?has-virtual-focus="${this.isAiModeVirtualFocused()}"
+diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.ts b/chrome/browser/resources/omnibox_everywhere/omnibox.ts
+index d8403f2f..e8dd381f 100644
+--- a/chrome/browser/resources/omnibox_everywhere/omnibox.ts
++++ b/chrome/browser/resources/omnibox_everywhere/omnibox.ts
+@@ -132,6 +132,7 @@
+         attribute: 'has-user-input',
+       },
+       ntpRealboxDynamicAiModeButtonEnabled_: {type: Boolean},
++      ntpRealboxDynamicAiModeButtonPreventEarlyPaint_: {type: Boolean},
+       inputState_: {type: Object},
+       searchboxLayoutMode: {type: String},
+       contextManagementInComposeboxEnabled: {type: Boolean},
+@@ -204,6 +205,8 @@
+   protected accessor hasUserInput_: boolean = false;
+   protected accessor ntpRealboxDynamicAiModeButtonEnabled_: boolean =
+       loadTimeData.getBoolean('ntpRealboxDynamicAiModeButton');
++  protected accessor ntpRealboxDynamicAiModeButtonPreventEarlyPaint_: boolean =
++      loadTimeData.getBoolean('ntpRealboxDynamicAiModeButtonPreventEarlyPaint');
+   protected accessor inputState_: InputState|null = null;
+   protected accessor searchboxLayoutMode: string =
+       loadTimeData.getString('searchboxLayoutMode');
 diff --git a/chrome/browser/resources/omnibox_popup/BUILD.gn b/chrome/browser/resources/omnibox_popup/BUILD.gn
 index 449ab040..9f3e0c6 100644
 --- a/chrome/browser/resources/omnibox_popup/BUILD.gn
@@ -6240,10 +6618,10 @@ similarity index 100%
 rename from chrome/browser/resources/omnibox_popup/omnibox_popup_searchbox.html.ts
 rename to chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.html.ts
 diff --git a/chrome/browser/resources/omnibox_popup/omnibox_popup_searchbox.ts b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
-similarity index 98%
+similarity index 97%
 rename from chrome/browser/resources/omnibox_popup/omnibox_popup_searchbox.ts
 rename to chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
-index 0d0035f..e6d6e26 100644
+index 0d0035f..f623484 100644
 --- a/chrome/browser/resources/omnibox_popup/omnibox_popup_searchbox.ts
 +++ b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
 @@ -5,7 +5,7 @@
@@ -6308,7 +6686,17 @@ index 0d0035f..e6d6e26 100644
    }
  
    override get showContextEntrypoint(): boolean {
-@@ -534,14 +540,14 @@
+@@ -317,7 +323,8 @@
+   protected accessor permanentDisplayText_: string = '';
+   protected accessor aimButtonIconOnly_: boolean = false;
+   // True during an active IME (Input Method Editor) text composition session.
+-  // Used to suppress intermediate selection updates until composition finishes.
++  // Used to suppress intermediate selection updates until composition finishes,
++  // and to end the composition before showing another tab's text.
+   private isComposing_: boolean = false;
+   // True if the user has typed directly into the WebUI DOM input element since
+   // the last `onSetInputState_` invocation.
+@@ -534,14 +541,14 @@
      }
    }
  
@@ -6327,7 +6715,7 @@ index 0d0035f..e6d6e26 100644
      const entrypoint = this.getContextualEntrypoint_();
      return entrypoint ? entrypoint.getContextualChipElement() : null;
    }
-@@ -549,7 +555,7 @@
+@@ -549,7 +556,7 @@
    isContextualChipVirtualFocused(): boolean {
      return this.showContextualChip &&
          this.selection.state ===
@@ -6336,6 +6724,25 @@ index 0d0035f..e6d6e26 100644
    }
  
    getLensSearchIconElement(): ComposeboxLensSearchElement|null {
+@@ -1415,6 +1422,18 @@
+       performance.mark(
+           'OmniboxPopupSearchboxElement::onSetInputState_:TabSwitch');
+     }
++
++    // Like `OmniboxViewViews::SaveStateToTab()`, end any IME composition
++    // before showing another tab's text, so that the IME doesn't keep composing
++    // into it. This compares tab IDs since `isTabSwitch` is false for a new tab
++    // that focuses the omnibox. There's no web API to end a composition, but
++    // blurring the input does it: Blink commits the composition, whose text is
++    // already in the old tab's draft, and the browser cancels the IME's
++    // composition. The input is refocused below if the new tab's omnibox is
++    // focused.
++    if (this.isComposing_ && state.tabId !== this.tabId_) {
++      this.$.input.blur();
++    }
+     this.hasReceivedInitialInputState_ = true;
+ 
+     let text = state.text;
 diff --git a/chrome/browser/resources/omnibox_popup/textfield_model.ts b/chrome/browser/resources/omnibox_popup/full/textfield_model.ts
 similarity index 100%
 rename from chrome/browser/resources/omnibox_popup/textfield_model.ts
@@ -6558,7 +6965,7 @@ index 5b43017..6ab6066 100644
  
    return nullptr;
 diff --git a/chrome/browser/ui/browser_actions.cc b/chrome/browser/ui/browser_actions.cc
-index 411759d..ce122395 100644
+index 411759d..d716fe05 100644
 --- a/chrome/browser/ui/browser_actions.cc
 +++ b/chrome/browser/ui/browser_actions.cc
 @@ -251,6 +251,8 @@
@@ -6606,6 +7013,37 @@ index 411759d..ce122395 100644
              .SetImage(contextual_tasks_image)
              .SetProperty(
                  actions::kActionItemPinnableKey,
+@@ -3810,7 +3815,7 @@
+                 chrome::ExecAskGoogleAboutThisPage(
+                     bwi,
+                     lens::LensOverlayInvocationSource::
+-                        kContentAreaContextMenuPage,
++                        kContentAreaContextMenuPageAskGoogle,
+                     omnibox::ChromeAimEntryPoint::
+                         DESKTOP_CHROME_PAGE_CONTEXT_MENU_ASK_GOOGLE);
+               },
+@@ -4368,7 +4373,7 @@
+                   return;
+                 }
+                 chrome::ExecAskGoogleAboutThisPage(
+-                    bwi, lens::LensOverlayInvocationSource::kAppMenu,
++                    bwi, lens::LensOverlayInvocationSource::kAppMenuAskGoogle,
+                     omnibox::ChromeAimEntryPoint::
+                         DESKTOP_CHROME_APP_MENU_ASK_GOOGLE);
+               },
+diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
+index afc3f64..e12e43e 100644
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -1557,7 +1557,7 @@
+ 
+     case IDC_ASK_GOOGLE_ABOUT_THIS_PAGE:
+       ExecAskGoogleAboutThisPage(
+-          browser_, lens::LensOverlayInvocationSource::kAppMenu,
++          browser_, lens::LensOverlayInvocationSource::kAppMenuAskGoogle,
+           omnibox::ChromeAimEntryPoint::DESKTOP_CHROME_APP_MENU_ASK_GOOGLE);
+       break;
+ 
 diff --git a/chrome/browser/ui/exclusive_access/fullscreen_controller.cc b/chrome/browser/ui/exclusive_access/fullscreen_controller.cc
 index 8559775..a4d416e 100644
 --- a/chrome/browser/ui/exclusive_access/fullscreen_controller.cc
@@ -6655,6 +7093,37 @@ index 82a52b4..9adf0a9 100644
  }
  
  void FindBarController::UpdateFindBarForCurrentResult() {
+diff --git a/chrome/browser/ui/lens/lens_overlay_query_controller.cc b/chrome/browser/ui/lens/lens_overlay_query_controller.cc
+index 566ec59f7..43ddcd49 100644
+--- a/chrome/browser/ui/lens/lens_overlay_query_controller.cc
++++ b/chrome/browser/ui/lens/lens_overlay_query_controller.cc
+@@ -249,6 +249,9 @@
+     case lens::LensOverlayInvocationSource::kCobrowsePinnedToolbarButton:
+     case lens::LensOverlayInvocationSource::kOmniboxPopupButton:
+     case lens::LensOverlayInvocationSource::kContextualCue:
++    case lens::LensOverlayInvocationSource::kAppMenuAskGoogle:
++    case lens::LensOverlayInvocationSource::
++        kContentAreaContextMenuPageAskGoogle:
+       // TODO(crbug.com/469463485): This should be contextual tasks specific,
+       // not unknown.
+       return lens::LensOverlayClientLogs::UNKNOWN_ENTRY_POINT;
+diff --git a/chrome/browser/ui/lens/lens_search_controller.cc b/chrome/browser/ui/lens/lens_search_controller.cc
+index 68550307..5993f406 100644
+--- a/chrome/browser/ui/lens/lens_search_controller.cc
++++ b/chrome/browser/ui/lens/lens_search_controller.cc
+@@ -365,8 +365,12 @@
+             lens::LensOverlayInvocationSource::kOmniboxPageAction ||
+         invocation_source ==
+             lens::LensOverlayInvocationSource::kContentAreaContextMenuPage ||
++        invocation_source == lens::LensOverlayInvocationSource::
++                                 kContentAreaContextMenuPageAskGoogle ||
+         invocation_source == lens::LensOverlayInvocationSource::kAppMenu ||
+         invocation_source ==
++            lens::LensOverlayInvocationSource::kAppMenuAskGoogle ||
++        invocation_source ==
+             lens::LensOverlayInvocationSource::kHomeworkActionChip);
+ 
+   std::string query_text =
 diff --git a/chrome/browser/ui/omnibox/chrome_omnibox_client.cc b/chrome/browser/ui/omnibox/chrome_omnibox_client.cc
 index b4311a1..196b469 100644
 --- a/chrome/browser/ui/omnibox/chrome_omnibox_client.cc
@@ -9618,6 +10087,66 @@ index 96c3627..977cfb9 100644
  
    // The cached result of CheckIfShouldSuggestReadingMode.
    bool was_last_checked_page_distillable_ = false;
+diff --git a/chrome/browser/ui/startup/launch_mode_recorder.cc b/chrome/browser/ui/startup/launch_mode_recorder.cc
+index b4f0c82..83cfa64 100644
+--- a/chrome/browser/ui/startup/launch_mode_recorder.cc
++++ b/chrome/browser/ui/startup/launch_mode_recorder.cc
+@@ -20,6 +20,7 @@
+ #include "base/strings/string_util.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "base/task/thread_pool.h"
++#include "chrome/common/chrome_switches.h"
+ #include "components/url_formatter/url_formatter.h"
+ #include "url/gurl.h"
+ 
+@@ -33,7 +34,6 @@
+ #include "base/containers/fixed_flat_map.h"
+ #include "base/files/file_path.h"
+ #include "base/win/startup_information.h"
+-#include "chrome/common/chrome_switches.h"
+ #include "chrome/installer/util/taskbar_util.h"
+ #include "components/url_formatter/url_fixer.h"
+ #endif  // BUILDFLAG(IS_WIN)
+@@ -338,6 +338,12 @@
+ void ComputeLaunchMode(
+     const base::CommandLine& command_line,
+     base::OnceCallback<void(std::optional<LaunchMode>)> result_callback) {
++  // Omnibox Everywhere launches (e.g. from its taskbar pin or Start Menu
++  // shortcut) are not browser launches, so record them in their own bucket.
++  if (command_line.HasSwitch(switches::kOmniboxEverywhere)) {
++    std::move(result_callback).Run(LaunchMode::kOmniboxEverywhere);
++    return;
++  }
+   if (auto mode = GetLaunchModeFast(command_line); mode.has_value()) {
+     std::move(result_callback).Run(mode);
+     return;
+diff --git a/chrome/browser/ui/startup/launch_mode_recorder.h b/chrome/browser/ui/startup/launch_mode_recorder.h
+index 546fa3c..a417f291 100644
+--- a/chrome/browser/ui/startup/launch_mode_recorder.h
++++ b/chrome/browser/ui/startup/launch_mode_recorder.h
+@@ -19,6 +19,7 @@
+ // "Chrome" is Chrome launched with neither of those switches.
+ // These values are persisted to logs. Entries should not be renumbered and
+ // numeric values should never be reused.
++// LINT.IfChange(LaunchMode)
+ enum class LaunchMode {
+   kNone = 0,   // Don't record this launch.
+   kOther = 1,  // Catch-all launch for Windows
+@@ -75,8 +76,13 @@
+ 
+   // Windows-only, Chrome launched in foreground upon system booting up.
+   kStartupForegroundLaunch = 30,
+-  kMaxValue = kStartupForegroundLaunch,
++
++  // Omnibox Everywhere launched via the command line (e.g. from its taskbar
++  // pin or Start Menu shortcut).
++  kOmniboxEverywhere = 31,
++  kMaxValue = kOmniboxEverywhere,
+ };
++// LINT.ThenChange(//tools/metrics/histograms/enums.xml:LaunchMode)
+ 
+ // Computes and records the launch mode based on `command_line` and process
+ // state. The launch mode may be recorded asynchronously.
 diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_browser_controller.cc b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_browser_controller.cc
 index 8602a82d..a7d82d4 100644
 --- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_browser_controller.cc
@@ -9811,7 +10340,7 @@ index 0de0304a..e589c87f 100644
   protected:
    bool ShouldShowMenu() override;
 diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
-index a2062d1..5917479 100644
+index a2062d1..22e98f3 100644
 --- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
 +++ b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
 @@ -23,6 +23,7 @@
@@ -9956,7 +10485,27 @@ index a2062d1..5917479 100644
  contextual_tasks::ContextualTasksService*
  ContextualTasksEphemeralButtonController::GetContextualTasksService() {
    return contextual_tasks::ContextualTasksServiceFactory::GetForProfile(
-@@ -895,12 +911,21 @@
+@@ -781,6 +797,19 @@
+     if (!was_active_panel_open && will_be_active_panel_open) {
+       ephemeral_button_shown_time_ticks_.reset();
+       contextual_tasks::RecordEphemeralButtonShown(/*is_panel_open=*/true);
++      if (was_active_panel_collapsed) {
++        // The panel was reopened while the collapsed button's toast could be
++        // showing (e.g. from the Omnibox or a context menu). Match the legacy
++        // ContextualTasksButton, which aborts the toast whenever the panel
++        // opens; a click on the button itself already marks the promo as
++        // used before reaching here.
++        if (auto* user_education = BrowserUserEducationInterface::From(
++                browser_window_interface_)) {
++          user_education->AbortFeaturePromo(
++              feature_engagement::
++                  kIPHContextualTasksEphemeralToolbarButtonFeature);
++        }
++      }
+     } else if (!was_active_panel_collapsed && will_be_active_panel_collapsed) {
+       ephemeral_button_shown_time_ticks_ = NowTicks();
+       contextual_tasks::RecordEphemeralButtonShown(/*is_panel_open=*/false);
+@@ -895,12 +924,21 @@
        browser_window_interface_->GetProfile());
    const bool should_show = ShouldShowPinnedButtonActiveIndicator();
    if (close_side_panel_action_item_) {
@@ -9981,7 +10530,7 @@ index a2062d1..5917479 100644
      close_side_panel_action_item_->SetVisible(should_show_close_side_panel);
      close_side_panel_action_item_->SetEnabled(should_show_close_side_panel);
    }
-@@ -945,7 +970,8 @@
+@@ -945,7 +983,8 @@
                       ? IDS_CONTEXTUAL_TASKS_EPHEMERAL_BUTTON_CLOSE_TOOL_TIP
                       : IDS_CONTEXTUAL_TASKS_SIDE_PANEL_REOPEN_TOOL_TIP;
    }
@@ -9991,7 +10540,7 @@ index a2062d1..5917479 100644
    action_item->SetTooltipText(tooltip_text);
    action_item->SetAccessibleName(tooltip_text);
  }
-@@ -983,17 +1009,6 @@
+@@ -983,17 +1022,6 @@
  }
  
  void ContextualTasksEphemeralButtonController::DisassociateNavigatedTab() {
@@ -10009,7 +10558,7 @@ index a2062d1..5917479 100644
    std::optional<SessionID> current_tab_session_id = GetCurrentTabSessionId();
    contextual_tasks::ContextualTasksService* service =
        GetContextualTasksService();
-@@ -1026,24 +1041,26 @@
+@@ -1026,24 +1054,26 @@
  
  void ContextualTasksEphemeralButtonController::PrimaryPageChanged(
      content::Page& page) {
@@ -10099,6 +10648,19 @@ index e2e912c..8aef9e22d 100644
      AddItemWithStringIdAndIcon(
          kCommandRemoveForCurrentTask, close_label_id,
          ui::ImageModel::FromVectorIcon(
+diff --git a/chrome/browser/ui/views/frame/BUILD.gn b/chrome/browser/ui/views/frame/BUILD.gn
+index 4123175..268324d 100644
+--- a/chrome/browser/ui/views/frame/BUILD.gn
++++ b/chrome/browser/ui/views/frame/BUILD.gn
+@@ -2484,6 +2484,8 @@
+       ":immersive_mode_controller_mac",
+       "//chrome/browser/ui:browser_commands_mac",
+       "//chrome/browser/ui/views:find_bar_views",
++      "//components/remote_cocoa/app_shim",
++      "//components/remote_cocoa/common:mojo",
+     ]
+   }
+ 
 diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
 index 7b568f6d..28d4fea4 100644
 --- a/chrome/browser/ui/views/frame/browser_view.cc
@@ -10407,10 +10969,10 @@ index 972bd7b..5a4f868 100644
    auto clear_all_button = views::CreateVectorImageButton(base::BindRepeating(
        static_cast<void (OmniboxView::*)(const std::u16string&)>(
 diff --git a/chrome/browser/ui/views/omnibox/BUILD.gn b/chrome/browser/ui/views/omnibox/BUILD.gn
-index 9ce0ec4..a84e889 100644
+index 9ce0ec4..f1a4d68a 100644
 --- a/chrome/browser/ui/views/omnibox/BUILD.gn
 +++ b/chrome/browser/ui/views/omnibox/BUILD.gn
-@@ -150,6 +150,7 @@
+@@ -150,10 +150,12 @@
      "//chrome/browser/ui/views/frame:browser_view_header",
      "//chrome/browser/ui/views/frame:contents_web_view",
      "//chrome/browser/ui/views/frame:top_container_view",
@@ -10418,7 +10980,12 @@ index 9ce0ec4..a84e889 100644
      "//chrome/browser/ui/views/location_bar",
      "//chrome/browser/ui/views/page_action",
      "//chrome/browser/ui/views/send_tab_to_self",
-@@ -241,6 +242,16 @@
+     "//chrome/browser/ui/views/tab_contents",
++    "//chrome/browser/ui/views/tabs/organizer",
+     "//chrome/browser/ui/views/toolbar",
+     "//chrome/browser/ui/webui:webui_util",
+     "//chrome/browser/ui/webui/omnibox_popup",
+@@ -241,6 +243,16 @@
      "//ui/base/clipboard:clipboard_test_support",
      "//ui/display:test_support",
    ]
@@ -10435,11 +11002,64 @@ index 9ce0ec4..a84e889 100644
  }
  
  source_set("test_support") {
+diff --git a/chrome/browser/ui/views/omnibox/full_webui_omnibox_frame.cc b/chrome/browser/ui/views/omnibox/full_webui_omnibox_frame.cc
+index 63e4b34b3..f73350a 100644
+--- a/chrome/browser/ui/views/omnibox/full_webui_omnibox_frame.cc
++++ b/chrome/browser/ui/views/omnibox/full_webui_omnibox_frame.cc
+@@ -23,8 +23,10 @@
+ #include "ui/aura/window.h"
+ #include "ui/aura/window_targeter.h"
+ #else
++#include "ui/compositor/layer.h"
+ #include "ui/views/view_targeter.h"
+ #include "ui/views/view_targeter_delegate.h"
++#include "ui/views/widget/widget.h"
+ #endif  // USE_AURA
+ 
+ namespace {
+@@ -43,14 +45,23 @@
+   views::View* TargetForRect(views::View* root,
+                              const gfx::Rect& rect) override {
+     // On macOS (non-Aura), there is no `WindowTargeter` to exclude the shadow
+-    // margin at the window level. Because the widget bounds include the shadow
+-    // margin, and in WebUI shadow mode the WebView spans the entire widget,
+-    // clicks in the transparent shadow margin would be swallowed by the
+-    // WebView. Redirect rects falling entirely in that margin to `root` (this
+-    // frame), which forwards them to the browser window beneath so underlying
+-    // controls (e.g. bookmarks bar or web content) receive the events.
++    // margin or the layer's clip rect at the window level. Because the widget
++    // bounds include the shadow margin, and in WebUI shadow mode the WebView
++    // spans the entire widget, clicks in the transparent shadow margin or the
++    // region clipped for an occluding view (e.g. `OrganizerTrayView` or the
++    // expanded vertical tab strip) would be swallowed by the WebView. Redirect
++    // rects falling outside the unclipped interior to `root` (this frame),
++    // which forwards them to the browser window beneath so underlying controls
++    // (e.g. Organizer Tray, vertical tab strip, bookmarks bar, or web content)
++    // receive the events.
+     gfx::Rect interior = root->GetLocalBounds();
+     interior.Inset(frame_->shadow_margin());
++    if (const views::Widget* widget = root->GetWidget()) {
++      if (const ui::Layer* layer = widget->GetLayer();
++          layer && !layer->clip_rect().IsEmpty()) {
++        interior.Intersect(layer->clip_rect());
++      }
++    }
+     if (!interior.Intersects(rect)) {
+       return root;
+     }
 diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
-index c440a30..e689c54 100644
+index c440a30..531944c0 100644
 --- a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
 +++ b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
-@@ -27,6 +27,7 @@
+@@ -9,6 +9,7 @@
+ 
+ #include "base/feature_list.h"
+ #include "base/metrics/histogram_functions.h"
++#include "base/scoped_multi_source_observation.h"
+ #include "base/scoped_observation.h"
+ #include "base/strings/strcat.h"
+ #include "base/task/sequenced_task_runner.h"
+@@ -27,6 +28,7 @@
  #include "chrome/browser/ui/views/frame/contents_web_view.h"
  #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
  #include "chrome/browser/ui/views/frame/top_container_view.h"
@@ -10447,7 +11067,15 @@ index c440a30..e689c54 100644
  #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
  #include "chrome/browser/ui/views/omnibox/full_webui_omnibox_frame.h"
  #include "chrome/browser/ui/views/omnibox/omnibox_full_popup_webui_content.h"
-@@ -44,6 +45,7 @@
+@@ -35,6 +37,7 @@
+ #include "chrome/browser/ui/views/omnibox/omnibox_popup_webui_base_content.h"
+ #include "chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.h"
+ #include "chrome/browser/ui/views/tab_contents/chrome_web_contents_view_focus_helper.h"
++#include "chrome/browser/ui/views/tabs/organizer/organizer_tray_view.h"
+ #include "chrome/browser/ui/views/toolbar/app_menu_control.h"
+ #include "chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.h"
+ #include "chrome/browser/ui/webui/omnibox_popup/omnibox_popup_ui.h"
+@@ -44,6 +47,7 @@
  #include "components/omnibox/common/omnibox_features.h"
  #include "components/permissions/permission_request_manager.h"
  #include "content/public/browser/render_widget_host_view.h"
@@ -10455,35 +11083,72 @@ index c440a30..e689c54 100644
  #include "ui/display/screen.h"
  #include "ui/events/event.h"
  #include "ui/views/controls/menu/menu_controller.h"
-@@ -143,6 +145,17 @@
+@@ -143,12 +147,27 @@
          app_menu_control_observation_.Observe(
              browser_view->toolbar_button_provider()->GetAppMenuControl());
        }
-+#if defined(USE_AURA)
-+      auto* elements = BrowserElementsViews::From(browser_view->browser());
-+      if (views::View* strip =
-+              elements
-+                  ? elements->RetrieveView(kVerticalTabStripRegionRetrievalId)
-+                  : nullptr;
-+          strip && !vertical_tab_strip_observation_.IsObserving()) {
-+        vertical_tab_strip_observation_.Observe(strip);
++      if (auto* elements =
++              BrowserElementsViews::From(browser_view->browser())) {
++        for (views::View* view :
++             {elements->RetrieveView(kVerticalTabStripRegionRetrievalId),
++              elements->GetView(OrganizerTrayView::kTrayElementId,
++                                /*require_visible=*/false)}) {
++          if (view && !occluding_view_observations_.IsObservingSource(view)) {
++            occluding_view_observations_.AddObservation(view);
++          }
++        }
 +      }
-+      UpdateVerticalTabStripOcclusion();
-+#endif  // USE_AURA
++      UpdatePopupOcclusion();
      }
    }
  }
-@@ -158,6 +171,9 @@
+ 
+ void OmniboxPopupFullPresenter::Hide() {
+   pending_focus_task_.Cancel();
++  refocus_on_activation_ = false;
++  // The popup stops being observed before it's hidden.
++  KeepBrowserPaintingAsActiveAcrossHandoff();
+   browser_widget_observation_.Reset();
+   browser_focus_manager_observation_.Reset();
+   // Cancel any pending context menu request, since the base `Hide()` only
+@@ -158,6 +177,9 @@
      content->CancelPendingContextMenuRequest();
    }
    app_menu_control_observation_.Reset();
-+  vertical_tab_strip_observation_.Reset();
-+  UpdateVerticalTabStripOcclusion();
++  occluding_view_observations_.RemoveAllObservations();
++  UpdatePopupOcclusion();
 +
    event_monitor_.reset();
    forward_events_timer_.Stop();
    StopForwardingEvents();
-@@ -310,18 +326,21 @@
+@@ -186,12 +208,23 @@
+     focus_requested_ = true;
+   }
+ 
+-  // Don't take focus in a browser window the user has left. Activating the
+-  // popup would pull the window back in front of the one the user switched to.
+-  if (!GetWidget() || !ShouldReceiveFocus() || !CanTakeFocus()) {
++  if (!GetWidget() || !ShouldReceiveFocus()) {
+     return;
+   }
+ 
++  // Don't take focus in a browser window the user has left. Activating the
++  // popup would pull the window back in front of the one the user switched to.
++  if (!CanTakeFocus()) {
++    // The omnibox stays focused, e.g. on the NTP of a new window that a
++    // window-modal dialog took activation from before the omnibox was focused,
++    // as no deactivation blurred it. Hand focus to the popup once the window is
++    // activated again, as the Views omnibox's `FocusManager` does, so that its
++    // caret shows and key presses reach it. See `OnWidgetActivationChanged()`.
++    refocus_on_activation_ = true;
++    return;
++  }
++  refocus_on_activation_ = false;
++
+   // If the popup widget is already active, focus the WebUI content now so the
+   // caret and selection are correct within this event loop turn. Do NOT return
+   // here: the activation seen at this instant can be torn down later in the
+@@ -310,18 +343,21 @@
    // While collapsed nothing is painted below the location bar, so drop the
    // bottom margin to keep the widget from covering the UI directly beneath it
    // (e.g. the bookmarks bar or the top of the web contents).
@@ -10512,17 +11177,98 @@ index c440a30..e689c54 100644
  void OmniboxPopupFullPresenter::SynchronizePopupBounds() {
    if (!GetWidget()) {
      return;
-@@ -377,6 +396,8 @@
+@@ -377,6 +413,8 @@
    widget_bounds.Inset(
        -(shadow_in_webui ? shadow_margin : results_frame->GetInsets()));
    GetWidget()->SetBounds(widget_bounds);
 +
-+  UpdateVerticalTabStripOcclusion();
++  UpdatePopupOcclusion();
  }
  
  void OmniboxPopupFullPresenter::NotifyEscapeKeyPressed() {
-@@ -812,10 +833,17 @@
+@@ -385,7 +423,30 @@
  
+ void OmniboxPopupFullPresenter::OnWidgetActivationChanged(views::Widget* widget,
+                                                           bool active) {
++  if (active && refocus_on_activation_) {
++    // A focus request couldn't take activation (see `RequestFocus()`), and the
++    // browser window or the popup is now active, e.g. after the window-modal
++    // dialog that held activation closed. Depending on the window manager,
++    // either may be activated, and neither focuses the WebUI content by
++    // itself. Refocus once activation settles.
++    refocus_on_activation_ = false;
++    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++        FROM_HERE,
++        base::BindOnce(&OmniboxPopupFullPresenter::RefocusAfterActivation,
++                       weak_factory_.GetWeakPtr()));
++  }
++
++  // In immersive fullscreen on macOS, the popup's parent is an overlay, so
++  // activating the popup doesn't lock the browser window.
++  if (active && widget == GetWidget() && !browser_paint_as_active_lock_) {
++    if (views::Widget* browser_widget = GetBrowserWidget()) {
++      browser_paint_as_active_lock_ = browser_widget->LockPaintAsActive();
++    }
++  }
++
+   if (!active) {
++    KeepBrowserPaintingAsActiveAcrossHandoff();
++
+     // The browser or popup widget deactivating may mean another window, such
+     // as a bubble, took activation. Check once activation settles, since
+     // handoffs between the browser and the popup deactivate one widget before
+@@ -512,6 +573,19 @@
+   SynchronizePopupBounds();
+ }
+ 
++void OmniboxPopupFullPresenter::RefocusAfterActivation() {
++  // Only refocus if the omnibox is still focused with the popup open. If the
++  // window was deactivated again in the meantime, `RequestFocus()` waits for
++  // the next activation.
++  if (!IsShown() ||
++      controller()->popup_state_manager()->popup_state() !=
++          OmniboxPopupState::kFull ||
++      !controller()->edit_model()->has_focus()) {
++    return;
++  }
++  RequestFocus();
++}
++
+ void OmniboxPopupFullPresenter::BlurIfBrowserOrPopupInactive() {
+   if (!IsBrowserOrPopupActive()) {
+     BlurForWindowDeactivation();
+@@ -658,6 +732,7 @@
+ void OmniboxPopupFullPresenter::DeactivatePopupAndKillFocus(
+     FocusAfterBlur focus_after_blur) {
+   pending_focus_task_.Cancel();
++  refocus_on_activation_ = false;
+   ResetPermissionPromptShowingState();
+   OmniboxEditModel* edit_model = controller()->edit_model();
+ 
+@@ -740,6 +815,7 @@
+   event_monitor_.reset();
+   forward_events_timer_.Stop();
+   popup_widget_observation_.Reset();
++  KeepBrowserPaintingAsActiveAcrossHandoff();
+   // Update the popup state manager if widget was destroyed externally, e.g., by
+   // the OS. This ensures the popup state manager stays in sync. Skip this when
+   // `Hide()` is discarding the widget on purpose, since clearing the state here
+@@ -810,12 +886,31 @@
+         event_screen_point.y() < top_container_bounds.bottom();
+   }
+ 
++  // Treat vertical tabs and the organizer tray, outside the top container,
++  // like horizontal tabs. Otherwise clicking a tab blurs the omnibox before
++  // the tab switch saves its state (see crbug.com/580059964), and clicking
++  // the tray focuses the web contents and closes the tray.
++  for (views::View* view : occluding_view_observations_.sources()) {
++    if (view->IsDrawn() &&
++        view->GetBoundsInScreen().Contains(event_screen_point)) {
++      contains_top_container = true;
++      break;
++    }
++  }
++
    bool contains_popup = false;
    if (IsShown()) {
 -    // Exclude the transparent shadow margin: on Aura the window targeter lets
@@ -10542,7 +11288,7 @@ index c440a30..e689c54 100644
      contains_popup = popup_bounds.Contains(event_screen_point);
    }
  
-@@ -879,3 +907,53 @@
+@@ -879,3 +974,84 @@
    views::Widget* browser_widget = GetBrowserWidget();
    return browser_widget ? browser_widget->GetFocusManager() : nullptr;
  }
@@ -10551,33 +11297,41 @@ index c440a30..e689c54 100644
 +    views::View* observed_view,
 +    views::View* starting_view,
 +    bool visible) {
-+  UpdateVerticalTabStripOcclusion();
++  UpdatePopupOcclusion();
 +}
 +
 +void OmniboxPopupFullPresenter::OnViewBoundsChanged(
 +    views::View* observed_view) {
-+  UpdateVerticalTabStripOcclusion();
++  UpdatePopupOcclusion();
 +}
 +
 +void OmniboxPopupFullPresenter::OnViewIsDeleting(views::View* observed_view) {
-+  vertical_tab_strip_observation_.Reset();
++  occluding_view_observations_.RemoveObservation(observed_view);
++  UpdatePopupOcclusion();
 +}
 +
-+void OmniboxPopupFullPresenter::UpdateVerticalTabStripOcclusion() {
-+#if defined(USE_AURA)
++void OmniboxPopupFullPresenter::UpdatePopupOcclusion() {
 +  // `GetLayer()` is null if the native window is already closing.
 +  ui::Layer* layer = GetWidget() ? GetWidget()->GetLayer() : nullptr;
 +  if (!layer) {
 +    return;
 +  }
 +  gfx::Rect clip;
-+  views::View* strip = vertical_tab_strip_observation_.GetSource();
 +  // Only clip while the popup is collapsed. Once suggestions open, the strip
-+  // collapses and the popup should paint in full.
-+  if (strip && strip->IsDrawn() && IsPopupCollapsed()) {
++  // collapses and the popup should paint in full. The widget comparison skips
++  // macOS immersive fullscreen, where the location bar sits in an overlay
++  // widget above the strip and tray.
++  if (IsPopupCollapsed()) {
 +    const gfx::Rect popup_bounds = GetWidget()->GetWindowBoundsInScreen();
-+    gfx::Rect covered = strip->GetBoundsInScreen();
-+    covered.Intersect(popup_bounds);
++    views::Widget* location_bar_widget = delegate().GetLocationBarWidget();
++    gfx::Rect covered;
++    for (views::View* view : occluding_view_observations_.sources()) {
++      if (view->IsDrawn() && view->GetWidget() == location_bar_widget) {
++        gfx::Rect intersection = view->GetBoundsInScreen();
++        intersection.Intersect(popup_bounds);
++        covered.Union(intersection);
++      }
++    }
 +    if (!covered.IsEmpty()) {
 +      // `clip` is the uncovered portion of the popup.
 +      clip = gfx::Rect(popup_bounds.size());
@@ -10592,15 +11346,46 @@ index c440a30..e689c54 100644
 +      }
 +    }
 +  }
-+  // Ensure events in the covered part reach the strip.
++  // Ensure events in the covered part reach the view beneath (via
++  // `aura::WindowTargeter::GetHitTestRects()` on Aura and
++  // `ResultsViewTargeterDelegate::TargetForRect()` on macOS).
 +  layer->SetClipRect(clip);
-+#endif  // USE_AURA
++}
++
++void OmniboxPopupFullPresenter::KeepBrowserPaintingAsActiveAcrossHandoff() {
++  views::Widget* browser_widget = GetBrowserWidget();
++  if (!browser_widget || !browser_widget->ShouldPaintAsActive()) {
++    return;
++  }
++  if (!browser_paint_as_active_lock_) {
++    browser_paint_as_active_lock_ = browser_widget->LockPaintAsActive();
++  }
++  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++      FROM_HERE,
++      base::BindOnce(&OmniboxPopupFullPresenter::
++                         ReleaseBrowserPaintAsActiveLockIfPopupInactive,
++                     weak_factory_.GetWeakPtr()));
++}
++
++void OmniboxPopupFullPresenter::
++    ReleaseBrowserPaintAsActiveLockIfPopupInactive() {
++  if (!GetWidget() || !GetWidget()->IsActive()) {
++    browser_paint_as_active_lock_.reset();
++  }
 +}
 diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h
-index 2a5de7e..b86af8b 100644
+index 2a5de7e..eb1fdfbd 100644
 --- a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h
 +++ b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h
-@@ -18,6 +18,7 @@
+@@ -9,6 +9,7 @@
+ 
+ #include "base/cancelable_callback.h"
+ #include "base/memory/weak_ptr.h"
++#include "base/scoped_multi_source_observation.h"
+ #include "base/scoped_observation.h"
+ #include "base/timer/timer.h"
+ #include "chrome/browser/ui/views/frame/app_menu_button_observer.h"
+@@ -18,6 +19,7 @@
  #include "ui/gfx/geometry/point.h"
  #include "ui/views/event_monitor.h"
  #include "ui/views/focus/focus_manager.h"
@@ -10608,7 +11393,7 @@ index 2a5de7e..b86af8b 100644
  #include "ui/views/widget/widget.h"
  #include "ui/views/widget/widget_observer.h"
  
-@@ -33,7 +34,8 @@
+@@ -33,7 +35,8 @@
                                    public views::WidgetObserver,
                                    public views::FocusChangeListener,
                                    public ui::EventObserver,
@@ -10618,7 +11403,16 @@ index 2a5de7e..b86af8b 100644
   public:
    OmniboxPopupFullPresenter(LocationBar* location_bar,
                              OmniboxPopupPresenterDelegate& presenter_delegate,
-@@ -125,6 +127,13 @@
+@@ -104,6 +107,8 @@
+   // stored focus view while the popup is active) and the popup widget's own
+   // activation (Escape handling, macOS key window restoration). The browser or
+   // popup widget deactivating schedules `BlurIfBrowserOrPopupInactive()`.
++  // Either activating while `refocus_on_activation_` is set schedules
++  // `RefocusAfterActivation()`.
+   void OnWidgetActivationChanged(views::Widget* widget, bool active) override;
+   // Keeps the popup over the location bar when the browser widget moves or
+   // resizes. The popup is its own top-level window, which doesn't always move
+@@ -125,6 +130,13 @@
    // AppMenuButtonObserver:
    void AppMenuClosed() override;
  
@@ -10632,32 +11426,69 @@ index 2a5de7e..b86af8b 100644
    // ui::EventObserver:
    // Handles click and touch events and determines if the popup should be
    // deactivated.
-@@ -145,6 +154,14 @@
+@@ -144,6 +156,19 @@
+   // window, such as a bubble, took activation, and sets what the browser window
    // restores focus to when it's reactivated.
    void BlurForWindowDeactivation();
- 
++  // Hands focus to the popup if the omnibox is still focused with the popup
++  // open. Runs after the browser window or popup is activated while
++  // `refocus_on_activation_` is set.
++  void RefocusAfterActivation();
++
 +  // Returns whether the popup shows only its input row, with nothing painted
 +  // below the location bar.
 +  bool IsPopupCollapsed() const;
 +
-+  // Clips the part of the popup that the expanded vertical tab strip covers,
-+  // which also sends events there to the strip. Aura only.
-+  void UpdateVerticalTabStripOcclusion();
-+
++  // Clips the part of the collapsed popup that the expanded vertical tab strip
++  // or the organizer tray covers, which also sends events there to the view
++  // beneath.
++  void UpdatePopupOcclusion();
+ 
    // Returns the browser window's widget. In macOS immersive fullscreen this is
    // not the location bar's widget, which is then a non-activatable overlay.
-   views::Widget* GetBrowserWidget();
-@@ -177,6 +194,10 @@
+@@ -164,6 +189,12 @@
+   // Returns the browser window's focus manager, or null if there is none.
+   views::FocusManager* GetBrowserFocusManager();
+ 
++  // Activation moves between the browser window and the popup in two steps,
++  // deactivating one before activating the other. Keeps the browser window
++  // painting as active in between, until a posted task.
++  void KeepBrowserPaintingAsActiveAcrossHandoff();
++  void ReleaseBrowserPaintAsActiveLockIfPopupInactive();
++
+   // Flag set when an ESC key event is intercepted before widget deactivation.
+   bool is_handling_escape_key_ = false;
+ 
+@@ -177,6 +208,10 @@
        browser_focus_manager_observation_{this};
    base::ScopedObservation<AppMenuControl, AppMenuButtonObserver>
        app_menu_control_observation_{this};
-+  // Observes the vertical tab strip while the popup is shown. See
-+  // `UpdateVerticalTabStripOcclusion()`.
-+  base::ScopedObservation<views::View, views::ViewObserver>
-+      vertical_tab_strip_observation_{this};
++  // Observes the vertical tab strip and the organizer tray while the popup is
++  // shown. See `UpdatePopupOcclusion()`.
++  base::ScopedMultiSourceObservation<views::View, views::ViewObserver>
++      occluding_view_observations_{this};
  
    // Used to determine where a click event happened to decide if the popup
    // should be deactivated.
+@@ -188,6 +223,18 @@
+   // Pending asynchronous focus and activation task.
+   base::CancelableOnceClosure pending_focus_task_;
+ 
++  // Set when `RequestFocus()` couldn't activate the popup because another
++  // window held activation, leaving the omnibox focused with the popup open
++  // but inactive. Cleared once the browser window or popup is activated again,
++  // which refocuses the popup, or when the omnibox is blurred or the popup is
++  // hidden.
++  bool refocus_on_activation_ = false;
++
++  // Keeps the browser window painting as active while the popup is active, and
++  // until a posted task after the browser window or popup deactivates.
++  std::unique_ptr<views::Widget::PaintAsActiveLock>
++      browser_paint_as_active_lock_;
++
+   // Whether the "first shown" metrics have been logged at least once.
+   bool logged_first_shown_metric_ = false;
+ 
 diff --git a/chrome/browser/ui/views/toolbar/BUILD.gn b/chrome/browser/ui/views/toolbar/BUILD.gn
 index 9719e01b..fcc7a53 100644
 --- a/chrome/browser/ui/views/toolbar/BUILD.gn
@@ -10866,6 +11697,50 @@ index 4f73bce..3181d08a 100644
  
   private:
    friend MetricsReporterClient;
+diff --git a/chrome/browser/ui/webui/new_tab_page/composebox/variations/composebox_fieldtrial.cc b/chrome/browser/ui/webui/new_tab_page/composebox/variations/composebox_fieldtrial.cc
+index 255f0cf..cfbc19e6 100644
+--- a/chrome/browser/ui/webui/new_tab_page/composebox/variations/composebox_fieldtrial.cc
++++ b/chrome/browser/ui/webui/new_tab_page/composebox/variations/composebox_fieldtrial.cc
+@@ -273,4 +273,7 @@
+ 
+ BASE_FEATURE(kNtpRealboxDynamicAiModeButton, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
++BASE_FEATURE(kNtpRealboxDynamicAiModeButtonPreventEarlyPaint,
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
+ }  // namespace ntp_realbox
+diff --git a/chrome/browser/ui/webui/new_tab_page/composebox/variations/composebox_fieldtrial.h b/chrome/browser/ui/webui/new_tab_page/composebox/variations/composebox_fieldtrial.h
+index a30c769f..2cc467f 100644
+--- a/chrome/browser/ui/webui/new_tab_page/composebox/variations/composebox_fieldtrial.h
++++ b/chrome/browser/ui/webui/new_tab_page/composebox/variations/composebox_fieldtrial.h
+@@ -97,6 +97,13 @@
+ // Whether to enable the dynamic version of the AI Mode button in the realbox.
+ BASE_DECLARE_FEATURE(kNtpRealboxDynamicAiModeButton);
+ 
++// With kNtpRealboxDynamicAiModeButton, the button's icon forces
++// `visibility: visible`, so it paints on its own before the NTP searchbox is
++// shown, which regressed Startup.FirstWebContents.NonEmptyPaint3. When enabled,
++// the icon inherits its visibility instead. Temporary; remove once enabled by
++// default.
++BASE_DECLARE_FEATURE(kNtpRealboxDynamicAiModeButtonPreventEarlyPaint);
++
+ bool IsNtpRealboxNextEnabled(Profile* profile);
+ 
+ }  // namespace ntp_realbox
+diff --git a/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc b/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc
+index d3a0516..af8447b 100644
+--- a/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc
++++ b/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc
+@@ -753,6 +753,9 @@
+            ntp_realbox::IsNtpRealboxNextEnabled(profile) &&
+                base::FeatureList::IsEnabled(
+                    ntp_realbox::kNtpRealboxDynamicAiModeButton));
++  dict.Set("ntpRealboxDynamicAiModeButtonPreventEarlyPaint",
++           base::FeatureList::IsEnabled(
++               ntp_realbox::kNtpRealboxDynamicAiModeButtonPreventEarlyPaint));
+ 
+   if (ntp_realbox::IsNtpRealboxNextEnabled(profile)) {
+     if (base::FeatureList::IsEnabled(
 diff --git a/chrome/browser/ui/webui/omnibox_everywhere/BUILD.gn b/chrome/browser/ui/webui/omnibox_everywhere/BUILD.gn
 index 14b3965..280621b 100644
 --- a/chrome/browser/ui/webui/omnibox_everywhere/BUILD.gn
@@ -10953,7 +11828,7 @@ index 8ce2c5f..03302dc 100644
  }
  
 diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc
-index 3ecb4307..6a67a76 100644
+index 3ecb4307..01691406b 100644
 --- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc
 +++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc
 @@ -105,25 +105,6 @@
@@ -10982,7 +11857,18 @@ index 3ecb4307..6a67a76 100644
  class OmniboxEverywhereMostVisitedPrefObserver
      : public MostVisitedPrefObserver {
   public:
-@@ -480,6 +461,24 @@
+@@ -423,6 +404,10 @@
+       "ntpRealboxDynamicAiModeButton",
+       is_fusebox_enabled && base::FeatureList::IsEnabled(
+                                 ntp_realbox::kNtpRealboxDynamicAiModeButton));
++  source->AddBoolean(
++      "ntpRealboxDynamicAiModeButtonPreventEarlyPaint",
++      base::FeatureList::IsEnabled(
++          ntp_realbox::kNtpRealboxDynamicAiModeButtonPreventEarlyPaint));
+   source->AddBoolean("composeboxShowTypedSuggest",
+                      omnibox::kShowComposeboxTypedSuggest.Get());
+   source->AddBoolean("composeboxShowZps", omnibox::kShowComposeboxZps.Get());
+@@ -480,6 +465,24 @@
  
  OmniboxEverywhereUI::~OmniboxEverywhereUI() = default;
  
@@ -11007,7 +11893,7 @@ index 3ecb4307..6a67a76 100644
  void OmniboxEverywhereUI::BindInterface(
      mojo::PendingReceiver<plural_string::mojom::PluralStringProvider>
          receiver) {
-@@ -944,6 +943,14 @@
+@@ -944,6 +947,14 @@
      return;
    }
  
@@ -11022,7 +11908,7 @@ index 3ecb4307..6a67a76 100644
    screenshot_origin_was_searchbox_ = !is_composebox_mode_;
  
    // Open Composebox immediately from the Lens entry point with a pending
-@@ -1034,7 +1041,11 @@
+@@ -1034,7 +1045,11 @@
      case kScreenshotEntireScreen:
      case kScreenshotWindow:
      case kScreenshotRegion:
@@ -11035,7 +11921,7 @@ index 3ecb4307..6a67a76 100644
    }
    return true;
  }
-@@ -1045,6 +1056,10 @@
+@@ -1045,6 +1060,10 @@
  
  void OmniboxEverywhereUI::OpenComposebox(
      omnibox_everywhere::mojom::ComposeboxInitialStatePtr initial_state) {
@@ -11046,7 +11932,7 @@ index 3ecb4307..6a67a76 100644
    // Clear any active autocomplete suggestions on the omnibox searchbox before
    // transitioning into Composebox mode so that stale searchbox results do not
    // linger or flash during the mode switch.
-@@ -1121,6 +1136,12 @@
+@@ -1121,6 +1140,12 @@
  }
  
  void OmniboxEverywhereUI::ShowContextActionMenu(const gfx::Rect& anchor_rect) {
@@ -11091,6 +11977,30 @@ index 2c88844..be6cbec 100644
      // Serves layout_constants_v<N>.css, which the full popup links from its
      // <head>.
      WebUIToolbarLayoutCssHelper::SetAsRequestFilter(source);
+diff --git a/chrome/browser/ui/webui/searchbox/BUILD.gn b/chrome/browser/ui/webui/searchbox/BUILD.gn
+index 0e64612c..59e21994 100644
+--- a/chrome/browser/ui/webui/searchbox/BUILD.gn
++++ b/chrome/browser/ui/webui/searchbox/BUILD.gn
+@@ -325,13 +325,19 @@
+       "//chrome/browser/signin",
+       "//chrome/browser/ui:browser_tabstrip",
+       "//chrome/browser/ui:browser_window_header",
++      "//chrome/browser/ui:ui_features",
++      "//chrome/browser/ui/animation",
+       "//chrome/browser/ui/find_bar",
+       "//chrome/browser/ui/omnibox",
++      "//chrome/browser/ui/tabs/organizer",
+       "//chrome/browser/ui/views:find_bar_views",
++      "//chrome/browser/ui/views/animations",
+       "//chrome/browser/ui/views/frame:browser_view_header",
+       "//chrome/browser/ui/views/frame:contents_web_view",
+       "//chrome/browser/ui/views/frame:top_container_view",
++      "//chrome/browser/ui/views/interaction",
+       "//chrome/browser/ui/views/page_action:test_support",
++      "//chrome/browser/ui/views/tabs/organizer",
+       "//chrome/browser/ui/webui/new_tab_page/composebox/variations",
+       "//chrome/browser/ui/webui/test_support",
+       "//chrome/common",
 diff --git a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/BUILD.gn b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/BUILD.gn
 index 9588da9..406e02b 100644
 --- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/BUILD.gn
@@ -11622,6 +12532,23 @@ index 047ac61..08134a44 100644
  extern const char kABASearchJourneysName[];
  extern const char kABASearchJourneysDescription[];
  extern const char kAllowSignedOutUserInDesktopAndroidName[];
+diff --git a/components/contextual_tasks/public/utils.cc b/components/contextual_tasks/public/utils.cc
+index f21ae71..6ad4b57b 100644
+--- a/components/contextual_tasks/public/utils.cc
++++ b/components/contextual_tasks/public/utils.cc
+@@ -96,9 +96,10 @@
+       return lens::LensOverlayInvocationSource::kOmniboxPageAction;
+     case omnibox::ChromeAimEntryPoint::
+         DESKTOP_CHROME_PAGE_CONTEXT_MENU_ASK_GOOGLE:
+-      return lens::LensOverlayInvocationSource::kContentAreaContextMenuPage;
++      return lens::LensOverlayInvocationSource::
++          kContentAreaContextMenuPageAskGoogle;
+     case omnibox::ChromeAimEntryPoint::DESKTOP_CHROME_APP_MENU_ASK_GOOGLE:
+-      return lens::LensOverlayInvocationSource::kAppMenu;
++      return lens::LensOverlayInvocationSource::kAppMenuAskGoogle;
+     case omnibox::ChromeAimEntryPoint::
+         DESKTOP_CHROME_CHROMNIENT_HOMEWORK_ACTION_CHIP:
+       return lens::LensOverlayInvocationSource::kHomeworkActionChip;
 diff --git a/components/cronet/gn2bp/copy.bara.sky b/components/cronet/gn2bp/copy.bara.sky
 index dcfa1f9..27547de7 100644
 --- a/components/cronet/gn2bp/copy.bara.sky
@@ -12020,6 +12947,84 @@ index d5a8576..ef63298 100644
  }  // namespace find_in_page
  
  #endif  // COMPONENTS_FIND_IN_PAGE_FIND_TYPES_H_
+diff --git a/components/lens/lens_overlay_invocation_source.h b/components/lens/lens_overlay_invocation_source.h
+index 364b8d9e..09861aa 100644
+--- a/components/lens/lens_overlay_invocation_source.h
++++ b/components/lens/lens_overlay_invocation_source.h
+@@ -105,7 +105,13 @@
+   // The selection suggestion chip.
+   kSelectionSuggestion = 26,
+ 
+-  kMaxValue = kSelectionSuggestion
++  // The "Ask Google about this page" Chrome app ("3-dot") menu entry.
++  kAppMenuAskGoogle = 27,
++
++  // The "Ask Google about this page" content area context menu entry.
++  kContentAreaContextMenuPageAskGoogle = 28,
++
++  kMaxValue = kContentAreaContextMenuPageAskGoogle
+ };
+ // LINT.ThenChange(//tools/metrics/histograms/metadata/lens/enums.xml:LensOverlayInvocationSource)
+ // When adding a value here, also update:
+diff --git a/components/lens/lens_overlay_metrics.cc b/components/lens/lens_overlay_metrics.cc
+index 0d52193..2b06c0a 100644
+--- a/components/lens/lens_overlay_metrics.cc
++++ b/components/lens/lens_overlay_metrics.cc
+@@ -23,8 +23,12 @@
+   switch (invocation_source) {
+     case LensOverlayInvocationSource::kAppMenu:
+       return "AppMenu";
++    case LensOverlayInvocationSource::kAppMenuAskGoogle:
++      return "AppMenuAskGoogle";
+     case LensOverlayInvocationSource::kContentAreaContextMenuPage:
+       return "ContentAreaContextMenuPage";
++    case LensOverlayInvocationSource::kContentAreaContextMenuPageAskGoogle:
++      return "ContentAreaContextMenuPageAskGoogle";
+     case LensOverlayInvocationSource::kContentAreaContextMenuImage:
+       return "ContentAreaContextMenuImage";
+     case LensOverlayInvocationSource::kToolbar:
+@@ -520,6 +524,9 @@
+     case lens::LensOverlayInvocationSource::kCobrowsePinnedToolbarButton:
+     case lens::LensOverlayInvocationSource::kAppBarAimButton:
+     case lens::LensOverlayInvocationSource::kContextualCue:
++    case lens::LensOverlayInvocationSource::kAppMenuAskGoogle:
++    case lens::LensOverlayInvocationSource::
++        kContentAreaContextMenuPageAskGoogle:
+       // Not recorded since the ntp and omnibox contextual query flows and the
+       // cobrowse toolbar button flow do not use the Lens Overlay Controller.
+       break;
+diff --git a/components/lens/lens_url_utils.cc b/components/lens/lens_url_utils.cc
+index 0478f566..70c88d1 100644
+--- a/components/lens/lens_url_utils.cc
++++ b/components/lens/lens_url_utils.cc
+@@ -45,7 +45,10 @@
+ inline constexpr char kLensPanelPrefix[] = "chrome.cr.";
+ inline constexpr char kContextualTasksPrefix[] = "chrome.crn.";
+ inline constexpr char kInvocationSourceAppMenu[] = "menu";
++inline constexpr char kInvocationSourceAppMenuAskGoogle[] = "menuag";
+ inline constexpr char kInvocationSourcePageSearchContextMenu[] = "ctxp";
++inline constexpr char kInvocationSourcePageSearchContextMenuAskGoogle[] =
++    "ctxpag";
+ inline constexpr char kInvocationSourceImageSearchContextMenu[] = "ctxi";
+ inline constexpr char kInvocationSourceTextSearchContextMenu[] = "ctxt";
+ inline constexpr char kInvocationSourceVideoSearchContextMenu[] = "ctxv";
+@@ -294,9 +297,16 @@
+     case lens::LensOverlayInvocationSource::kAppMenu:
+       param_value += kInvocationSourceAppMenu;
+       break;
++    case lens::LensOverlayInvocationSource::kAppMenuAskGoogle:
++      param_value += kInvocationSourceAppMenuAskGoogle;
++      break;
+     case lens::LensOverlayInvocationSource::kContentAreaContextMenuPage:
+       param_value += kInvocationSourcePageSearchContextMenu;
+       break;
++    case lens::LensOverlayInvocationSource::
++        kContentAreaContextMenuPageAskGoogle:
++      param_value += kInvocationSourcePageSearchContextMenuAskGoogle;
++      break;
+     case lens::LensOverlayInvocationSource::kContentAreaContextMenuImage:
+       param_value += kInvocationSourceImageSearchContextMenu;
+       break;
 diff --git a/components/omnibox/browser/fusebox_action.mojom b/components/omnibox/browser/fusebox_action.mojom
 index b09efa7..733f9cc 100644
 --- a/components/omnibox/browser/fusebox_action.mojom
@@ -12372,6 +13377,60 @@ index ec82f7a..3a0efa44 100644
  
    std::vector<ClientCallback> callbacks_;
    std::optional<mojom::ModelUnavailableReason> unavailable_reason_;
+diff --git a/components/remote_cocoa/app_shim/BUILD.gn b/components/remote_cocoa/app_shim/BUILD.gn
+index 8e61a19..f00bcd9 100644
+--- a/components/remote_cocoa/app_shim/BUILD.gn
++++ b/components/remote_cocoa/app_shim/BUILD.gn
+@@ -121,6 +121,7 @@
+   sources = [
+     "browser_native_widget_window_mac_unittests.mm",
+     "native_widget_mac_nswindow_headless_unittests.mm",
++    "native_widget_mac_nswindow_unittests.mm",
+     "native_widget_mac_overlay_nswindow_unittests.mm",
+   ]
+   deps = [
+diff --git a/components/remote_cocoa/app_shim/immersive_mode_controller_cocoa.h b/components/remote_cocoa/app_shim/immersive_mode_controller_cocoa.h
+index 62d59d5f..e2a89f8 100644
+--- a/components/remote_cocoa/app_shim/immersive_mode_controller_cocoa.h
++++ b/components/remote_cocoa/app_shim/immersive_mode_controller_cocoa.h
+@@ -107,6 +107,11 @@
+   // Called when a child window is removed from the observed windows.
+   virtual void OnChildWindowRemoved(NSWindow* child);
+ 
++  // Called when a child window of the observed windows becomes or resigns key.
++  // Only windows that keep the toolbar revealed while key take or release a
++  // reveal lock here.
++  void OnChildWindowKeyChanged(NSWindow* child);
++
+   // Start observing child windows of `window`.
+   void ObserveChildWindows(NSWindow* window);
+ 
+diff --git a/components/remote_cocoa/app_shim/native_widget_mac_nswindow.h b/components/remote_cocoa/app_shim/native_widget_mac_nswindow.h
+index 48f47bf..db34eea 100644
+--- a/components/remote_cocoa/app_shim/native_widget_mac_nswindow.h
++++ b/components/remote_cocoa/app_shim/native_widget_mac_nswindow.h
+@@ -97,6 +97,11 @@
+ // expected to be hidden.
+ - (BOOL)invokeOriginalIsVisibleForTesting;
+ 
++// Returns whether this window keeps the toolbar revealed in immersive
++// fullscreen only while it is the key window, rather than whenever it is a
++// child of the overlay window. Defaults to NO.
++- (BOOL)immersiveRevealLockRequiresKey;
++
+ // Identifier for the NativeWidgetMac from which this window was created. This
+ // may be used to look up the NativeWidgetMacNSWindowHost in the browser process
+ // or the NativeWidgetNSWindowBridge in a display process.
+@@ -124,6 +129,9 @@
+ // Called whenever a child window is removed to the receiver.
+ @property(nonatomic, copy) void (^childWindowRemovedHandler)(NSWindow* child);
+ 
++// Called whenever a child window of the receiver becomes or resigns key.
++@property(nonatomic, copy) void (^childWindowKeyChangedHandler)(NSWindow*);
++
+ // Window to dispatch commands to. Needed for situations where the window that
+ // needs to handle events is not the target's immediate parent; for example
+ // alerts in immersive fullscreen.
 diff --git a/components/safe_browsing/content/renderer/phishing_classifier/content_phishing_classifier_delegate.cc b/components/safe_browsing/content/renderer/phishing_classifier/content_phishing_classifier_delegate.cc
 index 853995c..7d6af0c 100644
 --- a/components/safe_browsing/content/renderer/phishing_classifier/content_phishing_classifier_delegate.cc
@@ -13692,7 +14751,7 @@ index 107a256..87afa79ca 100644
  SANDBOX_POLICY_EXPORT BASE_DECLARE_FEATURE(kRestrictRendererPoliciesInBaseline);
  SANDBOX_POLICY_EXPORT BASE_DECLARE_FEATURE(kRestrictCloneParameters);
 diff --git a/testing/variations/fieldtrial_testing_config.json b/testing/variations/fieldtrial_testing_config.json
-index b0551dda..1bc364b4 100644
+index b0551dda..7e79085e 100644
 --- a/testing/variations/fieldtrial_testing_config.json
 +++ b/testing/variations/fieldtrial_testing_config.json
 @@ -1806,6 +1806,27 @@
@@ -13752,6 +14811,35 @@ index b0551dda..1bc364b4 100644
      "ClientSideDetectionServerModelForScamDetectionDesktop": [
          {
              "platforms": [
+@@ -5220,8 +5263,10 @@
+                     "params": {
+                         "ContextualTasksEntryPoint": "toolbar-ephemeral-branded",
+                         "ContextualTasksEphemeralButtonAutoDismissTimeMinutes": "120",
+-                        "ContextualTasksEphemeralButtonContextMenuCloseSidePanel": "true",
++                        "ContextualTasksEphemeralButtonContextMenuOption": "close-side-panel",
+                         "ContextualTasksPinnedButtonActiveIndicatorCircleHighlight": "true",
++                        "ContextualTasksPinnedButtonContextMenuCloseSidePanel": "true",
++                        "ContextualTasksPinningStringVariant": "ai-mode",
+                         "ContextualTasksUnifyPinButtonLogo": "super-g",
+                         "EnableCircularEphemeralButtonNextToBatterySaver": "true",
+                         "overflow-items": "all-without-new-thread"
+@@ -5232,14 +5277,15 @@
+                         "ContextualTasksEphemeralButtonAutoDismiss",
+                         "ContextualTasksEphemeralButtonContextMenu",
+                         "ContextualTasksPinnedButtonActiveIndicator",
++                        "ContextualTasksPinningStringVariants",
+                         "ContextualTasksPinningV2",
+                         "ContextualTasksSidePanelDefaultRight",
+                         "ContextualTasksUnifyPinButtonLogos",
+-                        "ContextualTasksUpdatedEntryPoints",
+                         "EnableContextualTasksPinButtonInToolbar",
+                         "EnableContextualTasksPinButtonOnSrp"
+                     ],
+                     "disable_features": [
++                        "ContextualTasksEphemeralPinButtonRefactor",
+                         "ContextualTasksHideMenuOnAiPage",
+                         "EphemeralPinningVisibleWhenPermanentlyPinned"
+                     ]
 diff --git a/third_party/blink/renderer/core/animation/document_animations.cc b/third_party/blink/renderer/core/animation/document_animations.cc
 index 7ca61f5a..a439556 100644
 --- a/third_party/blink/renderer/core/animation/document_animations.cc
@@ -14639,6 +15727,23 @@ index 8cf33fc..8f9477c0 100644
    </token>
  </histogram>
  
+diff --git a/tools/metrics/histograms/metadata/lens/histograms.xml b/tools/metrics/histograms/metadata/lens/histograms.xml
+index 6ac366d..52bd2db 100644
+--- a/tools/metrics/histograms/metadata/lens/histograms.xml
++++ b/tools/metrics/histograms/metadata/lens/histograms.xml
+@@ -43,10 +43,12 @@
+   <variant name="AIHub"/>
+   <variant name="AppBarAimButton"/>
+   <variant name="AppMenu"/>
++  <variant name="AppMenuAskGoogle"/>
+   <variant name="CobrowsePinnedToolbarButton"/>
+   <variant name="CobrowseToolbarButton"/>
+   <variant name="ContentAreaContextMenuImage"/>
+   <variant name="ContentAreaContextMenuPage"/>
++  <variant name="ContentAreaContextMenuPageAskGoogle"/>
+   <variant name="ContentAreaContextMenuText"/>
+   <variant name="ContentAreaContextMenuVideo"/>
+   <variant name="ContextMenu"/>
 diff --git a/tools/metrics/histograms/metadata/omnibox/histograms.xml b/tools/metrics/histograms/metadata/omnibox/histograms.xml
 index 57740dd5..6a25fb38 100644
 --- a/tools/metrics/histograms/metadata/omnibox/histograms.xml
@@ -14661,7 +15766,7 @@ index 57740dd5..6a25fb38 100644
    <variant name="GeminiPreview" summary="Gemini Preview model"/>
    <variant name="GeminiPro" summary="Gemini Pro model"/>
 diff --git a/tools/metrics/histograms/metadata/others/histograms.xml b/tools/metrics/histograms/metadata/others/histograms.xml
-index b6a6dd8..3798e31 100644
+index b6a6dd8..0d979c7d 100644
 --- a/tools/metrics/histograms/metadata/others/histograms.xml
 +++ b/tools/metrics/histograms/metadata/others/histograms.xml
 @@ -2069,6 +2069,23 @@
@@ -14688,6 +15793,17 @@ index b6a6dd8..3798e31 100644
  <histogram name="Finds.ExecutionTime" units="ms" expires_after="2027-06-01">
    <owner>wylieb@chromium.org</owner>
    <owner>bjfong@google.com</owner>
+@@ -2785,6 +2802,10 @@
+     --source-shortcut-location are categorized into kShortcutDesktop,
+     kShortcutTaskbar, or kShortcutStartMenu (or their WebApp counterparts),
+     falling back to kWithAppId if unadorned.
++
++    Omnibox Everywhere launches via the command line (e.g. from its taskbar pin
++    or Start Menu shortcut) are recorded as kOmniboxEverywhere rather than as
++    browser launches.
+   </summary>
+ </histogram>
+ 
 diff --git a/tools/metrics/histograms/metadata/sb_client/histograms.xml b/tools/metrics/histograms/metadata/sb_client/histograms.xml
 index c8b052a..caadd94 100644
 --- a/tools/metrics/histograms/metadata/sb_client/histograms.xml
@@ -15028,7 +16144,7 @@ index 707f6ee..cad12af 100644
    min-height: 0;
  }
 diff --git a/ui/webui/resources/cr_components/composebox/composebox.ts b/ui/webui/resources/cr_components/composebox/composebox.ts
-index d7c68b2..64fad39d 100644
+index d7c68b2..a67d58f1e 100644
 --- a/ui/webui/resources/cr_components/composebox/composebox.ts
 +++ b/ui/webui/resources/cr_components/composebox/composebox.ts
 @@ -113,10 +113,7 @@
@@ -15112,14 +16228,14 @@ index d7c68b2..64fad39d 100644
    // TODO(crbug.com/486706573): common logic moved to mixin. Move embedder
    // specific logic to the embedder class (contextual_tasks).
    override deleteFile(uuidToDelete: UnguessableToken, fromUserAction?: boolean):
-@@ -447,12 +412,19 @@
+@@ -447,12 +412,18 @@
        }
        return;
      }
 -    // AutoSuggestedTabContext is routed differently for Omnibox Page Action.
 -    // when it opens a side panel to cobrowse.
 +    // AutoSuggestedTabContext is routed differently for Ask Google entry points
-+    // when opening a side panel to cobrowse.
++    // (except homework action chip) when opening a side panel to cobrowse.
      // TODO(crbug.com/486707842): Move check to the
      // Contextual Tasks embedder.
 -    const askGAndPageAction = this.webUIOmniboxAskGAboutThisPageEnabled_ &&
@@ -15128,15 +16244,14 @@ index d7c68b2..64fad39d 100644
 +        invocationSource === 'OmniboxPageAction';
 +    const isUpdatedEntryPoint =
 +        this.contextualTasksUpdatedEntryPointsEnabled_ &&
-+        (invocationSource === 'ContentAreaContextMenuPage' ||
-+         invocationSource === 'AppMenu' ||
-+         invocationSource === 'HomeworkActionChip');
++        (invocationSource === 'ContentAreaContextMenuPageAskGoogle' ||
++         invocationSource === 'AppMenuAskGoogle');
 +    const askGAndPageAction =
 +        (isOmniboxAskG || isUpdatedEntryPoint) && this.isSidePanel;
  
      // We should delete the automatic active tab if it is different from the
      // current tab when webUIOmniboxAskGAboutThisPageEnabled_ is true. Make sure
-@@ -590,42 +562,6 @@
+@@ -590,42 +561,6 @@
      e.preventDefault();
    }
  
@@ -15179,7 +16294,7 @@ index d7c68b2..64fad39d 100644
    protected onComposeboxFocusin_(e: FocusEvent) {
      // Exit early if the focus is still within the composebox.
      if (this.$.composebox.contains(e.relatedTarget as Node)) {
-@@ -691,8 +627,6 @@
+@@ -691,8 +626,6 @@
    }
  
    override submitCleanup() {
@@ -15353,6 +16468,33 @@ index 647958a..4b754d0 100644
  /* Position absolute: make sure error scrim shows over voice search
   * animation and voice search component since composebox is hidden
   * in voice search mode. 'Absolute' is needed for scrim because
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_compose_button.css b/ui/webui/resources/cr_components/searchbox/searchbox_compose_button.css
+index 53aad37..9c75249 100644
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_compose_button.css
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_compose_button.css
+@@ -600,6 +600,22 @@
+               visibility 50ms linear;
+ }
+ 
++/* With inherit-visibility, the icon inherits its visibility instead of
++ * forcing visible, so it stays hidden while an ancestor (e.g. the NTP
++ * searchbox) is hidden. It shows instantly and hides after the 50 ms fade.
++ * These rules must come after the ones above (same specificity). */
++:host([dynamic][inherit-visibility]) .compose-icon {
++  visibility: inherit;
++  transition: opacity var(--aim-motion-duration-long) var(--aim-motion-easing),
++              visibility 0s;
++}
++
++:host([dynamic][inherit-visibility][has-user-input]) .compose-icon {
++  visibility: hidden;
++  transition: opacity 50ms linear,
++              visibility 0s linear 50ms; /* hide after the fade-out */
++}
++
+ :host([dynamic]) .arrow-icon {
+   display: inline-block;
+   height: 18px;
 diff --git a/ui/webui/resources/js/metrics_reporter/browser_proxy.ts b/ui/webui/resources/js/metrics_reporter/browser_proxy.ts
 index 77a16d7..0cfec2b 100644
 --- a/ui/webui/resources/js/metrics_reporter/browser_proxy.ts
@@ -15942,6 +17084,205 @@ index dd2a0f1..dca0f29 100644
  
      // Disabled on Imagination drivers due to test failures and device loss.
      ANGLE_FEATURE_CONDITION(
+diff --git a/third_party/dawn/src/dawn/native/opengl/BufferGL.cpp b/third_party/dawn/src/dawn/native/opengl/BufferGL.cpp
+index 61889de..a74c1f5 100644
+--- a/third_party/dawn/src/dawn/native/opengl/BufferGL.cpp
++++ b/third_party/dawn/src/dawn/native/opengl/BufferGL.cpp
+@@ -257,14 +257,16 @@
+             DAWN_GL_TRY(gl, BindBuffer(GL_ARRAY_BUFFER, self->mBuffer));
+             void* mappedPointer = nullptr;
+             if (mode & wgpu::MapMode::Read) {
+-                mappedPointer = DAWN_GL_TRY_ALWAYS_CHECK(
+-                    gl, MapBufferRange(GL_ARRAY_BUFFER, offset, size, GL_MAP_READ_BIT));
++                mappedPointer =
++                    DAWN_GL_TRY(gl, MapBufferRange(GL_ARRAY_BUFFER, offset, size, GL_MAP_READ_BIT));
+             } else {
+                 DAWN_ASSERT(mode & wgpu::MapMode::Write);
+-                mappedPointer = DAWN_GL_TRY_ALWAYS_CHECK(
+-                    gl, MapBufferRange(GL_ARRAY_BUFFER, offset, size,
+-                                       GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT));
++                mappedPointer =
++                    DAWN_GL_TRY(gl, MapBufferRange(GL_ARRAY_BUFFER, offset, size,
++                                                   GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT));
+             }
++            // The mapped data becomes visible to the application.
++            DAWN_TRY(CheckPendingErrorBeforeUserVisibleData(gl, "Mapping a buffer"));
+ 
+             // SAFETY: A successful call to glMapBufferRange returns a pointer to `length`
+             // bytes of data.
+diff --git a/third_party/dawn/src/dawn/native/opengl/ContextEGL.cpp b/third_party/dawn/src/dawn/native/opengl/ContextEGL.cpp
+index 84e3762..2293f14 100644
+--- a/third_party/dawn/src/dawn/native/opengl/ContextEGL.cpp
++++ b/third_party/dawn/src/dawn/native/opengl/ContextEGL.cpp
+@@ -180,10 +180,14 @@
+         DAWN_ASSERT(egl.HasExt(EGLExt::CreateContextRobustness));
+         // EGL_EXT_create_context_robustness is promoted to 1.5 but with a different enum value.
+         // PowerVR advertises EGL 1.5, but only supports the old enum value.
++        // Request reset notification so that glGetGraphicsResetStatus reports GPU resets.
+         if (egl.GetMinorVersion() >= 5 && !disableEGL15Robustness) {
+             AddAttrib(EGL_CONTEXT_OPENGL_ROBUST_ACCESS, EGL_TRUE);
++            AddAttrib(EGL_CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY, EGL_LOSE_CONTEXT_ON_RESET);
+         } else {
+             AddAttrib(EGL_CONTEXT_OPENGL_ROBUST_ACCESS_EXT, EGL_TRUE);
++            AddAttrib(EGL_CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY_EXT,
++                      EGL_LOSE_CONTEXT_ON_RESET_EXT);
+         }
+     }
+ 
+diff --git a/third_party/dawn/src/dawn/native/opengl/OpenGLFunctions.cpp b/third_party/dawn/src/dawn/native/opengl/OpenGLFunctions.cpp
+index 5ad4dca..5a1d2d1 100644
+--- a/third_party/dawn/src/dawn/native/opengl/OpenGLFunctions.cpp
++++ b/third_party/dawn/src/dawn/native/opengl/OpenGLFunctions.cpp
+@@ -47,6 +47,25 @@
+ #endif
+     }
+ 
++    // glGetGraphicsResetStatus is core in OpenGL ES 3.2 and OpenGL 4.5. Otherwise load it from the
++    // robustness extensions, which all have the same signature and return values.
++    // TODO(crbug.com/580950772): Support gl.xml aliases in the OpenGL loader generator and load
++    // these with it instead of manually.
++    auto LoadResetStatusFromExtension = [&](const char* extension, const char* procName) {
++        if (GetGraphicsResetStatus == nullptr && IsGLExtensionSupported(extension)) {
++            GetGraphicsResetStatus =
++                reinterpret_cast<PFNGLGETGRAPHICSRESETSTATUSPROC>(getProc(procName));
++        }
++    };
++    if (mVersion.IsES()) {
++        LoadResetStatusFromExtension("GL_KHR_robustness", "glGetGraphicsResetStatusKHR");
++        LoadResetStatusFromExtension("GL_EXT_robustness", "glGetGraphicsResetStatusEXT");
++    } else {
++        // In desktop GL, the GL_KHR_robustness entry points have no suffix.
++        LoadResetStatusFromExtension("GL_KHR_robustness", "glGetGraphicsResetStatus");
++        LoadResetStatusFromExtension("GL_ARB_robustness", "glGetGraphicsResetStatusARB");
++    }
++
+     return {};
+ }
+ 
+diff --git a/third_party/dawn/src/dawn/native/opengl/PhysicalDeviceGL.cpp b/third_party/dawn/src/dawn/native/opengl/PhysicalDeviceGL.cpp
+index f45522e..b6e9190 100644
+--- a/third_party/dawn/src/dawn/native/opengl/PhysicalDeviceGL.cpp
++++ b/third_party/dawn/src/dawn/native/opengl/PhysicalDeviceGL.cpp
+@@ -171,6 +171,10 @@
+         default:
+             DAWN_UNREACHABLE();
+     }
++    // Needed to detect GPU resets, which can discard GPU work without generating GL errors.
++    DAWN_INVALID_IF(mFunctions.GetGraphicsResetStatus == nullptr,
++                    "glGetGraphicsResetStatus (OpenGL ES 3.2, OpenGL 4.5, GL_KHR_robustness, "
++                    "GL_EXT_robustness or GL_ARB_robustness) is required.");
+ 
+     if (mFunctions.GetVersion().IsES()) {
+         DAWN_ASSERT(GetBackendType() == wgpu::BackendType::OpenGLES);
+diff --git a/third_party/dawn/src/dawn/native/opengl/QueueGL.cpp b/third_party/dawn/src/dawn/native/opengl/QueueGL.cpp
+index 3de9960..6e29851 100644
+--- a/third_party/dawn/src/dawn/native/opengl/QueueGL.cpp
++++ b/third_party/dawn/src/dawn/native/opengl/QueueGL.cpp
+@@ -223,6 +223,7 @@
+                 case EGL_TIMEOUT_EXPIRED:
+                     return kWaitSerialTimeout;
+                 case EGL_CONDITION_SATISFIED:
++                    DAWN_TRY(CheckGraphicsResetStatus(gl, "Waiting for a queue serial"));
+                     return completedSerial;
+                 default:
+                     DAWN_UNREACHABLE();
+@@ -338,13 +339,19 @@
+                 DAWN_TRY_ASSIGN(result,
+                                 sync->ClientWait(gl, EGL_SYNC_FLUSH_COMMANDS_BIT, Nanoseconds(0u)));
+                 if (result == EGL_TIMEOUT_EXPIRED) {
+-                    return fenceSerial;
++                    break;
+                 }
+                 // Update fenceSerial since fence is ready.
+                 fenceSerial = tentativeSerial;
+ 
+                 fencesInFlight->pop_front();
+             }
++            if (fenceSerial != ExecutionSerial(0u)) {
++                // A fence also signals when the GPU work before it was discarded by a GPU reset, so
++                // check for a reset before results of that work (e.g. mapped buffers) become
++                // visible to the application.
++                DAWN_TRY(CheckGraphicsResetStatus(gl, "Completing a queue serial"));
++            }
+             return fenceSerial;
+         });
+     });
+diff --git a/third_party/dawn/src/dawn/native/opengl/UtilsGL.cpp b/third_party/dawn/src/dawn/native/opengl/UtilsGL.cpp
+index 4b7ad54..07e7de4 100644
+--- a/third_party/dawn/src/dawn/native/opengl/UtilsGL.cpp
++++ b/third_party/dawn/src/dawn/native/opengl/UtilsGL.cpp
+@@ -198,6 +198,22 @@
+ #undef ERROR_CASE_STRING
+ }
+ 
++const char* GLResetStatusAsString(GLenum status) {
++#define STATUS_CASE_STRING(statusEnum) \
++    case statusEnum:                   \
++        return #statusEnum
++
++    switch (status) {
++        STATUS_CASE_STRING(GL_GUILTY_CONTEXT_RESET);
++        STATUS_CASE_STRING(GL_INNOCENT_CONTEXT_RESET);
++        STATUS_CASE_STRING(GL_UNKNOWN_CONTEXT_RESET);
++        default:
++            return "<Unknown OpenGL reset status>";
++    }
++
++#undef STATUS_CASE_STRING
++}
++
+ const char* GLFramebufferStatusAsString(GLenum status) {
+ #define STATUS_CASE_STRING(statusEnum) \
+     case statusEnum:                   \
+@@ -301,7 +317,18 @@
+ 
+ MaybeError CheckPendingErrorBeforeUserVisibleData(const OpenGLFunctions& gl,
+                                                   const char* description) {
++    DAWN_TRY(CheckGraphicsResetStatus(gl, description));
+     return CheckError(gl, description, __FILE__, __func__, __LINE__);
+ }
+ 
++MaybeError CheckGraphicsResetStatus(const OpenGLFunctions& gl, const char* description) {
++    GLenum status = gl.GetGraphicsResetStatus();
++    if (status == GL_NO_ERROR) [[likely]] {
++        return {};
++    }
++    return DAWN_BACKEND_DEVICE_LOST_ERROR(std::string(description) +
++                                          ": the OpenGL context was reset with status " +
++                                          GLResetStatusAsString(status));
++}
++
+ }  // namespace dawn::native::opengl
+diff --git a/third_party/dawn/src/dawn/native/opengl/UtilsGL.h b/third_party/dawn/src/dawn/native/opengl/UtilsGL.h
+index 9556d22..327f8b3 100644
+--- a/third_party/dawn/src/dawn/native/opengl/UtilsGL.h
++++ b/third_party/dawn/src/dawn/native/opengl/UtilsGL.h
+@@ -52,6 +52,7 @@
+ 
+ const char* GLErrorAsString(GLenum error);
+ const char* GLFramebufferStatusAsString(GLenum status);
++const char* GLResetStatusAsString(GLenum status);
+ 
+ // Checks that the framebuffer bound to `target` is complete, returning an internal error
+ // otherwise. The check is unconditional so that callers relying on subsequent framebuffer
+@@ -74,10 +75,16 @@
+ 
+ // Checks for any GL error pending on the context. Call it explicitly before data becomes visible to
+ // the application, so that errors from unchecked GL calls lose the device before the data becomes
+-// visible to app.
++// visible to app. Also checks for a GPU reset, see CheckGraphicsResetStatus.
+ MaybeError CheckPendingErrorBeforeUserVisibleData(const OpenGLFunctions& gl,
+                                                   const char* description);
+ 
++// Checks whether the GL context was reset (e.g. by a GPU hang). A reset can discard GPU work while
++// fences still signal and no GL error is generated, for example leaving the destination of a
++// readback unwritten. Call it before results of GPU work become visible to the application. Returns
++// a device lost error if a reset happened.
++MaybeError CheckGraphicsResetStatus(const OpenGLFunctions& gl, const char* description);
++
+ // Errors left pending by earlier unchecked calls are not cleared, so that they are reported by
+ // CheckError instead of being silently dropped.
+ #define DAWN_GL_TRY_ALWAYS_CHECK(gl, call) \
 diff --git a/third_party/dawn/src/dawn/native/vulkan/QueueVk.cpp b/third_party/dawn/src/dawn/native/vulkan/QueueVk.cpp
 index e396d87..a69e539 100644
 --- a/third_party/dawn/src/dawn/native/vulkan/QueueVk.cpp
@@ -15959,6 +17300,37 @@ index e396d87..a69e539 100644
  
      // Free any recycled command pools.
      mUnusedCommands.Use([&](auto unusedCommands) {
+diff --git a/third_party/dawn/src/dawn/tests/BUILD.gn b/third_party/dawn/src/dawn/tests/BUILD.gn
+index 10cf4f0..ae6d9fa 100644
+--- a/third_party/dawn/src/dawn/tests/BUILD.gn
++++ b/third_party/dawn/src/dawn/tests/BUILD.gn
+@@ -941,6 +941,7 @@
+       "white_box/GLBufferTests.cpp",
+       "white_box/GLDeferredWorkTests.cpp",
+       "white_box/GLFramebufferCompletenessTests.cpp",
++      "white_box/GLGraphicsResetTests.cpp",
+       "white_box/GLTextureWrappingTests.cpp",
+       "white_box/GLUncheckedErrorTests.cpp",
+     ]
+diff --git a/third_party/dawn/src/utils/warning_suppression_mappings.txt b/third_party/dawn/src/utils/warning_suppression_mappings.txt
+index 54aaf9b..393c618 100644
+--- a/third_party/dawn/src/utils/warning_suppression_mappings.txt
++++ b/third_party/dawn/src/utils/warning_suppression_mappings.txt
+@@ -45,12 +45,14 @@
+ src:*gen{/,\\}src{/,\\}dawn{/,\\}native{/,\\}opengl{/,\\}OpenGLFunctionsBase_autogen.cpp
+ src:*src{/,\\}dawn{/,\\}native{/,\\}opengl{/,\\}ContextEGL.cpp
+ src:*src{/,\\}dawn{/,\\}native{/,\\}opengl{/,\\}EGLFunctions.cpp
++src:*src{/,\\}dawn{/,\\}native{/,\\}opengl{/,\\}OpenGLFunctions.cpp
+ src:*src{/,\\}dawn{/,\\}native{/,\\}opengl{/,\\}OpenGLVersion.cpp
+ # Needed to cast procs in Vulkan.
+ src:*src{/,\\}dawn{/,\\}native{/,\\}vulkan{/,\\}VulkanFunctions.cpp
+ # Needed to cast procs in webgpu.h.
+ src:*gen{/,\\}src{/,\\}dawn{/,\\}native{/,\\}ProcTable.cpp
+ src:*src{/,\\}dawn{/,\\}tests{/,\\}end2end{/,\\}EventTests.cpp
++src:*src{/,\\}dawn{/,\\}tests{/,\\}white_box{/,\\}GLGraphicsResetTests.cpp
+ src:*src{/,\\}dawn{/,\\}tests{/,\\}unittests{/,\\}GetProcAddressTests.cpp
+ # For some unknown reason this one filepath can get a backslash on Windows.
+ src:*gen{/,\\}src{/,\\}dawn{/,\\}wire{/,\\}client{/,\\}ApiProcs_autogen.cpp.inc
 diff --git a/third_party/icu/README.chromium b/third_party/icu/README.chromium
 index 3e93de4..1ad19b3 100644
 --- a/third_party/icu/README.chromium
@@ -18437,7 +19809,7 @@ index 81e74b9..98bf8fc 100644
        this.onElementExpanded();
      } else {
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index 9258925..837c049 100644
+index 9258925..42097a0 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -18445,7 +19817,7 @@ index 9258925..837c049 100644
  #define V8_MINOR_VERSION 8
  #define V8_BUILD_NUMBER 62
 -#define V8_PATCH_LEVEL 9
-+#define V8_PATCH_LEVEL 22
++#define V8_PATCH_LEVEL 23
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
@@ -18861,6 +20233,23 @@ index fe40418..204af4f 100644
    std::tuple<Node*, Node*> TruncateAndExtendOrType(Node* value, Node* effect,
                                                     Node* control,
                                                     wasm::ValueType field_type,
+diff --git a/v8/src/d8/d8.cc b/v8/src/d8/d8.cc
+index 9ce0e0c..bcb3fe2 100644
+--- a/v8/src/d8/d8.cc
++++ b/v8/src/d8/d8.cc
+@@ -4768,8 +4768,10 @@
+   global_template->Set(Symbol::GetToStringTag(isolate),
+                        String::NewFromUtf8Literal(isolate, "global"));
+   global_template->Set(isolate, "onerror", v8::Null(isolate));
+-  global_template->Set(isolate, "version",
+-                       FunctionTemplate::New(isolate, Version));
++  Local<FunctionTemplate> version_func_template =
++      FunctionTemplate::New(isolate, Version);
++  version_func_template->SetAcceptAnyReceiver(false);
++  global_template->Set(isolate, "version", version_func_template);
+ 
+   global_template->Set(isolate, "print", FunctionTemplate::New(isolate, Print));
+   global_template->Set(isolate, "printErr",
 diff --git a/v8/src/diagnostics/objects-printer.cc b/v8/src/diagnostics/objects-printer.cc
 index f89b106..0afb0ac 100644
 --- a/v8/src/diagnostics/objects-printer.cc
@@ -18893,7 +20282,7 @@ index f89b106..0afb0ac 100644
    os << "\n - resume mode: " << mode;
    os << "\n - continuation: " << continuation();
 diff --git a/v8/src/execution/isolate.cc b/v8/src/execution/isolate.cc
-index 841c808..fb3809f 100644
+index 841c808..61e238e 100644
 --- a/v8/src/execution/isolate.cc
 +++ b/v8/src/execution/isolate.cc
 @@ -4637,8 +4637,7 @@
@@ -18961,6 +20350,16 @@ index 841c808..fb3809f 100644
        // No more info.
        return;
  #endif  // V8_ENABLE_WEBASSEMBLY
+@@ -8039,6 +8055,9 @@
+   // Set security token back to default (unique) state making sure that only
+   // accesses from the same native context are allowed.
+   env->set_security_token(env->global_object());
++  // Invalidate LoadGlobalIC/StoreGlobalIC handlers to enforce access checks
++  // for the rewired global proxy from the detached context.
++  JSObject::InvalidatePrototypeValidityCell(env->global_object());
+ }
+ 
+ void Isolate::SetIsLoading(bool is_loading) {
 diff --git a/v8/src/ic/accessor-assembler.cc b/v8/src/ic/accessor-assembler.cc
 index 22b44ad..81d135b 100644
 --- a/v8/src/ic/accessor-assembler.cc
@@ -19278,10 +20677,46 @@ index e19ce57..842a941 100644
            (IsDataHandler(heap_object) || IsCode(heap_object)));
  }
 diff --git a/v8/src/ic/ic.cc b/v8/src/ic/ic.cc
-index 68ff2da..1bf68f5 100644
+index 68ff2da..9a957dd 100644
 --- a/v8/src/ic/ic.cc
 +++ b/v8/src/ic/ic.cc
-@@ -2440,16 +2440,6 @@
+@@ -1102,6 +1102,18 @@
+         TraceIC("LoadGlobalIC", lookup->name());
+         return;
+       }
++      // Own DATA properties above are accessed directly via PropertyCell on the
++      // JSGlobalObject and don't involve the JSGlobalProxy. For anything else
++      // (e.g. prototype accessors), the handler would substitute global_proxy
++      // as the receiver without performing an access check on it, and
++      // LookupIterator didn't fail an access check because JSGlobalObject
++      // belongs to the current (detached) native context while its global_proxy
++      // may have been rebound to a new cross-origin context.
++      if (Cast<JSGlobalObject>(*lookup->GetReceiver())->IsDetached()) {
++        SetCache(lookup->GetName(), LoadHandler::LoadSlow(isolate()));
++        TraceIC("LoadGlobalIC", lookup->GetName());
++        return;
++      }
+     }
+     handler = ComputeHandler(lookup);
+     CHECK(lookup->state() == LookupIterator::STRING_LOOKUP_START_OBJECT ||
+@@ -2420,6 +2432,16 @@
+         TraceIC("StoreGlobalIC", lookup->GetName());
+         return;
+       }
++      // See comment in LoadIC::UpdateCaches: own DATA properties above use
++      // PropertyCell on the JSGlobalObject directly, whereas other handlers
++      // (e.g. prototype accessors) substitute global_proxy as the receiver,
++      // which may have been rebound to a cross-origin context upon detachment.
++      if (Cast<JSGlobalObject>(*lookup->GetReceiver())->IsDetached()) {
++        set_slow_stub_reason("detached global object");
++        SetCache(lookup->GetName(), StoreHandler::StoreSlow(isolate()));
++        TraceIC("StoreGlobalIC", lookup->GetName());
++        return;
++      }
+     }
+     handler = ComputeHandler(lookup);
+   } else {
+@@ -2440,16 +2462,6 @@
        if (IsJSGlobalObject(*store_target)) {
          TRACE_HANDLER_STATS(isolate(), StoreIC_StoreGlobalTransitionDH);
  
@@ -19298,7 +20733,7 @@ index 68ff2da..1bf68f5 100644
          if (IsDefineKeyedOwnIC()) {
            // Private field can't be deleted from this global object and can't
            // be overwritten, so install slow handler in order to make store IC
-@@ -2666,9 +2656,19 @@
+@@ -2666,9 +2678,19 @@
        }
        if (lookup->is_dictionary_holder()) {
          if (IsJSGlobalObject(*holder)) {
@@ -19320,7 +20755,7 @@ index 68ff2da..1bf68f5 100644
          }
          TRACE_HANDLER_STATS(isolate(), StoreIC_StoreNormalDH);
          DCHECK(holder.is_identical_to(receiver));
-@@ -2688,16 +2688,9 @@
+@@ -2688,16 +2710,9 @@
            return MaybeObjectHandle(StoreHandler::StoreSharedStructField(
                isolate(), descriptor, index, lookup->representation()));
          }
@@ -19339,7 +20774,7 @@ index 68ff2da..1bf68f5 100644
        }
  
        // -------------- Constant properties --------------
-@@ -3501,10 +3494,9 @@
+@@ -3501,10 +3516,9 @@
  
    FeedbackSlot vector_slot = FeedbackVector::ToSlot(slot);
  
@@ -19353,7 +20788,7 @@ index 68ff2da..1bf68f5 100644
    FeedbackSlotKind kind = FeedbackSlotKind::kSetNamedStrict;
    Handle<FeedbackVector> vector = Handle<FeedbackVector>();
    if (!IsUndefined(*maybe_vector)) {
-@@ -3520,6 +3512,9 @@
+@@ -3520,6 +3534,9 @@
    RETURN_RESULT_OR_FAILURE(isolate, ic.Store(receiver, key, value));
  }
  
@@ -19363,7 +20798,7 @@ index 68ff2da..1bf68f5 100644
  RUNTIME_FUNCTION(Runtime_DefineNamedOwnIC_Miss) {
    HandleScope scope(isolate);
    DCHECK_EQ(5, args.length());
-@@ -3552,6 +3547,7 @@
+@@ -3552,6 +3569,7 @@
    RETURN_RESULT_OR_FAILURE(isolate, ic.Store(receiver, key, value));
  }
  
@@ -20168,7 +21603,7 @@ diff --git a/build/util/LASTCHANGE b/build/util/LASTCHANGE
 +++ b/build/util/LASTCHANGE
 @@ -1,2 +1,2 @@
 -LASTCHANGE=6449d9f9a6a906edff724b7b220199b3fde4615c-refs/branch-heads/8127@{#845}
-+LASTCHANGE=3120c1c0cc1de3dbec7292e4bcb73d3874c21792-refs/branch-heads/8127@{#1201}
++LASTCHANGE=98d10de160431ede7b8615cc387b5067821dbcfe-refs/branch-heads/8127@{#1241}
  LASTCHANGE_YEAR=2026
 diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 --- a/build/util/LASTCHANGE.committime
@@ -20176,7 +21611,7 @@ diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 @@ -1 +1 @@
 -1793754506
 \ No newline at end of file
-+1793993788
++1794015191
 \ No newline at end of file
 diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
 --- a/gpu/config/gpu_lists_version.h
@@ -20186,7 +21621,7 @@ diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
  #define GPU_CONFIG_GPU_LISTS_VERSION_H_
  
 -#define GPU_LISTS_VERSION "6449d9f9a6a906edff724b7b220199b3fde4615c"
-+#define GPU_LISTS_VERSION "3120c1c0cc1de3dbec7292e4bcb73d3874c21792"
++#define GPU_LISTS_VERSION "98d10de160431ede7b8615cc387b5067821dbcfe"
  
  #endif  // GPU_CONFIG_GPU_LISTS_VERSION_H_
 diff --git a/skia/ext/skia_commit_hash.h b/skia/ext/skia_commit_hash.h
@@ -20206,7 +21641,7 @@ diff --git a/gpu/webgpu/DAWN_VERSION b/gpu/webgpu/DAWN_VERSION
 @@ -1 +1 @@
 -9d8c987511586369a104a619f137b6700e9b05e2
 \ No newline at end of file
-+3b5f6d280a43b0f51a58ac9389d8c83e9eed8927
++6e24542436a3ef58d4a1110f01712da9afbff3e3
 \ No newline at end of file
 diff --git a/gpu/webgpu/dawn_commit_hash.h b/gpu/webgpu/dawn_commit_hash.h
 --- a/gpu/webgpu/dawn_commit_hash.h
@@ -20216,6 +21651,6 @@ diff --git a/gpu/webgpu/dawn_commit_hash.h b/gpu/webgpu/dawn_commit_hash.h
  #define GPU_WEBGPU_DAWN_COMMIT_HASH_H_
  
 -#define DAWN_COMMIT_HASH "9d8c987511586369a104a619f137b6700e9b05e2"
-+#define DAWN_COMMIT_HASH "3b5f6d280a43b0f51a58ac9389d8c83e9eed8927"
++#define DAWN_COMMIT_HASH "6e24542436a3ef58d4a1110f01712da9afbff3e3"
  
  #endif  // GPU_WEBGPU_DAWN_COMMIT_HASH_H_
