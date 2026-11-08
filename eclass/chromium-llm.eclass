@@ -761,6 +761,24 @@ chromium-llm_pkg_setup() {
 				fi
 			fi
 			einfo "Keeping the build tree in ${CHROMIUM_BUILD_TREE} (CHROMIUM_BUILD_DIR)"
+			# Another build using it (Portage still locks its build directory; see claim in
+			# files/chromium-build-tree.py, which isn't there yet in pkg_setup)?
+			local tree_owner=
+			[[ -f ${CHROMIUM_BUILD_TREE}/owner ]] && tree_owner=$(<"${CHROMIUM_BUILD_TREE}/owner")
+			if [[ -n ${tree_owner} && ${tree_owner} != "${PORTAGE_BUILDDIR}" ]]; then
+				PYTHONPATH="${PORTAGE_PYTHONPATH:-${PORTAGE_PYM_PATH}}" "${PORTAGE_PYTHON:-python3}" -B -c '
+import os, sys, portage.locks
+from portage.exception import TryAgain
+try:
+    portage.locks.unlockdir(portage.locks.lockdir(sys.argv[1], flags=os.O_NONBLOCK))
+except TryAgain:
+    sys.exit(3)
+' "${tree_owner}" 2>/dev/null
+				if [[ $? == 3 ]]; then
+					ewarn "The build in ${tree_owner} uses ${CHROMIUM_BUILD_TREE}:"
+					ewarn "this one will wait until it is done before unpacking."
+				fi
+			fi
 			local tc_id tc_f
 			tc_id=$(chromium_toolchain_id) || die
 			if [[ -f ${S}/out/toolchains ]] && grep -qvxF "${tc_id}" "${S}/out/toolchains"; then
