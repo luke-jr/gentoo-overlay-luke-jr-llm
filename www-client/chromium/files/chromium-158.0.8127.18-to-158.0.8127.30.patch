@@ -1,17 +1,18 @@
-Chromium 158.0.8127.18 -> 158.0.8127.29, for the 158.0.8127.18 tarball.
+Chromium 158.0.8127.18 -> 158.0.8127.30, for the 158.0.8127.18 tarball.
 
-158.0.8127.29 is a tag on the 158 branch (refs/branch-heads/8127@{#1241}) that
-has no source tarball (as of 2026-11-07). It adds 396 branch commits to
-158.0.8127.18 (#845), 205 of them not PGO/orderfile/AFDO rolls or VERSION increments:
+158.0.8127.30 is a tag on the 158 branch (refs/branch-heads/8127@{#1315}) that
+has no source tarball (as of 2026-11-08). It adds 470 branch commits to
+158.0.8127.18 (#845), 209 of them not PGO/orderfile/AFDO rolls or VERSION increments:
 security fixes (MSE, the extension install move, the password auto sign-in toast,
 SiteDataClearer, WebShare, PartitionAlloc's purge, service worker teardown, Blink's
-animation triggers, scroll snap, nested pseudo-elements, display-locked painting and
-video snapshots, the V8 detached-globals one, and the V8, Skia, ICU, Dawn and ANGLE ones in the 30 "Roll commits
+animation triggers, scroll snap, nested pseudo-elements, display-locked painting,
+video snapshots and WebMediaPlayerMS reloads, libxslt's pattern cache (unused: the
+ebuild uses the system libxslt), the V8 detached-globals one, and the V8, Skia, ICU, Dawn and ANGLE ones in the 31 "Roll commits
 from side projects" and the ICU roll), contextual tasks, composebox/omnibox and new tab
 page WebUI changes, PartitionAlloc's ThreadCache overflow churn.
 
 Generated from the upstream diffs between the tags: chromium/src
-refs/tags/158.0.8127.18..158.0.8127.29 and the dependencies whose DEPS
+refs/tags/158.0.8127.18..158.0.8127.30 and the dependencies whose DEPS
 revision changed (ANGLE, Dawn, DevTools, ICU, Skia, V8, WebRTC), as served by
 Gitiles, with scripts/chromium-delta.
 
@@ -23,12 +24,12 @@ updates, DEPS.
 Added: the tarball's stamp files for the new commit (stamps.py:
 build/util/LASTCHANGE{,.committime}, gpu/config/gpu_lists_version.h,
 skia/ext/skia_commit_hash.h, gpu/webgpu/DAWN_VERSION and
-gpu/webgpu/dawn_commit_hash.h; commit 98d10de160431ede7b8615cc387b5067821dbcfe,
-refs/branch-heads/8127@{#1241}). build/util/MINIBRANCH doesn't change.
+gpu/webgpu/dawn_commit_hash.h; commit cb5de443be0ab0b6595c6f73c66b7bfeb017ef8a,
+refs/branch-heads/8127@{#1315}). build/util/MINIBRANCH doesn't change.
 
 Checked: applies to the 158.0.8127.18 tarball; chrome/VERSION becomes
-158.0.8127.29; every patched source file is byte-identical to its version
-at the tag (or the dependency's DEPS revision); it adds 12 files and renames
+158.0.8127.30; every patched source file is byte-identical to its version
+at the tag (or the dependency's DEPS revision); it adds 13 files and renames
 20 (within chrome/browser/resources/omnibox_popup/; the old paths are gone); the
 158.0.8127.18 tarball's non-git files are all classified (tarball-generated.py
 with generated.conf).
@@ -207,7 +208,7 @@ index a019f71..74d9cf5 100644
  
    unpublished_stats_.dequarantined_count += freed_count;
 diff --git a/chrome/VERSION b/chrome/VERSION
-index 42a35f4..2e6a52d 100644
+index 42a35f4..85527eca 100644
 --- a/chrome/VERSION
 +++ b/chrome/VERSION
 @@ -1,4 +1,4 @@
@@ -215,7 +216,7 @@ index 42a35f4..2e6a52d 100644
  MINOR=0
  BUILD=8127
 -PATCH=18
-+PATCH=29
++PATCH=30
 diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
 index a0e09ac9..6807b65 100644
 --- a/chrome/app/generated_resources.grd
@@ -15170,6 +15171,25 @@ index 00f3df3..c90f4b34 100644
    CountSvgFilterPaint();
    EmbeddedObjectPainter(*this).PaintReplaced(paint_info, paint_offset);
  }
+diff --git a/third_party/blink/renderer/core/paint/clip_path_clipper.cc b/third_party/blink/renderer/core/paint/clip_path_clipper.cc
+index 85b6c42..a94f47a 100644
+--- a/third_party/blink/renderer/core/paint/clip_path_clipper.cc
++++ b/third_party/blink/renderer/core/paint/clip_path_clipper.cc
+@@ -301,8 +301,12 @@
+       CompositeClipPathStatus(layout_object.GetNode());
+   switch (status) {
+     case CompositedPaintStatus::kComposited:
+-      CHECK(GetClipPathAnimation(layout_object));
+-      return true;
++      if (GetClipPathAnimation(layout_object)) {
++        return true;
++      }
++      SetCompositeClipPathStatus(layout_object.GetNode(),
++                                 CompositedPaintStatus::kNotComposited);
++      return false;
+     case CompositedPaintStatus::kNoAnimation:
+     case CompositedPaintStatus::kNotComposited:
+       return false;
 diff --git a/third_party/blink/renderer/core/paint/paint_layer_scrollable_area.cc b/third_party/blink/renderer/core/paint/paint_layer_scrollable_area.cc
 index a97aaf7..086e936 100644
 --- a/third_party/blink/renderer/core/paint/paint_layer_scrollable_area.cc
@@ -15251,6 +15271,256 @@ index 20e68d96..9113dd2 100644
    VerifyCalledWhileContextsAliveForDebugging();
  
    GetMediaSource(tracer)->CompleteAttachingToMediaElement(
+diff --git a/third_party/blink/renderer/modules/mediastream/media_stream_video_renderer_sink.cc b/third_party/blink/renderer/modules/mediastream/media_stream_video_renderer_sink.cc
+index a37a6ab..9796867 100644
+--- a/third_party/blink/renderer/modules/mediastream/media_stream_video_renderer_sink.cc
++++ b/third_party/blink/renderer/modules/mediastream/media_stream_video_renderer_sink.cc
+@@ -149,6 +149,7 @@
+ 
+ MediaStreamVideoRendererSink::~MediaStreamVideoRendererSink() {
+   DCHECK_CALLED_ON_VALID_THREAD(main_thread_checker_);
++  Stop();
+ }
+ 
+ void MediaStreamVideoRendererSink::Start() {
+diff --git a/third_party/blink/renderer/modules/mediastream/track_audio_renderer.cc b/third_party/blink/renderer/modules/mediastream/track_audio_renderer.cc
+index 44adfe0..3eaae47e 100644
+--- a/third_party/blink/renderer/modules/mediastream/track_audio_renderer.cc
++++ b/third_party/blink/renderer/modules/mediastream/track_audio_renderer.cc
+@@ -198,7 +198,7 @@
+ 
+ TrackAudioRenderer::~TrackAudioRenderer() {
+   DCHECK(task_runner_->BelongsToCurrentThread());
+-  DCHECK(!sink_);
++  Stop();
+   DVLOG(1) << "TrackAudioRenderer::~TrackAudioRenderer()";
+ }
+ 
+diff --git a/third_party/blink/renderer/modules/mediastream/web_media_player_ms.cc b/third_party/blink/renderer/modules/mediastream/web_media_player_ms.cc
+index 010306b..b15df88 100644
+--- a/third_party/blink/renderer/modules/mediastream/web_media_player_ms.cc
++++ b/third_party/blink/renderer/modules/mediastream/web_media_player_ms.cc
+@@ -483,8 +483,6 @@
+   elapsed_playback_time_ = base::TimeDelta();
+   playback_started_at_ = base::TimeTicks::Now();
+   web_stream_ = source.GetAsMediaStream();
+-  if (!web_stream_.IsNull())
+-    web_stream_.AddObserver(weak_this_);
+ 
+   watch_time_reporter_.reset();
+ 
+@@ -502,6 +500,9 @@
+ 
+   SetNetworkState(WebMediaPlayer::kNetworkStateLoading);
+   SetReadyState(WebMediaPlayer::kReadyStateHaveNothing);
++  if (!client_) {
++    return WebMediaPlayer::LoadTiming::kImmediate;
++  }
+   std::string stream_id =
+       web_stream_.IsNull() ? std::string() : web_stream_.Id().Utf8();
+   media_log_->AddEvent<media::MediaLogEvent::kLoad>(stream_id);
+@@ -530,6 +531,11 @@
+                            weak_factory_.GetWeakPtr()));
+ 
+   if (!video_frame_provider_ && !audio_renderer_) {
++    // Register the observer before notifying `client_` and returning so that
++    // tracks added to an initially empty stream still trigger `Reload()`.
++    if (!web_stream_.IsNull()) {
++      web_stream_.AddObserver(weak_this_);
++    }
+     SetNetworkState(WebMediaPlayer::kNetworkStateNetworkError);
+     SendLogMessage(StrCat(
+         {__func__, " => (ERROR: WebMediaPlayer::kNetworkStateNetworkError)"}));
+@@ -584,6 +590,14 @@
+       }
+     }
+   }
++
++  // Defer observer registration until `frame_deliverer_` and initial renderers
++  // are set up so that synchronous client notifications earlier in `Load()`
++  // cannot re-enter `Reload()` before initialization is complete.
++  if (!web_stream_.IsNull()) {
++    web_stream_.AddObserver(weak_this_);
++  }
++
+   // When associated with an <audio> element, we don't want to wait for the
+   // first video frame to become available as we do for <video> elements
+   // (<audio> elements can also be assigned video tracks).
+@@ -593,6 +607,9 @@
+     SendLogMessage(StrCat({__func__, " => (audio only mode)"}));
+     SetReadyState(WebMediaPlayer::kReadyStateHaveMetadata);
+     SetReadyState(WebMediaPlayer::kReadyStateHaveEnoughData);
++    if (!client_) {
++      return WebMediaPlayer::LoadTiming::kImmediate;
++    }
+     MaybeCreateWatchTimeReporter();
+   }
+ 
+@@ -648,16 +665,14 @@
+ 
+ void WebMediaPlayerMS::ActiveStateChanged(bool is_active) {
+   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
++  if (!client_) {
++    return;
++  }
+   SendLogMessage(Format("{}({{is_active={}}})", __func__, is_active));
+   // The case when the stream becomes active is handled by TrackAdded().
+   if (is_active)
+     return;
+ 
+-  // This makes the media element eligible to be garbage collected. Otherwise,
+-  // the element will be considered active and will never be garbage
+-  // collected.
+-  SetNetworkState(kNetworkStateIdle);
+-
+   // Stop the audio renderer to free up resources that are not required for an
+   // inactive stream. This is useful if the media element is not garbage
+   // collected.
+@@ -665,6 +680,11 @@
+   // track is expected to produce a black frame after becoming inactive.
+   if (audio_renderer_)
+     audio_renderer_->Stop();
++
++  // This makes the media element eligible to be garbage collected. Otherwise,
++  // the element will be considered active and will never be garbage
++  // collected.
++  SetNetworkState(kNetworkStateIdle);
+ }
+ 
+ void WebMediaPlayerMS::EnabledStateChangedForWebRtcAudio(bool is_enabled) {
+@@ -706,6 +726,11 @@
+ void WebMediaPlayerMS::ReloadVideo() {
+   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+   DCHECK(!web_stream_.IsNull());
++  // `frame_deliverer_` should always be non-null while observing `web_stream_`,
++  // but check it defensively in case `ReloadVideo()` is reached early.
++  if (!client_ || !frame_deliverer_) {
++    return;
++  }
+   MediaStreamDescriptor& descriptor = *web_stream_;
+   auto video_components = descriptor.VideoComponents();
+ 
+@@ -725,7 +750,6 @@
+       if (video_frame_provider_)
+         video_frame_provider_->Stop();
+ 
+-      SetNetworkState(kNetworkStateLoading);
+       video_frame_provider_ = renderer_factory_->GetVideoRenderer(
+           web_stream_,
+           ConvertToBaseRepeatingCallback(
+@@ -733,6 +757,9 @@
+           video_task_runner_, main_render_task_runner_);
+       DCHECK(video_frame_provider_);
+       video_frame_provider_->Start();
++      // Notify the client after updating `video_frame_provider_`, as the
++      // notification may synchronously modify the stream's tracks.
++      SetNetworkState(kNetworkStateLoading);
+       break;
+ 
+     case RendererReloadAction::REMOVE_RENDERER:
+@@ -745,6 +772,9 @@
+   }
+ 
+   DCHECK_NE(renderer_action, RendererReloadAction::KEEP_RENDERER);
++  if (!client_) {
++    return;
++  }
+   if (!paused_) {
+     client_->DidPlayerSizeChange(NaturalSize());
+     if (watch_time_reporter_)
+@@ -765,8 +795,9 @@
+ void WebMediaPlayerMS::ReloadAudio() {
+   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+   DCHECK(!web_stream_.IsNull());
+-  if (!internal_frame_->web_frame())
++  if (!client_ || !internal_frame_->web_frame()) {
+     return;
++  }
+   SendLogMessage(StrCat({__func__, "()"}));
+ 
+   MediaStreamDescriptor& descriptor = *web_stream_;
+@@ -788,7 +819,6 @@
+       if (audio_renderer_)
+         audio_renderer_->Stop();
+ 
+-      SetNetworkState(WebMediaPlayer::kNetworkStateLoading);
+       audio_renderer_ = renderer_factory_->GetAudioRenderer(
+           web_stream_, internal_frame_->web_frame(),
+           initial_audio_output_device_id_,
+@@ -796,12 +826,14 @@
+                                weak_factory_.GetWeakPtr()));
+ 
+       // |audio_renderer_| can be null in tests.
+-      if (!audio_renderer_)
+-        break;
+-
+-      audio_renderer_->SetVolume(volume_);
+-      audio_renderer_->Start();
+-      audio_renderer_->Play();
++      if (audio_renderer_) {
++        audio_renderer_->SetVolume(volume_);
++        audio_renderer_->Start();
++        audio_renderer_->Play();
++      }
++      // Notify the client after updating `audio_renderer_`, as the
++      // notification may synchronously modify the stream's tracks.
++      SetNetworkState(WebMediaPlayer::kNetworkStateLoading);
+       break;
+ 
+     case RendererReloadAction::REMOVE_RENDERER:
+@@ -813,6 +845,10 @@
+       break;
+   }
+ 
++  if (!client_) {
++    return;
++  }
++
+   // TODO(perkj, magjed): We use OneShot focus type here so that it takes
+   // audio focus once it starts, and then will not respond to further audio
+   // focus changes. See https://crbug.com/596516 for more details.
+@@ -1314,6 +1350,9 @@
+     bool is_opaque) {
+   DVLOG(1) << __func__;
+   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
++  if (!client_) {
++    return;
++  }
+ 
+   has_first_frame_ = true;
+ 
+@@ -1323,6 +1362,9 @@
+ 
+   SetReadyState(WebMediaPlayer::kReadyStateHaveMetadata);
+   SetReadyState(WebMediaPlayer::kReadyStateHaveEnoughData);
++  if (!client_) {
++    return;
++  }
+   TriggerResize();
+   ResetCanvasCache();
+   MaybeCreateWatchTimeReporter();
+@@ -1356,7 +1398,9 @@
+       {__func__, " => (state=", NetworkStateToString(network_state_), ")"}));
+   network_state_ = state;
+   // Always notify to ensure client has the latest value.
+-  get_client()->NetworkStateChanged();
++  if (auto* client = get_client()) {
++    client->NetworkStateChanged();
++  }
+ }
+ 
+ void WebMediaPlayerMS::SetReadyState(WebMediaPlayer::ReadyState state) {
+@@ -1365,7 +1409,9 @@
+       StrCat({__func__, " => (state=", ReadyStateToString(ready_state_), ")"}));
+   ready_state_ = state;
+   // Always notify to ensure client has the latest value.
+-  get_client()->ReadyStateChanged();
++  if (auto* client = get_client()) {
++    client->ReadyStateChanged();
++  }
+ }
+ 
+ media::PaintCanvasVideoRenderer*
 diff --git a/third_party/blink/renderer/platform/fonts/script_run_iterator.cc b/third_party/blink/renderer/platform/fonts/script_run_iterator.cc
 index e203c8b..9c62a639 100644
 --- a/third_party/blink/renderer/platform/fonts/script_run_iterator.cc
@@ -15338,6 +15608,84 @@ index 9a14afa..4beb2ba 100644
      }
      InputType input_type = 2;
  
+diff --git a/third_party/libxslt/chromium/0008-Fix-use-after-free-in-direct-pattern-match-cache.patch b/third_party/libxslt/chromium/0008-Fix-use-after-free-in-direct-pattern-match-cache.patch
+new file mode 100644
+index 0000000..7d88c412
+--- /dev/null
++++ b/third_party/libxslt/chromium/0008-Fix-use-after-free-in-direct-pattern-match-cache.patch
+@@ -0,0 +1,40 @@
++From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
++From: Joey Arhar <jarhar@chromium.org>
++Date: Fri, 6 Nov 2026 14:45:00 -0800
++Subject: [PATCH] Fix use-after-free in direct pattern match cache
++
++xsltTestCompMatchDirect reads the cached node-set for a pattern from the
++transformation context's runtime extras before calling xmlXPathEval.
++The evaluation can re-enter xsltTestCompMatchDirect for the same cache
++slot, for example when a predicate references a global variable whose
++lazily evaluated value runs xsl:number. The nested call can free and
++replace the cached object, after which the outer call freed its stale
++pointer again.
++
++Re-read the cached object from the runtime extras after the evaluation
++instead of using the value read before it.
++---
++ libxslt/pattern.c | 9 +++++++++
++ 1 file changed, 9 insertions(+)
++
++diff --git a/libxslt/pattern.c b/libxslt/pattern.c
++index 581f17919fe3a..019a5cebbb31e 100644
++--- a/libxslt/pattern.c
+++++ b/libxslt/pattern.c
++@@ -581,6 +581,15 @@ xsltTestCompMatchDirect(xsltTransformContextPtr ctxt, xsltCompMatchPtr comp,
++ 	    nocache = 1;
++ 
++ 	if (nocache == 0) {
+++	    /*
+++	     * xmlXPathEval can re-enter this function for the same cache
+++	     * slot, e.g. through a lazily evaluated global variable whose
+++	     * value runs xsl:number. The nested call may free or replace
+++	     * the cached object, so re-read it instead of using the value
+++	     * read before the evaluation.
+++	     */
+++	    list = (xmlXPathObjectPtr)
+++		XSLT_RUNTIME_EXTRA_LST(ctxt, sel->lenExtra);
++ 	    if (list != NULL)
++ 		xmlXPathFreeObject(list);
++ 	    list = newlist;
++--
+diff --git a/third_party/libxslt/chromium/roll.py b/third_party/libxslt/chromium/roll.py
+index 16bf047..a24e66e 100755
+--- a/third_party/libxslt/chromium/roll.py
++++ b/third_party/libxslt/chromium/roll.py
+@@ -76,6 +76,7 @@
+     '0005-Verify-dictionary-ownership-before-aliasing-attribut.patch',
+     '0006-Fix-type-confusion-in-xsltParseTemplateContent.patch',
+     '0007-Return-an-empty-node-set-from-document-function-with-invalid-uri.patch',
++    '0008-Fix-use-after-free-in-direct-pattern-match-cache.patch',
+ ]
+ 
+ 
+diff --git a/third_party/libxslt/src/libxslt/pattern.c b/third_party/libxslt/src/libxslt/pattern.c
+index 581f179..019a5ce 100644
+--- a/third_party/libxslt/src/libxslt/pattern.c
++++ b/third_party/libxslt/src/libxslt/pattern.c
+@@ -581,6 +581,15 @@
+ 	    nocache = 1;
+ 
+ 	if (nocache == 0) {
++	    /*
++	     * xmlXPathEval can re-enter this function for the same cache
++	     * slot, e.g. through a lazily evaluated global variable whose
++	     * value runs xsl:number. The nested call may free or replace
++	     * the cached object, so re-read it instead of using the value
++	     * read before the evaluation.
++	     */
++	    list = (xmlXPathObjectPtr)
++		XSLT_RUNTIME_EXTRA_LST(ctxt, sel->lenExtra);
+ 	    if (list != NULL)
+ 		xmlXPathFreeObject(list);
+ 	    list = newlist;
 diff --git a/third_party/lit/v3_0/BUILD.gn b/third_party/lit/v3_0/BUILD.gn
 index 2c9521e..ad8763a 100644
 --- a/third_party/lit/v3_0/BUILD.gn
@@ -21603,7 +21951,7 @@ diff --git a/build/util/LASTCHANGE b/build/util/LASTCHANGE
 +++ b/build/util/LASTCHANGE
 @@ -1,2 +1,2 @@
 -LASTCHANGE=6449d9f9a6a906edff724b7b220199b3fde4615c-refs/branch-heads/8127@{#845}
-+LASTCHANGE=98d10de160431ede7b8615cc387b5067821dbcfe-refs/branch-heads/8127@{#1241}
++LASTCHANGE=cb5de443be0ab0b6595c6f73c66b7bfeb017ef8a-refs/branch-heads/8127@{#1315}
  LASTCHANGE_YEAR=2026
 diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 --- a/build/util/LASTCHANGE.committime
@@ -21611,7 +21959,7 @@ diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 @@ -1 +1 @@
 -1793754506
 \ No newline at end of file
-+1794015191
++1794101558
 \ No newline at end of file
 diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
 --- a/gpu/config/gpu_lists_version.h
@@ -21621,7 +21969,7 @@ diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
  #define GPU_CONFIG_GPU_LISTS_VERSION_H_
  
 -#define GPU_LISTS_VERSION "6449d9f9a6a906edff724b7b220199b3fde4615c"
-+#define GPU_LISTS_VERSION "98d10de160431ede7b8615cc387b5067821dbcfe"
++#define GPU_LISTS_VERSION "cb5de443be0ab0b6595c6f73c66b7bfeb017ef8a"
  
  #endif  // GPU_CONFIG_GPU_LISTS_VERSION_H_
 diff --git a/skia/ext/skia_commit_hash.h b/skia/ext/skia_commit_hash.h

@@ -1,0 +1,58 @@
+Chromium 158.0.8127.30 + the later changes of its release branch, up to
+c256bc037eb4755c01cd1eb1d0d13f1f467f0124 (refs/branch-heads/8127@{#1354}), for the
+158.0.8127.30 tree that chromium-158.0.8127.18-to-158.0.8127.30.patch makes.
+
+Generated from the upstream diffs chromium/src refs/tags/158.0.8127.30..c256bc037eb4755c01cd1eb1d0d13f1f467f0124
+and V8 9b541eb94d20adaeba3724188b53943860de3ea3..a246c42da9686ba4bc15ed06b316ffa936f8e3fd
+(15.8.62.23 to 15.8.62.24, rolled at 8127@{#1352}), as served by Gitiles, with
+scripts/chromium-delta --branch-fixes (against the .30 tree's files, renames
+included): left out are files not in the release tarball, iOS/Android/ChromeOS/
+Mac/Windows-only files, tests and docs, translations, PGO/orderfile pointers,
+submodule pointer updates. chrome/VERSION, DEPS and the stamp files stay at
+158.0.8127.30.
+
+Commits contributing to it (oldest first):
+  ae4cb2032a40 Roll commits from side projects in M158 (V8 15.8.62.23 -> 15.8.62.24):
+    V8 be73e5f0eaa0 [M158] [turbofan] Fix self-referential DeadValue in EscapeAnalysisReducer
+    V8 a246c42da968 Version 15.8.62.24
+
+Checked: applies to the 158.0.8127.30 tree; every patched file is
+byte-identical to its version at the last commit above (V8: its DEPS revision).
+
+diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
+index 42097a0..79f058f 100644
+--- a/v8/include/v8-version.h
++++ b/v8/include/v8-version.h
+@@ -11,7 +11,7 @@
+ #define V8_MAJOR_VERSION 15
+ #define V8_MINOR_VERSION 8
+ #define V8_BUILD_NUMBER 62
+-#define V8_PATCH_LEVEL 23
++#define V8_PATCH_LEVEL 24
+ 
+ // Use 1 for candidates and 0 otherwise.
+ // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/compiler/escape-analysis-reducer.cc b/v8/src/compiler/escape-analysis-reducer.cc
+index 4d54bdf..1b83aca 100644
+--- a/v8/src/compiler/escape-analysis-reducer.cc
++++ b/v8/src/compiler/escape-analysis-reducer.cc
+@@ -309,6 +309,7 @@
+               NodeProperties::SetType(load, Type::None());
+               NodeProperties::SetType(dead_value, Type::None());
+               NodeProperties::ReplaceUses(load, dead_value, load);
++              NodeProperties::ReplaceValueInput(dead_value, load, 0);
+               continue;
+             }
+ 
+diff --git a/v8/src/compiler/verifier.cc b/v8/src/compiler/verifier.cc
+index 8aab5f5..a52ffbb 100644
+--- a/v8/src/compiler/verifier.cc
++++ b/v8/src/compiler/verifier.cc
+@@ -303,6 +303,7 @@
+       UNREACHABLE();
+     case IrOpcode::kDeadValue:
+       CheckValueInputIs(node, 0, Type::None());
++      CHECK_NE(NodeProperties::GetValueInput(node, 0), node);
+       CheckTypeIs(node, Type::None());
+       break;
+     case IrOpcode::kUnreachable:
