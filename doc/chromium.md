@@ -34,6 +34,22 @@ masked) keeps the previous set and its packages.
 4. `=dev-python/clang-22*`, pulled in automatically, used by V8's build-time
    header parser ("metagen").
 
+### Faster rebuilds (optional)
+
+`CHROMIUM_BUILD_DIR` in `make.conf` keeps the build tree between builds, so that the next build
+of the same major version only rebuilds what changed. Single-quote it: the eclass expands it
+with `MAJOR` set to the major version.
+
+```sh
+CHROMIUM_BUILD_DIR='/var/tmp/portage/chromium-build/${MAJOR}'
+```
+
+Each build replaces the sources in its `src/` and keeps `src/out/` (tens of GB per major). Before
+each ninja run, files whose contents are those of the last run get that run's timestamp back, so
+ninja only rebuilds from changed files (`files/chromium-build-tree.py`). ninja doesn't notice a new compiler version in the
+same LLVM or Rust slot: the ebuild warns, and deleting `src/out/` forces a full build. A
+second build of the same major waits until the first is done.
+
 ## Notable ebuild changes vs. 151
 
 - **Gentoo patchset:** forked from `chromium-patches` tag 152 into
