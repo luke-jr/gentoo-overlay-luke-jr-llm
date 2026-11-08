@@ -1177,8 +1177,10 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	# tools the build needs from the system (below), and check the result.
 	local binary_allowlist=()
 	elog "Removing bundled binaries from source tree ..."
+	# (Not in the kept build tree's out/: the last build's.)
 	"${EPYTHON}" "${FILESDIR}/chromium-binary-audit.py" --delete "${binary_allowlist[@]/#/--allow=}" \
-		"${S}" > "${T}/binary-removal.log" || die "Failed to remove bundled binaries"
+		${CHROMIUM_BUILD_TREE:+--exclude-dir=out} "${S}" > "${T}/binary-removal.log" ||
+		die "Failed to remove bundled binaries"
 
 	# And now we restore any that we actually need, from the host system
 	local esbuild_path="${S}/third_party/devtools-frontend/src/third_party/esbuild"
@@ -1309,7 +1311,8 @@ print(version)
 		# Copied from dev-lang/typescript above
 		third_party/typescript/linux-amd64/src/lib/tsc
 	)
-	"${EPYTHON}" "${FILESDIR}/chromium-binary-audit.py" "${binary_allowlist[@]/#/--allow=}" "${S}" ||
+	"${EPYTHON}" "${FILESDIR}/chromium-binary-audit.py" "${binary_allowlist[@]/#/--allow=}" \
+		${CHROMIUM_BUILD_TREE:+--exclude-dir=out} "${S}" ||
 		die "Prebuilt binaries found in the source tree, see above"
 
 	# adjust python interpreter version

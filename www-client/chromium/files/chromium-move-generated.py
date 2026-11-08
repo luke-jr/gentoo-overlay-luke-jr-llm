@@ -10,7 +10,8 @@ Usage: chromium-move-generated.py SRC DEST [STAMP] < PATTERNS
   '**/' any number of directories, a trailing '/' everything below a directory; '!' before a
   pattern excludes what it matches from the earlier ones. Empty lines and lines starting with
   '#' are ignored. A pattern (or exclusion) that matches nothing is an error, so that a change
-  upstream (a renamed or removed file) doesn't go unnoticed. Directories stay.
+  upstream (a renamed or removed file) doesn't go unnoticed. Directories stay. A top-level out/
+  (the build's, in a kept build tree) isn't looked at.
   With STAMP (a file made when the sources were unpacked), it is an error too if one of the
   files was changed since (by a patch): its regeneration would undo that change.
 """
@@ -50,6 +51,8 @@ def main():
     since = os.stat(sys.argv[3]).st_mtime if len(sys.argv) == 4 else None
     files = []
     for dirpath, dirs, names in os.walk(src):
+        if dirpath == src and "out" in dirs:
+            dirs.remove("out")
         for name in names:
             files.append(os.path.relpath(os.path.join(dirpath, name), src))
     files.sort()
