@@ -15,7 +15,10 @@ Usage:
     and the rest gets rebuilt. A changed or new file gets the current time. Either way the
     file's contents and timestamp become its record. --full hashes every file (the first run
     of a build, after unpacking); otherwise only files whose timestamp isn't their record's
-    (written since the last run) are hashed. A file that is gone loses its record.
+    (written since the last run) are hashed. A file that is gone keeps its record: what ninja
+    built while it was gone doesn't use it, and if it comes back as it was, what ninja built
+    from it before is still right (the build moves checked-in generated files aside, then
+    writes them again).
 """
 import hashlib
 import json
@@ -103,8 +106,6 @@ def settle(tree, src, full):
             os.utime(os.path.join(src, p), ns=(now, now))
             records[p] = [h, now]
             changed += 1
-    for p in [p for p in records if p not in files]:
-        del records[p]
     with open(path + ".new", "w") as f:
         json.dump(records, f)
     os.replace(path + ".new", path)
