@@ -761,7 +761,6 @@ chromium-llm_pkg_setup() {
 				fi
 			fi
 			einfo "Keeping the build tree in ${CHROMIUM_BUILD_TREE} (CHROMIUM_BUILD_DIR)"
-			chromium_build_tree_py claim "${CHROMIUM_BUILD_TREE}" "${PORTAGE_BUILDDIR}"
 			local tc_id tc_f
 			tc_id=$(chromium_toolchain_id) || die
 			if [[ -f ${S}/out/toolchains ]] && grep -qvxF "${tc_id}" "${S}/out/toolchains"; then
@@ -783,10 +782,12 @@ chromium-llm_src_unpack() {
 		# The kept build tree: replace the last build's sources, keep out/ (which
 		# chromium_regenerate sets aside next to src/ for a while).
 		addwrite "${CHROMIUM_BUILD_TREE}"
+		# Here, not in pkg_setup: FILESDIR is only there in the src_* phases.
+		chromium_build_tree_py claim "${CHROMIUM_BUILD_TREE}" "${PORTAGE_BUILDDIR}"
+		mkdir -p "${S}" || die
 		if [[ -d ${CHROMIUM_BUILD_TREE}/chromium-out && ! -e ${S}/out ]]; then
 			mv "${CHROMIUM_BUILD_TREE}/chromium-out" "${S}/out" || die
 		fi
-		mkdir -p "${S}" || die
 		einfo "Removing the last build's sources from ${S} ..."
 		find "${S}" -mindepth 1 -maxdepth 1 ! -name out -exec rm -rf {} + || die
 		einfo "Unpacking chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz to ${S} ..."
