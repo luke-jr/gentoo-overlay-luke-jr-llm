@@ -37,11 +37,11 @@ masked) keeps the previous set and its packages.
 ### Faster rebuilds (optional)
 
 `CHROMIUM_BUILD_DIR` in `make.conf` keeps the build tree between builds, so that the next build
-of the same major version only rebuilds what changed. `{MAJOR}` in it becomes the major version
-(not `${MAJOR}`: Portage expands that in `make.conf`, even single-quoted).
+of the same major version only rebuilds what changed. The eclass expands it with `MAJOR` set to
+the major version. Portage expands variables in `make.conf` even single-quoted, so escape the `$`:
 
 ```sh
-CHROMIUM_BUILD_DIR=/var/tmp/portage/chromium-build/{MAJOR}
+CHROMIUM_BUILD_DIR="/var/tmp/portage/chromium-build/\${MAJOR}"
 ```
 
 Each build replaces the sources in its `src/` and keeps `src/out/` (tens of GB per major). Before
