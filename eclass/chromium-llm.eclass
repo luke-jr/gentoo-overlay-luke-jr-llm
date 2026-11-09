@@ -651,6 +651,17 @@ chromium-llm_pkg_pretend() {
 	if [[ ${MERGE_TYPE} != binary ]]; then
 		# The pre_build_checks are all about compilation resources, no need to run it for a binpkg
 		pre_build_checks
+		if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
+			local tree_owner=
+			[[ -f ${CHROMIUM_BUILD_TREE}/build/owner ]] && tree_owner=$(<"${CHROMIUM_BUILD_TREE}/build/owner")
+			if [[ -d ${CHROMIUM_BUILD_TREE}/build/Release ]]; then
+				einfo "Building in the kept build tree ${CHROMIUM_BUILD_TREE} (CHROMIUM_BUILD_DIR):"
+				einfo "reusing what ${tree_owner:+${tree_owner##*/} }built there, rebuilding only what changed."
+			else
+				einfo "Building in a new kept build tree ${CHROMIUM_BUILD_TREE} (CHROMIUM_BUILD_DIR):"
+				einfo "a full build, kept for the next build of ${PV%%.*}."
+			fi
+		fi
 	fi
 
 	if use headless; then
@@ -788,13 +799,6 @@ chromium-llm_pkg_setup() {
 			fi
 			local tree_owner=
 			[[ -f ${CHROMIUM_BUILD_TREE}/build/owner ]] && tree_owner=$(<"${CHROMIUM_BUILD_TREE}/build/owner")
-			if [[ -d ${CHROMIUM_BUILD_TREE}/build/Release ]]; then
-				einfo "Building in the kept build tree ${CHROMIUM_BUILD_TREE} (CHROMIUM_BUILD_DIR):"
-				einfo "reusing what ${tree_owner:+${tree_owner##*/} }built there, rebuilding only what changed."
-			else
-				einfo "Building in a new kept build tree ${CHROMIUM_BUILD_TREE} (CHROMIUM_BUILD_DIR):"
-				einfo "a full build, kept for the next build of ${PV%%.*}."
-			fi
 			# Another build using it (Portage still locks its build directory; see claim in
 			# files/chromium-build-tree.py, which isn't there yet in pkg_setup)?
 			if [[ -n ${tree_owner} && ${tree_owner} != "${PORTAGE_BUILDDIR}" ]]; then
