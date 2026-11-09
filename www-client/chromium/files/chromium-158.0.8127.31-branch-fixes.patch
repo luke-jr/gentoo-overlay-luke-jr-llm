@@ -1,9 +1,10 @@
 Chromium 158.0.8127.31 + the later changes of its release branch, up to
-515985ecd435d4fb48feca80d91d88bca9b1ecab (refs/branch-heads/8127@{#1444}), for the
+7af086c2351ba24a298ba4d9b6248465ca940b92 (refs/branch-heads/8127@{#1484}), for the
 158.0.8127.31 tree that chromium-158.0.8127.18-to-158.0.8127.31.patch makes.
 
-Generated from the upstream diffs chromium/src refs/tags/158.0.8127.31..515985ecd435d4fb48feca80d91d88bca9b1ecab
-and, for the V8 roll in it, v8 a246c42da968..a2e0f800315e, as served by Gitiles,
+Generated from the upstream diffs chromium/src refs/tags/158.0.8127.31..7af086c2351ba24a298ba4d9b6248465ca940b92
+and, for the V8 and Skia rolls in it, v8 a246c42da968..5a03ee6be704 and skia
+75584a96108b..361c8326695a, as served by Gitiles,
 with scripts/chromium-delta --branch-fixes (against the .31 tree's files, renames
 included): left out are files not in the release tarball,
 iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs, translations,
@@ -21,10 +22,51 @@ Commits contributing to it (oldest first):
   6e4734a70631 [M158] Disallow differing origins in most synchronous about:blank commits
   0ec84d3520d9 Updating XTBs based on .GRDs from branch 8127 (en-GB only)
   515985ecd435 [M158] [FSA] Match sensitive-path blocklist rules case-insensitively
+  f4e159286d6a [M158] [History] Rename Gemini Apps Activity to Gemini History in footer
+  08888ef23289, c1efa1639f39, ae0b8e84f41f Roll commits from side projects in M158 (Skia
+    75584a96108b..361c8326695a):
+    skia 9af6a9017274 [M158] [Vulkan] Sleep after device lost on certain GPUs
+    skia ae45399f1aae [M158] [ganesh] Handle negative determinants in StrokeIterator for hairline square caps
+    skia 9f46d8e2c428 [M158] [ganesh] Guard atlas index against float imprecision during interpolation
+    skia 361c8326695a [M158] [graphite] Gracefully handle pathological number of clip draws
+  eb8145412ba5 [M158] Prevent duplicate render pass ids
+  0378edb35d31 [M158] [OE FRE][3/3] Record FRE impressions from WebUI on visual render
+  9cd672d675f8 [M158] [Voice Search] Add a new arm that only updates the model
+  6df35e9de8f9 [M158] gpu: Flush active/pending queries on virtual context switch and FBO change
+  405c8d4ea4cc [M158] Snapshot animations when servicing AnimationTimeline
+  437d53decb79 [M158] [CSD] Delay CSP ping when Keyboard lock is requested and viewport is a blank page
+  d0e07566a956 [M158] [gpu] Check SubmitIfNecessary before clear in RasterDecoder/CopySIHelper
+  29f99950312d [M158] Treat recorderer snap() failure as a failure
+  8688f1b9ead2 [Dictation] Do not show dictation IPH without a microphone
+  4da7be00f583 [Dictation] Add and register dictation hotkey IPH
+  c5207eca386a [M158] [omnibox][webui] Keep the Full WebUI popup aligned in immersive mode
+  345a650ac10c [Dictation] Record the triggers for dictation hotkey IPH
+  24e221a91c22 [M158] [Mac] Gate CADisplayLinkInGpu on min macOS version
+  a0f9f3ec6d61 [M158] [BlockModel] Guard block model for encrypted playback separately
+  7af086c2351b Roll commits from side projects in M158 (V8 a2e0f800315e..5a03ee6be704):
+    v8 6cfd1f8f0940 [M158] [regalloc] Fix off-by-one deferred-region clamp in AllocateBlockedReg
+    v8 5a03ee6be704 Version 15.8.62.26
 
 Checked: applies to the 158.0.8127.31 tree; every patched file is
 byte-identical to its version at the last commit above.
 
+diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
+index 6807b65..b0c7bded 100644
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -19894,6 +19894,12 @@
+       <message name="IDS_DICTATION_IPH_BODY" desc="Body text of the in-product help bubble shown next to a focused text field, introducing the dictation feature. The placeholder is the name of the dictation item in the right-click context menu." translateable="false">
+         Right click and select “<ph name="MENU_ITEM_NAME">$1<ex>Talk to type</ex></ph>” to turn your spoken thoughts into polished text.
+       </message>
++      <message name="IDS_DICTATION_HOTKEY_IPH_TITLE" desc="Title of the in-product help bubble shown next to a text field after the user has used dictation a couple of times, introducing the dictation keyboard shortcut." translateable="false">
++        Talk to type with a shortcut
++      </message>
++      <message name="IDS_DICTATION_HOTKEY_IPH_BODY" desc="Body text of the in-product help bubble that introduces the dictation keyboard shortcut. The placeholder is the keyboard shortcut that starts and stops dictation." translateable="false">
++        Press <ph name="SHORTCUT">$1<ex>Ctrl+Space</ex></ph> to start talking, and again when you’re done to insert polished text.
++      </message>
+     </if>
+ 
+     <if expr="is_android">
 diff --git a/chrome/app/resources/generated_resources_en-GB.xtb b/chrome/app/resources/generated_resources_en-GB.xtb
 index 7b7f428..f778983 100644
 --- a/chrome/app/resources/generated_resources_en-GB.xtb
@@ -47,6 +89,456 @@ index 7b7f428..f778983 100644
  <translation id="5015344424288992913">Resolving proxy...</translation>
  <translation id="5016305686459575361">By connecting your phone, you can:</translation>
  <translation id="5016491575926936899">You can text from your computer, share your Internet connection, reply to conversation notifications and unlock your <ph name="DEVICE_TYPE" /> with your phone.<ph name="FOOTNOTE_POINTER" /> <ph name="LINK_BEGIN" />Learn more<ph name="LINK_END" /></translation>
+diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
+index 57d883a..38c2182 100644
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -1371,6 +1371,9 @@
+     {"VoiceSearchCoherenceRealboxAutoEndpoint", "true"},
+     {"VoiceSearchCoherenceRealboxHelperText", "true"}};
+ 
++const FeatureEntry::FeatureParam kVoiceSearchCoherenceRealboxArm5Params[] = {
++    {"VoiceSearchCoherenceRealboxKeepLegacyUi", "true"}};
++
+ const FeatureEntry::FeatureVariation
+     kVoiceSearchCoherenceSearchboxVariations[] = {
+         {"Arm 1: Wave only, manual submit + Listening",
+@@ -1380,7 +1383,9 @@
+         {"Arm 3: Wave + Transcript, manual submit + Listening",
+          kVoiceSearchCoherenceRealboxArm3Params, nullptr},
+         {"Arm 4: Wave + Transcript, 3s auto endpoint + Listening",
+-         kVoiceSearchCoherenceRealboxArm4Params, nullptr}};
++         kVoiceSearchCoherenceRealboxArm4Params, nullptr},
++        {"Arm 5: Legacy voice search UI, updated model",
++         kVoiceSearchCoherenceRealboxArm5Params, nullptr}};
+ 
+ const FeatureEntry::FeatureParam
+     kVoiceSearchCoherenceComposeboxCobrowsingParams[] = {
+@@ -12248,6 +12253,11 @@
+      flag_descriptions::kMediaCodecBlockModelDescription, kOsAndroid,
+      FEATURE_VALUE_TYPE(media::kMediaCodecBlockModel)},
+ 
++    {"media-codec-block-model-encrypted",
++     flag_descriptions::kMediaCodecBlockModelEncryptedName,
++     flag_descriptions::kMediaCodecBlockModelEncryptedDescription, kOsAndroid,
++     FEATURE_VALUE_TYPE(media::kMediaCodecBlockModelEncrypted)},
++
+     {"media-codec-block-model-output",
+      flag_descriptions::kMediaCodecBlockModelOutputName,
+      flag_descriptions::kMediaCodecBlockModelOutputDescription, kOsAndroid,
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
+index 99613ed..fe7f6944 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
+@@ -238,6 +238,7 @@
+   void CaptureRegionScreenshot(
+       CaptureRegionScreenshotCallback callback) override;
+   void DismissFre(searchbox::mojom::FreStage stage) override {}
++  void RecordFreImpression(searchbox::mojom::FreStage stage) override {}
+   void ShowHotkeyDropdown(const gfx::Rect& anchor_bounds,
+                           ShowHotkeyDropdownCallback callback) override;
+   void OpenHotkeySettings() override {}
+diff --git a/chrome/browser/dictation/BUILD.gn b/chrome/browser/dictation/BUILD.gn
+index b0f36ba..e47f6353 100644
+--- a/chrome/browser/dictation/BUILD.gn
++++ b/chrome/browser/dictation/BUILD.gn
+@@ -198,6 +198,7 @@
+     ":impl",
+     ":metrics",
+     ":test_support",
++    "//chrome/browser/feature_engagement",
+     "//chrome/browser/glic/browser_ui",
+     "//chrome/browser/glic/browser_ui:glow",
+     "//chrome/browser/glic/selection",
+@@ -210,7 +211,10 @@
+     "//chrome/browser/ui/toasts/api:toasts",
+     "//chrome/browser/ui/views/dictation",
+     "//chrome/browser/ui/views/tabs:tab",
++    "//chrome/browser/user_education",
+     "//chrome/test:test_support",
++    "//components/feature_engagement/public",
++    "//components/feature_engagement/test:test_support",
+     "//components/tabs:test_support",
+     "//content/test:test_support",
+   ]
+diff --git a/chrome/browser/dictation/dictation_interactive_browser_test_base.cc b/chrome/browser/dictation/dictation_interactive_browser_test_base.cc
+index c70aaaf..95a7905 100644
+--- a/chrome/browser/dictation/dictation_interactive_browser_test_base.cc
++++ b/chrome/browser/dictation/dictation_interactive_browser_test_base.cc
+@@ -32,7 +32,10 @@
+     default;
+ 
+ void DictationInteractiveBrowserTestBase::TearDownOnMainThread() {
+-  dictation_service().EndSession();
++  if (SessionController* const controller =
++          dictation_service().session_controller()) {
++    controller->EndSessionSynchronously();
++  }
+   InteractiveBrowserTestMixin<DictationBrowserTestBase>::TearDownOnMainThread();
+ }
+ 
+diff --git a/chrome/browser/dictation/dictation_keyed_service.cc b/chrome/browser/dictation/dictation_keyed_service.cc
+index 6fcf7fe15..196a40d 100644
+--- a/chrome/browser/dictation/dictation_keyed_service.cc
++++ b/chrome/browser/dictation/dictation_keyed_service.cc
+@@ -29,9 +29,11 @@
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/webui/webui_embedding_context.h"
+ #include "chrome/common/pref_names.h"
++#include "components/feature_engagement/public/event_constants.h"
+ #include "components/feature_engagement/public/feature_constants.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/tabs/public/tab_interface.h"
++#include "content/public/browser/global_dom_node_id.h"
+ #include "content/public/browser/render_frame_host.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/common/url_utils.h"
+@@ -215,7 +217,7 @@
+ DictationKeyedService::~DictationKeyedService() = default;
+ 
+ void DictationKeyedService::Shutdown() {
+-  EndSession();
++  EndActiveSession();
+   // Ensure accelerators are unregistered safely before UI objects are
+   // destroyed.
+   hotkey_manager_.reset();
+@@ -264,6 +266,12 @@
+   return session_ ? session_->tab_.get() : nullptr;
+ }
+ 
++base::CallbackListSubscription DictationKeyedService::AddSessionEndedCallback(
++    base::RepeatingCallback<void(const content::GlobalDOMNodeId& target)>
++        callback) {
++  return session_ended_callbacks_.Add(std::move(callback));
++}
++
+ void DictationKeyedService::StartSession(tabs::TabInterface& tab,
+                                          const TargetDetails& target_details,
+                                          DictationSessionEntryPoint entry_point,
+@@ -283,14 +291,7 @@
+     RecordDictationSessionUrlCategory(*url_category);
+   }
+ 
+-  // The user has found dictation, so the dictation IPH shouldn't show again.
+-  if (auto* const user_education =
+-          BrowserUserEducationInterface::MaybeGetForWebContentsInTab(
+-              tab.GetContents())) {
+-    user_education->NotifyFeaturePromoFeatureUsed(
+-        feature_engagement::kIPHDictationFeature,
+-        FeaturePromoFeatureUsedAction::kClosePromoIfPresent);
+-  }
++  UpdateUserEducationForStartSession(tab, entry_point);
+ 
+   session_.emplace(*this, tab);
+   // Unretained is safe: `this` owns `session_`, which owns the subscription.
+@@ -325,13 +326,43 @@
+ }
+ 
+ void DictationKeyedService::EndSession() {
+-  // `session_state_subscription_` is destroyed with the session, so report the
+-  // session as inactive explicitly.
+-  OnSessionStateChanged(dictation::SessionState::kInactive);
++  CHECK(session_);
++  CHECK_EQ(session_->controller_.GetState(), dictation::SessionState::kEnded);
+   session_.reset();
+   dictation_tab_changed_callbacks_.Notify(nullptr);
+ }
+ 
++void DictationKeyedService::EndActiveSession() {
++  if (session_) {
++    session_->controller_.EndSessionSynchronously();
++    // WARNING: The session is destroyed, so `session_` is now empty.
++  }
++}
++
++void DictationKeyedService::UpdateUserEducationForStartSession(
++    tabs::TabInterface& tab,
++    DictationSessionEntryPoint entry_point) {
++  auto* const user_education =
++      BrowserUserEducationInterface::MaybeGetForWebContentsInTab(
++          tab.GetContents());
++  if (!user_education) {
++    return;
++  }
++  // The user has found dictation, so the dictation IPH shouldn't show again.
++  user_education->NotifyFeaturePromoFeatureUsed(
++      feature_engagement::kIPHDictationFeature,
++      FeaturePromoFeatureUsedAction::kClosePromoIfPresent);
++  // Starting dictation with the hotkey means the user knows about it.
++  if (entry_point == DictationSessionEntryPoint::kHotkeyToggle) {
++    user_education->NotifyFeaturePromoFeatureUsed(
++        feature_engagement::kIPHDictationHotkeyFeature,
++        FeaturePromoFeatureUsedAction::kClosePromoIfPresent);
++  }
++  // Counts towards showing the hotkey IPH.
++  user_education->NotifyAdditionalConditionEvent(
++      feature_engagement::events::kDictationInvoked);
++}
++
+ bool DictationKeyedService::ShouldShowContextMenuItem() const {
+   return IsEnabledAndReady();
+ }
+@@ -444,7 +475,7 @@
+ 
+ void DictationKeyedService::OnPrefChanged() {
+   if (!IsEnabledAndReady()) {
+-    EndSession();
++    EndActiveSession();
+   }
+   UpdateHotkeyManager();
+ }
+@@ -469,9 +500,18 @@
+ 
+ void DictationKeyedService::OnSessionStateChanged(
+     dictation::SessionState state) {
++  CHECK(session_);
+   if (hotkey_manager_) {
+     hotkey_manager_->OnSessionStateChanged(state);
+   }
++  if (state == dictation::SessionState::kEnded) {
++    // The session is still alive, so its target is available.
++    const std::optional<TargetDetails>& target_details =
++        session_->controller_.last_used_target_details();
++    if (target_details) {
++      session_ended_callbacks_.Notify(target_details->target_id);
++    }
++  }
+ }
+ 
+ void DictationKeyedService::UpdateAudioLevel(float audio_level) {
+diff --git a/chrome/browser/dictation/dictation_keyed_service.h b/chrome/browser/dictation/dictation_keyed_service.h
+index b609d1e9..72f8c281 100644
+--- a/chrome/browser/dictation/dictation_keyed_service.h
++++ b/chrome/browser/dictation/dictation_keyed_service.h
+@@ -6,6 +6,7 @@
+ #define CHROME_BROWSER_DICTATION_DICTATION_KEYED_SERVICE_H_
+ 
+ #include <memory>
++#include <optional>
+ 
+ #include "base/callback_list.h"
+ #include "base/memory/raw_ptr.h"
+@@ -28,6 +29,7 @@
+ 
+ namespace content {
+ class BrowserContext;
++struct GlobalDOMNodeId;
+ }
+ 
+ namespace tabs {
+@@ -60,6 +62,8 @@
+       SessionController& controller) const override;
+   std::unique_ptr<SessionUi> CreateUi(
+       SessionController& controller) const override;
++  // Destroys the session. Only called by
++  // `SessionController::EndSessionSynchronously()`, once it is `kEnded`.
+   void EndSession() override;
+ 
+   // Returns true if the reviewing page status UI should be shown, and consumes
+@@ -130,6 +134,13 @@
+   // Returns the tab currently displaying the Dictation session UI
+   tabs::TabInterface* GetActiveDictationTab() const;
+ 
++  // Registers a callback invoked whenever a session ends, right before it and
++  // its UI are destroyed. `target` is the field the session's latest stream was
++  // started on; its page may be gone.
++  base::CallbackListSubscription AddSessionEndedCallback(
++      base::RepeatingCallback<void(const content::GlobalDOMNodeId& target)>
++          callback);
++
+  private:
+   // Starts a new session from the given target. It's the caller's
+   // responsibility to ensure this never called while an existing session in
+@@ -142,9 +153,21 @@
+   void OnPrefChanged();
+   void UpdateHotkeyManager();
+ 
+-  // Forwards session state changes to `hotkey_manager_`.
++  // Ends the session, if any, through its controller, so that it enters
++  // `kEnded` like any other session end.
++  void EndActiveSession();
++
++  // Forwards session state changes to `hotkey_manager_`, and notifies
++  // `session_ended_callbacks_` when the session ends.
+   void OnSessionStateChanged(dictation::SessionState state);
+ 
++  // Tells User Education in `tab` that a session started from `entry_point`:
++  // closes the IPH the user no longer needs, and records the invocation that
++  // counts towards showing the hotkey IPH.
++  void UpdateUserEducationForStartSession(
++      tabs::TabInterface& tab,
++      DictationSessionEntryPoint entry_point);
++
+   // Handles triggering a session, either starting a new one
+   // or updating an existing session to start a new stream, possibly in a new
+   // tab.
+@@ -174,14 +197,17 @@
+     SessionController controller_;
+     base::WeakPtr<tabs::TabInterface> tab_;
+     // Subscription to `controller_`'s SessionState changes, used to register
+-    // the global hotkey only while listening. Declared after `controller_` so
+-    // that it is destroyed first.
++    // the global hotkey only while listening and to report the session ending.
++    // Declared after `controller_` so that it is destroyed first.
+     base::CallbackListSubscription session_state_subscription_;
+   };
+   std::optional<SessionState> session_;
+ 
+   base::RepeatingCallbackList<void(tabs::TabInterface*)>
+       dictation_tab_changed_callbacks_;
++
++  base::RepeatingCallbackList<void(const content::GlobalDOMNodeId&)>
++      session_ended_callbacks_;
+ };
+ 
+ }  // namespace dictation
+diff --git a/chrome/browser/dictation/session_controller.cc b/chrome/browser/dictation/session_controller.cc
+index cc4a3100..43ca25d 100644
+--- a/chrome/browser/dictation/session_controller.cc
++++ b/chrome/browser/dictation/session_controller.cc
+@@ -413,10 +413,10 @@
+ #if DCHECK_IS_ON()
+   static const base::NoDestructor<base::StateTransitions<SessionState>>
+       allowed_transitions(base::StateTransitions<SessionState>(
+-          {{kInactive, {kStreamInitializing}},
++          {{kInactive, {kStreamInitializing, kEnded}},
+            {kStreamInitializing, {kInactive, kTranscribing, kFinalizing}},
+            {kTranscribing, {kInactive, kFinalizing}},
+-           {kFinalizing, {kInactive, kStreamInitializing}}}));
++           {kFinalizing, {kInactive, kStreamInitializing, kEnded}}}));
+   DCHECK_STATE_TRANSITION(allowed_transitions, /*old_state=*/state_,
+                           /*new_state=*/new_state);
+ #endif  // DCHECK_IS_ON()
+@@ -469,6 +469,11 @@
+ 
+ void SessionController::EndSessionSynchronously() {
+   auto_session_end_timer_.Stop();
++  // Stop the stream now, as `kEnded` can't be left once entered.
++  if (attached_stream_provider_) {
++    EndDictationStream(DictationStreamEndTrigger::kDestructor);
++  }
++  MoveToState(SessionState::kEnded);
+   delegate_->EndSession();
+   // WARNING: `this` is deleted, do not add code below here.
+ }
+diff --git a/chrome/browser/dictation/session_controller.h b/chrome/browser/dictation/session_controller.h
+index 26f0593..a3e1cd5 100644
+--- a/chrome/browser/dictation/session_controller.h
++++ b/chrome/browser/dictation/session_controller.h
+@@ -84,10 +84,19 @@
+   // Updates the audio level in the UI.
+   void UpdateAudioLevel(float audio_level);
+ 
++  // Stops any stream, moves to `SessionState::kEnded`, then asks the delegate
++  // to destroy the session, and so `this`. Every session ends through here.
++  void EndSessionSynchronously();
++
+   StreamProvider* attached_stream_provider() const {
+     return attached_stream_provider_.get();
+   }
+ 
++  // The target the latest stream was started on, if any.
++  const std::optional<TargetDetails>& last_used_target_details() const {
++    return last_used_target_details_;
++  }
++
+   SessionUi* ui_for_testing() { return ui_.get(); }
+ 
+   bool is_auto_session_end_timer_running_for_testing() const {
+@@ -97,7 +106,6 @@
+  private:
+   void MoveToState(SessionState new_state);
+   void EndSessionAsynchronously();
+-  void EndSessionSynchronously();
+   void PurgeToDeleteStreamProviders();
+   content::BrowserContext* GetBrowserContext() const;
+ 
+diff --git a/chrome/browser/dictation/session_state.cc b/chrome/browser/dictation/session_state.cc
+index 4e5e4d62..ef6c3a27 100644
+--- a/chrome/browser/dictation/session_state.cc
++++ b/chrome/browser/dictation/session_state.cc
+@@ -18,6 +18,8 @@
+       return "kTranscribing";
+     case SessionState::kFinalizing:
+       return "kFinalizing";
++    case SessionState::kEnded:
++      return "kEnded";
+   }
+ }
+ 
+diff --git a/chrome/browser/dictation/session_state.h b/chrome/browser/dictation/session_state.h
+index 1a1d28a7..c217ecb 100644
+--- a/chrome/browser/dictation/session_state.h
++++ b/chrome/browser/dictation/session_state.h
+@@ -24,6 +24,10 @@
+   // A stream provider is attached and has finished transcribing but is still
+   // finalizing the transcription and more data may be provided.
+   kFinalizing,
++
++  // The session has ended and is about to be destroyed, along with any stream
++  // provider. No other state can follow.
++  kEnded,
+ };
+ 
+ const char* ToString(SessionState state);
+diff --git a/chrome/browser/dictation/session_ui_impl.cc b/chrome/browser/dictation/session_ui_impl.cc
+index 3c10352a..432957a 100644
+--- a/chrome/browser/dictation/session_ui_impl.cc
++++ b/chrome/browser/dictation/session_ui_impl.cc
+@@ -45,6 +45,9 @@
+       return UiState::kTranscribing;
+     case SessionState::kFinalizing:
+       return UiState::kFinalizing;
++    case SessionState::kEnded:
++      // The UI is destroyed with the session instead.
++      NOTREACHED();
+   }
+ }
+ 
+@@ -180,6 +183,10 @@
+ }
+ 
+ void SessionUiImpl::OnSessionStateChanged(SessionState state) {
++  if (state == SessionState::kEnded) {
++    // The UI is about to be destroyed with the session.
++    return;
++  }
+   UiState ui_state = ToUiState(state);
+   bubble_ui_->SetState(ui_state);
+   if (overlay_view_) {
+@@ -210,6 +217,9 @@
+     case SessionState::kFinalizing:
+       // The toggle button should be disabled while finalizing.
+       NOTREACHED();
++    case SessionState::kEnded:
++      // The UI is destroyed with the session.
++      NOTREACHED();
+   }
+ }
+ 
+diff --git a/chrome/browser/dictation/test_util.cc b/chrome/browser/dictation/test_util.cc
+index db4748d..ae559bac 100644
+--- a/chrome/browser/dictation/test_util.cc
++++ b/chrome/browser/dictation/test_util.cc
+@@ -15,6 +15,7 @@
+ #include "chrome/browser/dictation/features.h"
+ #include "chrome/browser/dictation/hotkey_manager.h"
+ #include "chrome/browser/dictation/listener_stream_provider.h"
++#include "chrome/browser/dictation/session_controller.h"
+ #include "chrome/browser/extensions/chrome_test_extension_loader.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/common/chrome_paths.h"
+@@ -414,7 +415,9 @@
+ ScopedFakeGlobalAcceleratorListener::~ScopedFakeGlobalAcceleratorListener() {
+   // End the session first so that nothing remains registered with
+   // `listener_` once the default listener is restored.
+-  service_->EndSession();
++  if (SessionController* const controller = service_->session_controller()) {
++    controller->EndSessionSynchronously();
++  }
+ }
+ 
+ }  // namespace dictation
 diff --git a/chrome/browser/extensions/api/developer_private/developer_private_functions.cc b/chrome/browser/extensions/api/developer_private/developer_private_functions.cc
 index 2589f42..e66e2aa 100644
 --- a/chrome/browser/extensions/api/developer_private/developer_private_functions.cc
@@ -189,6 +681,45 @@ index f4a61ed..18ede1f 100644
  #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
  void DoSafeBrowsingCheckOnUIThread(
      base::WeakPtr<ChromeFileSystemAccessPermissionContext> permission_context,
+diff --git a/chrome/browser/flag-metadata.json b/chrome/browser/flag-metadata.json
+index cd8b2da..47ce470 100644
+--- a/chrome/browser/flag-metadata.json
++++ b/chrome/browser/flag-metadata.json
+@@ -7016,7 +7016,16 @@
+       "philyan@chromium.org",
+       "media-dev@chromium.org"
+     ],
+-    "expiry_milestone": 160
++    "expiry_milestone": 180
++  },
++  {
++    "name": "media-codec-block-model-encrypted",
++    "owners": [
++      "dalecurtis@chromium.org",
++      "philyan@chromium.org",
++      "media-dev@chromium.org"
++    ],
++    "expiry_milestone": 180
+   },
+   {
+     "name": "media-codec-block-model-output",
+diff --git a/chrome/browser/flag_descriptions.h b/chrome/browser/flag_descriptions.h
+index 7b9ff1c..839a488 100644
+--- a/chrome/browser/flag_descriptions.h
++++ b/chrome/browser/flag_descriptions.h
+@@ -6361,6 +6361,12 @@
+ inline constexpr char kMediaCodecBlockModelDescription[] =
+     "Enables Block Model for MediaCodec on Android.";
+ 
++inline constexpr char kMediaCodecBlockModelEncryptedName[] =
++    "MediaCodec Block Model Encrypted";
++inline constexpr char kMediaCodecBlockModelEncryptedDescription[] =
++    "Enables Block Model for MediaCodec on Android for encrypted playback. "
++    "Has no effect unless MediaCodec Block Model is enabled.";
++
+ inline constexpr char kMediaCodecBlockModelOutputName[] =
+     "MediaCodec Block Model Output";
+ inline constexpr char kMediaCodecBlockModelOutputDescription[] =
 diff --git a/chrome/browser/resources/extensions/site_permissions/site_permissions_edit_permissions_dialog.ts b/chrome/browser/resources/extensions/site_permissions/site_permissions_edit_permissions_dialog.ts
 index 1836d2cbd..5ba4426 100644
 --- a/chrome/browser/resources/extensions/site_permissions/site_permissions_edit_permissions_dialog.ts
@@ -215,6 +746,90 @@ index 1836d2cbd..5ba4426 100644
        extensionSiteAccessData.push(
            {id, name, iconUrl, siteAccess, addedByPolicy, canRequestAllSites});
  
+diff --git a/chrome/browser/resources/omnibox_everywhere/app.ts b/chrome/browser/resources/omnibox_everywhere/app.ts
+index 22380c1e..34bb0a31 100644
+--- a/chrome/browser/resources/omnibox_everywhere/app.ts
++++ b/chrome/browser/resources/omnibox_everywhere/app.ts
+@@ -196,6 +196,7 @@
+   private omniboxEverywhereListenerIds_: number[] = [];
+   private wasJustActivated_ = false;
+   private activationTimeoutId_: number|null = null;
++  private impressionRecordedForSession_ = false;
+ 
+   constructor() {
+     super();
+@@ -234,6 +235,11 @@
+     }
+   }
+ 
++  override updated(changedProperties: PropertyValues<this>) {
++    super.updated(changedProperties);
++    this.maybeRecordFreImpression_();
++  }
++
+   private setupListeners_() {
+     const onOpenComposebox = (initialState: ComposeboxInitialState|null) => {
+       const state: Partial<ComposeboxState> = {};
+@@ -286,6 +292,9 @@
+ 
+     this.searchboxListenerIds_.push(
+         this.callbackRouter_.setFreState.addListener((state: FreState) => {
++          if (this.freStage_ !== state.stage) {
++            this.impressionRecordedForSession_ = false;
++          }
+           this.freStage_ = state.stage;
+           this.hotkeyTokens_ = state.currentHotkeyTokens;
+           const freElement =
+@@ -432,6 +441,27 @@
+         !this.isComposeboxMode_;
+   }
+ 
++  private maybeRecordFreImpression_() {
++    if (this.impressionRecordedForSession_ || !this.isActive_ ||
++        document.visibilityState !== 'visible') {
++      return;
++    }
++    let selector: string|null = null;
++    if (this.isFreIntroModal_()) {
++      selector = 'fre-modal';
++    } else if (this.isFreShortcutSetupChin_()) {
++      selector = '#freShortcutSetupChin';
++    } else if (this.isFreShortcutReminderChin_()) {
++      selector = '#freShortcutReminderChin';
++    }
++    if (!selector || !this.shadowRoot?.querySelector(selector)) {
++      return;
++    }
++    this.impressionRecordedForSession_ = true;
++    SearchboxBrowserProxy.getInstance().handler.recordFreImpression(
++        this.freStage_);
++  }
++
+   protected isMostVisitedHidden_(): boolean {
+     return !this.hasMostVisitedTiles_ || this.isFreIntroModal_() ||
+         this.isFreChin_();
+@@ -623,6 +653,7 @@
+   private onWindowFocus_() {
+     this.isActive_ = true;
+     this.focusActiveInput_();
++    this.maybeRecordFreImpression_();
+     this.wasJustActivated_ = true;
+     if (this.activationTimeoutId_ !== null) {
+       clearTimeout(this.activationTimeoutId_);
+@@ -665,11 +696,13 @@
+ 
+   private async onVisibilitychange_() {
+     if (document.visibilityState !== 'visible') {
++      this.impressionRecordedForSession_ = false;
+       return;
+     }
+ 
+     await this.updateComplete;
+     this.focusActiveInput_();
++    this.maybeRecordFreImpression_();
+   }
+ 
+   // TODO(b/540973063): Extract common voice search lifecycle handling into
 diff --git a/chrome/browser/ui/extensions/extension_action_view_model.cc b/chrome/browser/ui/extensions/extension_action_view_model.cc
 index 79f1b26..9a97f7e 100644
 --- a/chrome/browser/ui/extensions/extension_action_view_model.cc
@@ -230,6 +845,1288 @@ index 79f1b26..9a97f7e 100644
    CHECK(extension_action_->HasPopup(tab_id), base::NotFatalUntil::M162);
  
    const GURL popup_url = extension_action_->GetPopupUrl(tab_id);
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_fre_controller.cc b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_fre_controller.cc
+index 448226b..7b5609b 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_fre_controller.cc
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_fre_controller.cc
+@@ -36,9 +36,9 @@
+       local_state_(ResolveLocalState(local_state)) {
+   if (profile_prefs_) {
+     profile_pref_change_registrar_.Init(profile_prefs_);
+-    auto callback =
+-        base::BindRepeating(&OmniboxEverywhereFreController::NotifyStateChanged,
+-                            base::Unretained(this));
++    auto callback = base::BindRepeating(
++        &OmniboxEverywhereFreController::OnProfilePrefChanged,
++        base::Unretained(this));
+     profile_pref_change_registrar_.Add(prefs::kFreIntroDismissed, callback);
+     profile_pref_change_registrar_.Add(prefs::kFreShortcutSetupDismissed,
+                                        callback);
+@@ -55,9 +55,9 @@
+ 
+   if (local_state_) {
+     local_state_pref_change_registrar_.Init(local_state_);
+-    auto callback =
+-        base::BindRepeating(&OmniboxEverywhereFreController::NotifyStateChanged,
+-                            base::Unretained(this));
++    auto callback = base::BindRepeating(
++        &OmniboxEverywhereFreController::OnLocalStatePrefChanged,
++        base::Unretained(this));
+     local_state_pref_change_registrar_.Add(prefs::kOmniboxEverywhereHotkey,
+                                            callback);
+     local_state_pref_change_registrar_.Add(prefs::kHotkeyEnabled, callback);
+@@ -71,7 +71,13 @@
+       !base::FeatureList::IsEnabled(omnibox::kOmniboxEverywhereFre)) {
+     return FreStage::kNone;
+   }
++  if (latched_stage_.has_value()) {
++    return latched_stage_.value();
++  }
++  return ComputeCurrentStage();
++}
+ 
++FreStage OmniboxEverywhereFreController::ComputeCurrentStage() const {
+   if (profile_prefs_->GetBoolean(prefs::kFreDismissed)) {
+     return FreStage::kNone;
+   }
+@@ -114,18 +120,34 @@
+       !base::FeatureList::IsEnabled(omnibox::kOmniboxEverywhereFre)) {
+     return true;
+   }
++  if (latched_stage_.has_value()) {
++    return false;
++  }
+   return profile_prefs_->GetBoolean(prefs::kFreDismissed);
+ }
+ 
+-void OmniboxEverywhereFreController::IncrementImpression() {
++void OmniboxEverywhereFreController::IncrementImpression(FreStage stage) {
+   if (!profile_prefs_ ||
+       !base::FeatureList::IsEnabled(omnibox::kOmniboxEverywhereFre)) {
+     return;
+   }
++  if (latched_stage_.has_value()) {
++    return;
++  }
+ 
+-  FreStage current_stage = GetCurrentStage();
++  FreStage current_stage = ComputeCurrentStage();
++  if (current_stage == FreStage::kNone || current_stage != stage) {
++    return;
++  }
++
++  latched_stage_ = current_stage;
++  if (impression_recorded_for_session_) {
++    return;
++  }
++
+   switch (current_stage) {
+     case FreStage::kIntroModal: {
++      impression_recorded_for_session_ = true;
+       const int next_count =
+           profile_prefs_->GetInteger(prefs::kFreIntroImpressionCount) + 1;
+       if (next_count >=
+@@ -139,17 +161,15 @@
+     case FreStage::kShortcutSetupChin: {
+       // If a hotkey isn't set, impressions are not capped so the setup chin
+       // remains visible until the user selects a shortcut or explicitly
+-      // dismisses it.
++      // dismisses it. If a hotkey is selected later during this same session,
++      // `OnLocalStatePrefChanged()` will record the impression then.
+       if (prefs::HasOmniboxEverywhereHotkey(local_state_)) {
+-        profile_prefs_->SetInteger(
+-            prefs::kFreShortcutSetupImpressionCount,
+-            profile_prefs_->GetInteger(
+-                prefs::kFreShortcutSetupImpressionCount) +
+-                1);
++        RecordShortcutSetupImpression();
+       }
+-      break;
++      return;
+     }
+     case FreStage::kShortcutReminderChin:
++      impression_recorded_for_session_ = true;
+       profile_prefs_->SetInteger(
+           prefs::kFreShortcutReminderImpressionCount,
+           profile_prefs_->GetInteger(
+@@ -161,17 +181,38 @@
+   }
+ 
+   // If impressions have exhausted all stages, mark the overall FRE as dismissed
+-  // so downstream features (such as IPH) are unblocked.
+-  if (GetCurrentStage() == FreStage::kNone) {
++  // so downstream features (such as IPH) are unblocked on the next open.
++  if (ComputeCurrentStage() == FreStage::kNone) {
+     profile_prefs_->SetBoolean(prefs::kFreDismissed, true);
+   }
+ }
+ 
++void OmniboxEverywhereFreController::RecordShortcutSetupImpression() {
++  impression_recorded_for_session_ = true;
++  profile_prefs_->SetInteger(
++      prefs::kFreShortcutSetupImpressionCount,
++      profile_prefs_->GetInteger(prefs::kFreShortcutSetupImpressionCount) + 1);
++  if (ComputeCurrentStage() == FreStage::kNone) {
++    profile_prefs_->SetBoolean(prefs::kFreDismissed, true);
++  }
++}
++
++void OmniboxEverywhereFreController::EndSession() {
++  const bool was_latched = latched_stage_.has_value();
++  latched_stage_.reset();
++  impression_recorded_for_session_ = false;
++  if (was_latched) {
++    NotifyStateChanged();
++  }
++}
++
+ void OmniboxEverywhereFreController::OnStageDismissed(FreStage stage) {
+   if (!profile_prefs_ ||
+       !base::FeatureList::IsEnabled(omnibox::kOmniboxEverywhereFre)) {
+     return;
+   }
++  latched_stage_.reset();
++  impression_recorded_for_session_ = false;
+   switch (stage) {
+     case FreStage::kIntroModal:
+       if (prefs::HasOmniboxEverywhereHotkey(local_state_)) {
+@@ -199,6 +240,8 @@
+       !base::FeatureList::IsEnabled(omnibox::kOmniboxEverywhereFre)) {
+     return;
+   }
++  latched_stage_.reset();
++  impression_recorded_for_session_ = false;
+   switch (stage) {
+     case FreStage::kIntroModal:
+       profile_prefs_->SetBoolean(prefs::kFreIntroDismissed, true);
+@@ -221,6 +264,30 @@
+   return state_changed_callbacks_.Add(std::move(callback));
+ }
+ 
++void OmniboxEverywhereFreController::OnProfilePrefChanged() {
++  if (!latched_stage_.has_value()) {
++    NotifyStateChanged();
++  }
++}
++
++void OmniboxEverywhereFreController::OnLocalStatePrefChanged() {
++  if (profile_prefs_ &&
++      base::FeatureList::IsEnabled(omnibox::kOmniboxEverywhereFre)) {
++    if (prefs::HasOmniboxEverywhereHotkey(local_state_)) {
++      if (latched_stage_ == FreStage::kShortcutSetupChin &&
++          !impression_recorded_for_session_) {
++        RecordShortcutSetupImpression();
++      }
++    } else if (latched_stage_ == FreStage::kShortcutReminderChin) {
++      // If the hotkey is cleared or disabled while the reminder chin is
++      // latched, unlatch so the reminder chin does not remain visible with
++      // empty key tokens.
++      latched_stage_.reset();
++    }
++  }
++  NotifyStateChanged();
++}
++
+ void OmniboxEverywhereFreController::NotifyStateChanged() {
+   state_changed_callbacks_.Notify();
+ }
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_fre_controller.h b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_fre_controller.h
+index e117c763..08d599a4 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_fre_controller.h
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_fre_controller.h
+@@ -5,6 +5,8 @@
+ #ifndef CHROME_BROWSER_UI_OMNIBOX_OMNIBOX_EVERYWHERE_OMNIBOX_EVERYWHERE_FRE_CONTROLLER_H_
+ #define CHROME_BROWSER_UI_OMNIBOX_OMNIBOX_EVERYWHERE_OMNIBOX_EVERYWHERE_FRE_CONTROLLER_H_
+ 
++#include <optional>
++
+ #include "base/callback_list.h"
+ #include "base/functional/callback_forward.h"
+ #include "base/memory/raw_ptr.h"
+@@ -45,15 +47,25 @@
+       const OmniboxEverywhereFreController&) = delete;
+   ~OmniboxEverywhereFreController();
+ 
+-  // Returns the active FRE stage for the profile.
++  // Returns the active FRE stage for the profile. While an open-window session
++  // has latched a stage via `IncrementImpression()`, returns the latched stage
++  // so the displayed FRE stage does not transition mid-session.
+   FreStage GetCurrentStage() const;
+ 
+   // Returns true if the overall FRE has been dismissed/completed or if the FRE
+   // feature is disabled.
+   bool IsFreDismissed() const;
+ 
+-  // Increments the impression count for the currently active FRE stage.
+-  void IncrementImpression();
++  // Records an impression for `stage` if it matches the currently active FRE
++  // stage (at most once per open-window session) and latches the active stage
++  // until `EndSession()` is called.
++  void IncrementImpression(FreStage stage);
++
++  // Ends the current open-window session (called when the Omnibox Everywhere
++  // window is closed or destroyed; in persistent mode, blur/demote keeps the
++  // session open), clearing the session's impression guard and stage latch so
++  // the next invocation reflects any stage advancement.
++  void EndSession();
+ 
+   // Records that the specified FRE stage was dismissed (or marks overall FRE
+   // completed).
+@@ -71,10 +83,16 @@
+       base::RepeatingClosure callback);
+ 
+  private:
++  FreStage ComputeCurrentStage() const;
++  void RecordShortcutSetupImpression();
++  void OnProfilePrefChanged();
++  void OnLocalStatePrefChanged();
+   void NotifyStateChanged();
+ 
+   raw_ptr<PrefService> profile_prefs_ = nullptr;
+   raw_ptr<PrefService> local_state_ = nullptr;
++  std::optional<FreStage> latched_stage_;
++  bool impression_recorded_for_session_ = false;
+   PrefChangeRegistrar profile_pref_change_registrar_;
+   PrefChangeRegistrar local_state_pref_change_registrar_;
+   base::RepeatingClosureList state_changed_callbacks_;
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc
+index cddedc5..12c4693 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc
+@@ -735,14 +735,10 @@
+                   : nullptr;
+ }
+ 
+-// TODO(crbug.com/558851707): Move impression recording to the FRE WebUI
+-// component lifecycle (e.g. on render/mount) so that impressions are recorded
+-// based on true visual visibility and both ephemeral and persistent window
+-// models are handled consistently.
+-void OmniboxEverywhereUIManager::MaybeRecordFreImpression() {
++void OmniboxEverywhereUIManager::EndFreSession() {
+   if (auto* service = GetOmniboxEverywhereService()) {
+     if (service->fre_controller()) {
+-      service->fre_controller()->IncrementImpression();
++      service->fre_controller()->EndSession();
+     }
+   }
+ }
+@@ -764,7 +760,6 @@
+     return;
+   }
+   base::AutoReset<bool> closing_reset(&is_closing_, true);
+-  MaybeRecordFreImpression();
+   last_shown_time_.reset();
+   CancelPendingDeactivation();
+   if (widget_) {
+@@ -776,6 +771,7 @@
+       // keeping the WebContents alive in case Close() is reached from inside a
+       // call on it (e.g. OpenURLFromTab).
+       DestroyWidget();
++      EndFreSession();
+       ReleaseKeepAlives();
+       return;
+     }
+@@ -809,6 +805,7 @@
+ #endif
+     widget_->Hide();
+   }
++  EndFreSession();
+   ReleaseKeepAlives();
+ }
+ 
+@@ -860,6 +857,7 @@
+   contents_wrapper_.reset();
+   draggable_region_.reset();
+   browser_collection_observation_.Reset();
++  EndFreSession();
+   ReleaseKeepAlives();
+ }
+ 
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h
+index 25ca129..f2e5db4 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h
+@@ -318,7 +318,10 @@
+ #endif
+   void OnMostVisitedPrefChanged();
+   OmniboxEverywhereService* GetOmniboxEverywhereService();
+-  void MaybeRecordFreImpression();
++  // Ends the active FRE session when the popup is closed or destroyed. Note
++  // that `Demote()` (persistent mode deactivation) and window minimization
++  // intentionally preserve the active FRE session across reactivations.
++  void EndFreSession();
+   void MaybeShowLensPromo();
+   void EndLensPromo();
+   static gfx::Rect CalculateWidgetBounds(int height);
+diff --git a/chrome/browser/ui/views/dictation/BUILD.gn b/chrome/browser/ui/views/dictation/BUILD.gn
+index 42233b8..224ba67 100644
+--- a/chrome/browser/ui/views/dictation/BUILD.gn
++++ b/chrome/browser/ui/views/dictation/BUILD.gn
+@@ -92,6 +92,7 @@
+     ":dictation",
+     ":iph",
+     "//chrome/app:branded_strings",
++    "//chrome/browser/media/webrtc",
+     "//chrome/browser/profiles:profile",
+     "//chrome/browser/ui/user_education",
+     "//chrome/browser/ui/views/frame:browser_view_header",
+@@ -143,6 +144,7 @@
+     ":iph",
+     "//base/test:test_support",
+     "//chrome/browser/dictation:features",
++    "//chrome/browser/media/webrtc",
+     "//chrome/browser/profiles:profile",
+     "//chrome/browser/ui:browser_element_identifiers",
+     "//chrome/common:constants",
+@@ -155,6 +157,7 @@
+     "//content/public/browser",
+     "//content/test:test_support",
+     "//net:test_support",
++    "//third_party/blink/public/common",
+     "//ui/base/interaction",
+     "//ui/events:events_base",
+     "//url",
+diff --git a/chrome/browser/ui/views/dictation/dictation_iph_controller.cc b/chrome/browser/ui/views/dictation/dictation_iph_controller.cc
+index f7bec44..bb20c51 100644
+--- a/chrome/browser/ui/views/dictation/dictation_iph_controller.cc
++++ b/chrome/browser/ui/views/dictation/dictation_iph_controller.cc
+@@ -6,6 +6,7 @@
+ 
+ #include "base/functional/bind.h"
+ #include "base/notreached.h"
++#include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
+ #include "chrome/browser/ui/views/dictation/dictation_iph.h"
+@@ -60,6 +61,12 @@
+   NOTREACHED();
+ }
+ 
++bool HasMicrophone() {
++  return !MediaCaptureDevicesDispatcher::GetInstance()
++              ->GetAudioCaptureDevices()
++              .empty();
++}
++
+ }  // namespace
+ 
+ DictationIphController::DictationIphController(tabs::TabInterface& tab)
+@@ -69,6 +76,9 @@
+   tab_will_deactivate_subscription_ = tab.RegisterWillDeactivate(
+       base::BindRepeating(&DictationIphController::OnTabWillDeactivate,
+                           base::Unretained(this)));
++  // Start audio device enumeration early so the cached list is populated by the
++  // time the user focuses a field.
++  MediaCaptureDevicesDispatcher::GetInstance()->GetAudioCaptureDevices();
+ }
+ 
+ DictationIphController::~DictationIphController() = default;
+@@ -183,8 +193,9 @@
+       break;
+   }
+ 
+-  // Users who already use dictation don't need to discover it.
+-  if (!can_start_promo || HasUsedDictation()) {
++  // Users who already use dictation or have no microphone are not shown the
++  // IPH.
++  if (!can_start_promo || HasUsedDictation() || !HasMicrophone()) {
+     return;
+   }
+ 
+diff --git a/chrome/browser/ui/views/dictation/dictation_iph_controller.h b/chrome/browser/ui/views/dictation/dictation_iph_controller.h
+index 2383362..45705b7c 100644
+--- a/chrome/browser/ui/views/dictation/dictation_iph_controller.h
++++ b/chrome/browser/ui/views/dictation/dictation_iph_controller.h
+@@ -39,7 +39,8 @@
+ 
+ // Tab-scoped controller that shows the dictation IPH next to a medium or large
+ // editable field when the user focuses it with the mouse or keyboard. Users who
+-// have already completed dictation onboarding never see it.
++// have already completed dictation onboarding or have no microphone never see
++// it.
+ //
+ // The IPH is anchored to a `views::ViewSubregionAnchor` over the focused field
+ // in the tab's `ContentsWebView`. The IPH is closed as "ignored" when the user
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
+index 531944c0..83e5e78 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
+@@ -147,6 +147,12 @@
+         app_menu_control_observation_.Observe(
+             browser_view->toolbar_button_provider()->GetAppMenuControl());
+       }
++#if BUILDFLAG(IS_CHROMEOS)
++      if (browser_view->top_container() &&
++          !top_container_observation_.IsObserving()) {
++        top_container_observation_.Observe(browser_view->top_container());
++      }
++#endif
+       if (auto* elements =
+               BrowserElementsViews::From(browser_view->browser())) {
+         for (views::View* view :
+@@ -178,6 +184,9 @@
+   }
+   app_menu_control_observation_.Reset();
+   occluding_view_observations_.RemoveAllObservations();
++#if BUILDFLAG(IS_CHROMEOS)
++  top_container_observation_.Reset();
++#endif
+   UpdatePopupOcclusion();
+ 
+   event_monitor_.reset();
+@@ -984,11 +993,26 @@
+ 
+ void OmniboxPopupFullPresenter::OnViewBoundsChanged(
+     views::View* observed_view) {
++#if BUILDFLAG(IS_CHROMEOS)
++  // Keep the popup over the location bar as the immersive fullscreen reveal
++  // slides top chrome in or out.
++  if (top_container_observation_.IsObservingSource(observed_view) &&
++      IsShown()) {
++    SynchronizePopupBounds();
++  }
++#endif
+   UpdatePopupOcclusion();
+ }
+ 
+ void OmniboxPopupFullPresenter::OnViewIsDeleting(views::View* observed_view) {
+-  occluding_view_observations_.RemoveObservation(observed_view);
++#if BUILDFLAG(IS_CHROMEOS)
++  if (top_container_observation_.IsObservingSource(observed_view)) {
++    top_container_observation_.Reset();
++  }
++#endif
++  if (occluding_view_observations_.IsObservingSource(observed_view)) {
++    occluding_view_observations_.RemoveObservation(observed_view);
++  }
+   UpdatePopupOcclusion();
+ }
+ 
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h
+index eb1fdfbd..4fb5025ba 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h
+@@ -12,6 +12,7 @@
+ #include "base/scoped_multi_source_observation.h"
+ #include "base/scoped_observation.h"
+ #include "base/timer/timer.h"
++#include "build/build_config.h"
+ #include "chrome/browser/ui/views/frame/app_menu_button_observer.h"
+ #include "chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h"
+ #include "ui/events/event_observer.h"
+@@ -212,6 +213,12 @@
+   // shown. See `UpdatePopupOcclusion()`.
+   base::ScopedMultiSourceObservation<views::View, views::ViewObserver>
+       occluding_view_observations_{this};
++#if BUILDFLAG(IS_CHROMEOS)
++  // Observed while shown: the immersive reveal moves the top container
++  // without resizing the location bar.
++  base::ScopedObservation<views::View, views::ViewObserver>
++      top_container_observation_{this};
++#endif
+ 
+   // Used to determine where a click event happened to decide if the popup
+   // should be deactivated.
+diff --git a/chrome/browser/ui/views/user_education/browser_user_education_service.cc b/chrome/browser/ui/views/user_education/browser_user_education_service.cc
+index 68f2680..d1e1e983 100644
+--- a/chrome/browser/ui/views/user_education/browser_user_education_service.cc
++++ b/chrome/browser/ui/views/user_education/browser_user_education_service.cc
+@@ -1911,6 +1911,27 @@
+                        "medium or large text field.",
+                        Metadata::FeatureSet{&dictation::kDictation})));
+ 
++  // kIPHDictationHotkeyFeature:
++  registry.RegisterFeature(std::move(
++      FeaturePromoSpecification::CreateForSnoozePromo(
++          feature_engagement::kIPHDictationHotkeyFeature,
++          dictation::kDictationIphAnchorElementId,
++          IDS_DICTATION_HOTKEY_IPH_BODY)
++          .SetBubbleTitleText(IDS_DICTATION_HOTKEY_IPH_TITLE)
++          .SetBubbleIcon(kLightbulbOutlineIcon)
++          .SetBubbleArrowCallback(
++              base::BindRepeating(&dictation::GetDictationIphArrow))
++          .OverrideFocusOnShow(false)
++          .SetAdditionalConditions(std::move(
++              AdditionalConditions().AddAdditionalCondition(AdditionalCondition{
++                  feature_engagement::events::kDictationInvoked,
++                  AdditionalConditions::Constraint::kAtLeast, 2})))
++          .SetMetadata(158, "amyasinghal@google.com",
++                       "Shown when a user who hasn't used the dictation "
++                       "keyboard shortcut ends a dictation session, once they "
++                       "have invoked dictation at least twice.",
++                       Metadata::FeatureSet{&dictation::kDictation})));
++
+   // kIPHDiscardRingFeature:
+   registry.RegisterFeature(std::move(
+       FeaturePromoSpecification::CreateForCustomAction(
+diff --git a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
+index 14f60db..628a0017 100644
+--- a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
++++ b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
+@@ -351,6 +351,9 @@
+ // Returns if the new voice search animation/metrics/stop button are enabled,
+ // regardless of transcription.
+ bool SearchboxHandler::GetVoiceSearchCoherenceAnySearchboxExperimentEnabled() {
++  if (omnibox::kVoiceSearchCoherenceRealboxKeepLegacyUi.Get()) {
++    return false;
++  }
+   return base::FeatureList::IsEnabled(
+              omnibox::kVoiceSearchCoherenceSearchbox) ||
+          omnibox::kVoiceSearchCoherenceSearchboxWithLiveTranscription.Get();
+diff --git a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.h b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.h
+index 9e2bc95..2dd44f7 100644
+--- a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.h
++++ b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.h
+@@ -283,6 +283,7 @@
+   void ResetSmartTabSharing(ResetSmartTabSharingCallback callback) override;
+ #endif
+   void DismissFre(searchbox::mojom::FreStage stage) override {}
++  void RecordFreImpression(searchbox::mojom::FreStage stage) override {}
+   void ShowHotkeyDropdown(const gfx::Rect& anchor_bounds,
+                           ShowHotkeyDropdownCallback callback) override;
+   void OpenHotkeySettings() override {}
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/BUILD.gn b/chrome/browser/ui/webui/omnibox_everywhere/BUILD.gn
+index 280621b..cf461b6 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/BUILD.gn
++++ b/chrome/browser/ui/webui/omnibox_everywhere/BUILD.gn
+@@ -37,6 +37,7 @@
+       "//components/prefs",
+       "//components/search",
+       "//components/search_engines",
++      "//content/public/browser",
+       "//content/test:test_support",
+       "//mojo/public/cpp/bindings",
+       "//net",
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.cc b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.cc
+index 03302dc..6e0da2af 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.cc
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.cc
+@@ -37,6 +37,8 @@
+ #include "components/search/search.h"
+ #include "components/search_engines/template_url.h"
+ #include "components/search_engines/template_url_service.h"
++#include "content/public/browser/visibility.h"
++#include "content/public/browser/web_contents.h"
+ #include "content/public/browser/web_ui.h"
+ #include "ui/base/accelerators/accelerator.h"
+ #include "ui/base/accelerators/command.h"
+@@ -359,6 +361,20 @@
+   }
+ }
+ 
++void OmniboxEverywhereHandler::RecordFreImpression(
++    searchbox::mojom::FreStage stage) {
++  // Ignore impressions unless the WebContents is visibly presented and the
++  // popup is actively shown (not closing, minimized, or demoted).
++  if (!web_contents_ ||
++      web_contents_->GetVisibility() != content::Visibility::VISIBLE ||
++      !service_ || !service_->IsPopupVisibleForProfile() ||
++      !service_->fre_controller()) {
++    return;
++  }
++  service_->fre_controller()->IncrementImpression(
++      MojoFreStageToFreStage(stage));
++}
++
+ void OmniboxEverywhereHandler::SetHotkey(const std::string& hotkey_spec) {
+   PrefService* local_state =
+       g_browser_process ? g_browser_process->local_state() : nullptr;
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.h b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.h
+index 1bba459..d26e0cd 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.h
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.h
+@@ -58,6 +58,7 @@
+                    bool shift_key,
+                    bool is_voice_search) override;
+   void DismissFre(searchbox::mojom::FreStage stage) override;
++  void RecordFreImpression(searchbox::mojom::FreStage stage) override;
+   void ShowHotkeyDropdown(const gfx::Rect& anchor_bounds,
+                           ShowHotkeyDropdownCallback callback) override;
+   void OpenHotkeySettings() override;
+diff --git a/components/feature_engagement/public/event_constants.cc b/components/feature_engagement/public/event_constants.cc
+index a756d11..ef75222 100644
+--- a/components/feature_engagement/public/event_constants.cc
++++ b/components/feature_engagement/public/event_constants.cc
+@@ -48,6 +48,8 @@
+ 
+ const char kGlicOnboardingCompleted[] = "glic_onboarding_completed";
+ 
++const char kDictationInvoked[] = "dictation_invoked";
++
+ #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_LINUX) ||
+         // BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_FUCHSIA)
+ 
+diff --git a/components/feature_engagement/public/event_constants.h b/components/feature_engagement/public/event_constants.h
+index d957ca9..97706ec6 100644
+--- a/components/feature_engagement/public/event_constants.h
++++ b/components/feature_engagement/public/event_constants.h
+@@ -70,6 +70,9 @@
+ // The user has accepted the Glic onboarding.
+ extern const char kGlicOnboardingCompleted[];
+ 
++// The user invoked Dictation on a field, starting a session.
++extern const char kDictationInvoked[];
++
+ #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_LINUX) ||
+         // BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_FUCHSIA)
+ 
+diff --git a/components/feature_engagement/public/feature_constants.cc b/components/feature_engagement/public/feature_constants.cc
+index 935dc3d..360281b 100644
+--- a/components/feature_engagement/public/feature_constants.cc
++++ b/components/feature_engagement/public/feature_constants.cc
+@@ -83,6 +83,9 @@
+ BASE_FEATURE(kIPHDictationFeature,
+              "IPH_Dictation",
+              base::FEATURE_DISABLED_BY_DEFAULT);
++BASE_FEATURE(kIPHDictationHotkeyFeature,
++             "IPH_DictationHotkey",
++             base::FEATURE_DISABLED_BY_DEFAULT);
+ BASE_FEATURE(kIPHDiscardRingFeature,
+              "IPH_DiscardRing",
+              base::FEATURE_ENABLED_BY_DEFAULT);
+diff --git a/components/feature_engagement/public/feature_constants.h b/components/feature_engagement/public/feature_constants.h
+index a2d59f9f..3036e07 100644
+--- a/components/feature_engagement/public/feature_constants.h
++++ b/components/feature_engagement/public/feature_constants.h
+@@ -53,6 +53,7 @@
+ FEATURE_CONSTANTS_DECLARE_FEATURE(kIPHDesktopCustomizeChromeAutoOpenFeature);
+ FEATURE_CONSTANTS_DECLARE_FEATURE(kIPHDesktopRealboxContextualSearchFeature);
+ FEATURE_CONSTANTS_DECLARE_FEATURE(kIPHDictationFeature);
++FEATURE_CONSTANTS_DECLARE_FEATURE(kIPHDictationHotkeyFeature);
+ FEATURE_CONSTANTS_DECLARE_FEATURE(kIPHDiscardRingFeature);
+ FEATURE_CONSTANTS_DECLARE_FEATURE(kIPHDownloadEsbPromoFeature);
+ FEATURE_CONSTANTS_DECLARE_FEATURE(
+diff --git a/components/feature_engagement/public/feature_list.cc b/components/feature_engagement/public/feature_list.cc
+index 10d43d8..81f6887 100644
+--- a/components/feature_engagement/public/feature_list.cc
++++ b/components/feature_engagement/public/feature_list.cc
+@@ -285,6 +285,7 @@
+     &kIPHDesktopRealboxContextualSearchFeature,
+     &kIPHDesktopSharedHighlightingFeature,
+     &kIPHDictationFeature,
++    &kIPHDictationHotkeyFeature,
+     &kIPHDiscardRingFeature,
+     &kIPHDownloadEsbPromoFeature,
+     &kIPHExplicitBrowserSigninPreferenceRememberedFeature,
+diff --git a/components/feature_engagement/public/feature_list.h b/components/feature_engagement/public/feature_list.h
+index 51944b8..05a3bb1 100644
+--- a/components/feature_engagement/public/feature_list.h
++++ b/components/feature_engagement/public/feature_list.h
+@@ -445,6 +445,7 @@
+ DEFINE_VARIATION_PARAM(kIPHDesktopRealboxContextualSearchFeature,
+                        "IPH_DesktopRealboxContextualSearchFeature");
+ DEFINE_VARIATION_PARAM(kIPHDictationFeature, "IPH_Dictation");
++DEFINE_VARIATION_PARAM(kIPHDictationHotkeyFeature, "IPH_DictationHotkey");
+ DEFINE_VARIATION_PARAM(kIPHDiscardRingFeature, "IPH_DiscardRing");
+ DEFINE_VARIATION_PARAM(kIPHDownloadEsbPromoFeature, "IPH_DownloadEsbPromo");
+ DEFINE_VARIATION_PARAM(kIPHExplicitBrowserSigninPreferenceRememberedFeature,
+@@ -917,6 +918,7 @@
+         VARIATION_ENTRY(kIPHDesktopRealboxContextualSearchFeature),
+         VARIATION_ENTRY(kIPHDesktopSharedHighlightingFeature),
+         VARIATION_ENTRY(kIPHDictationFeature),
++        VARIATION_ENTRY(kIPHDictationHotkeyFeature),
+         VARIATION_ENTRY(kIPHDiscardRingFeature),
+         VARIATION_ENTRY(kIPHExplicitBrowserSigninPreferenceRememberedFeature),
+         VARIATION_ENTRY(kIPHGlassFrameOptInFeature),
+diff --git a/components/history_strings.grdp b/components/history_strings.grdp
+index 366156e..d8c2252 100644
+--- a/components/history_strings.grdp
++++ b/components/history_strings.grdp
+@@ -56,11 +56,11 @@
+   <message name="IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_ONLY" desc="The notification at the bottom of the history page indicating that deleting Chrome browsing history will not delete other forms of history stored at Google My Activity.">
+     Your Google Account may have other forms of browsing history at <ph name="BEGIN_LINK_GMA">&lt;a target="_blank" id="footerGoogleMyActivityLink" href="$1"&gt;</ph>myactivity.google.com<ph name="END_LINK_GMA">&lt;/a&gt;</ph>
+   </message>
+-  <message name="IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GAA_ONLY" desc="The notification at the bottom of the history page indicating that deleting Chrome browsing history will not delete other forms of history stored at Gemini Apps Activity.">
+-    Your Google Account may have your <ph name="BEGIN_LINK_GAA">&lt;a target="_blank" id="footerGeminiAppsActivityLink" href="$1"&gt;</ph>Gemini Apps Activity<ph name="END_LINK_GAA">&lt;/a&gt;</ph>
++  <message name="IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GAA_ONLY" desc="The notification at the bottom of the history page indicating that deleting Chrome browsing history will not delete other forms of history stored in Gemini History. 'Gemini History' is the name of a Gemini setting, formerly called 'Gemini Apps Activity'.">
++    Your Google Account may have your <ph name="BEGIN_LINK_GAA">&lt;a target="_blank" id="footerGeminiAppsActivityLink" href="$1"&gt;</ph>Gemini History<ph name="END_LINK_GAA">&lt;/a&gt;</ph>
+   </message>
+-  <message name="IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA" desc="The notification at the bottom of the history page indicating that deleting Chrome browsing history will not delete other forms of history stored at Google My Activity and Gemini Apps Activity.">
+-    Your Google Account may have other forms of browsing history at <ph name="BEGIN_LINK_GMA">&lt;a target="_blank" id="footerGoogleMyActivityLink" href="$1"&gt;</ph>myactivity.google.com<ph name="END_LINK_GMA">&lt;/a&gt;</ph>, such as your <ph name="BEGIN_LINK_GAA">&lt;a target="_blank" id="footerGeminiAppsActivityLink" href="$2"&gt;</ph>Gemini Apps Activity<ph name="END_LINK_GAA">&lt;/a&gt;</ph>
++  <message name="IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA" desc="The notification at the bottom of the history page indicating that deleting Chrome browsing history will not delete other forms of history stored at Google My Activity and in Gemini History. 'Gemini History' is the name of a Gemini setting, formerly called 'Gemini Apps Activity'.">
++    Your Google Account may have other forms of browsing history at <ph name="BEGIN_LINK_GMA">&lt;a target="_blank" id="footerGoogleMyActivityLink" href="$1"&gt;</ph>myactivity.google.com<ph name="END_LINK_GMA">&lt;/a&gt;</ph>, such as your <ph name="BEGIN_LINK_GAA">&lt;a target="_blank" id="footerGeminiAppsActivityLink" href="$2"&gt;</ph>Gemini History<ph name="END_LINK_GAA">&lt;/a&gt;</ph>
+   </message>
+   <message name="IDS_HISTORY_LOADING" desc="Text shown when we're loading the user's history">
+     Loading...
+@@ -348,8 +348,8 @@
+   <message name="IDS_HISTORY_GO_TO_GEMINI_CHAT_ERROR" desc="Toast notification shown when opening Gemini chat fails.">
+     Couldn't open Gemini chat
+   </message>
+-  <message name="IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA_CRITICAL_ACTIONS" desc="The notification at the bottom of the history page indicating that deleting Chrome browsing history will not delete other forms of history stored at Google My Activity and Gemini Apps Activity, shown when critical actions are enabled.">
+-    Your Google Account may have other forms of browsing history at <ph name="BEGIN_LINK_GMA">&lt;a target="_blank" id="footerGoogleMyActivityLink" href="$1"&gt;</ph>myactivity.google.com<ph name="END_LINK_GMA">&lt;/a&gt;</ph>, such as auto browse visits in your <ph name="BEGIN_LINK_GAA">&lt;a target="_blank" id="footerGeminiAppsActivityLink" href="$2"&gt;</ph>Gemini Apps Activity<ph name="END_LINK_GAA">&lt;/a&gt;</ph>
++  <message name="IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA_CRITICAL_ACTIONS" desc="The notification at the bottom of the history page indicating that deleting Chrome browsing history will not delete other forms of history stored at Google My Activity and in Gemini History, shown when critical actions are enabled. 'Gemini History' is the name of a Gemini setting, formerly called 'Gemini Apps Activity'.">
++    Your Google Account may have other forms of browsing history at <ph name="BEGIN_LINK_GMA">&lt;a target="_blank" id="footerGoogleMyActivityLink" href="$1"&gt;</ph>myactivity.google.com<ph name="END_LINK_GMA">&lt;/a&gt;</ph>, such as auto browse visits in your <ph name="BEGIN_LINK_GAA">&lt;a target="_blank" id="footerGeminiAppsActivityLink" href="$2"&gt;</ph>Gemini History<ph name="END_LINK_GAA">&lt;/a&gt;</ph>
+   </message>
+   <message name="IDS_HISTORY_GEMINI_KEY_BROWSING_ACTIONS_TITLE" desc="Tooltip text for the expand button on history items for Gemini actor visits.">
+     Gemini key browsing actions
+diff --git a/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GAA_ONLY.png.sha1 b/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GAA_ONLY.png.sha1
+index cc8ebd2..bb8bd29 100644
+--- a/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GAA_ONLY.png.sha1
++++ b/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GAA_ONLY.png.sha1
+@@ -1 +1 @@
+-223d85e51c8ea9df2a9fd135d662aa15bf87de12
+\ No newline at end of file
++39dd66e124fef6bd2ce9e9096cc89f28b06bdb16
+\ No newline at end of file
+diff --git a/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA.png.sha1 b/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA.png.sha1
+index a30ce68..1be80d3 100644
+--- a/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA.png.sha1
++++ b/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA.png.sha1
+@@ -1 +1 @@
+-727d867f3766a18163cf7b896136baefb7d8cda5
+\ No newline at end of file
++d2086b8fbb715519bc0240149c4ac2a1b0200b7d
+\ No newline at end of file
+diff --git a/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA_CRITICAL_ACTIONS.png.sha1 b/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA_CRITICAL_ACTIONS.png.sha1
+index e4d3b1b..67fd832a 100644
+--- a/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA_CRITICAL_ACTIONS.png.sha1
++++ b/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA_CRITICAL_ACTIONS.png.sha1
+@@ -1 +1 @@
+-7ba9adaceb28b788fcf5ed577e355e52f2bc6410
+\ No newline at end of file
++0573018f5996756f9023f5150996c68ac3c524cc
+\ No newline at end of file
+diff --git a/components/omnibox/browser/searchbox.mojom b/components/omnibox/browser/searchbox.mojom
+index bbe050b..4fe93374 100644
+--- a/components/omnibox/browser/searchbox.mojom
++++ b/components/omnibox/browser/searchbox.mojom
+@@ -687,6 +687,9 @@
+   // Dispatched when an FRE stage is dismissed.
+   DismissFre(FreStage stage);
+ 
++  // Dispatched when an FRE stage is visually rendered to record an impression.
++  RecordFreImpression(FreStage stage);
++
+   // Shows the native Views dropdown menu for selecting a hotkey preset,
+   // anchored to the specified bounds in WebUI viewport coordinates.
+   ShowHotkeyDropdown(gfx.mojom.Rect anchor_bounds) => ();
+diff --git a/components/omnibox/common/omnibox_features.cc b/components/omnibox/common/omnibox_features.cc
+index 8681bda..21f0f8a 100644
+--- a/components/omnibox/common/omnibox_features.cc
++++ b/components/omnibox/common/omnibox_features.cc
+@@ -641,6 +641,13 @@
+     &kVoiceSearchCoherenceSearchbox, "VoiceSearchCoherenceRealboxHelperText",
+     false};
+ 
++// Keeps the legacy NTP Realbox voice search UI, the one users get with
++// kVoiceSearchCoherenceSearchbox disabled. Voice search requests still carry
++// the NTP routing params, so only the speech service's recognizer changes.
++const base::FeatureParam<bool> kVoiceSearchCoherenceRealboxKeepLegacyUi{
++    &kVoiceSearchCoherenceSearchbox, "VoiceSearchCoherenceRealboxKeepLegacyUi",
++    false};
++
+ #if BUILDFLAG(IS_ANDROID)
+ // Prevents intermediate AutocompleteResult updates from being sent to Java on
+ // low-end devices. This aims at eliminating time spent on constructing,
+diff --git a/components/omnibox/common/omnibox_features.h b/components/omnibox/common/omnibox_features.h
+index 2a258091..47ae292 100644
+--- a/components/omnibox/common/omnibox_features.h
++++ b/components/omnibox/common/omnibox_features.h
+@@ -283,6 +283,7 @@
+     kVoiceSearchCoherenceSearchboxWithLiveTranscription;
+ extern const base::FeatureParam<bool> kVoiceSearchCoherenceRealboxAutoEndpoint;
+ extern const base::FeatureParam<bool> kVoiceSearchCoherenceRealboxHelperText;
++extern const base::FeatureParam<bool> kVoiceSearchCoherenceRealboxKeepLegacyUi;
+ 
+ #if BUILDFLAG(IS_ANDROID)
+ BASE_DECLARE_FEATURE(kDiagnostics);
+diff --git a/components/safe_browsing/content/browser/client_side_detection_host.cc b/components/safe_browsing/content/browser/client_side_detection_host.cc
+index c2c9be1f..4eb5bdf4 100644
+--- a/components/safe_browsing/content/browser/client_side_detection_host.cc
++++ b/components/safe_browsing/content/browser/client_side_detection_host.cc
+@@ -888,9 +888,10 @@
+     }
+   }
+ 
+-  // If there is a renderer classification going on and the incoming request
+-  // type is not higher, do not let that cancel pending classification.
+-  if (is_classifying() &&
++  // If there is a renderer classification or uniform-image retry check going on
++  // and the incoming request type is not higher, do not let that cancel pending
++  // classification.
++  if ((is_classifying() || is_uniform_image_retry_timer_running()) &&
+       base::FeatureList::IsEnabled(kClientSideDetectionTierSystem) &&
+       !NewRequestTypeTierHigher(request_type)) {
+     base::UmaHistogramExactLinear(
+@@ -907,6 +908,12 @@
+     return;
+   }
+ 
++  ResetUniformImageRetryState();
++
++  // Prevent any in-flight StartImageEmbedding callback from progressing
++  // due to being interrupted by a higher priority scan.
++  phishing_image_embedder_.reset();
++
+   if (!preclassification_started_cb_for_testing_.is_null()) {
+     preclassification_started_cb_for_testing_.Run(request_type);
+   }
+@@ -1155,6 +1162,7 @@
+   }
+ 
+   set_is_csd_running(true);
++  ResetUniformImageRetryState();
+ 
+   bool intelligent_scan_ongoing = GetIntelligentScanId().has_value();
+   base::UmaHistogramBoolean(
+@@ -1448,6 +1456,7 @@
+     std::optional<bool> did_match_high_confidence_allowlist,
+     bool is_invalid_ip,
+     PhishingDetectorResult result) {
++  set_last_phishing_detector_result(result);
+   visual_utils::CanExtractVisualFeaturesResult
+       can_extract_visual_features_result = DetermineVisualFeaturesExtraction();
+ 
+@@ -1488,11 +1497,14 @@
+           base::BindOnce(&ClientSideDetectionHost::PhishingImageEmbeddingDone,
+                          weak_factory_.GetWeakPtr(), std::move(verdict),
+                          did_match_high_confidence_allowlist, is_invalid_ip));
++    } else {
++      ResetUniformImageRetryState();
+     }
+ 
+     return;
+   }
+ 
++  ResetUniformImageRetryState();
+   MaybeStartIntelligentScanForScamDetection(
+       std::move(verdict), did_match_high_confidence_allowlist, is_invalid_ip);
+ }
+diff --git a/components/safe_browsing/content/browser/client_side_detection_host.h b/components/safe_browsing/content/browser/client_side_detection_host.h
+index fef2404a..d3f2b71 100644
+--- a/components/safe_browsing/content/browser/client_side_detection_host.h
++++ b/components/safe_browsing/content/browser/client_side_detection_host.h
+@@ -235,6 +235,7 @@
+   friend class ClientSideDetectionHostClipboardDataTest;
+   friend class ClientSideDetectionHostGeminiAntiscamProtectionTest;
+   friend class ClientSideDetectionHostPriorityTest;
++  friend class ClientSideDetectionHostKeyboardLockUniformImageDelayTest;
+   friend class ClientSideDetectionHostPrerenderBrowserTest;
+   friend class ClientSideDetectionHostPrerenderBrowserTest_Screenshot;
+   class ShouldClassifyUrlRequest;
+diff --git a/components/safe_browsing/core/browser/BUILD.gn b/components/safe_browsing/core/browser/BUILD.gn
+index 790e7ce..4948ede8 100644
+--- a/components/safe_browsing/core/browser/BUILD.gn
++++ b/components/safe_browsing/core/browser/BUILD.gn
+@@ -61,6 +61,7 @@
+     "//components/safe_browsing/core/browser/realtime:url_lookup_service_base",
+     "//components/safe_browsing/core/browser/utils",
+     "//components/safe_browsing/core/common",
++    "//components/safe_browsing/core/common:visual_utils",
+     "//components/safe_browsing/core/common/hashprefix_realtime:hash_realtime_utils",
+     "//components/safe_browsing/core/common/phishing_classifier",
+     "//components/safe_browsing/core/common/proto:client_model_proto",
+diff --git a/components/safe_browsing/core/browser/client_side_detection_host_base.cc b/components/safe_browsing/core/browser/client_side_detection_host_base.cc
+index 53cfced4..68dee7098 100644
+--- a/components/safe_browsing/core/browser/client_side_detection_host_base.cc
++++ b/components/safe_browsing/core/browser/client_side_detection_host_base.cc
+@@ -37,6 +37,7 @@
+ #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+ #include "components/safe_browsing/core/common/safebrowsing_switches.h"
+ #include "components/safe_browsing/core/common/utils.h"
++#include "components/safe_browsing/core/common/visual_utils.h"
+ #include "components/url_formatter/url_fixer.h"
+ #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
+ #include "url/gurl.h"
+@@ -259,6 +260,13 @@
+ 
+ ClientSideDetectionHostBase::~ClientSideDetectionHostBase() = default;
+ 
++void ClientSideDetectionHostBase::ResetUniformImageRetryState() {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  keyboard_lock_uniform_image_retry_timer_.Stop();
++  is_checking_uniform_image_ = false;
++  keyboard_lock_uniform_image_retry_count_ = 0;
++}
++
+ void ClientSideDetectionHostBase::CancelPendingRequests() {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   task_tracker_.TryCancelAll();
+@@ -270,6 +278,7 @@
+   second_force_request_timer_.Stop();
+   has_triggered_second_force_request_ = false;
+   second_force_request_url_ = GURL();
++  ResetUniformImageRetryState();
+   base_weak_factory_.InvalidateWeakPtrs();
+   if (intelligent_scan_id_.has_value()) {
+     intelligent_scan_delegate_->CancelIntelligentScan(*intelligent_scan_id_);
+@@ -297,6 +306,24 @@
+   MaybeStartPreClassification(ClientSideDetectionType::FORCE_REQUEST);
+ }
+ 
++void ClientSideDetectionHostBase::TriggerKeyboardLockUniformImageRetry(
++    std::unique_ptr<ClientPhishingRequest> verdict,
++    std::optional<bool> did_match_high_confidence_allowlist,
++    bool is_invalid_ip,
++    PhishingDetectorResult result) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (GetCurrentUrl().GetWithoutRef() != current_url().GetWithoutRef()) {
++    set_image_embedding_start_time(tick_clock()->NowTicks());
++    PhishingImageEmbeddingDone(
++        std::move(verdict), did_match_high_confidence_allowlist, is_invalid_ip,
++        ImageEmbeddingResult::kCancelled, std::nullopt, std::nullopt);
++    return;
++  }
++  MaybeStartImageEmbedding(std::move(verdict),
++                           did_match_high_confidence_allowlist, is_invalid_ip,
++                           result);
++}
++
+ void ClientSideDetectionHostBase::LogClientSideDetectionEvent(
+     ClientSideDetectionEvent event,
+     ClientSideDetectionType request_type) {
+@@ -514,6 +541,7 @@
+     return;
+   }
+ 
++  last_phishing_detector_result_ = result;
+   MaybeStartImageEmbedding(std::move(verdict),
+                            did_match_high_confidence_allowlist, is_invalid_ip,
+                            result);
+@@ -1012,6 +1040,20 @@
+           ? "ClientSideDetectionServerModelMultimodal.Enabled"
+           : "ClientSideDetectionServerModelMultimodal.Control");
+ 
++  if (verdict->client_side_detection_type() ==
++      ClientSideDetectionType::KEYBOARD_LOCK_REQUESTED) {
++    if (base::FeatureList::IsEnabled(
++            kClientSideDetectionKeyboardLockUniformPageDelay)) {
++      verdict->mutable_population()->add_finch_active_groups(
++          "ClientSideDetectionKeyboardLockUniformPageDelay.Enabled." +
++          base::NumberToString(
++              kCsdKeyboardLockUniformPageDelayDurationMs.Get()));
++    } else {
++      verdict->mutable_population()->add_finch_active_groups(
++          "ClientSideDetectionKeyboardLockUniformPageDelay.Control");
++    }
++  }
++
+   if (base::FeatureList::IsEnabled(kClientSideDetectionNewObservers)) {
+     verdict->mutable_population()->add_finch_active_groups(
+         "ClientSideDetectionNewObservers.Enabled." +
+@@ -1221,6 +1263,7 @@
+   // early without sending a ping since feature extraction is not possible.
+   if (result == ImageEmbeddingResult::kInvalidURLFormatRequest ||
+       result == ImageEmbeddingResult::kInvalidDocumentLoader) {
++    ResetUniformImageRetryState();
+     set_is_csd_running(false);
+     if (verdict->client_side_detection_type() ==
+         ClientSideDetectionType::USER_REPORT) {
+@@ -1230,6 +1273,52 @@
+   }
+ 
+   if (result == ImageEmbeddingResult::kSuccess) {
++    if (visual_features.has_value()) {
++      *verdict->mutable_visual_features() = std::move(visual_features.value());
++    }
++    if (!verdict->has_visual_features()) {
++      VLOG(0) << "Failed to parse visual features.";
++    }
++    base::UmaHistogramBoolean(
++        "SBClientPhishing.VisualFeaturesExistAfterImageEmbedding",
++        verdict->has_visual_features());
++
++    if (verdict->client_side_detection_type() ==
++            ClientSideDetectionType::KEYBOARD_LOCK_REQUESTED &&
++        base::FeatureList::IsEnabled(
++            kClientSideDetectionKeyboardLockUniformPageDelay)) {
++      const bool is_uniform = visual_utils::IsUniformImage(
++          verdict->visual_features().image(),
++          kCsdKeyboardLockUniformPageMaxColorRange.Get());
++      if (keyboard_lock_uniform_image_retry_count_ == 0) {
++        base::UmaHistogramBoolean(
++            "SBClientPhishing.KeyboardLock.IsInitialImageUniform", is_uniform);
++      }
++
++      if (is_uniform && keyboard_lock_uniform_image_retry_count_ <
++                            kCsdKeyboardLockUniformPageMaxRetries.Get()) {
++        ++keyboard_lock_uniform_image_retry_count_;
++        is_checking_uniform_image_ = true;
++        verdict->clear_image_feature_embedding();
++        keyboard_lock_uniform_image_retry_timer_.Start(
++            FROM_HERE,
++            base::Milliseconds(
++                kCsdKeyboardLockUniformPageDelayDurationMs.Get()),
++            base::BindOnce(
++                &ClientSideDetectionHostBase::TriggerKeyboardLockUniformImageRetry,
++                base_weak_factory_.GetWeakPtr(), std::move(verdict),
++                did_match_high_confidence_allowlist, is_invalid_ip,
++                last_phishing_detector_result_));
++        return;
++      }
++
++      base::UmaHistogramBoolean(
++          "SBClientPhishing.KeyboardLock.IsFinalImageUniform", is_uniform);
++      base::UmaHistogramCounts100(
++          "SBClientPhishing.KeyboardLock.UniformImageRetryCount",
++          keyboard_lock_uniform_image_retry_count_);
++    }
++
+     if (image_feature_embedding.has_value()) {
+       auto csd_service = GetClientSideDetectionService();
+       if (csd_service) {
+@@ -1250,18 +1339,10 @@
+     } else {
+       VLOG(0) << "Failed to parse image feature embedding.";
+     }
+-
+-    if (visual_features.has_value()) {
+-      *verdict->mutable_visual_features() = std::move(visual_features.value());
+-    }
+-    if (!verdict->has_visual_features()) {
+-      VLOG(0) << "Failed to parse visual features.";
+-    }
+-    base::UmaHistogramBoolean(
+-        "SBClientPhishing.VisualFeaturesExistAfterImageEmbedding",
+-        verdict->has_visual_features());
+   }
+ 
++  ResetUniformImageRetryState();
++
+   MaybeStartIntelligentScanForScamDetection(
+       std::move(verdict), did_match_high_confidence_allowlist, is_invalid_ip);
+ }
+diff --git a/components/safe_browsing/core/browser/client_side_detection_host_base.h b/components/safe_browsing/core/browser/client_side_detection_host_base.h
+index 0b87f0e..0e793db 100644
+--- a/components/safe_browsing/core/browser/client_side_detection_host_base.h
++++ b/components/safe_browsing/core/browser/client_side_detection_host_base.h
+@@ -522,6 +522,15 @@
+   bool is_classifying() const { return is_classifying_; }
+   void set_is_classifying(bool value) { is_classifying_ = value; }
+ 
++  bool is_checking_uniform_image() const { return is_checking_uniform_image_; }
++  bool is_uniform_image_retry_timer_running() const {
++    return keyboard_lock_uniform_image_retry_timer_.IsRunning();
++  }
++  void set_last_phishing_detector_result(PhishingDetectorResult result) {
++    last_phishing_detector_result_ = result;
++  }
++  void ResetUniformImageRetryState();
++
+   ClientSideDetectionType last_request_type() const {
+     return last_request_type_;
+   }
+@@ -546,6 +555,12 @@
+ 
+   void TriggerSecondForceRequest();
+ 
++  void TriggerKeyboardLockUniformImageRetry(
++      std::unique_ptr<ClientPhishingRequest> verdict,
++      std::optional<bool> did_match_high_confidence_allowlist,
++      bool is_invalid_ip,
++      PhishingDetectorResult result);
++
+   // MaybeTriggerCreditCardFormPing is a helper that determines whether
+   // a credit card form event should trigger a CSD ping. It takes
+   // an optional field_id to specify whether it is an interaction
+@@ -632,6 +647,11 @@
+   // PreClassificationCheck until just prior to the network request being sent.
+   bool is_csd_running_ = false;
+   bool is_classifying_ = false;
++  bool is_checking_uniform_image_ = false;
++  int keyboard_lock_uniform_image_retry_count_ = 0;
++  PhishingDetectorResult last_phishing_detector_result_ =
++      PhishingDetectorResult::CLASSIFICATION_SUCCESS;
++  base::OneShotTimer keyboard_lock_uniform_image_retry_timer_;
+   ClientSideDetectionType last_request_type_ =
+       ClientSideDetectionType::CLIENT_SIDE_DETECTION_TYPE_UNSPECIFIED;
+ 
+diff --git a/components/safe_browsing/core/browser/client_side_detection_service_base.cc b/components/safe_browsing/core/browser/client_side_detection_service_base.cc
+index 933816a..43c7fb9 100644
+--- a/components/safe_browsing/core/browser/client_side_detection_service_base.cc
++++ b/components/safe_browsing/core/browser/client_side_detection_service_base.cc
+@@ -418,6 +418,13 @@
+ 
+ void ClientSideDetectionServiceBase::ClassifyThroughEmbeddings(
+     ClientPhishingRequest* verdict) {
++  // This is added so that client_side_detection_host_unittest.cc can pass.
++  // Outside of the test, this should never occur because the model should have
++  // been available in order to receive the verdict in the first place.
++  if (!IsModelAvailable()) {
++    return;
++  }
++
+   base::span<const TargetEmbedding> target_image_embeddings =
+       client_side_phishing_model_->GetTargetImageEmbeddings();
+   if (target_image_embeddings.empty() ||
+diff --git a/components/safe_browsing/core/common/features.cc b/components/safe_browsing/core/common/features.cc
+index 9e474de..68e7ef2 100644
+--- a/components/safe_browsing/core/common/features.cc
++++ b/components/safe_browsing/core/common/features.cc
+@@ -165,6 +165,18 @@
+     &kClientSideDetectionImageEmbeddingMatch,
+     "CsdImageEmbeddingMatchWithIntelligentScan", /*default_value=*/true};
+ 
++BASE_FEATURE(kClientSideDetectionKeyboardLockUniformPageDelay,
++             base::FEATURE_DISABLED_BY_DEFAULT);
++constexpr base::FeatureParam<int> kCsdKeyboardLockUniformPageDelayDurationMs{
++    &kClientSideDetectionKeyboardLockUniformPageDelay, "DelayDurationMs",
++    /*default_value=*/500};
++constexpr base::FeatureParam<int> kCsdKeyboardLockUniformPageMaxRetries{
++    &kClientSideDetectionKeyboardLockUniformPageDelay, "MaxRetries",
++    /*default_value=*/3};
++constexpr base::FeatureParam<int> kCsdKeyboardLockUniformPageMaxColorRange{
++    &kClientSideDetectionKeyboardLockUniformPageDelay, "MaxColorRange",
++    /*default_value=*/10};
++
+ BASE_FEATURE(kClientSideDetectionKillswitch, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ BASE_FEATURE(kClientSideDetectionLocalResourceCheckFix,
+@@ -613,6 +625,7 @@
+       &kClientSideDetectionEnabledIos,
+       &kClientSideDetectionForcedLlamaRedirectChainKillswitch,
+       &kClientSideDetectionImageEmbeddingMatch,
++      &kClientSideDetectionKeyboardLockUniformPageDelay,
+       &kClientSideDetectionKillswitch,
+       &kClientSideDetectionLocalResourceCheckFix,
+       &kClientSideDetectionRedirectChainKillswitch,
+diff --git a/components/safe_browsing/core/common/features.h b/components/safe_browsing/core/common/features.h
+index 5ef6638c..2215927 100644
+--- a/components/safe_browsing/core/common/features.h
++++ b/components/safe_browsing/core/common/features.h
+@@ -135,6 +135,13 @@
+ extern const base::FeatureParam<bool>
+     kCsdImageEmbeddingMatchWithIntelligentScan;
+ 
++// Delays and retries KEYBOARD_LOCK_REQUESTED image embedding when the blurred
++// viewport image is uniform (e.g. blank white or black).
++BASE_DECLARE_FEATURE(kClientSideDetectionKeyboardLockUniformPageDelay);
++extern const base::FeatureParam<int> kCsdKeyboardLockUniformPageDelayDurationMs;
++extern const base::FeatureParam<int> kCsdKeyboardLockUniformPageMaxRetries;
++extern const base::FeatureParam<int> kCsdKeyboardLockUniformPageMaxColorRange;
++
+ // Killswitch for client side phishing detection. Since client side models are
+ // run on a large fraction of navigations, crashes due to the model are very
+ // impactful, even if only a small fraction of users have a bad version of the
+diff --git a/components/safe_browsing/core/common/visual_utils.cc b/components/safe_browsing/core/common/visual_utils.cc
+index 596b12c4..b2dbe25c 100644
+--- a/components/safe_browsing/core/common/visual_utils.cc
++++ b/components/safe_browsing/core/common/visual_utils.cc
+@@ -5,6 +5,7 @@
+ #include "components/safe_browsing/core/common/visual_utils.h"
+ 
+ #include <algorithm>
++#include <array>
+ #include <unordered_map>
+ #include <vector>
+ 
+@@ -85,6 +86,36 @@
+   return kMinHeightForVisualFeatures;
+ }
+ 
++// Fraction of pixels trimmed from both the minimum and maximum tails of each
++// RGB channel when computing the color range in `IsUniformImage`. A 0.5% tail
++// trim compares the 99.5th and 0.5th percentiles (central 99% of pixels).
++constexpr double kUniformImageOutlierTailRatio = 0.005;
++
++int GetTrimmedChannelRange(const std::array<size_t, 256>& histogram,
++                           size_t tail_trim_count) {
++  size_t low_cumulative = 0;
++  int low_value = 0;
++  for (int value = 0; value < 256; ++value) {
++    low_cumulative += histogram[value];
++    if (low_cumulative > tail_trim_count) {
++      low_value = value;
++      break;
++    }
++  }
++
++  size_t high_cumulative = 0;
++  int high_value = 255;
++  for (int value = 255; value >= 0; --value) {
++    high_cumulative += histogram[value];
++    if (high_cumulative > tail_trim_count) {
++      high_value = value;
++      break;
++    }
++  }
++
++  return std::max(0, high_value - low_value);
++}
++
+ }  // namespace
+ 
+ bool GetBlurredImage(const SkBitmap& image,
+@@ -141,6 +172,43 @@
+   return true;
+ }
+ 
++bool IsUniformImage(const VisualFeatures::BlurredImage& blurred_image,
++                    int max_color_range) {
++  if (blurred_image.width() <= 0 || blurred_image.height() <= 0 ||
++      max_color_range < 0) {
++    return false;
++  }
++  size_t num_pixels = 0;
++  size_t expected_size = 0;
++  if (!base::CheckMul<size_t>(blurred_image.width(), blurred_image.height())
++           .AssignIfValid(&num_pixels) ||
++      !base::CheckMul<size_t>(num_pixels, 3).AssignIfValid(&expected_size)) {
++    return false;
++  }
++  const std::string& data = blurred_image.data();
++  if (data.size() != expected_size || data.empty()) {
++    return false;
++  }
++
++  std::array<size_t, 256> r_histogram = {};
++  std::array<size_t, 256> g_histogram = {};
++  std::array<size_t, 256> b_histogram = {};
++  for (size_t i = 0; i < expected_size; i += 3) {
++    ++r_histogram[static_cast<uint8_t>(data[i])];
++    ++g_histogram[static_cast<uint8_t>(data[i + 1])];
++    ++b_histogram[static_cast<uint8_t>(data[i + 2])];
++  }
++
++  const size_t tail_trim_count =
++      static_cast<size_t>(num_pixels * kUniformImageOutlierTailRatio);
++  return GetTrimmedChannelRange(r_histogram, tail_trim_count) <=
++             max_color_range &&
++         GetTrimmedChannelRange(g_histogram, tail_trim_count) <=
++             max_color_range &&
++         GetTrimmedChannelRange(b_histogram, tail_trim_count) <=
++             max_color_range;
++}
++
+ void EncodeScreenshot(const SkBitmap& screenshot,
+                       VisualFeatures::Screenshot* encoded_screenshot) {
+   TRACE_EVENT0("safe_browsing", "EncodeScreenshot");
+diff --git a/components/safe_browsing/core/common/visual_utils.h b/components/safe_browsing/core/common/visual_utils.h
+index b54c870..aed8c85 100644
+--- a/components/safe_browsing/core/common/visual_utils.h
++++ b/components/safe_browsing/core/common/visual_utils.h
+@@ -35,6 +35,14 @@
+ bool GetBlurredImage(const SkBitmap& image,
+                      VisualFeatures::BlurredImage* blurred_image);
+ 
++// Returns true if `blurred_image` is uniform, defined as the difference between
++// the 99.5th and 0.5th percentile pixel values (ignoring the top and bottom
++// 0.5% of pixels as outliers) in each RGB channel being at most
++// `max_color_range`. Returns false if `blurred_image` has invalid dimensions or
++// empty/mismatched data.
++bool IsUniformImage(const VisualFeatures::BlurredImage& blurred_image,
++                    int max_color_range = 10);
++
+ // Generates VisualFeatures::Screenshot for the passed-in `screenshot`.
+ void EncodeScreenshot(const SkBitmap& screenshot,
+                       VisualFeatures::Screenshot* encoded_screenshot);
+diff --git a/components/viz/service/display/resolved_frame_data.cc b/components/viz/service/display/resolved_frame_data.cc
+index 82b3bde..52647ac 100644
+--- a/components/viz/service/display/resolved_frame_data.cc
++++ b/components/viz/service/display/resolved_frame_data.cc
+@@ -226,6 +226,12 @@
+       } else {
+         remapped_id = render_pass_id_generator.GenerateNextId();
+       }
++    } else if (!is_root && remapped_id == prev_root_pass_id_) {
++      // The CompositorRenderPassId from last frames root render pass was reused
++      // for a non-root render pass this frame. Keep using `prev_root_pass_id_`
++      // for the root, to avoid unnecessary backing reallocations, and assign a
++      // new id to this render pass.
++      remapped_id = render_pass_id_generator.GenerateNextId();
+     }
+     fixed.remapped_id = remapped_id;
+     fixed.is_root = is_root;
 diff --git a/content/browser/renderer_host/render_frame_host_impl.cc b/content/browser/renderer_host/render_frame_host_impl.cc
 index 13ce537f..60732c4 100644
 --- a/content/browser/renderer_host/render_frame_host_impl.cc
@@ -433,8 +2330,501 @@ index 8758b66..5ca2c078 100644
  
    const auto it = image_annotations_.find(image.AxID());
    if (it == image_annotations_.end()) {
+diff --git a/gpu/command_buffer/service/copy_shared_image_helper.cc b/gpu/command_buffer/service/copy_shared_image_helper.cc
+index e16dada..3bca0e7 100644
+--- a/gpu/command_buffer/service/copy_shared_image_helper.cc
++++ b/gpu/command_buffer/service/copy_shared_image_helper.cc
+@@ -202,7 +202,7 @@
+   dest_scoped_access->surface()->writePixels(subset, xoffset, yoffset);
+ 
+   bool success = shared_context_state->FlushWriteAccess(dest_scoped_access);
+-  shared_context_state->SubmitIfNecessary(
++  success &= shared_context_state->SubmitIfNecessary(
+       std::move(end_semaphores),
+       dest_scoped_access->NeedGraphiteContextSubmit());
+ 
+@@ -323,8 +323,8 @@
+   absl::Cleanup cleanup = [&]() {
+     bool success =
+         shared_context_state_->FlushWriteAccess(dest_scoped_access.get());
+-    shared_context_state_->SubmitIfNecessary(std::move(end_semaphores),
+-                                             need_graphite_submit);
++    success &= shared_context_state_->SubmitIfNecessary(
++        std::move(end_semaphores), need_graphite_submit);
+     if (success && update_cleared_rect &&
+         DrainGLErrors(gl_api) == GL_NO_ERROR) {
+       dest_shared_image->SetClearedRect(new_cleared_rect);
+@@ -506,8 +506,8 @@
+   bool success =
+       shared_context_state_->FlushWriteAccess(dest_scoped_access.get());
+   source_scoped_access->ApplyBackendSurfaceEndState();
+-  shared_context_state_->SubmitIfNecessary(std::move(end_semaphores),
+-                                           need_graphite_submit);
++  success &= shared_context_state_->SubmitIfNecessary(std::move(end_semaphores),
++                                                      need_graphite_submit);
+ 
+   if (success && update_cleared_rect) {
+     GLenum error = DrainGLErrors(gl_api);
+@@ -1007,8 +1007,8 @@
+ 
+   bool success =
+       shared_context_state_->FlushWriteAccess(dest_scoped_access.get());
+-  shared_context_state_->SubmitIfNecessary(std::move(end_semaphores),
+-                                           need_graphite_submit);
++  success &= shared_context_state_->SubmitIfNecessary(std::move(end_semaphores),
++                                                      need_graphite_submit);
+ 
+   if (success && !dest_shared_image->IsCleared()) {
+     if (gl_api) {
+diff --git a/gpu/command_buffer/service/gles2_cmd_decoder.cc b/gpu/command_buffer/service/gles2_cmd_decoder.cc
+index 40b9008c..d31f823 100644
+--- a/gpu/command_buffer/service/gles2_cmd_decoder.cc
++++ b/gpu/command_buffer/service/gles2_cmd_decoder.cc
+@@ -4024,7 +4024,9 @@
+ 
+ void GLES2DecoderImpl::FlushQueriesBeforeDeletingOrUnbindingFboWorkaround() {
+   if (workarounds().flush_queries_before_deleting_or_unbinding_fbo &&
+-      HasPendingQueries()) {
++      query_manager_ &&
++      (query_manager_->HaveActiveQueries() ||
++       query_manager_->HavePendingQueries())) {
+     GLsync sync = api()->glFenceSyncFn(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+     if (sync) {
+       api()->glClientWaitSyncFn(sync, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
+diff --git a/gpu/command_buffer/service/gles2_query_manager.cc b/gpu/command_buffer/service/gles2_query_manager.cc
+index ca6a0de6..75f9bee0 100644
+--- a/gpu/command_buffer/service/gles2_query_manager.cc
++++ b/gpu/command_buffer/service/gles2_query_manager.cc
+@@ -477,6 +477,10 @@
+ GLES2QueryManager::GLES2QueryManager(GLES2Decoder* decoder,
+                                      FeatureInfo* feature_info)
+     : decoder_(decoder),
++      flush_queries_before_deleting_or_unbinding_fbo_(
++          feature_info &&
++          feature_info->workarounds()
++              .flush_queries_before_deleting_or_unbinding_fbo),
+       update_disjoints_continually_(false),
+       disjoint_notify_shm_id_(-1),
+       disjoint_notify_shm_offset_(0),
+@@ -492,6 +496,35 @@
+ 
+ GLES2QueryManager::~GLES2QueryManager() = default;
+ 
++void GLES2QueryManager::PauseQueries() {
++  const bool had_unflushed_queries = HaveActiveQueries() || HavePendingQueries();
++  QueryManager::PauseQueries();
++
++  // Driver-bug workaround flush_queries_before_deleting_or_unbinding_fbo
++  // (ARM Mali Valhall/Avalon, crbug.com/534468209): a user FBO must not be
++  // unbound or deleted while GPU jobs/queries that reference it are still
++  // unflushed. GLES2DecoderImpl guards its own glBindFramebuffer /
++  // glDeleteFramebuffers, but with virtualized GL contexts every other
++  // virtual context on the same real context (the raster SharedContextState
++  // and its Skia Ganesh-GL GrGLGpu, other decoders) issues FBO binds and
++  // deletes without any knowledge of this decoder's queries -- Skia's own
++  // copy of the workaround is keyed on Skia-issued timer queries only. So
++  // flush this decoder's query job chain at the point where the invariant
++  // "every query on this real context is mine" stops holding: the virtual
++  // context switch.
++  if (had_unflushed_queries &&
++      flush_queries_before_deleting_or_unbinding_fbo_) {
++    gl::GLApi* api = gl::g_current_gl_context;
++    GLsync sync = api->glFenceSyncFn(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
++    if (sync) {
++      api->glClientWaitSyncFn(sync, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
++      api->glDeleteSyncFn(sync);
++    } else {
++      api->glFinishFn();
++    }
++  }
++}
++
+ QueryManager::Query* GLES2QueryManager::CreateQuery(
+     GLenum target,
+     GLuint client_id,
+diff --git a/gpu/command_buffer/service/gles2_query_manager.h b/gpu/command_buffer/service/gles2_query_manager.h
+index 0869089f..cf7e04fb 100644
+--- a/gpu/command_buffer/service/gles2_query_manager.h
++++ b/gpu/command_buffer/service/gles2_query_manager.h
+@@ -70,6 +70,11 @@
+                      scoped_refptr<gpu::Buffer> buffer,
+                      QuerySync* sync) override;
+ 
++  // Flushes this decoder's query job chain when its virtual context is
++  // switched out, if the flush_queries_before_deleting_or_unbinding_fbo
++  // driver-bug workaround is active (see implementation).
++  void PauseQueries() override;
++
+   // Do any updates we need to do when the frame has begun.
+   void ProcessFrameBeginUpdates();
+ 
+@@ -90,6 +95,8 @@
+ 
+   raw_ptr<GLES2Decoder> decoder_;
+ 
++  const bool flush_queries_before_deleting_or_unbinding_fbo_;
++
+   // Whether we are tracking disjoint values every frame.
+   bool update_disjoints_continually_;
+ 
+diff --git a/gpu/command_buffer/service/graphite_utils.cc b/gpu/command_buffer/service/graphite_utils.cc
+index 9dd217e..43b9f47 100644
+--- a/gpu/command_buffer/service/graphite_utils.cc
++++ b/gpu/command_buffer/service/graphite_utils.cc
+@@ -71,7 +71,8 @@
+   if (recording) {
+     return context->insertRecording({recording.get()});
+   }
+-  return true;
++  // Snap will only return null if there is an error.
++  return false;
+ }
+ 
+ bool GraphiteFlushAndSubmit(GraphiteSharedContext* context,
+diff --git a/gpu/command_buffer/service/query_manager.h b/gpu/command_buffer/service/query_manager.h
+index ccc29795..87f154f 100644
+--- a/gpu/command_buffer/service/query_manager.h
++++ b/gpu/command_buffer/service/query_manager.h
+@@ -212,7 +212,9 @@
+   // Returns false if any query is pointing to invalid shared memory.
+   void QueryCounter(Query* query, base::subtle::Atomic32 submit_count);
+ 
+-  void PauseQueries();
++  // Called by the GL context virtualization layer when the owning decoder's
++  // virtual context is switched out / back in.
++  virtual void PauseQueries();
+   void ResumeQueries();
+ 
+   void BeginProcessingCommands();
+@@ -226,6 +228,10 @@
+   // True if there are pending queries.
+   bool HavePendingQueries();
+ 
++  // True if there are active (begun, not yet ended) queries, including ones
++  // currently paused by a virtual context switch.
++  bool HaveActiveQueries() const { return !active_queries_.empty(); }
++
+   void GenQueries(GLsizei n, const GLuint* queries);
+   bool IsValidQuery(GLuint id);
+ 
+diff --git a/gpu/command_buffer/service/raster_decoder.cc b/gpu/command_buffer/service/raster_decoder.cc
+index 7132ac3..c1ab819 100644
+--- a/gpu/command_buffer/service/raster_decoder.cc
++++ b/gpu/command_buffer/service/raster_decoder.cc
+@@ -2059,7 +2059,7 @@
+ 
+   bool success =
+       shared_context_state_->FlushWriteAccess(dest_scoped_access.get());
+-  shared_context_state_->SubmitIfNecessary(
++  success &= shared_context_state_->SubmitIfNecessary(
+       std::move(end_semaphores),
+       dest_scoped_access->NeedGraphiteContextSubmit());
+ 
+@@ -2323,7 +2323,7 @@
+ 
+   bool success =
+       shared_context_state_->FlushWriteAccess(dest_scoped_access.get());
+-  shared_context_state_->SubmitIfNecessary(
++  success &= shared_context_state_->SubmitIfNecessary(
+       std::move(end_semaphores),
+       dest_scoped_access->NeedGraphiteContextSubmit());
+ 
+@@ -2959,8 +2959,8 @@
+       bool need_graphite_submit =
+           paint_op_shared_image_provider_->NeedGraphiteContextSubmit() ||
+           scoped_shared_image_write_->NeedGraphiteContextSubmit();
+-      shared_context_state_->SubmitIfNecessary(std::move(end_semaphores_),
+-                                               need_graphite_submit);
++      success &= shared_context_state_->SubmitIfNecessary(
++          std::move(end_semaphores_), need_graphite_submit);
+       if (success && should_clear_shared_image_) {
+         shared_image_->SetCleared();
+       }
+diff --git a/media/base/media_switches.cc b/media/base/media_switches.cc
+index 62544ad..cba69f6 100644
+--- a/media/base/media_switches.cc
++++ b/media/base/media_switches.cc
+@@ -1319,9 +1319,14 @@
+ 
+ // Enables block model on supported devices.
+ // Block model is only supported on Android 17 26Q4+ where the feature is
+-// properly supported by the framework.
++// properly supported by the framework. Decoders that use a MediaCrypto also
++// need kMediaCodecBlockModelEncrypted.
+ BASE_FEATURE(kMediaCodecBlockModel, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
++// Enables block model for decoders that use a MediaCrypto (encrypted
++// playback). Has no effect unless kMediaCodecBlockModel is enabled.
++BASE_FEATURE(kMediaCodecBlockModelEncrypted, base::FEATURE_DISABLED_BY_DEFAULT);
++
+ // Enables output-side block model (OutputFrame) on supported devices.
+ BASE_FEATURE(kMediaCodecBlockModelOutput, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+diff --git a/media/base/media_switches.h b/media/base/media_switches.h
+index b85c5e7..5115f69 100644
+--- a/media/base/media_switches.h
++++ b/media/base/media_switches.h
+@@ -405,6 +405,7 @@
+ MEDIA_EXPORT BASE_DECLARE_FEATURE(kContextMenuPictureInPictureAndroid);
+ MEDIA_EXPORT BASE_DECLARE_FEATURE(kFullscreenVideoPictureInPicture);
+ MEDIA_EXPORT BASE_DECLARE_FEATURE(kMediaCodecBlockModel);
++MEDIA_EXPORT BASE_DECLARE_FEATURE(kMediaCodecBlockModelEncrypted);
+ MEDIA_EXPORT BASE_DECLARE_FEATURE(kMediaCodecBlockModelOutput);
+ MEDIA_EXPORT BASE_DECLARE_FEATURE(kMediaCodecColorSpaceCleanup);
+ MEDIA_EXPORT BASE_DECLARE_FEATURE(kMediaCodecLowDelayMode);
+diff --git a/testing/variations/fieldtrial_testing_config.json b/testing/variations/fieldtrial_testing_config.json
+index e1498b6..114d002 100644
+--- a/testing/variations/fieldtrial_testing_config.json
++++ b/testing/variations/fieldtrial_testing_config.json
+@@ -4667,6 +4667,30 @@
+             ]
+         }
+     ],
++    "ClientSideDetectionKeyboardLockUniformPageDelay": [
++        {
++            "platforms": [
++                "android",
++                "chromeos",
++                "linux",
++                "mac",
++                "windows"
++            ],
++            "experiments": [
++                {
++                    "name": "Enabled_500ms",
++                    "params": {
++                        "DelayDurationMs": "500",
++                        "MaxColorRange": "10",
++                        "MaxRetries": "3"
++                    },
++                    "enable_features": [
++                        "ClientSideDetectionKeyboardLockUniformPageDelay"
++                    ]
++                }
++            ]
++        }
++    ],
+     "ClientSideDetectionRetryLimit": [
+         {
+             "platforms": [
+diff --git a/third_party/blink/renderer/core/animation/animation.cc b/third_party/blink/renderer/core/animation/animation.cc
+index 357df3f..b1785d1f 100644
+--- a/third_party/blink/renderer/core/animation/animation.cc
++++ b/third_party/blink/renderer/core/animation/animation.cc
+@@ -3318,10 +3318,14 @@
+   // time of an animation also involves:
+   //   * Running the update an animation’s finished state procedure.
+   //   * Queueing animation events.
+-
+   if (!Outdated() && reason == kTimingUpdateForAnimationFrame &&
+-      IsInDisplayLockedSubtree())
+-    return true;
++      IsInDisplayLockedSubtree()) {
++    // IsInDisplayLockedSubtree() may trigger slot assignment recalc and update
++    // animation state.
++    if (!Outdated()) {
++      return !inactive_;
++    }
++  }
+ 
+   ClearOutdated();
+   bool idle =
+diff --git a/third_party/blink/renderer/core/animation/animation_timeline.cc b/third_party/blink/renderer/core/animation/animation_timeline.cc
+index 0ef6a61..113bb0cf 100644
+--- a/third_party/blink/renderer/core/animation/animation_timeline.cc
++++ b/third_party/blink/renderer/core/animation/animation_timeline.cc
+@@ -138,32 +138,59 @@
+                                      current_time == last_current_time_;
+   last_current_time_ = current_time;
+ 
+-  if (sort_animation_events) {
+-    animations_needing_update_.erase_if([&](Animation* animation) {
+-      if (only_service_outdated && !animation->Outdated() &&
+-          !animation->EffectSuppressed()) {
+-        return animation->Inactive() && !animation->TimeToEffectChange();
+-      }
+-      return !animation->Update(reason);
+-    });
+-  } else {
+-    HeapVector<Member<Animation>> animations;
+-    animations.ReserveInitialCapacity(animations_needing_update_.size());
+-    for (Animation* animation : animations_needing_update_) {
+-      animations.push_back(animation);
++  HeapVector<Member<Animation>> animations;
++  bool is_first_pass = true;
++  do {
++    // This loop is bounded to at most 2 passes. A second pass only updates
++    // outdated animations, which bypass IsInDisplayLockedSubtree() in
++    // Animation::Update() and therefore cannot trigger another slot assignment
++    // recalc.
++    animations.assign(animations_needing_update_);
++    if (!sort_animation_events) {
++      // When sort_animation_events is enabled, we defer sorting until we have
++      // produced animation events. If no events are generated, there is no
++      // need to sort. Sorting for the effect stack is handled separately.
++      std::sort(animations.begin(), animations.end(), CompareAnimations);
+     }
+ 
+-    std::sort(animations.begin(), animations.end(), CompareAnimations);
+-
+     for (Animation* animation : animations) {
+-      if (!animation->Update(reason)) {
++      // Though the collection of animations is seeded from animations needing
++      // update, slot reassignment during flat tree traversal may alter the
++      // set of animations attached to a timeline.
++      if (!animations_needing_update_.Contains(animation)) {
++        continue;
++      }
++
++      // Avoid redundant updates.
++      if (!animation->Outdated() && !is_first_pass) {
++        continue;
++      }
++
++      bool persist = false;
++      if (only_service_outdated && !animation->Outdated() &&
++          !animation->EffectSuppressed()) {
++        persist = !animation->Inactive() || animation->TimeToEffectChange();
++      } else {
++        persist = animation->Update(reason);
++      }
++      if (!persist) {
+         animations_needing_update_.erase(animation);
+       }
+     }
+-    // Explicitly free the backing store to avoid memory regressions.
+-    // TODO(bikineev): Revisit when young generation is done.
+-    animations.clear();
+-  }
++    DCHECK(is_first_pass || !HasOutdatedAnimation());
++    is_first_pass = false;
++  } while (HasOutdatedAnimation());
++
++  // Slot assignment recalc during an animation update may have detached
++  // elements and cancelled animations that were already serviced earlier in
++  // the pass. Prune any animations that became inactive.
++  animations_needing_update_.erase_if([](Animation* animation) {
++    return !animation->Outdated() && !animation->EffectSuppressed() &&
++           animation->Inactive() && !animation->TimeToEffectChange();
++  });
++
++  // Explicitly free the backing store to avoid memory regressions.
++  animations.clear();
+ 
+   DCHECK_EQ(outdated_animation_count_, 0U);
+   DCHECK(last_current_time_ == CurrentTimeInternal());
+diff --git a/tools/metrics/actions/actions.xml b/tools/metrics/actions/actions.xml
+index 61080ba..4eef262 100644
+--- a/tools/metrics/actions/actions.xml
++++ b/tools/metrics/actions/actions.xml
+@@ -440,6 +440,9 @@
+   <variant name="_DesktopTabGroupsNewGroup" summary="For desktop Tab Groups."/>
+   <variant name="_Dictation"
+       summary="For Dictation IPH shown next to a focused text field."/>
++  <variant name="_DictationHotkey"
++      summary="For Dictation keyboard shortcut IPH shown after the user has
++               invoked Dictation a couple of times."/>
+   <variant name="_DiscardRing" summary="For new tab discard ring."/>
+   <variant name="_DiscoverFeedHeaderMenu"
+       summary="For DiscoverFeedHeaderMenu feature."/>
+diff --git a/tools/metrics/histograms/metadata/feature_engagement/histograms.xml b/tools/metrics/histograms/metadata/feature_engagement/histograms.xml
+index 546f6c6..a1c8d8a0 100644
+--- a/tools/metrics/histograms/metadata/feature_engagement/histograms.xml
++++ b/tools/metrics/histograms/metadata/feature_engagement/histograms.xml
+@@ -255,6 +255,9 @@
+       summary="Sharing links with highlighted text"/>
+   <variant name="IPH_Dictation"
+       summary="Dictation IPH shown next to a focused text field"/>
++  <variant name="IPH_DictationHotkey"
++      summary="Dictation keyboard shortcut IPH shown after the user has
++               invoked Dictation a couple of times"/>
+   <variant name="IPH_DiscardRing" summary="Discard ring for tabs"/>
+   <variant name="IPH_DownloadEsbPromo" summary="download ESB promo"/>
+   <variant name="IPH_DownloadHome" summary="download home"/>
+diff --git a/tools/metrics/histograms/metadata/sb_client/histograms.xml b/tools/metrics/histograms/metadata/sb_client/histograms.xml
+index caadd94..c4140f1 100644
+--- a/tools/metrics/histograms/metadata/sb_client/histograms.xml
++++ b/tools/metrics/histograms/metadata/sb_client/histograms.xml
+@@ -989,6 +989,42 @@
+       variants="ClientSideDetectionIntelligentScanRequestType"/>
+ </histogram>
+ 
++<histogram name="SBClientPhishing.KeyboardLock.IsFinalImageUniform"
++    enum="Boolean" expires_after="2027-04-30">
++  <owner>tiffanysong@chromium.org</owner>
++  <owner>chrome-counter-abuse-alerts@google.com</owner>
++  <summary>
++    Records whether the final blurred viewport image in
++    PhishingImageEmbeddingDone for a KEYBOARD_LOCK_REQUESTED trigger was uniform
++    (e.g. blank white or black). Recorded once when the uniform-image retry loop
++    finishes (either because the image became non-uniform or because the maximum
++    retry count was reached).
++  </summary>
++</histogram>
++
++<histogram name="SBClientPhishing.KeyboardLock.IsInitialImageUniform"
++    enum="Boolean" expires_after="2027-04-30">
++  <owner>tiffanysong@chromium.org</owner>
++  <owner>chrome-counter-abuse-alerts@google.com</owner>
++  <summary>
++    Records whether the initial blurred viewport image in
++    PhishingImageEmbeddingDone for a KEYBOARD_LOCK_REQUESTED trigger was uniform
++    (e.g. blank white or black). Recorded on the first uniformity check before
++    any retry delay.
++  </summary>
++</histogram>
++
++<histogram name="SBClientPhishing.KeyboardLock.UniformImageRetryCount"
++    units="count" expires_after="2027-04-30">
++  <owner>tiffanysong@chromium.org</owner>
++  <owner>chrome-counter-abuse-alerts@google.com</owner>
++  <summary>
++    Records the number of delayed MaybeStartImageEmbedding retries performed for
++    a KEYBOARD_LOCK_REQUESTED trigger when the blurred image was uniform (0 if
++    the initial image was already non-uniform).
++  </summary>
++</histogram>
++
+ <histogram name="SBClientPhishing.LlamaForcedTriggerInfo.IntelligentScan"
+     enum="BooleanEnabled" expires_after="2027-03-21">
+   <owner>nwokedi@chromium.org</owner>
+diff --git a/ui/display/display_features.cc b/ui/display/display_features.cc
+index 9023d225..d53b407 100644
+--- a/ui/display/display_features.cc
++++ b/ui/display/display_features.cc
+@@ -47,6 +47,16 @@
+ 
+ BASE_FEATURE(kCADisplayLinkInGpu, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
++// Minimum macOS major version (e.g. "14", "15", "26", or "27") required
++// to use CADisplayLink in the GPU process when `kCADisplayLinkInGpu` is
++// enabled.
++// The minimum required version has been raised to macOS 15.0, as CVDisplayLink
++// is fully deprecated at this version and replaced by CADisplayLink.
++BASE_FEATURE_PARAM(int,
++                   kCADisplayLinkInGpuMinMacOSMajorVersion,
++                   &kCADisplayLinkInGpu,
++                   15);
++
+ BASE_FEATURE(kSkipPostTaskForCallbacks, base::FEATURE_DISABLED_BY_DEFAULT);
+ #endif
+ 
+diff --git a/ui/display/display_features.h b/ui/display/display_features.h
+index d5681a7..dcd780a9 100644
+--- a/ui/display/display_features.h
++++ b/ui/display/display_features.h
+@@ -39,6 +39,9 @@
+ BASE_DECLARE_FEATURE(kCADisplayLinkInGpu);
+ 
+ COMPONENT_EXPORT(DISPLAY_FEATURES)
++BASE_DECLARE_FEATURE_PARAM(int, kCADisplayLinkInGpuMinMacOSMajorVersion);
++
++COMPONENT_EXPORT(DISPLAY_FEATURES)
+ BASE_DECLARE_FEATURE(kSkipPostTaskForCallbacks);
+ #endif
+ 
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index 79f058f..27d3d4e 100644
+index 79f058f..d9b6596 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -442,7 +2832,7 @@ index 79f058f..27d3d4e 100644
  #define V8_MINOR_VERSION 8
  #define V8_BUILD_NUMBER 62
 -#define V8_PATCH_LEVEL 24
-+#define V8_PATCH_LEVEL 25
++#define V8_PATCH_LEVEL 26
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
@@ -543,6 +2933,22 @@ index 751a25d..93480a6 100644
        old_script->infos()->set(i, maybe_new_info, kReleaseStore);
      }
    }
+diff --git a/v8/src/compiler/backend/register-allocator.cc b/v8/src/compiler/backend/register-allocator.cc
+index dea3cba..4de50ce 100644
+--- a/v8/src/compiler/backend/register-allocator.cc
++++ b/v8/src/compiler/backend/register-allocator.cc
+@@ -4375,8 +4375,9 @@
+     InstructionBlock* deferred_block =
+         code()->GetInstructionBlock(current->Start().ToInstructionIndex());
+     new_end =
+-        std::min(new_end, LifetimePosition::GapFromInstructionIndex(
+-                              LastDeferredInstructionIndex(deferred_block)));
++        std::min(new_end, LifetimePosition::InstructionFromInstructionIndex(
++                              LastDeferredInstructionIndex(deferred_block))
++                              .NextFullStart());
+   }
+ 
+   // We couldn't spill until the next register use. Split before the register
 diff --git a/v8/src/interpreter/bytecode-generator.cc b/v8/src/interpreter/bytecode-generator.cc
 index 59eca95..f2fea5a 100644
 --- a/v8/src/interpreter/bytecode-generator.cc
@@ -589,3 +2995,391 @@ index 05c6c8f..95bba0a 100644
    }
    ASSIGN_RETURN_ON_EXCEPTION_VALUE(
        isolate, compiled,
+diff --git a/third_party/skia/src/gpu/ganesh/effects/GrAtlasedShaderHelpers.h b/third_party/skia/src/gpu/ganesh/effects/GrAtlasedShaderHelpers.h
+index ec1db1b..2a5d0de 100644
+--- a/third_party/skia/src/gpu/ganesh/effects/GrAtlasedShaderHelpers.h
++++ b/third_party/skia/src/gpu/ganesh/effects/GrAtlasedShaderHelpers.h
+@@ -91,7 +91,11 @@
+ 
+     // conditionally load from the indexed texture sampler
+     for (int i = 0; i < numTextureSamplers-1; ++i) {
+-        args.fFragBuilder->codeAppendf("if (%s == %d) { %s = ", texIdx.fsIn(), i, colorName);
++        // Add 1/2 and cast to an int to ensure floating point error during interpolation doesn't
++        // cause incorrect atlas lookups (these varyings are marked kCanBeFlat, but that leaves
++        // the possibility that they may still be interpolated).
++        args.fFragBuilder->codeAppendf("if (int(%s + 0.5) == %d) { %s = ",
++                                       texIdx.fsIn(), i, colorName);
+         args.fFragBuilder->appendTextureLookup(args.fTexSamplers[i],
+                                                coordName);
+         args.fFragBuilder->codeAppend("; } else ");
+@@ -118,7 +122,7 @@
+ 
+     // conditionally load from the indexed texture sampler
+     for (int i = 0; i < numTextureSamplers; ++i) {
+-        args.fFragBuilder->codeAppendf("if (%s == %d) {", texIdx.fsIn(), i);
++        args.fFragBuilder->codeAppendf("if (int(%s + 0.5) == %d) {", texIdx.fsIn(), i);
+ 
+         // green is distance to uv center
+         args.fFragBuilder->codeAppendf("%s.y = ", distanceName);
+diff --git a/third_party/skia/src/gpu/ganesh/vk/GrVkCaps.cpp b/third_party/skia/src/gpu/ganesh/vk/GrVkCaps.cpp
+index ee87622..55b4c69 100644
+--- a/third_party/skia/src/gpu/ganesh/vk/GrVkCaps.cpp
++++ b/third_party/skia/src/gpu/ganesh/vk/GrVkCaps.cpp
+@@ -520,6 +520,14 @@
+         fShouldAlwaysUseDedicatedImageMemory = true;
+     }
+ 
++    const skgpu::DriverVersion driverVersion = skgpu::ParseVulkanDriverVersion(
++            VK_DRIVER_ID_ARM_PROPRIETARY, properties.driverVersion);
++    if (skgpu::kARM_VkVendor == properties.vendorID &&
++        driverVersion >= skgpu::DriverVersion(42, 0) &&
++        driverVersion < skgpu::DriverVersion(56, 0)) {
++        fSleepAfterLostDeviceWait = true;
++    }
++
+     // On Mali galaxy s7 and s9 we see lots of rendering issues with image filters dropping out when
+     // using only primary command buffers. We also see issues on the P30 running android 28.
+     if (skgpu::kARM_VkVendor == properties.vendorID && androidAPIVersion <= 28) {
+diff --git a/third_party/skia/src/gpu/ganesh/vk/GrVkCaps.h b/third_party/skia/src/gpu/ganesh/vk/GrVkCaps.h
+index 614c21f..210ae7a 100644
+--- a/third_party/skia/src/gpu/ganesh/vk/GrVkCaps.h
++++ b/third_party/skia/src/gpu/ganesh/vk/GrVkCaps.h
+@@ -118,6 +118,10 @@
+     // vkWaitForFences on each outstanding command buffer to make sure the driver signals the fence.
+     bool mustSyncCommandBuffersWithQueue() const { return fMustSyncCommandBuffersWithQueue; }
+ 
++    // On device loss, some Mali drivers may return from vkQueueWaitIdle and vkDeviceWaitIdle
++    // before it's safe to destroy the device. crbug.com/580857377
++    bool sleepAfterLostDeviceWait() const { return fSleepAfterLostDeviceWait; }
++
+     // Returns true if we should always make dedicated allocations for VkImages.
+     bool shouldAlwaysUseDedicatedImageMemory() const {
+         return fShouldAlwaysUseDedicatedImageMemory;
+@@ -454,6 +458,7 @@
+     skia_private::STArray<1, skgpu::VulkanYcbcrConversionInfo> fYcbcrInfos;
+ 
+     bool fMustSyncCommandBuffersWithQueue = false;
++    bool fSleepAfterLostDeviceWait = false;
+     bool fShouldAlwaysUseDedicatedImageMemory = false;
+ 
+     bool fAvoidUpdateBuffers = false;
+diff --git a/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.cpp b/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.cpp
+index 29eead3..cb588e0 100644
+--- a/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.cpp
++++ b/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.cpp
+@@ -24,7 +24,9 @@
+ #include "src/gpu/ganesh/vk/GrVkUtil.h"
+ 
+ #include <algorithm>
++#include <chrono>
+ #include <cstring>
++#include <thread>
+ 
+ class GrGpu;
+ 
+@@ -679,6 +681,9 @@
+         // restart the whole device, so waiting on the queue shouldn't have any performance impact.
+         if (submitResult == VK_ERROR_DEVICE_LOST) {
+             GR_VK_CALL(gpu->vkInterface(), QueueWaitIdle(queue));
++            if (gpu->vkCaps().sleepAfterLostDeviceWait()) {
++                std::this_thread::sleep_for(std::chrono::milliseconds(1));
++            }
+         } else {
+             SkASSERT(submitResult == VK_ERROR_OUT_OF_HOST_MEMORY ||
+                      submitResult == VK_ERROR_OUT_OF_DEVICE_MEMORY);
+diff --git a/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp b/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp
+index 0c7e419..8f3c0a9 100644
+--- a/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp
++++ b/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp
+@@ -72,9 +72,11 @@
+ #include "src/gpu/vk/VulkanUtilsPriv.h"
+ 
+ #include <algorithm>
++#include <chrono>
+ #include <cstring>
+ #include <functional>
+ #include <numeric>
++#include <thread>
+ #include <utility>
+ 
+ class GrAttachment;
+@@ -2234,11 +2236,17 @@
+ }
+ 
+ void GrVkGpu::finishOutstandingGpuWork() {
+-    VK_CALL(QueueWaitIdle(fQueue));
++    VkResult res;
++    VK_CALL_RET(res, QueueWaitIdle(fQueue));
+ 
+     if (this->vkCaps().mustSyncCommandBuffersWithQueue()) {
+         fResourceProvider.forceSyncAllCommandBuffers();
+     }
++
++    if (this->vkCaps().sleepAfterLostDeviceWait() &&
++        (res == VK_ERROR_DEVICE_LOST || this->isDeviceLost())) {
++        std::this_thread::sleep_for(std::chrono::milliseconds(1));
++    }
+ }
+ 
+ void GrVkGpu::onReportSubmitHistograms() {
+diff --git a/third_party/skia/src/gpu/graphite/ClipStack.cpp b/third_party/skia/src/gpu/graphite/ClipStack.cpp
+index 34010f7..ac97a22 100644
+--- a/third_party/skia/src/gpu/graphite/ClipStack.cpp
++++ b/third_party/skia/src/gpu/graphite/ClipStack.cpp
+@@ -1990,6 +1990,16 @@
+     return draw.toClip(geometry, style, nonMSAAClip, cs.shader());
+ }
+ 
++int ClipStack::CountPendingElementDraws(SkSpan<const Element* const> elements) {
++    int undrawnCount = 0;
++    for (const Element* e : elements) {
++        if (!static_cast<const RawElement*>(e)->hasPendingDraw()) {
++            ++undrawnCount;
++        }
++    }
++    return undrawnCount;
++}
++
+ std::pair<CompressedPaintersOrder, Layer*> ClipStack::updateClipStateForDraw(
+         const Clip& clip,
+         const ElementList& effectiveElements,
+diff --git a/third_party/skia/src/gpu/graphite/ClipStack.h b/third_party/skia/src/gpu/graphite/ClipStack.h
+index 775d349..f27de88 100644
+--- a/third_party/skia/src/gpu/graphite/ClipStack.h
++++ b/third_party/skia/src/gpu/graphite/ClipStack.h
+@@ -10,6 +10,7 @@
+ 
+ #include "include/core/SkRefCnt.h"
+ #include "include/core/SkShader.h"
++#include "include/core/SkSpan.h"
+ #include "include/private/SkAssert.h"
+ #include "include/private/SkOnlyStackAllocatable.h"
+ #include "include/private/SkTArray.h"
+@@ -105,6 +106,10 @@
+                                SkStrokeRec* style,
+                                ElementList* outEffectiveElements) const;
+ 
++    // Returns the number of elements in `elements` that have not yet been drawn in the current
++    // pass.
++    static int CountPendingElementDraws(SkSpan<const Element* const> elements);
++
+     // Update the per-clip element state for later rendering using pre-computed clip state data for
+     // a particular draw. The provided 'z' value is the depth value that the draw will use if it's
+     // not clipped out entirely.
+diff --git a/third_party/skia/src/gpu/graphite/Device.cpp b/third_party/skia/src/gpu/graphite/Device.cpp
+index 9cccd07..5e336bd 100644
+--- a/third_party/skia/src/gpu/graphite/Device.cpp
++++ b/third_party/skia/src/gpu/graphite/Device.cpp
+@@ -1698,10 +1698,7 @@
+     // Calculate the clipped bounds of the draw and determine the clip elements that affect the
+     // draw without updating the clip stack.
+     ClipStack::ElementList clipElements;
+-    Clip clip = fClip.visitClipStackForDraw(localToDevice,
+-                                            &geometry,
+-                                            &style,
+-                                            &clipElements);
++    Clip clip = fClip.visitClipStackForDraw(localToDevice, &geometry, &style, &clipElements);
+     if (clip.isClippedOut()) {
+         // Clipped out, so don't record anything.
+         return;
+@@ -1784,8 +1781,10 @@
+             return;
+         }
+ 
+-        // To avoid #define mess, the sparse strips can trigger a flush here
+-        // TODO (thomsmit): unify this with the existing flush system
++        // To avoid #define mess, the sparse strips can trigger a flush here.
++        // TODO (thomsmit): Unify this with the existing flush system so we don't process geometry
++        // or trigger a flush here for a pathological draw that will later be skipped in the
++        // `needsFlush` check below.
+         if (fStripGenerator->hasNullCaps()) {
+             fRecorder->priv().flushTrackedDevices(
+                     SK_DUMP_TASKS_CODE("Device::drawGeometry Flush Before Draw"));
+@@ -1808,8 +1807,26 @@
+     DstReadStrategy dstReadStrategy = shading.dstReadRequired() ?
+                                       fDC->dstReadStrategy() : DstReadStrategy::kNoneRequired;
+     // TODO (thomsmit): Adjust this when the draw limit is removed.
+-    const bool needsFlush = this->needsFlushBeforeDraw(numNewRenderSteps, dstReadStrategy);
++    const bool needsFlush =
++            this->needsFlushBeforeDraw(numNewRenderSteps, clipElements, dstReadStrategy);
+     if (needsFlush) {
++        // If no flush was needed, DrawListLayer only had to fit the undrawn clip elements into the
++        // current DrawList because any already-drawn clips were already recorded and accounted for
++        // in `fDC->pendingRenderSteps()` using their actual render step counts.
++        //
++        // However, flushing finalizes the current DrawPass and resets all clip elements in the
++        // stack to undrawn (since the depth attachment does not persist across DrawPasses). In the
++        // new DrawList, all `clipElements.size()` effective clips would have to be re-recorded into
++        // the same pass as the draw. If the draw and all of its effective clips conservatively
++        // require more render steps than a fresh DrawList can hold, skip the draw immediately
++        // without flushing pending work.
++        if (numNewRenderSteps + clipElements.size() * Renderer::kMaxRenderSteps >
++            DrawList::kMaxRenderSteps) {
++            SKIA_LOG_W("Skipping draw: clip stack requires too many render steps for a single "
++                       "pass.");
++            return;
++        }
++
+         if (pathAtlas != nullptr) {
+             // We need to flush work for all devices associated with the current Recorder.
+             // Otherwise we may end up with outstanding draws that depend on past atlas state.
+@@ -2062,7 +2079,7 @@
+ 
+     // This call represents one of the deferred clip shapes that's already pessimistically counted
+     // in needsFlushBeforeDraw(), so the DrawContext should have room to add it.
+-    SkASSERT(fDC->pendingRenderSteps() + renderer->numRenderSteps() < DrawList::kMaxRenderSteps);
++    SkASSERT(fDC->pendingRenderSteps() + renderer->numRenderSteps() <= DrawList::kMaxRenderSteps);
+ 
+     // Anti-aliased clipping requires the renderer to use MSAA to modify the depth per sample, so
+     // analytic coverage renderers cannot be used.
+@@ -2101,6 +2118,8 @@
+         return {nullptr, {}};
+     }
+ 
++    SkASSERT(fDC->pendingRenderSteps() + renderer->numRenderSteps() <= DrawList::kMaxRenderSteps);
++
+     if (localToDevice.type() == Transform::Type::kPerspective) {
+         SkPath devicePath = shape.asPath().makeTransform(localToDevice.matrix().asM33());
+         return fDC->recordDraw(renderer, Transform::Identity(), Geometry(Shape(devicePath)), clip,
+@@ -2410,9 +2429,16 @@
+     fRecorder->priv().compactAtlasProvider();
+ }
+ 
+-bool Device::needsFlushBeforeDraw(int numNewRenderSteps, DstReadStrategy dstReadStrategy) {
++bool Device::needsFlushBeforeDraw(int numNewRenderSteps,
++                                  SkSpan<const ClipStack::Element* const> clipElements,
++                                  DstReadStrategy dstReadStrategy) {
+     // Must also account for the elements in the clip stack that might need to be recorded.
+-    numNewRenderSteps += fClip.maxDeferredClipDraws() * Renderer::kMaxRenderSteps;
++    // When using DrawListLayer, clip elements are recorded immediately on first use so already-
++    // drawn clip elements are already accounted for in fDC->pendingRenderSteps().
++    int clipElementsToRecord = fRecorder->priv().caps()->useDrawListLayer()
++                                       ? ClipStack::CountPendingElementDraws(clipElements)
++                                       : fClip.maxDeferredClipDraws();
++    numNewRenderSteps += clipElementsToRecord * Renderer::kMaxRenderSteps;
+     bool needsFlush =
+             // Need flush if we don't have room to record into the current list.
+             (DrawList::kMaxRenderSteps - fDC->pendingRenderSteps()) < numNewRenderSteps ||
+diff --git a/third_party/skia/src/gpu/graphite/Device.h b/third_party/skia/src/gpu/graphite/Device.h
+index 68875c1..7a1a3e5 100644
+--- a/third_party/skia/src/gpu/graphite/Device.h
++++ b/third_party/skia/src/gpu/graphite/Device.h
+@@ -358,7 +358,9 @@
+                                        const SkStrokeRec&,
+                                        const Rect& drawBounds) const;
+ 
+-    bool needsFlushBeforeDraw(int numNewRenderSteps, DstReadStrategy);
++    bool needsFlushBeforeDraw(int numNewRenderSteps,
++                              SkSpan<const ClipStack::Element* const> clipElements,
++                              DstReadStrategy);
+ 
+     // Flush internal work, such as pending clip draws and atlas uploads, into the Device's DrawTask
+     void internalFlush();
+diff --git a/third_party/skia/src/gpu/graphite/vk/VulkanCaps.cpp b/third_party/skia/src/gpu/graphite/vk/VulkanCaps.cpp
+index faca9b9..68da18d 100644
+--- a/third_party/skia/src/gpu/graphite/vk/VulkanCaps.cpp
++++ b/third_party/skia/src/gpu/graphite/vk/VulkanCaps.cpp
+@@ -670,6 +670,12 @@
+         fShouldAlwaysUseDedicatedImageMemory = true;
+     }
+ 
++    if (isARMProprietary &&
++        driverVersion >= skgpu::DriverVersion(42, 0) &&
++        driverVersion < skgpu::DriverVersion(56, 0)) {
++        fSleepAfterLostDeviceWait = true;
++    }
++
+     // On Qualcomm the gpu resolves an area larger than the render pass bounds when using
+     // discardable msaa attachments. This causes the resolve to resolve uninitialized data from the
+     // msaa image into the resolve image. This was reproed on a Pixel4 using the DstReadShuffle GM
+diff --git a/third_party/skia/src/gpu/graphite/vk/VulkanCaps.h b/third_party/skia/src/gpu/graphite/vk/VulkanCaps.h
+index 5870b17..62b2d88 100644
+--- a/third_party/skia/src/gpu/graphite/vk/VulkanCaps.h
++++ b/third_party/skia/src/gpu/graphite/vk/VulkanCaps.h
+@@ -89,6 +89,7 @@
+     }
+ 
+     bool mustLoadFullImageForMSAA() const { return fMustLoadFullImageForMSAA; }
++    bool sleepAfterLostDeviceWait() const { return fSleepAfterLostDeviceWait; }
+ 
+     bool supportsFrameBoundary() const { return fSupportsFrameBoundary; }
+ 
+@@ -237,6 +238,7 @@
+ 
+     // Flags to enable workarounds for driver bugs
+     bool fMustLoadFullImageForMSAA = false;
++    bool fSleepAfterLostDeviceWait = false;
+ 
+     // Cache the ReadonlySrcStageMask; optimistically adding the compute bit is a violation of the
+     // spec if we don't have compute support, so initialize and cache it here instead.
+diff --git a/third_party/skia/src/gpu/graphite/vk/VulkanCommandBuffer.cpp b/third_party/skia/src/gpu/graphite/vk/VulkanCommandBuffer.cpp
+index 9c53571..20728f33 100644
+--- a/third_party/skia/src/gpu/graphite/vk/VulkanCommandBuffer.cpp
++++ b/third_party/skia/src/gpu/graphite/vk/VulkanCommandBuffer.cpp
+@@ -36,6 +36,9 @@
+ #include "src/gpu/vk/VulkanMutableTextureStatePriv.h"
+ #include "src/gpu/vk/VulkanUtilsPriv.h"
+ 
++#include <chrono>
++#include <thread>
++
+ using namespace skia_private;
+ 
+ namespace skgpu::graphite {
+@@ -619,6 +622,9 @@
+         // restart the whole device, so waiting on the queue shouldn't have any performance impact.
+         if (submitResult == VK_ERROR_DEVICE_LOST) {
+             VULKAN_CALL(fSharedContext->interface(), QueueWaitIdle(queue));
++            if (fSharedContext->vulkanCaps().sleepAfterLostDeviceWait()) {
++                std::this_thread::sleep_for(std::chrono::milliseconds(1));
++            }
+         } else {
+             SkASSERT(submitResult == VK_ERROR_OUT_OF_HOST_MEMORY ||
+                      submitResult == VK_ERROR_OUT_OF_DEVICE_MEMORY);
+@@ -672,6 +678,10 @@
+                                                  /*waitAll=*/true,
+                                                  /*timeout=*/UINT64_MAX));
+     }
++    if (result == VK_ERROR_DEVICE_LOST &&
++        fSharedContext->vulkanCaps().sleepAfterLostDeviceWait()) {
++        std::this_thread::sleep_for(std::chrono::milliseconds(1));
++    }
+     if (result != VK_SUCCESS && !fSharedContext->isDeviceLost()) {
+         SkDebugf("vkWaitForFences() failed. Error: %d\n", result);
+     }
+diff --git a/third_party/skia/src/gpu/tessellate/StrokeIterator.h b/third_party/skia/src/gpu/tessellate/StrokeIterator.h
+index 9e2ec55..c8dd55a 100644
+--- a/third_party/skia/src/gpu/tessellate/StrokeIterator.h
++++ b/third_party/skia/src/gpu/tessellate/StrokeIterator.h
+@@ -248,19 +248,18 @@
+                         SkASSERT(!fViewMatrix->hasPerspective());
+                         float a=fViewMatrix->getScaleX(), b=fViewMatrix->getSkewX(),
+                               c=fViewMatrix->getSkewY(),  d=fViewMatrix->getScaleY();
+-                        float det = a*d - b*c;
+-                        if (det > 0) {
+-                            // outset = inverse(|a b|) * |.5|
+-                            //                  |c d|    | 0|
+-                            //
+-                            //     == 1/det * | d -b| * |.5|
+-                            //                |-c  a|   | 0|
+-                            //
+-                            //     == | d| * .5/det
+-                            //        |-c|
+-                            outset = SkVector{d, -c} * (.5f / det);
+-                        } else {
+-                            outset = {1, 0};
++                        // outset = inverse(|a b|) * |.5|
++                        //                  |c d|    | 0|
++                        //
++                        //     == 1/det * | d -b| * |.5|
++                        //                |-c  a|   | 0|
++                        //
++                        //     == | d| * .5/det
++                        //        |-c|
++                        outset = SkVector{d, -c} * sk_ieee_float_divide(0.5f, a*d - b*c);
++                        if (!SkIsFinite(outset.fX, outset.fY)) {
++                            // Don't outset any geometry if the matrix is not invertible.
++                            outset = {0, 0};
+                         }
+                     }
+                     fEndingCapPts = {*fLastDegenerateStrokePt - outset,
