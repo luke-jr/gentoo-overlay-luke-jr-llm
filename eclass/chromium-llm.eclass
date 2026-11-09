@@ -3711,7 +3711,7 @@ chromium_compile() {
 		# protoc was built from the checked-in files: what it generated may depend on them. The
 		# protoc built from the regenerated ones must regenerate them unchanged. It then makes the
 		# edition defaults.
-		eninja -C out/Release "${pb_protoc#out/Release/}"
+		chromium_eninja -C out/Release "${pb_protoc#out/Release/}"
 		einfo "Checking that the protoc built from them regenerates them unchanged ..."
 		local pb_fp="${T}/protobuf-fixed-point" f
 		mkdir -p "${pb_fp}"/{cpp,python} || die
