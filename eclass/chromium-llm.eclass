@@ -786,11 +786,17 @@ chromium-llm_pkg_setup() {
 			if [[ ${EUID} == 0 ]] && has userpriv ${FEATURES}; then
 				chown "${PORTAGE_BUILD_USER:-portage}:${PORTAGE_BUILD_GROUP:-portage}" "${CHROMIUM_BUILD_TREE}" || die
 			fi
-			einfo "Keeping the build tree in ${CHROMIUM_BUILD_TREE} (CHROMIUM_BUILD_DIR)"
-			# Another build using it (Portage still locks its build directory; see claim in
-			# files/chromium-build-tree.py, which isn't there yet in pkg_setup)?
 			local tree_owner=
 			[[ -f ${CHROMIUM_BUILD_TREE}/build/owner ]] && tree_owner=$(<"${CHROMIUM_BUILD_TREE}/build/owner")
+			if [[ -d ${CHROMIUM_BUILD_TREE}/build/Release ]]; then
+				einfo "Building in the kept build tree ${CHROMIUM_BUILD_TREE} (CHROMIUM_BUILD_DIR):"
+				einfo "reusing what ${tree_owner:+${tree_owner##*/} }built there, rebuilding only what changed."
+			else
+				einfo "Building in a new kept build tree ${CHROMIUM_BUILD_TREE} (CHROMIUM_BUILD_DIR):"
+				einfo "a full build, kept for the next build of ${PV%%.*}."
+			fi
+			# Another build using it (Portage still locks its build directory; see claim in
+			# files/chromium-build-tree.py, which isn't there yet in pkg_setup)?
 			if [[ -n ${tree_owner} && ${tree_owner} != "${PORTAGE_BUILDDIR}" ]]; then
 				PYTHONPATH="${PORTAGE_PYTHONPATH:-${PORTAGE_PYM_PATH}}" "${PORTAGE_PYTHON:-python3}" -B -c '
 import os, sys, portage.locks
