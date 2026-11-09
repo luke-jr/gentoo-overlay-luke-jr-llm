@@ -128,12 +128,13 @@
 # build at a time uses the directory: another one waits until it is done. USE=pgo builds
 # everything twice anyway.
 
-# @ECLASS_VARIABLE: CHROMIUM_BUILD_DIR_DELETE_SRC
+# @ECLASS_VARIABLE: CHROMIUM_BUILD_DIR_KEEP_SRC
 # @USER_VARIABLE
 # @DEFAULT_UNSET
 # @DESCRIPTION:
-# With CHROMIUM_BUILD_DIR, if set (non-empty): delete the kept build tree's src/ at the end of
-# src_install. The next build unpacks its own sources anyway; only build/ is reused.
+# With CHROMIUM_BUILD_DIR, the kept build tree's src/ is emptied at the end of src_install: the
+# next build unpacks its own sources anyway, only build/ is reused. Set (non-empty), or with
+# FEATURES=keepwork, the sources stay until the next build.
 
 # @FUNCTION: chromium_crubit_rustfmt
 # @USAGE: <suffix>
@@ -828,11 +829,14 @@ chromium-llm_src_unpack() {
 		mkdir -p "${CHROMIUM_BUILD_TREE}/build" || die
 		# Here, not in pkg_setup: FILESDIR is only there in the src_* phases.
 		chromium_build_tree_py claim "${CHROMIUM_BUILD_TREE}/build" "${PORTAGE_BUILDDIR}"
-		einfo "Removing the last build's sources from ${S} ..."
-		rm -rf "${S}" || die
+		# (Its contents: src/ may be a mount point.)
+		if [[ -d ${S} ]]; then
+			einfo "Removing the last build's sources from ${S} ..."
+			find "${S}" -mindepth 1 -maxdepth 1 -exec rm -rf {} + || die
+		fi
 	fi
 	# The tarball's chromium-<version>/ is S (src/).
-	mkdir "${S}" || die
+	mkdir -p "${S}" || die
 	einfo "Unpacking chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz to ${S} ..."
 	tar -xf "${DISTDIR}/chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz" --strip-components=1 -C "${S}" ||
 		die "Failed to unpack chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz"
@@ -4209,10 +4213,10 @@ chromium-llm_src_install() {
 
 	readme.gentoo_create_doc
 
-	if [[ -n ${CHROMIUM_BUILD_TREE} && -n ${CHROMIUM_BUILD_DIR_DELETE_SRC} ]]; then
-		einfo "Deleting the kept build tree's sources (CHROMIUM_BUILD_DIR_DELETE_SRC) ..."
-		cd "${WORKDIR}" || die
-		rm -rf "${S}" || die
+	# The kept build tree's sources (its contents: src/ may be a mount point).
+	if [[ -n ${CHROMIUM_BUILD_TREE} && -z ${CHROMIUM_BUILD_DIR_KEEP_SRC} ]] && ! has keepwork ${FEATURES}; then
+		einfo "Removing the sources from ${S} (CHROMIUM_BUILD_DIR_KEEP_SRC keeps them) ..."
+		find "${S}" -mindepth 1 -maxdepth 1 -exec rm -rf {} + || die
 	fi
 }
 

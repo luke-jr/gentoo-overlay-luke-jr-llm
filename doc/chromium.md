@@ -49,7 +49,7 @@ the sources), both in its `WORKDIR`, or in this directory with `CHROMIUM_BUILD_D
 tree (tens of GB per major):
 
 ```
-src/                      the sources: each build deletes them and unpacks its own
+src/                      the sources: each build unpacks its own, src_install removes them
 build/
 ├── Release/              the build directory (ninja's)
 ├── StaticRoots/          V8's static-roots build
@@ -71,8 +71,9 @@ upstream, so every version bump regenerates every Mojo binding and recompiles wh
 computed from the public sources. Delete the file to get a new salt (and a rebuild of those
 objects) on the next build.
 
-`CHROMIUM_BUILD_DIR_DELETE_SRC=1` deletes the tree's `src/` at the end of `src_install`: the
-next build unpacks its own sources anyway.
+The tree's `src/` is emptied at the end of `src_install` (the next build unpacks its own sources
+anyway); `CHROMIUM_BUILD_DIR_KEEP_SRC=1` or `FEATURES=keepwork` keeps them until the next build.
+`src/` and `build/` can be mount points (e.g. `src/` on tmpfs, `build/` on a disk).
 
 A second build of the same major waits until the first is done (until its Portage build
 directory is unlocked). Running the first one's phases as separate `ebuild` commands unlocks it
