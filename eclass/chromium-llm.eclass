@@ -3884,7 +3884,8 @@ chromium_compile() {
 		chromium_eninja -C "${CHROMIUM_OUT}" "${td_tool}"
 		touch "${td_stamp}" || die
 		einfo "Regenerating the top domains' skeletons ..."
-		"${CHROMIUM_OUT}/${td_tool}" > "${T}/top-domain-skeletons.log" 2>&1 ||
+		# (Chromium's tools take the sources to be two levels above them; not with build/.)
+		CR_SOURCE_ROOT="${S}" "${CHROMIUM_OUT}/${td_tool}" > "${T}/top-domain-skeletons.log" 2>&1 ||
 			die "make_top_domain_skeletons failed (see ${T}/top-domain-skeletons.log)"
 		for td_f in "${td_dir}"/*.skeletons; do
 			[[ ${td_f} -nt ${td_stamp} ]] || die "make_top_domain_skeletons didn't rewrite ${td_f}"
@@ -4094,7 +4095,7 @@ chromium-llm_src_test() {
 	local test_filter="-$(IFS=:; printf '%s' "${skip_tests[*]}")"
 	# test-launcher-bot-mode enables parallelism and plain output
 	# Check individual tests with --gtest_filter=<test you want> --single-process-tests
-	"./${CHROMIUM_OUT}/base_unittests" --test-launcher-bot-mode \
+	CR_SOURCE_ROOT="${S}" "./${CHROMIUM_OUT}/base_unittests" --test-launcher-bot-mode \
 		--test-launcher-jobs="$(get_makeopts_jobs)" \
 		--gtest_filter="${test_filter}" || die "Tests failed!"
 }
