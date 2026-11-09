@@ -1,22 +1,52 @@
 Chromium 158.0.8127.31 + the later changes of its release branch, up to
-4ef05ce84b525b773b7887ad06cc8bd69fbed89d (refs/branch-heads/8127@{#1419}), for the
+515985ecd435d4fb48feca80d91d88bca9b1ecab (refs/branch-heads/8127@{#1444}), for the
 158.0.8127.31 tree that chromium-158.0.8127.18-to-158.0.8127.31.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.31..4ef05ce84b525b773b7887ad06cc8bd69fbed89d,
-as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
-.31 tree's files, renames included): left out are files not in the release
-tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
-translations, PGO/orderfile pointers, submodule pointer updates. chrome/VERSION,
-DEPS and the stamp files stay at 158.0.8127.31.
+Generated from the upstream diffs chromium/src refs/tags/158.0.8127.31..515985ecd435d4fb48feca80d91d88bca9b1ecab
+and, for the V8 roll in it, v8 a246c42da968..a2e0f800315e, as served by Gitiles,
+with scripts/chromium-delta --branch-fixes (against the .31 tree's files, renames
+included): left out are files not in the release tarball,
+iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs, translations,
+PGO/orderfile pointers, submodule pointer updates. chrome/VERSION, DEPS and the
+stamp files stay at 158.0.8127.31.
 
 Commits contributing to it (oldest first):
   7580ff0df70a [M158] [Extensions] Fix chrome://extensions crash in site permissions dialog
   c853d007f5f9 [M158] Revert CHECK to DCHECK for extension action visibility in TriggerPopup
   4ef05ce84b52 [M158] [a11y-image-desc] Guard AXImageAnnotator::OnImageAnnotated re-entrancy
+  ef9a2c1ea328 Roll src/v8 in M158 from a246c42da968 to a2e0f800315e:
+    v8 4d437ba307ad [M158] [interpreter] Only track eval ScopeInfos within closure scope
+    v8 a2e0f800315e Version 15.8.62.25
+  383707b77041 [M158] Make escaping popups' initial origin opaque in the browser too
+  6e4734a70631 [M158] Disallow differing origins in most synchronous about:blank commits
+  0ec84d3520d9 Updating XTBs based on .GRDs from branch 8127 (en-GB only)
+  515985ecd435 [M158] [FSA] Match sensitive-path blocklist rules case-insensitively
 
 Checked: applies to the 158.0.8127.31 tree; every patched file is
 byte-identical to its version at the last commit above.
 
+diff --git a/chrome/app/resources/generated_resources_en-GB.xtb b/chrome/app/resources/generated_resources_en-GB.xtb
+index 7b7f428..f778983 100644
+--- a/chrome/app/resources/generated_resources_en-GB.xtb
++++ b/chrome/app/resources/generated_resources_en-GB.xtb
+@@ -4153,7 +4153,7 @@
+ <translation id="4107793386654579933">Select a shortcut for <ph name="ACTION_NAME" /> action</translation>
+ <translation id="4109135793348361820">Move window to <ph name="USER_NAME" /> (<ph name="USER_EMAIL" />)</translation>
+ <translation id="4110485659976215879">Restore warning</translation>
+-<translation id="4110984310437592352">Use your microphone to chat with Gemini. When you speak to Gemini, audio is saved in Gemini History (if it's on).</translation>
++<translation id="4110984310437592352">Use your microphone to chat with Gemini. When you speak to Gemini, audio is saved in Gemini history (if it's on).</translation>
+ <translation id="4112194537011183136"><ph name="DEVICE_NAME" /> (offline)</translation>
+ <translation id="4112282889480354965">Extensions and skills</translation>
+ <translation id="4113743276555482284">File password</translation>
+@@ -5321,7 +5321,7 @@
+ <translation id="5012523644916800014">Manage passwords and passkeys</translation>
+ <translation id="501394389332262641">Low battery sound</translation>
+ <translation id="5014286001996333986">Replace or create new group?</translation>
+-<translation id="5014385104640320445">Use your microphone to chat with Gemini. When you speak to Gemini, audio is saved in Gemini History (if it's on). Your data is not used to improve generative AI models.</translation>
++<translation id="5014385104640320445">Use your microphone to chat with Gemini. When you speak to Gemini, audio is saved in Gemini history (if it's on). Your data is not used to improve generative AI models.</translation>
+ <translation id="5015344424288992913">Resolving proxy...</translation>
+ <translation id="5016305686459575361">By connecting your phone, you can:</translation>
+ <translation id="5016491575926936899">You can text from your computer, share your Internet connection, reply to conversation notifications and unlock your <ph name="DEVICE_TYPE" /> with your phone.<ph name="FOOTNOTE_POINTER" /> <ph name="LINK_BEGIN" />Learn more<ph name="LINK_END" /></translation>
 diff --git a/chrome/browser/extensions/api/developer_private/developer_private_functions.cc b/chrome/browser/extensions/api/developer_private/developer_private_functions.cc
 index 2589f42..e66e2aa 100644
 --- a/chrome/browser/extensions/api/developer_private/developer_private_functions.cc
@@ -32,6 +62,133 @@ index 2589f42..e66e2aa 100644
      std::unique_ptr<const PermissionSet> granted_permissions =
          permissions_manager->GetExtensionGrantedPermissions(*extension);
      const URLPatternSet& extension_withheld_sites =
+diff --git a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
+index f4a61ed..18ede1f 100644
+--- a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
++++ b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
+@@ -718,6 +718,46 @@
+   return block_path_rules;
+ }
+ 
++// Returns true if `child_components` is the same as or a descendant of
++// `parent_components`, ignoring case differences.
++bool IsPathOrDescendantIgnoreCase(
++    const std::vector<base::FilePath::StringType>& parent_components,
++    const std::vector<base::FilePath::StringType>& child_components) {
++  if (parent_components.empty() ||
++      parent_components.size() > child_components.size()) {
++    return false;
++  }
++
++  return std::equal(parent_components.begin(), parent_components.end(),
++                    child_components.begin(),
++                    base::FilePath::CompareEqualIgnoreCase);
++}
++
++// Returns true if `child_path` is the same as or a descendant of
++// `parent_path`, ignoring case differences. Unlike
++// `base::FilePath::IsParent()`, this handles case-variant paths returned by
++// native pickers on case-insensitive filesystems.
++bool IsPathOrDescendantIgnoreCase(
++    const base::FilePath& parent_path,
++    const std::vector<base::FilePath::StringType>& parent_components,
++    const base::FilePath& child_path) {
++  // Fast path: Exact match or case-sensitive parent match.
++  if (child_path == parent_path || parent_path.IsParent(child_path)) {
++    return true;
++  }
++  return IsPathOrDescendantIgnoreCase(parent_components,
++                                      child_path.GetComponents());
++}
++
++// Returns true if `parent_components` is a strict parent of
++// `child_components`, ignoring case differences.
++bool IsParentIgnoreCase(
++    const std::vector<base::FilePath::StringType>& parent_components,
++    const std::vector<base::FilePath::StringType>& child_components) {
++  return parent_components.size() < child_components.size() &&
++         IsPathOrDescendantIgnoreCase(parent_components, child_components);
++}
++
+ // Checks if `path` should be blocked by the `rules`.
+ // The BlockType of the nearest ancestor of a path to check is what
+ // ultimately determines if a path is blocked or not. If a blocked path is a
+@@ -753,7 +793,10 @@
+   }
+ #endif
+ 
++  const std::vector<base::FilePath::StringType> path_components =
++      path.GetComponents();
+   base::FilePath nearest_ancestor;
++  std::vector<base::FilePath::StringType> nearest_ancestor_components;
+   BlockType nearest_ancestor_block_type = BlockType::kDontBlockChildren;
+   auto should_block_with_rule = [&](const base::FilePath& block_path,
+                                     BlockType block_type) -> bool {
+@@ -763,15 +806,19 @@
+       return false;
+     }
+ 
+-    if (path == block_path || path.IsParent(block_path)) {
++    std::vector<base::FilePath::StringType> block_components =
++        block_path.GetComponents();
++    if (IsPathOrDescendantIgnoreCase(path_components, block_components)) {
+       LOG(ERROR) << "Blocking access to " << path
+                  << " because it is a parent of " << block_path;
+       return true;
+     }
+ 
+-    if (block_path.IsParent(path) &&
+-        (nearest_ancestor.empty() || nearest_ancestor.IsParent(block_path))) {
++    if (IsParentIgnoreCase(block_components, path_components) &&
++        (nearest_ancestor.empty() ||
++         IsParentIgnoreCase(nearest_ancestor_components, block_components))) {
+       nearest_ancestor = block_path;
++      nearest_ancestor_components = std::move(block_components);
+       nearest_ancestor_block_type = block_type;
+     }
+     return false;
+@@ -794,9 +841,6 @@
+     }
+   }
+ 
+-  std::vector<base::FilePath::StringType> path_components =
+-      path.GetComponents();
+-
+   // Checks if the path components contain the components of the suffix rule.
+   // For example, if the rule is `.git/hooks`, it will block paths like
+   // `/foo/bar/.git/hooks`. The `std::search` identifies the matching subrange
+@@ -858,31 +902,6 @@
+   return true;
+ }
+ 
+-// Returns true if `child_path` is the same as or a descendant of
+-// `parent_path`, ignoring case differences. Unlike
+-// `base::FilePath::IsParent()`, this handles case-variant paths returned by
+-// native pickers on case-insensitive filesystems.
+-bool IsPathOrDescendantIgnoreCase(
+-    const base::FilePath& parent_path,
+-    const std::vector<base::FilePath::StringType>& parent_components,
+-    const base::FilePath& child_path) {
+-  // Fast path: Exact match or case-sensitive parent match.
+-  if (child_path == parent_path || parent_path.IsParent(child_path)) {
+-    return true;
+-  }
+-
+-  const std::vector<base::FilePath::StringType> child_components =
+-      child_path.GetComponents();
+-  if (parent_components.empty() ||
+-      parent_components.size() > child_components.size()) {
+-    return false;
+-  }
+-
+-  return std::equal(parent_components.begin(), parent_components.end(),
+-                    child_components.begin(),
+-                    base::FilePath::CompareEqualIgnoreCase);
+-}
+-
+ #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+ void DoSafeBrowsingCheckOnUIThread(
+     base::WeakPtr<ChromeFileSystemAccessPermissionContext> permission_context,
 diff --git a/chrome/browser/resources/extensions/site_permissions/site_permissions_edit_permissions_dialog.ts b/chrome/browser/resources/extensions/site_permissions/site_permissions_edit_permissions_dialog.ts
 index 1836d2cbd..5ba4426 100644
 --- a/chrome/browser/resources/extensions/site_permissions/site_permissions_edit_permissions_dialog.ts
@@ -73,6 +230,160 @@ index 79f1b26..9a97f7e 100644
    CHECK(extension_action_->HasPopup(tab_id), base::NotFatalUntil::M162);
  
    const GURL popup_url = extension_action_->GetPopupUrl(tab_id);
+diff --git a/content/browser/renderer_host/render_frame_host_impl.cc b/content/browser/renderer_host/render_frame_host_impl.cc
+index 13ce537f..60732c4 100644
+--- a/content/browser/renderer_host/render_frame_host_impl.cc
++++ b/content/browser/renderer_host/render_frame_host_impl.cc
+@@ -6041,11 +6041,18 @@
+   url::Origin creator_origin =
+       creator_frame ? creator_frame->GetLastCommittedOrigin() : url::Origin();
+ 
+-  // Calculate and set |new_frame_origin|.
++  // Calculate and set |new_frame_origin|, based on the initial empty
++  // document's sandbox flags (`active_sandbox_flags()`). These include both
++  // the browsing context's sandbox flags
++  // (`browsing_context_state_->active_sandbox_flags()`, e.g. from an iframe's
++  // sandbox attribute) and the CSP sandbox inherited from the creator. The
++  // latter matters for popups opened from CSP-sandboxed documents with
++  // allow-popups-to-escape-sandbox: the popup's browsing context isn't
++  // sandboxed, but its initial empty document is, and the renderer gives it an
++  // opaque origin (crbug.com/486082219).
+   bool new_frame_should_be_sandboxed =
+       network::mojom::WebSandboxFlags::kOrigin ==
+-      (browsing_context_state_->active_sandbox_flags() &
+-       network::mojom::WebSandboxFlags::kOrigin);
++      (active_sandbox_flags() & network::mojom::WebSandboxFlags::kOrigin);
+ 
+   url::Origin new_frame_origin;
+   if (base::FeatureList::IsEnabled(
+@@ -11059,21 +11066,16 @@
+   // initiating frame, which is what new_rwh is constructed with.
+   visual_properties.screen_infos = new_rwh->GetScreenInfos();
+ 
+-  // Sandbox origin token handling for popups:
+-  // Normally sandboxed popups token is generated by
+-  // `SetOriginDependentStateOfNewFrame()`. Popups that escape sandbox (CSP
+-  // "sandbox" + "allow-popups-to-escape-sandbox"):
+-  //   - Browser sees no sandbox flags, so
+-  //     `GetPage().TakeSandboxOriginTokenForPopup()` is null
+-  //   - Renderer still inherits CSP sandbox flags and will create opaque origin
+-  //   - So generate a new token here as fallback
+-  //
+-  // TODO(crbug.com/486082219): Remove this fallback logic and only set
+-  // sandbox_origin_token when the window is actually sandboxed.
++  // Sandbox origin token handling for popups: if the popup's initial empty
++  // document is sandboxed, `SetOriginDependentStateOfNewFrame()` generates a
++  // token and derives the browser-side origin from it. Send it to the renderer
++  // so it derives the same opaque origin. This includes popups that escape the
++  // sandbox (CSP "sandbox" + "allow-popups-to-escape-sandbox"), whose browsing
++  // context isn't sandboxed but whose initial empty document still inherits
++  // the opener's CSP sandbox. Otherwise, there's no token.
+   auto token = new_main_rfh->GetPage().TakeSandboxOriginTokenForPopup();
+   std::optional<base::UnguessableToken> sandbox_origin_token =
+-      token ? std::make_optional(*token)
+-            : std::make_optional(base::UnguessableToken::Create());
++      base::OptionalFromPtr(token.get());
+ 
+   mojom::CreateNewWindowReplyPtr reply = mojom::CreateNewWindowReply::New(
+       new_main_rfh->GetFrameToken(), new_main_rfh->GetRoutingID(),
+@@ -16673,37 +16675,52 @@
+     // Guest views currently don't appear to set the origin correctly for
+     // synchronous new window commits under MPArch.
+     //
+-    // TODO(https://crbug.com/511083727): Re-enable this check for file origins
+-    // once issues around Origin dropping UNC hosts are resolved.
+-    if (is_synchronous_about_blank_commit &&
+-        params->origin.scheme() != url::kFileScheme &&
++    // TODO(crbug.com/582733579): Re-enable this check for file origins once
++    // issues around Origin dropping UNC hosts are resolved. Until then, only
++    // skip it when the browser also expects a file origin, so that other
++    // frames can't claim one (see https://crbug.com/580853808).
++    const bool is_file_origin_commit =
++        params->origin.scheme() == url::kFileScheme &&
++        last_committed_origin_.scheme() == url::kFileScheme;
++    if (is_synchronous_about_blank_commit && !is_file_origin_commit &&
+         (!frame_tree_->is_guest() ||
+          !base::FeatureList::IsEnabled(features::kGuestViewMPArch))) {
+-      bool origin_matches = false;
+-      if (last_committed_origin_.opaque()) {
+-        // When the browser-derived origin is opaque, the renderer-reported
+-        // origin must also be opaque with a matching precursor.
+-        // TODO(crbug.com/486082219): Compare origin nonces as well once nonces
+-        // are synchronized for popups opened from CSP-sandboxed documents with
+-        // allow-popups-to-escape-sandbox.
++      // The renderer-reported origin should match the browser-derived one
++      // exactly, including the nonce: it's either inherited from the creator,
++      // or derived from a sandbox origin token that the browser also sends to
++      // the renderer.
++      bool origin_matches = params->origin == last_committed_origin_;
++      if (!origin_matches &&
++          !base::FeatureList::IsEnabled(
++              blink::features::kUseSandboxTokenForOriginDerivation)) {
++        // Without sandbox origin tokens, the browser and the renderer derive
++        // opaque origins with different nonces, so only compare precursors.
++        // TODO(crbug.com/402272788): Remove along with the feature.
+         origin_matches =
+-            params->origin.opaque() &&
++            params->origin.opaque() && last_committed_origin_.opaque() &&
+             params->origin.GetTupleOrPrecursorTupleIfOpaque() ==
+                 last_committed_origin_.GetTupleOrPrecursorTupleIfOpaque();
+-      } else if (params->origin.opaque()) {
+-        // The browser-derived origin is not opaque but the renderer-reported
+-        // one is. This can legitimately (but incorrectly) happen for popups
+-        // opened from CSP-sandboxed documents with
+-        // allow-popups-to-escape-sandbox, where the browser sees no sandbox
+-        // flags on the frame but the renderer still inherits CSP sandbox flags
+-        // for the document.
+-        // TODO(crbug.com/486082219): Remove this handling once the incorrect
+-        // case above can no longer happen and browser & renderer origins are
+-        // always consistent.
+-        origin_matches = true;
+-      } else {
++      }
++      if (!origin_matches && params->origin.opaque() &&
++          !params->origin.GetTupleOrPrecursorTupleIfOpaque().IsValid()) {
++        // Temporarily allow nonces to differ for opaque origins without a
++        // precursor. The renderer creates these itself for the initial empty
++        // document of a main frame that has no creator or was reused after a
++        // crash, and for frames created under it.
++        //
++        // In the crash case, the difference can be more than the nonce, since
++        // the browser may still have the previous document's non-opaque
++        // origin.
++        //
++        // In all of these cases, `params->origin` becomes the new committed
++        // origin, which is opaque, has no precursor, and isn't tied to any
++        // site.
++        // TODO(crbug.com/582296961): Remove once the browser picks these
++        // origins.
+         origin_matches =
+-            params->origin.CanBeDerivedFrom(last_committed_origin_.GetURL());
++            !last_committed_origin_.opaque() ||
++            !last_committed_origin_.GetTupleOrPrecursorTupleIfOpaque()
++                 .IsValid();
+       }
+       if (!origin_matches) {
+         bad_message::ReceivedBadMessage(
+diff --git a/content/common/frame.mojom b/content/common/frame.mojom
+index 115c858..6ee43e70 100644
+--- a/content/common/frame.mojom
++++ b/content/common/frame.mojom
+@@ -677,10 +677,11 @@
+ 
+   // Token used to deterministically generate the opaque origin for the initial
+   // empty document of a sandboxed popup (e.g., `window.open()` with sandbox
+-  // flags). Generated in the browser by `SetOriginDependentStateOfNewFrame()`
+-  // and sent here so both browser and renderer derive the same origin.
+-  // TODO(crbug.com/486082219): Once the fallback logic for popups escaping
+-  // sandbox is removed, this will only be set for truly sandboxed cases.
++  // flags, or a popup opened from a CSP-sandboxed document with
++  // allow-popups-to-escape-sandbox). Generated in the browser by
++  // `SetOriginDependentStateOfNewFrame()` and sent here so both browser and
++  // renderer derive the same origin. Only set when the popup's initial empty
++  // document is sandboxed.
+   mojo_base.mojom.UnguessableToken? sandbox_origin_token;
+ 
+   // Token used to retrieve the InitiatorNavigationState for navigations
 diff --git a/content/renderer/accessibility/annotations/ax_image_annotator.cc b/content/renderer/accessibility/annotations/ax_image_annotator.cc
 index 8758b66..5ca2c078 100644
 --- a/content/renderer/accessibility/annotations/ax_image_annotator.cc
@@ -122,3 +433,159 @@ index 8758b66..5ca2c078 100644
  
    const auto it = image_annotations_.find(image.AxID());
    if (it == image_annotations_.end()) {
+diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
+index 79f058f..27d3d4e 100644
+--- a/v8/include/v8-version.h
++++ b/v8/include/v8-version.h
+@@ -11,7 +11,7 @@
+ #define V8_MAJOR_VERSION 15
+ #define V8_MINOR_VERSION 8
+ #define V8_BUILD_NUMBER 62
+-#define V8_PATCH_LEVEL 24
++#define V8_PATCH_LEVEL 25
+ 
+ // Use 1 for candidates and 0 otherwise.
+ // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/codegen/compiler.cc b/v8/src/codegen/compiler.cc
+index 751a25d..93480a6 100644
+--- a/v8/src/codegen/compiler.cc
++++ b/v8/src/codegen/compiler.cc
+@@ -2199,6 +2199,11 @@
+     }
+   }
+ 
++  bool HasScopeInfoToUpdate(Tagged<ScopeInfo> scope_info) const {
++    return scope_infos_to_update_.find(scope_info->UniqueIdInScript()) !=
++           scope_infos_to_update_.end();
++  }
++
+   void UpdateStandaloneScopeInfo(Tagged<ScopeInfo> scope_info) {
+     if (!scope_info->HasOuterScopeInfo()) return;
+ 
+@@ -2376,6 +2381,23 @@
+   //   * All constant pool SFI entries point to an SFI referring to the old
+   //     script (i.e. references were updated correctly).
+   std::unordered_map<int, Tagged<ScopeInfo>> scope_infos;
++  auto verify_scope_info = [&](Tagged<ScopeInfo> scope_info) {
++    while (true) {
++      auto it = scope_infos.find(scope_info->UniqueIdInScript());
++      if (it != scope_infos.end()) {
++        if (it->second != scope_info) {
++          isolate->PushParamsAndDie("duplicate scope info unique id",
++                                    reinterpret_cast<void*>(it->second.ptr()),
++                                    reinterpret_cast<void*>(scope_info.ptr()));
++          UNREACHABLE();
++        }
++        break;
++      }
++      scope_infos[scope_info->UniqueIdInScript()] = scope_info;
++      if (!scope_info->HasOuterScopeInfo()) break;
++      scope_info = scope_info->OuterScopeInfo();
++    }
++  };
+   uint32_t script_infos_len = script->infos()->ulength().value();
+   for (uint32_t info_idx = 0; info_idx < script_infos_len; info_idx++) {
+     Tagged<ScopeInfo> scope_info;
+@@ -2399,6 +2421,8 @@
+             int id = inner_sfi->function_literal_id(kRelaxedLoad);
+             CHECK_EQ(MakeWeak(inner_sfi), script->infos()->get(id));
+             CHECK_EQ(inner_sfi->script(), *script);
++          } else if (Is<ScopeInfo>(entry)) {
++            verify_scope_info(Cast<ScopeInfo>(entry));
+           }
+         }
+       }
+@@ -2413,21 +2437,7 @@
+     } else {
+       scope_info = Cast<ScopeInfo>(info);
+     }
+-    while (true) {
+-      auto it = scope_infos.find(scope_info->UniqueIdInScript());
+-      if (it != scope_infos.end()) {
+-        if (it->second != scope_info) {
+-          isolate->PushParamsAndDie("duplicate scope info unique id",
+-                                    reinterpret_cast<void*>(it->second.ptr()),
+-                                    reinterpret_cast<void*>(scope_info.ptr()));
+-          UNREACHABLE();
+-        }
+-        break;
+-      }
+-      scope_infos[scope_info->UniqueIdInScript()] = scope_info;
+-      if (!scope_info->HasOuterScopeInfo()) break;
+-      scope_info = scope_info->OuterScopeInfo();
+-    }
++    verify_scope_info(scope_info);
+   }
+ }
+ }  // namespace
+@@ -2575,6 +2585,9 @@
+     for (DirectHandle<SharedFunctionInfo> new_sfi : used_new_sfis_) {
+       forwarder.UpdateScopeInfo(*new_sfi);
+     }
++    for (DirectHandle<ScopeInfo> new_scope : used_new_scope_infos_) {
++      forwarder.UpdateStandaloneScopeInfo(*new_scope);
++    }
+     for (const auto& new_compiled_data : new_compiled_data_for_cached_sfis_) {
+       // It's possible that new_compiled_data.cached_sfi had
+       // scope_info()->IsEmpty() while an inner function has scope info if the
+@@ -2681,6 +2694,14 @@
+         compiled_data_it++;
+       }
+     } else if (!maybe_old_info.IsWeak()) {
++      // Standalone eval ScopeInfos are only recorded for scopes within their
++      // owning closure, so if the slot in old_script was cleared, the ScopeInfo
++      // itself cannot still be alive in old_script.
++      DCHECK_IMPLIES(
++          maybe_new_info.IsWeak() &&
++              Is<ScopeInfo>(maybe_new_info.GetHeapObjectAssumeWeak()),
++          !forwarder.HasScopeInfoToUpdate(
++              Cast<ScopeInfo>(maybe_new_info.GetHeapObjectAssumeWeak())));
+       old_script->infos()->set(i, maybe_new_info, kReleaseStore);
+     }
+   }
+diff --git a/v8/src/interpreter/bytecode-generator.cc b/v8/src/interpreter/bytecode-generator.cc
+index 59eca95..f2fea5a 100644
+--- a/v8/src/interpreter/bytecode-generator.cc
++++ b/v8/src/interpreter/bytecode-generator.cc
+@@ -1618,6 +1618,7 @@
+   }
+ 
+   for (std::pair<Call*, Scope*> call : eval_calls_) {
++    DCHECK_EQ(call.second->GetClosureScope(), closure_scope());
+     Tagged<ScopeInfo> current;
+     int index = call.first->eval_scope_info_index();
+     if (script->infos()
+@@ -7113,7 +7114,8 @@
+       private_name_lookup_skips_outer_class =
+           scope_with_context->AsClassScope()->IsParsingHeritage();
+     }
+-    if (scope_with_context) {
++    if (scope_with_context &&
++        scope_with_context->IsOuterScopeUpToClosureScopeOf(current_scope())) {
+       eval_calls_.emplace_back(expr, scope_with_context);
+     }
+     int eval_flags = ResolveEvalFlags::Encode(
+diff --git a/v8/src/runtime/runtime-compiler.cc b/v8/src/runtime/runtime-compiler.cc
+index 05c6c8f..95bba0a 100644
+--- a/v8/src/runtime/runtime-compiler.cc
++++ b/v8/src/runtime/runtime-compiler.cc
+@@ -866,11 +866,15 @@
+   DirectHandle<JSFunction> compiled;
+   DirectHandle<Context> context(isolate->context(), isolate);
+   if (!Is<NativeContext>(*context)) {
+-    Tagged<WeakFixedArray> array = Cast<Script>(outer_info->script())->infos();
++    Tagged<Script> script = Cast<Script>(outer_info->script());
++    Tagged<WeakFixedArray> array = script->infos();
+     Tagged<ScopeInfo> stored_info;
+-    CHECK(array->get(eval_scope_info_index)
+-              .GetHeapObjectIfWeak(isolate, &stored_info));
+-    CHECK_EQ(stored_info, context->scope_info());
++    if (array->get(eval_scope_info_index)
++            .GetHeapObjectIfWeak(isolate, &stored_info)) {
++      CHECK_EQ(stored_info, context->scope_info());
++    } else {
++      CHECK_EQ(outer_info->GetOuterScopeInfo(), context->scope_info());
++    }
+   }
+   ASSIGN_RETURN_ON_EXCEPTION_VALUE(
+       isolate, compiled,
