@@ -5,11 +5,13 @@
 sources, so that ninja rebuilds what changed since it last ran and nothing else.
 
 Usage:
+  TREE is the kept tree's build/ (its build directory and these records).
+
   chromium-build-tree.py claim TREE BUILDDIR
     Make the build in Portage's BUILDDIR the tree's user. If another build uses it (its
     Portage build directory is locked), wait until it is done. Run with Portage's Python.
   chromium-build-tree.py settle TREE SRC [--full BUILD_NINJA] [--bootstrap PATH...]
-    Before each ninja run: TREE/state has, for every file of SRC (but out/), its contents (a
+    Before each ninja run: TREE/state has, for every file of SRC, its contents (a
     hash) and timestamp at the last run, whatever build that was in. A file with the same
     contents gets that timestamp back: what ninja built from it since is newer, so it stays,
     and the rest gets rebuilt. A changed or new file gets the current time. Either way the
@@ -45,7 +47,7 @@ import time
 
 
 def walk(src):
-    """The regular files under SRC (relative paths) with their stat results, without out/."""
+    """The regular files under SRC (relative paths) with their stat results."""
     files = {}
     stack = [""]
     while stack:
@@ -54,8 +56,7 @@ def walk(src):
             for e in it:
                 p = rel + e.name
                 if e.is_dir(follow_symlinks=False):
-                    if p != "out":
-                        stack.append(p + "/")
+                    stack.append(p + "/")
                 elif e.is_file(follow_symlinks=False):
                     files[p] = e.stat(follow_symlinks=False)
     return files

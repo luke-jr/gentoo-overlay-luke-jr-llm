@@ -44,10 +44,23 @@ the major version. Portage expands variables in `make.conf` even single-quoted, 
 CHROMIUM_BUILD_DIR="/var/tmp/portage/chromium-build/\${MAJOR}"
 ```
 
-Each build replaces the sources in its `src/` and keeps `src/out/` (tens of GB per major). Before
-each ninja run, files whose contents are those of the last run get that run's timestamp back, so
-ninja only rebuilds from changed files (`files/chromium-build-tree.py`). ninja doesn't notice a new compiler version in the
-same LLVM or Rust slot: the ebuild warns, and deleting `src/out/` forces a full build.
+The tree (tens of GB per major):
+
+```
+src/                      the sources: each build deletes them and unpacks its own
+build/
+├── Release/              the build directory (ninja's; a normal build's is src/out/Release)
+├── StaticRoots/          V8's static-roots build
+├── state                 the sources' records: contents (hash) and timestamp at the last ninja run
+├── owner                 the build using the tree
+├── toolchains            the compilers its objects were built with
+└── mojom-message-id-salt
+```
+
+Before each ninja run, files whose contents are those of the last run get that run's timestamp
+back, so ninja only rebuilds from changed files (`files/chromium-build-tree.py`). ninja doesn't
+notice a new compiler version in the same LLVM or Rust slot: the ebuild warns, and deleting
+`build/` forces a full build (with new records and a new salt).
 
 With `USE=official`, Chromium scrambles Mojo's message IDs with a salt that is `chrome/VERSION`
 upstream, so every version bump regenerates every Mojo binding and recompiles what includes one
@@ -56,10 +69,9 @@ upstream, so every version bump regenerates every Mojo binding and recompiles wh
 computed from the public sources. Delete the file to get a new salt (and a rebuild of those
 objects) on the next build.
 
-A
-second build of the same major waits until the first is done (until its Portage build directory
-is unlocked). Running the first one's phases as separate `ebuild` commands unlocks it between
-them, so a waiting build can take the tree before the first one's `install`.
+A second build of the same major waits until the first is done (until its Portage build
+directory is unlocked). Running the first one's phases as separate `ebuild` commands unlocks it
+between them, so a waiting build can take the tree before the first one's `install`.
 
 ## Notable ebuild changes vs. 151
 

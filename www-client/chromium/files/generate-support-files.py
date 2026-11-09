@@ -29,6 +29,12 @@ def main():
         choices=["stable", "beta", "unstable", "dev", "canary"],
         help="Channel to build for (default: stable)",
     )
+    parser.add_argument(
+        "-o",
+        "--outdir",
+        default="out/Release",
+        help="Directory to write the files to (default: out/Release)",
+    )
     args = parser.parse_args()
 
     # Normalise channel name (upstream uses 'unstable' for dev)
@@ -79,28 +85,28 @@ def main():
     # Generate Desktop file
     installer.process_template(
         Path("chrome/installer/linux/common/desktop.template"),
-        Path(f"out/Release/chromium-browser{channel_suffix}.desktop"),
+        Path(args.outdir, f"chromium-browser{channel_suffix}.desktop"),
         context,
     )
 
     # Generate Manpage
     installer.process_template(
         Path("chrome/app/resources/manpage.1.in"),
-        Path(f"out/Release/chromium-browser{channel_suffix}.1"),
+        Path(args.outdir, f"chromium-browser{channel_suffix}.1"),
         context,
     )
 
     # Generate AppData (AppStream)
     installer.process_template(
         Path("chrome/installer/linux/common/appdata.xml.template"),
-        Path(f"out/Release/chromium-browser{channel_suffix}.appdata.xml"),
+        Path(args.outdir, f"chromium-browser{channel_suffix}.appdata.xml"),
         context,
     )
 
     # Generate GNOME Default Apps entry
     installer.process_template(
         Path("chrome/installer/linux/common/default-app.template"),
-        Path(f"out/Release/chromium-browser{channel_suffix}.xml"),
+        Path(args.outdir, f"chromium-browser{channel_suffix}.xml"),
         context,
     )
 
