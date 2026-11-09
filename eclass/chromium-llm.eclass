@@ -3548,6 +3548,29 @@ chromium_compile() {
 			"${pb_java}/google/protobuf/compiler/java/java_features.proto" || die "Failed to regenerate java_features.pb"
 		"${pb_protoc}" --proto_path="${pb}/src" --python_out="${pb}/python" \
 			"${pb}"/src/google/protobuf/{descriptor,compiler/plugin}.proto || die "Failed to regenerate the _pb2 modules"
+		# protoc was built from the checked-in files: what it generated may depend on them. The
+		# protoc built from the regenerated ones must regenerate them unchanged. It then makes the
+		# edition defaults.
+		eninja -C out/Release "${pb_protoc#out/Release/}"
+		einfo "Checking that the protoc built from them regenerates them unchanged ..."
+		local pb_fp="${T}/protobuf-fixed-point" f
+		mkdir -p "${pb_fp}"/{cpp,python} || die
+		"${pb_protoc}" --proto_path="${pb}/src" --cpp_out=dllexport_decl=PROTOBUF_EXPORT:"${pb_fp}/cpp" \
+			"${pb}"/src/google/protobuf/{descriptor,cpp_features,cpp_file_options,json_enumvalue_options}.proto ||
+			die "Failed to regenerate protobuf's descriptor protos (check)"
+		"${pb_protoc}" --proto_path="${pb}/src" --cpp_out=dllexport_decl=PROTOC_EXPORT:"${pb_fp}/cpp" \
+			"${pb}/src/google/protobuf/compiler/plugin.proto" || die "Failed to regenerate plugin.pb (check)"
+		"${pb_protoc}" --proto_path="${pb_java}" --proto_path="${pb}/src" \
+			--cpp_out=dllexport_decl=PROTOC_EXPORT:"${pb_fp}/cpp" \
+			"${pb_java}/google/protobuf/compiler/java/java_features.proto" || die "Failed to regenerate java_features.pb (check)"
+		"${pb_protoc}" --proto_path="${pb}/src" --python_out="${pb_fp}/python" \
+			"${pb}"/src/google/protobuf/{descriptor,compiler/plugin}.proto || die "Failed to regenerate the _pb2 modules (check)"
+		for f in google/protobuf/{descriptor,cpp_features,cpp_file_options,json_enumvalue_options,compiler/plugin,compiler/java/java_features}.pb.{h,cc}; do
+			cmp -s "${pb_fp}/cpp/${f}" "${pb}/src/${f}" || die "protobuf's ${f} isn't a fixed point: the protoc built from it regenerates it differently"
+		done
+		for f in google/protobuf/{descriptor,compiler/plugin}_pb2.py; do
+			cmp -s "${pb_fp}/python/${f}" "${pb}/python/${f}" || die "protobuf's ${f} isn't a fixed point: the protoc built from the regenerated files regenerates it differently"
+		done
 		"${EPYTHON}" -B -c 'import sys; sys.path.insert(0, sys.argv[1]); import gen_extra_chromium_files as g; g.generate_python_edition_defaults(sys.argv[2])' \
 			"${pb}" "${pb_protoc}" || die "Failed to regenerate python_edition_defaults.py"
 		touch "${WORKDIR}/.protobuf-regenerated" || die

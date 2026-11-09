@@ -238,6 +238,14 @@ OpenXR's with `USE=-openxr`, XNNPACK's RISC-V kernels).
   blocker.
 - **TranslateKit** (on-device Translator web API) is closed source and only ships as a downloaded binary,
   so it stays disabled for good. "Translate this page" (server-side) works.
+- **protoc starts from upstream's generated code.** protoc is compiled from the C++ code
+  generated from its own protos (`descriptor.proto`, `plugin.proto` and the feature protos), so
+  the first protoc of each build is built from the copies upstream generated and ships in the
+  tarball. The build regenerates them with it, rebuilds protoc from the regenerated ones, and
+  checks that this protoc regenerates them unchanged: everything the build uses is made by this
+  protoc, or is identical to what it makes. But the chain still starts from upstream's output,
+  which is trusted: that needs fixing. A fix needs a first protoc (or a generator of
+  those files) that doesn't come from generated code.
 - **Generated and prebuilt files:** see `doc/chromium-generated-files.md` for what is regenerated,
   rebuilt from source, or used as is, and why.
 
