@@ -1,9 +1,10 @@
 Chromium 158.0.8127.31 + the later changes of its release branch, up to
-515985ecd435d4fb48feca80d91d88bca9b1ecab (refs/branch-heads/8127@{#1444}), for the
+9cd672d675f8be72a6acfe1fea941544a979793f (refs/branch-heads/8127@{#1460}), for the
 158.0.8127.31 tree that chromium-158.0.8127.18-to-158.0.8127.31.patch makes.
 
-Generated from the upstream diffs chromium/src refs/tags/158.0.8127.31..515985ecd435d4fb48feca80d91d88bca9b1ecab
-and, for the V8 roll in it, v8 a246c42da968..a2e0f800315e, as served by Gitiles,
+Generated from the upstream diffs chromium/src refs/tags/158.0.8127.31..9cd672d675f8be72a6acfe1fea941544a979793f
+and, for the V8 and Skia rolls in it, v8 a246c42da968..a2e0f800315e and skia
+75584a96108b..ae45399f1aae, as served by Gitiles,
 with scripts/chromium-delta --branch-fixes (against the .31 tree's files, renames
 included): left out are files not in the release tarball,
 iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs, translations,
@@ -21,6 +22,13 @@ Commits contributing to it (oldest first):
   6e4734a70631 [M158] Disallow differing origins in most synchronous about:blank commits
   0ec84d3520d9 Updating XTBs based on .GRDs from branch 8127 (en-GB only)
   515985ecd435 [M158] [FSA] Match sensitive-path blocklist rules case-insensitively
+  f4e159286d6a [M158] [History] Rename Gemini Apps Activity to Gemini History in footer
+  08888ef23289 Roll commits from side projects in M158 (Skia 75584a96108b..ae45399f1aae):
+    skia 9af6a9017274 [M158] [Vulkan] Sleep after device lost on certain GPUs
+    skia ae45399f1aae [M158] [ganesh] Handle negative determinants in StrokeIterator for hairline square caps
+  eb8145412ba5 [M158] Prevent duplicate render pass ids
+  0378edb35d31 [M158] [OE FRE][3/3] Record FRE impressions from WebUI on visual render
+  9cd672d675f8 [M158] [Voice Search] Add a new arm that only updates the model
 
 Checked: applies to the 158.0.8127.31 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -47,6 +55,43 @@ index 7b7f428..f778983 100644
  <translation id="5015344424288992913">Resolving proxy...</translation>
  <translation id="5016305686459575361">By connecting your phone, you can:</translation>
  <translation id="5016491575926936899">You can text from your computer, share your Internet connection, reply to conversation notifications and unlock your <ph name="DEVICE_TYPE" /> with your phone.<ph name="FOOTNOTE_POINTER" /> <ph name="LINK_BEGIN" />Learn more<ph name="LINK_END" /></translation>
+diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
+index 57d883a..ff341616 100644
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -1371,6 +1371,9 @@
+     {"VoiceSearchCoherenceRealboxAutoEndpoint", "true"},
+     {"VoiceSearchCoherenceRealboxHelperText", "true"}};
+ 
++const FeatureEntry::FeatureParam kVoiceSearchCoherenceRealboxArm5Params[] = {
++    {"VoiceSearchCoherenceRealboxKeepLegacyUi", "true"}};
++
+ const FeatureEntry::FeatureVariation
+     kVoiceSearchCoherenceSearchboxVariations[] = {
+         {"Arm 1: Wave only, manual submit + Listening",
+@@ -1380,7 +1383,9 @@
+         {"Arm 3: Wave + Transcript, manual submit + Listening",
+          kVoiceSearchCoherenceRealboxArm3Params, nullptr},
+         {"Arm 4: Wave + Transcript, 3s auto endpoint + Listening",
+-         kVoiceSearchCoherenceRealboxArm4Params, nullptr}};
++         kVoiceSearchCoherenceRealboxArm4Params, nullptr},
++        {"Arm 5: Legacy voice search UI, updated model",
++         kVoiceSearchCoherenceRealboxArm5Params, nullptr}};
+ 
+ const FeatureEntry::FeatureParam
+     kVoiceSearchCoherenceComposeboxCobrowsingParams[] = {
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
+index 99613ed..fe7f6944 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
+@@ -238,6 +238,7 @@
+   void CaptureRegionScreenshot(
+       CaptureRegionScreenshotCallback callback) override;
+   void DismissFre(searchbox::mojom::FreStage stage) override {}
++  void RecordFreImpression(searchbox::mojom::FreStage stage) override {}
+   void ShowHotkeyDropdown(const gfx::Rect& anchor_bounds,
+                           ShowHotkeyDropdownCallback callback) override;
+   void OpenHotkeySettings() override {}
 diff --git a/chrome/browser/extensions/api/developer_private/developer_private_functions.cc b/chrome/browser/extensions/api/developer_private/developer_private_functions.cc
 index 2589f42..e66e2aa 100644
 --- a/chrome/browser/extensions/api/developer_private/developer_private_functions.cc
@@ -215,6 +260,90 @@ index 1836d2cbd..5ba4426 100644
        extensionSiteAccessData.push(
            {id, name, iconUrl, siteAccess, addedByPolicy, canRequestAllSites});
  
+diff --git a/chrome/browser/resources/omnibox_everywhere/app.ts b/chrome/browser/resources/omnibox_everywhere/app.ts
+index 22380c1e..34bb0a31 100644
+--- a/chrome/browser/resources/omnibox_everywhere/app.ts
++++ b/chrome/browser/resources/omnibox_everywhere/app.ts
+@@ -196,6 +196,7 @@
+   private omniboxEverywhereListenerIds_: number[] = [];
+   private wasJustActivated_ = false;
+   private activationTimeoutId_: number|null = null;
++  private impressionRecordedForSession_ = false;
+ 
+   constructor() {
+     super();
+@@ -234,6 +235,11 @@
+     }
+   }
+ 
++  override updated(changedProperties: PropertyValues<this>) {
++    super.updated(changedProperties);
++    this.maybeRecordFreImpression_();
++  }
++
+   private setupListeners_() {
+     const onOpenComposebox = (initialState: ComposeboxInitialState|null) => {
+       const state: Partial<ComposeboxState> = {};
+@@ -286,6 +292,9 @@
+ 
+     this.searchboxListenerIds_.push(
+         this.callbackRouter_.setFreState.addListener((state: FreState) => {
++          if (this.freStage_ !== state.stage) {
++            this.impressionRecordedForSession_ = false;
++          }
+           this.freStage_ = state.stage;
+           this.hotkeyTokens_ = state.currentHotkeyTokens;
+           const freElement =
+@@ -432,6 +441,27 @@
+         !this.isComposeboxMode_;
+   }
+ 
++  private maybeRecordFreImpression_() {
++    if (this.impressionRecordedForSession_ || !this.isActive_ ||
++        document.visibilityState !== 'visible') {
++      return;
++    }
++    let selector: string|null = null;
++    if (this.isFreIntroModal_()) {
++      selector = 'fre-modal';
++    } else if (this.isFreShortcutSetupChin_()) {
++      selector = '#freShortcutSetupChin';
++    } else if (this.isFreShortcutReminderChin_()) {
++      selector = '#freShortcutReminderChin';
++    }
++    if (!selector || !this.shadowRoot?.querySelector(selector)) {
++      return;
++    }
++    this.impressionRecordedForSession_ = true;
++    SearchboxBrowserProxy.getInstance().handler.recordFreImpression(
++        this.freStage_);
++  }
++
+   protected isMostVisitedHidden_(): boolean {
+     return !this.hasMostVisitedTiles_ || this.isFreIntroModal_() ||
+         this.isFreChin_();
+@@ -623,6 +653,7 @@
+   private onWindowFocus_() {
+     this.isActive_ = true;
+     this.focusActiveInput_();
++    this.maybeRecordFreImpression_();
+     this.wasJustActivated_ = true;
+     if (this.activationTimeoutId_ !== null) {
+       clearTimeout(this.activationTimeoutId_);
+@@ -665,11 +696,13 @@
+ 
+   private async onVisibilitychange_() {
+     if (document.visibilityState !== 'visible') {
++      this.impressionRecordedForSession_ = false;
+       return;
+     }
+ 
+     await this.updateComplete;
+     this.focusActiveInput_();
++    this.maybeRecordFreImpression_();
+   }
+ 
+   // TODO(b/540973063): Extract common voice search lifecycle handling into
 diff --git a/chrome/browser/ui/extensions/extension_action_view_model.cc b/chrome/browser/ui/extensions/extension_action_view_model.cc
 index 79f1b26..9a97f7e 100644
 --- a/chrome/browser/ui/extensions/extension_action_view_model.cc
@@ -230,6 +359,522 @@ index 79f1b26..9a97f7e 100644
    CHECK(extension_action_->HasPopup(tab_id), base::NotFatalUntil::M162);
  
    const GURL popup_url = extension_action_->GetPopupUrl(tab_id);
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_fre_controller.cc b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_fre_controller.cc
+index 448226b..7b5609b 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_fre_controller.cc
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_fre_controller.cc
+@@ -36,9 +36,9 @@
+       local_state_(ResolveLocalState(local_state)) {
+   if (profile_prefs_) {
+     profile_pref_change_registrar_.Init(profile_prefs_);
+-    auto callback =
+-        base::BindRepeating(&OmniboxEverywhereFreController::NotifyStateChanged,
+-                            base::Unretained(this));
++    auto callback = base::BindRepeating(
++        &OmniboxEverywhereFreController::OnProfilePrefChanged,
++        base::Unretained(this));
+     profile_pref_change_registrar_.Add(prefs::kFreIntroDismissed, callback);
+     profile_pref_change_registrar_.Add(prefs::kFreShortcutSetupDismissed,
+                                        callback);
+@@ -55,9 +55,9 @@
+ 
+   if (local_state_) {
+     local_state_pref_change_registrar_.Init(local_state_);
+-    auto callback =
+-        base::BindRepeating(&OmniboxEverywhereFreController::NotifyStateChanged,
+-                            base::Unretained(this));
++    auto callback = base::BindRepeating(
++        &OmniboxEverywhereFreController::OnLocalStatePrefChanged,
++        base::Unretained(this));
+     local_state_pref_change_registrar_.Add(prefs::kOmniboxEverywhereHotkey,
+                                            callback);
+     local_state_pref_change_registrar_.Add(prefs::kHotkeyEnabled, callback);
+@@ -71,7 +71,13 @@
+       !base::FeatureList::IsEnabled(omnibox::kOmniboxEverywhereFre)) {
+     return FreStage::kNone;
+   }
++  if (latched_stage_.has_value()) {
++    return latched_stage_.value();
++  }
++  return ComputeCurrentStage();
++}
+ 
++FreStage OmniboxEverywhereFreController::ComputeCurrentStage() const {
+   if (profile_prefs_->GetBoolean(prefs::kFreDismissed)) {
+     return FreStage::kNone;
+   }
+@@ -114,18 +120,34 @@
+       !base::FeatureList::IsEnabled(omnibox::kOmniboxEverywhereFre)) {
+     return true;
+   }
++  if (latched_stage_.has_value()) {
++    return false;
++  }
+   return profile_prefs_->GetBoolean(prefs::kFreDismissed);
+ }
+ 
+-void OmniboxEverywhereFreController::IncrementImpression() {
++void OmniboxEverywhereFreController::IncrementImpression(FreStage stage) {
+   if (!profile_prefs_ ||
+       !base::FeatureList::IsEnabled(omnibox::kOmniboxEverywhereFre)) {
+     return;
+   }
++  if (latched_stage_.has_value()) {
++    return;
++  }
+ 
+-  FreStage current_stage = GetCurrentStage();
++  FreStage current_stage = ComputeCurrentStage();
++  if (current_stage == FreStage::kNone || current_stage != stage) {
++    return;
++  }
++
++  latched_stage_ = current_stage;
++  if (impression_recorded_for_session_) {
++    return;
++  }
++
+   switch (current_stage) {
+     case FreStage::kIntroModal: {
++      impression_recorded_for_session_ = true;
+       const int next_count =
+           profile_prefs_->GetInteger(prefs::kFreIntroImpressionCount) + 1;
+       if (next_count >=
+@@ -139,17 +161,15 @@
+     case FreStage::kShortcutSetupChin: {
+       // If a hotkey isn't set, impressions are not capped so the setup chin
+       // remains visible until the user selects a shortcut or explicitly
+-      // dismisses it.
++      // dismisses it. If a hotkey is selected later during this same session,
++      // `OnLocalStatePrefChanged()` will record the impression then.
+       if (prefs::HasOmniboxEverywhereHotkey(local_state_)) {
+-        profile_prefs_->SetInteger(
+-            prefs::kFreShortcutSetupImpressionCount,
+-            profile_prefs_->GetInteger(
+-                prefs::kFreShortcutSetupImpressionCount) +
+-                1);
++        RecordShortcutSetupImpression();
+       }
+-      break;
++      return;
+     }
+     case FreStage::kShortcutReminderChin:
++      impression_recorded_for_session_ = true;
+       profile_prefs_->SetInteger(
+           prefs::kFreShortcutReminderImpressionCount,
+           profile_prefs_->GetInteger(
+@@ -161,17 +181,38 @@
+   }
+ 
+   // If impressions have exhausted all stages, mark the overall FRE as dismissed
+-  // so downstream features (such as IPH) are unblocked.
+-  if (GetCurrentStage() == FreStage::kNone) {
++  // so downstream features (such as IPH) are unblocked on the next open.
++  if (ComputeCurrentStage() == FreStage::kNone) {
+     profile_prefs_->SetBoolean(prefs::kFreDismissed, true);
+   }
+ }
+ 
++void OmniboxEverywhereFreController::RecordShortcutSetupImpression() {
++  impression_recorded_for_session_ = true;
++  profile_prefs_->SetInteger(
++      prefs::kFreShortcutSetupImpressionCount,
++      profile_prefs_->GetInteger(prefs::kFreShortcutSetupImpressionCount) + 1);
++  if (ComputeCurrentStage() == FreStage::kNone) {
++    profile_prefs_->SetBoolean(prefs::kFreDismissed, true);
++  }
++}
++
++void OmniboxEverywhereFreController::EndSession() {
++  const bool was_latched = latched_stage_.has_value();
++  latched_stage_.reset();
++  impression_recorded_for_session_ = false;
++  if (was_latched) {
++    NotifyStateChanged();
++  }
++}
++
+ void OmniboxEverywhereFreController::OnStageDismissed(FreStage stage) {
+   if (!profile_prefs_ ||
+       !base::FeatureList::IsEnabled(omnibox::kOmniboxEverywhereFre)) {
+     return;
+   }
++  latched_stage_.reset();
++  impression_recorded_for_session_ = false;
+   switch (stage) {
+     case FreStage::kIntroModal:
+       if (prefs::HasOmniboxEverywhereHotkey(local_state_)) {
+@@ -199,6 +240,8 @@
+       !base::FeatureList::IsEnabled(omnibox::kOmniboxEverywhereFre)) {
+     return;
+   }
++  latched_stage_.reset();
++  impression_recorded_for_session_ = false;
+   switch (stage) {
+     case FreStage::kIntroModal:
+       profile_prefs_->SetBoolean(prefs::kFreIntroDismissed, true);
+@@ -221,6 +264,30 @@
+   return state_changed_callbacks_.Add(std::move(callback));
+ }
+ 
++void OmniboxEverywhereFreController::OnProfilePrefChanged() {
++  if (!latched_stage_.has_value()) {
++    NotifyStateChanged();
++  }
++}
++
++void OmniboxEverywhereFreController::OnLocalStatePrefChanged() {
++  if (profile_prefs_ &&
++      base::FeatureList::IsEnabled(omnibox::kOmniboxEverywhereFre)) {
++    if (prefs::HasOmniboxEverywhereHotkey(local_state_)) {
++      if (latched_stage_ == FreStage::kShortcutSetupChin &&
++          !impression_recorded_for_session_) {
++        RecordShortcutSetupImpression();
++      }
++    } else if (latched_stage_ == FreStage::kShortcutReminderChin) {
++      // If the hotkey is cleared or disabled while the reminder chin is
++      // latched, unlatch so the reminder chin does not remain visible with
++      // empty key tokens.
++      latched_stage_.reset();
++    }
++  }
++  NotifyStateChanged();
++}
++
+ void OmniboxEverywhereFreController::NotifyStateChanged() {
+   state_changed_callbacks_.Notify();
+ }
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_fre_controller.h b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_fre_controller.h
+index e117c763..08d599a4 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_fre_controller.h
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_fre_controller.h
+@@ -5,6 +5,8 @@
+ #ifndef CHROME_BROWSER_UI_OMNIBOX_OMNIBOX_EVERYWHERE_OMNIBOX_EVERYWHERE_FRE_CONTROLLER_H_
+ #define CHROME_BROWSER_UI_OMNIBOX_OMNIBOX_EVERYWHERE_OMNIBOX_EVERYWHERE_FRE_CONTROLLER_H_
+ 
++#include <optional>
++
+ #include "base/callback_list.h"
+ #include "base/functional/callback_forward.h"
+ #include "base/memory/raw_ptr.h"
+@@ -45,15 +47,25 @@
+       const OmniboxEverywhereFreController&) = delete;
+   ~OmniboxEverywhereFreController();
+ 
+-  // Returns the active FRE stage for the profile.
++  // Returns the active FRE stage for the profile. While an open-window session
++  // has latched a stage via `IncrementImpression()`, returns the latched stage
++  // so the displayed FRE stage does not transition mid-session.
+   FreStage GetCurrentStage() const;
+ 
+   // Returns true if the overall FRE has been dismissed/completed or if the FRE
+   // feature is disabled.
+   bool IsFreDismissed() const;
+ 
+-  // Increments the impression count for the currently active FRE stage.
+-  void IncrementImpression();
++  // Records an impression for `stage` if it matches the currently active FRE
++  // stage (at most once per open-window session) and latches the active stage
++  // until `EndSession()` is called.
++  void IncrementImpression(FreStage stage);
++
++  // Ends the current open-window session (called when the Omnibox Everywhere
++  // window is closed or destroyed; in persistent mode, blur/demote keeps the
++  // session open), clearing the session's impression guard and stage latch so
++  // the next invocation reflects any stage advancement.
++  void EndSession();
+ 
+   // Records that the specified FRE stage was dismissed (or marks overall FRE
+   // completed).
+@@ -71,10 +83,16 @@
+       base::RepeatingClosure callback);
+ 
+  private:
++  FreStage ComputeCurrentStage() const;
++  void RecordShortcutSetupImpression();
++  void OnProfilePrefChanged();
++  void OnLocalStatePrefChanged();
+   void NotifyStateChanged();
+ 
+   raw_ptr<PrefService> profile_prefs_ = nullptr;
+   raw_ptr<PrefService> local_state_ = nullptr;
++  std::optional<FreStage> latched_stage_;
++  bool impression_recorded_for_session_ = false;
+   PrefChangeRegistrar profile_pref_change_registrar_;
+   PrefChangeRegistrar local_state_pref_change_registrar_;
+   base::RepeatingClosureList state_changed_callbacks_;
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc
+index cddedc5..12c4693 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc
+@@ -735,14 +735,10 @@
+                   : nullptr;
+ }
+ 
+-// TODO(crbug.com/558851707): Move impression recording to the FRE WebUI
+-// component lifecycle (e.g. on render/mount) so that impressions are recorded
+-// based on true visual visibility and both ephemeral and persistent window
+-// models are handled consistently.
+-void OmniboxEverywhereUIManager::MaybeRecordFreImpression() {
++void OmniboxEverywhereUIManager::EndFreSession() {
+   if (auto* service = GetOmniboxEverywhereService()) {
+     if (service->fre_controller()) {
+-      service->fre_controller()->IncrementImpression();
++      service->fre_controller()->EndSession();
+     }
+   }
+ }
+@@ -764,7 +760,6 @@
+     return;
+   }
+   base::AutoReset<bool> closing_reset(&is_closing_, true);
+-  MaybeRecordFreImpression();
+   last_shown_time_.reset();
+   CancelPendingDeactivation();
+   if (widget_) {
+@@ -776,6 +771,7 @@
+       // keeping the WebContents alive in case Close() is reached from inside a
+       // call on it (e.g. OpenURLFromTab).
+       DestroyWidget();
++      EndFreSession();
+       ReleaseKeepAlives();
+       return;
+     }
+@@ -809,6 +805,7 @@
+ #endif
+     widget_->Hide();
+   }
++  EndFreSession();
+   ReleaseKeepAlives();
+ }
+ 
+@@ -860,6 +857,7 @@
+   contents_wrapper_.reset();
+   draggable_region_.reset();
+   browser_collection_observation_.Reset();
++  EndFreSession();
+   ReleaseKeepAlives();
+ }
+ 
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h
+index 25ca129..f2e5db4 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h
+@@ -318,7 +318,10 @@
+ #endif
+   void OnMostVisitedPrefChanged();
+   OmniboxEverywhereService* GetOmniboxEverywhereService();
+-  void MaybeRecordFreImpression();
++  // Ends the active FRE session when the popup is closed or destroyed. Note
++  // that `Demote()` (persistent mode deactivation) and window minimization
++  // intentionally preserve the active FRE session across reactivations.
++  void EndFreSession();
+   void MaybeShowLensPromo();
+   void EndLensPromo();
+   static gfx::Rect CalculateWidgetBounds(int height);
+diff --git a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
+index 14f60db..628a0017 100644
+--- a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
++++ b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
+@@ -351,6 +351,9 @@
+ // Returns if the new voice search animation/metrics/stop button are enabled,
+ // regardless of transcription.
+ bool SearchboxHandler::GetVoiceSearchCoherenceAnySearchboxExperimentEnabled() {
++  if (omnibox::kVoiceSearchCoherenceRealboxKeepLegacyUi.Get()) {
++    return false;
++  }
+   return base::FeatureList::IsEnabled(
+              omnibox::kVoiceSearchCoherenceSearchbox) ||
+          omnibox::kVoiceSearchCoherenceSearchboxWithLiveTranscription.Get();
+diff --git a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.h b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.h
+index 9e2bc95..2dd44f7 100644
+--- a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.h
++++ b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.h
+@@ -283,6 +283,7 @@
+   void ResetSmartTabSharing(ResetSmartTabSharingCallback callback) override;
+ #endif
+   void DismissFre(searchbox::mojom::FreStage stage) override {}
++  void RecordFreImpression(searchbox::mojom::FreStage stage) override {}
+   void ShowHotkeyDropdown(const gfx::Rect& anchor_bounds,
+                           ShowHotkeyDropdownCallback callback) override;
+   void OpenHotkeySettings() override {}
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/BUILD.gn b/chrome/browser/ui/webui/omnibox_everywhere/BUILD.gn
+index 280621b..cf461b6 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/BUILD.gn
++++ b/chrome/browser/ui/webui/omnibox_everywhere/BUILD.gn
+@@ -37,6 +37,7 @@
+       "//components/prefs",
+       "//components/search",
+       "//components/search_engines",
++      "//content/public/browser",
+       "//content/test:test_support",
+       "//mojo/public/cpp/bindings",
+       "//net",
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.cc b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.cc
+index 03302dc..6e0da2af 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.cc
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.cc
+@@ -37,6 +37,8 @@
+ #include "components/search/search.h"
+ #include "components/search_engines/template_url.h"
+ #include "components/search_engines/template_url_service.h"
++#include "content/public/browser/visibility.h"
++#include "content/public/browser/web_contents.h"
+ #include "content/public/browser/web_ui.h"
+ #include "ui/base/accelerators/accelerator.h"
+ #include "ui/base/accelerators/command.h"
+@@ -359,6 +361,20 @@
+   }
+ }
+ 
++void OmniboxEverywhereHandler::RecordFreImpression(
++    searchbox::mojom::FreStage stage) {
++  // Ignore impressions unless the WebContents is visibly presented and the
++  // popup is actively shown (not closing, minimized, or demoted).
++  if (!web_contents_ ||
++      web_contents_->GetVisibility() != content::Visibility::VISIBLE ||
++      !service_ || !service_->IsPopupVisibleForProfile() ||
++      !service_->fre_controller()) {
++    return;
++  }
++  service_->fre_controller()->IncrementImpression(
++      MojoFreStageToFreStage(stage));
++}
++
+ void OmniboxEverywhereHandler::SetHotkey(const std::string& hotkey_spec) {
+   PrefService* local_state =
+       g_browser_process ? g_browser_process->local_state() : nullptr;
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.h b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.h
+index 1bba459..d26e0cd 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.h
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_handler.h
+@@ -58,6 +58,7 @@
+                    bool shift_key,
+                    bool is_voice_search) override;
+   void DismissFre(searchbox::mojom::FreStage stage) override;
++  void RecordFreImpression(searchbox::mojom::FreStage stage) override;
+   void ShowHotkeyDropdown(const gfx::Rect& anchor_bounds,
+                           ShowHotkeyDropdownCallback callback) override;
+   void OpenHotkeySettings() override;
+diff --git a/components/history_strings.grdp b/components/history_strings.grdp
+index 366156e..d8c2252 100644
+--- a/components/history_strings.grdp
++++ b/components/history_strings.grdp
+@@ -56,11 +56,11 @@
+   <message name="IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_ONLY" desc="The notification at the bottom of the history page indicating that deleting Chrome browsing history will not delete other forms of history stored at Google My Activity.">
+     Your Google Account may have other forms of browsing history at <ph name="BEGIN_LINK_GMA">&lt;a target="_blank" id="footerGoogleMyActivityLink" href="$1"&gt;</ph>myactivity.google.com<ph name="END_LINK_GMA">&lt;/a&gt;</ph>
+   </message>
+-  <message name="IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GAA_ONLY" desc="The notification at the bottom of the history page indicating that deleting Chrome browsing history will not delete other forms of history stored at Gemini Apps Activity.">
+-    Your Google Account may have your <ph name="BEGIN_LINK_GAA">&lt;a target="_blank" id="footerGeminiAppsActivityLink" href="$1"&gt;</ph>Gemini Apps Activity<ph name="END_LINK_GAA">&lt;/a&gt;</ph>
++  <message name="IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GAA_ONLY" desc="The notification at the bottom of the history page indicating that deleting Chrome browsing history will not delete other forms of history stored in Gemini History. 'Gemini History' is the name of a Gemini setting, formerly called 'Gemini Apps Activity'.">
++    Your Google Account may have your <ph name="BEGIN_LINK_GAA">&lt;a target="_blank" id="footerGeminiAppsActivityLink" href="$1"&gt;</ph>Gemini History<ph name="END_LINK_GAA">&lt;/a&gt;</ph>
+   </message>
+-  <message name="IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA" desc="The notification at the bottom of the history page indicating that deleting Chrome browsing history will not delete other forms of history stored at Google My Activity and Gemini Apps Activity.">
+-    Your Google Account may have other forms of browsing history at <ph name="BEGIN_LINK_GMA">&lt;a target="_blank" id="footerGoogleMyActivityLink" href="$1"&gt;</ph>myactivity.google.com<ph name="END_LINK_GMA">&lt;/a&gt;</ph>, such as your <ph name="BEGIN_LINK_GAA">&lt;a target="_blank" id="footerGeminiAppsActivityLink" href="$2"&gt;</ph>Gemini Apps Activity<ph name="END_LINK_GAA">&lt;/a&gt;</ph>
++  <message name="IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA" desc="The notification at the bottom of the history page indicating that deleting Chrome browsing history will not delete other forms of history stored at Google My Activity and in Gemini History. 'Gemini History' is the name of a Gemini setting, formerly called 'Gemini Apps Activity'.">
++    Your Google Account may have other forms of browsing history at <ph name="BEGIN_LINK_GMA">&lt;a target="_blank" id="footerGoogleMyActivityLink" href="$1"&gt;</ph>myactivity.google.com<ph name="END_LINK_GMA">&lt;/a&gt;</ph>, such as your <ph name="BEGIN_LINK_GAA">&lt;a target="_blank" id="footerGeminiAppsActivityLink" href="$2"&gt;</ph>Gemini History<ph name="END_LINK_GAA">&lt;/a&gt;</ph>
+   </message>
+   <message name="IDS_HISTORY_LOADING" desc="Text shown when we're loading the user's history">
+     Loading...
+@@ -348,8 +348,8 @@
+   <message name="IDS_HISTORY_GO_TO_GEMINI_CHAT_ERROR" desc="Toast notification shown when opening Gemini chat fails.">
+     Couldn't open Gemini chat
+   </message>
+-  <message name="IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA_CRITICAL_ACTIONS" desc="The notification at the bottom of the history page indicating that deleting Chrome browsing history will not delete other forms of history stored at Google My Activity and Gemini Apps Activity, shown when critical actions are enabled.">
+-    Your Google Account may have other forms of browsing history at <ph name="BEGIN_LINK_GMA">&lt;a target="_blank" id="footerGoogleMyActivityLink" href="$1"&gt;</ph>myactivity.google.com<ph name="END_LINK_GMA">&lt;/a&gt;</ph>, such as auto browse visits in your <ph name="BEGIN_LINK_GAA">&lt;a target="_blank" id="footerGeminiAppsActivityLink" href="$2"&gt;</ph>Gemini Apps Activity<ph name="END_LINK_GAA">&lt;/a&gt;</ph>
++  <message name="IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA_CRITICAL_ACTIONS" desc="The notification at the bottom of the history page indicating that deleting Chrome browsing history will not delete other forms of history stored at Google My Activity and in Gemini History, shown when critical actions are enabled. 'Gemini History' is the name of a Gemini setting, formerly called 'Gemini Apps Activity'.">
++    Your Google Account may have other forms of browsing history at <ph name="BEGIN_LINK_GMA">&lt;a target="_blank" id="footerGoogleMyActivityLink" href="$1"&gt;</ph>myactivity.google.com<ph name="END_LINK_GMA">&lt;/a&gt;</ph>, such as auto browse visits in your <ph name="BEGIN_LINK_GAA">&lt;a target="_blank" id="footerGeminiAppsActivityLink" href="$2"&gt;</ph>Gemini History<ph name="END_LINK_GAA">&lt;/a&gt;</ph>
+   </message>
+   <message name="IDS_HISTORY_GEMINI_KEY_BROWSING_ACTIONS_TITLE" desc="Tooltip text for the expand button on history items for Gemini actor visits.">
+     Gemini key browsing actions
+diff --git a/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GAA_ONLY.png.sha1 b/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GAA_ONLY.png.sha1
+index cc8ebd2..bb8bd29 100644
+--- a/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GAA_ONLY.png.sha1
++++ b/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GAA_ONLY.png.sha1
+@@ -1 +1 @@
+-223d85e51c8ea9df2a9fd135d662aa15bf87de12
+\ No newline at end of file
++39dd66e124fef6bd2ce9e9096cc89f28b06bdb16
+\ No newline at end of file
+diff --git a/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA.png.sha1 b/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA.png.sha1
+index a30ce68..1be80d3 100644
+--- a/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA.png.sha1
++++ b/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA.png.sha1
+@@ -1 +1 @@
+-727d867f3766a18163cf7b896136baefb7d8cda5
+\ No newline at end of file
++d2086b8fbb715519bc0240149c4ac2a1b0200b7d
+\ No newline at end of file
+diff --git a/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA_CRITICAL_ACTIONS.png.sha1 b/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA_CRITICAL_ACTIONS.png.sha1
+index e4d3b1b..67fd832a 100644
+--- a/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA_CRITICAL_ACTIONS.png.sha1
++++ b/components/history_strings_grdp/IDS_HISTORY_OTHER_FORMS_OF_HISTORY_GMA_AND_GAA_CRITICAL_ACTIONS.png.sha1
+@@ -1 +1 @@
+-7ba9adaceb28b788fcf5ed577e355e52f2bc6410
+\ No newline at end of file
++0573018f5996756f9023f5150996c68ac3c524cc
+\ No newline at end of file
+diff --git a/components/omnibox/browser/searchbox.mojom b/components/omnibox/browser/searchbox.mojom
+index bbe050b..4fe93374 100644
+--- a/components/omnibox/browser/searchbox.mojom
++++ b/components/omnibox/browser/searchbox.mojom
+@@ -687,6 +687,9 @@
+   // Dispatched when an FRE stage is dismissed.
+   DismissFre(FreStage stage);
+ 
++  // Dispatched when an FRE stage is visually rendered to record an impression.
++  RecordFreImpression(FreStage stage);
++
+   // Shows the native Views dropdown menu for selecting a hotkey preset,
+   // anchored to the specified bounds in WebUI viewport coordinates.
+   ShowHotkeyDropdown(gfx.mojom.Rect anchor_bounds) => ();
+diff --git a/components/omnibox/common/omnibox_features.cc b/components/omnibox/common/omnibox_features.cc
+index 8681bda..21f0f8a 100644
+--- a/components/omnibox/common/omnibox_features.cc
++++ b/components/omnibox/common/omnibox_features.cc
+@@ -641,6 +641,13 @@
+     &kVoiceSearchCoherenceSearchbox, "VoiceSearchCoherenceRealboxHelperText",
+     false};
+ 
++// Keeps the legacy NTP Realbox voice search UI, the one users get with
++// kVoiceSearchCoherenceSearchbox disabled. Voice search requests still carry
++// the NTP routing params, so only the speech service's recognizer changes.
++const base::FeatureParam<bool> kVoiceSearchCoherenceRealboxKeepLegacyUi{
++    &kVoiceSearchCoherenceSearchbox, "VoiceSearchCoherenceRealboxKeepLegacyUi",
++    false};
++
+ #if BUILDFLAG(IS_ANDROID)
+ // Prevents intermediate AutocompleteResult updates from being sent to Java on
+ // low-end devices. This aims at eliminating time spent on constructing,
+diff --git a/components/omnibox/common/omnibox_features.h b/components/omnibox/common/omnibox_features.h
+index 2a258091..47ae292 100644
+--- a/components/omnibox/common/omnibox_features.h
++++ b/components/omnibox/common/omnibox_features.h
+@@ -283,6 +283,7 @@
+     kVoiceSearchCoherenceSearchboxWithLiveTranscription;
+ extern const base::FeatureParam<bool> kVoiceSearchCoherenceRealboxAutoEndpoint;
+ extern const base::FeatureParam<bool> kVoiceSearchCoherenceRealboxHelperText;
++extern const base::FeatureParam<bool> kVoiceSearchCoherenceRealboxKeepLegacyUi;
+ 
+ #if BUILDFLAG(IS_ANDROID)
+ BASE_DECLARE_FEATURE(kDiagnostics);
+diff --git a/components/viz/service/display/resolved_frame_data.cc b/components/viz/service/display/resolved_frame_data.cc
+index 82b3bde..52647ac 100644
+--- a/components/viz/service/display/resolved_frame_data.cc
++++ b/components/viz/service/display/resolved_frame_data.cc
+@@ -226,6 +226,12 @@
+       } else {
+         remapped_id = render_pass_id_generator.GenerateNextId();
+       }
++    } else if (!is_root && remapped_id == prev_root_pass_id_) {
++      // The CompositorRenderPassId from last frames root render pass was reused
++      // for a non-root render pass this frame. Keep using `prev_root_pass_id_`
++      // for the root, to avoid unnecessary backing reallocations, and assign a
++      // new id to this render pass.
++      remapped_id = render_pass_id_generator.GenerateNextId();
+     }
+     fixed.remapped_id = remapped_id;
+     fixed.is_root = is_root;
 diff --git a/content/browser/renderer_host/render_frame_host_impl.cc b/content/browser/renderer_host/render_frame_host_impl.cc
 index 13ce537f..60732c4 100644
 --- a/content/browser/renderer_host/render_frame_host_impl.cc
@@ -589,3 +1234,212 @@ index 05c6c8f..95bba0a 100644
    }
    ASSIGN_RETURN_ON_EXCEPTION_VALUE(
        isolate, compiled,
+diff --git a/third_party/skia/src/gpu/ganesh/vk/GrVkCaps.cpp b/third_party/skia/src/gpu/ganesh/vk/GrVkCaps.cpp
+index ee87622..55b4c69 100644
+--- a/third_party/skia/src/gpu/ganesh/vk/GrVkCaps.cpp
++++ b/third_party/skia/src/gpu/ganesh/vk/GrVkCaps.cpp
+@@ -520,6 +520,14 @@
+         fShouldAlwaysUseDedicatedImageMemory = true;
+     }
+ 
++    const skgpu::DriverVersion driverVersion = skgpu::ParseVulkanDriverVersion(
++            VK_DRIVER_ID_ARM_PROPRIETARY, properties.driverVersion);
++    if (skgpu::kARM_VkVendor == properties.vendorID &&
++        driverVersion >= skgpu::DriverVersion(42, 0) &&
++        driverVersion < skgpu::DriverVersion(56, 0)) {
++        fSleepAfterLostDeviceWait = true;
++    }
++
+     // On Mali galaxy s7 and s9 we see lots of rendering issues with image filters dropping out when
+     // using only primary command buffers. We also see issues on the P30 running android 28.
+     if (skgpu::kARM_VkVendor == properties.vendorID && androidAPIVersion <= 28) {
+diff --git a/third_party/skia/src/gpu/ganesh/vk/GrVkCaps.h b/third_party/skia/src/gpu/ganesh/vk/GrVkCaps.h
+index 614c21f..210ae7a 100644
+--- a/third_party/skia/src/gpu/ganesh/vk/GrVkCaps.h
++++ b/third_party/skia/src/gpu/ganesh/vk/GrVkCaps.h
+@@ -118,6 +118,10 @@
+     // vkWaitForFences on each outstanding command buffer to make sure the driver signals the fence.
+     bool mustSyncCommandBuffersWithQueue() const { return fMustSyncCommandBuffersWithQueue; }
+ 
++    // On device loss, some Mali drivers may return from vkQueueWaitIdle and vkDeviceWaitIdle
++    // before it's safe to destroy the device. crbug.com/580857377
++    bool sleepAfterLostDeviceWait() const { return fSleepAfterLostDeviceWait; }
++
+     // Returns true if we should always make dedicated allocations for VkImages.
+     bool shouldAlwaysUseDedicatedImageMemory() const {
+         return fShouldAlwaysUseDedicatedImageMemory;
+@@ -454,6 +458,7 @@
+     skia_private::STArray<1, skgpu::VulkanYcbcrConversionInfo> fYcbcrInfos;
+ 
+     bool fMustSyncCommandBuffersWithQueue = false;
++    bool fSleepAfterLostDeviceWait = false;
+     bool fShouldAlwaysUseDedicatedImageMemory = false;
+ 
+     bool fAvoidUpdateBuffers = false;
+diff --git a/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.cpp b/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.cpp
+index 29eead3..cb588e0 100644
+--- a/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.cpp
++++ b/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.cpp
+@@ -24,7 +24,9 @@
+ #include "src/gpu/ganesh/vk/GrVkUtil.h"
+ 
+ #include <algorithm>
++#include <chrono>
+ #include <cstring>
++#include <thread>
+ 
+ class GrGpu;
+ 
+@@ -679,6 +681,9 @@
+         // restart the whole device, so waiting on the queue shouldn't have any performance impact.
+         if (submitResult == VK_ERROR_DEVICE_LOST) {
+             GR_VK_CALL(gpu->vkInterface(), QueueWaitIdle(queue));
++            if (gpu->vkCaps().sleepAfterLostDeviceWait()) {
++                std::this_thread::sleep_for(std::chrono::milliseconds(1));
++            }
+         } else {
+             SkASSERT(submitResult == VK_ERROR_OUT_OF_HOST_MEMORY ||
+                      submitResult == VK_ERROR_OUT_OF_DEVICE_MEMORY);
+diff --git a/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp b/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp
+index 0c7e419..8f3c0a9 100644
+--- a/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp
++++ b/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp
+@@ -72,9 +72,11 @@
+ #include "src/gpu/vk/VulkanUtilsPriv.h"
+ 
+ #include <algorithm>
++#include <chrono>
+ #include <cstring>
+ #include <functional>
+ #include <numeric>
++#include <thread>
+ #include <utility>
+ 
+ class GrAttachment;
+@@ -2234,11 +2236,17 @@
+ }
+ 
+ void GrVkGpu::finishOutstandingGpuWork() {
+-    VK_CALL(QueueWaitIdle(fQueue));
++    VkResult res;
++    VK_CALL_RET(res, QueueWaitIdle(fQueue));
+ 
+     if (this->vkCaps().mustSyncCommandBuffersWithQueue()) {
+         fResourceProvider.forceSyncAllCommandBuffers();
+     }
++
++    if (this->vkCaps().sleepAfterLostDeviceWait() &&
++        (res == VK_ERROR_DEVICE_LOST || this->isDeviceLost())) {
++        std::this_thread::sleep_for(std::chrono::milliseconds(1));
++    }
+ }
+ 
+ void GrVkGpu::onReportSubmitHistograms() {
+diff --git a/third_party/skia/src/gpu/graphite/vk/VulkanCaps.cpp b/third_party/skia/src/gpu/graphite/vk/VulkanCaps.cpp
+index faca9b9..68da18d 100644
+--- a/third_party/skia/src/gpu/graphite/vk/VulkanCaps.cpp
++++ b/third_party/skia/src/gpu/graphite/vk/VulkanCaps.cpp
+@@ -670,6 +670,12 @@
+         fShouldAlwaysUseDedicatedImageMemory = true;
+     }
+ 
++    if (isARMProprietary &&
++        driverVersion >= skgpu::DriverVersion(42, 0) &&
++        driverVersion < skgpu::DriverVersion(56, 0)) {
++        fSleepAfterLostDeviceWait = true;
++    }
++
+     // On Qualcomm the gpu resolves an area larger than the render pass bounds when using
+     // discardable msaa attachments. This causes the resolve to resolve uninitialized data from the
+     // msaa image into the resolve image. This was reproed on a Pixel4 using the DstReadShuffle GM
+diff --git a/third_party/skia/src/gpu/graphite/vk/VulkanCaps.h b/third_party/skia/src/gpu/graphite/vk/VulkanCaps.h
+index 5870b17..62b2d88 100644
+--- a/third_party/skia/src/gpu/graphite/vk/VulkanCaps.h
++++ b/third_party/skia/src/gpu/graphite/vk/VulkanCaps.h
+@@ -89,6 +89,7 @@
+     }
+ 
+     bool mustLoadFullImageForMSAA() const { return fMustLoadFullImageForMSAA; }
++    bool sleepAfterLostDeviceWait() const { return fSleepAfterLostDeviceWait; }
+ 
+     bool supportsFrameBoundary() const { return fSupportsFrameBoundary; }
+ 
+@@ -237,6 +238,7 @@
+ 
+     // Flags to enable workarounds for driver bugs
+     bool fMustLoadFullImageForMSAA = false;
++    bool fSleepAfterLostDeviceWait = false;
+ 
+     // Cache the ReadonlySrcStageMask; optimistically adding the compute bit is a violation of the
+     // spec if we don't have compute support, so initialize and cache it here instead.
+diff --git a/third_party/skia/src/gpu/graphite/vk/VulkanCommandBuffer.cpp b/third_party/skia/src/gpu/graphite/vk/VulkanCommandBuffer.cpp
+index 9c53571..20728f33 100644
+--- a/third_party/skia/src/gpu/graphite/vk/VulkanCommandBuffer.cpp
++++ b/third_party/skia/src/gpu/graphite/vk/VulkanCommandBuffer.cpp
+@@ -36,6 +36,9 @@
+ #include "src/gpu/vk/VulkanMutableTextureStatePriv.h"
+ #include "src/gpu/vk/VulkanUtilsPriv.h"
+ 
++#include <chrono>
++#include <thread>
++
+ using namespace skia_private;
+ 
+ namespace skgpu::graphite {
+@@ -619,6 +622,9 @@
+         // restart the whole device, so waiting on the queue shouldn't have any performance impact.
+         if (submitResult == VK_ERROR_DEVICE_LOST) {
+             VULKAN_CALL(fSharedContext->interface(), QueueWaitIdle(queue));
++            if (fSharedContext->vulkanCaps().sleepAfterLostDeviceWait()) {
++                std::this_thread::sleep_for(std::chrono::milliseconds(1));
++            }
+         } else {
+             SkASSERT(submitResult == VK_ERROR_OUT_OF_HOST_MEMORY ||
+                      submitResult == VK_ERROR_OUT_OF_DEVICE_MEMORY);
+@@ -672,6 +678,10 @@
+                                                  /*waitAll=*/true,
+                                                  /*timeout=*/UINT64_MAX));
+     }
++    if (result == VK_ERROR_DEVICE_LOST &&
++        fSharedContext->vulkanCaps().sleepAfterLostDeviceWait()) {
++        std::this_thread::sleep_for(std::chrono::milliseconds(1));
++    }
+     if (result != VK_SUCCESS && !fSharedContext->isDeviceLost()) {
+         SkDebugf("vkWaitForFences() failed. Error: %d\n", result);
+     }
+diff --git a/third_party/skia/src/gpu/tessellate/StrokeIterator.h b/third_party/skia/src/gpu/tessellate/StrokeIterator.h
+index 9e2ec55..c8dd55a 100644
+--- a/third_party/skia/src/gpu/tessellate/StrokeIterator.h
++++ b/third_party/skia/src/gpu/tessellate/StrokeIterator.h
+@@ -248,19 +248,18 @@
+                         SkASSERT(!fViewMatrix->hasPerspective());
+                         float a=fViewMatrix->getScaleX(), b=fViewMatrix->getSkewX(),
+                               c=fViewMatrix->getSkewY(),  d=fViewMatrix->getScaleY();
+-                        float det = a*d - b*c;
+-                        if (det > 0) {
+-                            // outset = inverse(|a b|) * |.5|
+-                            //                  |c d|    | 0|
+-                            //
+-                            //     == 1/det * | d -b| * |.5|
+-                            //                |-c  a|   | 0|
+-                            //
+-                            //     == | d| * .5/det
+-                            //        |-c|
+-                            outset = SkVector{d, -c} * (.5f / det);
+-                        } else {
+-                            outset = {1, 0};
++                        // outset = inverse(|a b|) * |.5|
++                        //                  |c d|    | 0|
++                        //
++                        //     == 1/det * | d -b| * |.5|
++                        //                |-c  a|   | 0|
++                        //
++                        //     == | d| * .5/det
++                        //        |-c|
++                        outset = SkVector{d, -c} * sk_ieee_float_divide(0.5f, a*d - b*c);
++                        if (!SkIsFinite(outset.fX, outset.fY)) {
++                            // Don't outset any geometry if the matrix is not invertible.
++                            outset = {0, 0};
+                         }
+                     }
+                     fEndingCapPts = {*fLastDegenerateStrokePt - outset,
