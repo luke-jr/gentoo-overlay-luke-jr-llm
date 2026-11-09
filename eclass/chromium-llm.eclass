@@ -767,11 +767,10 @@ chromium-llm_pkg_setup() {
 
 		if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
 			addwrite "${CHROMIUM_BUILD_TREE}"
-			if [[ ! -d ${CHROMIUM_BUILD_TREE} ]]; then
-				mkdir -p "${CHROMIUM_BUILD_TREE}" || die
-				if [[ ${EUID} == 0 ]] && has userpriv ${FEATURES}; then
-					chown "${PORTAGE_INST_UID:-portage}:${PORTAGE_INST_GID:-portage}" "${CHROMIUM_BUILD_TREE}" || die
-				fi
+			mkdir -p "${CHROMIUM_BUILD_TREE}" || die
+			# The phases after pkg_setup run as the build user (FEATURES=userpriv).
+			if [[ ${EUID} == 0 ]] && has userpriv ${FEATURES}; then
+				chown "${PORTAGE_BUILD_USER:-portage}:${PORTAGE_BUILD_GROUP:-portage}" "${CHROMIUM_BUILD_TREE}" || die
 			fi
 			einfo "Keeping the build tree in ${CHROMIUM_BUILD_TREE} (CHROMIUM_BUILD_DIR)"
 			# Another build using it (Portage still locks its build directory; see claim in
