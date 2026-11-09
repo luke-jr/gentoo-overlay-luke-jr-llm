@@ -112,9 +112,12 @@ deliberately:
 - protobuf's bootstrap files (the C++ code of protoc's own protos, and the Python `_pb2` modules
   and edition defaults the build's scripts use) are regenerated with the protoc built from them,
   first thing in `src_compile`, as Chromium's `gen_extra_chromium_files.py` does; ninja then
-  rebuilds what changed. Regenerating again with the rebuilt protoc gives the same files. The
-  feature protos differ from the checked-in ones, made by upstream's unpatched protoc, only in
-  `[[nodiscard]]` and `Swap()` inlining (as Chromium's own regenerated `descriptor.pb.h`).
+  rebuilds what changed. The build then checks that the protoc built from the regenerated files
+  regenerates them unchanged (the C++ code and the `_pb2` modules), and fails otherwise; that
+  protoc makes the edition defaults. This still starts from upstream's generated files: see
+  "Known issues / TODO" in `chromium.md`. The feature protos differ from the checked-in ones,
+  made by upstream's unpatched protoc, only in `[[nodiscard]]` and `Swap()` inlining (as
+  Chromium's own regenerated `descriptor.pb.h`).
 - The SPIR-V headers (Chromium's `third_party/spirv-headers` and SwiftShader's copy) are
   regenerated from the SPIR-V grammars with SPIRV-Headers' own tools (`makeExtinstHeaders.py`,
   `buildHeaders`). Byte-identical.
