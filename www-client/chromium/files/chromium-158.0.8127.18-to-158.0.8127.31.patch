@@ -1,18 +1,18 @@
-Chromium 158.0.8127.18 -> 158.0.8127.30, for the 158.0.8127.18 tarball.
+Chromium 158.0.8127.18 -> 158.0.8127.31, for the 158.0.8127.18 tarball.
 
-158.0.8127.30 is a tag on the 158 branch (refs/branch-heads/8127@{#1315}) that
-has no source tarball (as of 2026-11-08). It adds 470 branch commits to
-158.0.8127.18 (#845), 209 of them not PGO/orderfile/AFDO rolls or VERSION increments:
+158.0.8127.31 is a tag on the 158 branch (refs/branch-heads/8127@{#1398}) that
+has no source tarball (as of 2026-11-09). It adds 553 branch commits to
+158.0.8127.18 (#845), 221 of them not PGO/orderfile/AFDO rolls or VERSION increments:
 security fixes (MSE, the extension install move, the password auto sign-in toast,
 SiteDataClearer, WebShare, PartitionAlloc's purge, service worker teardown, Blink's
 animation triggers, scroll snap, nested pseudo-elements, display-locked painting,
 video snapshots and WebMediaPlayerMS reloads, libxslt's pattern cache (unused: the
-ebuild uses the system libxslt), the V8 detached-globals one, and the V8, Skia, ICU, Dawn and ANGLE ones in the 31 "Roll commits
-from side projects" and the ICU roll), contextual tasks, composebox/omnibox and new tab
-page WebUI changes, PartitionAlloc's ThreadCache overflow churn.
+ebuild uses the system libxslt), the V8 detached-globals and TurboFan escape analysis ones, and the V8, Skia, ICU, Dawn and ANGLE ones in the 31 "Roll commits
+from side projects" and the ICU roll), contextual tasks, composebox/omnibox, AI Mode button and
+new tab page WebUI changes, PartitionAlloc's ThreadCache overflow churn.
 
 Generated from the upstream diffs between the tags: chromium/src
-refs/tags/158.0.8127.18..158.0.8127.30 and the dependencies whose DEPS
+refs/tags/158.0.8127.18..158.0.8127.31 and the dependencies whose DEPS
 revision changed (ANGLE, Dawn, DevTools, ICU, Skia, V8, WebRTC), as served by
 Gitiles, with scripts/chromium-delta.
 
@@ -24,11 +24,11 @@ updates, DEPS.
 Added: the tarball's stamp files for the new commit (stamps.py:
 build/util/LASTCHANGE{,.committime}, gpu/config/gpu_lists_version.h,
 skia/ext/skia_commit_hash.h, gpu/webgpu/DAWN_VERSION and
-gpu/webgpu/dawn_commit_hash.h; commit cb5de443be0ab0b6595c6f73c66b7bfeb017ef8a,
-refs/branch-heads/8127@{#1315}). build/util/MINIBRANCH doesn't change.
+gpu/webgpu/dawn_commit_hash.h; commit 65a0874c78d0fc2d19a1fa13e8762c024763f1c1,
+refs/branch-heads/8127@{#1398}). build/util/MINIBRANCH doesn't change.
 
 Checked: applies to the 158.0.8127.18 tarball; chrome/VERSION becomes
-158.0.8127.30; every patched source file is byte-identical to its version
+158.0.8127.31; every patched source file is byte-identical to its version
 at the tag (or the dependency's DEPS revision); it adds 13 files and renames
 20 (within chrome/browser/resources/omnibox_popup/; the old paths are gone); the
 158.0.8127.18 tarball's non-git files are all classified (tarball-generated.py
@@ -207,8 +207,21 @@ index a019f71..74d9cf5 100644
    }
  
    unpublished_stats_.dequarantined_count += freed_count;
+diff --git a/base/tracing/protos/chrome_track_event.proto b/base/tracing/protos/chrome_track_event.proto
+index 31e3f6f..0583e1f 100644
+--- a/base/tracing/protos/chrome_track_event.proto
++++ b/base/tracing/protos/chrome_track_event.proto
+@@ -2420,6 +2420,8 @@
+     WEBVIEW_INSTANCE_ADD_JAVASCRIPT_ON_EVENT = 146;
+     WEBVIEW_INSTANCE_GET_JAVASCRIPT_WORLD = 147;
+     WEBVIEW_INSTANCE_GET_PROFILE = 148;
++    PROFILE_CONFIGURE_ISOLATED_SITES = 149;
++    PROFILE_CAN_CONFIGURE_ISOLATED_SITES = 150;
+     // Remember to update WebViewStartupCallSite in enums.xml when adding new
+     // values here.
+   }
 diff --git a/chrome/VERSION b/chrome/VERSION
-index 42a35f4..85527eca 100644
+index 42a35f4..8181d0ef 100644
 --- a/chrome/VERSION
 +++ b/chrome/VERSION
 @@ -1,4 +1,4 @@
@@ -216,7 +229,7 @@ index 42a35f4..85527eca 100644
  MINOR=0
  BUILD=8127
 -PATCH=18
-+PATCH=30
++PATCH=31
 diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
 index a0e09ac9..6807b65 100644
 --- a/chrome/app/generated_resources.grd
@@ -5807,8 +5820,51 @@ index d6798b1..7a2323e 100644
          break;
        }
        case NtpLhsMessageType.NTP_LHS_CLOSE: {
+diff --git a/chrome/browser/resources/new_tab_page/ntp_composebox.css b/chrome/browser/resources/new_tab_page/ntp_composebox.css
+index d00855d..addf8072 100644
+--- a/chrome/browser/resources/new_tab_page/ntp_composebox.css
++++ b/chrome/browser/resources/new_tab_page/ntp_composebox.css
+@@ -93,10 +93,6 @@
+   padding-top: 4px;
+ }
+ 
+-:host([searchbox-next-enabled]) #composebox {
+-  padding-bottom: 10px;
+-}
+-
+ #contextEntrypoint {
+   color: var(--color-searchbox-results-foreground);
+   inset-inline-start: 0;
+@@ -168,6 +164,18 @@
+   margin-inline: 6px 10px;
+ }
+ 
++:host([persistent-aim-button-enabled_]) #composebox {
++  --cr-composebox-padding-bottom: 4px;
++  /* TODO(crbug.com/581985743): Remove once the shared input no longer adds
++   * a font-dependent gap below the textarea. */
++  min-height: var(--cr-searchbox-height);
++}
++
++:host([persistent-aim-button-enabled_][has-context-row_]) #composebox,
++:host([persistent-aim-button-enabled_][show-dropdown]) #composebox {
++  --cr-composebox-padding-bottom: unset;
++}
++
+ #composebox[inert] {
+   pointer-events: none;
+ }
+@@ -183,7 +191,7 @@
+ }
+ 
+ :host([show-file-carousel]) #carouselContainer,
+-:host([submit-enabled]) #carouselContainer,
++:host([submit-enabled]:not([persistent-aim-button-enabled_])) #carouselContainer,
+ :host([in-tool-mode]) #carouselContainer,
+ #inputContainer:has(.has-tabs) #carouselContainer {
+   --contextual-entrypoint-and-carousel-context-menu-container-padding-inline-start:
 diff --git a/chrome/browser/resources/new_tab_page/ntp_composebox.html.ts b/chrome/browser/resources/new_tab_page/ntp_composebox.html.ts
-index 26742ef..e0e42db 100644
+index 26742ef..1effc5d 100644
 --- a/chrome/browser/resources/new_tab_page/ntp_composebox.html.ts
 +++ b/chrome/browser/resources/new_tab_page/ntp_composebox.html.ts
 @@ -78,7 +78,8 @@
@@ -5821,6 +5877,60 @@ index 26742ef..e0e42db 100644
              .showDropdown="${this.showDropdown}"
              .inputPlaceholder="${this.inputPlaceholder}"
              .input="${this.input}"
+@@ -87,6 +88,7 @@
+             .submitEnabled="${this.submitEnabled}"
+             .cancelButtonTitle="${this.computeCancelButtonTitle()}"
+             .hideCancel="${this.persistentAimButtonEnabled_}"
++            .skipEmptyHeightLock="${this.persistentAimButtonEnabled_}"
+             @input-input="${this.onInputInput}"
+             @input-focusin="${this.onInputFocusin}"
+             @cancel-click="${this.onCancelClick}"
+diff --git a/chrome/browser/resources/new_tab_page/ntp_composebox.ts b/chrome/browser/resources/new_tab_page/ntp_composebox.ts
+index bafb018..3f40bce 100644
+--- a/chrome/browser/resources/new_tab_page/ntp_composebox.ts
++++ b/chrome/browser/resources/new_tab_page/ntp_composebox.ts
+@@ -81,6 +81,10 @@
+         reflect: true,
+         type: Boolean,
+       },
++      hasContextRow_: {
++        reflect: true,
++        type: Boolean,
++      },
+       persistentAimButtonEnabled_: {
+         type: Boolean,
+         reflect: true,
+@@ -101,6 +105,7 @@
+       getLoadTimeBoolean('composeboxRealboxOutsideClick', false);
+   protected accessor expanding_: boolean = true;
+   protected accessor shouldRemainFolded_: boolean = true;
++  protected accessor hasContextRow_: boolean = false;
+   protected accessor persistentAimButtonEnabled_: boolean =
+       getLoadTimeBoolean('composeboxPersistentAimButton', false);
+   protected accessor showAimButtonExitIcon_: boolean =
+@@ -171,6 +176,7 @@
+       this.showDropdown = this.computeShowDropdown();
+     }
+     this.shouldRemainFolded_ = this.computeShouldRemainFolded();
++    this.hasContextRow_ = this.computeHasContextRow();
+   }
+ 
+   private computeShouldRemainFolded(): boolean {
+@@ -199,7 +205,14 @@
+     return true;
+   }
+ 
++  private computeHasContextRow(): boolean {
++    return this.showFileCarousel || this.inToolMode || this.hasTabs();
++  }
++
+   override shouldShowDivider(): boolean {
++    if (this.persistentAimButtonEnabled_ && !this.hasContextRow_) {
++      return false;
++    }
+     if (this.hasTabs() && !this.hasNonTabFiles()) {
+       return this.showDropdown;
+     }
 diff --git a/chrome/browser/resources/new_tab_page/ntp_searchbox.html.ts b/chrome/browser/resources/new_tab_page/ntp_searchbox.html.ts
 index 4f19733b..d52680d 100644
 --- a/chrome/browser/resources/new_tab_page/ntp_searchbox.html.ts
@@ -6011,25 +6121,27 @@ index 2ca2e1a..22380c1e 100644
      this.isPendingScreenshot_ = false;
      this.screenshotOriginWasSearchbox_ = false;
 diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.css b/chrome/browser/resources/omnibox_everywhere/omnibox.css
-index 7d682fdc..417ed24 100644
+index 7d682fdc..d008137 100644
 --- a/chrome/browser/resources/omnibox_everywhere/omnibox.css
 +++ b/chrome/browser/resources/omnibox_everywhere/omnibox.css
-@@ -313,12 +313,12 @@
- #composeButton::part(hoverBackground) {
-   background-color: var(--color-sys-state-hover-dim-blend-protection);
-   display: block;
--  opacity: 0;
-+  opacity: var(--compose-button-hover-background-opacity, 0);
-   transition: opacity 250ms linear;
+@@ -310,17 +310,6 @@
+   color: var(--color-sys-on-surface);
  }
  
+-#composeButton::part(hoverBackground) {
+-  background-color: var(--color-sys-state-hover-dim-blend-protection);
+-  display: block;
+-  opacity: 0;
+-  transition: opacity 250ms linear;
+-}
+-
 -#composeButton:hover::part(hoverBackground) {
 -  opacity: 1;
-+#composeButton::part(compose-button):hover {
-+  --compose-button-hover-background-opacity: 1;
- }
- 
+-}
+-
  :host([is-fusebox-enabled]) #composeButton {
+   --cr-button-height: 28px;
+   margin-inline-end: 36px;
 diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.html.ts b/chrome/browser/resources/omnibox_everywhere/omnibox.html.ts
 index 764d176f..76ee878 100644
 --- a/chrome/browser/resources/omnibox_everywhere/omnibox.html.ts
@@ -14752,7 +14864,7 @@ index 107a256..87afa79ca 100644
  SANDBOX_POLICY_EXPORT BASE_DECLARE_FEATURE(kRestrictRendererPoliciesInBaseline);
  SANDBOX_POLICY_EXPORT BASE_DECLARE_FEATURE(kRestrictCloneParameters);
 diff --git a/testing/variations/fieldtrial_testing_config.json b/testing/variations/fieldtrial_testing_config.json
-index b0551dda..7e79085e 100644
+index b0551dda..e1498b6 100644
 --- a/testing/variations/fieldtrial_testing_config.json
 +++ b/testing/variations/fieldtrial_testing_config.json
 @@ -1806,6 +1806,27 @@
@@ -14820,7 +14932,7 @@ index b0551dda..7e79085e 100644
 +                        "ContextualTasksEphemeralButtonContextMenuOption": "close-side-panel",
                          "ContextualTasksPinnedButtonActiveIndicatorCircleHighlight": "true",
 +                        "ContextualTasksPinnedButtonContextMenuCloseSidePanel": "true",
-+                        "ContextualTasksPinningStringVariant": "ai-mode",
++                        "ContextualTasksPinningStringVariant": "in-chrome",
                          "ContextualTasksUnifyPinButtonLogo": "super-g",
                          "EnableCircularEphemeralButtonNextToBatterySaver": "true",
                          "overflow-items": "all-without-new-thread"
@@ -16651,6 +16763,18 @@ index d7c68b2..a67d58f1e 100644
      if (this.isCollapsible) {
        this.clearAllInputs(/* querySubmitted= */ true,
                            /* shouldBlockAutoSuggestedTabs= */ false);
+diff --git a/ui/webui/resources/cr_components/composebox/composebox_aim_button.css b/ui/webui/resources/cr_components/composebox/composebox_aim_button.css
+index 17159c3..1d8f25bb 100644
+--- a/ui/webui/resources/cr_components/composebox/composebox_aim_button.css
++++ b/ui/webui/resources/cr_components/composebox/composebox_aim_button.css
+@@ -127,6 +127,7 @@
+ #energy {
+   background-color: var(--color-composebox-submit-button-background);
+   border-radius: 100px;
++  forced-color-adjust: none;
+   inset: 0;
+   overflow: hidden;
+   pointer-events: none;
 diff --git a/ui/webui/resources/cr_components/composebox/composebox_dropdown.css b/ui/webui/resources/cr_components/composebox/composebox_dropdown.css
 index bd1b6a8..fc31da9 100644
 --- a/ui/webui/resources/cr_components/composebox/composebox_dropdown.css
@@ -16734,21 +16858,52 @@ index 4928af0..8e3da2a9 100644
    transition: padding var(--height-expand-duration) var(--standard-curve);
  }
 diff --git a/ui/webui/resources/cr_components/composebox/composebox_input.ts b/ui/webui/resources/cr_components/composebox/composebox_input.ts
-index e2a0c23..35fd2509 100644
+index e2a0c23..469d521a 100644
 --- a/ui/webui/resources/cr_components/composebox/composebox_input.ts
 +++ b/ui/webui/resources/cr_components/composebox/composebox_input.ts
-@@ -198,6 +198,11 @@
+@@ -101,6 +101,7 @@
+       cancelButtonTitle: {type: String},
+       hideCancel: {type: Boolean},
+       inlineActionButtons: {type: Boolean, reflect: true},
++      skipEmptyHeightLock: {type: Boolean},
+       isBackspacing_: {type: Boolean},
+     };
+   }
+@@ -118,6 +119,7 @@
+   accessor cancelButtonTitle: string = '';
+   accessor hideCancel: boolean = false;
+   accessor inlineActionButtons: boolean = false;
++  accessor skipEmptyHeightLock: boolean = false;
+   accessor isBackspacing_: boolean = false;
+ 
+   private resizeObserver_: ResizeObserver|null = null;
+@@ -197,6 +199,16 @@
+         changedProperties.has('disableCaretColorAnimation')) {
        if (!this.input) {
          this.resetHeight();
-       }
++      } else if (this.skipEmptyHeightLock && this.lockedMinHeight_ === 0) {
++        const inputWrapper =
++            this.shadowRoot.querySelector<HTMLElement>('#inputWrapper')!;
++        this.lockedMinHeight_ = inputWrapper.clientHeight;
++        inputWrapper.style.minHeight = `${this.lockedMinHeight_}px`;
++      }
 +      if (changedProperties.has('disableCaretColorAnimation') &&
 +          !this.disableCaretColorAnimation &&
 +          this.shadowRoot?.activeElement === inputEl) {
 +        this.shadowRoot.getElementById('caret')?.classList.add('caret-visible');
-+      }
+       }
        this.updateMirrorAndCaret_();
      }
+@@ -498,7 +510,8 @@
  
+       // Handle height changes.
+       const currentHeight = inputWrapper.clientHeight;
+-      if (currentHeight > this.lockedMinHeight_) {
++      if ((this.input || !this.skipEmptyHeightLock) &&
++          currentHeight > this.lockedMinHeight_) {
+         const generation = this.heightLockGeneration_;
+         requestAnimationFrame(() => {
+           if (generation !== this.heightLockGeneration_) {
 diff --git a/ui/webui/resources/cr_components/composebox/composebox_match.css b/ui/webui/resources/cr_components/composebox/composebox_match.css
 index 52668c6..f660a39 100644
 --- a/ui/webui/resources/cr_components/composebox/composebox_match.css
@@ -20157,7 +20312,7 @@ index 81e74b9..98bf8fc 100644
        this.onElementExpanded();
      } else {
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index 9258925..42097a0 100644
+index 9258925..79f058f 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -20165,7 +20320,7 @@ index 9258925..42097a0 100644
  #define V8_MINOR_VERSION 8
  #define V8_BUILD_NUMBER 62
 -#define V8_PATCH_LEVEL 9
-+#define V8_PATCH_LEVEL 23
++#define V8_PATCH_LEVEL 24
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
@@ -20429,6 +20584,18 @@ index 45bad40..bd60100 100644
      temp_slots_ = 0;
    }
  }
+diff --git a/v8/src/compiler/escape-analysis-reducer.cc b/v8/src/compiler/escape-analysis-reducer.cc
+index 4d54bdf..1b83aca 100644
+--- a/v8/src/compiler/escape-analysis-reducer.cc
++++ b/v8/src/compiler/escape-analysis-reducer.cc
+@@ -309,6 +309,7 @@
+               NodeProperties::SetType(load, Type::None());
+               NodeProperties::SetType(dead_value, Type::None());
+               NodeProperties::ReplaceUses(load, dead_value, load);
++              NodeProperties::ReplaceValueInput(dead_value, load, 0);
+               continue;
+             }
+ 
 diff --git a/v8/src/compiler/js-generic-lowering.cc b/v8/src/compiler/js-generic-lowering.cc
 index d0c877b..22c8c0b 100644
 --- a/v8/src/compiler/js-generic-lowering.cc
@@ -20472,6 +20639,18 @@ index 811af26..a17cbf2 100644
      return maglev::ProcessResult::kContinue;
    }
  
+diff --git a/v8/src/compiler/verifier.cc b/v8/src/compiler/verifier.cc
+index 8aab5f5..a52ffbb 100644
+--- a/v8/src/compiler/verifier.cc
++++ b/v8/src/compiler/verifier.cc
+@@ -303,6 +303,7 @@
+       UNREACHABLE();
+     case IrOpcode::kDeadValue:
+       CheckValueInputIs(node, 0, Type::None());
++      CHECK_NE(NodeProperties::GetValueInput(node, 0), node);
+       CheckTypeIs(node, Type::None());
+       break;
+     case IrOpcode::kUnreachable:
 diff --git a/v8/src/compiler/wasm-load-elimination.cc b/v8/src/compiler/wasm-load-elimination.cc
 index 3ab300b..75d7f83 100644
 --- a/v8/src/compiler/wasm-load-elimination.cc
@@ -21951,7 +22130,7 @@ diff --git a/build/util/LASTCHANGE b/build/util/LASTCHANGE
 +++ b/build/util/LASTCHANGE
 @@ -1,2 +1,2 @@
 -LASTCHANGE=6449d9f9a6a906edff724b7b220199b3fde4615c-refs/branch-heads/8127@{#845}
-+LASTCHANGE=cb5de443be0ab0b6595c6f73c66b7bfeb017ef8a-refs/branch-heads/8127@{#1315}
++LASTCHANGE=65a0874c78d0fc2d19a1fa13e8762c024763f1c1-refs/branch-heads/8127@{#1398}
  LASTCHANGE_YEAR=2026
 diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 --- a/build/util/LASTCHANGE.committime
@@ -21959,7 +22138,7 @@ diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 @@ -1 +1 @@
 -1793754506
 \ No newline at end of file
-+1794101558
++1794187540
 \ No newline at end of file
 diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
 --- a/gpu/config/gpu_lists_version.h
@@ -21969,7 +22148,7 @@ diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
  #define GPU_CONFIG_GPU_LISTS_VERSION_H_
  
 -#define GPU_LISTS_VERSION "6449d9f9a6a906edff724b7b220199b3fde4615c"
-+#define GPU_LISTS_VERSION "cb5de443be0ab0b6595c6f73c66b7bfeb017ef8a"
++#define GPU_LISTS_VERSION "65a0874c78d0fc2d19a1fa13e8762c024763f1c1"
  
  #endif  // GPU_CONFIG_GPU_LISTS_VERSION_H_
 diff --git a/skia/ext/skia_commit_hash.h b/skia/ext/skia_commit_hash.h
