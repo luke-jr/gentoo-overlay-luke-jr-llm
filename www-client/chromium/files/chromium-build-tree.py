@@ -8,14 +8,19 @@ Usage:
   chromium-build-tree.py claim TREE BUILDDIR
     Make the build in Portage's BUILDDIR the tree's user. If another build uses it (its
     Portage build directory is locked), wait until it is done. Run with Portage's Python.
-  chromium-build-tree.py settle TREE SRC [--full]
+  chromium-build-tree.py settle TREE SRC [--full BUILD_NINJA]
     Before each ninja run: TREE/state has, for every file of SRC (but out/), its contents (a
     hash) and timestamp at the last run, whatever build that was in. A file with the same
     contents gets that timestamp back: what ninja built from it since is newer, so it stays,
     and the rest gets rebuilt. A changed or new file gets the current time. Either way the
     file's contents and timestamp become its record. --full hashes every file (the first run
-    of a build, after unpacking); otherwise only files whose timestamp isn't their record's
-    (written since the last run) are hashed. A file that is gone keeps its record: what ninja
+    of a build); otherwise only files whose timestamp isn't their record's (written since the
+    last run) are hashed. With --full, a changed file gets BUILD_NINJA's timestamp minus 1ns
+    instead of the current time: gn wrote it after unpacking and before the in-place
+    regenerations (whose files are looked at here, after them), so it is newer than every
+    output of the earlier builds, and ninja doesn't run gn again for a changed .gn file. But a
+    file gn read (BUILD_NINJA.d) that was written after it gets the current time, so that
+    ninja runs gn again, as it would without the kept tree. A file that is gone keeps its record: what ninja
     built while it was gone doesn't use it, and if it comes back as it was, what ninja built
     from it before is still right (the build moves checked-in generated files aside, then
     writes them again).
@@ -83,7 +88,7 @@ def claim(tree, builddir):
         portage.locks.unlockdir(portage.locks.lockdir(other))
 
 
-def settle(tree, src, full):
+def settle(tree, src, full, build_ninja=None):
     path = os.path.join(tree, "state")
     try:
         with open(path) as f:
@@ -92,13 +97,27 @@ def settle(tree, src, full):
         records = {}
     files = walk(src)
     todo = sorted(p for p, st in files.items() if full or records.get(p, [None, None])[1] != st.st_mtime_ns)
+    gn_newer = set()
+    if build_ninja:
+        # gn wrote both (build.ninja.d lists the inputs of build.ninja.stamp).
+        b = min(os.stat(f).st_mtime_ns for f in (build_ninja, build_ninja + ".stamp") if os.path.exists(f))
+        with open(build_ninja + ".d") as f:
+            for dep in f.read().split(":", 1)[1].split():
+                p = os.path.relpath(os.path.normpath(os.path.join(os.path.dirname(build_ninja), dep)), src)
+                if p in files and files[p].st_mtime_ns > b:
+                    gn_newer.add(p)
     with multiprocessing.Pool() as pool:
         hashes = pool.map(digest, [os.path.join(src, p) for p in todo], chunksize=256)
-    now = time.time_ns()
+    now = b - 1 if build_ninja else time.time_ns()
     same = changed = 0
     for p, h in zip(todo, hashes):
         record = records.get(p)
-        if record is not None and record[0] == h:
+        if p in gn_newer:
+            t = time.time_ns()
+            os.utime(os.path.join(src, p), ns=(t, t))
+            records[p] = [h, t]
+            changed += 1
+        elif record is not None and record[0] == h:
             if files[p].st_mtime_ns != record[1]:
                 os.utime(os.path.join(src, p), ns=(record[1], record[1]))
             same += 1
@@ -115,8 +134,10 @@ def settle(tree, src, full):
 def main(argv):
     if len(argv) == 4 and argv[1] == "claim":
         claim(argv[2], argv[3])
-    elif len(argv) in (4, 5) and argv[1] == "settle" and argv[4:] in ([], ["--full"]):
-        settle(argv[2], argv[3], argv[4:] == ["--full"])
+    elif len(argv) == 4 and argv[1] == "settle":
+        settle(argv[2], argv[3], False)
+    elif len(argv) == 6 and argv[1] == "settle" and argv[4] == "--full":
+        settle(argv[2], argv[3], True, argv[5])
     else:
         sys.exit(__doc__)
 

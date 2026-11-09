@@ -612,10 +612,17 @@ chromium_toolchain_id() {
 	fi
 }
 
-# ninja in the source tree: with a kept build tree, settle the sources' timestamps first.
+# ninja in the source tree: with a kept build tree, settle the sources' timestamps first. Every
+# file is looked at in the build's first run (after the in-place regenerations of
+# chromium_regenerate; not again for PGO's second phase), then those written since the last run.
 chromium_eninja() {
 	if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
-		chromium_build_tree_py settle "${CHROMIUM_BUILD_TREE}" "${S}"
+		if [[ ! -e ${T}/.build-tree-settled ]]; then
+			chromium_build_tree_py settle "${CHROMIUM_BUILD_TREE}" "${S}" --full "${S}/out/Release/build.ninja"
+			touch "${T}/.build-tree-settled" || die
+		else
+			chromium_build_tree_py settle "${CHROMIUM_BUILD_TREE}" "${S}"
+		fi
 	fi
 	eninja "$@"
 }
@@ -3593,13 +3600,6 @@ chromium_configure() {
 	if [[ ! -e ${WORKDIR}/.chromium-regenerated-gn ]]; then
 		chromium_regenerate_gn
 		touch "${WORKDIR}/.chromium-regenerated-gn" || die
-	fi
-
-	# The kept build tree: the sources' timestamps, before gn reads them. Every file is looked at
-	# once per build (not again for PGO's second configure).
-	if [[ -n ${CHROMIUM_BUILD_TREE} && ! -e ${T}/.build-tree-settled ]]; then
-		chromium_build_tree_py settle "${CHROMIUM_BUILD_TREE}" "${S}" --full
-		touch "${T}/.build-tree-settled" || die
 	fi
 
 	einfo "Configuring Chromium ..."
