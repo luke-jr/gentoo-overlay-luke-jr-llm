@@ -3475,8 +3475,20 @@ chromium_configure() {
 		"tint_use_system_go=true"
 	)
 	# The kept build tree (CHROMIUM_BUILD_DIR): ninja also tracks the system headers (-MD).
+	# Official builds scramble Mojo's message IDs with a salt, chrome/VERSION by default: it
+	# changes in every bump, and with it every Mojo binding and what includes one. The tree
+	# has its own random salt instead (deleting the file makes a new one).
 	if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
 		myconf_gn+=( "system_headers_in_deps=true" )
+		if use official; then
+			local salt="${CHROMIUM_BUILD_TREE}/mojom-message-id-salt"
+			if [[ ! -s ${salt} ]]; then
+				chromium_build_tree_addwrite
+				( umask 077 && od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > "${salt}.new" ) &&
+					mv "${salt}.new" "${salt}" || die
+			fi
+			myconf_gn+=( "mojom_message_id_salt_path=\"${salt}\"" )
+		fi
 	fi
 
 	if use bindist ; then
