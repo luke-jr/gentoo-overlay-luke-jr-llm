@@ -133,8 +133,8 @@
 # @DEFAULT_UNSET
 # @DESCRIPTION:
 # With CHROMIUM_BUILD_DIR, the kept build tree's src/ is emptied at the end of src_install: the
-# next build unpacks its own sources anyway, only build/ is reused. Set (non-empty), or with
-# FEATURES=keepwork, the sources stay until the next build.
+# next build unpacks its own sources anyway, only build/ is reused. 1 keeps them until the next
+# build, 0 removes them; unset, FEATURES=keepwork keeps them.
 
 # @FUNCTION: chromium_crubit_rustfmt
 # @USAGE: <suffix>
@@ -4214,7 +4214,11 @@ chromium-llm_src_install() {
 	readme.gentoo_create_doc
 
 	# The kept build tree's sources (its contents: src/ may be a mount point).
-	if [[ -n ${CHROMIUM_BUILD_TREE} && -z ${CHROMIUM_BUILD_DIR_KEEP_SRC} ]] && ! has keepwork ${FEATURES}; then
+	local keep_src=${CHROMIUM_BUILD_DIR_KEEP_SRC}
+	if [[ -z ${keep_src} ]]; then
+		has keepwork ${FEATURES} && keep_src=1 || keep_src=0
+	fi
+	if [[ -n ${CHROMIUM_BUILD_TREE} && ${keep_src} == 0 ]]; then
 		einfo "Removing the sources from ${S} (CHROMIUM_BUILD_DIR_KEEP_SRC keeps them) ..."
 		find "${S}" -mindepth 1 -maxdepth 1 -exec rm -rf {} + || die
 	fi

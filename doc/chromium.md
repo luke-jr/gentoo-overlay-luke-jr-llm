@@ -72,7 +72,8 @@ computed from the public sources. Delete the file to get a new salt (and a rebui
 objects) on the next build.
 
 The tree's `src/` is emptied at the end of `src_install` (the next build unpacks its own sources
-anyway); `CHROMIUM_BUILD_DIR_KEEP_SRC=1` or `FEATURES=keepwork` keeps them until the next build.
+anyway). `CHROMIUM_BUILD_DIR_KEEP_SRC=1` keeps them until the next build, `0` removes them;
+unset, `FEATURES=keepwork` keeps them.
 `src/` and `build/` can be mount points (e.g. `src/` on tmpfs, `build/` on a disk).
 
 A second build of the same major waits until the first is done (until its Portage build
