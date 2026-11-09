@@ -1,18 +1,22 @@
 Chromium 158.0.8127.31 + the later changes of its release branch, up to
-4ef05ce84b525b773b7887ad06cc8bd69fbed89d (refs/branch-heads/8127@{#1419}), for the
+ef9a2c1ea328b221b635348d61b60d85f0a0d9d3 (refs/branch-heads/8127@{#1436}), for the
 158.0.8127.31 tree that chromium-158.0.8127.18-to-158.0.8127.31.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.31..4ef05ce84b525b773b7887ad06cc8bd69fbed89d,
-as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
-.31 tree's files, renames included): left out are files not in the release
-tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
-translations, PGO/orderfile pointers, submodule pointer updates. chrome/VERSION,
-DEPS and the stamp files stay at 158.0.8127.31.
+Generated from the upstream diffs chromium/src refs/tags/158.0.8127.31..ef9a2c1ea328b221b635348d61b60d85f0a0d9d3
+and, for the V8 roll in it, v8 a246c42da968..a2e0f800315e, as served by Gitiles,
+with scripts/chromium-delta --branch-fixes (against the .31 tree's files, renames
+included): left out are files not in the release tarball,
+iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs, translations,
+PGO/orderfile pointers, submodule pointer updates. chrome/VERSION, DEPS and the
+stamp files stay at 158.0.8127.31.
 
 Commits contributing to it (oldest first):
   7580ff0df70a [M158] [Extensions] Fix chrome://extensions crash in site permissions dialog
   c853d007f5f9 [M158] Revert CHECK to DCHECK for extension action visibility in TriggerPopup
   4ef05ce84b52 [M158] [a11y-image-desc] Guard AXImageAnnotator::OnImageAnnotated re-entrancy
+  ef9a2c1ea328 Roll src/v8 in M158 from a246c42da968 to a2e0f800315e:
+    v8 4d437ba307ad [M158] [interpreter] Only track eval ScopeInfos within closure scope
+    v8 a2e0f800315e Version 15.8.62.25
 
 Checked: applies to the 158.0.8127.31 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -122,3 +126,159 @@ index 8758b66..5ca2c078 100644
  
    const auto it = image_annotations_.find(image.AxID());
    if (it == image_annotations_.end()) {
+diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
+index 79f058f..27d3d4e 100644
+--- a/v8/include/v8-version.h
++++ b/v8/include/v8-version.h
+@@ -11,7 +11,7 @@
+ #define V8_MAJOR_VERSION 15
+ #define V8_MINOR_VERSION 8
+ #define V8_BUILD_NUMBER 62
+-#define V8_PATCH_LEVEL 24
++#define V8_PATCH_LEVEL 25
+ 
+ // Use 1 for candidates and 0 otherwise.
+ // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/codegen/compiler.cc b/v8/src/codegen/compiler.cc
+index 751a25d..93480a6 100644
+--- a/v8/src/codegen/compiler.cc
++++ b/v8/src/codegen/compiler.cc
+@@ -2199,6 +2199,11 @@
+     }
+   }
+ 
++  bool HasScopeInfoToUpdate(Tagged<ScopeInfo> scope_info) const {
++    return scope_infos_to_update_.find(scope_info->UniqueIdInScript()) !=
++           scope_infos_to_update_.end();
++  }
++
+   void UpdateStandaloneScopeInfo(Tagged<ScopeInfo> scope_info) {
+     if (!scope_info->HasOuterScopeInfo()) return;
+ 
+@@ -2376,6 +2381,23 @@
+   //   * All constant pool SFI entries point to an SFI referring to the old
+   //     script (i.e. references were updated correctly).
+   std::unordered_map<int, Tagged<ScopeInfo>> scope_infos;
++  auto verify_scope_info = [&](Tagged<ScopeInfo> scope_info) {
++    while (true) {
++      auto it = scope_infos.find(scope_info->UniqueIdInScript());
++      if (it != scope_infos.end()) {
++        if (it->second != scope_info) {
++          isolate->PushParamsAndDie("duplicate scope info unique id",
++                                    reinterpret_cast<void*>(it->second.ptr()),
++                                    reinterpret_cast<void*>(scope_info.ptr()));
++          UNREACHABLE();
++        }
++        break;
++      }
++      scope_infos[scope_info->UniqueIdInScript()] = scope_info;
++      if (!scope_info->HasOuterScopeInfo()) break;
++      scope_info = scope_info->OuterScopeInfo();
++    }
++  };
+   uint32_t script_infos_len = script->infos()->ulength().value();
+   for (uint32_t info_idx = 0; info_idx < script_infos_len; info_idx++) {
+     Tagged<ScopeInfo> scope_info;
+@@ -2399,6 +2421,8 @@
+             int id = inner_sfi->function_literal_id(kRelaxedLoad);
+             CHECK_EQ(MakeWeak(inner_sfi), script->infos()->get(id));
+             CHECK_EQ(inner_sfi->script(), *script);
++          } else if (Is<ScopeInfo>(entry)) {
++            verify_scope_info(Cast<ScopeInfo>(entry));
+           }
+         }
+       }
+@@ -2413,21 +2437,7 @@
+     } else {
+       scope_info = Cast<ScopeInfo>(info);
+     }
+-    while (true) {
+-      auto it = scope_infos.find(scope_info->UniqueIdInScript());
+-      if (it != scope_infos.end()) {
+-        if (it->second != scope_info) {
+-          isolate->PushParamsAndDie("duplicate scope info unique id",
+-                                    reinterpret_cast<void*>(it->second.ptr()),
+-                                    reinterpret_cast<void*>(scope_info.ptr()));
+-          UNREACHABLE();
+-        }
+-        break;
+-      }
+-      scope_infos[scope_info->UniqueIdInScript()] = scope_info;
+-      if (!scope_info->HasOuterScopeInfo()) break;
+-      scope_info = scope_info->OuterScopeInfo();
+-    }
++    verify_scope_info(scope_info);
+   }
+ }
+ }  // namespace
+@@ -2575,6 +2585,9 @@
+     for (DirectHandle<SharedFunctionInfo> new_sfi : used_new_sfis_) {
+       forwarder.UpdateScopeInfo(*new_sfi);
+     }
++    for (DirectHandle<ScopeInfo> new_scope : used_new_scope_infos_) {
++      forwarder.UpdateStandaloneScopeInfo(*new_scope);
++    }
+     for (const auto& new_compiled_data : new_compiled_data_for_cached_sfis_) {
+       // It's possible that new_compiled_data.cached_sfi had
+       // scope_info()->IsEmpty() while an inner function has scope info if the
+@@ -2681,6 +2694,14 @@
+         compiled_data_it++;
+       }
+     } else if (!maybe_old_info.IsWeak()) {
++      // Standalone eval ScopeInfos are only recorded for scopes within their
++      // owning closure, so if the slot in old_script was cleared, the ScopeInfo
++      // itself cannot still be alive in old_script.
++      DCHECK_IMPLIES(
++          maybe_new_info.IsWeak() &&
++              Is<ScopeInfo>(maybe_new_info.GetHeapObjectAssumeWeak()),
++          !forwarder.HasScopeInfoToUpdate(
++              Cast<ScopeInfo>(maybe_new_info.GetHeapObjectAssumeWeak())));
+       old_script->infos()->set(i, maybe_new_info, kReleaseStore);
+     }
+   }
+diff --git a/v8/src/interpreter/bytecode-generator.cc b/v8/src/interpreter/bytecode-generator.cc
+index 59eca95..f2fea5a 100644
+--- a/v8/src/interpreter/bytecode-generator.cc
++++ b/v8/src/interpreter/bytecode-generator.cc
+@@ -1618,6 +1618,7 @@
+   }
+ 
+   for (std::pair<Call*, Scope*> call : eval_calls_) {
++    DCHECK_EQ(call.second->GetClosureScope(), closure_scope());
+     Tagged<ScopeInfo> current;
+     int index = call.first->eval_scope_info_index();
+     if (script->infos()
+@@ -7113,7 +7114,8 @@
+       private_name_lookup_skips_outer_class =
+           scope_with_context->AsClassScope()->IsParsingHeritage();
+     }
+-    if (scope_with_context) {
++    if (scope_with_context &&
++        scope_with_context->IsOuterScopeUpToClosureScopeOf(current_scope())) {
+       eval_calls_.emplace_back(expr, scope_with_context);
+     }
+     int eval_flags = ResolveEvalFlags::Encode(
+diff --git a/v8/src/runtime/runtime-compiler.cc b/v8/src/runtime/runtime-compiler.cc
+index 05c6c8f..95bba0a 100644
+--- a/v8/src/runtime/runtime-compiler.cc
++++ b/v8/src/runtime/runtime-compiler.cc
+@@ -866,11 +866,15 @@
+   DirectHandle<JSFunction> compiled;
+   DirectHandle<Context> context(isolate->context(), isolate);
+   if (!Is<NativeContext>(*context)) {
+-    Tagged<WeakFixedArray> array = Cast<Script>(outer_info->script())->infos();
++    Tagged<Script> script = Cast<Script>(outer_info->script());
++    Tagged<WeakFixedArray> array = script->infos();
+     Tagged<ScopeInfo> stored_info;
+-    CHECK(array->get(eval_scope_info_index)
+-              .GetHeapObjectIfWeak(isolate, &stored_info));
+-    CHECK_EQ(stored_info, context->scope_info());
++    if (array->get(eval_scope_info_index)
++            .GetHeapObjectIfWeak(isolate, &stored_info)) {
++      CHECK_EQ(stored_info, context->scope_info());
++    } else {
++      CHECK_EQ(outer_info->GetOuterScopeInfo(), context->scope_info());
++    }
+   }
+   ASSIGN_RETURN_ON_EXCEPTION_VALUE(
+       isolate, compiled,
