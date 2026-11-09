@@ -3735,6 +3735,8 @@ chromium_compile() {
 			chromium_build_tree_bootstrap=()
 			cp -r "${T}/protobuf-bootstrap/." . || die
 		done
+		# Regenerated: from here on, ordinary files (hashed and recorded by each settle).
+		chromium_build_tree_bootstrap=()
 		"${pb_protoc}" --proto_path="${pb}/src" --python_out="${pb}/python" \
 			"${pb}"/src/google/protobuf/{descriptor,compiler/plugin}.proto || die "Failed to regenerate the _pb2 modules"
 		# protoc was built from the checked-in files: what it generated may depend on them. The
