@@ -48,7 +48,9 @@ Each build replaces the sources in its `src/` and keeps `src/out/` (tens of GB p
 each ninja run, files whose contents are those of the last run get that run's timestamp back, so
 ninja only rebuilds from changed files (`files/chromium-build-tree.py`). ninja doesn't notice a new compiler version in the
 same LLVM or Rust slot: the ebuild warns, and deleting `src/out/` forces a full build. A
-second build of the same major waits until the first is done.
+second build of the same major waits until the first is done (until its Portage build directory
+is unlocked). Running the first one's phases as separate `ebuild` commands unlocks it between
+them, so a waiting build can take the tree before the first one's `install`.
 
 ## Notable ebuild changes vs. 151
 
