@@ -1,0 +1,124 @@
+Chromium 158.0.8127.31 + the later changes of its release branch, up to
+4ef05ce84b525b773b7887ad06cc8bd69fbed89d (refs/branch-heads/8127@{#1419}), for the
+158.0.8127.31 tree that chromium-158.0.8127.18-to-158.0.8127.31.patch makes.
+
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.31..4ef05ce84b525b773b7887ad06cc8bd69fbed89d,
+as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
+.31 tree's files, renames included): left out are files not in the release
+tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
+translations, PGO/orderfile pointers, submodule pointer updates. chrome/VERSION,
+DEPS and the stamp files stay at 158.0.8127.31.
+
+Commits contributing to it (oldest first):
+  7580ff0df70a [M158] [Extensions] Fix chrome://extensions crash in site permissions dialog
+  c853d007f5f9 [M158] Revert CHECK to DCHECK for extension action visibility in TriggerPopup
+  4ef05ce84b52 [M158] [a11y-image-desc] Guard AXImageAnnotator::OnImageAnnotated re-entrancy
+
+Checked: applies to the 158.0.8127.31 tree; every patched file is
+byte-identical to its version at the last commit above.
+
+diff --git a/chrome/browser/extensions/api/developer_private/developer_private_functions.cc b/chrome/browser/extensions/api/developer_private/developer_private_functions.cc
+index 2589f42..e66e2aa 100644
+--- a/chrome/browser/extensions/api/developer_private/developer_private_functions.cc
++++ b/chrome/browser/extensions/api/developer_private/developer_private_functions.cc
+@@ -1569,6 +1569,10 @@
+   PermissionsManager* permissions_manager =
+       PermissionsManager::Get(browser_context());
+   for (const auto& extension : enabled_extensions) {
++    if (!ui_util::ShouldDisplayInExtensionSettings(*extension)) {
++      continue;
++    }
++
+     std::unique_ptr<const PermissionSet> granted_permissions =
+         permissions_manager->GetExtensionGrantedPermissions(*extension);
+     const URLPatternSet& extension_withheld_sites =
+diff --git a/chrome/browser/resources/extensions/site_permissions/site_permissions_edit_permissions_dialog.ts b/chrome/browser/resources/extensions/site_permissions/site_permissions_edit_permissions_dialog.ts
+index 1836d2cbd..5ba4426 100644
+--- a/chrome/browser/resources/extensions/site_permissions/site_permissions_edit_permissions_dialog.ts
++++ b/chrome/browser/resources/extensions/site_permissions/site_permissions_edit_permissions_dialog.ts
+@@ -189,10 +189,17 @@
+ 
+     const extensionSiteAccessData: ExtensionSiteAccessInfo[] = [];
+     matchingExtensionsInfo.forEach(({id, siteAccess, canRequestAllSites}) => {
+-      assert(this.extensionsIdToInfo_.has(id));
+-      const {name, iconUrl} = this.extensionsIdToInfo_.get(id)!;
+-      const addedByPolicy = getItemSource(this.extensionsIdToInfo_.get(id)!) ===
+-          SourceType.POLICY;
++      // It is possible for matching extensions to contain an extension not
++      // present in `extensionsIdToInfo_` (for example, if it should not be
++      // displayed in extension settings or was removed while the request was
++      // in flight). Ignore it in that case.
++      const extension = this.extensionsIdToInfo_.get(id);
++      if (!extension) {
++        return;
++      }
++
++      const {name, iconUrl} = extension;
++      const addedByPolicy = getItemSource(extension) === SourceType.POLICY;
+       extensionSiteAccessData.push(
+           {id, name, iconUrl, siteAccess, addedByPolicy, canRequestAllSites});
+ 
+diff --git a/chrome/browser/ui/extensions/extension_action_view_model.cc b/chrome/browser/ui/extensions/extension_action_view_model.cc
+index 79f1b26..9a97f7e 100644
+--- a/chrome/browser/ui/extensions/extension_action_view_model.cc
++++ b/chrome/browser/ui/extensions/extension_action_view_model.cc
+@@ -759,7 +759,9 @@
+ 
+   content::WebContents* const web_contents = GetCurrentWebContents();
+   const int tab_id = sessions::SessionTabHelper::IdForTab(web_contents).id();
+-  CHECK(extension_action_->GetIsVisible(tab_id), base::NotFatalUntil::M162);
++  // TODO(crbug.com/580768670): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(extension_action_->GetIsVisible(tab_id));
+   CHECK(extension_action_->HasPopup(tab_id), base::NotFatalUntil::M162);
+ 
+   const GURL popup_url = extension_action_->GetPopupUrl(tab_id);
+diff --git a/content/renderer/accessibility/annotations/ax_image_annotator.cc b/content/renderer/accessibility/annotations/ax_image_annotator.cc
+index 8758b66..5ca2c078 100644
+--- a/content/renderer/accessibility/annotations/ax_image_annotator.cc
++++ b/content/renderer/accessibility/annotations/ax_image_annotator.cc
+@@ -10,6 +10,7 @@
+ #include <vector>
+ 
+ #include "base/base64.h"
++#include "base/check.h"
+ #include "base/command_line.h"
+ #include "base/containers/fixed_flat_map.h"
+ #include "base/i18n/char_iterator.h"
+@@ -30,6 +31,7 @@
+ #include "services/image_annotation/public/mojom/image_annotation.mojom-forward.h"
+ #include "services/metrics/public/cpp/mojo_ukm_recorder.h"
+ #include "services/metrics/public/cpp/ukm_builders.h"
++#include "third_party/blink/public/web/web_ax_context.h"
+ #include "third_party/blink/public/web/web_ax_object.h"
+ #include "third_party/blink/public/web/web_document.h"
+ #include "third_party/blink/public/web/web_element.h"
+@@ -675,8 +677,26 @@
+ void AXImageAnnotator::OnImageAnnotated(
+     const blink::WebAXObject& image,
+     image_annotation::mojom::AnnotateImageResultPtr result) {
+-  DCHECK(render_accessibility_->GetAXContext());
+-  render_accessibility_->GetAXContext()->UpdateAXForAllDocuments();
++  blink::WebAXContext* ax_context = render_accessibility_->GetAXContext();
++  CHECK(ax_context);
++  // Bail out if the document is already shutting down or stopped.
++  if (!ax_context->HasActiveDocument()) {
++    return;
++  }
++
++  // Updating layout and AX across all documents can synchronously run script or
++  // frame observers (crbug.com/580869107) and destroy `this` or deactivate the
++  // document.
++  base::WeakPtr<AXImageAnnotator> weak_this = weak_factory_.GetWeakPtr();
++  ax_context->UpdateAXForAllDocuments();
++  if (!weak_this) {
++    return;
++  }
++  ax_context = render_accessibility_->GetAXContext();
++  CHECK(ax_context);
++  if (!ax_context->HasActiveDocument()) {
++    return;
++  }
+ 
+   const auto it = image_annotations_.find(image.AxID());
+   if (it == image_annotations_.end()) {
