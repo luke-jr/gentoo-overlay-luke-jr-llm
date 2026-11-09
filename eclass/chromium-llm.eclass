@@ -114,9 +114,9 @@
 # @DEFAULT_UNSET
 # @DESCRIPTION:
 # Opt-in (e.g. in make.conf): keep the build tree in this directory between builds, so that the
-# next build of the same major version only rebuilds what changed. It is expanded with MAJOR set
-# to the major version (so single-quote it in make.conf), e.g.
-#   CHROMIUM_BUILD_DIR='/var/tmp/portage/chromium-build/${MAJOR}'
+# next build of the same major version only rebuilds what changed. {MAJOR} in it becomes the
+# major version (not ${MAJOR}: Portage expands that in make.conf, even single-quoted), e.g.
+#   CHROMIUM_BUILD_DIR=/var/tmp/portage/chromium-build/{MAJOR}
 # The sources are unpacked to its src/ (S), replacing the last build's, and built in src/out/,
 # which stays. Before each ninja run, files whose contents are those of the last run (whatever
 # build it was in) get that run's timestamp back, changed ones a new one
@@ -171,12 +171,7 @@ inherit python-any-r1 readme.gentoo-r1 rust systemd toolchain-funcs virtualx xdg
 : "${CHROMIUM_TARBALL_PV:=${PV%%_*}}"
 S="${WORKDIR}/chromium-${CHROMIUM_TARBALL_PV}"
 if [[ -n ${CHROMIUM_BUILD_DIR} ]]; then
-	_chromium_build_tree() {
-		local MAJOR=${PV%%.*}
-		eval "CHROMIUM_BUILD_TREE=\"${CHROMIUM_BUILD_DIR}\""
-	}
-	_chromium_build_tree
-	unset -f _chromium_build_tree
+	CHROMIUM_BUILD_TREE=${CHROMIUM_BUILD_DIR//\{MAJOR\}/${PV%%.*}}
 	S="${CHROMIUM_BUILD_TREE}/src"
 fi
 # Google's official "lite" source tarball (as for 156, whose 156.0.8078.47 had none at
