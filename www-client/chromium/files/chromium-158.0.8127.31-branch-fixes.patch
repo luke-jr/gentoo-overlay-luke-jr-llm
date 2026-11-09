@@ -1,8 +1,8 @@
 Chromium 158.0.8127.31 + the later changes of its release branch, up to
-7af086c2351ba24a298ba4d9b6248465ca940b92 (refs/branch-heads/8127@{#1484}), for the
+638e4b6efd2eea5c30b20ed15169b30922079a6e (refs/branch-heads/8127@{#1494}), for the
 158.0.8127.31 tree that chromium-158.0.8127.18-to-158.0.8127.31.patch makes.
 
-Generated from the upstream diffs chromium/src refs/tags/158.0.8127.31..7af086c2351ba24a298ba4d9b6248465ca940b92
+Generated from the upstream diffs chromium/src refs/tags/158.0.8127.31..638e4b6efd2eea5c30b20ed15169b30922079a6e
 and, for the V8 and Skia rolls in it, v8 a246c42da968..5a03ee6be704 and skia
 75584a96108b..361c8326695a, as served by Gitiles,
 with scripts/chromium-delta --branch-fixes (against the .31 tree's files, renames
@@ -46,6 +46,13 @@ Commits contributing to it (oldest first):
   7af086c2351b Roll commits from side projects in M158 (V8 a2e0f800315e..5a03ee6be704):
     v8 6cfd1f8f0940 [M158] [regalloc] Fix off-by-one deferred-region clamp in AllocateBlockedReg
     v8 5a03ee6be704 Version 15.8.62.26
+  42defd022083 [M158] [Voice Search] Send speech routing params for New Tab Page
+  c7db6e6acb68 [M158] [Contextual Tasks] Opt tab picker iframe into responsive sizing
+  2277f488b16e [M158] [a11y] Copy children when marking unincluded subtrees dirty
+  2a0091396791 [M158] [contextual_tasks] Attach companion viewport_request_id
+  776ebd0d5118 [M158] [contextual_tasks] Send lens crop images / tab info to server correctly
+  f69f395cb98c [M158] [contextual_tasks] Wait for manual tab uploads before submitting query
+  638e4b6efd2e [M158] HttpCache::Transaction: avoid stale bits in response_ after restarts
 
 Checked: applies to the 158.0.8127.31 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -126,6 +133,34 @@ index 57d883a..38c2182 100644
      {"media-codec-block-model-output",
       flag_descriptions::kMediaCodecBlockModelOutputName,
       flag_descriptions::kMediaCodecBlockModelOutputDescription, kOsAndroid,
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
+index d4e50799..7d5a9be 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
+@@ -598,6 +598,7 @@
+     return;
+   }
+ 
++  const bool should_attach_tab = tab_contents && session_id.is_valid();
+   auto result = contextual_tasks::CaptureAndUploadTabContext(
+       tab_id, session_handle,
+       /*on_context_uploaded=*/
+@@ -613,12 +614,10 @@
+             }
+           },
+           user_data->AsWeakPtr()),
+-      /*browser_window_interface=*/GetBrowserWindowInterface());
+-  if (result.has_value() && tab_contents && session_id.is_valid()) {
++      /*browser_window_interface=*/GetBrowserWindowInterface(),
++      should_attach_tab ? user_data : nullptr);
++  if (result.has_value() && should_attach_tab) {
+     user_data->RecordTabIdMapping(tab_id, session_id.id());
+-    // Mark the upload as started before `AttachTabPendingUpload()`, which
+-    // synchronously notifies `user_data` to recompute its context state.
+-    user_data->OnTabContextUploadStarted(*result);
+     // Attach the tab right away, while its page context is captured, so that
+     // it is selected (and can be deleted) from now on. Its upload updates the
+     // attached tab in place.
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
 index 99613ed..fe7f6944 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
@@ -138,6 +173,459 @@ index 99613ed..fe7f6944 100644
    void ShowHotkeyDropdown(const gfx::Rect& anchor_bounds,
                            ShowHotkeyDropdownCallback callback) override;
    void OpenHotkeySettings() override {}
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
+index e21fb5a..ed60117 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
+@@ -2912,7 +2912,7 @@
+ 
+       auto result = CaptureAndUploadTabContext(tab_handle_id, session_handle,
+                                                std::move(on_context_uploaded),
+-                                               browser_window_);
++                                               browser_window_, user_data);
+       base::UnguessableToken token =
+           result.has_value() ? *result : session_handle->CreateContextToken();
+       if (!result.has_value() && active_task_context_provider_) {
+@@ -2922,7 +2922,6 @@
+         user_data->RecordTabIdMapping(tab_handle_id, session_id.id());
+         if (result.has_value()) {
+           user_data->AssociateTabWithTask(session_id);
+-          user_data->OnTabContextUploadStarted(*result);
+         }
+       }
+       if (omnibox::IsTabDeselectionInComposeboxEnabled() ||
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_utils.cc b/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
+index 45a5e11..a3af5a9 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
+@@ -38,6 +38,7 @@
+ #include "net/http/http_response_headers.h"
+ #if !BUILDFLAG(IS_ANDROID)
+ #include "chrome/browser/contextual_tasks/active_task_context_provider.h"
++#include "chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h"
+ #include "chrome/browser/themes/theme_service.h"
+ #include "chrome/browser/themes/theme_service_factory.h"
+ #include "chrome/browser/ui/actions/chrome_action_id.h"
+@@ -48,6 +49,7 @@
+ #include "chrome/grit/branded_strings.h"
+ #include "components/contextual_tasks/public/features.h"
+ #include "components/lens/contextual_input.h"
++#include "components/lens/lens_overlay_mime_type.h"
+ #include "components/omnibox/common/composebox_features.h"
+ #include "components/omnibox/common/omnibox_features.h"
+ #include "components/sessions/content/session_tab_helper.h"
+@@ -426,7 +428,8 @@
+     int32_t tab_id,
+     contextual_search::ContextualSearchSessionHandle* session_handle,
+     base::RepeatingClosure on_context_uploaded,
+-    BrowserWindowInterface* browser_window_interface) {
++    BrowserWindowInterface* browser_window_interface,
++    ContextualTasksWebContentsUserData* user_data) {
+   if (!session_handle) {
+     return base::unexpected(
+         contextual_search::ContextUploadErrorType::kBrowserProcessingError);
+@@ -473,14 +476,18 @@
+   }
+ 
+   auto context_token = session_handle->CreateContextToken();
++  if (user_data) {
++    user_data->OnTabContextUploadStarted(context_token);
++  }
+ 
+   tab_contextualization_controller->GetPageContext(base::BindOnce(
+       [](base::UnguessableToken context_token,
+          base::WeakPtr<contextual_search::ContextualSearchSessionHandle>
+              session_handle,
++         base::WeakPtr<ContextualTasksWebContentsUserData> user_data,
+          base::RepeatingClosure on_context_uploaded,
+          std::unique_ptr<lens::ContextualInputData> page_content_data) {
+-        if (!session_handle || !page_content_data) {
++        if (!session_handle) {
+           return;
+         }
+         auto uploaded_context_tokens =
+@@ -489,6 +496,16 @@
+             uploaded_context_tokens.end()) {
+           return;
+         }
++        if (!page_content_data) {
++          if (user_data) {
++            user_data->OnContextUploadStatusChanged(
++                context_token, lens::MimeType::kUnknown,
++                contextual_search::ContextUploadStatus::kValidationFailed,
++                contextual_search::ContextUploadErrorType::
++                    kBrowserProcessingError);
++          }
++          return;
++        }
+         session_handle->StartTabContextUploadFlow(context_token,
+                                                   std::move(page_content_data),
+                                                   CreateImageEncodingOptions());
+@@ -497,6 +514,7 @@
+         }
+       },
+       context_token, session_handle->AsWeakPtr(),
++      user_data ? user_data->AsWeakPtr() : nullptr,
+       std::move(on_context_uploaded)));
+ 
+   return base::ok(context_token);
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_utils.h b/chrome/browser/contextual_tasks/contextual_tasks_utils.h
+index 4b0cd77..99da8ce5 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_utils.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_utils.h
+@@ -57,6 +57,7 @@
+ 
+ class ContextualTasksUIInterface;
+ class ContextualTasksService;
++class ContextualTasksWebContentsUserData;
+ class AimMessagePoster;
+ struct ContextualTaskContext;
+ struct SiteExclusionDetail;
+@@ -139,6 +140,9 @@
+ // async page context extraction via TabContextualizationController, underlines
+ // the tab strip if enabled, and on completion checks that the token is still an
+ // uploaded context token before starting the upload.
++// If `user_data` is provided, marks the created token's upload as started
++// before invoking `GetPageContext()` and notifies `user_data` with a terminal
++// validation failure if `GetPageContext()` completes without page content.
+ // If `on_context_uploaded` is provided, it is invoked after the upload starts.
+ // Returns the created context token on success, or an error.
+ // Not used for delayed (auto-suggested chip) tabs: those are recorded via
+@@ -150,7 +154,8 @@
+     int32_t tab_id,
+     contextual_search::ContextualSearchSessionHandle* session_handle,
+     base::RepeatingClosure on_context_uploaded = base::DoNothing(),
+-    BrowserWindowInterface* browser_window_interface = nullptr);
++    BrowserWindowInterface* browser_window_interface = nullptr,
++    ContextualTasksWebContentsUserData* user_data = nullptr);
+ 
+ // Removes the local tab underline for `tab_id` if context management is
+ // enabled.
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
+index 9b1d655..0d7e6da 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
+@@ -62,6 +62,7 @@
+ #include "content/public/browser/web_contents.h"
+ #include "extensions/buildflags/buildflags.h"
+ #include "third_party/lens_server_proto/search_communication.pb.h"
++#include "third_party/omnibox_proto/input_type.pb.h"
+ #include "url/gurl.h"
+ 
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+@@ -256,6 +257,19 @@
+          !session_handle.IsTabDeselected(*resource.tab_id, resource.url, title);
+ }
+ 
++// Returns the serialized `OnContextStateChanged` message for the initial
++// `CONTEXT_STATE_NONE` state (with empty `input_types`). Pre-initializing
++// `last_sent_context_state_serialized` to these bytes preserves the behavior of
++// not sending a redundant `CONTEXT_STATE_NONE` message on initial handshake
++// when no context was added (`set_context_state(CONTEXT_STATE_NONE)` serializes
++// to non-empty bytes under Protobuf Edition 2024 explicit presence).
++std::string SerializeDefaultContextState() {
++  lens::ClientToSearchMessage::OnContextStateChanged state_changed;
++  state_changed.set_context_state(
++      lens::ClientToSearchMessage::OnContextStateChanged::CONTEXT_STATE_NONE);
++  return state_changed.SerializeAsString();
++}
++
+ }  // namespace
+ 
+ ContextualTasksWebContentsUserData::ExtensionFrameInfo::ExtensionFrameInfo() =
+@@ -314,6 +328,8 @@
+   bool is_zero_state = false;
+   std::vector<contextual_tasks::UrlResource> committed_url_resources;
+   ContextState last_sent_context_state = ContextState::kNone;
++  std::string last_sent_context_state_serialized =
++      SerializeDefaultContextState();
+   std::string last_sent_suggest_inputs_serialized;
+ 
+   PAGE_USER_DATA_KEY_DECL();
+@@ -360,6 +376,23 @@
+   MaybeRefreshTabContextSubscription(helper->session_handle());
+ }
+ 
++ContextualTasksWebContentsUserData::PendingSubmit::PendingSubmit(
++    std::string query_text,
++    std::vector<lens::AddedContext> lens_added_contexts,
++    std::optional<base::UnguessableToken> overlay_token)
++    : query_text(std::move(query_text)),
++      lens_added_contexts(std::move(lens_added_contexts)),
++      overlay_token(overlay_token) {}
++
++ContextualTasksWebContentsUserData::PendingSubmit::PendingSubmit(
++    PendingSubmit&&) noexcept = default;
++
++ContextualTasksWebContentsUserData::PendingSubmit&
++ContextualTasksWebContentsUserData::PendingSubmit::operator=(
++    PendingSubmit&&) noexcept = default;
++
++ContextualTasksWebContentsUserData::PendingSubmit::~PendingSubmit() = default;
++
+ ContextualTasksWebContentsUserData::~ContextualTasksWebContentsUserData() {
+   if (observed_controller_) {
+     observed_controller_->RemoveObserver(this);
+@@ -585,6 +618,8 @@
+   page_state.is_zero_state = false;
+   page_state.committed_url_resources.clear();
+   page_state.last_sent_context_state = ContextState::kNone;
++  page_state.last_sent_context_state_serialized =
++      SerializeDefaultContextState();
+   page_state.last_sent_suggest_inputs_serialized.clear();
+   page_state.connected_document_id = doc_id;
+   page_state.service_worker_post_message_cb = std::move(post_message_cb);
+@@ -794,6 +829,7 @@
+   }
+   UpdateContextState();
+   UpdateSuggestInputs();
++  MaybeFinishPendingSubmit();
+ }
+ 
+ bool ContextualTasksWebContentsUserData::HasContextLibraryTabs() {
+@@ -824,6 +860,7 @@
+     const base::UnguessableToken& context_token) {
+   pending_context_uploads_.erase(context_token);
+   failed_context_uploads_.erase(context_token);
++  MaybeFinishPendingSubmit();
+ }
+ 
+ void ContextualTasksWebContentsUserData::OnContextUploadStatusChanged(
+@@ -844,6 +881,7 @@
+     pending_context_uploads_.insert(context_token);
+     failed_context_uploads_.erase(context_token);
+   }
++  MaybeFinishPendingSubmit();
+   UpdateContextState();
+   UpdateSuggestInputs();
+ }
+@@ -901,7 +939,7 @@
+ 
+ void ContextualTasksWebContentsUserData::HandleOnSubmitQueryRequest(
+     std::string_view query_text) {
+-  if (submit_pending_) {
++  if (pending_submit_.has_value()) {
+     return;
+   }
+ 
+@@ -961,15 +999,15 @@
+   params.on_ineligible_callback = base::BindRepeating(
+       &ContextualTasksWebContentsUserData::OnPageContextIneligible,
+       weak_ptr_factory_.GetWeakPtr());
++  pending_submit_.emplace(std::string(query_text),
++                          std::move(lens_added_contexts), overlay_token);
+   // The contextualizer's session handle is ignored: it is null when there was
+   // nothing to contextualize, so the callback gets the session handle itself.
+   params.complete_callback = base::IgnoreArgs<
+       base::WeakPtr<contextual_search::ContextualSearchSessionHandle>>(
+       base::BindOnce(
+           &ContextualTasksWebContentsUserData::OnSubmitQueryContextualized,
+-          weak_ptr_factory_.GetWeakPtr(), std::string(query_text),
+-          std::move(lens_added_contexts), overlay_token));
+-  submit_pending_ = true;
++          weak_ptr_factory_.GetWeakPtr()));
+   query_contextualizer_->Contextualize(std::move(params));
+ }
+ 
+@@ -1037,27 +1075,38 @@
+   return tabs;
+ }
+ 
+-void ContextualTasksWebContentsUserData::OnSubmitQueryContextualized(
+-    std::string query_text,
+-    std::vector<lens::AddedContext> lens_added_contexts,
+-    std::optional<base::UnguessableToken> overlay_token) {
+-  if (!submit_pending_) {
++void ContextualTasksWebContentsUserData::OnSubmitQueryContextualized() {
++  if (!pending_submit_.has_value()) {
+     return;
+   }
+-  submit_pending_ = false;
++  pending_submit_->contextualized = true;
++  MaybeFinishPendingSubmit();
++}
+ 
+-  const bool has_lens_added_context = !lens_added_contexts.empty();
++void ContextualTasksWebContentsUserData::MaybeFinishPendingSubmit() {
++  if (!pending_submit_.has_value() || !pending_submit_->contextualized) {
++    return;
++  }
++  if (std::ranges::any_of(
++          GetSelectedTabs(), [&](const contextual_search::TabInfo& tab) {
++            return pending_context_uploads_.contains(tab.context_token);
++          })) {
++    return;
++  }
++  PendingSubmit submit = *std::exchange(pending_submit_, std::nullopt);
++
++  const bool has_lens_added_context = !submit.lens_added_contexts.empty();
+   lens::ClientToSearchMessage response_message;
+   auto* on_submit_response =
+       response_message.mutable_on_submit_query_response();
+-  for (auto& lens_added_context : lens_added_contexts) {
++  for (auto& lens_added_context : submit.lens_added_contexts) {
+     *on_submit_response->add_added_contexts() = std::move(lens_added_context);
+   }
+   auto* session_handle = GetOrCreateContextualSessionHandle();
+   if (session_handle) {
+-    if (!query_text.empty()) {
++    if (!submit.query_text.empty()) {
+       ThreadTurn turn;
+-      turn.query = std::move(query_text);
++      turn.query = std::move(submit.query_text);
+       session_handle->AddThreadTurn(turn);
+     }
+     if (ShouldToggleOffAfterSubmit() && IsSmartTabSharingActive()) {
+@@ -1069,16 +1118,16 @@
+       NotifyExtensionFramesTabContextUpdated();
+     }
+     AppendTabContextsToOnSubmitQueryResponse(&response_message, session_handle,
+-                                             overlay_token);
++                                             submit.overlay_token);
+   }
+   PostSearchMessage(response_message);
+ 
+   if (session_handle) {
+     std::vector<base::UnguessableToken> submitted_tokens;
+-    if (has_lens_added_context && overlay_token.has_value() &&
++    if (has_lens_added_context && submit.overlay_token.has_value() &&
+         !std::ranges::contains(session_handle->GetSubmittedContextTokens(),
+-                               *overlay_token)) {
+-      submitted_tokens.push_back(*overlay_token);
++                               *submit.overlay_token)) {
++      submitted_tokens.push_back(*submit.overlay_token);
+     }
+     // The page owns the query text, so no query length metrics are recorded
+     // here. This moves the uploaded tabs into the session's persisted tabs so
+@@ -1096,7 +1145,7 @@
+ }
+ 
+ void ContextualTasksWebContentsUserData::OnPageContextIneligible() {
+-  if (!submit_pending_ || !GetIsProtectedPageErrorEnabled()) {
++  if (!pending_submit_.has_value() || !GetIsProtectedPageErrorEnabled()) {
+     return;
+   }
+   auto* browser = GetBrowserWindowInterface();
+@@ -1598,10 +1647,6 @@
+ void ContextualTasksWebContentsUserData::UpdateContextState() {
+   ContextState current_state = ComputeContextState();
+   auto& page_state = GetPrimaryPageSearchState();
+-  if (current_state == page_state.last_sent_context_state) {
+-    return;
+-  }
+-  page_state.last_sent_context_state = current_state;
+ 
+   lens::ClientToSearchMessage message;
+   auto* state_changed = message.mutable_on_context_state_changed();
+@@ -1622,6 +1667,22 @@
+               CONTEXT_STATE_READY);
+       break;
+   }
++  if (page_state.is_lens_crop_mounted) {
++    state_changed->add_input_types(omnibox::INPUT_TYPE_LENS_IMAGE);
++  }
++  for (const auto& tab : GetSelectedTabs()) {
++    if (!failed_context_uploads_.contains(tab.context_token)) {
++      state_changed->add_input_types(omnibox::INPUT_TYPE_BROWSER_TAB);
++    }
++  }
++
++  std::string serialized;
++  state_changed->SerializeToString(&serialized);
++  if (serialized == page_state.last_sent_context_state_serialized) {
++    return;
++  }
++  page_state.last_sent_context_state = current_state;
++  page_state.last_sent_context_state_serialized = std::move(serialized);
+   PostSearchMessage(message);
+ }
+ 
+@@ -2105,7 +2166,7 @@
+ }
+ 
+ void ContextualTasksWebContentsUserData::ClearInputPlateState() {
+-  submit_pending_ = false;
++  pending_submit_.reset();
+   preserve_prestaged_context_ = false;
+   RemoveLensCrop();
+   auto& page_state = GetPrimaryPageSearchState();
+@@ -2536,6 +2597,14 @@
+               : lens::LensOverlayContextualInputUploadType::
+                     CONTEXTUAL_INPUT_UPLOAD_TYPE_EXPLICIT;
+       added->set_contextual_input_upload_type(upload_type);
++      if (file_info.viewport_request_id.has_value()) {
++        auto* viewport_added = on_submit_response->add_added_contexts();
++        viewport_added->set_search_session_id(session_id);
++        *viewport_added->mutable_request_id() = *file_info.viewport_request_id;
++        viewport_added->mutable_request_id()->set_media_type(
++            lens::LensOverlayRequestId::MEDIA_TYPE_DEFAULT_IMAGE);
++        viewport_added->set_contextual_input_upload_type(upload_type);
++      }
+       const bool is_implicit =
+           is_implicit_upload || upload_type !=
+                                     lens::LensOverlayContextualInputUploadType::
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h
+index 1284317..e825fabb 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h
+@@ -257,7 +257,7 @@
+   const base::flat_set<base::UnguessableToken>& failed_context_uploads() const {
+     return failed_context_uploads_;
+   }
+-  bool submit_pending() const { return submit_pending_; }
++  bool submit_pending() const { return pending_submit_.has_value(); }
+   void DeleteContext(const base::UnguessableToken& file_token);
+   void DeleteTabContext(int32_t tab_id);
+   bool OnBrowserTabClosedOrNavigated(SessionID tab_session_id,
+@@ -366,12 +366,13 @@
+   // Returns the delayed tabs in `session_handle` to upload on submit.
+   std::vector<int32_t> GetPendingDelayedTabs(
+       contextual_search::ContextualSearchSessionHandle& session_handle);
+-  // Posts the `on_submit_query_response` once `query_contextualizer_` has
+-  // uploaded the tabs for the submitted query.
+-  void OnSubmitQueryContextualized(
+-      std::string query_text,
+-      std::vector<lens::AddedContext> lens_added_contexts,
+-      std::optional<base::UnguessableToken> overlay_token);
++  // Marks `pending_submit_` as contextualized once `query_contextualizer_`
++  // finishes and attempts to complete the submission.
++  void OnSubmitQueryContextualized();
++  // Posts `on_submit_query_response` if `pending_submit_` has finished
++  // contextualizing and no selected tabs still have in-flight uploads in
++  // `pending_context_uploads_`.
++  void MaybeFinishPendingSubmit();
+   void OnPageContextIneligible();
+   void OnPageChanged(bool is_zero_state);
+   // Runs `on_tab_context_updated_cb` on every bound extension frame.
+@@ -435,8 +436,26 @@
+   std::unique_ptr<DesktopQueryContextualizerDelegate>
+       query_contextualizer_delegate_;
+   std::unique_ptr<QueryContextualizer> query_contextualizer_;
+-  // Whether a submit is waiting for `query_contextualizer_`.
+-  bool submit_pending_ = false;
++  struct PendingSubmit {
++    PendingSubmit(std::string query_text,
++                  std::vector<lens::AddedContext> lens_added_contexts,
++                  std::optional<base::UnguessableToken> overlay_token);
++    PendingSubmit(PendingSubmit&&) noexcept;
++    PendingSubmit& operator=(PendingSubmit&&) noexcept;
++    ~PendingSubmit();
++
++    std::string query_text;
++    std::vector<lens::AddedContext> lens_added_contexts;
++    std::optional<base::UnguessableToken> overlay_token;
++    bool contextualized = false;
++  };
++  // State for an in-flight query submission while waiting for
++  // `query_contextualizer_` (`contextualized == false`) and any in-flight
++  // manual tab uploads in `pending_context_uploads_` (`contextualized ==
++  // true`). Populated in `HandleOnSubmitQueryRequest()` and cleared when
++  // `MaybeFinishPendingSubmit()` posts `on_submit_query_response` or when input
++  // plate state is reset (e.g. `ClearInputPlateState()`).
++  std::optional<PendingSubmit> pending_submit_;
+ 
+   // Maps TabHandle raw values to SessionID values so closed tabs can still be
+   // resolved when deleting tab context or removing underlines.
 diff --git a/chrome/browser/dictation/BUILD.gn b/chrome/browser/dictation/BUILD.gn
 index b0f36ba..e47f6353 100644
 --- a/chrome/browser/dictation/BUILD.gn
@@ -720,6 +1208,100 @@ index 7b9ff1c..839a488 100644
  inline constexpr char kMediaCodecBlockModelOutputName[] =
      "MediaCodec Block Model Output";
  inline constexpr char kMediaCodecBlockModelOutputDescription[] =
+diff --git a/chrome/browser/resources/contextual_tasks/extension/tab_picker.html b/chrome/browser/resources/contextual_tasks/extension/tab_picker.html
+index 7824f412..5705cbc 100644
+--- a/chrome/browser/resources/contextual_tasks/extension/tab_picker.html
++++ b/chrome/browser/resources/contextual_tasks/extension/tab_picker.html
+@@ -2,6 +2,7 @@
+ <html $i18n{webuiRoundedIconsAttribute}>
+ <head>
+   <meta charset="utf-8">
++  <meta name="responsive-embedded-sizing" content="allow-origins=*">
+   <title>Tab Picker</title>
+   <script src="color_scheme.js"></script>
+   <link rel="stylesheet" href="//resources/css/text_defaults_md.css">
+@@ -17,7 +18,7 @@
+     html,
+     body {
+       background: transparent;
+-      height: 100%;
++      height: max-content;
+       margin: 0;
+       overflow: hidden;
+       padding: 0;
+diff --git a/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.css b/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.css
+index 0bc8fe62..86d7915 100644
+--- a/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.css
++++ b/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.css
+@@ -13,8 +13,9 @@
+ 
+ :host {
+   color-scheme: light;
+-  display: block;
+-  height: 100%;
++  display: flex;
++  flex-direction: column;
++  height: max-content;
+   width: 100%;
+ 
+   --tab-picker-item-color: var(--color-composebox-file-chip-text, #1f1f1f);
+@@ -76,7 +77,7 @@
+   font-size: 14px;
+   font-weight: 400;
+   gap: 0;
+-  height: 100%;
++  height: 38px;
+   justify-content: flex-start;
+   line-height: 18px;
+   min-height: 38px;
+diff --git a/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.ts b/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.ts
+index e264dda..c9ec02f 100644
+--- a/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.ts
++++ b/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.ts
+@@ -90,6 +90,7 @@
+ 
+   protected accessor sharingTabsText_: string = '';
+ 
++  private resizeObserver_: ResizeObserver|null = null;
+   private closeTimer_: number|null = null;
+   private frameScreenOffset_: {x: number, y: number}|null = null;
+   private pointerDownOnTrigger_: boolean = false;
+@@ -114,6 +115,15 @@
+     super.connectedCallback();
+     this.setFocusOutlineVisible_(false);
+     this.darkMode = this.isDarkModeEnabled_();
++    this.resizeObserver_ = new ResizeObserver(() => {
++      try {
++        window.requestResize?.();
++      } catch {
++        // Ignore NotAllowedError when loaded outside a responsive iframe (e.g.,
++        // when opening the extension page directly via chrome-extension://).
++      }
++    });
++    this.resizeObserver_.observe(this);
+     this.updateSharingTabsText_();
+     this.fetchTabSuggestions_(/*recordInitialLoadLatency=*/ true);
+ 
+@@ -155,6 +165,8 @@
+     ++this.fetchSuggestionsRequestId_;
+     this.cancelCloseTimer_();
+     this.inputState = null;
++    this.resizeObserver_?.disconnect();
++    this.resizeObserver_ = null;
+     const callbackRouter =
+         ExtensionBrowserProxyImpl.getInstance().callbackRouter;
+     for (const id of this.extensionListenerIds_) {
+@@ -623,6 +635,10 @@
+ }
+ 
+ declare global {
++  interface Window {
++    requestResize?: () => void;
++  }
++
+   interface HTMLElementTagNameMap {
+     'tab-picker-app': TabPickerAppElement;
+   }
 diff --git a/chrome/browser/resources/extensions/site_permissions/site_permissions_edit_permissions_dialog.ts b/chrome/browser/resources/extensions/site_permissions/site_permissions_edit_permissions_dialog.ts
 index 1836d2cbd..5ba4426 100644
 --- a/chrome/browser/resources/extensions/site_permissions/site_permissions_edit_permissions_dialog.ts
@@ -830,6 +1412,144 @@ index 22380c1e..34bb0a31 100644
    }
  
    // TODO(b/540973063): Extract common voice search lifecycle handling into
+diff --git a/chrome/browser/speech/BUILD.gn b/chrome/browser/speech/BUILD.gn
+index 771bbd84..3ec2970c 100644
+--- a/chrome/browser/speech/BUILD.gn
++++ b/chrome/browser/speech/BUILD.gn
+@@ -102,15 +102,18 @@
+     "//chrome/browser/component_updater",
+     "//chrome/browser/optimization_guide",
+     "//chrome/browser/profiles:profile_manager",
++    "//chrome/common",
+     "//chrome/common:constants",
+     "//chrome/services/speech/buildflags",
+     "//components/language/core/browser",
++    "//components/omnibox/common",
+     "//components/user_prefs",
+     "//content/public/browser",
+     "//extensions/buildflags",
+     "//media/mojo/mojom:speech_recognition",
+     "//media/mojo/mojom:web_speech_recognition",
+     "//mojo/public/cpp/bindings",
++    "//url",
+   ]
+ 
+   if (!is_android) {
+@@ -247,6 +250,7 @@
+   source_set("unit_tests") {
+     testonly = true
+     sources = [
++      "chrome_speech_recognition_manager_delegate_unittest.cc",
+       "on_device_live_caption_recognizer_unittest.cc",
+       "speech_recognition_service_factory_unittest.cc",
+       "speech_recognition_small_expert_model_installer_unittest.cc",
+@@ -255,11 +259,14 @@
+       ":speech",
+       ":test_support",
+       "//base",
++      "//base/test:test_support",
+       "//chrome/browser/accessibility/live_caption",
++      "//chrome/common",
+       "//chrome/test:test_support",
+       "//chrome/test/base:testing_browser_process",
+       "//components/live_caption",
+       "//components/live_caption:constants",
++      "//components/omnibox/common",
+       "//components/soda:test_support",
+       "//content/test:test_support",
+       "//media",
+@@ -268,6 +275,7 @@
+       "//services/on_device_model/public/mojom",
+       "//testing/gmock",
+       "//testing/gtest",
++      "//url",
+     ]
+ 
+     if (!is_chromeos) {
+diff --git a/chrome/browser/speech/chrome_speech_recognition_manager_delegate.cc b/chrome/browser/speech/chrome_speech_recognition_manager_delegate.cc
+index 562bcdf..22f3af84 100644
+--- a/chrome/browser/speech/chrome_speech_recognition_manager_delegate.cc
++++ b/chrome/browser/speech/chrome_speech_recognition_manager_delegate.cc
+@@ -6,11 +6,14 @@
+ 
+ #include <string>
+ 
++#include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "base/threading/thread_restrictions.h"
+ #include "build/build_config.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/common/pref_names.h"
++#include "chrome/common/webui_url_constants.h"
++#include "components/omnibox/common/omnibox_features.h"
+ #include "components/prefs/pref_service.h"
+ #include "content/public/browser/browser_task_traits.h"
+ #include "content/public/browser/browser_thread.h"
+@@ -24,6 +27,7 @@
+ #include "extensions/buildflags/buildflags.h"
+ #include "media/mojo/mojom/speech_recognition_error.mojom.h"
+ #include "media/mojo/mojom/speech_recognition_result.mojom.h"
++#include "url/origin.h"
+ 
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+ #include "chrome/browser/extensions/extension_service.h"
+@@ -133,6 +137,22 @@
+ }
+ 
+ #if !BUILDFLAG(IS_ANDROID)
++base::flat_map<std::string, std::string>
++ChromeSpeechRecognitionManagerDelegate::GetRoutingParams(
++    const url::Origin& origin) {
++  // The new NTP Realbox voice search UI uses continuous recognition, which
++  // the speech service otherwise routes to its dictation recognizer. These
++  // parameters ask it to treat the requests as voice search.
++  if (base::FeatureList::IsEnabled(omnibox::kVoiceSearchCoherenceSearchbox) &&
++      origin.IsSameOriginWith(chrome::ChromeUINewTabPageURLAsGURL())) {
++    return {
++        {"client", "chrome-ntp"},
++        {"condition", "search"},
++    };
++  }
++  return {};
++}
++
+ void ChromeSpeechRecognitionManagerDelegate::BindSpeechRecognitionContext(
+     mojo::PendingReceiver<media::mojom::SpeechRecognitionContext>
+         recognition_receiver,
+diff --git a/chrome/browser/speech/chrome_speech_recognition_manager_delegate.h b/chrome/browser/speech/chrome_speech_recognition_manager_delegate.h
+index 3b4f9b1..eeb2dd7e 100644
+--- a/chrome/browser/speech/chrome_speech_recognition_manager_delegate.h
++++ b/chrome/browser/speech/chrome_speech_recognition_manager_delegate.h
+@@ -5,6 +5,9 @@
+ #ifndef CHROME_BROWSER_SPEECH_CHROME_SPEECH_RECOGNITION_MANAGER_DELEGATE_H_
+ #define CHROME_BROWSER_SPEECH_CHROME_SPEECH_RECOGNITION_MANAGER_DELEGATE_H_
+ 
++#include <string>
++
++#include "base/containers/flat_map.h"
+ #include "content/public/browser/speech_recognition_event_listener.h"
+ #include "content/public/browser/speech_recognition_manager_delegate.h"
+ #include "content/public/browser/speech_recognition_session_config.h"
+@@ -13,6 +16,10 @@
+ struct GlobalRenderFrameHostId;
+ }  // namespace content
+ 
++namespace url {
++class Origin;
++}  // namespace url
++
+ namespace speech {
+ 
+ // This is Chrome's implementation of the SpeechRecognitionManagerDelegate
+@@ -58,6 +65,8 @@
+       override;
+   content::SpeechRecognitionEventListener* GetEventListener() override;
+ #if !BUILDFLAG(IS_ANDROID)
++  base::flat_map<std::string, std::string> GetRoutingParams(
++      const url::Origin& origin) override;
+   // This will bind to the Speech Recognition Service if available.
+   void BindSpeechRecognitionContext(
+       mojo::PendingReceiver<media::mojom::SpeechRecognitionContext> receiver,
 diff --git a/chrome/browser/ui/extensions/extension_action_view_model.cc b/chrome/browser/ui/extensions/extension_action_view_model.cc
 index 79f1b26..9a97f7e 100644
 --- a/chrome/browser/ui/extensions/extension_action_view_model.cc
@@ -2261,6 +2981,132 @@ index 13ce537f..60732c4 100644
        }
        if (!origin_matches) {
          bad_message::ReceivedBadMessage(
+diff --git a/content/browser/speech/network_speech_recognition_engine_impl.cc b/content/browser/speech/network_speech_recognition_engine_impl.cc
+index b6dc9ea..8e9e5863 100644
+--- a/content/browser/speech/network_speech_recognition_engine_impl.cc
++++ b/content/browser/speech/network_speech_recognition_engine_impl.cc
+@@ -394,22 +394,42 @@
+ 
+   // Setup upstream fetcher.
+   // TODO(hans): Support for user-selected grammars.
+-  std::vector<std::string> upstream_args;
+-  upstream_args.push_back(
+-      "key=" + base::EscapeQueryParamValue(google_apis::GetAPIKey(), true));
+-  upstream_args.push_back("pair=" + request_key);
+-  upstream_args.push_back("output=pb");
+-  upstream_args.push_back("lang=" +
+-                          base::EscapeQueryParamValue(config_.language, true));
+-  upstream_args.push_back(config_.filter_profanities ? "pFilter=2"
+-                                                     : "pFilter=0");
++  // Start from the embedder's parameters so that the ones below override them.
++  base::flat_map<std::string, std::string> upstream_params =
++      config_.routing_params;
++  upstream_params["key"] = google_apis::GetAPIKey();
++  upstream_params["pair"] = request_key;
++  upstream_params["output"] = "pb";
++  upstream_params["lang"] = config_.language;
++  upstream_params["pFilter"] = config_.filter_profanities ? "2" : "0";
+   if (config_.max_hypotheses > 0U) {
+-    uint32_t max_alternatives =
+-        std::min(kMaxMaxAlternatives, config_.max_hypotheses);
+-    upstream_args.push_back("maxAlternatives=" +
+-                            base::NumberToString(max_alternatives));
++    upstream_params["maxAlternatives"] = base::NumberToString(
++        std::min(kMaxMaxAlternatives, config_.max_hypotheses));
+   }
+-  upstream_args.push_back("app=chromium");
++  upstream_params["app"] = "chromium";
++  if (!config_.continuous) {
++    upstream_params["endpoint"] = "1";
++  }
++  if (!config_.auth_token.empty() && !config_.auth_scope.empty()) {
++    upstream_params["authScope"] = config_.auth_scope;
++    upstream_params["authToken"] = config_.auth_token;
++  }
++  if (use_framed_post_data_) {
++    std::string audio_format;
++    if (preamble_encoder_) {
++      audio_format = preamble_encoder_->GetMimeType() + ",";
++    }
++    audio_format += encoder_->GetMimeType();
++    upstream_params["audioFormat"] = audio_format;
++  }
++
++  std::vector<std::string> upstream_args;
++  for (const auto& [name, value] : upstream_params) {
++    upstream_args.push_back(base::EscapeQueryParamValue(name, true) + "=" +
++                            base::EscapeQueryParamValue(value, true));
++  }
++  // "grammar" can repeat and the flags below have no value, so they are not in
++  // `upstream_params`.
+   for (const media::mojom::SpeechRecognitionGrammar& grammar :
+        config_.grammars) {
+     std::string grammar_value(base::NumberToString(grammar.weight) + ":" +
+@@ -419,27 +439,10 @@
+   }
+   if (config_.continuous) {
+     upstream_args.push_back("continuous");
+-  } else {
+-    upstream_args.push_back("endpoint=1");
+   }
+   if (config_.interim_results) {
+     upstream_args.push_back("interim");
+   }
+-  if (!config_.auth_token.empty() && !config_.auth_scope.empty()) {
+-    upstream_args.push_back(
+-        "authScope=" + base::EscapeQueryParamValue(config_.auth_scope, true));
+-    upstream_args.push_back(
+-        "authToken=" + base::EscapeQueryParamValue(config_.auth_token, true));
+-  }
+-  if (use_framed_post_data_) {
+-    std::string audio_format;
+-    if (preamble_encoder_) {
+-      audio_format = preamble_encoder_->GetMimeType() + ",";
+-    }
+-    audio_format += encoder_->GetMimeType();
+-    upstream_args.push_back("audioFormat=" +
+-                            base::EscapeQueryParamValue(audio_format, true));
+-  }
+ 
+   GURL upstream_url(std::string(web_service_base_url) +
+                     std::string(kUpstreamUrl) +
+diff --git a/content/browser/speech/network_speech_recognition_engine_impl.h b/content/browser/speech/network_speech_recognition_engine_impl.h
+index bcea808a..fd4740a2 100644
+--- a/content/browser/speech/network_speech_recognition_engine_impl.h
++++ b/content/browser/speech/network_speech_recognition_engine_impl.h
+@@ -12,6 +12,7 @@
+ #include <string_view>
+ #include <vector>
+ 
++#include "base/containers/flat_map.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/sequence_checker.h"
+@@ -80,6 +81,9 @@
+     std::string auth_token;
+     std::string auth_scope;
+     scoped_refptr<SpeechRecognitionSessionPreamble> preamble;
++    // Extra query parameters for the upstream request. They come from
++    // `SpeechRecognitionManagerDelegate::GetRoutingParams()`.
++    base::flat_map<std::string, std::string> routing_params;
+   };
+ 
+   // Duration of each audio packet.
+diff --git a/content/browser/speech/speech_recognition_manager_impl.cc b/content/browser/speech/speech_recognition_manager_impl.cc
+index afd4b97..ceecca8 100644
+--- a/content/browser/speech/speech_recognition_manager_impl.cc
++++ b/content/browser/speech/speech_recognition_manager_impl.cc
+@@ -924,6 +924,10 @@
+     remote_engine_config.auth_token = config.auth_token;
+     remote_engine_config.auth_scope = config.auth_scope;
+     remote_engine_config.preamble = config.preamble;
++    if (delegate_) {
++      remote_engine_config.routing_params =
++          delegate_->GetRoutingParams(config.origin);
++    }
+ 
+     std::unique_ptr<NetworkSpeechRecognitionEngineImpl> google_remote_engine =
+         std::make_unique<NetworkSpeechRecognitionEngineImpl>(
 diff --git a/content/common/frame.mojom b/content/common/frame.mojom
 index 115c858..6ee43e70 100644
 --- a/content/common/frame.mojom
@@ -2281,6 +3127,99 @@ index 115c858..6ee43e70 100644
    mojo_base.mojom.UnguessableToken? sandbox_origin_token;
  
    // Token used to retrieve the InitiatorNavigationState for navigations
+diff --git a/content/public/browser/BUILD.gn b/content/public/browser/BUILD.gn
+index debe2d11..12b5c5e2 100644
+--- a/content/public/browser/BUILD.gn
++++ b/content/public/browser/BUILD.gn
+@@ -438,6 +438,7 @@
+     "speech_recognition_audio_forwarder_config.h",
+     "speech_recognition_event_listener.h",
+     "speech_recognition_manager.h",
++    "speech_recognition_manager_delegate.cc",
+     "speech_recognition_manager_delegate.h",
+     "speech_recognition_session_config.cc",
+     "speech_recognition_session_config.h",
+diff --git a/content/public/browser/speech_recognition_manager_delegate.cc b/content/public/browser/speech_recognition_manager_delegate.cc
+new file mode 100644
+index 0000000..f1c6e526
+--- /dev/null
++++ b/content/public/browser/speech_recognition_manager_delegate.cc
+@@ -0,0 +1,19 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "content/public/browser/speech_recognition_manager_delegate.h"
++
++#include "build/build_config.h"
++#include "url/origin.h"
++
++namespace content {
++
++#if !BUILDFLAG(IS_ANDROID)
++base::flat_map<std::string, std::string>
++SpeechRecognitionManagerDelegate::GetRoutingParams(const url::Origin& origin) {
++  return {};
++}
++#endif  // !BUILDFLAG(IS_ANDROID)
++
++}  // namespace content
+diff --git a/content/public/browser/speech_recognition_manager_delegate.h b/content/public/browser/speech_recognition_manager_delegate.h
+index 415e284..d7957ff2 100644
+--- a/content/public/browser/speech_recognition_manager_delegate.h
++++ b/content/public/browser/speech_recognition_manager_delegate.h
+@@ -5,14 +5,25 @@
+ #ifndef CONTENT_PUBLIC_BROWSER_SPEECH_RECOGNITION_MANAGER_DELEGATE_H_
+ #define CONTENT_PUBLIC_BROWSER_SPEECH_RECOGNITION_MANAGER_DELEGATE_H_
+ 
++#include <string>
++
++#include "base/containers/flat_map.h"
+ #include "base/functional/callback_forward.h"
++#include "build/build_config.h"
++#include "content/common/content_export.h"
+ 
+ #if !BUILDFLAG(IS_FUCHSIA) && !BUILDFLAG(IS_ANDROID)
++#include "mojo/public/cpp/bindings/pending_receiver.h"
++
+ namespace media::mojom {
+ class SpeechRecognitionContext;
+ }
+ #endif  // !BUILDFLAG(IS_FUCHSIA) && !BUILDFLAG(IS_ANDROID)
+ 
++namespace url {
++class Origin;
++}  // namespace url
++
+ namespace content {
+ 
+ class SpeechRecognitionEventListener;
+@@ -21,7 +32,7 @@
+ 
+ // Allows embedders to display the current state of recognition, for getting the
+ // user's permission and for fetching optional request information.
+-class SpeechRecognitionManagerDelegate {
++class CONTENT_EXPORT SpeechRecognitionManagerDelegate {
+  public:
+   virtual ~SpeechRecognitionManagerDelegate() = default;
+ 
+@@ -36,6 +47,16 @@
+   // This is called on the IO thread.
+   virtual SpeechRecognitionEventListener* GetEventListener() = 0;
+ 
++#if !BUILDFLAG(IS_ANDROID)
++  // Returns query parameters that the network speech recognition engine adds
++  // to the requests of a session started by `origin`, so that the speech
++  // service can pick a recognizer for the caller. Parameters that the engine
++  // sets itself, such as "lang", take precedence. The default returns none.
++  // This is called on the IO thread.
++  virtual base::flat_map<std::string, std::string> GetRoutingParams(
++      const url::Origin& origin);
++#endif  // !BUILDFLAG(IS_ANDROID)
++
+ #if !BUILDFLAG(IS_FUCHSIA) && !BUILDFLAG(IS_ANDROID)
+   // This interfaces is used to bind the On-Device Speech Recognition Service on
+   // the non-android platforms.
 diff --git a/content/renderer/accessibility/annotations/ax_image_annotator.cc b/content/renderer/accessibility/annotations/ax_image_annotator.cc
 index 8758b66..5ca2c078 100644
 --- a/content/renderer/accessibility/annotations/ax_image_annotator.cc
@@ -2572,6 +3511,32 @@ index b85c5e7..5115f69 100644
  MEDIA_EXPORT BASE_DECLARE_FEATURE(kMediaCodecBlockModelOutput);
  MEDIA_EXPORT BASE_DECLARE_FEATURE(kMediaCodecColorSpaceCleanup);
  MEDIA_EXPORT BASE_DECLARE_FEATURE(kMediaCodecLowDelayMode);
+diff --git a/net/http/http_cache_transaction.cc b/net/http/http_cache_transaction.cc
+index 2a1028c..c3c242a5a 100644
+--- a/net/http/http_cache_transaction.cc
++++ b/net/http/http_cache_transaction.cc
+@@ -1649,9 +1649,18 @@
+   // Record the time immediately before the cached response is parsed.
+   read_headers_since_ = TimeTicks::Now();
+ 
+-  if (result != cache_buf_->size() ||
+-      !HttpCache::ParseResponseInfo(cache_buf_->span(), &response_,
+-                                    &truncated_)) {
++  bool cache_ok = (result == cache_buf_->size());
++
++  if (cache_ok) {
++    // Make sure we clear `response_` in case it has left over data;
++    // ParseResponseInfo expects a fresh object.
++    // See crbug.com/578664961
++    response_ = HttpResponseInfo();
++    cache_ok = HttpCache::ParseResponseInfo(cache_buf_->span(), &response_,
++                                            &truncated_);
++  }
++
++  if (!cache_ok) {
+     return OnCacheReadError(result, true);
+   }
+ 
 diff --git a/testing/variations/fieldtrial_testing_config.json b/testing/variations/fieldtrial_testing_config.json
 index e1498b6..114d002 100644
 --- a/testing/variations/fieldtrial_testing_config.json
@@ -2713,6 +3678,97 @@ index 0ef6a61..113bb0cf 100644
  
    DCHECK_EQ(outdated_animation_count_, 0U);
    DCHECK(last_current_time_ == CurrentTimeInternal());
+diff --git a/third_party/blink/renderer/modules/accessibility/ax_object_cache_impl.cc b/third_party/blink/renderer/modules/accessibility/ax_object_cache_impl.cc
+index 4bd5b13..80e373c 100644
+--- a/third_party/blink/renderer/modules/accessibility/ax_object_cache_impl.cc
++++ b/third_party/blink/renderer/modules/accessibility/ax_object_cache_impl.cc
+@@ -5864,8 +5864,11 @@
+     return;
+   }
+   if (!obj->IsIncludedInTree()) {
+-    for (const auto& included_child : obj->ChildrenIncludingIgnored()) {
+-      MarkAXSubtreeDirtyWithCleanLayout(included_child);
++    HeapVector<Member<AXObject>> children = obj->ChildrenIncludingIgnored();
++    for (AXObject* included_child : children) {
++      if (!included_child->IsDetached()) {
++        MarkAXSubtreeDirtyWithCleanLayout(included_child);
++      }
+     }
+     return;
+   }
+diff --git a/third_party/lens_server_proto/search_communication.proto b/third_party/lens_server_proto/search_communication.proto
+index 4beb2ba..ce5e3e9 100644
+--- a/third_party/lens_server_proto/search_communication.proto
++++ b/third_party/lens_server_proto/search_communication.proto
+@@ -11,6 +11,7 @@
+ import "lens_overlay_contextual_inputs.proto";
+ import "lens_overlay_request_id.proto";
+ import "lens_overlay_visual_search_interaction_data.proto";
++import "input_type.proto";
+ 
+ // Top-level envelope for messages from Extension Iframes to Search Web.
+ message ClientToSearchMessage {
+@@ -86,11 +87,15 @@
+       CONTEXT_STATE_READY = 2;
+     }
+     ContextState context_state = 1;
++
++    // Input types currently attached for the next turn (e.g.
++    // INPUT_TYPE_LENS_IMAGE for a Lens region crop and INPUT_TYPE_BROWSER_TAB
++    // per attached tab).
++    repeated omnibox.InputType input_types = 2;
+   }
+ 
+   // Instructs Search Web to open the threads view (Thread History).
+   message OpenThreadsView {}
+-
+   oneof event_message {
+     // Initial handshake ping sent by an extension iframe upon mounting.
+     HandshakePing handshake_ping = 1;
+@@ -106,7 +111,6 @@
+     // Fired when attached context changes to provide vsrid tokens for search
+     // suggestions.
+     OnSuggestInputsChanged on_suggest_inputs_changed = 4;
+-
+     // Reports the state of the context added for the next turn.
+     OnContextStateChanged on_context_state_changed = 5;
+ 
+@@ -120,8 +124,19 @@
+   // Handshake response returned by Search Web. Guarantees Search Web is ready
+   // for messages from Chrome and vice versa.
+   message HandshakeResponse {
++    enum Capability {
++      CAPABILITY_UNSPECIFIED = 0;
++      // The server supports tabs integration (e.g. tabs picker).
++      TABS = 1;
++      // The server supports Lens features (e.g. Lens button, Lens chip).
++      LENS = 2;
++    }
++
+     // The active multi-login account index on the Search page.
+     int32 auth_user_index = 1;
++
++    // List of capabilities supported by the server.
++    repeated Capability capabilities = 2;
+   }
+ 
+   // Query submission request sent when the user submits a query, asking Chrome
+@@ -132,7 +147,6 @@
+     // and query contextualization.
+     string query_text = 1;
+   }
+-
+   // Message sent by Search Web to Chrome to synchronize the thread's context
+   // library upon restoration or update.
+   message UpdateThreadContextLibrary {
+@@ -169,7 +183,6 @@
+ 
+     repeated Context contexts = 1;
+   }
+-
+   // Message sent by Search Web to Chrome to notify to open a link in side
+   // panel mode.
+   message OpenLinkInSidePanelMode {
 diff --git a/tools/metrics/actions/actions.xml b/tools/metrics/actions/actions.xml
 index 61080ba..4eef262 100644
 --- a/tools/metrics/actions/actions.xml
