@@ -1,8 +1,8 @@
 Chromium 158.0.8127.31 + the later changes of its release branch, up to
-6e4734a70631ba26f68b5f866a8840041e407871 (refs/branch-heads/8127@{#1441}), for the
+515985ecd435d4fb48feca80d91d88bca9b1ecab (refs/branch-heads/8127@{#1444}), for the
 158.0.8127.31 tree that chromium-158.0.8127.18-to-158.0.8127.31.patch makes.
 
-Generated from the upstream diffs chromium/src refs/tags/158.0.8127.31..6e4734a70631ba26f68b5f866a8840041e407871
+Generated from the upstream diffs chromium/src refs/tags/158.0.8127.31..515985ecd435d4fb48feca80d91d88bca9b1ecab
 and, for the V8 roll in it, v8 a246c42da968..a2e0f800315e, as served by Gitiles,
 with scripts/chromium-delta --branch-fixes (against the .31 tree's files, renames
 included): left out are files not in the release tarball,
@@ -19,10 +19,34 @@ Commits contributing to it (oldest first):
     v8 a2e0f800315e Version 15.8.62.25
   383707b77041 [M158] Make escaping popups' initial origin opaque in the browser too
   6e4734a70631 [M158] Disallow differing origins in most synchronous about:blank commits
+  0ec84d3520d9 Updating XTBs based on .GRDs from branch 8127 (en-GB only)
+  515985ecd435 [M158] [FSA] Match sensitive-path blocklist rules case-insensitively
 
 Checked: applies to the 158.0.8127.31 tree; every patched file is
 byte-identical to its version at the last commit above.
 
+diff --git a/chrome/app/resources/generated_resources_en-GB.xtb b/chrome/app/resources/generated_resources_en-GB.xtb
+index 7b7f428..f778983 100644
+--- a/chrome/app/resources/generated_resources_en-GB.xtb
++++ b/chrome/app/resources/generated_resources_en-GB.xtb
+@@ -4153,7 +4153,7 @@
+ <translation id="4107793386654579933">Select a shortcut for <ph name="ACTION_NAME" /> action</translation>
+ <translation id="4109135793348361820">Move window to <ph name="USER_NAME" /> (<ph name="USER_EMAIL" />)</translation>
+ <translation id="4110485659976215879">Restore warning</translation>
+-<translation id="4110984310437592352">Use your microphone to chat with Gemini. When you speak to Gemini, audio is saved in Gemini History (if it's on).</translation>
++<translation id="4110984310437592352">Use your microphone to chat with Gemini. When you speak to Gemini, audio is saved in Gemini history (if it's on).</translation>
+ <translation id="4112194537011183136"><ph name="DEVICE_NAME" /> (offline)</translation>
+ <translation id="4112282889480354965">Extensions and skills</translation>
+ <translation id="4113743276555482284">File password</translation>
+@@ -5321,7 +5321,7 @@
+ <translation id="5012523644916800014">Manage passwords and passkeys</translation>
+ <translation id="501394389332262641">Low battery sound</translation>
+ <translation id="5014286001996333986">Replace or create new group?</translation>
+-<translation id="5014385104640320445">Use your microphone to chat with Gemini. When you speak to Gemini, audio is saved in Gemini History (if it's on). Your data is not used to improve generative AI models.</translation>
++<translation id="5014385104640320445">Use your microphone to chat with Gemini. When you speak to Gemini, audio is saved in Gemini history (if it's on). Your data is not used to improve generative AI models.</translation>
+ <translation id="5015344424288992913">Resolving proxy...</translation>
+ <translation id="5016305686459575361">By connecting your phone, you can:</translation>
+ <translation id="5016491575926936899">You can text from your computer, share your Internet connection, reply to conversation notifications and unlock your <ph name="DEVICE_TYPE" /> with your phone.<ph name="FOOTNOTE_POINTER" /> <ph name="LINK_BEGIN" />Learn more<ph name="LINK_END" /></translation>
 diff --git a/chrome/browser/extensions/api/developer_private/developer_private_functions.cc b/chrome/browser/extensions/api/developer_private/developer_private_functions.cc
 index 2589f42..e66e2aa 100644
 --- a/chrome/browser/extensions/api/developer_private/developer_private_functions.cc
@@ -38,6 +62,133 @@ index 2589f42..e66e2aa 100644
      std::unique_ptr<const PermissionSet> granted_permissions =
          permissions_manager->GetExtensionGrantedPermissions(*extension);
      const URLPatternSet& extension_withheld_sites =
+diff --git a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
+index f4a61ed..18ede1f 100644
+--- a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
++++ b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
+@@ -718,6 +718,46 @@
+   return block_path_rules;
+ }
+ 
++// Returns true if `child_components` is the same as or a descendant of
++// `parent_components`, ignoring case differences.
++bool IsPathOrDescendantIgnoreCase(
++    const std::vector<base::FilePath::StringType>& parent_components,
++    const std::vector<base::FilePath::StringType>& child_components) {
++  if (parent_components.empty() ||
++      parent_components.size() > child_components.size()) {
++    return false;
++  }
++
++  return std::equal(parent_components.begin(), parent_components.end(),
++                    child_components.begin(),
++                    base::FilePath::CompareEqualIgnoreCase);
++}
++
++// Returns true if `child_path` is the same as or a descendant of
++// `parent_path`, ignoring case differences. Unlike
++// `base::FilePath::IsParent()`, this handles case-variant paths returned by
++// native pickers on case-insensitive filesystems.
++bool IsPathOrDescendantIgnoreCase(
++    const base::FilePath& parent_path,
++    const std::vector<base::FilePath::StringType>& parent_components,
++    const base::FilePath& child_path) {
++  // Fast path: Exact match or case-sensitive parent match.
++  if (child_path == parent_path || parent_path.IsParent(child_path)) {
++    return true;
++  }
++  return IsPathOrDescendantIgnoreCase(parent_components,
++                                      child_path.GetComponents());
++}
++
++// Returns true if `parent_components` is a strict parent of
++// `child_components`, ignoring case differences.
++bool IsParentIgnoreCase(
++    const std::vector<base::FilePath::StringType>& parent_components,
++    const std::vector<base::FilePath::StringType>& child_components) {
++  return parent_components.size() < child_components.size() &&
++         IsPathOrDescendantIgnoreCase(parent_components, child_components);
++}
++
+ // Checks if `path` should be blocked by the `rules`.
+ // The BlockType of the nearest ancestor of a path to check is what
+ // ultimately determines if a path is blocked or not. If a blocked path is a
+@@ -753,7 +793,10 @@
+   }
+ #endif
+ 
++  const std::vector<base::FilePath::StringType> path_components =
++      path.GetComponents();
+   base::FilePath nearest_ancestor;
++  std::vector<base::FilePath::StringType> nearest_ancestor_components;
+   BlockType nearest_ancestor_block_type = BlockType::kDontBlockChildren;
+   auto should_block_with_rule = [&](const base::FilePath& block_path,
+                                     BlockType block_type) -> bool {
+@@ -763,15 +806,19 @@
+       return false;
+     }
+ 
+-    if (path == block_path || path.IsParent(block_path)) {
++    std::vector<base::FilePath::StringType> block_components =
++        block_path.GetComponents();
++    if (IsPathOrDescendantIgnoreCase(path_components, block_components)) {
+       LOG(ERROR) << "Blocking access to " << path
+                  << " because it is a parent of " << block_path;
+       return true;
+     }
+ 
+-    if (block_path.IsParent(path) &&
+-        (nearest_ancestor.empty() || nearest_ancestor.IsParent(block_path))) {
++    if (IsParentIgnoreCase(block_components, path_components) &&
++        (nearest_ancestor.empty() ||
++         IsParentIgnoreCase(nearest_ancestor_components, block_components))) {
+       nearest_ancestor = block_path;
++      nearest_ancestor_components = std::move(block_components);
+       nearest_ancestor_block_type = block_type;
+     }
+     return false;
+@@ -794,9 +841,6 @@
+     }
+   }
+ 
+-  std::vector<base::FilePath::StringType> path_components =
+-      path.GetComponents();
+-
+   // Checks if the path components contain the components of the suffix rule.
+   // For example, if the rule is `.git/hooks`, it will block paths like
+   // `/foo/bar/.git/hooks`. The `std::search` identifies the matching subrange
+@@ -858,31 +902,6 @@
+   return true;
+ }
+ 
+-// Returns true if `child_path` is the same as or a descendant of
+-// `parent_path`, ignoring case differences. Unlike
+-// `base::FilePath::IsParent()`, this handles case-variant paths returned by
+-// native pickers on case-insensitive filesystems.
+-bool IsPathOrDescendantIgnoreCase(
+-    const base::FilePath& parent_path,
+-    const std::vector<base::FilePath::StringType>& parent_components,
+-    const base::FilePath& child_path) {
+-  // Fast path: Exact match or case-sensitive parent match.
+-  if (child_path == parent_path || parent_path.IsParent(child_path)) {
+-    return true;
+-  }
+-
+-  const std::vector<base::FilePath::StringType> child_components =
+-      child_path.GetComponents();
+-  if (parent_components.empty() ||
+-      parent_components.size() > child_components.size()) {
+-    return false;
+-  }
+-
+-  return std::equal(parent_components.begin(), parent_components.end(),
+-                    child_components.begin(),
+-                    base::FilePath::CompareEqualIgnoreCase);
+-}
+-
+ #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+ void DoSafeBrowsingCheckOnUIThread(
+     base::WeakPtr<ChromeFileSystemAccessPermissionContext> permission_context,
 diff --git a/chrome/browser/resources/extensions/site_permissions/site_permissions_edit_permissions_dialog.ts b/chrome/browser/resources/extensions/site_permissions/site_permissions_edit_permissions_dialog.ts
 index 1836d2cbd..5ba4426 100644
 --- a/chrome/browser/resources/extensions/site_permissions/site_permissions_edit_permissions_dialog.ts
