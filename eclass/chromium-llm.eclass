@@ -615,14 +615,19 @@ chromium_toolchain_id() {
 # ninja in the source tree: with a kept build tree, settle the sources' timestamps first. Every
 # file is looked at in the build's first run (after the in-place regenerations of
 # chromium_regenerate; not again for PGO's second phase), then those written since the last run.
+# chromium_build_tree_bootstrap: files that a tool built in this run regenerates in place (see
+# chromium-build-tree.py's --bootstrap).
 chromium_eninja() {
 	if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
+		local settle=( settle "${CHROMIUM_BUILD_TREE}" "${S}" )
 		if [[ ! -e ${T}/.build-tree-settled ]]; then
-			chromium_build_tree_py settle "${CHROMIUM_BUILD_TREE}" "${S}" --full "${S}/out/Release/build.ninja"
-			touch "${T}/.build-tree-settled" || die
-		else
-			chromium_build_tree_py settle "${CHROMIUM_BUILD_TREE}" "${S}"
+			settle+=( --full "${S}/out/Release/build.ninja" )
 		fi
+		if [[ -n ${chromium_build_tree_bootstrap[*]} ]]; then
+			settle+=( --bootstrap "${chromium_build_tree_bootstrap[@]}" )
+		fi
+		chromium_build_tree_py "${settle[@]}"
+		touch "${T}/.build-tree-settled" || die
 	fi
 	eninja "$@"
 }
@@ -3662,20 +3667,45 @@ chromium_compile() {
 		if tc-is-cross-compiler; then
 			pb_protoc=out/Release/host/protoc
 		fi
-		chromium_eninja -C out/Release "${pb_protoc#out/Release/}"
-		einfo "Regenerating protobuf's bootstrap files ..."
-		"${pb_protoc}" --proto_path="${pb}/src" --cpp_out=dllexport_decl=PROTOBUF_EXPORT:"${pb}/src" \
-			"${pb}"/src/google/protobuf/{descriptor,cpp_features,cpp_file_options,json_enumvalue_options}.proto ||
-			die "Failed to regenerate protobuf's descriptor protos"
-		"${pb_protoc}" --proto_path="${pb}/src" --cpp_out=dllexport_decl=PROTOC_EXPORT:"${pb}/src" \
-			"${pb}/src/google/protobuf/compiler/plugin.proto" || die "Failed to regenerate plugin.pb"
-		# Compiled as google/protobuf/compiler/java/java_features.proto (upstream's Bazel rules).
-		mkdir -p "${pb_java}/google/protobuf/compiler/java" || die
-		cp "${pb}/java/core/src/main/resources/google/protobuf/java_features.proto" \
-			"${pb_java}/google/protobuf/compiler/java/" || die
-		"${pb_protoc}" --proto_path="${pb_java}" --proto_path="${pb}/src" \
-			--cpp_out=dllexport_decl=PROTOC_EXPORT:"${pb}/src" \
-			"${pb_java}/google/protobuf/compiler/java/java_features.proto" || die "Failed to regenerate java_features.pb"
+		# With a kept build tree, the files protoc is built from first get the timestamps of their
+		# last regenerated contents, so that the last build's protoc stays, if it regenerates them
+		# unchanged; else again with protoc built from the checked-in files.
+		local pb_boot=(
+			"${pb}"/src/google/protobuf/{descriptor,cpp_features,cpp_file_options,json_enumvalue_options,compiler/plugin,compiler/java/java_features}.pb.{h,cc}
+		)
+		local chromium_build_tree_bootstrap=()
+		if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
+			chromium_build_tree_bootstrap=( "${pb_boot[@]}" )
+			mkdir -p "${T}/protobuf-bootstrap" || die
+			cp --parents "${pb_boot[@]}" "${T}/protobuf-bootstrap/" || die
+		fi
+		while :; do
+			chromium_eninja -C out/Release "${pb_protoc#out/Release/}"
+			einfo "Regenerating protobuf's bootstrap files ..."
+			"${pb_protoc}" --proto_path="${pb}/src" --cpp_out=dllexport_decl=PROTOBUF_EXPORT:"${pb}/src" \
+				"${pb}"/src/google/protobuf/{descriptor,cpp_features,cpp_file_options,json_enumvalue_options}.proto ||
+				die "Failed to regenerate protobuf's descriptor protos"
+			"${pb_protoc}" --proto_path="${pb}/src" --cpp_out=dllexport_decl=PROTOC_EXPORT:"${pb}/src" \
+				"${pb}/src/google/protobuf/compiler/plugin.proto" || die "Failed to regenerate plugin.pb"
+			# Compiled as google/protobuf/compiler/java/java_features.proto (upstream's Bazel rules).
+			mkdir -p "${pb_java}/google/protobuf/compiler/java" || die
+			cp "${pb}/java/core/src/main/resources/google/protobuf/java_features.proto" \
+				"${pb_java}/google/protobuf/compiler/java/" || die
+			"${pb_protoc}" --proto_path="${pb_java}" --proto_path="${pb}/src" \
+				--cpp_out=dllexport_decl=PROTOC_EXPORT:"${pb}/src" \
+				"${pb_java}/google/protobuf/compiler/java/java_features.proto" || die "Failed to regenerate java_features.pb"
+			[[ -z ${chromium_build_tree_bootstrap[*]} ]] && break
+			PYTHONPATH="${PORTAGE_PYTHONPATH:-${PORTAGE_PYM_PATH}}" "${PORTAGE_PYTHON:-python3}" -B \
+				"${FILESDIR}/chromium-build-tree.py" same "${CHROMIUM_BUILD_TREE}" "${S}" "${pb_boot[@]}"
+			case $? in
+				0) break ;;
+				3) ;;
+				*) die "chromium-build-tree.py same failed" ;;
+			esac
+			einfo "They changed: again, with protoc built from the checked-in files ..."
+			chromium_build_tree_bootstrap=()
+			cp -r "${T}/protobuf-bootstrap/." . || die
+		done
 		"${pb_protoc}" --proto_path="${pb}/src" --python_out="${pb}/python" \
 			"${pb}"/src/google/protobuf/{descriptor,compiler/plugin}.proto || die "Failed to regenerate the _pb2 modules"
 		# protoc was built from the checked-in files: what it generated may depend on them. The

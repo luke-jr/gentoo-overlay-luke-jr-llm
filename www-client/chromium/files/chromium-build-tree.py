@@ -8,7 +8,7 @@ Usage:
   chromium-build-tree.py claim TREE BUILDDIR
     Make the build in Portage's BUILDDIR the tree's user. If another build uses it (its
     Portage build directory is locked), wait until it is done. Run with Portage's Python.
-  chromium-build-tree.py settle TREE SRC [--full BUILD_NINJA]
+  chromium-build-tree.py settle TREE SRC [--full BUILD_NINJA] [--bootstrap PATH...]
     Before each ninja run: TREE/state has, for every file of SRC (but out/), its contents (a
     hash) and timestamp at the last run, whatever build that was in. A file with the same
     contents gets that timestamp back: what ninja built from it since is newer, so it stays,
@@ -24,6 +24,17 @@ Usage:
     built while it was gone doesn't use it, and if it comes back as it was, what ninja built
     from it before is still right (the build moves checked-in generated files aside, then
     writes them again).
+    --bootstrap: files (of SRC) that a tool built from them in this run regenerates in place
+    afterwards (protobuf's checked-in protoc output, which protoc is built from). Their record
+    is that of the regenerated contents, so here they only get its timestamp back (they aren't
+    looked at, and their records stay): the tool built from the regenerated contents stays. One
+    without a record gets the current time, and no record yet.
+    Whether that was right is up to the caller: after regenerating them, `same` must find
+    them unchanged, otherwise the caller has to put the checked-in files back and do it again
+    without --bootstrap.
+  chromium-build-tree.py same TREE SRC PATH...
+    Exit 0 if the contents of these files of SRC are those of their records (or they have
+    none), 3 if not.
 """
 import hashlib
 import json
@@ -88,7 +99,7 @@ def claim(tree, builddir):
         portage.locks.unlockdir(portage.locks.lockdir(other))
 
 
-def settle(tree, src, full, build_ninja=None):
+def settle(tree, src, full, build_ninja=None, bootstrap=()):
     path = os.path.join(tree, "state")
     try:
         with open(path) as f:
@@ -96,6 +107,14 @@ def settle(tree, src, full, build_ninja=None):
     except FileNotFoundError:
         records = {}
     files = walk(src)
+    unrecorded = []
+    for p in bootstrap:
+        if p in files:
+            if p not in records:
+                unrecorded.append(p)
+            elif files[p].st_mtime_ns != records[p][1]:
+                os.utime(os.path.join(src, p), ns=(records[p][1], records[p][1]))
+            del files[p]
     todo = sorted(p for p, st in files.items() if full or records.get(p, [None, None])[1] != st.st_mtime_ns)
     gn_newer = set()
     if build_ninja:
@@ -109,6 +128,8 @@ def settle(tree, src, full, build_ninja=None):
     with multiprocessing.Pool() as pool:
         hashes = pool.map(digest, [os.path.join(src, p) for p in todo], chunksize=256)
     now = b - 1 if build_ninja else time.time_ns()
+    for p in unrecorded:
+        os.utime(os.path.join(src, p), ns=(now, now))
     same = changed = 0
     for p, h in zip(todo, hashes):
         record = records.get(p)
@@ -131,13 +152,27 @@ def settle(tree, src, full, build_ninja=None):
     print(f"{len(todo)} of {len(files)} files looked at: {same} unchanged, {changed} changed or new", flush=True)
 
 
+def same(tree, src, paths):
+    with open(os.path.join(tree, "state")) as f:
+        records = json.load(f)
+    return all(p not in records or (os.path.isfile(os.path.join(src, p))
+                                    and digest(os.path.join(src, p)) == records[p][0]) for p in paths)
+
+
 def main(argv):
     if len(argv) == 4 and argv[1] == "claim":
         claim(argv[2], argv[3])
-    elif len(argv) == 4 and argv[1] == "settle":
-        settle(argv[2], argv[3], False)
-    elif len(argv) == 6 and argv[1] == "settle" and argv[4] == "--full":
-        settle(argv[2], argv[3], True, argv[5])
+    elif len(argv) >= 4 and argv[1] == "settle":
+        rest = argv[4:]
+        build_ninja = None
+        if rest[:1] == ["--full"] and len(rest) >= 2:
+            build_ninja = rest[1]
+            rest = rest[2:]
+        if rest and rest[0] != "--bootstrap":
+            sys.exit(__doc__)
+        settle(argv[2], argv[3], build_ninja is not None, build_ninja, rest[1:])
+    elif len(argv) >= 5 and argv[1] == "same":
+        sys.exit(0 if same(argv[2], argv[3], argv[4:]) else 3)
     else:
         sys.exit(__doc__)
 
