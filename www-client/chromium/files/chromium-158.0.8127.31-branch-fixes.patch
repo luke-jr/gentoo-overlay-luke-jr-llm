@@ -1,10 +1,10 @@
 Chromium 158.0.8127.31 + the later changes of its release branch, up to
-9cd672d675f8be72a6acfe1fea941544a979793f (refs/branch-heads/8127@{#1460}), for the
+405c8d4ea4cce59b2e38e740927fc62d8825a368 (refs/branch-heads/8127@{#1468}), for the
 158.0.8127.31 tree that chromium-158.0.8127.18-to-158.0.8127.31.patch makes.
 
-Generated from the upstream diffs chromium/src refs/tags/158.0.8127.31..9cd672d675f8be72a6acfe1fea941544a979793f
+Generated from the upstream diffs chromium/src refs/tags/158.0.8127.31..405c8d4ea4cce59b2e38e740927fc62d8825a368
 and, for the V8 and Skia rolls in it, v8 a246c42da968..a2e0f800315e and skia
-75584a96108b..ae45399f1aae, as served by Gitiles,
+75584a96108b..361c8326695a, as served by Gitiles,
 with scripts/chromium-delta --branch-fixes (against the .31 tree's files, renames
 included): left out are files not in the release tarball,
 iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs, translations,
@@ -23,12 +23,17 @@ Commits contributing to it (oldest first):
   0ec84d3520d9 Updating XTBs based on .GRDs from branch 8127 (en-GB only)
   515985ecd435 [M158] [FSA] Match sensitive-path blocklist rules case-insensitively
   f4e159286d6a [M158] [History] Rename Gemini Apps Activity to Gemini History in footer
-  08888ef23289 Roll commits from side projects in M158 (Skia 75584a96108b..ae45399f1aae):
+  08888ef23289, c1efa1639f39, ae0b8e84f41f Roll commits from side projects in M158 (Skia
+    75584a96108b..361c8326695a):
     skia 9af6a9017274 [M158] [Vulkan] Sleep after device lost on certain GPUs
     skia ae45399f1aae [M158] [ganesh] Handle negative determinants in StrokeIterator for hairline square caps
+    skia 9f46d8e2c428 [M158] [ganesh] Guard atlas index against float imprecision during interpolation
+    skia 361c8326695a [M158] [graphite] Gracefully handle pathological number of clip draws
   eb8145412ba5 [M158] Prevent duplicate render pass ids
   0378edb35d31 [M158] [OE FRE][3/3] Record FRE impressions from WebUI on visual render
   9cd672d675f8 [M158] [Voice Search] Add a new arm that only updates the model
+  6df35e9de8f9 [M158] gpu: Flush active/pending queries on virtual context switch and FBO change
+  405c8d4ea4cc [M158] Snapshot animations when servicing AnimationTimeline
 
 Checked: applies to the 158.0.8127.31 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -1078,6 +1083,229 @@ index 8758b66..5ca2c078 100644
  
    const auto it = image_annotations_.find(image.AxID());
    if (it == image_annotations_.end()) {
+diff --git a/gpu/command_buffer/service/gles2_cmd_decoder.cc b/gpu/command_buffer/service/gles2_cmd_decoder.cc
+index 40b9008c..d31f823 100644
+--- a/gpu/command_buffer/service/gles2_cmd_decoder.cc
++++ b/gpu/command_buffer/service/gles2_cmd_decoder.cc
+@@ -4024,7 +4024,9 @@
+ 
+ void GLES2DecoderImpl::FlushQueriesBeforeDeletingOrUnbindingFboWorkaround() {
+   if (workarounds().flush_queries_before_deleting_or_unbinding_fbo &&
+-      HasPendingQueries()) {
++      query_manager_ &&
++      (query_manager_->HaveActiveQueries() ||
++       query_manager_->HavePendingQueries())) {
+     GLsync sync = api()->glFenceSyncFn(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+     if (sync) {
+       api()->glClientWaitSyncFn(sync, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
+diff --git a/gpu/command_buffer/service/gles2_query_manager.cc b/gpu/command_buffer/service/gles2_query_manager.cc
+index ca6a0de6..75f9bee0 100644
+--- a/gpu/command_buffer/service/gles2_query_manager.cc
++++ b/gpu/command_buffer/service/gles2_query_manager.cc
+@@ -477,6 +477,10 @@
+ GLES2QueryManager::GLES2QueryManager(GLES2Decoder* decoder,
+                                      FeatureInfo* feature_info)
+     : decoder_(decoder),
++      flush_queries_before_deleting_or_unbinding_fbo_(
++          feature_info &&
++          feature_info->workarounds()
++              .flush_queries_before_deleting_or_unbinding_fbo),
+       update_disjoints_continually_(false),
+       disjoint_notify_shm_id_(-1),
+       disjoint_notify_shm_offset_(0),
+@@ -492,6 +496,35 @@
+ 
+ GLES2QueryManager::~GLES2QueryManager() = default;
+ 
++void GLES2QueryManager::PauseQueries() {
++  const bool had_unflushed_queries = HaveActiveQueries() || HavePendingQueries();
++  QueryManager::PauseQueries();
++
++  // Driver-bug workaround flush_queries_before_deleting_or_unbinding_fbo
++  // (ARM Mali Valhall/Avalon, crbug.com/534468209): a user FBO must not be
++  // unbound or deleted while GPU jobs/queries that reference it are still
++  // unflushed. GLES2DecoderImpl guards its own glBindFramebuffer /
++  // glDeleteFramebuffers, but with virtualized GL contexts every other
++  // virtual context on the same real context (the raster SharedContextState
++  // and its Skia Ganesh-GL GrGLGpu, other decoders) issues FBO binds and
++  // deletes without any knowledge of this decoder's queries -- Skia's own
++  // copy of the workaround is keyed on Skia-issued timer queries only. So
++  // flush this decoder's query job chain at the point where the invariant
++  // "every query on this real context is mine" stops holding: the virtual
++  // context switch.
++  if (had_unflushed_queries &&
++      flush_queries_before_deleting_or_unbinding_fbo_) {
++    gl::GLApi* api = gl::g_current_gl_context;
++    GLsync sync = api->glFenceSyncFn(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
++    if (sync) {
++      api->glClientWaitSyncFn(sync, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
++      api->glDeleteSyncFn(sync);
++    } else {
++      api->glFinishFn();
++    }
++  }
++}
++
+ QueryManager::Query* GLES2QueryManager::CreateQuery(
+     GLenum target,
+     GLuint client_id,
+diff --git a/gpu/command_buffer/service/gles2_query_manager.h b/gpu/command_buffer/service/gles2_query_manager.h
+index 0869089f..cf7e04fb 100644
+--- a/gpu/command_buffer/service/gles2_query_manager.h
++++ b/gpu/command_buffer/service/gles2_query_manager.h
+@@ -70,6 +70,11 @@
+                      scoped_refptr<gpu::Buffer> buffer,
+                      QuerySync* sync) override;
+ 
++  // Flushes this decoder's query job chain when its virtual context is
++  // switched out, if the flush_queries_before_deleting_or_unbinding_fbo
++  // driver-bug workaround is active (see implementation).
++  void PauseQueries() override;
++
+   // Do any updates we need to do when the frame has begun.
+   void ProcessFrameBeginUpdates();
+ 
+@@ -90,6 +95,8 @@
+ 
+   raw_ptr<GLES2Decoder> decoder_;
+ 
++  const bool flush_queries_before_deleting_or_unbinding_fbo_;
++
+   // Whether we are tracking disjoint values every frame.
+   bool update_disjoints_continually_;
+ 
+diff --git a/gpu/command_buffer/service/query_manager.h b/gpu/command_buffer/service/query_manager.h
+index ccc29795..87f154f 100644
+--- a/gpu/command_buffer/service/query_manager.h
++++ b/gpu/command_buffer/service/query_manager.h
+@@ -212,7 +212,9 @@
+   // Returns false if any query is pointing to invalid shared memory.
+   void QueryCounter(Query* query, base::subtle::Atomic32 submit_count);
+ 
+-  void PauseQueries();
++  // Called by the GL context virtualization layer when the owning decoder's
++  // virtual context is switched out / back in.
++  virtual void PauseQueries();
+   void ResumeQueries();
+ 
+   void BeginProcessingCommands();
+@@ -226,6 +228,10 @@
+   // True if there are pending queries.
+   bool HavePendingQueries();
+ 
++  // True if there are active (begun, not yet ended) queries, including ones
++  // currently paused by a virtual context switch.
++  bool HaveActiveQueries() const { return !active_queries_.empty(); }
++
+   void GenQueries(GLsizei n, const GLuint* queries);
+   bool IsValidQuery(GLuint id);
+ 
+diff --git a/third_party/blink/renderer/core/animation/animation.cc b/third_party/blink/renderer/core/animation/animation.cc
+index 357df3f..b1785d1f 100644
+--- a/third_party/blink/renderer/core/animation/animation.cc
++++ b/third_party/blink/renderer/core/animation/animation.cc
+@@ -3318,10 +3318,14 @@
+   // time of an animation also involves:
+   //   * Running the update an animation’s finished state procedure.
+   //   * Queueing animation events.
+-
+   if (!Outdated() && reason == kTimingUpdateForAnimationFrame &&
+-      IsInDisplayLockedSubtree())
+-    return true;
++      IsInDisplayLockedSubtree()) {
++    // IsInDisplayLockedSubtree() may trigger slot assignment recalc and update
++    // animation state.
++    if (!Outdated()) {
++      return !inactive_;
++    }
++  }
+ 
+   ClearOutdated();
+   bool idle =
+diff --git a/third_party/blink/renderer/core/animation/animation_timeline.cc b/third_party/blink/renderer/core/animation/animation_timeline.cc
+index 0ef6a61..113bb0cf 100644
+--- a/third_party/blink/renderer/core/animation/animation_timeline.cc
++++ b/third_party/blink/renderer/core/animation/animation_timeline.cc
+@@ -138,32 +138,59 @@
+                                      current_time == last_current_time_;
+   last_current_time_ = current_time;
+ 
+-  if (sort_animation_events) {
+-    animations_needing_update_.erase_if([&](Animation* animation) {
+-      if (only_service_outdated && !animation->Outdated() &&
+-          !animation->EffectSuppressed()) {
+-        return animation->Inactive() && !animation->TimeToEffectChange();
+-      }
+-      return !animation->Update(reason);
+-    });
+-  } else {
+-    HeapVector<Member<Animation>> animations;
+-    animations.ReserveInitialCapacity(animations_needing_update_.size());
+-    for (Animation* animation : animations_needing_update_) {
+-      animations.push_back(animation);
++  HeapVector<Member<Animation>> animations;
++  bool is_first_pass = true;
++  do {
++    // This loop is bounded to at most 2 passes. A second pass only updates
++    // outdated animations, which bypass IsInDisplayLockedSubtree() in
++    // Animation::Update() and therefore cannot trigger another slot assignment
++    // recalc.
++    animations.assign(animations_needing_update_);
++    if (!sort_animation_events) {
++      // When sort_animation_events is enabled, we defer sorting until we have
++      // produced animation events. If no events are generated, there is no
++      // need to sort. Sorting for the effect stack is handled separately.
++      std::sort(animations.begin(), animations.end(), CompareAnimations);
+     }
+ 
+-    std::sort(animations.begin(), animations.end(), CompareAnimations);
+-
+     for (Animation* animation : animations) {
+-      if (!animation->Update(reason)) {
++      // Though the collection of animations is seeded from animations needing
++      // update, slot reassignment during flat tree traversal may alter the
++      // set of animations attached to a timeline.
++      if (!animations_needing_update_.Contains(animation)) {
++        continue;
++      }
++
++      // Avoid redundant updates.
++      if (!animation->Outdated() && !is_first_pass) {
++        continue;
++      }
++
++      bool persist = false;
++      if (only_service_outdated && !animation->Outdated() &&
++          !animation->EffectSuppressed()) {
++        persist = !animation->Inactive() || animation->TimeToEffectChange();
++      } else {
++        persist = animation->Update(reason);
++      }
++      if (!persist) {
+         animations_needing_update_.erase(animation);
+       }
+     }
+-    // Explicitly free the backing store to avoid memory regressions.
+-    // TODO(bikineev): Revisit when young generation is done.
+-    animations.clear();
+-  }
++    DCHECK(is_first_pass || !HasOutdatedAnimation());
++    is_first_pass = false;
++  } while (HasOutdatedAnimation());
++
++  // Slot assignment recalc during an animation update may have detached
++  // elements and cancelled animations that were already serviced earlier in
++  // the pass. Prune any animations that became inactive.
++  animations_needing_update_.erase_if([](Animation* animation) {
++    return !animation->Outdated() && !animation->EffectSuppressed() &&
++           animation->Inactive() && !animation->TimeToEffectChange();
++  });
++
++  // Explicitly free the backing store to avoid memory regressions.
++  animations.clear();
+ 
+   DCHECK_EQ(outdated_animation_count_, 0U);
+   DCHECK(last_current_time_ == CurrentTimeInternal());
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
 index 79f058f..27d3d4e 100644
 --- a/v8/include/v8-version.h
@@ -1234,6 +1462,32 @@ index 05c6c8f..95bba0a 100644
    }
    ASSIGN_RETURN_ON_EXCEPTION_VALUE(
        isolate, compiled,
+diff --git a/third_party/skia/src/gpu/ganesh/effects/GrAtlasedShaderHelpers.h b/third_party/skia/src/gpu/ganesh/effects/GrAtlasedShaderHelpers.h
+index ec1db1b..2a5d0de 100644
+--- a/third_party/skia/src/gpu/ganesh/effects/GrAtlasedShaderHelpers.h
++++ b/third_party/skia/src/gpu/ganesh/effects/GrAtlasedShaderHelpers.h
+@@ -91,7 +91,11 @@
+ 
+     // conditionally load from the indexed texture sampler
+     for (int i = 0; i < numTextureSamplers-1; ++i) {
+-        args.fFragBuilder->codeAppendf("if (%s == %d) { %s = ", texIdx.fsIn(), i, colorName);
++        // Add 1/2 and cast to an int to ensure floating point error during interpolation doesn't
++        // cause incorrect atlas lookups (these varyings are marked kCanBeFlat, but that leaves
++        // the possibility that they may still be interpolated).
++        args.fFragBuilder->codeAppendf("if (int(%s + 0.5) == %d) { %s = ",
++                                       texIdx.fsIn(), i, colorName);
+         args.fFragBuilder->appendTextureLookup(args.fTexSamplers[i],
+                                                coordName);
+         args.fFragBuilder->codeAppend("; } else ");
+@@ -118,7 +122,7 @@
+ 
+     // conditionally load from the indexed texture sampler
+     for (int i = 0; i < numTextureSamplers; ++i) {
+-        args.fFragBuilder->codeAppendf("if (%s == %d) {", texIdx.fsIn(), i);
++        args.fFragBuilder->codeAppendf("if (int(%s + 0.5) == %d) {", texIdx.fsIn(), i);
+ 
+         // green is distance to uv center
+         args.fFragBuilder->codeAppendf("%s.y = ", distanceName);
 diff --git a/third_party/skia/src/gpu/ganesh/vk/GrVkCaps.cpp b/third_party/skia/src/gpu/ganesh/vk/GrVkCaps.cpp
 index ee87622..55b4c69 100644
 --- a/third_party/skia/src/gpu/ganesh/vk/GrVkCaps.cpp
@@ -1335,6 +1589,159 @@ index 0c7e419..8f3c0a9 100644
  }
  
  void GrVkGpu::onReportSubmitHistograms() {
+diff --git a/third_party/skia/src/gpu/graphite/ClipStack.cpp b/third_party/skia/src/gpu/graphite/ClipStack.cpp
+index 34010f7..ac97a22 100644
+--- a/third_party/skia/src/gpu/graphite/ClipStack.cpp
++++ b/third_party/skia/src/gpu/graphite/ClipStack.cpp
+@@ -1990,6 +1990,16 @@
+     return draw.toClip(geometry, style, nonMSAAClip, cs.shader());
+ }
+ 
++int ClipStack::CountPendingElementDraws(SkSpan<const Element* const> elements) {
++    int undrawnCount = 0;
++    for (const Element* e : elements) {
++        if (!static_cast<const RawElement*>(e)->hasPendingDraw()) {
++            ++undrawnCount;
++        }
++    }
++    return undrawnCount;
++}
++
+ std::pair<CompressedPaintersOrder, Layer*> ClipStack::updateClipStateForDraw(
+         const Clip& clip,
+         const ElementList& effectiveElements,
+diff --git a/third_party/skia/src/gpu/graphite/ClipStack.h b/third_party/skia/src/gpu/graphite/ClipStack.h
+index 775d349..f27de88 100644
+--- a/third_party/skia/src/gpu/graphite/ClipStack.h
++++ b/third_party/skia/src/gpu/graphite/ClipStack.h
+@@ -10,6 +10,7 @@
+ 
+ #include "include/core/SkRefCnt.h"
+ #include "include/core/SkShader.h"
++#include "include/core/SkSpan.h"
+ #include "include/private/SkAssert.h"
+ #include "include/private/SkOnlyStackAllocatable.h"
+ #include "include/private/SkTArray.h"
+@@ -105,6 +106,10 @@
+                                SkStrokeRec* style,
+                                ElementList* outEffectiveElements) const;
+ 
++    // Returns the number of elements in `elements` that have not yet been drawn in the current
++    // pass.
++    static int CountPendingElementDraws(SkSpan<const Element* const> elements);
++
+     // Update the per-clip element state for later rendering using pre-computed clip state data for
+     // a particular draw. The provided 'z' value is the depth value that the draw will use if it's
+     // not clipped out entirely.
+diff --git a/third_party/skia/src/gpu/graphite/Device.cpp b/third_party/skia/src/gpu/graphite/Device.cpp
+index 9cccd07..5e336bd 100644
+--- a/third_party/skia/src/gpu/graphite/Device.cpp
++++ b/third_party/skia/src/gpu/graphite/Device.cpp
+@@ -1698,10 +1698,7 @@
+     // Calculate the clipped bounds of the draw and determine the clip elements that affect the
+     // draw without updating the clip stack.
+     ClipStack::ElementList clipElements;
+-    Clip clip = fClip.visitClipStackForDraw(localToDevice,
+-                                            &geometry,
+-                                            &style,
+-                                            &clipElements);
++    Clip clip = fClip.visitClipStackForDraw(localToDevice, &geometry, &style, &clipElements);
+     if (clip.isClippedOut()) {
+         // Clipped out, so don't record anything.
+         return;
+@@ -1784,8 +1781,10 @@
+             return;
+         }
+ 
+-        // To avoid #define mess, the sparse strips can trigger a flush here
+-        // TODO (thomsmit): unify this with the existing flush system
++        // To avoid #define mess, the sparse strips can trigger a flush here.
++        // TODO (thomsmit): Unify this with the existing flush system so we don't process geometry
++        // or trigger a flush here for a pathological draw that will later be skipped in the
++        // `needsFlush` check below.
+         if (fStripGenerator->hasNullCaps()) {
+             fRecorder->priv().flushTrackedDevices(
+                     SK_DUMP_TASKS_CODE("Device::drawGeometry Flush Before Draw"));
+@@ -1808,8 +1807,26 @@
+     DstReadStrategy dstReadStrategy = shading.dstReadRequired() ?
+                                       fDC->dstReadStrategy() : DstReadStrategy::kNoneRequired;
+     // TODO (thomsmit): Adjust this when the draw limit is removed.
+-    const bool needsFlush = this->needsFlushBeforeDraw(numNewRenderSteps, dstReadStrategy);
++    const bool needsFlush =
++            this->needsFlushBeforeDraw(numNewRenderSteps, clipElements, dstReadStrategy);
+     if (needsFlush) {
++        // If no flush was needed, DrawListLayer only had to fit the undrawn clip elements into the
++        // current DrawList because any already-drawn clips were already recorded and accounted for
++        // in `fDC->pendingRenderSteps()` using their actual render step counts.
++        //
++        // However, flushing finalizes the current DrawPass and resets all clip elements in the
++        // stack to undrawn (since the depth attachment does not persist across DrawPasses). In the
++        // new DrawList, all `clipElements.size()` effective clips would have to be re-recorded into
++        // the same pass as the draw. If the draw and all of its effective clips conservatively
++        // require more render steps than a fresh DrawList can hold, skip the draw immediately
++        // without flushing pending work.
++        if (numNewRenderSteps + clipElements.size() * Renderer::kMaxRenderSteps >
++            DrawList::kMaxRenderSteps) {
++            SKIA_LOG_W("Skipping draw: clip stack requires too many render steps for a single "
++                       "pass.");
++            return;
++        }
++
+         if (pathAtlas != nullptr) {
+             // We need to flush work for all devices associated with the current Recorder.
+             // Otherwise we may end up with outstanding draws that depend on past atlas state.
+@@ -2062,7 +2079,7 @@
+ 
+     // This call represents one of the deferred clip shapes that's already pessimistically counted
+     // in needsFlushBeforeDraw(), so the DrawContext should have room to add it.
+-    SkASSERT(fDC->pendingRenderSteps() + renderer->numRenderSteps() < DrawList::kMaxRenderSteps);
++    SkASSERT(fDC->pendingRenderSteps() + renderer->numRenderSteps() <= DrawList::kMaxRenderSteps);
+ 
+     // Anti-aliased clipping requires the renderer to use MSAA to modify the depth per sample, so
+     // analytic coverage renderers cannot be used.
+@@ -2101,6 +2118,8 @@
+         return {nullptr, {}};
+     }
+ 
++    SkASSERT(fDC->pendingRenderSteps() + renderer->numRenderSteps() <= DrawList::kMaxRenderSteps);
++
+     if (localToDevice.type() == Transform::Type::kPerspective) {
+         SkPath devicePath = shape.asPath().makeTransform(localToDevice.matrix().asM33());
+         return fDC->recordDraw(renderer, Transform::Identity(), Geometry(Shape(devicePath)), clip,
+@@ -2410,9 +2429,16 @@
+     fRecorder->priv().compactAtlasProvider();
+ }
+ 
+-bool Device::needsFlushBeforeDraw(int numNewRenderSteps, DstReadStrategy dstReadStrategy) {
++bool Device::needsFlushBeforeDraw(int numNewRenderSteps,
++                                  SkSpan<const ClipStack::Element* const> clipElements,
++                                  DstReadStrategy dstReadStrategy) {
+     // Must also account for the elements in the clip stack that might need to be recorded.
+-    numNewRenderSteps += fClip.maxDeferredClipDraws() * Renderer::kMaxRenderSteps;
++    // When using DrawListLayer, clip elements are recorded immediately on first use so already-
++    // drawn clip elements are already accounted for in fDC->pendingRenderSteps().
++    int clipElementsToRecord = fRecorder->priv().caps()->useDrawListLayer()
++                                       ? ClipStack::CountPendingElementDraws(clipElements)
++                                       : fClip.maxDeferredClipDraws();
++    numNewRenderSteps += clipElementsToRecord * Renderer::kMaxRenderSteps;
+     bool needsFlush =
+             // Need flush if we don't have room to record into the current list.
+             (DrawList::kMaxRenderSteps - fDC->pendingRenderSteps()) < numNewRenderSteps ||
+diff --git a/third_party/skia/src/gpu/graphite/Device.h b/third_party/skia/src/gpu/graphite/Device.h
+index 68875c1..7a1a3e5 100644
+--- a/third_party/skia/src/gpu/graphite/Device.h
++++ b/third_party/skia/src/gpu/graphite/Device.h
+@@ -358,7 +358,9 @@
+                                        const SkStrokeRec&,
+                                        const Rect& drawBounds) const;
+ 
+-    bool needsFlushBeforeDraw(int numNewRenderSteps, DstReadStrategy);
++    bool needsFlushBeforeDraw(int numNewRenderSteps,
++                              SkSpan<const ClipStack::Element* const> clipElements,
++                              DstReadStrategy);
+ 
+     // Flush internal work, such as pending clip draws and atlas uploads, into the Device's DrawTask
+     void internalFlush();
 diff --git a/third_party/skia/src/gpu/graphite/vk/VulkanCaps.cpp b/third_party/skia/src/gpu/graphite/vk/VulkanCaps.cpp
 index faca9b9..68da18d 100644
 --- a/third_party/skia/src/gpu/graphite/vk/VulkanCaps.cpp

@@ -175,10 +175,9 @@ LICENSE+=" rar? ( unRAR )"
 SLOT="stable"
 KEYWORDS="~amd64 ~arm64"
 
-# The 158 branch's changes after the 158.0.8127.31 tag, and the fixes it lacks (see their headers).
+# The 158 branch's changes after the 158.0.8127.31 tag (see its header).
 CHROMIUM_FIXES=(
 	chromium-158.0.8127.31-branch-fixes.patch
-	chromium-158-gpu-query-flush-fbo.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
