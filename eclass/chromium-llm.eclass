@@ -128,6 +128,13 @@
 # build at a time uses the directory: another one waits until it is done. USE=pgo builds
 # everything twice anyway.
 
+# @ECLASS_VARIABLE: CHROMIUM_BUILD_DIR_DELETE_SRC
+# @USER_VARIABLE
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# With CHROMIUM_BUILD_DIR, if set (non-empty): delete the kept build tree's src/ at the end of
+# src_install. The next build unpacks its own sources anyway; only build/ is reused.
+
 # @FUNCTION: chromium_crubit_rustfmt
 # @USAGE: <suffix>
 # @DESCRIPTION:
@@ -4201,6 +4208,12 @@ chromium-llm_src_install() {
 	dosym chromium-browser${browser_suffix}.1 /usr/share/man/man1/chromium${browser_suffix}.1
 
 	readme.gentoo_create_doc
+
+	if [[ -n ${CHROMIUM_BUILD_TREE} && -n ${CHROMIUM_BUILD_DIR_DELETE_SRC} ]]; then
+		einfo "Deleting the kept build tree's sources (CHROMIUM_BUILD_DIR_DELETE_SRC) ..."
+		cd "${WORKDIR}" || die
+		rm -rf "${S}" || die
+	fi
 }
 
 chromium-llm_pkg_postrm() {

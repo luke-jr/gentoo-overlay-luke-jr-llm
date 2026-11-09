@@ -71,6 +71,9 @@ upstream, so every version bump regenerates every Mojo binding and recompiles wh
 computed from the public sources. Delete the file to get a new salt (and a rebuild of those
 objects) on the next build.
 
+`CHROMIUM_BUILD_DIR_DELETE_SRC=1` deletes the tree's `src/` at the end of `src_install`: the
+next build unpacks its own sources anyway.
+
 A second build of the same major waits until the first is done (until its Portage build
 directory is unlocked). Running the first one's phases as separate `ebuild` commands unlocks it
 between them, so a waiting build can take the tree before the first one's `install`.
