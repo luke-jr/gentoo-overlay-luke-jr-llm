@@ -119,9 +119,10 @@
 # the $, e.g.
 #   CHROMIUM_BUILD_DIR="/var/tmp/portage/chromium-build/\${MAJOR}"
 # The sources are unpacked to its src/ (S), replacing the last build's; everything else is in
-# its build/, which stays: the build directory (build/Release, not S's out/Release), and the
-# tree's records (state, owner, mojom-message-id-salt, toolchains). Before each ninja run, files whose contents are those of the last run (whatever
-# build it was in) get that run's timestamp back, changed ones a new one
+# its build/, which stays: the build directory (build/Release), and the tree's records (state,
+# owner, mojom-message-id-salt, toolchains). Before each ninja run, files whose contents are
+# those of the last run (whatever build it was in) get that run's timestamp back, changed ones a
+# new one
 # (files/chromium-build-tree.py). ninja tracks system headers too (system_headers_in_deps). A
 # toolchain change (not tracked by ninja) gets a warning: delete build/ for a full build. One
 # build at a time uses the directory: another one waits until it is done. USE=pgo builds
@@ -171,9 +172,11 @@ inherit check-reqs chromium-2 desktop flag-o-matic llvm-r1 multiprocessing ninja
 inherit python-any-r1 readme.gentoo-r1 rust systemd toolchain-funcs virtualx xdg-utils
 
 : "${CHROMIUM_TARBALL_PV:=${PV%%_*}}"
-S="${WORKDIR}/chromium-${CHROMIUM_TARBALL_PV}"
-# The build directory (gn gen, ninja), relative to S.
-CHROMIUM_OUT=out/Release
+# The sources are in src/ and everything built from them in build/ (WORKDIR's, or the kept build
+# tree's): the build directory (gn gen, ninja) is build/Release, outside the sources, here
+# relative to S.
+S="${WORKDIR}/src"
+CHROMIUM_OUT=../build/Release
 if [[ -n ${CHROMIUM_BUILD_DIR} ]]; then
 	_chromium_build_tree() {
 		local MAJOR=${PV%%.*}
@@ -182,7 +185,6 @@ if [[ -n ${CHROMIUM_BUILD_DIR} ]]; then
 	_chromium_build_tree
 	unset -f _chromium_build_tree
 	S="${CHROMIUM_BUILD_TREE}/src"
-	CHROMIUM_OUT=../build/Release
 fi
 # Google's official "lite" source tarball (as for 156, whose 156.0.8078.47 had none at
 # chromium-linux-tarballs, which ::gentoo uses). For 156.0.8078.12, the two have the same content,
@@ -821,13 +823,12 @@ chromium-llm_src_unpack() {
 		chromium_build_tree_py claim "${CHROMIUM_BUILD_TREE}/build" "${PORTAGE_BUILDDIR}"
 		einfo "Removing the last build's sources from ${S} ..."
 		rm -rf "${S}" || die
-		mkdir "${S}" || die
-		einfo "Unpacking chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz to ${S} ..."
-		tar -xf "${DISTDIR}/chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz" --strip-components=1 -C "${S}" ||
-			die "Failed to unpack chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz"
-	else
-		unpack chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz
 	fi
+	# The tarball's chromium-<version>/ is S (src/).
+	mkdir "${S}" || die
+	einfo "Unpacking chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz to ${S} ..."
+	tar -xf "${DISTDIR}/chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz" --strip-components=1 -C "${S}" ||
+		die "Failed to unpack chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz"
 	unpack polymer-${POLYMER_VER}.gh.tar.gz shadycss-${SHADYCSS_COMMIT}.gh.tar.gz
 	unpack perfect-hash-${ANGLE_PERFECT_HASH_VER}.tar.gz
 	unpack Vulkan-Headers-${SWS_VULKAN_HEADERS_COMMIT}.gh.tar.gz Vulkan-Headers-${SWS_VIDEO_HEADERS_COMMIT}.gh.tar.gz \
@@ -2770,16 +2771,7 @@ sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polym
 			> "${T}/dav1d-config.log" 2>&1 || die "Failed to regenerate dav1d's configuration (see ${T}/dav1d-config.log)"
 	fi
 
-	# remove_bundled_libraries.py walks the whole tree, so it would also delete what GN wrote in
-	# out/ (src_configure) under paths with a third_party component: keep that out of its way
-	# (a kept build tree's build directory isn't in it).
-	if [[ -z ${CHROMIUM_BUILD_TREE} ]]; then
-		mv out "${WORKDIR}/chromium-out" || die
-		chromium_unbundle
-		mv "${WORKDIR}/chromium-out" out || die
-	else
-		chromium_unbundle
-	fi
+	chromium_unbundle
 }
 
 chromium_unbundle() {

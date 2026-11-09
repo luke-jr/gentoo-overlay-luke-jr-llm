@@ -44,12 +44,14 @@ the major version. Portage expands variables in `make.conf` even single-quoted, 
 CHROMIUM_BUILD_DIR="/var/tmp/portage/chromium-build/\${MAJOR}"
 ```
 
-The tree (tens of GB per major):
+A build unpacks the sources to `src/` and builds them in `build/Release` (`../build/Release` from
+the sources), both in its `WORKDIR`, or in this directory with `CHROMIUM_BUILD_DIR`. The kept
+tree (tens of GB per major):
 
 ```
 src/                      the sources: each build deletes them and unpacks its own
 build/
-├── Release/              the build directory (ninja's; a normal build's is src/out/Release)
+├── Release/              the build directory (ninja's)
 ├── StaticRoots/          V8's static-roots build
 ├── state                 the sources' records: contents (hash) and timestamp at the last ninja run
 ├── owner                 the build using the tree
