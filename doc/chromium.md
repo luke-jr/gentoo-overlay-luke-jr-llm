@@ -269,8 +269,9 @@ OpenXR's with `USE=-openxr`, XNNPACK's RISC-V kernels).
   opt-in and by definition uses prebuilt binaries.
 - **gn ebuild:** uses git-r3 (pinned commit). A distfile tarball would need hosting.
 - **esbuild / typescript:** use the deprecated `EGO_SUM` for the same reason.
-- **pkgcheck** reports a few inherited warnings: `llvm-r1` → `llvm-r2`, the deliberate
-  `sys-libs/zlib` dependency (bug #930365), and the size of `files/`.
+- **pkgcheck** reports a few inherited warnings: the deliberate `sys-libs/zlib` dependency
+  (bug #930365) and the size of `files/` (with a `::gentoo` older than 2026-11-09, also
+  `llvm-r1` → `llvm-r2`: the eclass takes whichever LLVM eclass `rust.eclass` inherits).
 - **Privacy:** Chromium still talks to Google about non-Google things in the
   background. See `doc/chromium-runtime-downloads.md`; not addressed yet.
 - **Deferred: "Translate this page" on pages with JavaScript disabled.** Google's translate script runs
