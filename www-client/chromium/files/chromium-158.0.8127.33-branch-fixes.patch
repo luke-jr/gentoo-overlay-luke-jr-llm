@@ -1,10 +1,11 @@
 Chromium 158.0.8127.33 + the later changes of its release branch, up to
-95735b95b5e4bd2e0a2afc7fb4b1c850a104e0cb (refs/branch-heads/8127@{#1608}), for the
+0511f7f6635190cd25e7d876cc9d920ff748908f (refs/branch-heads/8127@{#1619}), for the
 158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..95735b95b5e4bd2e0a2afc7fb4b1c850a104e0cb,
-and from the branch's rolls of v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..875534af8903118cd3322a0f80eb0ab770e4847a (under v8/) and
-devtools/devtools-frontend 8deaa243ad5f7abd50b6c0e17a740d0f00fc068f..c4aa6a2d6fdeec5706f7eda413aab3b66718a780 (under third_party/devtools-frontend/src/),
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..0511f7f6635190cd25e7d876cc9d920ff748908f,
+and from the branch's rolls of v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..875534af8903118cd3322a0f80eb0ab770e4847a (under v8/),
+devtools/devtools-frontend 8deaa243ad5f7abd50b6c0e17a740d0f00fc068f..c4aa6a2d6fdeec5706f7eda413aab3b66718a780 (under third_party/devtools-frontend/src/) and
+skia/skia 361c8326695a06b7492fb6eeeff803c0c92a2447..7fd53188ef760eddc610ddea519343edc75fc409 (under third_party/skia/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .33 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -46,6 +47,11 @@ Commits contributing to it (oldest first):
   169d39d4b000 [M158] [OmniboxEverywhere] Add overflow menu for settings
   7076eb7bd8a7 [M158] Avoid dangling AtomicString refs across WillModifyAttribute
   95735b95b5e4 Roll commits from side projects in M158
+  770198aa688d [M158] [remoting] Disable auxiliary state in Windows Breakpad OOP minidumps
+  d4ccbc006598 [M158] [GCPW] Set directory owner in SecureCreateDirectory
+  b430ff5dda8f [M158] [ImageFetcher] Do not follow symlinks in ImageDataStoreDisk
+  7fc2cb78cb58 [M158] Reland "Fix PiP occlusion false positives on Wayland"
+  0511f7f66351 Roll commits from side projects in M158
     v8 77192c003a77 [M158] [objects] Disallow JSObject modifications during GC and GC callbacks
     v8 e8f914b08b81 Version 15.8.62.27
     v8 c0b2c2f3ade9 [M158] [compiler] Mark string-keyed ordered hash lookups as writing
@@ -55,6 +61,7 @@ Commits contributing to it (oldest first):
     v8 8a8f726f82ef [M158] [turboshaft] Invalidate load elimination on CatchBlockBegin
     v8 875534af8903 Version 15.8.62.30
     devtools-frontend c4aa6a2d6fde Update What's new content for Chrome 158
+    skia 7fd53188ef76 [M158] [ganesh] Fix skew matrix multiply in EllipticalRRectOp and avoid self intersections
 
 Checked: applies to the 158.0.8127.33 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -960,6 +967,110 @@ index 840d863..c985269 100644
    contents->Discard(base::NullCallback());
  #else
    auto* lifecycle_unit =
+diff --git a/chrome/browser/picture_in_picture/BUILD.gn b/chrome/browser/picture_in_picture/BUILD.gn
+index 347f802..4111326b 100644
+--- a/chrome/browser/picture_in_picture/BUILD.gn
++++ b/chrome/browser/picture_in_picture/BUILD.gn
+@@ -183,6 +183,10 @@
+     sources += [ "auto_picture_in_picture_window_occlusion_helper_stub.cc" ]
+   }
+ 
++  if (use_aura) {
++    deps += [ "//ui/aura" ]
++  }
++
+   if (use_ozone) {
+     deps += [ "//ui/ozone" ]
+   }
+@@ -238,6 +242,9 @@
+       "//components/unified_consent",
+       "//ui/events:test_support",
+     ]
++    if (use_ozone) {
++      deps += [ "//ui/ozone" ]
++    }
+   } else {
+     sources +=
+         [ "auto_picture_in_picture_tab_model_observer_helper_unittest.cc" ]
+diff --git a/chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.cc b/chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.cc
+index f60bf22..93fc953 100644
+--- a/chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.cc
++++ b/chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.cc
+@@ -6,8 +6,16 @@
+ 
+ #include "base/auto_reset.h"
+ #include "base/task/sequenced_task_runner.h"
++#include "build/build_config.h"
+ #include "chrome/browser/picture_in_picture/picture_in_picture_occlusion_observer.h"
+ 
++#if BUILDFLAG(IS_OZONE)
++#include "ui/ozone/public/ozone_platform.h"
++#if defined(USE_AURA)
++#include "ui/aura/window.h"
++#endif
++#endif
++
+ namespace {
+ 
+ constexpr base::TimeDelta kBoundsChangedUpdateDelay = base::Milliseconds(250);
+@@ -24,6 +32,43 @@
+   return false;
+ }
+ 
++#if BUILDFLAG(IS_OZONE)
++const views::Widget* GetRootWidget(const views::Widget* widget) {
++  while (widget->parent()) {
++    widget = widget->parent();
++  }
++  return widget;
++}
++#endif
++
++// Returns true if the window bounds of `widget` and `other` are in the same
++// coordinate space, so that comparing them is meaningful.
++bool HaveComparableBounds(const views::Widget* widget,
++                          const views::Widget* other) {
++#if BUILDFLAG(IS_OZONE)
++  // Without global screen coordinates (e.g. Wayland), only widgets sharing a
++  // root widget or Aura root window have bounds relative to the same origin.
++  if (!ui::OzonePlatform::GetInstance()
++           ->GetPlatformProperties()
++           .supports_global_screen_coordinates) {
++    const views::Widget* root = GetRootWidget(widget);
++    const views::Widget* other_root = GetRootWidget(other);
++    if (root == other_root) {
++      return true;
++    }
++#if defined(USE_AURA)
++    const aura::Window* window = root->GetNativeWindow();
++    const aura::Window* other_window = other_root->GetNativeWindow();
++    return window && other_window && window->GetRootWindow() &&
++           window->GetRootWindow() == other_window->GetRootWindow();
++#else
++    return false;
++#endif
++  }
++#endif
++  return true;
++}
++
+ }  // namespace
+ 
+ PictureInPictureOcclusionTracker::PictureInPictureOcclusionTracker() = default;
+@@ -348,6 +393,13 @@
+       continue;
+     }
+ 
++    // If the relative position of the widgets is unknown, then occlusion can't
++    // be determined. Treat the widget as unoccluded since otherwise it would be
++    // unusable while any picture-in-picture window is open.
++    if (!HaveComparableBounds(widget, picture_in_picture_widget)) {
++      continue;
++    }
++
+     const gfx::Rect picture_in_picture_bounds =
+         picture_in_picture_widget->GetWindowBoundsInScreen();
+     if (picture_in_picture_bounds.Intersects(observer_bounds)) {
 diff --git a/chrome/browser/renderer_context_menu/render_view_context_menu.cc b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 index 92debc3..28b124a 100644
 --- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
@@ -1699,6 +1810,20 @@ index c3d25e6..eb4da776 100644
    // Safe downcasting to the BrowserView-embedded implementation.
    virtual OmniboxPopupViewBrowserView* AsOmniboxPopupViewBrowserView();
  
+diff --git a/chrome/browser/ui/views/extensions/BUILD.gn b/chrome/browser/ui/views/extensions/BUILD.gn
+index e526aa40..e26e7dc 100644
+--- a/chrome/browser/ui/views/extensions/BUILD.gn
++++ b/chrome/browser/ui/views/extensions/BUILD.gn
+@@ -360,6 +360,9 @@
+     if (use_aura && !is_chromeos) {
+       deps += [ "//chrome/browser/ui/views:native_widget_factory" ]
+     }
++    if (use_ozone) {
++      deps += [ "//ui/ozone" ]
++    }
+   }
+ 
+   if (!is_android && !is_chromeos) {
 diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
 index 28d4fea4..764e295 100644
 --- a/chrome/browser/ui/views/frame/browser_view.cc
@@ -1789,6 +1914,37 @@ index b384c1e..1da2dd1 100644
  
    // content::WebContentsObserver:
    void DidFinishNavigation(
+diff --git a/chrome/browser/ui/views/permissions/BUILD.gn b/chrome/browser/ui/views/permissions/BUILD.gn
+index 23639aa..3191fe4 100644
+--- a/chrome/browser/ui/views/permissions/BUILD.gn
++++ b/chrome/browser/ui/views/permissions/BUILD.gn
+@@ -220,7 +220,12 @@
+       "//chrome/test:test_support",
+       "//chrome/test:test_support_ui",
+       "//ui/events:test_support",
++      "//ui/gfx/geometry",
+     ]
++
++    if (use_ozone) {
++      deps += [ "//ui/ozone" ]
++    }
+   }
+ 
+   if (!is_chromeos_device) {
+diff --git a/chrome/browser/ui/views/webid/BUILD.gn b/chrome/browser/ui/views/webid/BUILD.gn
+index b1e4dcf..50cdcd8 100644
+--- a/chrome/browser/ui/views/webid/BUILD.gn
++++ b/chrome/browser/ui/views/webid/BUILD.gn
+@@ -142,6 +142,9 @@
+     "//content/test:test_support",
+     "//services/network:test_support",
+   ]
++  if (use_ozone) {
++    deps += [ "//ui/ozone" ]
++  }
+ }
+ 
+ source_set("interactive_ui_tests") {
 diff --git a/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc b/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc
 index ac1866cd8..609eb3b5 100644
 --- a/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc
@@ -2058,6 +2214,75 @@ index b87d024b..4819960 100644
  
    bool is_composebox_mode() const { return is_composebox_mode_; }
    void SetIsComposebox(bool is_composebox);
+diff --git a/chrome/credential_provider/gaiacp/gcp_utils.cc b/chrome/credential_provider/gaiacp/gcp_utils.cc
+index d80cd05d..710031925 100644
+--- a/chrome/credential_provider/gaiacp/gcp_utils.cc
++++ b/chrome/credential_provider/gaiacp/gcp_utils.cc
+@@ -946,6 +946,10 @@
+   }
+ 
+   base::win::SecurityDescriptor sd;
++  // Set the owner explicitly. An object's owner implicitly holds WRITE_DAC, so
++  // if a pre-existing directory kept its creator as owner, that creator could
++  // undo the restrictive DACL applied below.
++  sd.set_owner(base::win::Sid(base::win::WellKnownSid::kBuiltinAdministrators));
+   sd.set_dacl_protected(true);  // Protects from inheriting parent DACLs
+ 
+   // Add DACL entries strictly for SYSTEM and BuiltinAdministrators with full
+@@ -989,9 +993,9 @@
+   }
+ 
+   // If CreateDirectory failed (e.g., because the directory already exists),
+-  // open a handle to the directory to set the DACL.
++  // open a handle to the directory to set the owner and DACL.
+   base::File handle(::CreateFile(
+-      path.value().c_str(), WRITE_DAC | READ_CONTROL,
++      path.value().c_str(), WRITE_DAC | WRITE_OWNER | READ_CONTROL,
+       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+       OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+       nullptr));
+@@ -1024,10 +1028,10 @@
+     return false;
+   }
+ 
+-  // Apply the DACL to the directory.
+-  if (!sd.WriteToHandle(handle.GetPlatformFile(),
+-                        base::win::SecurityObjectType::kFile,
+-                        DACL_SECURITY_INFORMATION)) {
++  // Apply the owner and DACL to the directory.
++  if (!sd.WriteToHandle(
++          handle.GetPlatformFile(), base::win::SecurityObjectType::kFile,
++          DACL_SECURITY_INFORMATION | OWNER_SECURITY_INFORMATION)) {
+     HRESULT hr = HRESULT_FROM_WIN32(::GetLastError());
+     LOGFN(ERROR) << "Failed to write SecurityDescriptor to handle for " << path
+                  << " hr=" << putHR(hr);
+diff --git a/chrome/credential_provider/gaiacp/gcp_utils.h b/chrome/credential_provider/gaiacp/gcp_utils.h
+index 905e573..3e68d2b7 100644
+--- a/chrome/credential_provider/gaiacp/gcp_utils.h
++++ b/chrome/credential_provider/gaiacp/gcp_utils.h
+@@ -283,14 +283,15 @@
+ // redirected, false if it matches exactly.
+ bool IsPathRedirected(const base::FilePath& path);
+ 
+-// Creates a directory with restrictive DACLs that limit access exclusively to
+-// NT AUTHORITY\SYSTEM and BUILTIN\Administrators, preventing inheritance from
+-// parent folders (such as ProgramData). When `grant_read_on_children` is true,
+-// also grants Authenticated Users and All Application Packages inherit-only
+-// read access to child objects. If the directory already exists, its DACL is
++// Creates a directory owned by BUILTIN\Administrators with restrictive DACLs
++// that limit access exclusively to NT AUTHORITY\SYSTEM and
++// BUILTIN\Administrators, preventing inheritance from parent folders (such as
++// ProgramData). When `grant_read_on_children` is true, also grants
++// Authenticated Users and All Application Packages inherit-only read access to
++// child objects. If the directory already exists, its owner and DACL are
+ // updated to be secure. Parent directories of `path` are created as-needed.
+-// Returns false if the directory could not be created or the DACL could not be
+-// applied.
++// Returns false if the directory could not be created or the security
++// descriptor could not be applied.
+ bool SecureCreateDirectory(const base::FilePath& path,
+                            bool grant_read_on_children = false);
+ 
 diff --git a/components/enterprise/device_attestation/common/device_attestation_types.h b/components/enterprise/device_attestation/common/device_attestation_types.h
 index 904e3ba..4dee7c8 100644
 --- a/components/enterprise/device_attestation/common/device_attestation_types.h
@@ -2078,6 +2303,117 @@ index 904e3ba..4dee7c8 100644
  };
  
  struct AttestationResult {
+diff --git a/components/image_fetcher/core/cache/image_data_store_disk.cc b/components/image_fetcher/core/cache/image_data_store_disk.cc
+index 5d04953..0d54ebe 100644
+--- a/components/image_fetcher/core/cache/image_data_store_disk.cc
++++ b/components/image_fetcher/core/cache/image_data_store_disk.cc
+@@ -7,9 +7,12 @@
+ #include <utility>
+ #include <vector>
+ 
++#include "base/containers/span.h"
++#include "base/files/file.h"
+ #include "base/files/file_enumerator.h"
+ #include "base/files/file_path.h"
+ #include "base/files/file_util.h"
++#include "base/files/scoped_file.h"
+ #include "base/functional/bind.h"
+ #include "base/logging.h"
+ #include "base/strings/utf_string_conversions.h"
+@@ -30,11 +33,17 @@
+ const FilePath::CharType kPathPostfix[] =
+     FILE_PATH_LITERAL("image_data_storage");
+ 
++bool IsStoragePathLink(const FilePath& storage_path) {
++  return base::IsLink(storage_path) || base::IsLink(storage_path.DirName());
++}
++
+ InitializationStatus InitializeImpl(FilePath storage_path) {
+   // TODO(wylieb): Report errors if they occur.
+   File::Error error;
+-  // This will check if the directory exists first.
+-  if (base::CreateDirectoryAndGetError(storage_path, &error)) {
++  // CreateDirectoryAndGetError() succeeds if `storage_path` is a symlink to an
++  // existing directory, so check for links after it runs.
++  if (base::CreateDirectoryAndGetError(storage_path, &error) &&
++      !IsStoragePathLink(storage_path)) {
+     return InitializationStatus::INITIALIZED;
+   }
+ 
+@@ -54,10 +63,22 @@
+                    const std::string& key,
+                    std::string data,
+                    bool needs_transcoding) {
++  if (IsStoragePathLink(storage_path)) {
++    DVLOG(1) << "Storage path is a symbolic link.";
++    return;
++  }
++
+   FilePath file_path = BuildFilePath(storage_path, key, needs_transcoding);
+ 
+-  if (!base::WriteFile(file_path, data)) {
++  // FLAG_NO_FOLLOW maps to O_NOFOLLOW on POSIX (Android, ChromeOS, Linux,
++  // Mac, iOS) and is ignored on Windows.
++  File file(file_path,
++            File::FLAG_CREATE_ALWAYS | File::FLAG_WRITE | File::FLAG_NO_FOLLOW);
++  if (!file.IsValid() || !file.WriteAndCheck(0, base::as_byte_span(data))) {
+     DVLOG(1) << "WriteFile failed.";
++    file.Close();
++    base::DeleteFile(file_path);
++    return;
+   }
+ 
+   if (!needs_transcoding) {
+@@ -73,18 +94,33 @@
+ std::string LoadImageImpl(FilePath storage_path,
+                           const std::string& key,
+                           bool needs_transcoding) {
+-  FilePath file_path = BuildFilePath(storage_path, key, needs_transcoding);
+-
+-  if (!base::PathExists(file_path)) {
+-    return "";
++  if (IsStoragePathLink(storage_path)) {
++    return std::string();
+   }
+ 
++  FilePath file_path = BuildFilePath(storage_path, key, needs_transcoding);
++
++  // FLAG_NO_FOLLOW maps to O_NOFOLLOW on POSIX and is ignored on Windows.
++  File file(file_path,
++            File::FLAG_OPEN | File::FLAG_READ | File::FLAG_NO_FOLLOW);
++  if (!file.IsValid()) {
++    return std::string();
++  }
++
++  base::ScopedFILE stream(base::FileToFILE(std::move(file), "rb"));
+   std::string data;
+-  base::ReadFileToString(file_path, &data);
++  if (!stream || !base::ReadStreamToString(stream.get(), &data)) {
++    return std::string();
++  }
++
+   return data;
+ }
+ 
+ void DeleteImageImpl(FilePath storage_path, const std::string& key) {
++  if (IsStoragePathLink(storage_path)) {
++    return;
++  }
++
+   FilePath file_path =
+       BuildFilePath(storage_path, key, /* needs_transcoding */ false);
+   bool success = base::DeleteFile(file_path);
+@@ -102,6 +138,10 @@
+ }
+ 
+ std::vector<std::string> GetAllKeysImpl(FilePath storage_path) {
++  if (IsStoragePathLink(storage_path)) {
++    return {};
++  }
++
+   std::vector<std::string> keys;
+   FileEnumerator file_enumerator(storage_path, false, FileEnumerator::FILES);
+   for (FilePath name = file_enumerator.Next(); !name.empty();
 diff --git a/components/input/cursor_manager.cc b/components/input/cursor_manager.cc
 index b7aa3703..dc31a69 100644
 --- a/components/input/cursor_manager.cc
@@ -2981,6 +3317,153 @@ index e03992d..441d33a 100644
  
  constexpr SkColor kQuickOfficeExtensionBackgroundColor =
      SkColorSetRGB(241, 241, 241);
+diff --git a/remoting/base/crash/breakpad_server.cc b/remoting/base/crash/breakpad_server.cc
+index 6c1ef81..0f9ebe2 100644
+--- a/remoting/base/crash/breakpad_server.cc
++++ b/remoting/base/crash/breakpad_server.cc
+@@ -2,23 +2,32 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
++#include <windows.h>
++
+ #include <memory>
+ #include <string>
+ #include <utility>
+ 
+-#include "base/functional/bind.h"
++#include "base/files/file.h"
++#include "base/files/file_path.h"
++#include "base/files/file_util.h"
+ #include "base/logging.h"
+ #include "base/no_destructor.h"
+ #include "base/strings/string_number_conversions.h"
+ #include "base/time/time.h"
++#include "base/uuid.h"
++#include "base/values.h"
+ #include "base/win/access_control_list.h"
+ #include "base/win/security_descriptor.h"
+ #include "base/win/sid.h"
+ #include "remoting/base/crash/breakpad_utils.h"
++#include "remoting/base/crash/breakpad_win.h"
+ #include "remoting/base/crash/crash_reporting_breakpad.h"
+ #include "remoting/base/logging.h"
+ #include "remoting/base/version.h"
++#include "third_party/breakpad/breakpad/src/client/windows/crash_generation/client_info.h"
+ #include "third_party/breakpad/breakpad/src/client/windows/crash_generation/crash_generation_server.h"
++#include "third_party/breakpad/breakpad/src/client/windows/crash_generation/minidump_generator.h"
+ 
+ namespace remoting {
+ 
+@@ -32,6 +41,61 @@
+ // Passed as a flag in the named pipe DACL entry to indicate no inheritance.
+ constexpr bool kNoInheritance = false;
+ 
++base::FilePath GenerateMinidumpForClient(
++    const google_breakpad::ClientInfo& client_info,
++    const base::FilePath& minidump_dir) {
++  EXCEPTION_POINTERS* client_ex_info = nullptr;
++  if (!client_info.GetClientExceptionInfo(&client_ex_info)) {
++    LOG(ERROR) << "Failed to retrieve EXCEPTION_POINTERS from OOP client (pid="
++               << client_info.pid() << ")";
++    return base::FilePath();
++  }
++
++  DWORD client_thread_id = 0;
++  if (!client_info.GetClientThreadId(&client_thread_id)) {
++    LOG(ERROR) << "Failed to retrieve thread ID from OOP client (pid="
++               << client_info.pid() << ")";
++    return base::FilePath();
++  }
++
++  base::FilePath dump_file_path = minidump_dir.AppendASCII(
++      base::Uuid::GenerateRandomV4().AsLowercaseString() + ".dmp");
++  base::File dump_file(dump_file_path,
++                       base::File::FLAG_CREATE | base::File::FLAG_WRITE |
++                           base::File::FLAG_WIN_EXCLUSIVE_READ |
++                           base::File::FLAG_WIN_EXCLUSIVE_WRITE);
++  if (!dump_file.IsValid()) {
++    LOG(ERROR) << "Failed to create dump file for OOP client (pid="
++               << client_info.pid()
++               << "): " << base::File::ErrorToString(dump_file.error_details());
++    return base::FilePath();
++  }
++
++  bool write_succeeded = false;
++  {
++    // Always enforce kMinidumpType server-side rather than trusting the
++    // client-supplied client_info.dump_type(), and pass an externally owned
++    // file handle via SetDumpFile() so dump_file_is_internal_ remains false.
++    google_breakpad::MinidumpGenerator dump_generator(
++        minidump_dir.value(), client_info.process_handle(), client_info.pid(),
++        client_thread_id, GetCurrentThreadId(), client_ex_info,
++        client_info.assert_info(), kMinidumpType,
++        /*is_client_pointers=*/true);
++    dump_generator.SetDumpFile(dump_file.GetPlatformFile());
++    write_succeeded = dump_generator.WriteMinidump();
++  }
++  dump_file.Close();
++
++  if (!write_succeeded) {
++    LOG(ERROR) << "Failed to write minidump for OOP client (pid="
++               << client_info.pid() << ")";
++    base::DeleteFile(dump_file_path);
++    return base::FilePath();
++  }
++
++  return dump_file_path;
++}
++
+ class BreakpadServer {
+  public:
+   BreakpadServer();
+@@ -63,13 +127,20 @@
+ void OnClientDumpRequestCallback(void* context,
+                                  const google_breakpad::ClientInfo* client_info,
+                                  const std::wstring* file_path) {
+-  if (!file_path) {
+-    LOG(ERROR) << "OnClientDumpRequestCallback called with invalid file_path";
++  if (!client_info || !client_info->process_handle() ||
++      client_info->pid() == 0) {
++    LOG(ERROR) << "OnClientDumpRequestCallback called with invalid client_info";
+     return;
+   }
+-  base::FilePath dump_file(*file_path);
+-  if (!GetMinidumpDirectoryPath().IsParent(dump_file)) {
+-    LOG(ERROR) << "Minidump written to an unexpected location: " << dump_file;
++
++  base::FilePath minidump_dir = GetMinidumpDirectoryPath();
++  if (minidump_dir.empty()) {
++    return;
++  }
++
++  base::FilePath dump_file =
++      GenerateMinidumpForClient(*client_info, minidump_dir);
++  if (dump_file.empty()) {
+     return;
+   }
+ 
+@@ -110,6 +181,9 @@
+   security_attributes.lpSecurityDescriptor = &security_descriptor;
+   security_attributes.bInheritHandle = false;
+ 
++  // Pass generate_dumps=false so OnClientDumpRequestCallback generates the
++  // minidump using the server-enforced kMinidumpType rather than trusting the
++  // client-supplied dump_type.
+   crash_server_ = std::make_unique<google_breakpad::CrashGenerationServer>(
+       kCrashServerPipeName, &security_attributes,
+       /*connect_callback=*/OnClientConnectedCallback,
+@@ -120,7 +194,9 @@
+       /*exit_context=*/nullptr,
+       /*upload_request_callback=*/nullptr,
+       /*upload_context=*/nullptr,
+-      /*generate_dumps=*/true, &GetMinidumpDirectoryPath().value());
++      /*generate_dumps=*/false,
++      /*dump_path=*/nullptr);
++  crash_server_->pre_fetch_custom_info(false);
+   crash_server_->Start();
+ }
+ 
 diff --git a/third_party/blink/renderer/core/dom/element.cc b/third_party/blink/renderer/core/dom/element.cc
 index 1e198ec..19f2e8bf 100644
 --- a/third_party/blink/renderer/core/dom/element.cc
@@ -3525,6 +4008,110 @@ index 7373bf5..35751c4 100644
    protected onTilesRendered_() {
      performance.measure('most-visited-rendered');
      assert(this.maxVisibleTiles_ > 0);
+diff --git a/third_party/skia/src/gpu/ganesh/ops/GrOvalOpFactory.cpp b/third_party/skia/src/gpu/ganesh/ops/GrOvalOpFactory.cpp
+index 22d188d..9b8a7f1 100644
+--- a/third_party/skia/src/gpu/ganesh/ops/GrOvalOpFactory.cpp
++++ b/third_party/skia/src/gpu/ganesh/ops/GrOvalOpFactory.cpp
+@@ -27,6 +27,7 @@
+ #include "src/core/SkColorData.h"
+ #include "src/core/SkMatrixPriv.h"
+ #include "src/core/SkRRectPriv.h"
++#include "src/core/SkRectPriv.h"
+ #include "src/core/SkSLTypeShared.h"
+ #include "src/gpu/BufferWriter.h"
+ #include "src/gpu/KeyBuilder.h"
+@@ -1886,18 +1887,25 @@
+         params.fCenter = viewMatrix.mapPoint(ellipse.center());
+         float ellipseXRadius = ellipse.width() / 2.f;
+         float ellipseYRadius = ellipse.height() / 2.f;
++        // This computes `|viewMatrix * (ellipseXRadius, ellipseYRadius)|`. Since `viewMatrix` is
++        // rectStaysRect, this is sufficient to compute the separate device-space X and Y axis radii
++        // since it is either [sx 0][0 sy]*(ex, ey) = (sx*ex, sy*ey) or it is
++        // [0 kx][ky 0]*(ex,ey) = (kx*ey, ky*ex). Adding them together (since one condition is zero)
++        // leads to (sx*ex + kx*ey, ky*ex + sy*ey).
+         params.fXRadius = SkScalarAbs(viewMatrix[SkMatrix::kMScaleX] * ellipseXRadius +
+                                       viewMatrix[SkMatrix::kMSkewX] * ellipseYRadius);
+         params.fYRadius = SkScalarAbs(viewMatrix[SkMatrix::kMSkewY] * ellipseXRadius +
+                                       viewMatrix[SkMatrix::kMScaleY] * ellipseYRadius);
+ 
+-        // do (potentially) anisotropic mapping of stroke
++        // do (potentially) anisotropic mapping of stroke; using the same math as above, except
++        // both local radii are `strokeWidth`.
++        SkASSERT(viewMatrix.rectStaysRect());
+         SkVector scaledStroke;
+         SkScalar strokeWidth = stroke.getWidth();
+         scaledStroke.fX = SkScalarAbs(
+-                strokeWidth * (viewMatrix[SkMatrix::kMScaleX] + viewMatrix[SkMatrix::kMSkewY]));
++                strokeWidth * (viewMatrix[SkMatrix::kMScaleX] + viewMatrix[SkMatrix::kMSkewX]));
+         scaledStroke.fY = SkScalarAbs(
+-                strokeWidth * (viewMatrix[SkMatrix::kMSkewX] + viewMatrix[SkMatrix::kMScaleY]));
++                strokeWidth * (viewMatrix[SkMatrix::kMSkewY] + viewMatrix[SkMatrix::kMScaleY]));
+ 
+         SkStrokeRec::Style style = stroke.getStyle();
+         bool isStrokeOnly =
+@@ -3239,9 +3247,14 @@
+     SkRect bounds;
+     viewMatrix.mapRect(&bounds, rrectBounds);
+ 
++    // Since this op requires the matrix to be a similarity matrix, `scaledRadius` is computed as
++    // the length of `viewMatrix * (radius, 0) = radius * (sx, ky)`. Since rectStaysRect is true,
++    // one of sx or ky is 0, so |sx + ky| is the same as the length.
+     SkScalar radius = SkRRectPriv::GetSimpleRadii(rrect).fX;
+     SkScalar scaledRadius = SkScalarAbs(radius * (viewMatrix[SkMatrix::kMScaleX] +
+                                                   viewMatrix[SkMatrix::kMSkewY]));
++    scaledRadius = std::min(scaledRadius, SkRectPriv::HalfWidth(bounds));
++    scaledRadius = std::min(scaledRadius, SkRectPriv::HalfHeight(bounds));
+ 
+     // Do mapping of stroke. Use -1 to indicate fill-only draws.
+     SkScalar scaledStroke = -1;
+@@ -3289,12 +3302,18 @@
+     SkRect bounds;
+     viewMatrix.mapRect(&bounds, rrectBounds);
+ 
++    // Map the local radii to device space, see EllipseOp::Make()
+     SkVector radii = SkRRectPriv::GetSimpleRadii(rrect);
+     SkScalar xRadius = SkScalarAbs(viewMatrix[SkMatrix::kMScaleX] * radii.fX +
+-                                   viewMatrix[SkMatrix::kMSkewY] * radii.fY);
+-    SkScalar yRadius = SkScalarAbs(viewMatrix[SkMatrix::kMSkewX] * radii.fX +
++                                   viewMatrix[SkMatrix::kMSkewX] * radii.fY);
++    SkScalar yRadius = SkScalarAbs(viewMatrix[SkMatrix::kMSkewY] * radii.fX +
+                                    viewMatrix[SkMatrix::kMScaleY] * radii.fY);
+ 
++    // Enforce the corner radii not crossing over each other, which is normally guaranteed by
++    // SkRRect, but this is post transformation.
++    xRadius = std::min(xRadius, SkRectPriv::HalfWidth(bounds));
++    yRadius = std::min(yRadius, SkRectPriv::HalfHeight(bounds));
++
+     SkStrokeRec::Style style = stroke.getStyle();
+ 
+     // Do (potentially) anisotropic mapping of stroke. Use -1s to indicate fill-only draws.
+@@ -3309,10 +3328,11 @@
+         if (SkStrokeRec::kHairline_Style == style) {
+             scaledStroke.set(1, 1);
+         } else {
++            // See EllipseOp::Make()
+             scaledStroke.fX = SkScalarAbs(
+-                    strokeWidth * (viewMatrix[SkMatrix::kMScaleX] + viewMatrix[SkMatrix::kMSkewY]));
++                    strokeWidth * (viewMatrix[SkMatrix::kMScaleX] + viewMatrix[SkMatrix::kMSkewX]));
+             scaledStroke.fY = SkScalarAbs(
+-                    strokeWidth * (viewMatrix[SkMatrix::kMSkewX] + viewMatrix[SkMatrix::kMScaleY]));
++                    strokeWidth * (viewMatrix[SkMatrix::kMSkewY] + viewMatrix[SkMatrix::kMScaleY]));
+         }
+ 
+         // if half of strokewidth is greater than radius, we don't handle that right now
+@@ -3322,12 +3342,6 @@
+         }
+     }
+ 
+-    // The matrix may have a rotation by an odd multiple of 90 degrees.
+-    if (viewMatrix.getScaleX() == 0) {
+-        std::swap(xRadius, yRadius);
+-        std::swap(scaledStroke.fX, scaledStroke.fY);
+-    }
+-
+     // The way the effect interpolates the offset-to-ellipse/circle-center attribute only works on
+     // the interior of the rrect if the radii are >= 0.5. Otherwise, the inner rect of the nine-
+     // patch will have fractional coverage. This only matters when the interior is actually filled.
 diff --git a/third_party/devtools-frontend/src/front_end/panels/whats_new/ReleaseNoteText.ts b/third_party/devtools-frontend/src/front_end/panels/whats_new/ReleaseNoteText.ts
 index b07261b..e7b2c2c 100644
 --- a/third_party/devtools-frontend/src/front_end/panels/whats_new/ReleaseNoteText.ts
