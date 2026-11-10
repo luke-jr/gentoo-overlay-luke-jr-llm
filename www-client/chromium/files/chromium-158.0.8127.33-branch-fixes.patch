@@ -1,8 +1,9 @@
 Chromium 158.0.8127.33 + the later changes of its release branch, up to
-5b66f2e70fa99786226a5e45a0cf32b9ff75101a (refs/branch-heads/8127@{#1589}), for the
+ded6b0dabaa638cdf01abbea8d7f36e890f1c187 (refs/branch-heads/8127@{#1599}), for the
 158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..5b66f2e70fa99786226a5e45a0cf32b9ff75101a,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..ded6b0dabaa638cdf01abbea8d7f36e890f1c187,
+and from v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..76231bd14f0349ce03eebb7aa9685447733aca66 (the branch's V8 roll, under v8/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .33 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -34,6 +35,18 @@ Commits contributing to it (oldest first):
   2fc814f07769 [M158] Avoid stale-lifecycle state when computing intersections
   dc95250ff8f7 [M158] [FedCM] Return early in RedirectTo() if the navigation destroys it
   5b66f2e70fa9 [M158] [FedCM] Close the dialog in a separate task for the close button
+  aaa46a2620fd [M158] [ContextualTasks] Show account picker in Incognito
+  e3ca10141256 [158] Fix BlobGenerationResult::IsSuccess() for Android attestation
+  2524a2e6a95f [M158] [tts] Revert caller ID checks in SendTtsEvent and SendAudioBuffer
+  f3c94eba3017 [M158] Restore Partial Translate context menu item on PDFs
+  837b595c3929 [M158] ozone/drm: Extend DRM authentication timeout to 30s
+  ded6b0dabaa6 Roll commits from side projects in M158
+    v8 77192c003a77 [M158] [objects] Disallow JSObject modifications during GC and GC callbacks
+    v8 e8f914b08b81 Version 15.8.62.27
+    v8 c0b2c2f3ade9 [M158] [compiler] Mark string-keyed ordered hash lookups as writing
+    v8 4841c0f413fd Version 15.8.62.28
+    v8 6951764b330c [M158] [maglev] Check that SubgraphBase::Label is bound before destruction
+    v8 76231bd14f03 Version 15.8.62.29
 
 Checked: applies to the 158.0.8127.33 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -280,6 +293,37 @@ index f0ebc98..69a0261 100644
  
    void Read(SkRegion* region);
    base::span<uint8_t> CopyScratchSpace(size_t bytes);
+diff --git a/chrome/browser/contextual_tasks/BUILD.gn b/chrome/browser/contextual_tasks/BUILD.gn
+index 770bcd4..62ea2dd 100644
+--- a/chrome/browser/contextual_tasks/BUILD.gn
++++ b/chrome/browser/contextual_tasks/BUILD.gn
+@@ -429,6 +429,10 @@
+   ]
+ }
+ 
++proto_library("list_accounts_proto") {
++  sources = [ "list_accounts_response.proto" ]
++}
++
+ source_set("ui_impl") {
+   sources = [
+     "contextual_search_session_finder.cc",
+@@ -458,6 +462,7 @@
+   ]
+   deps = [
+     ":impl",
++    ":list_accounts_proto",
+     ":tab_restore",
+     ":ui",
+     ":user_data",
+@@ -827,6 +832,7 @@
+   deps = [
+     ":contextual_tasks",
+     ":impl",
++    ":list_accounts_proto",
+     ":tab_restore",
+     ":test_support",
+     ":ui",
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc b/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc
 index 453ff3dc..da06881 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc
@@ -319,6 +363,488 @@ index ed60117c..69e0b5b 100644
              !std::ranges::contains(target_web_contents, tab_contents)) {
            target_web_contents.push_back(tab_contents);
          }
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc
+index f51d210..c725e3a5a 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc
+@@ -5,6 +5,7 @@
+ #include "chrome/browser/contextual_tasks/contextual_tasks_ui_base.h"
+ 
+ #include <algorithm>
++#include <cstdint>
+ #include <iterator>
+ #include <memory>
+ #include <optional>
+@@ -13,11 +14,14 @@
+ #include <utility>
+ #include <vector>
+ 
++#include "base/base64.h"
++#include "base/containers/flat_map.h"
+ #include "base/functional/bind.h"
+ #include "base/functional/callback_helpers.h"
+ #include "base/memory/raw_ref.h"
+ #include "base/memory/ref_counted_memory.h"
+ #include "base/memory/weak_ptr.h"
++#include "base/numerics/safe_conversions.h"
+ #include "base/scoped_observation.h"
+ #include "base/strings/strcat.h"
+ #include "base/strings/string_util.h"
+@@ -36,6 +40,7 @@
+ #include "chrome/browser/contextual_tasks/contextual_tasks_ui_service_factory.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_utils.h"
+ #include "chrome/browser/contextual_tasks/entry_point_eligibility_manager.h"
++#include "chrome/browser/contextual_tasks/list_accounts_response.pb.h"
+ #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/profiles/profile_avatar_icon_util.h"
+@@ -61,21 +66,32 @@
+ #include "components/omnibox/common/composebox_features.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/signin/public/identity_manager/account_info.h"
++#include "components/signin/public/identity_manager/accounts_in_cookie_jar_info.h"
+ #include "components/signin/public/identity_manager/identity_manager.h"
+ #include "components/strings/grit/components_strings.h"
+ #include "components/tabs/public/tab_interface.h"
+ #include "content/public/browser/navigation_controller.h"
++#include "content/public/browser/storage_partition.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/browser/web_ui.h"
+ #include "content/public/browser/web_ui_controller.h"
+ #include "content/public/browser/web_ui_data_source.h"
+ #include "extensions/buildflags/buildflags.h"
++#include "google_apis/gaia/gaia_auth_consumer.h"
++#include "google_apis/gaia/gaia_auth_fetcher.h"
+ #include "google_apis/gaia/gaia_auth_util.h"
++#include "google_apis/gaia/gaia_constants.h"
+ #include "google_apis/gaia/gaia_id.h"
+ #include "google_apis/gaia/gaia_urls.h"
+ #include "mojo/public/mojom/base/error.mojom.h"
+ #include "net/base/url_util.h"
++#include "net/cookies/canonical_cookie.h"
++#include "net/cookies/cookie_change_dispatcher.h"
++#include "net/cookies/cookie_options.h"
++#include "net/cookies/cookie_partition_key_collection.h"
++#include "services/network/public/cpp/shared_url_loader_factory.h"
+ #include "services/network/public/mojom/content_security_policy.mojom.h"
++#include "services/network/public/mojom/cookie_manager.mojom.h"
+ #include "third_party/lens_server_proto/search_communication.pb.h"
+ #include "ui/base/device_form_factor.h"
+ #include "ui/base/l10n/l10n_util.h"
+@@ -101,6 +117,7 @@
+ #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.h"
+ #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
+ #include "chrome/browser/ui/views/permissions/chip/permission_chip_view.h"
++#include "chrome/browser/ui/webui/sanitized_image/sanitized_image_source.h"
+ #include "chrome/browser/ui/webui/theme_source.h"
+ #include "chrome/browser/ui/webui/webui_toolbar/webui_toolbar_layout_css_helper.h"
+ #include "chrome/grit/webui_toolbar_shared_resources.h"
+@@ -148,50 +165,139 @@
+   Navigate(&params);
+ }
+ 
+-// Returns the Google account to show in the toolbar, if any. This is only set
+-// when the user is signed in to Google on the web but not signed in to Chrome,
+-// as the account is otherwise duplicative with the one in top Chrome.
+-std::optional<gaia::ListedAccount> GetWebOnlyAccount(
++struct ProfileIndicatorInfo {
++  GURL avatar_url;
++  std::string full_name;
++  std::string email;
++  uint32_t signed_in_account_count = 0;
++};
++
++struct ListedAccountExtraInfo {
++  std::string display_name;
++  std::string photo_url;
++};
++
++// TODO(crbug.com/578566401): Converge with `gaia::ParseBinaryListAccountsData`
++// and the standard `google_apis/gaia/list_accounts_response.proto` once
++// `display_name` and `photo_url` are unreserved there.
++bool ParseOffTheRecordListAccountsData(
++    std::string_view base64_data,
++    std::vector<gaia::ListedAccount>& accounts,
++    base::flat_map<GaiaId, ListedAccountExtraInfo>& extra_info_map) {
++  accounts.clear();
++  extra_info_map.clear();
++
++  std::string decoded;
++  if (!base::Base64Decode(base64_data, &decoded,
++                          base::Base64DecodePolicy::kForgiving)) {
++    return false;
++  }
++
++  contextual_tasks::ListAccountsResponse parsed_result;
++  if (!parsed_result.ParseFromString(decoded)) {
++    return false;
++  }
++
++  for (const auto& account : parsed_result.account()) {
++    if (account.display_email().empty() || account.obfuscated_id().empty()) {
++      continue;
++    }
++
++    gaia::ListedAccount listed_account;
++    listed_account.email = gaia::CanonicalizeEmail(account.display_email());
++    listed_account.gaia_id = GaiaId(account.obfuscated_id());
++    listed_account.valid =
++        !account.has_valid_session() || account.valid_session();
++    listed_account.signed_out =
++        account.has_signed_out() && account.signed_out();
++    listed_account.verified =
++        !account.has_is_verified() || account.is_verified();
++    listed_account.raw_email = account.display_email();
++
++    extra_info_map.insert_or_assign(listed_account.gaia_id,
++                                    ListedAccountExtraInfo{
++                                        .display_name = account.display_name(),
++                                        .photo_url = account.photo_url(),
++                                    });
++    accounts.push_back(std::move(listed_account));
++  }
++  return true;
++}
++
++ProfileIndicatorInfo GetProfileIndicatorInfoFromAccounts(
++    const std::vector<gaia::ListedAccount>& accounts,
+     signin::IdentityManager* identity_manager,
+-    const GURL& url) {
+-  if (identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSignin)) {
+-    return std::nullopt;
++    const GURL& url,
++    const base::flat_map<GaiaId, ListedAccountExtraInfo>& extra_info_map = {}) {
++  size_t user_index = contextual_tasks::GetUserIndex(url).value_or(0);
++  if (user_index >= accounts.size()) {
++    return {};
++  }
++  const gaia::ListedAccount& account = accounts[user_index];
++  if (account.signed_out || !account.valid) {
++    return {};
++  }
++
++  AccountInfo extended_info =
++      identity_manager
++          ? identity_manager->FindExtendedAccountInfoByGaiaId(account.gaia_id)
++          : AccountInfo();
++  auto extra_it = extra_info_map.find(account.gaia_id);
++  GURL avatar_url;
++  if (!extended_info.IsEmpty() && extended_info.GetAvatarImage().has_value()) {
++    avatar_url = GURL(
++        base::StrCat({chrome::kChromeUIContextualTasksURL,
++                      kProfileAvatarPathPrefix, account.gaia_id.ToString()}));
++  } else if (extra_it != extra_info_map.end() &&
++             GURL(extra_it->second.photo_url).SchemeIs(url::kHttpsScheme)) {
++    avatar_url = GURL(base::StrCat(
++        {chrome::kChromeUIImageURL, "?", extra_it->second.photo_url}));
++  } else {
++    avatar_url = GURL(profiles::GetPlaceholderAvatarIconUrl());
++  }
++
++  std::string full_name(extended_info.GetFullName().value_or(""));
++  if (full_name.empty() && extra_it != extra_info_map.end()) {
++    full_name = extra_it->second.display_name;
++  }
++
++  uint32_t signed_in_account_count = base::checked_cast<uint32_t>(
++      std::ranges::count_if(accounts, [](const gaia::ListedAccount& a) {
++        return !a.signed_out;
++      }));
++  return {
++      .avatar_url = std::move(avatar_url),
++      .full_name = std::move(full_name),
++      .email = account.email,
++      .signed_in_account_count = signed_in_account_count,
++  };
++}
++
++// Resolves the Google account information to show in the toolbar, if any. This
++// is only populated when the user is signed in to Google on the web but not
++// signed in to Chrome, as the account is otherwise duplicative with the one in
++// top Chrome.
++ProfileIndicatorInfo GetProfileIndicatorInfo(Profile* profile,
++                                             const GURL& url) {
++  auto* identity_manager = IdentityManagerFactory::GetForProfile(profile);
++  if (!identity_manager ||
++      identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSignin)) {
++    return {};
+   }
+   // A stale cookie jar is the list cached from a previous session, which can
+   // still show an account whose cookies have since expired. Wait for the
+   // fresh list; `CookieJarObserver` refreshes the toolbar when it arrives.
+-  if (!identity_manager->GetAccountsInCookieJar().AreAccountsFresh()) {
+-    return std::nullopt;
++  signin::AccountsInCookieJarInfo cookie_jar =
++      identity_manager->GetAccountsInCookieJar();
++  if (!cookie_jar.AreAccountsFresh()) {
++    return {};
+   }
+-  std::optional<gaia::ListedAccount> account =
+-      contextual_tasks::GetAccountFromCookieJar(identity_manager, url);
+-  if (account.has_value() && !account->signed_out && account->valid) {
+-    return account;
+-  }
+-  return std::nullopt;
++  return GetProfileIndicatorInfoFromAccounts(cookie_jar.GetAllAccounts(),
++                                             identity_manager, url);
+ }
+ 
+ GURL GetProfileAvatarUrl(Profile* profile, const GURL& url) {
+-  if (auto* identity_manager = IdentityManagerFactory::GetForProfile(profile)) {
+-    // If the user is not signed into Chrome, but signed into Google.com,
+-    // return cached avatar (if available; otherwise return generic).
+-    std::optional<gaia::ListedAccount> account =
+-        GetWebOnlyAccount(identity_manager, url);
+-    if (account.has_value()) {
+-      AccountInfo extended_info =
+-          identity_manager->FindExtendedAccountInfoByGaiaId(account->gaia_id);
+-      if (!extended_info.IsEmpty() &&
+-          extended_info.GetAvatarImage().has_value()) {
+-        return GURL(base::StrCat({chrome::kChromeUIContextualTasksURL,
+-                                  kProfileAvatarPathPrefix,
+-                                  account->gaia_id.ToString()}));
+-      }
+-      return GURL(profiles::GetPlaceholderAvatarIconUrl());
+-    }
+-  }
+-  // If the user is signed into Chrome, or fully signed out in Google + Chrome,
+-  // do not show the avatar.
+-  return GURL();
++  return GetProfileIndicatorInfo(profile, url).avatar_url;
+ }
+ 
+ bool IsLegacyOnlyContextualTasksResource(std::string_view path) {
+@@ -226,26 +332,6 @@
+   return std::ranges::contains(kLegacyOnlyPaths, path);
+ }
+ 
+-// Returns the full name and email of the account returned by
+-// `GetWebOnlyAccount()`, or empty strings if there is no such account.
+-std::pair<std::string, std::string> GetWebOnlyAccountNameAndEmail(
+-    Profile* profile,
+-    const GURL& url) {
+-  auto* identity_manager = IdentityManagerFactory::GetForProfile(profile);
+-  if (!identity_manager) {
+-    return {};
+-  }
+-  std::optional<gaia::ListedAccount> account =
+-      GetWebOnlyAccount(identity_manager, url);
+-  if (!account.has_value()) {
+-    return {};
+-  }
+-  AccountInfo extended_info =
+-      identity_manager->FindExtendedAccountInfoByGaiaId(account->gaia_id);
+-  return {std::string(extended_info.GetFullName().value_or("")),
+-          account->email};
+-}
+-
+ // `WebUIDataSource::SetRequestFilter` only supports a single filter callback
+ // pair, so `ShouldHandleContextualTasksRequest` and
+ // `HandleContextualTasksRequest` multiplex both `WebUIToolbarLayoutCssHelper`
+@@ -300,17 +386,45 @@
+ }  // namespace
+ 
+ class ContextualTasksUIBase::CookieJarObserver
+-    : public signin::IdentityManager::Observer {
++    : public signin::IdentityManager::Observer,
++      public network::mojom::CookieChangeListener,
++      public GaiaAuthConsumer {
+  public:
+-  CookieJarObserver(ContextualTasksUIBase& owner,
+-                    signin::IdentityManager* identity_manager)
+-      : owner_(owner) {
+-    observation_.Observe(identity_manager);
++  CookieJarObserver(ContextualTasksUIBase& owner, Profile* profile)
++      : owner_(owner), profile_(profile) {
++    if (auto* identity_manager =
++            IdentityManagerFactory::GetForProfile(profile_)) {
++      observation_.Observe(identity_manager);
++    } else if (profile_ && profile_->IsOffTheRecord() &&
++               contextual_tasks::
++                   IsContextualTasksSidePanelRearchitectureEnabled()) {
++      if (content::StoragePartition* partition =
++              profile_->GetDefaultStoragePartition()) {
++        partition->GetCookieManagerForBrowserProcess()->AddCookieChangeListener(
++            GaiaUrls::GetInstance()->secure_google_url(), std::nullopt,
++            cookie_listener_receiver_.BindNewPipeAndPassRemote());
++      }
++      FetchOffTheRecordAccounts();
++    }
+   }
+   CookieJarObserver(const CookieJarObserver&) = delete;
+   CookieJarObserver& operator=(const CookieJarObserver&) = delete;
+   ~CookieJarObserver() override = default;
+ 
++  std::optional<ProfileIndicatorInfo> GetOffTheRecordProfileIndicatorInfo(
++      const GURL& url) const {
++    if (!profile_ || !profile_->IsOffTheRecord() ||
++        IdentityManagerFactory::GetForProfile(profile_)) {
++      return std::nullopt;
++    }
++    if (!otr_accounts_fresh_) {
++      return ProfileIndicatorInfo{};
++    }
++    return GetProfileIndicatorInfoFromAccounts(otr_accounts_,
++                                               /*identity_manager=*/nullptr,
++                                               url, otr_extra_account_info_);
++  }
++
+   // signin::IdentityManager::Observer:
+   void OnAccountsInCookieUpdated(
+       const signin::AccountsInCookieJarInfo& accounts_in_cookie_jar_info,
+@@ -322,24 +436,114 @@
+     observation_.Reset();
+   }
+ 
++  // network::mojom::CookieChangeListener:
++  void OnCookieChange(const net::CookieChangeInfo& change) override {
++    if (GaiaConstants::kGaiaSigninCookieName != change.cookie.Name() &&
++        change.cause != net::CookieChangeCause::EXPLICIT) {
++      return;
++    }
++    otr_accounts_fresh_ = false;
++    FetchOffTheRecordAccounts();
++  }
++
++  // GaiaAuthConsumer:
++  void OnListAccountsSuccess(const std::string& data) override {
++    gaia_auth_fetcher_.reset();
++    if (!ParseOffTheRecordListAccountsData(data, otr_accounts_,
++                                           otr_extra_account_info_)) {
++      otr_accounts_fresh_ = false;
++      owner_->UpdateProfileIndicator();
++      return;
++    }
++    otr_accounts_fresh_ = true;
++    owner_->UpdateProfileIndicator();
++  }
++
++  void OnListAccountsFailure(const GoogleServiceAuthError& error) override {
++    gaia_auth_fetcher_.reset();
++    otr_accounts_fresh_ = false;
++    owner_->UpdateProfileIndicator();
++  }
++
+  private:
++  void FetchOffTheRecordAccounts() {
++    gaia_auth_fetcher_.reset();
++    weak_ptr_factory_.InvalidateWeakPtrs();
++    if (!profile_ || !profile_->GetDefaultStoragePartition()) {
++      return;
++    }
++    network::mojom::CookieManager* cookie_manager =
++        profile_->GetDefaultStoragePartition()
++            ->GetCookieManagerForBrowserProcess();
++    if (!cookie_manager) {
++      return;
++    }
++    cookie_manager->GetCookieList(
++        GaiaUrls::GetInstance()->secure_google_url(),
++        net::CookieOptions::MakeAllInclusive(),
++        net::CookiePartitionKeyCollection(),
++        base::BindOnce(&CookieJarObserver::OnOffTheRecordCookiesForListAccounts,
++                       weak_ptr_factory_.GetWeakPtr()));
++  }
++
++  void OnOffTheRecordCookiesForListAccounts(
++      const net::CookieAccessResultList& cookies,
++      const net::CookieAccessResultList& /*excluded_cookies*/) {
++    const bool has_gaia_signin_cookie = std::ranges::any_of(
++        cookies, [](const net::CookieWithAccessResult& cookie_with_result) {
++          return cookie_with_result.cookie.Name() ==
++                 GaiaConstants::kGaiaSigninCookieName;
++        });
++    if (!has_gaia_signin_cookie) {
++      otr_accounts_.clear();
++      otr_extra_account_info_.clear();
++      otr_accounts_fresh_ = true;
++      owner_->UpdateProfileIndicator();
++      return;
++    }
++    if (!profile_) {
++      return;
++    }
++    scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory =
++        profile_->GetURLLoaderFactory();
++    if (!url_loader_factory && profile_->GetDefaultStoragePartition()) {
++      url_loader_factory = profile_->GetDefaultStoragePartition()
++                               ->GetURLLoaderFactoryForBrowserProcess();
++    }
++    if (!url_loader_factory) {
++      return;
++    }
++    // TODO(crbug.com/582864907): Audit the `gaia_auth_list_accounts` traffic
++    // annotation and `BrowserSignin: 0` policy description for web-cookie-only
++    // and Off-The-Record callers.
++    gaia_auth_fetcher_ = std::make_unique<GaiaAuthFetcher>(
++        this, gaia::GaiaSource(gaia::GaiaSource::kChrome, "&mo=1"),
++        std::move(url_loader_factory));
++    gaia_auth_fetcher_->StartListAccounts();
++  }
++
+   const raw_ref<ContextualTasksUIBase> owner_;
++  const raw_ptr<Profile> profile_;
+   base::ScopedObservation<signin::IdentityManager,
+                           signin::IdentityManager::Observer>
+       observation_{this};
++  mojo::Receiver<network::mojom::CookieChangeListener>
++      cookie_listener_receiver_{this};
++  std::unique_ptr<GaiaAuthFetcher> gaia_auth_fetcher_;
++  std::vector<gaia::ListedAccount> otr_accounts_;
++  base::flat_map<GaiaId, ListedAccountExtraInfo> otr_extra_account_info_;
++  bool otr_accounts_fresh_ = false;
++  base::WeakPtrFactory<CookieJarObserver> weak_ptr_factory_{this};
+ };
+ 
+ ContextualTasksUIBase::ContextualTasksUIBase(content::WebUI* web_ui)
+     : ui::MojoWebUIController(web_ui,
+                               /*enable_chrome_send=*/true,
+                               /*enable_chrome_histograms=*/true) {
+-  if (auto* identity_manager =
+-          IdentityManagerFactory::GetForProfile(GetProfile())) {
+-    cookie_jar_observer_ =
+-        std::make_unique<CookieJarObserver>(*this, identity_manager);
+-  }
+-
+   Profile* profile = GetProfile();
++  if (profile) {
++    cookie_jar_observer_ = std::make_unique<CookieJarObserver>(*this, profile);
++  }
+   is_contextual_tasks_eligible_on_init_ =
+       contextual_tasks::EntryPointEligibilityManager::IsEligible(profile);
+ #if !BUILDFLAG(IS_ANDROID)
+@@ -483,6 +687,8 @@
+ 
+ #if !BUILDFLAG(IS_ANDROID)
+   content::URLDataSource::Add(profile, std::make_unique<ThemeSource>(profile));
++  content::URLDataSource::Add(profile,
++                              std::make_unique<SanitizedImageSource>(profile));
+   source->AddResourcePaths(kWebuiToolbarSharedResources);
+ #endif
+   source->SetRequestFilter(
+@@ -1283,9 +1489,19 @@
+ 
+ void ContextualTasksUIBase::UpdateProfileIndicator(const GURL& url) {
+   if (auto* toolbar_page = GetToolbarPageRemote()) {
+-    toolbar_page->SetProfileAvatarUrl(GetProfileAvatarUrl(GetProfile(), url));
+-    auto [full_name, email] = GetWebOnlyAccountNameAndEmail(GetProfile(), url);
+-    toolbar_page->SetAccountInfo(full_name, email);
++    ProfileIndicatorInfo info;
++    if (cookie_jar_observer_) {
++      if (std::optional<ProfileIndicatorInfo> otr_info =
++              cookie_jar_observer_->GetOffTheRecordProfileIndicatorInfo(url)) {
++        info = std::move(*otr_info);
++      } else {
++        info = GetProfileIndicatorInfo(GetProfile(), url);
++      }
++    } else {
++      info = GetProfileIndicatorInfo(GetProfile(), url);
++    }
++    toolbar_page->SetProfileAvatarUrl(info.avatar_url);
++    toolbar_page->SetAccountInfo(info.full_name, info.email);
+   }
+ }
+ 
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc b/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc
 index dbe07fd..4dbd54232 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc
@@ -359,6 +885,58 @@ index 4eb5cd4..6e8cd97 100644
    void OnThemeChanged() override;
  
    // content::WebContentsDelegate:
+diff --git a/chrome/browser/contextual_tasks/list_accounts_response.proto b/chrome/browser/contextual_tasks/list_accounts_response.proto
+new file mode 100644
+index 0000000..9bef6937
+--- /dev/null
++++ b/chrome/browser/contextual_tasks/list_accounts_response.proto
+@@ -0,0 +1,46 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++syntax = "proto2";
++
++package contextual_tasks;
++
++option optimize_for = LITE_RUNTIME;
++
++// The state of a Gaia account returned by Gaia's /ListAccounts endpoint.
++//
++// TODO(crbug.com/578566401): Converge with the standard
++// `google_apis/gaia/list_accounts_response.proto` once `display_name` and
++// `photo_url` are unreserved there.
++message Account {
++  // The full display name for the account.
++  optional string display_name = 2;
++
++  // The display email for the account.
++  optional string display_email = 3;
++
++  // The profile photo URL for the account.
++  optional string photo_url = 4;
++
++  // If the session for this account is still 'valid' (not expired,
++  // the account is not disabled, etc.). Only present for person accounts when
++  // called with cookies as credentials.
++  optional bool valid_session = 9;
++
++  // Obfuscated Gaia ID.
++  optional string obfuscated_id = 10;
++
++  // Whether this account is only in the cookie and is actually signed out.
++  optional bool signed_out = 14;
++
++  // Whether this account is verified.
++  optional bool is_verified = 15;
++
++  // Internal Fields.
++  reserved 1, 5, 6, 7, 8, 11, 12, 13;
++}
++
++message ListAccountsResponse {
++  repeated Account account = 1;
++}
 diff --git a/chrome/browser/performance_manager/mechanisms/page_discarder.cc b/chrome/browser/performance_manager/mechanisms/page_discarder.cc
 index 840d863..c985269 100644
 --- a/chrome/browser/performance_manager/mechanisms/page_discarder.cc
@@ -374,6 +952,83 @@ index 840d863..c985269 100644
    contents->Discard(base::NullCallback());
  #else
    auto* lifecycle_unit =
+diff --git a/chrome/browser/renderer_context_menu/render_view_context_menu.cc b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+index 92debc3..28b124a 100644
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+@@ -1488,19 +1488,8 @@
+ #if !BUILDFLAG(IS_CHROMEOS)
+   if (content_type_->SupportsGroup(
+           ContextMenuContentType::ITEM_GROUP_PARTIAL_TRANSLATE) &&
+-      !features::IsMenuSimplificationEnabled() &&
+-      search::DefaultSearchProviderIsGoogle(GetProfile()) &&
+-      CanTranslate(/*menu_logging=*/false)) {
+-    // If the target language isn't supported in partial translation, fall
+-    // back to showing the full page translate menu item. Partial translate
+-    // uses a different backend that supports a subset of translation
+-    // languages, so the current full page target language may not be
+-    // supported.
+-    if (CanPartiallyTranslateTargetLanguage()) {
+-      AppendPartialTranslateItem();
+-    } else {
+-      AppendTranslateItem();
+-    }
++      !features::IsMenuSimplificationEnabled()) {
++    AppendTranslateOrPartialTranslateItem();
+   }
+ #endif  // !BUILDFLAG(IS_CHROMEOS)
+ 
+@@ -2912,11 +2901,15 @@
+ 
+ void RenderViewContextMenu::AppendTranslateOrPartialTranslateItem() {
+ #if !BUILDFLAG(IS_CHROMEOS)
+-  if (search::DefaultSearchProviderIsGoogle(GetProfile()) &&
+-      CanTranslate(/*menu_logging=*/false)) {
+-    if (CanPartiallyTranslateTargetLanguage()) {
++  if (search::DefaultSearchProviderIsGoogle(GetProfile())) {
++    // If the target language isn't supported in partial translation, fall
++    // back to showing the full page translate menu item. Partial translate
++    // uses a different backend that supports a subset of translation
++    // languages, so the current full page target language may not be
++    // supported.
++    if (CanPartiallyTranslate()) {
+       AppendPartialTranslateItem();
+-    } else {
++    } else if (CanTranslate(/*menu_logging=*/false)) {
+       AppendTranslateItem();
+     }
+   }
+@@ -6098,12 +6091,12 @@
+              menu_logging);
+ }
+ 
+-bool RenderViewContextMenu::CanPartiallyTranslateTargetLanguage() {
++bool RenderViewContextMenu::CanPartiallyTranslate() {
+   ChromeTranslateClient* chrome_translate_client =
+       ChromeTranslateClient::FromWebContents(embedder_web_contents_);
+   return chrome_translate_client &&
+          chrome_translate_client->GetTranslateManager()
+-             ->CanPartiallyTranslateTargetLanguage();
++             ->CanPartiallyTranslate();
+ }
+ 
+ void RenderViewContextMenu::MaybePrepareForLensQuery() {
+diff --git a/chrome/browser/renderer_context_menu/render_view_context_menu.h b/chrome/browser/renderer_context_menu/render_view_context_menu.h
+index dd4c095..545bcad5 100644
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.h
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.h
+@@ -505,9 +505,8 @@
+   // or whether the current page can be translated.
+   bool CanTranslate(bool menu_logging);
+ 
+-  // Whether or not partial translation is supported for the current target
+-  // language.
+-  bool CanPartiallyTranslateTargetLanguage();
++  // Whether or not partial translation on this page can be triggered.
++  bool CanPartiallyTranslate();
+ 
+   // Under the correct conditions, issues a preconnection to the Lens URL and
+   // warms up a renderer process.
 diff --git a/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.ts b/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.ts
 index c4dcfaf..8c0e7231 100644
 --- a/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.ts
@@ -411,6 +1066,113 @@ index e6257d7..5637c96 100644
  
    if (!IsRequiredExtendedAccountInfoAvailable(info)) {
      // We can't process the interception with the information currently
+diff --git a/chrome/browser/speech/extension_api/tts_engine_extension_api.cc b/chrome/browser/speech/extension_api/tts_engine_extension_api.cc
+index 282b660..45207d7 100644
+--- a/chrome/browser/speech/extension_api/tts_engine_extension_api.cc
++++ b/chrome/browser/speech/extension_api/tts_engine_extension_api.cc
+@@ -344,7 +344,6 @@
+ 
+ void TtsExtensionEngine::Speak(content::TtsUtterance* utterance,
+                                const content::VoiceData& voice) {
+-  set_current_utterance_engine(utterance->GetEngineId());
+   scoped_refptr<extensions::EventArgs> args = BuildSpeakArgs(utterance, voice);
+   Profile* profile =
+       Profile::FromBrowserContext(utterance->GetBrowserContext());
+@@ -377,12 +376,6 @@
+                                                       std::move(event));
+ }
+ 
+-bool TtsExtensionEngine::IsCurrentUtteranceEngine(
+-    const std::string& extension_id) const {
+-  CHECK(!extension_id.empty());
+-  return current_utterance_engine_id_ == extension_id;
+-}
+-
+ void TtsExtensionEngine::Pause(content::TtsUtterance* utterance) {
+   Pause(utterance->GetBrowserContext(), utterance->GetEngineId());
+ }
+@@ -608,11 +601,6 @@
+ ExtensionTtsEngineSendTtsEventFunction::Run() {
+   EXTENSION_FUNCTION_VALIDATE(args().size() >= 2);
+ 
+-  if (!TtsExtensionEngine::GetInstance()->IsCurrentUtteranceEngine(
+-          extension_id())) {
+-    return RespondNow(Error(constants::kErrorExtensionIdMismatch));
+-  }
+-
+   const auto& utterance_id_value = args()[0];
+   EXTENSION_FUNCTION_VALIDATE(utterance_id_value.is_int());
+   int utterance_id = utterance_id_value.GetInt();
+@@ -664,27 +652,10 @@
+   content::TtsEventType tts_event_type;
+   if (!GetTtsEventType(*event_type, &tts_event_type)) {
+     EXTENSION_FUNCTION_VALIDATE(false);
++  } else {
++    content::TtsController::GetInstance()->OnTtsEvent(
++        utterance_id, tts_event_type, char_index, length, error_message);
+   }
+-
+-  switch (tts_event_type) {
+-    case content::TTS_EVENT_END:
+-    case content::TTS_EVENT_INTERRUPTED:
+-    case content::TTS_EVENT_CANCELLED:
+-    case content::TTS_EVENT_ERROR:
+-      TtsExtensionEngine::GetInstance()->set_current_utterance_engine("");
+-      break;
+-    case content::TTS_EVENT_START:
+-    case content::TTS_EVENT_WORD:
+-    case content::TTS_EVENT_SENTENCE:
+-    case content::TTS_EVENT_MARKER:
+-    case content::TTS_EVENT_PAUSE:
+-    case content::TTS_EVENT_RESUME:
+-      break;
+-  }
+-
+-  content::TtsController::GetInstance()->OnTtsEvent(
+-      utterance_id, tts_event_type, char_index, length, error_message);
+-
+   return RespondNow(NoArguments());
+ }
+ 
+@@ -726,12 +697,6 @@
+   std::optional<bool> is_last_buffer =
+       audio->FindBool(tts_extension_api_constants::kIsLastBufferKey);
+   EXTENSION_FUNCTION_VALIDATE(is_last_buffer);
+-  EXTENSION_FUNCTION_VALIDATE(extension());
+-
+-  if (!TtsExtensionEngine::GetInstance()->IsCurrentUtteranceEngine(
+-          extension_id())) {
+-    return RespondNow(Error(constants::kErrorExtensionIdMismatch));
+-  }
+ 
+   TtsExtensionEngine::GetInstance()->SendAudioBuffer(
+       utterance_id, audio_buffer, char_index, *is_last_buffer);
+diff --git a/chrome/browser/speech/extension_api/tts_engine_extension_api.h b/chrome/browser/speech/extension_api/tts_engine_extension_api.h
+index 5d63e03..8a6a3ed 100644
+--- a/chrome/browser/speech/extension_api/tts_engine_extension_api.h
++++ b/chrome/browser/speech/extension_api/tts_engine_extension_api.h
+@@ -87,13 +87,6 @@
+   void Resume(content::BrowserContext* browser_context,
+               const std::string& engine_id);
+ 
+-  // Returns true if |extension_id| matches the active speaking engine.
+-  bool IsCurrentUtteranceEngine(const std::string& extension_id) const;
+-
+-  void set_current_utterance_engine(const std::string& engine_id) {
+-    current_utterance_engine_id_ = engine_id;
+-  }
+-
+   void DisableBuiltInTTSEngineForTesting() {
+     disable_built_in_tts_engine_for_testing_ = true;
+   }
+@@ -108,7 +101,6 @@
+       tts_engine_events::TtsClientSource source);
+ 
+   bool disable_built_in_tts_engine_for_testing_ = false;
+-  std::string current_utterance_engine_id_;
+ };
+ 
+ // Function that allows tts engines to update its list of supported voices at
 diff --git a/chrome/browser/ui/exclusive_access/fullscreen_controller.cc b/chrome/browser/ui/exclusive_access/fullscreen_controller.cc
 index a4d416e..ba26585 100644
 --- a/chrome/browser/ui/exclusive_access/fullscreen_controller.cc
@@ -608,6 +1370,26 @@ index af8447b..7b97c73 100644
        {"linkRemoveA11y", IDS_NTP_MOST_VISITED_SITES_REMOVE},
        {"linkRemovedMsg", IDS_NTP_CONFIRM_MSG_SHORTCUT_REMOVED},
        {"shortcutMoreActions", IDS_NTP_CUSTOM_LINKS_MORE_ACTIONS},
+diff --git a/components/enterprise/device_attestation/common/device_attestation_types.h b/components/enterprise/device_attestation/common/device_attestation_types.h
+index 904e3ba..4dee7c8 100644
+--- a/components/enterprise/device_attestation/common/device_attestation_types.h
++++ b/components/enterprise/device_attestation/common/device_attestation_types.h
+@@ -15,11 +15,10 @@
+ 
+   // Returns whether the blob generation succeeded. This is the single
+   // definition of attestation success; prefer it over inspecting the fields
+-  // directly so that all consumers agree. Note that a result carrying neither
+-  // a blob nor an error message is treated as a failure.
+-  bool IsSuccess() const {
+-    return !attestation_blob.empty() && error_message.empty();
+-  }
++  // directly so that all consumers agree. Note that `error_message` is not
++  // checked because some implementations (e.g. Android) populate a placeholder
++  // string such as "No error" even when a blob is successfully generated.
++  bool IsSuccess() const { return !attestation_blob.empty(); }
+ };
+ 
+ struct AttestationResult {
 diff --git a/components/input/cursor_manager.cc b/components/input/cursor_manager.cc
 index b7aa3703..dc31a69 100644
 --- a/components/input/cursor_manager.cc
@@ -776,6 +1558,83 @@ index 4d8052b..fed6869 100644
    // The root view is the target for DisplayCursor calls whenever the active
    // cursor needs to change.
    const raw_ptr<RenderWidgetHostViewInput> root_view_;
+diff --git a/components/translate/core/browser/translate_manager.cc b/components/translate/core/browser/translate_manager.cc
+index de791ae..b2943db 100644
+--- a/components/translate/core/browser/translate_manager.cc
++++ b/components/translate/core/browser/translate_manager.cc
+@@ -187,6 +187,17 @@
+ }
+ 
+ bool TranslateManager::CanManuallyTranslate(bool menu_logging) {
++  return CanManuallyTranslateInternal(menu_logging,
++                                      /*is_partial_translate=*/false);
++}
++
++bool TranslateManager::CanPartiallyTranslate() {
++  return CanManuallyTranslateInternal(/*menu_logging=*/false,
++                                      /*is_partial_translate=*/true);
++}
++
++bool TranslateManager::CanManuallyTranslateInternal(bool menu_logging,
++                                                    bool is_partial_translate) {
+   bool can_translate = true;
+ 
+   if (net::NetworkChangeNotifier::IsOffline()) {
+@@ -210,9 +221,13 @@
+     can_translate = false;
+   }
+ 
+-  // not supported MIME type pages currently cannot be translated.
++  // Not supported MIME type pages currently cannot be translated.
++  // Partial translation is supported on PDF pages regardless of whether
++  // full-page PDF translation (kEnableTranslatePdf) is enabled.
+   // See bug: 217945, 1208340.
+-  if (!IsMimeTypeSupported(translate_driver_->GetContentsMimeType())) {
++  const std::string& mime_type = translate_driver_->GetContentsMimeType();
++  if (!(is_partial_translate && mime_type == kPdfMimeType) &&
++      !IsMimeTypeSupported(mime_type)) {
+     if (!menu_logging) {
+       return false;
+     }
+@@ -275,6 +290,12 @@
+     can_translate = false;
+   }
+ 
++  if (is_partial_translate &&
++      !TranslateLanguageList::IsSupportedPartialTranslateLanguage(
++          target_lang)) {
++    return false;
++  }
++
+   if (menu_logging) {
+     UMA_HISTOGRAM_BOOLEAN("Translate.MenuTranslation.IsAvailable",
+                           can_translate);
+diff --git a/components/translate/core/browser/translate_manager.h b/components/translate/core/browser/translate_manager.h
+index fe02c855f..a504f3a 100644
+--- a/components/translate/core/browser/translate_manager.h
++++ b/components/translate/core/browser/translate_manager.h
+@@ -143,6 +143,10 @@
+   // Full Page Translate menu item.
+   bool CanManuallyTranslate(bool menu_logging = false);
+ 
++  // Returns true iff a selection on the current page could be partially
++  // translated.
++  bool CanPartiallyTranslate();
++
+   // Whether or not partial translation is supported for the current target
+   // language. Partial translate supports a subset of translation languages,
+   // but shares a target language with full page translation.
+@@ -247,6 +251,10 @@
+  private:
+   friend class translate::testing::TranslateManagerTest;
+ 
++  // Shared helper for CanManuallyTranslate() and CanPartiallyTranslate().
++  bool CanManuallyTranslateInternal(bool menu_logging,
++                                    bool is_partial_translate);
++
+   // Sends a translation request to the TranslateDriver.
+   void DoTranslatePage(std::string_view translate_script,
+                        std::string_view source_lang,
 diff --git a/content/app_shim_remote_cocoa/render_widget_host_view_cocoa.h b/content/app_shim_remote_cocoa/render_widget_host_view_cocoa.h
 index 679c80e..9d0afd9b 100644
 --- a/content/app_shim_remote_cocoa/render_widget_host_view_cocoa.h
@@ -1605,6 +2464,24 @@ index 4a3dae96..70db77ed 100644
  bool IsGlassFrameEnabled();
  COMPONENT_EXPORT(UI_BASE_FEATURES)
  bool IsRoundedIconsEnabled();
+diff --git a/ui/ozone/platform/drm/host/drm_display_host_manager.cc b/ui/ozone/platform/drm/host/drm_display_host_manager.cc
+index 39cddb2c..b1dee90 100644
+--- a/ui/ozone/platform/drm/host/drm_display_host_manager.cc
++++ b/ui/ozone/platform/drm/host/drm_display_host_manager.cc
+@@ -55,8 +55,11 @@
+ const int kLogAuthFailDelayMs = 1000;
+ 
+ // Maximum number of attempts to authenticate the DRM device before proceeding.
+-// With kAuthFailSleepMs = 100, 50 attempts corresponds to ~5 seconds.
+-constexpr int kMaxAuthAttempts = 50;
++// With kAuthFailSleepMs = 100, 300 attempts corresponds to ~30 seconds. On cold
++// boot, Chrome must wait long enough for frecon's boot splash and hotplug
++// rescans to release DRM master so open() implicitly acquires master (chronos
++// lacks CAP_SYS_ADMIN to call drmSetMaster() later on an unauthenticated FD).
++constexpr int kMaxAuthAttempts = 300;
+ 
+ constexpr std::array<std::string_view, 3> kDisplayActionString = {
+     "ADD",
 diff --git a/ui/views/widget/desktop_aura/desktop_native_widget_aura.cc b/ui/views/widget/desktop_aura/desktop_native_widget_aura.cc
 index ecdbbbb6..a007cf3 100644
 --- a/ui/views/widget/desktop_aura/desktop_native_widget_aura.cc
@@ -1908,3 +2785,619 @@ index 7373bf5..35751c4 100644
    protected onTilesRendered_() {
      performance.measure('most-visited-rendered');
      assert(this.maxVisibleTiles_ > 0);
+diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
+index d9b6596..bebb9f3 100644
+--- a/v8/include/v8-version.h
++++ b/v8/include/v8-version.h
+@@ -11,7 +11,7 @@
+ #define V8_MAJOR_VERSION 15
+ #define V8_MINOR_VERSION 8
+ #define V8_BUILD_NUMBER 62
+-#define V8_PATCH_LEVEL 26
++#define V8_PATCH_LEVEL 29
+ 
+ // Use 1 for candidates and 0 otherwise.
+ // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/common/assert-scope.h b/v8/src/common/assert-scope.h
+index ca36c69..2dcb5b0 100644
+--- a/v8/src/common/assert-scope.h
++++ b/v8/src/common/assert-scope.h
+@@ -75,21 +75,25 @@
+ 
+ // Per-isolate assert scopes.
+ 
+-#define PER_ISOLATE_DCHECK_TYPE(V, enable)                              \
+-  /* Scope to document where we do not expect javascript execution. */  \
+-  /* Scope to introduce an exception to DisallowJavascriptExecution. */ \
+-  V(AllowJavascriptExecution, DisallowJavascriptExecution,              \
+-    javascript_execution_assert, enable)                                \
+-  /* Scope to document where we do not expect deoptimization. */        \
+-  /* Scope to introduce an exception to DisallowDeoptimization. */      \
+-  V(AllowDeoptimization, DisallowDeoptimization, deoptimization_assert, \
+-    enable)                                                             \
+-  /* Scope to document where we do not expect deoptimization. */        \
+-  /* Scope to introduce an exception to DisallowDeoptimization. */      \
+-  V(AllowCompilation, DisallowCompilation, compilation_assert, enable)  \
+-  /* Scope to document where we do not expect exceptions. */            \
+-  /* Scope to introduce an exception to DisallowExceptions. */          \
+-  V(AllowExceptions, DisallowExceptions, no_exception_assert, enable)
++#define PER_ISOLATE_DCHECK_TYPE(V, enable)                                \
++  /* Scope to document where we do not expect javascript execution. */    \
++  /* Scope to introduce an exception to DisallowJavascriptExecution. */   \
++  V(AllowJavascriptExecution, DisallowJavascriptExecution,                \
++    javascript_execution_assert, enable)                                  \
++  /* Scope to document where we do not expect deoptimization. */          \
++  /* Scope to introduce an exception to DisallowDeoptimization. */        \
++  V(AllowDeoptimization, DisallowDeoptimization, deoptimization_assert,   \
++    enable)                                                               \
++  /* Scope to document where we do not expect deoptimization. */          \
++  /* Scope to introduce an exception to DisallowDeoptimization. */        \
++  V(AllowCompilation, DisallowCompilation, compilation_assert, enable)    \
++  /* Scope to document where we do not expect exceptions. */              \
++  /* Scope to introduce an exception to DisallowExceptions. */            \
++  V(AllowExceptions, DisallowExceptions, no_exception_assert, enable)     \
++  /* Scope to document where we do not expect JS object modifications. */ \
++  /* Scope to introduce an exception to DisallowJSObjectModification. */  \
++  V(AllowJSObjectModification, DisallowJSObjectModification,              \
++    js_object_modification_assert, enable)
+ 
+ #define PER_ISOLATE_CHECK_TYPE(V, enable)                                    \
+   /* Scope in which javascript execution leads to exception being thrown. */ \
+diff --git a/v8/src/compiler/simplified-operator.cc b/v8/src/compiler/simplified-operator.cc
+index 8922e87..3a34404 100644
+--- a/v8/src/compiler/simplified-operator.cc
++++ b/v8/src/compiler/simplified-operator.cc
+@@ -1168,9 +1168,12 @@
+   DEOPTIMIZE_REASON_LIST(CHECK_IF)
+ #undef CHECK_IF
+ 
++  // Looking up a string key can internalize it in place into a ThinString,
++  // so Operator::kNoWrite (and thus Operator::kEliminatable) does not hold.
+   struct FindOrderedHashMapEntryOperator final : public Operator {
+     FindOrderedHashMapEntryOperator()
+-        : Operator(IrOpcode::kFindOrderedHashMapEntry, Operator::kEliminatable,
++        : Operator(IrOpcode::kFindOrderedHashMapEntry,
++                   Operator::kNoThrow | Operator::kNoDeopt,
+                    "FindOrderedHashMapEntry", 2, 1, 1, 1, 1, 0) {}
+   };
+   FindOrderedHashMapEntryOperator kFindOrderedHashMapEntry;
+@@ -1184,9 +1187,12 @@
+   FindOrderedHashMapEntryForInt32KeyOperator
+       kFindOrderedHashMapEntryForInt32Key;
+ 
++  // Looking up a string key can internalize it in place into a ThinString,
++  // so Operator::kNoWrite (and thus Operator::kEliminatable) does not hold.
+   struct FindOrderedHashSetEntryOperator final : public Operator {
+     FindOrderedHashSetEntryOperator()
+-        : Operator(IrOpcode::kFindOrderedHashSetEntry, Operator::kEliminatable,
++        : Operator(IrOpcode::kFindOrderedHashSetEntry,
++                   Operator::kNoThrow | Operator::kNoDeopt,
+                    "FindOrderedHashSetEntry", 2, 1, 1, 1, 1, 0) {}
+   };
+   FindOrderedHashSetEntryOperator kFindOrderedHashSetEntry;
+diff --git a/v8/src/compiler/turboshaft/builtin-call-descriptors.h b/v8/src/compiler/turboshaft/builtin-call-descriptors.h
+index cc0d5d6..724e1b4 100644
+--- a/v8/src/compiler/turboshaft/builtin-call-descriptors.h
++++ b/v8/src/compiler/turboshaft/builtin-call-descriptors.h
+@@ -300,15 +300,19 @@
+     static constexpr auto kFunction = B;
+     struct Arguments : ArgumentsBase {
+       ARG(V<Object>, table)
+-      ARG(V<Smi>, key)
++      ARG(V<Object>, key)
+     };
+     using returns_t = std::tuple<V<Smi>>;
+ 
+     static constexpr bool kCanTriggerLazyDeopt = false;
+     static constexpr bool kNeedsContext = true;
+-    static constexpr Operator::Properties kProperties = Operator::kEliminatable;
+-    static constexpr OpEffects kEffects =
+-        base_effects.AssumesConsistentHeap().CanReadMemory().CanAllocate();
++    static constexpr Operator::Properties kProperties =
++        Operator::kNoThrow | Operator::kNoDeopt;
++    // Looking up a string key can internalize it in place into a ThinString.
++    static constexpr OpEffects kEffects = base_effects.AssumesConsistentHeap()
++                                              .CanReadMemory()
++                                              .CanWriteHeapMemory()
++                                              .CanAllocate();
+   };
+   using FindOrderedHashMapEntry =
+       FindOrderedHashEntry<Builtin::kFindOrderedHashMapEntry>;
+diff --git a/v8/src/compiler/turboshaft/operations.h b/v8/src/compiler/turboshaft/operations.h
+index 2234137..07cff09 100644
+--- a/v8/src/compiler/turboshaft/operations.h
++++ b/v8/src/compiler/turboshaft/operations.h
+@@ -7446,8 +7446,22 @@
+   };
+   Kind kind;
+ 
+-  static constexpr OpEffects effects =
+-      OpEffects().CanDependOnChecks().CanReadMemory().CanAllocate();
++  OpEffects Effects() const {
++    switch (kind) {
++      case Kind::kFindOrderedHashMapEntry:
++      case Kind::kFindOrderedHashSetEntry:
++        // Looking up a string key can internalize it in place into a
++        // ThinString, overwriting its payload (e.g., ConsString::first_).
++        return OpEffects()
++            .CanDependOnChecks()
++            .CanReadMemory()
++            .CanWriteHeapMemory()
++            .CanAllocate();
++      case Kind::kFindOrderedHashMapEntryForInt32Key:
++        return OpEffects().CanDependOnChecks().CanReadMemory();
++    }
++    UNREACHABLE();
++  }
+   base::Vector<const RegisterRepresentation> outputs_rep() const {
+     switch (kind) {
+       case Kind::kFindOrderedHashMapEntry:
+@@ -11084,6 +11098,8 @@
+       return Cast<StoreOp>().Effects();
+     case Opcode::kCall:
+       return Cast<CallOp>().Effects();
++    case Opcode::kFindOrderedHashEntry:
++      return Cast<FindOrderedHashEntryOp>().Effects();
+     case Opcode::kDidntThrow:
+       return Cast<DidntThrowOp>().Effects();
+     case Opcode::kTaggedBitcast:
+diff --git a/v8/src/execution/isolate.h b/v8/src/execution/isolate.h
+index c191781..bb742ca 100644
+--- a/v8/src/execution/isolate.h
++++ b/v8/src/execution/isolate.h
+@@ -548,6 +548,7 @@
+   V(bool, deoptimization_assert, true)                                      \
+   V(bool, compilation_assert, true)                                         \
+   V(bool, no_exception_assert, true)                                        \
++  V(bool, js_object_modification_assert, true)                              \
+   V(uint32_t, wasm_switch_to_the_central_stack_counter, 0)
+ 
+ #define THREAD_LOCAL_TOP_ACCESSOR(type, name)                         \
+diff --git a/v8/src/handles/global-handles.cc b/v8/src/handles/global-handles.cc
+index fa3079d..33199ff1 100644
+--- a/v8/src/handles/global-handles.cc
++++ b/v8/src/handles/global-handles.cc
+@@ -744,6 +744,7 @@
+ 
+ void GlobalHandles::InvokeSecondPassPhantomCallbacks() {
+   DCHECK(!AllowJavascriptExecution::IsAllowed(isolate()));
++  DCHECK(!AllowJSObjectModification::IsAllowed(isolate()));
+   DCHECK(AllowGarbageCollection::IsAllowed());
+ 
+   if (second_pass_callbacks_.empty()) return;
+@@ -855,6 +856,8 @@
+ 
+ void GlobalHandles::PendingPhantomCallback::Invoke(Isolate* isolate,
+                                                    InvocationType type) {
++  DCHECK(!AllowJavascriptExecution::IsAllowed(isolate));
++  DCHECK(!AllowJSObjectModification::IsAllowed(isolate));
+   Data::Callback* callback_addr = nullptr;
+   if (type == kFirstPass) {
+     callback_addr = &callback_;
+@@ -894,6 +897,7 @@
+           DCHECK(second_pass_callbacks_task_posted_);
+           second_pass_callbacks_task_posted_ = false;
+           DisallowJavascriptExecution no_js(isolate());
++          DisallowJSObjectModification no_js_object_modification(isolate());
+           InvokeSecondPassPhantomCallbacks();
+         }));
+   }
+diff --git a/v8/src/heap/cppgc-js/cpp-heap.cc b/v8/src/heap/cppgc-js/cpp-heap.cc
+index 5da533d..d5bf9fe 100644
+--- a/v8/src/heap/cppgc-js/cpp-heap.cc
++++ b/v8/src/heap/cppgc-js/cpp-heap.cc
+@@ -561,33 +561,42 @@
+ 
+ class SweepingOnMutatorThreadForGlobalHandlesScope final {
+  public:
+-  explicit SweepingOnMutatorThreadForGlobalHandlesScope(
+-      TracedHandles& traced_handles)
+-      : traced_handles_(traced_handles) {
+-    traced_handles_.SetIsSweepingOnMutatorThread(true);
++  explicit SweepingOnMutatorThreadForGlobalHandlesScope(Isolate& isolate)
++      : isolate_(isolate),
++        no_js_(&isolate),
++        no_js_object_modification_(&isolate) {
++    isolate_.traced_handles()->SetIsSweepingOnMutatorThread(true);
+   }
+   ~SweepingOnMutatorThreadForGlobalHandlesScope() {
+-    traced_handles_.SetIsSweepingOnMutatorThread(false);
++    isolate_.traced_handles()->SetIsSweepingOnMutatorThread(false);
+   }
+ 
+-  TracedHandles& traced_handles_;
++ private:
++  Isolate& isolate_;
++  // Mutator-thread sweeping runs CppHeap pre-finalizers and C++ destructors
++  // (both during the atomic pause and outside it via incremental sweep tasks or
++  // lazy sweeping on Oilpan allocation). Disallow JS execution and JSObject
++  // modification during these embedder finalizers.
++  DisallowJavascriptExecution no_js_;
++  DisallowJSObjectModification no_js_object_modification_;
+ };
+ 
+ class SweepingOnMutatorThreadForGlobalHandlesObserver final
+     : public cppgc::internal::Sweeper::SweepingOnMutatorThreadObserver {
+  public:
+   SweepingOnMutatorThreadForGlobalHandlesObserver(CppHeap& cpp_heap,
+-                                                  TracedHandles& traced_handles)
++                                                  Isolate& isolate)
+       : cppgc::internal::Sweeper::SweepingOnMutatorThreadObserver(
+             cpp_heap.sweeper()),
+-        traced_handles_(traced_handles) {}
++        isolate_(isolate) {}
+ 
+-  void Start() override { traced_handles_.SetIsSweepingOnMutatorThread(true); }
++  void Start() override { scope_.emplace(isolate_); }
+ 
+-  void End() override { traced_handles_.SetIsSweepingOnMutatorThread(false); }
++  void End() override { scope_.reset(); }
+ 
+  private:
+-  TracedHandles& traced_handles_;
++  Isolate& isolate_;
++  std::optional<SweepingOnMutatorThreadForGlobalHandlesScope> scope_;
+ };
+ 
+ class MoveListenerImpl final : public HeapProfilerNativeMoveListener,
+@@ -649,7 +658,7 @@
+   UpdateGCCapabilitiesFromFlags();
+   sweeping_on_mutator_thread_observer_ =
+       std::make_unique<SweepingOnMutatorThreadForGlobalHandlesObserver>(
+-          *this, *isolate_->traced_handles());
++          *this, *isolate_);
+   no_gc_scope_--;
+ 
+   // Propagate overridden stack state to the attached heap, if necessary.
+@@ -1016,6 +1025,10 @@
+ 
+   {
+     cppgc::subtle::DisallowGarbageCollectionScope disallow_gc_scope(*this);
++    if (isolate_) {
++      DCHECK(!AllowJavascriptExecution::IsAllowed(isolate_));
++      DCHECK(!AllowJSObjectModification::IsAllowed(isolate_));
++    }
+     marker_->LeaveAtomicPause();
+   }
+   marker_.reset();
+@@ -1053,7 +1066,7 @@
+     std::optional<SweepingOnMutatorThreadForGlobalHandlesScope>
+         global_handles_scope;
+     if (isolate_) {
+-      global_handles_scope.emplace(*isolate_->traced_handles());
++      global_handles_scope.emplace(*isolate_);
+     }
+     bytes_allocated_in_prefinalizers = ExecutePreFinalizers();
+   }
+@@ -1082,7 +1095,7 @@
+       std::optional<SweepingOnMutatorThreadForGlobalHandlesScope>
+           global_handles_scope;
+       if (isolate_) {
+-        global_handles_scope.emplace(*isolate_->traced_handles());
++        global_handles_scope.emplace(*isolate_);
+       }
+       compactable_space_handling = compactor_.CompactSpacesIfEnabled();
+     }
+diff --git a/v8/src/heap/gc-callbacks.h b/v8/src/heap/gc-callbacks.h
+index e40e6b7d..ddc8c87 100644
+--- a/v8/src/heap/gc-callbacks.h
++++ b/v8/src/heap/gc-callbacks.h
+@@ -39,6 +39,10 @@
+     AllowGarbageCollection scope;
+     for (const CallbackData& callback_data : callbacks_) {
+       if (gc_type & callback_data.gc_type) {
++        Isolate* isolate = reinterpret_cast<Isolate*>(callback_data.isolate);
++        USE(isolate);
++        DCHECK(!AllowJavascriptExecution::IsAllowed(isolate));
++        DCHECK(!AllowJSObjectModification::IsAllowed(isolate));
+         callback_data.callback(callback_data.isolate, gc_type,
+                                gc_callback_flags, callback_data.user_data);
+       }
+diff --git a/v8/src/heap/heap.cc b/v8/src/heap/heap.cc
+index c6c4039..43d158a 100644
+--- a/v8/src/heap/heap.cc
++++ b/v8/src/heap/heap.cc
+@@ -1420,6 +1420,7 @@
+ template <typename Callback>
+ void InvokeExternalCallbacks(Isolate* isolate, Callback callback) {
+   DCHECK(!AllowJavascriptExecution::IsAllowed(isolate));
++  DCHECK(!AllowJSObjectModification::IsAllowed(isolate));
+   AllowGarbageCollection allow_gc;
+   // Temporary override any embedder stack state as callbacks may create
+   // their own state on the stack and recursively trigger GC.
+@@ -1467,8 +1468,14 @@
+   // collection is triggered. Note that these callbacks may trigger another
+   // garbage collection since they may allocate.
+ 
+-  // JS execution is not allowed in any of the callbacks.
++  // JS execution and object modifications are not allowed during GC or in any
++  // of the embedder callbacks triggered below: first-pass weak callbacks
++  // (GlobalHandles::InvokeFirstPassWeakCallbacks), second-pass phantom
++  // callbacks (PostGarbageCollectionProcessing), GC prologue and epilogue
++  // callbacks (v8::Isolate::GCCallback), and CppHeap pre-finalizers and object
++  // finalizers (C++ destructors).
+   DisallowJavascriptExecution no_js(isolate());
++  DisallowJSObjectModification no_js_object_modification(isolate());
+ 
+   // Some custom flushing (currently: FlushBytecodeFromSFI) can create
+   // fresh TrustedPointerTableEntries during GC. These must not be affected
+@@ -1830,6 +1837,13 @@
+     return;
+   }
+ 
++  // Completing sweeping below may trigger embedder CppHeap object finalizers
++  // (C++ destructors, via FinishSweepingIfRunning / FinishSweepingIfOutOfWork),
++  // and incremental_marking()->Start() triggers embedder GC prologue and
++  // epilogue callbacks.
++  DisallowJavascriptExecution no_js(isolate());
++  DisallowJSObjectModification no_js_object_modification(isolate());
++
+   TRACE_EVENT(
+       "v8",
+       perfetto::StaticString(IsYoungGenerationCollector(collector)
+diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
+index 66b77cb..fa3f2ac 100644
+--- a/v8/src/maglev/maglev-graph-builder.cc
++++ b/v8/src/maglev/maglev-graph-builder.cc
+@@ -522,11 +522,13 @@
+ 
+ void MaglevGraphBuilder::MaglevSubGraphBuilder::Bind(Label* label) {
+   DCHECK_NULL(builder_->current_block());
++  CHECK_NOT_NULL(label->variable_merge_state_);
+ 
+   DCHECK_NULL(variable_frame_.known_node_aspects());
+   variable_frame_.CopyFrom(*dummy_unit_, *label->variable_merge_state_);
+ 
+   if (label->ShouldTrackInterpreterFrameState()) {
++    DCHECK_NOT_NULL(label->merge_state_);
+     DCHECK_EQ(*label->future_bind_offset_,
+               builder_->iterator_.current_offset());
+     builder_->current_interpreter_frame_.CopyFrom(*compilation_unit(),
+@@ -551,6 +553,9 @@
+   builder_->ProcessMergePointPredecessors(*label->variable_merge_state_,
+                                           label->ref_);
+   builder_->StartNewBlock(nullptr, label->variable_merge_state_, label->ref_);
++
++  label->variable_merge_state_ = nullptr;
++  label->merge_state_ = nullptr;
+ }
+ 
+ template <typename FCond, typename FTrue, typename FFalse>
+diff --git a/v8/src/maglev/maglev-graph-optimizer.cc b/v8/src/maglev/maglev-graph-optimizer.cc
+index 04ac39d..cd9330f 100644
+--- a/v8/src/maglev/maglev-graph-optimizer.cc
++++ b/v8/src/maglev/maglev-graph-optimizer.cc
+@@ -391,8 +391,10 @@
+ 
+ void Subgraph<MaglevGraphOptimizer>::Bind(Label* label) {
+   DCHECK_NULL(reducer_->current_block());
+-  DCHECK_NOT_NULL(label->variable_merge_state_);
++  CHECK_NOT_NULL(label->variable_merge_state_);
++  DCHECK_NULL(label->merge_state_);
+   MergePointInterpreterFrameState* merge_state = label->variable_merge_state_;
++  label->variable_merge_state_ = nullptr;
+   DCHECK_EQ(merge_state->predecessors_so_far(), label->predecessor_count_);
+   DCHECK_GT(label->predecessor_count_, 0);
+ 
+diff --git a/v8/src/maglev/maglev-ir.h b/v8/src/maglev/maglev-ir.h
+index 48c80c5..49f301d 100644
+--- a/v8/src/maglev/maglev-ir.h
++++ b/v8/src/maglev/maglev-ir.h
+@@ -7989,9 +7989,11 @@
+  public:
+   explicit MapPrototypeGet(uint64_t bitfield) : Base(bitfield) {}
+ 
++  // Looking up a string key can allocate and internalize the key in place.
+   static constexpr OpProperties kProperties =
+       OpProperties::Call() | OpProperties::CanAllocate() |
+-      OpProperties::CanRead() | OpProperties::TaggedValue();
++      OpProperties::CanRead() | OpProperties::CanWrite() |
++      OpProperties::TaggedValue();
+   DECLARE_INPUTS(Table, Key)
+   DECLARE_INPUT_TYPES(Tagged, Tagged)
+ 
+@@ -8023,11 +8025,11 @@
+  public:
+   explicit SetPrototypeHas(uint64_t bitfield) : Base(bitfield) {}
+ 
+-  // CanAllocate is needed, since finding strings in hash tables does an
+-  // equality comparison which flattens strings.
++  // Looking up a string key can allocate and internalize the key in place.
+   static constexpr OpProperties kProperties =
+       OpProperties::Call() | OpProperties::CanAllocate() |
+-      OpProperties::CanRead() | OpProperties::TaggedValue();
++      OpProperties::CanRead() | OpProperties::CanWrite() |
++      OpProperties::TaggedValue();
+   DECLARE_INPUTS(Table, Key)
+   DECLARE_INPUT_TYPES(Tagged, Tagged)
+ 
+diff --git a/v8/src/maglev/maglev-reducer.h b/v8/src/maglev/maglev-reducer.h
+index 9ca29cd..d489243 100644
+--- a/v8/src/maglev/maglev-reducer.h
++++ b/v8/src/maglev/maglev-reducer.h
+@@ -1947,6 +1947,21 @@
+     // NOLINTNEXTLINE(runtime/explicit)
+     Label(const LabelForTrackingInterpreterFrameState& label);
+ 
++    Label(const Label&) = delete;
++    Label(Label&&) = delete;
++    Label& operator=(const Label&) = delete;
++    Label& operator=(Label&&) = delete;
++
++    ~Label() {
++      // If variable_merge_state_ is non-null, at least one finalized BasicBlock
++      // in the graph has a control node whose BasicBlockRef is linked into
++      // `ref_` (in kRefList state) waiting for Bind() to resolve it to a target
++      // BasicBlock*. Destroying an unbound Label with live predecessors would
++      // leave dangling BasicBlockRef* pointers in the graph.
++      CHECK_NULL(variable_merge_state_);
++      DCHECK_NULL(merge_state_);
++    }
++
+     BasicBlockRef* ref() { return &ref_; }
+     int predecessor_count() const { return predecessor_count_; }
+     bool ShouldTrackInterpreterFrameState() const {
+diff --git a/v8/src/objects/js-objects.cc b/v8/src/objects/js-objects.cc
+index 21e4723..297b905 100644
+--- a/v8/src/objects/js-objects.cc
++++ b/v8/src/objects/js-objects.cc
+@@ -1025,6 +1025,7 @@
+                                           InternalIndex entry) {
+   DCHECK(!object->HasFastProperties());
+   Isolate* isolate = Isolate::Current();
++  CHECK(AllowJSObjectModification::IsAllowed(isolate));
+   DCHECK(entry.is_found());
+ 
+   if (IsJSGlobalObject(*object)) {
+@@ -2917,6 +2918,7 @@
+   DCHECK(!object->HasFastProperties());
+   DCHECK(IsUniqueName(*name));
+   Isolate* isolate = Isolate::Current();
++  CHECK(AllowJSObjectModification::IsAllowed(isolate));
+ 
+   uint32_t hash = name->hash();
+ 
+@@ -3613,6 +3615,7 @@
+ void JSObject::MigrateToMap(Isolate* isolate, DirectHandle<JSObject> object,
+                             DirectHandle<Map> new_map,
+                             int expected_additional_properties) {
++  CHECK(AllowJSObjectModification::IsAllowed(isolate));
+   if (object->map() == *new_map) return;
+   DirectHandle<Map> old_map(object->map(), isolate);
+   NotifyMapChange(old_map, new_map, isolate);
+@@ -4046,9 +4049,10 @@
+ void JSObject::MigrateSlowToFast(DirectHandle<JSObject> object,
+                                  int unused_property_fields,
+                                  const char* reason) {
++  Isolate* isolate = Isolate::Current();
++  CHECK(AllowJSObjectModification::IsAllowed(isolate));
+   if (object->HasFastProperties()) return;
+   DCHECK(!IsJSGlobalObject(*object));
+-  Isolate* isolate = Isolate::Current();
+   Factory* factory = isolate->factory();
+ 
+   DirectHandle<NameDictionary> dictionary;
+@@ -5566,6 +5570,7 @@
+ // static
+ void JSObject::SetImmutableProto(Isolate* isolate,
+                                  DirectHandle<JSObject> object) {
++  CHECK(AllowJSObjectModification::IsAllowed(isolate));
+   DirectHandle<Map> map(object->map(), isolate);
+ 
+   // Nothing to do if prototype is already set.
+@@ -5662,6 +5667,7 @@
+                                      DirectHandle<JSObject> object,
+                                      uint32_t index, DirectHandle<Object> value,
+                                      PropertyAttributes attributes) {
++  CHECK(AllowJSObjectModification::IsAllowed(isolate));
+   DCHECK(object->map()->is_extensible());
+ 
+   uint32_t old_length = 0;
+diff --git a/v8/src/objects/lookup.cc b/v8/src/objects/lookup.cc
+index 27bd879..67d6407 100644
+--- a/v8/src/objects/lookup.cc
++++ b/v8/src/objects/lookup.cc
+@@ -433,6 +433,7 @@
+ }
+ 
+ void LookupIterator::PrepareForDataProperty(DirectHandle<Object> value) {
++  CHECK(AllowJSObjectModification::IsAllowed(isolate_));
+   DCHECK(state_ == DATA || state_ == ACCESSOR);
+   DCHECK(HolderIsReceiverOrHiddenPrototype());
+   DCHECK(!IsWasmObject(*receiver_));
+@@ -559,6 +560,7 @@
+ 
+ void LookupIterator::ReconfigureDataProperty(DirectHandle<Object> value,
+                                              PropertyAttributes attributes) {
++  CHECK(AllowJSObjectModification::IsAllowed(isolate_));
+   DCHECK(state_ == DATA || state_ == ACCESSOR);
+   DCHECK(HolderIsReceiverOrHiddenPrototype());
+ 
+@@ -727,6 +729,7 @@
+ Maybe<bool> LookupIterator::ApplyTransitionToDataProperty(
+     DirectHandle<JSTransitionableReceiver> receiver,
+     Maybe<ShouldThrow> should_throw) {
++  CHECK(AllowJSObjectModification::IsAllowed(isolate_));
+   DCHECK_EQ(TRANSITION, state_);
+ 
+   DCHECK_IMPLIES(!receiver.is_identical_to(GetStoreTarget<JSReceiver>()),
+@@ -821,6 +824,7 @@
+ }
+ 
+ void LookupIterator::Delete() {
++  CHECK(AllowJSObjectModification::IsAllowed(isolate_));
+   DirectHandle<JSReceiver> holder = Cast<JSReceiver>(holder_);
+   if (IsElement(*holder)) {
+     DirectHandle<JSObject> object = Cast<JSObject>(holder);
+diff --git a/v8/src/objects/map-inl.h b/v8/src/objects/map-inl.h
+index 3d862bf..ea5ab8b 100644
+--- a/v8/src/objects/map-inl.h
++++ b/v8/src/objects/map-inl.h
+@@ -948,6 +948,7 @@
+ }
+ 
+ void Map::AppendDescriptor(Isolate* isolate, Descriptor* desc) {
++  DCHECK(AllowJSObjectModification::IsAllowed(isolate));
+   Tagged<DescriptorArray> descriptors = instance_descriptors();
+   int number_of_own_descriptors = NumberOfOwnDescriptors();
+   DCHECK(descriptors->number_of_descriptors() == number_of_own_descriptors);
+diff --git a/v8/src/objects/map-updater.cc b/v8/src/objects/map-updater.cc
+index 8bc114f..fba70ea 100644
+--- a/v8/src/objects/map-updater.cc
++++ b/v8/src/objects/map-updater.cc
+@@ -1268,6 +1268,7 @@
+                                  PropertyConstness new_constness,
+                                  Representation new_representation,
+                                  DirectHandle<FieldType> new_type) {
++  CHECK(AllowJSObjectModification::IsAllowed(isolate));
+   // We store raw pointers in the queue, so no allocations are allowed.
+   DisallowGarbageCollection no_gc;
+   PropertyDetails details = map->instance_descriptors()->GetDetails(descriptor);
+diff --git a/v8/src/objects/map.cc b/v8/src/objects/map.cc
+index 4444726..1e94d0f 100644
+--- a/v8/src/objects/map.cc
++++ b/v8/src/objects/map.cc
+@@ -713,6 +713,7 @@
+ }
+ 
+ void Map::DeprecateTransitionTree(Isolate* isolate) {
++  CHECK(AllowJSObjectModification::IsAllowed(isolate));
+   DCHECK(CanBeDeprecated());
+   return DeprecateTransitionTreeImpl(isolate);
+ }
+@@ -740,6 +741,7 @@
+ // proper sharing of descriptor arrays.
+ void Map::ReplaceDescriptors(Isolate* isolate,
+                              Tagged<DescriptorArray> new_descriptors) {
++  CHECK(AllowJSObjectModification::IsAllowed(isolate));
+   // Don't overwrite the empty descriptor array or initial map's descriptors.
+   if (NumberOfOwnDescriptors() == 0 || IsUndefined(GetBackPointer())) {
+     return;
+@@ -916,6 +918,7 @@
+ 
+ void Map::EnsureDescriptorSlack(Isolate* isolate, DirectHandle<Map> map,
+                                 int slack) {
++  CHECK(AllowJSObjectModification::IsAllowed(isolate));
+   // Only supports adding slack to owned descriptors.
+   CHECK(map->owns_descriptors());
+ 
+@@ -1632,6 +1635,7 @@
+                             DirectHandle<Map> child, DirectHandle<Name> name,
+                             TransitionKindFlag transition_kind,
+                             bool force_connect) {
++  CHECK(AllowJSObjectModification::IsAllowed(isolate));
+   DCHECK_EQ(parent->map(), child->map());
+   DCHECK_IMPLIES(name->IsInteresting(isolate),
+                  child->may_have_interesting_properties());
+diff --git a/v8/src/objects/transitions.cc b/v8/src/objects/transitions.cc
+index f20dde6..3e99938 100644
+--- a/v8/src/objects/transitions.cc
++++ b/v8/src/objects/transitions.cc
+@@ -412,6 +412,7 @@
+                                                  DirectHandle<Map> map,
+                                                  DirectHandle<Object> prototype,
+                                                  DirectHandle<Map> target_map) {
++  CHECK(AllowJSObjectModification::IsAllowed(isolate));
+   DCHECK(IsUndefined(map->GetBackPointer()));
+   DCHECK_NE(map->prototype(), *prototype);
+   DCHECK(IsMap(Cast<HeapObject>(*prototype)->map()));
