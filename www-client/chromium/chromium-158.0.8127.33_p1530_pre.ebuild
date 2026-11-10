@@ -43,8 +43,8 @@ RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit build (rustc driver, ti
 CRUBIT_DATE="20261015"
 PPC64_HASH="7aae8a84e327fc2078ce1625c9c70bfda77d626f"
 COPIUM_COMMIT="84aa29c73d11981f56eb9a9fbbf35ec993f9d7ff"
-# 158.0.8127.31 is a tag without a tarball: built from the 158.0.8127.18 tarball plus
-# files/chromium-158.0.8127.18-to-158.0.8127.31.patch (see its header).
+# 158.0.8127.33 is a tag without a tarball: built from the 158.0.8127.18 tarball plus
+# files/chromium-158.0.8127.18-to-158.0.8127.33.patch (see its header).
 CHROMIUM_TARBALL_PV="158.0.8127.18"
 # Inputs of ANGLE's code generators that the tarball lacks (files/chromium-angle-regen.py):
 # Khronos' registries at ANGLE's (and, for Vulkan, Chromium's) DEPS revisions; perfect-hash,
@@ -175,9 +175,9 @@ LICENSE+=" rar? ( unRAR )"
 SLOT="stable"
 KEYWORDS="~amd64 ~arm64"
 
-# The 158 branch's changes after the 158.0.8127.31 tag (see its header).
+# The 158 branch's changes after the 158.0.8127.33 tag (see its header).
 CHROMIUM_FIXES=(
-	chromium-158.0.8127.31-branch-fixes.patch
+	chromium-158.0.8127.33-branch-fixes.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
