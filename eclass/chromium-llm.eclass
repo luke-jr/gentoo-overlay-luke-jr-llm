@@ -1215,6 +1215,9 @@ print(d["@polymer/polymer"], d["@webcomponents/shadycss"])' "${S}/third_party/po
 	elog "Removing bundled binaries from source tree ..."
 	"${EPYTHON}" "${FILESDIR}/chromium-binary-audit.py" --delete "${binary_allowlist[@]/#/--allow=}" \
 		"${S}" > "${T}/binary-removal.log" || die "Failed to remove bundled binaries"
+	# Logged (elog), so it is in the messages repeated at the end of emerge: with a kept build tree,
+	# nothing else there names the version.
+	elog "This is ${CATEGORY}/${PF}."
 
 	# And now we restore any that we actually need, from the host system
 	local esbuild_path="${S}/third_party/devtools-frontend/src/third_party/esbuild"
