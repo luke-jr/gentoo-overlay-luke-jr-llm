@@ -1,9 +1,10 @@
 Chromium 158.0.8127.33 + the later changes of its release branch, up to
-ded6b0dabaa638cdf01abbea8d7f36e890f1c187 (refs/branch-heads/8127@{#1599}), for the
+95735b95b5e4bd2e0a2afc7fb4b1c850a104e0cb (refs/branch-heads/8127@{#1608}), for the
 158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..ded6b0dabaa638cdf01abbea8d7f36e890f1c187,
-and from v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..76231bd14f0349ce03eebb7aa9685447733aca66 (the branch's V8 roll, under v8/),
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..95735b95b5e4bd2e0a2afc7fb4b1c850a104e0cb,
+and from the branch's rolls of v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..875534af8903118cd3322a0f80eb0ab770e4847a (under v8/) and
+devtools/devtools-frontend 8deaa243ad5f7abd50b6c0e17a740d0f00fc068f..c4aa6a2d6fdeec5706f7eda413aab3b66718a780 (under third_party/devtools-frontend/src/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .33 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -41,12 +42,19 @@ Commits contributing to it (oldest first):
   f3c94eba3017 [M158] Restore Partial Translate context menu item on PDFs
   837b595c3929 [M158] ozone/drm: Extend DRM authentication timeout to 30s
   ded6b0dabaa6 Roll commits from side projects in M158
+  2373ecd62eac Roll commits from side projects in M158
+  169d39d4b000 [M158] [OmniboxEverywhere] Add overflow menu for settings
+  7076eb7bd8a7 [M158] Avoid dangling AtomicString refs across WillModifyAttribute
+  95735b95b5e4 Roll commits from side projects in M158
     v8 77192c003a77 [M158] [objects] Disallow JSObject modifications during GC and GC callbacks
     v8 e8f914b08b81 Version 15.8.62.27
     v8 c0b2c2f3ade9 [M158] [compiler] Mark string-keyed ordered hash lookups as writing
     v8 4841c0f413fd Version 15.8.62.28
     v8 6951764b330c [M158] [maglev] Check that SubgraphBase::Label is bound before destruction
     v8 76231bd14f03 Version 15.8.62.29
+    v8 8a8f726f82ef [M158] [turboshaft] Invalidate load elimination on CatchBlockBegin
+    v8 875534af8903 Version 15.8.62.30
+    devtools-frontend c4aa6a2d6fde Update What's new content for Chrome 158
 
 Checked: applies to the 158.0.8127.33 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -1051,6 +1059,197 @@ index c4dcfaf..8c0e7231 100644
    }
  
    protected onSingleTabRowPointermove_() {
+diff --git a/chrome/browser/resources/omnibox_everywhere/app.css b/chrome/browser/resources/omnibox_everywhere/app.css
+index 436b07e8..8b842a8 100644
+--- a/chrome/browser/resources/omnibox_everywhere/app.css
++++ b/chrome/browser/resources/omnibox_everywhere/app.css
+@@ -331,6 +331,7 @@
+ #content:has([has-user-input]) #mostVisitedContainer,
+ #content:has([is-context-menu-open]) #mostVisitedContainer,
+ #content:has([is-screenshot-menu-open]) #mostVisitedContainer,
++#content:has([is-overflow-menu-open]) #mostVisitedContainer,
+ #content:has(#composebox) #mostVisitedContainer,
+ #mostVisitedContainer[hidden],
+ #mostVisitedContainer:has(cr-most-visited:not([visible_])),
+diff --git a/chrome/browser/resources/omnibox_everywhere/app.ts b/chrome/browser/resources/omnibox_everywhere/app.ts
+index 34bb0a31..2d4fbe7 100644
+--- a/chrome/browser/resources/omnibox_everywhere/app.ts
++++ b/chrome/browser/resources/omnibox_everywhere/app.ts
+@@ -328,6 +328,8 @@
+             onOpenComposebox),
+         omniboxEverywhereCallbackRouter.onContextMenuClosed.addListener(
+             onContextMenuClosed),
++        omniboxEverywhereCallbackRouter.onOverflowMenuClosed.addListener(
++            () => this.searchbox?.onOverflowMenuClosed()),
+         omniboxEverywhereCallbackRouter.onScreenshotCaptureCancelled
+             .addListener(onScreenshotCaptureCancelled),
+     );
+diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.css b/chrome/browser/resources/omnibox_everywhere/omnibox.css
+index d008137..3af821f 100644
+--- a/chrome/browser/resources/omnibox_everywhere/omnibox.css
++++ b/chrome/browser/resources/omnibox_everywhere/omnibox.css
+@@ -351,6 +351,10 @@
+   top: 0;
+ }
+ 
++#overflowMenuButton {
++  -webkit-mask-image: url(//resources/images/icon_more_vert.svg);
++}
++
+ /* TODO(crbug.com/532200145): Refine the selectors. New interactive elements
+  * must be added to this list because the root container has
+  * '-webkit-app-region: drag' enabled; otherwise, clicks will be swallowed by
+@@ -399,13 +403,14 @@
+   padding-top: 0;
+ }
+ 
++/* 48px profile offset + 3x28px buttons + 2x4px gaps + 8px clearance. */
+ :host(:not([dropdown-is-visible]):not([has-user-input])) cr-searchbox-input {
+-  padding-inline-end: 116px;
++  padding-inline-end: 148px;
+ }
+ 
+ :host(:not([dropdown-is-visible]):not([has-user-input]))
+     #inputWrapper:has(#profileIcon[is-enterprise-profile]) cr-searchbox-input {
+-  padding-inline-end: calc(116px + var(--enterprise-profile-clearance));
++  padding-inline-end: calc(148px + var(--enterprise-profile-clearance));
+ }
+ 
+ :host(:not([dropdown-is-visible]):not([has-user-input]))
+diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.html.ts b/chrome/browser/resources/omnibox_everywhere/omnibox.html.ts
+index 76ee878..7ab1764 100644
+--- a/chrome/browser/resources/omnibox_everywhere/omnibox.html.ts
++++ b/chrome/browser/resources/omnibox_everywhere/omnibox.html.ts
+@@ -122,6 +122,20 @@
+           </div>
+           ` :
+               ''}
++          <div class="searchbox-icon-button-container overflow ${
++              this.isOverflowMenuOpen ? 'menu-open' : ''}">
++            <button id="overflowMenuButton" class="searchbox-icon-button"
++                tabindex="${this.virtualFocusEnabled &&
++                    this.dropdownIsVisible ? -1 : 0}"
++                aria-haspopup="menu"
++                aria-expanded="${this.isOverflowMenuOpen}"
++                aria-label="${this.i18n('overflowMenuButtonLabel')}"
++                title="${this.i18n('overflowMenuButtonLabel')}"
++                @pointerdown="${this.onOverflowMenuPointerdown_}"
++                @pointercancel="${this.onOverflowMenuPointercancel_}"
++                @click="${this.onOverflowMenuClick_}">
++            </button>
++          </div>
+         </div>
+       </div>
+     </div>
+diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.ts b/chrome/browser/resources/omnibox_everywhere/omnibox.ts
+index e8dd381f..10e9b3c7 100644
+--- a/chrome/browser/resources/omnibox_everywhere/omnibox.ts
++++ b/chrome/browser/resources/omnibox_everywhere/omnibox.ts
+@@ -33,6 +33,7 @@
+ import type {AutocompleteMatch, AutocompleteResult, DriveUploadError, OmniboxPopupSelection, PageCallbackRouter, PageHandlerInterface, SelectionDirection, SelectionStep} from '//resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
+ import {ModelMode, ToolMode} from '//resources/mojo/components/omnibox/composebox/composebox_query.mojom-webui.js';
+ import type {InputState} from '//resources/mojo/components/omnibox/composebox/composebox_query.mojom-webui.js';
++import {MenuSourceType} from '//resources/mojo/ui/base/mojom/menu_source_type.mojom-webui.js';
+ 
+ import {OmniboxEverywhereBrowserProxyImpl} from './browser_proxy.js';
+ import {getCss} from './omnibox.css.js';
+@@ -45,6 +46,7 @@
+     input: SearchboxInputElement,
+     inputWrapper: HTMLElement,
+     matches: SearchboxDropdownElement,
++    overflowMenuButton: HTMLButtonElement,
+     profileIcon: OmniboxEverywhereProfileIconElement,
+   };
+ }
+@@ -152,6 +154,10 @@
+         reflect: true,
+         attribute: 'is-context-menu-open',
+       },
++      isOverflowMenuOpen: {
++        type: Boolean,
++        reflect: true,
++      },
+       isActive: {
+         type: Boolean,
+         reflect: true,
+@@ -177,6 +183,7 @@
+   accessor isDraggingFile: boolean = false;
+   accessor isScreenshotMenuOpen: boolean = false;
+   accessor isContextMenuOpen: boolean = false;
++  accessor isOverflowMenuOpen: boolean = false;
+   protected dragAndDropHandler: DragAndDropHandler;
+   protected accessor energyEffectAnimationEnabled_: boolean =
+       loadTimeData.getBoolean('energyEffectAnimationEnabled');
+@@ -552,6 +559,52 @@
+     });
+   }
+ 
++  private wasOverflowMenuOpenOnPointerDown_: boolean = false;
++  private overflowMenuPointerType_: string = '';
++
++  protected onOverflowMenuPointerdown_(e: PointerEvent) {
++    if (e.button !== 0) {
++      return;
++    }
++    e.preventDefault();
++    this.wasOverflowMenuOpenOnPointerDown_ = this.isOverflowMenuOpen;
++    this.overflowMenuPointerType_ = e.pointerType;
++  }
++
++  protected onOverflowMenuPointercancel_() {
++    this.wasOverflowMenuOpenOnPointerDown_ = false;
++  }
++
++  protected onOverflowMenuClick_(e: MouseEvent) {
++    // A click with `detail` 0 wasn't produced by a pointer: it came from the
++    // keyboard (Enter/Space) or a programmatic click(). Telling the browser
++    // lets a keyboard-opened menu select its first item.
++    const sourceType = e.detail === 0             ? MenuSourceType.kKeyboard :
++        this.overflowMenuPointerType_ === 'touch' ? MenuSourceType.kTouch :
++                                                    MenuSourceType.kMouse;
++    const wasOpen =
++        this.wasOverflowMenuOpenOnPointerDown_ || this.isOverflowMenuOpen;
++    this.wasOverflowMenuOpenOnPointerDown_ = false;
++    this.overflowMenuPointerType_ = '';
++    if (wasOpen) {
++      // The click that dismissed the native menu should not reopen it.
++      this.isOverflowMenuOpen = false;
++      return;
++    }
++    this.isOverflowMenuOpen = true;
++    this.finishAnimations_();
++    // `rect` is in WebUI viewport coordinates (CSS DIPs); the browser converts
++    // it to screen coordinates to anchor the native menu.
++    const rect = this.$.overflowMenuButton.getBoundingClientRect();
++    OmniboxEverywhereBrowserProxyImpl.getInstance().handler.showOverflowMenu(
++        {
++          x: Math.round(rect.left),
++          y: Math.round(rect.top),
++          width: Math.round(rect.width),
++          height: Math.round(rect.height),
++        },
++        sourceType);
++  }
+ 
+   protected onFileChange_(e: CustomEvent<{files: FileList}>) {
+     this.processFiles_(
+@@ -694,8 +747,15 @@
+     this.isContextMenuOpen = false;
+   }
+ 
++  onOverflowMenuClosed() {
++    this.isOverflowMenuOpen = false;
++  }
++
+   override onInputWrapperFocusout(e: FocusEvent) {
+-    if (this.isContextMenuOpen || this.$.profileIcon.isMenuOpen) {
++    // Native menus take focus from the WebContents while open; keep the
++    // searchbox state (input, matches) intact until they close.
++    if (this.isContextMenuOpen || this.isOverflowMenuOpen ||
++        this.$.profileIcon.isMenuOpen) {
+       return;
+     }
+     super.onInputWrapperFocusout(e);
 diff --git a/chrome/browser/signin/dice_web_signin_interceptor.cc b/chrome/browser/signin/dice_web_signin_interceptor.cc
 index e6257d7..5637c96 100644
 --- a/chrome/browser/signin/dice_web_signin_interceptor.cc
@@ -1188,6 +1387,304 @@ index a4d416e..ba26585 100644
      return true;
    }
    return false;
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_context_menu_controller.cc b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_context_menu_controller.cc
+index 7432a42..77ed4158 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_context_menu_controller.cc
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_context_menu_controller.cc
+@@ -120,6 +120,55 @@
+   ResetModels();
+   last_params_ = content::ContextMenuParams();
+   is_open_ = false;
++  RunOverflowMenuClosedCallback();
++}
++
++void OmniboxEverywhereContextMenuController::ShowOverflowMenu(
++    const gfx::Rect& anchor_screen_rect,
++    ui::mojom::MenuSourceType source_type,
++    base::OnceClosure on_closed) {
++  views::Widget* host_widget = widget();
++  if (!host_widget || !host_widget->GetContentsView()) {
++    if (on_closed) {
++      std::move(on_closed).Run();
++    }
++    return;
++  }
++
++  // Cancel and clean up any existing menu before creating a new one.
++  if (context_menu_runner_) {
++    context_menu_runner_->Cancel();
++    ReleaseRunner();
++  }
++  ResetModels();
++  RunOverflowMenuClosedCallback();
++
++  // The overflow menu only contains settings commands, which do not depend on
++  // the right-click target, so clear any stale right-click params. This also
++  // keeps the editable-only Writing Direction submenu out of this menu.
++  last_params_ = content::ContextMenuParams();
++  context_menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
++  AppendSettingsContextMenu();
++#if BUILDFLAG(IS_WIN)
++  AppendWindowControlsContextMenu();
++#endif  // BUILDFLAG(IS_WIN)
++
++  overflow_menu_closed_callback_ = std::move(on_closed);
++  // In Views the menu is anchored below the button, aligned to its right edge
++  // (mirrored automatically in RTL). The native macOS menu ignores the anchor
++  // position: when opened by a mouse click it opens at the click location,
++  // like a right-click menu, and otherwise (e.g. keyboard activation) at the
++  // center of the anchor rect. Pass the button's bottom leading corner so the
++  // keyboard case opens below the button.
++  gfx::Rect anchor_rect = anchor_screen_rect;
++#if BUILDFLAG(IS_MAC)
++  anchor_rect =
++      gfx::Rect(base::i18n::IsRTL() ? anchor_screen_rect.bottom_right()
++                                    : anchor_screen_rect.bottom_left(),
++                gfx::Size());
++#endif  // BUILDFLAG(IS_MAC)
++  RunMenu(host_widget, anchor_rect, views::MenuAnchorPosition::kTopRight,
++          source_type);
+ }
+ 
+ void OmniboxEverywhereContextMenuController::ShowContextMenu(
+@@ -136,6 +185,7 @@
+     ReleaseRunner();
+   }
+   ResetModels();
++  RunOverflowMenuClosedCallback();
+ 
+   last_params_ = params;
+   context_menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
+@@ -159,6 +209,18 @@
+     return;
+   }
+ 
++  gfx::Point screen_point(params.x, params.y);
++  views::View::ConvertPointToScreen(host_widget->GetContentsView(),
++                                    &screen_point);
++  RunMenu(host_widget, gfx::Rect(screen_point, gfx::Size()),
++          views::MenuAnchorPosition::kTopLeft, params.source_type);
++}
++
++void OmniboxEverywhereContextMenuController::RunMenu(
++    views::Widget* host_widget,
++    const gfx::Rect& anchor_screen_rect,
++    views::MenuAnchorPosition anchor_position,
++    ui::mojom::MenuSourceType source_type) {
+   is_open_ = true;
+   auto on_closed_callback =
+       base::BindRepeating(&OmniboxEverywhereContextMenuController::OnMenuClosed,
+@@ -173,22 +235,24 @@
+         on_closed_callback);
+   }
+ 
+-  gfx::Point screen_point(params.x, params.y);
+-  views::View::ConvertPointToScreen(host_widget->GetContentsView(),
+-                                    &screen_point);
+-
+-  context_menu_runner_->RunMenuAt(
+-      host_widget, nullptr, gfx::Rect(screen_point, gfx::Size()),
+-      views::MenuAnchorPosition::kTopLeft, params.source_type);
++  context_menu_runner_->RunMenuAt(host_widget, nullptr, anchor_screen_rect,
++                                  anchor_position, source_type);
+ }
+ 
+ void OmniboxEverywhereContextMenuController::OnMenuClosed() {
+   is_open_ = false;
+   ReleaseRunner();
+   ResetModels();
++  RunOverflowMenuClosedCallback();
+   delegate_->OnContextMenuClosed();
+ }
+ 
++void OmniboxEverywhereContextMenuController::RunOverflowMenuClosedCallback() {
++  if (overflow_menu_closed_callback_) {
++    std::move(overflow_menu_closed_callback_).Run();
++  }
++}
++
+ // The runner and models are deleted asynchronously because this may be reached
+ // from within a callback that the runner or the menu model is still executing.
+ void OmniboxEverywhereContextMenuController::ReleaseRunner() {
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_context_menu_controller.h b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_context_menu_controller.h
+index 5ee000d..4f1bc91 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_context_menu_controller.h
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_context_menu_controller.h
+@@ -15,6 +15,7 @@
+ #include "content/public/browser/context_menu_params.h"
+ #include "ui/menus/simple_menu_model.h"
+ #include "ui/views/context_menu_controller.h"
++#include "ui/views/controls/menu/menu_types.h"
+ 
+ class Profile;
+ 
+@@ -22,6 +23,10 @@
+ class WebContents;
+ }  // namespace content
+ 
++namespace gfx {
++class Rect;
++}  // namespace gfx
++
+ namespace views {
+ class MenuRunner;
+ class Widget;
+@@ -92,6 +97,16 @@
+   // / Paste and Go label can reflect the clipboard contents.
+   void HandleContextMenu(const content::ContextMenuParams& params);
+ 
++  // Shows the overflow (three-dot) menu with the same items as the background
++  // right-click menu, anchored below `anchor_screen_rect` (screen DIPs).
++  // `source_type` is how the menu was triggered; a keyboard-triggered menu
++  // selects its first item.
++  // `on_closed` runs once when the menu closes or is replaced, or immediately
++  // if the menu cannot be shown.
++  void ShowOverflowMenu(const gfx::Rect& anchor_screen_rect,
++                        ui::mojom::MenuSourceType source_type,
++                        base::OnceClosure on_closed);
++
+   // Returns true while the menu is showing.
+   bool IsOpen() const { return is_open_; }
+ 
+@@ -129,7 +144,13 @@
+  private:
+   void ShowContextMenu(const content::ContextMenuParams& params,
+                        std::u16string clipboard_text);
++  // Creates the runner for `context_menu_model_` and runs it.
++  void RunMenu(views::Widget* host_widget,
++               const gfx::Rect& anchor_screen_rect,
++               views::MenuAnchorPosition anchor_position,
++               ui::mojom::MenuSourceType source_type);
+   void OnMenuClosed();
++  void RunOverflowMenuClosedCallback();
+   void ReleaseRunner();
+   void ResetModels();
+   void BuildInputContextMenu(const content::ContextMenuParams& params,
+@@ -165,6 +186,9 @@
+ #endif  // BUILDFLAG(IS_MAC)
+   std::unique_ptr<ui::SimpleMenuModel> context_menu_model_;
+   std::unique_ptr<views::MenuRunner> context_menu_runner_;
++  // Runs when the overflow (three-dot) menu closes. Null unless an overflow
++  // menu is currently open.
++  base::OnceClosure overflow_menu_closed_callback_;
+ 
+   base::WeakPtrFactory<OmniboxEverywhereContextMenuController> weak_factory_{
+       this};
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc
+index 12c4693..78d2dc6 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc
+@@ -948,6 +948,17 @@
+          region_select_overlay_ != nullptr;
+ }
+ 
++void OmniboxEverywhereUIManager::ShowOverflowMenu(
++    const gfx::Rect& anchor_screen_rect,
++    ui::mojom::MenuSourceType source_type,
++    base::OnceClosure on_closed) {
++  // Clicking the button can queue a deactivation (e.g. the WebContents losing
++  // focus); cancel it so the popup isn't dismissed as the menu opens.
++  CancelPendingDeactivation();
++  context_menu_controller_->ShowOverflowMenu(anchor_screen_rect, source_type,
++                                             std::move(on_closed));
++}
++
+ void OmniboxEverywhereUIManager::OnWidgetActivationChanged(
+     views::Widget* widget,
+     bool active) {
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h
+index f2e5db4..e0784d15 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h
+@@ -12,6 +12,7 @@
+ 
+ #include "base/cancelable_callback.h"
+ #include "base/containers/enum_set.h"
++#include "base/functional/callback.h"
+ #include "base/functional/callback_helpers.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/weak_ptr.h"
+@@ -30,13 +31,13 @@
+ #include "third_party/blink/public/mojom/page/draggable_region.mojom-forward.h"
+ #include "third_party/skia/include/core/SkRegion.h"
+ #include "ui/base/interaction/element_identifier.h"
++#include "ui/base/mojom/menu_source_type.mojom-forward.h"
+ #include "ui/gfx/geometry/rect.h"
+ #include "ui/gfx/native_ui_types.h"
+ #include "ui/views/widget/widget.h"
+ #include "ui/views/widget/widget_observer.h"
+ 
+ #if BUILDFLAG(IS_WIN)
+-#include "base/functional/callback.h"
+ #include "base/threading/sequence_bound.h"
+ #include "base/win/windows_types.h"
+ #include "chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_shortcut_win.h"
+@@ -159,6 +160,14 @@
+   // flow, so invocation entry points must be ignored while this is true.
+   bool IsScreenshareCaptureInProgress() const;
+ 
++  // Shows the overflow (three-dot) menu containing the Omnibox Everywhere
++  // settings items, anchored below `anchor_screen_rect` (screen DIPs). Shares
++  // the context menu controller with the right-click menu. `on_closed` runs
++  // when the menu closes, or immediately if it cannot be shown.
++  void ShowOverflowMenu(const gfx::Rect& anchor_screen_rect,
++                        ui::mojom::MenuSourceType source_type,
++                        base::OnceClosure on_closed);
++
+   // views::WidgetObserver:
+   void OnWidgetActivationChanged(views::Widget* widget, bool active) override;
+   void OnWidgetVisibilityOnScreenChanged(views::Widget* widget,
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere_service.cc b/chrome/browser/ui/omnibox/omnibox_everywhere_service.cc
+index a37c617..5bea8587 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere_service.cc
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere_service.cc
+@@ -287,6 +287,20 @@
+   }
+ }
+ 
++void OmniboxEverywhereService::ShowOverflowMenu(
++    const gfx::Rect& anchor_screen_rect,
++    ui::mojom::MenuSourceType source_type,
++    base::OnceClosure on_closed) {
++  if (ui_manager()) {
++    ui_manager()->ShowOverflowMenu(anchor_screen_rect, source_type,
++                                   std::move(on_closed));
++    return;
++  }
++  if (on_closed) {
++    std::move(on_closed).Run();
++  }
++}
++
+ void OmniboxEverywhereService::OpenUrl(const GURL& url,
+                                        WindowOpenDisposition disposition,
+                                        ui::PageTransition transition) {
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere_service.h b/chrome/browser/ui/omnibox/omnibox_everywhere_service.h
+index eb980e7c..723920cb 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere_service.h
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere_service.h
+@@ -13,6 +13,7 @@
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/weak_ptr.h"
+ #include "components/keyed_service/core/keyed_service.h"
++#include "ui/base/mojom/menu_source_type.mojom-forward.h"
+ #include "ui/base/page_transition_types.h"
+ #include "ui/base/window_open_disposition.h"
+ #include "ui/gfx/geometry/rect.h"
+@@ -89,6 +90,13 @@
+   virtual void OnFileChooserClosed();
+   virtual void OnHotkeyDropdownOpened();
+   virtual void OnHotkeyDropdownClosed();
++  // Shows the Omnibox Everywhere overflow (three-dot) menu anchored below
++  // `anchor_screen_rect` (screen DIPs). `source_type` is how the button was
++  // activated. `on_closed` runs once the menu closes, or immediately if the
++  // menu cannot be shown.
++  void ShowOverflowMenu(const gfx::Rect& anchor_screen_rect,
++                        ui::mojom::MenuSourceType source_type,
++                        base::OnceClosure on_closed);
+   void OpenUrl(const GURL& url,
+                WindowOpenDisposition disposition,
+                ui::PageTransition transition);
 diff --git a/chrome/browser/ui/omnibox/omnibox_popup_view.h b/chrome/browser/ui/omnibox/omnibox_popup_view.h
 index c3d25e6..eb4da776 100644
 --- a/chrome/browser/ui/omnibox/omnibox_popup_view.h
@@ -1370,6 +1867,197 @@ index af8447b..7b97c73 100644
        {"linkRemoveA11y", IDS_NTP_MOST_VISITED_SITES_REMOVE},
        {"linkRemovedMsg", IDS_NTP_CONFIRM_MSG_SHORTCUT_REMOVED},
        {"shortcutMoreActions", IDS_NTP_CUSTOM_LINKS_MORE_ACTIONS},
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/mojom/BUILD.gn b/chrome/browser/ui/webui/omnibox_everywhere/mojom/BUILD.gn
+index ccfdfd8..cddab53 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/mojom/BUILD.gn
++++ b/chrome/browser/ui/webui/omnibox_everywhere/mojom/BUILD.gn
+@@ -13,6 +13,7 @@
+     "//components/omnibox/browser:mojo_bindings",
+     "//components/omnibox/composebox:mojo_bindings",
+     "//mojo/public/mojom/base",
++    "//ui/base/mojom:ui_base_types",
+     "//ui/gfx/geometry/mojom",
+   ]
+ }
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/mojom/omnibox_everywhere.mojom b/chrome/browser/ui/webui/omnibox_everywhere/mojom/omnibox_everywhere.mojom
+index 9a2773b..edae890 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/mojom/omnibox_everywhere.mojom
++++ b/chrome/browser/ui/webui/omnibox_everywhere/mojom/omnibox_everywhere.mojom
+@@ -7,6 +7,7 @@
+ import "components/omnibox/browser/searchbox.mojom";
+ import "components/omnibox/composebox/composebox_query.mojom";
+ import "mojo/public/mojom/base/unguessable_token.mojom";
++import "ui/base/mojom/menu_source_type.mojom";
+ import "ui/gfx/geometry/mojom/geometry.mojom";
+ 
+ // Initial state when transitioning into composebox mode (e.g. from context
+@@ -50,6 +51,13 @@
+   // Shows the native contextual '+' dropdown menu anchored at `anchor_rect`.
+   ShowContextActionMenu(gfx.mojom.Rect anchor_rect);
+ 
++  // Shows the native overflow (three-dot) menu containing Omnibox Everywhere
++  // settings, anchored below `anchor_rect` (WebUI viewport coordinates, CSS
++  // DIPs). `source_type` is how the button was activated (e.g. keyboard), so
++  // that a keyboard-opened menu selects its first item.
++  ShowOverflowMenu(gfx.mojom.Rect anchor_rect,
++                   ui.mojom.MenuSourceType source_type);
++
+   // Notifies the browser that the composebox presentation mode in WebUI has
+   // changed (e.g. opened or closed/submitted).
+   SetIsComposebox(bool is_composebox);
+@@ -64,6 +72,9 @@
+   // Notifies the WebUI that the native context menu was closed.
+   OnContextMenuClosed();
+ 
++  // Notifies the WebUI that the native overflow (three-dot) menu was closed.
++  OnOverflowMenuClosed();
++
+   // Notifies the page to open composebox mode (e.g. from native context menu
+   // actions) with optional initial configuration (tool, model, or tab).
+   OpenComposebox(ComposeboxInitialState? initial_state);
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.cc b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.cc
+index e5c5db8..a79ce4b 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.cc
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.cc
+@@ -24,6 +24,14 @@
+   }
+ }
+ 
++void OmniboxEverywherePageHandler::ShowOverflowMenu(
++    const gfx::Rect& anchor_rect,
++    ui::mojom::MenuSourceType source_type) {
++  if (web_ui_controller_) {
++    web_ui_controller_->ShowOverflowMenu(anchor_rect, source_type);
++  }
++}
++
+ void OmniboxEverywherePageHandler::SetIsComposebox(bool is_composebox) {
+   if (web_ui_controller_) {
+     web_ui_controller_->SetIsComposebox(is_composebox);
+@@ -42,6 +50,12 @@
+   }
+ }
+ 
++void OmniboxEverywherePageHandler::OnOverflowMenuClosed() {
++  if (page_) {
++    page_->OnOverflowMenuClosed();
++  }
++}
++
+ void OmniboxEverywherePageHandler::OpenComposebox(
+     omnibox_everywhere::mojom::ComposeboxInitialStatePtr initial_state) {
+   if (page_) {
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.h b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.h
+index 86f5a88..a47385b 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.h
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.h
+@@ -34,11 +34,14 @@
+ 
+   // omnibox_everywhere::mojom::PageHandler:
+   void ShowContextActionMenu(const gfx::Rect& anchor_rect) override;
++  void ShowOverflowMenu(const gfx::Rect& anchor_rect,
++                        ui::mojom::MenuSourceType source_type) override;
+   void SetIsComposebox(bool is_composebox) override;
+   void OnDismissMostVisited() override;
+ 
+   // Forwards context menu / composebox events to the WebUI page.
+   void OnContextMenuClosed();
++  void OnOverflowMenuClosed();
+   void OpenComposebox(
+       omnibox_everywhere::mojom::ComposeboxInitialStatePtr initial_state);
+   void OnScreenshotCaptureCancelled();
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc
+index 01691406b..ad1401c 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc
+@@ -282,6 +282,9 @@
+       {"loomniboxFreWhereToFindPrimary",
+        IDS_LOOMNIBOX_FRE_WHERE_TO_FIND_PRIMARY},
+       {"managedByYourOrganization", IDS_MANAGED},
++      // Reuses the standard "More options" accessible label for the overflow
++      // (three-dot) button.
++      {"overflowMenuButtonLabel", IDS_FUSEBOX_MORE_OPTIONS},
+       {"profileButtonLabel", IDS_OVERFLOW_MENU_ITEM_TEXT_PROFILE},
+       {"profileTooltipHeader", IDS_OMNIBOX_EVERYWHERE_PROFILE_TOOLTIP},
+       {"screenshotEntireScreenLabel", IDS_OMNIBOX_EVERYWHERE_ENTIRE_SCREEN},
+@@ -1125,6 +1128,14 @@
+   SynthesizeMouseMoveEvent();
+ }
+ 
++void OmniboxEverywhereUI::OnOverflowMenuClosed() {
++  if (page_handler_) {
++    page_handler_->OnOverflowMenuClosed();
++  }
++  // Clear stale hover state on the overflow button after the menu closes.
++  SynthesizeMouseMoveEvent();
++}
++
+ void OmniboxEverywhereUI::OnFileChooserOpened() {
+   if (auto* service =
+           OmniboxEverywhereServiceFactory::GetForProfile(profile_)) {
+@@ -1183,6 +1194,27 @@
+   context_menu_->RunMenuAt(screen_point, ui::mojom::MenuSourceType::kNone);
+ }
+ 
++// The overflow menu is hosted by `OmniboxEverywhereUIManager` (via the service)
++// so it shares the right-click menu's model, command handling, and dismissal
++// suppression (the popup must stay open while the native menu has activation).
++void OmniboxEverywhereUI::ShowOverflowMenu(
++    const gfx::Rect& anchor_rect,
++    ui::mojom::MenuSourceType source_type) {
++  content::WebContents* web_contents = web_ui()->GetWebContents();
++  auto* service = OmniboxEverywhereServiceFactory::GetForProfile(profile_);
++  if (!web_contents || !service) {
++    OnOverflowMenuClosed();
++    return;
++  }
++  // `anchor_rect` is in WebUI viewport coordinates; offset it by the
++  // WebContents' screen position to get screen DIP coordinates.
++  service->ShowOverflowMenu(
++      anchor_rect + web_contents->GetContainerBounds().OffsetFromOrigin(),
++      source_type,
++      base::BindOnce(&OmniboxEverywhereUI::OnOverflowMenuClosed,
++                     weak_factory_.GetWeakPtr()));
++}
++
+ // static
+ gfx::Point OmniboxEverywhereUI::CalculateContextMenuAnchorPoint(
+     const gfx::Rect& anchor_rect,
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.h b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.h
+index b87d024b..4819960 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.h
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.h
+@@ -19,6 +19,7 @@
+ #include "mojo/public/cpp/bindings/pending_receiver.h"
+ #include "mojo/public/cpp/bindings/pending_remote.h"
+ #include "mojo/public/cpp/bindings/receiver.h"
++#include "ui/base/mojom/menu_source_type.mojom-forward.h"
+ #include "ui/menus/simple_menu_model.h"
+ #include "ui/webui/resources/cr_components/composebox/composebox.mojom.h"
+ #include "ui/webui/resources/cr_components/help_bubble/help_bubble.mojom.h"
+@@ -159,6 +160,13 @@
+   // button. `anchor_rect` is in WebUI viewport coordinates (CSS DIPs).
+   void ShowContextActionMenu(const gfx::Rect& anchor_rect);
+ 
++  // Shows the native overflow (three-dot) menu containing Omnibox Everywhere
++  // settings, anchored below the WebUI overflow button. `anchor_rect` is in
++  // WebUI viewport coordinates (CSS DIPs); `source_type` is how the button was
++  // activated.
++  void ShowOverflowMenu(const gfx::Rect& anchor_rect,
++                        ui::mojom::MenuSourceType source_type);
++
+   // Computes the screen point for anchoring the native context menu given the
+   // entrypoint bounding box in WebUI viewport coordinates and container bounds.
+   // Handles both LTR and RTL anchor_rect bounds.
+@@ -225,6 +233,8 @@
+       omnibox_everywhere::mojom::ComposeboxInitialStatePtr initial_state);
+ 
+   void OnContextMenuClosed();
++  // Notifies the WebUI that the overflow (three-dot) menu closed.
++  void OnOverflowMenuClosed();
+ 
+   bool is_composebox_mode() const { return is_composebox_mode_; }
+   void SetIsComposebox(bool is_composebox);
 diff --git a/components/enterprise/device_attestation/common/device_attestation_types.h b/components/enterprise/device_attestation/common/device_attestation_types.h
 index 904e3ba..4dee7c8 100644
 --- a/components/enterprise/device_attestation/common/device_attestation_types.h
@@ -2293,6 +2981,58 @@ index e03992d..441d33a 100644
  
  constexpr SkColor kQuickOfficeExtensionBackgroundColor =
      SkColorSetRGB(241, 241, 241);
+diff --git a/third_party/blink/renderer/core/dom/element.cc b/third_party/blink/renderer/core/dom/element.cc
+index 1e198ec..19f2e8bf 100644
+--- a/third_party/blink/renderer/core/dom/element.cc
++++ b/third_party/blink/renderer/core/dom/element.cc
+@@ -14126,18 +14126,26 @@
+       GetElementData()->Attributes().at(index);
+   QualifiedName existing_attribute_name = existing_attribute.GetName();
+ 
++  // `new_value` may be a reference into `ElementData::Attributes()`, which can
++  // be reallocated if `WillModifyAttribute()` pauses in the debugger and script
++  // mutates attributes. Copy it here (rather than taking `new_value` by value
++  // in `SetAttributeInternal`, which would add refcount churn to the
++  // `AppendAttributeInternal` fast path).
+   if (new_value == existing_attribute.Value()) {
+     if (reason !=
+         AttributeModificationReason::kBySynchronizationOfLazyAttribute) {
+-      WillModifyAttribute(existing_attribute_name, new_value, new_value);
+-      DidModifyAttribute(existing_attribute_name, new_value, new_value, reason);
++      AtomicString value_copy = new_value;
++      WillModifyAttribute(existing_attribute_name, value_copy, value_copy);
++      DidModifyAttribute(existing_attribute_name, value_copy, value_copy,
++                         reason);
+     }
+   } else {
+     AtomicString existing_attribute_value = existing_attribute.Value();
++    AtomicString value_copy = new_value;
+     if (reason !=
+         AttributeModificationReason::kBySynchronizationOfLazyAttribute) {
+       WillModifyAttribute(existing_attribute_name, existing_attribute_value,
+-                          new_value);
++                          value_copy);
+     }
+     MutableAttributeCollection mutable_attributes =
+         EnsureUniqueElementData().Attributes();
+@@ -14149,14 +14157,14 @@
+       index = mutable_attributes.FindIndex(existing_attribute_name);
+     }
+     if (index != kNotFound) {
+-      mutable_attributes[index].SetValue(new_value);
++      mutable_attributes[index].SetValue(value_copy);
+     } else {
+-      mutable_attributes.Append(existing_attribute_name, new_value);
++      mutable_attributes.Append(existing_attribute_name, value_copy);
+     }
+     if (reason !=
+         AttributeModificationReason::kBySynchronizationOfLazyAttribute) {
+       DidModifyAttribute(existing_attribute_name, existing_attribute_value,
+-                         new_value, reason);
++                         value_copy, reason);
+     }
+   }
+ }
 diff --git a/third_party/blink/renderer/core/frame/frame_view.cc b/third_party/blink/renderer/core/frame/frame_view.cc
 index 172b84f..df07af9 100644
 --- a/third_party/blink/renderer/core/frame/frame_view.cc
@@ -2785,8 +3525,64 @@ index 7373bf5..35751c4 100644
    protected onTilesRendered_() {
      performance.measure('most-visited-rendered');
      assert(this.maxVisibleTiles_ > 0);
+diff --git a/third_party/devtools-frontend/src/front_end/panels/whats_new/ReleaseNoteText.ts b/third_party/devtools-frontend/src/front_end/panels/whats_new/ReleaseNoteText.ts
+index b07261b..e7b2c2c 100644
+--- a/third_party/devtools-frontend/src/front_end/panels/whats_new/ReleaseNoteText.ts
++++ b/third_party/devtools-frontend/src/front_end/panels/whats_new/ReleaseNoteText.ts
+@@ -40,22 +40,22 @@
+ }
+ 
+ let releaseNote: ReleaseNote = {
+-  version: 156,
+-  header: 'New in DevTools (November 2026)',
++  version: 158,
++  header: 'New in DevTools (December 2026)',
+   markdownLinks: [
+     {
+       key: 'mcp',
+-      link: 'https://developer.chrome.com/blog/new-in-devtools-november-2026/#mcp',
++      link: 'https://developer.chrome.com/blog/new-in-devtools-december-2026/#mcp',
+     },
+     {
+       key: 'sources',
+-      link: 'https://developer.chrome.com/blog/new-in-devtools-november-2026/#sources',
++      link: 'https://developer.chrome.com/blog/new-in-devtools-december-2026/#sources',
+     },
+     {
+-      key: 'web-install-manifest-diagnosti',
+-      link: 'https://developer.chrome.com/blog/new-in-devtools-november-2026/#web-install-manifest-diagnosti',
++      key: 'performance',
++      link: 'https://developer.chrome.com/blog/new-in-devtools-december-2026/#performance',
+     },
+   ],
+   videoLinks: [],
+-  link: 'https://developer.chrome.com/blog/new-in-devtools-november-2026/',
++  link: 'https://developer.chrome.com/blog/new-in-devtools-december-2026/',
+ };
+diff --git a/third_party/devtools-frontend/src/front_end/panels/whats_new/resources/WNDT.md b/third_party/devtools-frontend/src/front_end/panels/whats_new/resources/WNDT.md
+index c102d43..1750689 100644
+--- a/third_party/devtools-frontend/src/front_end/panels/whats_new/resources/WNDT.md
++++ b/third_party/devtools-frontend/src/front_end/panels/whats_new/resources/WNDT.md
+@@ -1,11 +1,11 @@
+-### [DevTools for agents](mcp)
++### [DevTools for agents: Logpoints, virtual WebAuthn authenticators, live config reloading, and offline heap snapshots](mcp)
+ 
+-Inspect matched rules, inherited styles, pseudo-elements, and `@` rules with the `get_css_styles` tool in Chrome DevTools for agents. You can also manage server flags with a configuration file and parse large performance traces with chunked trace buffer parsing.
++Set source-mapped logpoints (`set_logpoints`), configure virtual WebAuthn authenticators (`configure_webauthn`), watch and hot-reload MCP configuration files with `--watchConfig`, and analyze heap snapshots and V8 execution contexts offline without a browser connection.
+ 
+-### [Visual position-area editor for CSS anchor positioning](sources)
++### [Sources: Original scopes view, stack traces, and expression evaluation with ECMA-426 source map scopes](sources)
+ 
+-Click the inline swatch next to a `position-area` declaration in the **Styles** tab to visually select anchor grid regions, configure axis modes, and toggle the `self` keyword. Right-click **popover** adorners in the DOM tree to disambiguate multiple implicit anchors.
++Inspect your authored file's original lexical scope tree in the **Scope** pane, view original function names and merged outlined frames across stack traces, and evaluate expressions using original variable names powered by ECMA-426 source map `scopes`.
+ 
+-### [Web Install manifest diagnostics and ad script provenance](web-install-manifest-diagnosti)
++### [Performance and Memory: Faster trace parsing, Lantern HTTP/3 simulation, and generator context analysis](performance)
+ 
+-Diagnose Web Install (`navigator.install` and `<install>`) manifest errors in the **Issues** panel with direct links to affected manifests. In the **Application** panel's **Ads** section, use the new **Ad provenance** column to see whether script ancestry or a filter list rule tagged an ad script.
++Parse large performance traces roughly 26% faster with reduced memory usage, and analyze heap snapshot context retention across suspended generators, async functions, and finished ES modules.
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index d9b6596..bebb9f3 100644
+index d9b6596..69f6f0b 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -2794,7 +3590,7 @@ index d9b6596..bebb9f3 100644
  #define V8_MINOR_VERSION 8
  #define V8_BUILD_NUMBER 62
 -#define V8_PATCH_LEVEL 26
-+#define V8_PATCH_LEVEL 29
++#define V8_PATCH_LEVEL 30
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
@@ -2903,6 +3699,23 @@ index cc0d5d6..724e1b4 100644
    };
    using FindOrderedHashMapEntry =
        FindOrderedHashEntry<Builtin::kFindOrderedHashMapEntry>;
+diff --git a/v8/src/compiler/turboshaft/late-load-elimination-reducer.cc b/v8/src/compiler/turboshaft/late-load-elimination-reducer.cc
+index 87a181c..a8419bb 100644
+--- a/v8/src/compiler/turboshaft/late-load-elimination-reducer.cc
++++ b/v8/src/compiler/turboshaft/late-load-elimination-reducer.cc
+@@ -247,6 +247,12 @@
+         break;
+ 
+       case Opcode::kCatchBlockBegin:
++        // Throwing an exception can have arbitrary side effects (e.g., via
++        // debugger pause-on-exception), even when the throwing operation itself
++        // does not have `can_write` effects on its non-throwing path.
++        memory_.InvalidateMaybeAliasing();
++        break;
++
+       case Opcode::kRetain:
+       case Opcode::kDidntThrow:
+       case Opcode::kCheckException:
 diff --git a/v8/src/compiler/turboshaft/operations.h b/v8/src/compiler/turboshaft/operations.h
 index 2234137..07cff09 100644
 --- a/v8/src/compiler/turboshaft/operations.h
@@ -2941,6 +3754,76 @@ index 2234137..07cff09 100644
      case Opcode::kDidntThrow:
        return Cast<DidntThrowOp>().Effects();
      case Opcode::kTaggedBitcast:
+diff --git a/v8/src/compiler/turboshaft/wasm-load-elimination-reducer.cc b/v8/src/compiler/turboshaft/wasm-load-elimination-reducer.cc
+index db870dc..47f2014 100644
+--- a/v8/src/compiler/turboshaft/wasm-load-elimination-reducer.cc
++++ b/v8/src/compiler/turboshaft/wasm-load-elimination-reducer.cc
+@@ -141,11 +141,21 @@
+           memory_.InvalidateMutableSharedBase();
+         }
+         break;
++      case Opcode::kCatchBlockBegin:
++        // Throwing an exception can have arbitrary side effects (e.g., via
++        // debugger pause-on-exception), even when the throwing operation itself
++        // does not have `can_write` effects on its non-throwing path.
++        memory_.InvalidateMaybeAliasing();
++        break;
++
++      case Opcode::kGlobalSet:
++        InvalidateIfAlias(op.Cast<GlobalSetOp>().value());
++        break;
++
+       case Opcode::kMemoryCopy:
+       case Opcode::kMemoryFill:
+         // These should never operate on GC objects.
+       case Opcode::kAssumeMap:
+-      case Opcode::kCatchBlockBegin:
+       case Opcode::kRetain:
+       case Opcode::kDidntThrow:
+       case Opcode::kCheckException:
+@@ -153,7 +163,6 @@
+       case Opcode::kJSStackCheck:
+       case Opcode::kWasmStackCheck:
+       case Opcode::kSimd128LaneMemory:
+-      case Opcode::kGlobalSet:
+       case Opcode::kWasmIncCoverageCounter:
+       case Opcode::kParameter:
+       case Opcode::kSetStackPointer:
+@@ -366,6 +375,10 @@
+     // among threads.
+     memory_.InvalidateMutableSharedBase();
+   }
++
++  // Updating aliases if the value stored was known as non-aliasing (e.g.,
++  // storing a struct reference into an exception values array).
++  InvalidateIfAlias(op.value());
+ }
+ 
+ void WasmLoadEliminationAnalyzer::ProcessArrayGet(OpIndex op_idx,
+@@ -478,9 +491,6 @@
+   // Some builtins do not create aliases and do not invalidate existing
+   // memory, and some even return fresh objects. For such cases, we don't
+   // invalidate the state, and record the non-alias if any.
+-  if (!op.Effects().can_write()) {
+-    return;
+-  }
+   // TODO(jkummerow): Add special handling to builtins that are known not to
+   // have relevant side effects. Alternatively, specify their effects to not
+   // include `CanWriteMemory()`.
+@@ -498,9 +508,12 @@
+ #endif
+   // Not a builtin call, or not a builtin that we know doesn't invalidate
+   // memory.
+-
+   InvalidateAllNonAliasingInputs(op);
+ 
++  if (!op.Effects().can_write()) {
++    return;
++  }
++
+   // The call could modify arbitrary memory, so we invalidate every
+   // potentially-aliasing object.
+   memory_.InvalidateMaybeAliasing();
 diff --git a/v8/src/execution/isolate.h b/v8/src/execution/isolate.h
 index c191781..bb742ca 100644
 --- a/v8/src/execution/isolate.h
