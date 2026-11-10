@@ -176,7 +176,9 @@ RUST_NEEDS_LLVM="yes please"
 RUST_OPTIONAL="yes" # Not actually optional, but we don't need system Rust (or LLVM) with USE=bundled-toolchain
 RUST_REQ_USE="rustfmt" # Upstream run rustfmt on bindgen output, so we need it to be available.
 
-inherit check-reqs chromium-2 desktop flag-o-matic llvm-r1 multiprocessing ninja-utils pax-utils
+# No llvm-r1 or llvm-r2 here: with RUST_NEEDS_LLVM, rust.eclass inherits the one ::gentoo's Rust
+# uses (llvm-r2 since 2026-11-09, llvm-r1 before), and both can't be inherited together.
+inherit check-reqs chromium-2 desktop flag-o-matic multiprocessing ninja-utils pax-utils
 inherit python-any-r1 readme.gentoo-r1 rust systemd toolchain-funcs virtualx xdg-utils
 
 : "${CHROMIUM_TARBALL_PV:=${PV%%_*}}"
@@ -703,7 +705,12 @@ chromium-llm_pkg_setup() {
 		# to a sane value.
 		# This is effectively the 'force-clang' path if GCC support is re-added.
 		if use !bundled-toolchain; then
-			llvm-r1_pkg_setup
+			# Whichever LLVM eclass rust.eclass inherited (see the inherit above).
+			if declare -F llvm-r2_pkg_setup >/dev/null; then
+				llvm-r2_pkg_setup
+			else
+				llvm-r1_pkg_setup
+			fi
 			rust_pkg_setup
 
 			# Crubit (cc_bindings_from_rs, upstream's C++ bindings generator for Rust code;
