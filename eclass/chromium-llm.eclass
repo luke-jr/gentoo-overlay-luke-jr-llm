@@ -109,6 +109,33 @@
 # upstream sources ("src" since 158, where pdfium's own files stay one level up). Unset: the
 # sources are in those directories themselves.
 
+# @ECLASS_VARIABLE: CHROMIUM_BUILD_DIR
+# @USER_VARIABLE
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# Opt-in (e.g. in make.conf): keep the build tree in this directory between builds, so that the
+# next build of the same major version only rebuilds what changed. It is expanded with MAJOR set
+# to the major version. Portage expands variables in make.conf even single-quoted, so escape
+# the $, e.g.
+#   CHROMIUM_BUILD_DIR="/var/tmp/portage/chromium-build/\${MAJOR}"
+# The sources are unpacked to its src/ (S), replacing the last build's; everything else is in
+# its build/, which stays: the build directory (build/Release), and the tree's records (state,
+# owner, mojom-message-id-salt, toolchains). Before each ninja run, files whose contents are
+# those of the last run (whatever build it was in) get that run's timestamp back, changed ones a
+# new one
+# (files/chromium-build-tree.py). ninja tracks system headers too (system_headers_in_deps). A
+# toolchain change (not tracked by ninja) gets a warning: delete build/ for a full build. One
+# build at a time uses the directory: another one waits until it is done. USE=pgo builds
+# everything twice anyway.
+
+# @ECLASS_VARIABLE: CHROMIUM_BUILD_DIR_KEEP_SRC
+# @USER_VARIABLE
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# With CHROMIUM_BUILD_DIR, the kept build tree's src/ is emptied at the end of src_install: the
+# next build unpacks its own sources anyway, only build/ is reused. 1 keeps them until the next
+# build, 0 removes them; unset, FEATURES=keepwork keeps them.
+
 # @FUNCTION: chromium_crubit_rustfmt
 # @USAGE: <suffix>
 # @DESCRIPTION:
@@ -153,7 +180,20 @@ inherit check-reqs chromium-2 desktop flag-o-matic llvm-r1 multiprocessing ninja
 inherit python-any-r1 readme.gentoo-r1 rust systemd toolchain-funcs virtualx xdg-utils
 
 : "${CHROMIUM_TARBALL_PV:=${PV%%_*}}"
-S="${WORKDIR}/chromium-${CHROMIUM_TARBALL_PV}"
+# The sources are in src/ and everything built from them in build/ (WORKDIR's, or the kept build
+# tree's): the build directory (gn gen, ninja) is build/Release, outside the sources, here
+# relative to S.
+S="${WORKDIR}/src"
+CHROMIUM_OUT=../build/Release
+if [[ -n ${CHROMIUM_BUILD_DIR} ]]; then
+	_chromium_build_tree() {
+		local MAJOR=${PV%%.*}
+		eval "CHROMIUM_BUILD_TREE=\"${CHROMIUM_BUILD_DIR}\""
+	}
+	_chromium_build_tree
+	unset -f _chromium_build_tree
+	S="${CHROMIUM_BUILD_TREE}/src"
+fi
 # Google's official "lite" source tarball (as for 156, whose 156.0.8078.47 had none at
 # chromium-linux-tarballs, which ::gentoo uses). For 156.0.8078.12, the two have the same content,
 # apart from one empty test file (chrome/test/data/webui/i18n_process_css_test.html).
@@ -563,10 +603,65 @@ pre_build_checks() {
 	check-reqs_${EBUILD_PHASE_FUNC}
 }
 
+# The kept build tree (CHROMIUM_BUILD_DIR): files/chromium-build-tree.py, with Portage's Python
+# (its locks).
+chromium_build_tree_py() {
+	PYTHONPATH="${PORTAGE_PYTHONPATH:-${PORTAGE_PYM_PATH}}" "${PORTAGE_PYTHON:-python3}" -B \
+		"${FILESDIR}/chromium-build-tree.py" "$@" || die "chromium-build-tree.py $1 failed"
+}
+
+# The kept build tree is outside WORKDIR: let the phases write there.
+chromium_build_tree_addwrite() {
+	if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
+		addwrite "${CHROMIUM_BUILD_TREE}"
+	fi
+}
+
+# The toolchain the objects are built with, for the kept build tree: ninja doesn't see a new
+# version of it (in the same LLVM or Rust slot).
+chromium_toolchain_id() {
+	if use bundled-toolchain; then
+		echo "bundled Clang ${BUNDLED_CLANG_VER}, Rust ${BUNDLED_RUST_VER}"
+	else
+		echo "$(${CC} --version | head -n1); $(ld.lld --version | head -n1); $("$(get_rust_prefix)bin/rustc" --version)"
+	fi
+}
+
+# ninja in the source tree: with a kept build tree, settle the sources' timestamps first. Every
+# file is looked at in the build's first run (after the in-place regenerations of
+# chromium_regenerate; not again for PGO's second phase), then those written since the last run.
+# chromium_build_tree_bootstrap: files that a tool built in this run regenerates in place (see
+# chromium-build-tree.py's --bootstrap).
+chromium_eninja() {
+	if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
+		local settle=( settle "${CHROMIUM_BUILD_TREE}/build" "${S}" )
+		if [[ ! -e ${T}/.build-tree-settled ]]; then
+			settle+=( --full "${S}/${CHROMIUM_OUT}/build.ninja" )
+		fi
+		if [[ -n ${chromium_build_tree_bootstrap[*]} ]]; then
+			settle+=( --bootstrap "${chromium_build_tree_bootstrap[@]}" )
+		fi
+		chromium_build_tree_py "${settle[@]}"
+		touch "${T}/.build-tree-settled" || die
+	fi
+	eninja "$@"
+}
+
 chromium-llm_pkg_pretend() {
 	if [[ ${MERGE_TYPE} != binary ]]; then
 		# The pre_build_checks are all about compilation resources, no need to run it for a binpkg
 		pre_build_checks
+		if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
+			local tree_owner=
+			[[ -f ${CHROMIUM_BUILD_TREE}/build/owner ]] && tree_owner=$(<"${CHROMIUM_BUILD_TREE}/build/owner")
+			if [[ -d ${CHROMIUM_BUILD_TREE}/build/Release ]]; then
+				einfo "Building in the kept build tree ${CHROMIUM_BUILD_TREE} (CHROMIUM_BUILD_DIR):"
+				einfo "reusing what ${tree_owner:+${tree_owner##*/} }built there, rebuilding only what changed."
+			else
+				einfo "Building in a new kept build tree ${CHROMIUM_BUILD_TREE} (CHROMIUM_BUILD_DIR):"
+				einfo "a full build, kept for the next build of ${PV%%.*}."
+			fi
+		fi
 	fi
 
 	if use headless; then
@@ -694,13 +789,67 @@ chromium-llm_pkg_setup() {
 				die "Your lld version (${lld_ver}) is too old for the selected LLVM slot (${LLVM_SLOT}). Please install a newer lld or select an older LLVM slot."
 			fi
 		fi
+
+		if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
+			addwrite "${CHROMIUM_BUILD_TREE}"
+			mkdir -p "${CHROMIUM_BUILD_TREE}" || die
+			# The phases after pkg_setup run as the build user (FEATURES=userpriv).
+			if [[ ${EUID} == 0 ]] && has userpriv ${FEATURES}; then
+				chown "${PORTAGE_BUILD_USER:-portage}:${PORTAGE_BUILD_GROUP:-portage}" "${CHROMIUM_BUILD_TREE}" || die
+			fi
+			local tree_owner=
+			[[ -f ${CHROMIUM_BUILD_TREE}/build/owner ]] && tree_owner=$(<"${CHROMIUM_BUILD_TREE}/build/owner")
+			# Another build using it (Portage still locks its build directory; see claim in
+			# files/chromium-build-tree.py, which isn't there yet in pkg_setup)?
+			if [[ -n ${tree_owner} && ${tree_owner} != "${PORTAGE_BUILDDIR}" ]]; then
+				PYTHONPATH="${PORTAGE_PYTHONPATH:-${PORTAGE_PYM_PATH}}" "${PORTAGE_PYTHON:-python3}" -B -c '
+import os, sys, portage.locks
+from portage.exception import TryAgain
+try:
+    portage.locks.unlockdir(portage.locks.lockdir(sys.argv[1], flags=os.O_NONBLOCK))
+except TryAgain:
+    sys.exit(3)
+' "${tree_owner}" 2>/dev/null
+				if [[ $? == 3 ]]; then
+					ewarn "The build in ${tree_owner} uses ${CHROMIUM_BUILD_TREE}:"
+					ewarn "this one will wait until it is done before unpacking."
+				fi
+			fi
+			local tc_id tc_f
+			tc_id=$(chromium_toolchain_id) || die
+			tc_f="${CHROMIUM_BUILD_TREE}/build/toolchains"
+			if [[ -f ${tc_f} ]] && grep -qvxF "${tc_id}" "${tc_f}"; then
+				ewarn "The kept build tree has objects built with another toolchain, which ninja doesn't rebuild:"
+				while IFS= read -r tc_f; do
+					ewarn "  ${tc_f}"
+				done < "${tc_f}"
+				ewarn "This build uses: ${tc_id}"
+				ewarn "For a full build, delete ${CHROMIUM_BUILD_TREE}/build first."
+			fi
+		fi
 	fi
 
 	chromium_suid_sandbox_check_kernel_config
 }
 
 chromium-llm_src_unpack() {
-	unpack chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz
+	if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
+		# The kept build tree: replace the last build's sources (its build/ stays).
+		addwrite "${CHROMIUM_BUILD_TREE}"
+		mkdir -p "${CHROMIUM_BUILD_TREE}/build" || die
+		# Here, not in pkg_setup: FILESDIR is only there in the src_* phases.
+		chromium_build_tree_py claim "${CHROMIUM_BUILD_TREE}/build" "${PORTAGE_BUILDDIR}"
+		# (Its contents: src/ may be a mount point.)
+		if [[ -d ${S} ]]; then
+			einfo "Removing the last build's sources from ${S} ..."
+			find "${S}" -mindepth 1 -maxdepth 1 -exec rm -rf {} + || die
+		fi
+	fi
+	# The tarball's chromium-<version>/ is S (src/).
+	mkdir -p "${S}" || die
+	einfo "Unpacking chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz to ${S} ..."
+	tar -xf "${DISTDIR}/chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz" --strip-components=1 -C "${S}" ||
+		die "Failed to unpack chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz"
 	unpack polymer-${POLYMER_VER}.gh.tar.gz shadycss-${SHADYCSS_COMMIT}.gh.tar.gz
 	unpack perfect-hash-${ANGLE_PERFECT_HASH_VER}.tar.gz
 	unpack Vulkan-Headers-${SWS_VULKAN_HEADERS_COMMIT}.gh.tar.gz Vulkan-Headers-${SWS_VIDEO_HEADERS_COMMIT}.gh.tar.gz \
@@ -804,6 +953,8 @@ remove_compiler_builtins() {
 }
 
 chromium-llm_src_prepare() {
+	chromium_build_tree_addwrite
+
 	# A _pre of a tag without a tarball: upgrade the ${CHROMIUM_TARBALL_PV} tarball to the tag
 	# first (see the patch's header).
 	local tag=${PV%%_*}
@@ -1623,7 +1774,7 @@ chromium_regenerate_gn() {
 	# Chromium's own checked-in generated GPU code: the command buffer's GLES2/raster/WebGPU
 	# client and service code, the GL and Vulkan function bindings (Vulkan's from vk.xml, put
 	# in place above) and Vulkan's mojo types (with their type mappings, a .gni file GN reads).
-	# The generators insist on a checkout named src/ or chromium/, and format their output with
+	# The generators insist on a checkout named src/ or chromium/ (S is src/), and format their output with
 	# third_party/depot_tools/clang-format (a wrapper that runs a prebuilt one; replaced while
 	# they run, and they ignore its failures).
 	einfo "Regenerating Chromium's generated GPU code ..."
@@ -1635,15 +1786,14 @@ chromium_regenerate_gn() {
 	else
 		ln -s "$(get_llvm_prefix -b)/bin/clang-format" third_party/depot_tools/clang-format || die
 	fi
-	ln -s "${S}" "${WORKDIR}/src" || die
 	local gpu_gen
 	for gpu_gen in gpu/command_buffer/build_{gles2,raster,webgpu}_cmd_buffer.py ui/gl/generate_bindings.py \
 		gpu/vulkan/generate_bindings.py gpu/ipc/common/generate_vulkan_types.py; do
-		( cd "${WORKDIR}/src" && PATH="${S}/third_party/depot_tools:${PATH}" \
-			"${EPYTHON}" -B "${WORKDIR}/src/${gpu_gen}" ) > "${T}/$(basename ${gpu_gen} .py).log" 2>&1 ||
+		( PATH="${S}/third_party/depot_tools:${PATH}" "${EPYTHON}" -B "${S}/${gpu_gen}" ) \
+			> "${T}/$(basename ${gpu_gen} .py).log" 2>&1 ||
 			die "${gpu_gen} failed (see ${T}/$(basename ${gpu_gen} .py).log)"
 	done
-	rm "${WORKDIR}/src" third_party/depot_tools/clang-format || die
+	rm third_party/depot_tools/clang-format || die
 	mv third_party/depot_tools/clang-format{.orig,} || die
 
 	# libvpx's configuration (source/config/: vpx_config.*, the *_rtcd.h headers) is the output of
@@ -2641,11 +2791,7 @@ sys.stdout.write("".join(out))' "${polymer_dir}/chromium.patch" > chromium-polym
 			> "${T}/dav1d-config.log" 2>&1 || die "Failed to regenerate dav1d's configuration (see ${T}/dav1d-config.log)"
 	fi
 
-	# remove_bundled_libraries.py walks the whole tree, so it would also delete what GN wrote in
-	# out/ (src_configure) under paths with a third_party component: keep that out of its way.
-	mv out "${WORKDIR}/chromium-out" || die
 	chromium_unbundle
-	mv "${WORKDIR}/chromium-out" out || die
 }
 
 chromium_unbundle() {
@@ -3344,6 +3490,22 @@ chromium_configure() {
 		# use system go
 		"tint_use_system_go=true"
 	)
+	# The kept build tree (CHROMIUM_BUILD_DIR): ninja also tracks the system headers (-MD).
+	# Official builds scramble Mojo's message IDs with a salt, chrome/VERSION by default: it
+	# changes in every bump, and with it every Mojo binding and what includes one. The tree
+	# has its own random salt instead (deleting the file makes a new one).
+	if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
+		myconf_gn+=( "system_headers_in_deps=true" )
+		if use official; then
+			local salt="${CHROMIUM_BUILD_TREE}/build/mojom-message-id-salt"
+			if [[ ! -s ${salt} ]]; then
+				chromium_build_tree_addwrite
+				( umask 077 && od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > "${salt}.new" ) &&
+					mv "${salt}.new" "${salt}" || die
+			fi
+			myconf_gn+=( "mojom_message_id_salt_path=\"${salt}\"" )
+		fi
+	fi
 
 	if use bindist ; then
 		myconf_gn+=(
@@ -3482,7 +3644,7 @@ chromium_configure() {
 	export -p | grep -E '^declare -x (AR|CC|CXX|CPP|NM|READELF|CFLAGS|CXXFLAGS|CPPFLAGS|LDFLAGS|BUILD_[A-Z_]+)=' \
 		> "${WORKDIR}/gn-toolchain-environment" || die "Failed to save the toolchain environment"
 
-	set -- gn gen --args="${myconf_gn[*]}${EXTRA_GN:+ ${EXTRA_GN}}" out/Release
+	set -- gn gen --args="${myconf_gn[*]}${EXTRA_GN:+ ${EXTRA_GN}}" "${CHROMIUM_OUT}"
 	echo "$@"
 	"$@" || die "Failed to configure Chromium"
 
@@ -3491,13 +3653,14 @@ chromium_configure() {
 	# over the files on disk and would regenerate the build files at the start of src_compile, in
 	# src_compile's environment. gn gen only fixes that up itself (ninja -t restat) when given a
 	# ninja executable and ninja_required_version >= 1.10, which Chromium's .gn does not declare.
-	if [[ -f out/Release/.ninja_log ]]; then
-		"${NINJA}" -C out/Release -t restat build.ninja build.ninja.stamp ||
+	if [[ -f ${CHROMIUM_OUT}/.ninja_log ]]; then
+		"${NINJA}" -C "${CHROMIUM_OUT}" -t restat build.ninja build.ninja.stamp ||
 			ewarn "Could not update ninja's log; the next build may regenerate the build files"
 	fi
 }
 
 chromium-llm_src_configure() {
+	chromium_build_tree_addwrite
 	chromium_configure $(usex pgo 1 0)
 }
 
@@ -3528,30 +3691,57 @@ chromium_compile() {
 	# the same way; the checked-in ones are from upstream's unpatched protoc, so they differ in
 	# [[nodiscard]] and the inlining of Swap()). Then ninja rebuilds what changed.
 	if [[ ! -e ${WORKDIR}/.protobuf-regenerated ]]; then
-		local pb=third_party/protobuf pb_protoc=out/Release/protoc pb_java="${WORKDIR}/protobuf-java"
+		local pb=third_party/protobuf pb_protoc=${CHROMIUM_OUT}/protoc pb_java="${WORKDIR}/protobuf-java"
 		if tc-is-cross-compiler; then
-			pb_protoc=out/Release/host/protoc
+			pb_protoc=${CHROMIUM_OUT}/host/protoc
 		fi
-		eninja -C out/Release "${pb_protoc#out/Release/}"
-		einfo "Regenerating protobuf's bootstrap files ..."
-		"${pb_protoc}" --proto_path="${pb}/src" --cpp_out=dllexport_decl=PROTOBUF_EXPORT:"${pb}/src" \
-			"${pb}"/src/google/protobuf/{descriptor,cpp_features,cpp_file_options,json_enumvalue_options}.proto ||
-			die "Failed to regenerate protobuf's descriptor protos"
-		"${pb_protoc}" --proto_path="${pb}/src" --cpp_out=dllexport_decl=PROTOC_EXPORT:"${pb}/src" \
-			"${pb}/src/google/protobuf/compiler/plugin.proto" || die "Failed to regenerate plugin.pb"
-		# Compiled as google/protobuf/compiler/java/java_features.proto (upstream's Bazel rules).
-		mkdir -p "${pb_java}/google/protobuf/compiler/java" || die
-		cp "${pb}/java/core/src/main/resources/google/protobuf/java_features.proto" \
-			"${pb_java}/google/protobuf/compiler/java/" || die
-		"${pb_protoc}" --proto_path="${pb_java}" --proto_path="${pb}/src" \
-			--cpp_out=dllexport_decl=PROTOC_EXPORT:"${pb}/src" \
-			"${pb_java}/google/protobuf/compiler/java/java_features.proto" || die "Failed to regenerate java_features.pb"
+		# With a kept build tree, the files protoc is built from first get the timestamps of their
+		# last regenerated contents, so that the last build's protoc stays, if it regenerates them
+		# unchanged; else again with protoc built from the checked-in files.
+		local pb_boot=(
+			"${pb}"/src/google/protobuf/{descriptor,cpp_features,cpp_file_options,json_enumvalue_options,compiler/plugin,compiler/java/java_features}.pb.{h,cc}
+		)
+		local chromium_build_tree_bootstrap=()
+		if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
+			chromium_build_tree_bootstrap=( "${pb_boot[@]}" )
+			mkdir -p "${T}/protobuf-bootstrap" || die
+			cp --parents "${pb_boot[@]}" "${T}/protobuf-bootstrap/" || die
+		fi
+		while :; do
+			chromium_eninja -C "${CHROMIUM_OUT}" "${pb_protoc#"${CHROMIUM_OUT}"/}"
+			einfo "Regenerating protobuf's bootstrap files ..."
+			"${pb_protoc}" --proto_path="${pb}/src" --cpp_out=dllexport_decl=PROTOBUF_EXPORT:"${pb}/src" \
+				"${pb}"/src/google/protobuf/{descriptor,cpp_features,cpp_file_options,json_enumvalue_options}.proto ||
+				die "Failed to regenerate protobuf's descriptor protos"
+			"${pb_protoc}" --proto_path="${pb}/src" --cpp_out=dllexport_decl=PROTOC_EXPORT:"${pb}/src" \
+				"${pb}/src/google/protobuf/compiler/plugin.proto" || die "Failed to regenerate plugin.pb"
+			# Compiled as google/protobuf/compiler/java/java_features.proto (upstream's Bazel rules).
+			mkdir -p "${pb_java}/google/protobuf/compiler/java" || die
+			cp "${pb}/java/core/src/main/resources/google/protobuf/java_features.proto" \
+				"${pb_java}/google/protobuf/compiler/java/" || die
+			"${pb_protoc}" --proto_path="${pb_java}" --proto_path="${pb}/src" \
+				--cpp_out=dllexport_decl=PROTOC_EXPORT:"${pb}/src" \
+				"${pb_java}/google/protobuf/compiler/java/java_features.proto" || die "Failed to regenerate java_features.pb"
+			[[ -z ${chromium_build_tree_bootstrap[*]} ]] && break
+			PYTHONPATH="${PORTAGE_PYTHONPATH:-${PORTAGE_PYM_PATH}}" "${PORTAGE_PYTHON:-python3}" -B \
+				"${FILESDIR}/chromium-build-tree.py" same "${CHROMIUM_BUILD_TREE}/build" "${S}" "${pb_boot[@]}"
+			case $? in
+				0) break ;;
+				3) ;;
+				*) die "chromium-build-tree.py same failed" ;;
+			esac
+			einfo "They changed: again, with protoc built from the checked-in files ..."
+			chromium_build_tree_bootstrap=()
+			cp -r "${T}/protobuf-bootstrap/." . || die
+		done
+		# Regenerated: from here on, ordinary files (hashed and recorded by each settle).
+		chromium_build_tree_bootstrap=()
 		"${pb_protoc}" --proto_path="${pb}/src" --python_out="${pb}/python" \
 			"${pb}"/src/google/protobuf/{descriptor,compiler/plugin}.proto || die "Failed to regenerate the _pb2 modules"
 		# protoc was built from the checked-in files: what it generated may depend on them. The
 		# protoc built from the regenerated ones must regenerate them unchanged. It then makes the
 		# edition defaults.
-		eninja -C out/Release "${pb_protoc#out/Release/}"
+		chromium_eninja -C "${CHROMIUM_OUT}" "${pb_protoc#"${CHROMIUM_OUT}"/}"
 		einfo "Checking that the protoc built from them regenerates them unchanged ..."
 		local pb_fp="${T}/protobuf-fixed-point" f
 		mkdir -p "${pb_fp}"/{cpp,python} || die
@@ -3582,9 +3772,9 @@ chromium_compile() {
 	if [[ ! -e ${WORKDIR}/.tld-regenerated ]]; then
 		local net_tld=tld_cleanup
 		tc-is-cross-compiler && net_tld=host/tld_cleanup
-		eninja -C out/Release "${net_tld}"
+		chromium_eninja -C "${CHROMIUM_OUT}" "${net_tld}"
 		einfo "Regenerating net's effective_tld_names.gperf ..."
-		CR_SOURCE_ROOT="${S}" "out/Release/${net_tld}" > "${T}/tld_cleanup.log" 2>&1 ||
+		CR_SOURCE_ROOT="${S}" "${CHROMIUM_OUT}/${net_tld}" > "${T}/tld_cleanup.log" 2>&1 ||
 			die "tld_cleanup failed (see ${T}/tld_cleanup.log)"
 		touch "${WORKDIR}/.tld-regenerated" || die
 	fi
@@ -3598,17 +3788,17 @@ chromium_compile() {
 	# lists (builtin_ops.h, builtin_ops_list.inc; their README) and run them with TensorFlow
 	# Lite's and LiteRT's schemas: LiteRT copies the lists and doesn't have the generators.
 	if [[ ! -e ${WORKDIR}/.flatbuffers-regenerated ]]; then
-		local fb_flatc=out/Release/flatc fb_gen="${WORKDIR}/flatbuffers-gen" fb_f fb_d fb_g
+		local fb_flatc=${CHROMIUM_OUT}/flatc fb_gen="${WORKDIR}/flatbuffers-gen" fb_f fb_d fb_g
 		local fb_tfl=third_party/tflite/src/tensorflow fb_lrt=third_party/litert/src/tflite
 		if tc-is-cross-compiler; then
-			fb_flatc=out/Release/host/flatc
+			fb_flatc=${CHROMIUM_OUT}/host/flatc
 		fi
-		eninja -C out/Release "${fb_flatc#out/Release/}"
+		chromium_eninja -C "${CHROMIUM_OUT}" "${fb_flatc#"${CHROMIUM_OUT}"/}"
 		einfo "Regenerating FlatBuffers' reflection header ..."
 		( cd third_party/flatbuffers/src/reflection &&
 			"${S}/${fb_flatc}" --no-prefix -c --cpp-std c++0x -o ../include/flatbuffers reflection.fbs ) ||
 			die "Failed to regenerate reflection_generated.h"
-		eninja -C out/Release "${fb_flatc#out/Release/}"
+		chromium_eninja -C "${CHROMIUM_OUT}" "${fb_flatc#"${CHROMIUM_OUT}"/}"
 		einfo "Regenerating TensorFlow Lite's and LiteRT's FlatBuffers headers ..."
 		mkdir -p "${fb_gen}/litert/tensorflow/lite/schema" || die
 		"${fb_flatc}" --proto -o "${fb_gen}" "${fb_tfl}/lite/acceleration/configuration/configuration.proto" &&
@@ -3660,18 +3850,21 @@ chromium_compile() {
 	# build's arguments plus that (V8's tools/dev/gen-static-roots.py), regenerate them with it
 	# (files/chromium-v8-static-roots.py), then remove it. Only a comment's indentation differs.
 	if [[ ! -e ${WORKDIR}/.v8-static-roots-regenerated ]]; then
-		local v8_sr=out/StaticRoots v8_mksnapshot=mksnapshot
+		local v8_sr=${CHROMIUM_OUT%/*}/StaticRoots v8_mksnapshot=mksnapshot
 		tc-is-cross-compiler && v8_mksnapshot=host/mksnapshot
 		mkdir -p "${v8_sr}" || die
-		{ cat out/Release/args.gn && echo "v8_enable_static_roots = false" &&
+		{ cat "${CHROMIUM_OUT}"/args.gn && echo "v8_enable_static_roots = false" &&
 			echo "v8_enable_static_roots_generation = true"; } > "${v8_sr}/args.gn" || die
 		gn gen "${v8_sr}" > "${T}/v8-static-roots-gn.log" 2>&1 ||
 			die "gn gen for V8's static roots failed (see ${T}/v8-static-roots-gn.log)"
-		eninja -C "${v8_sr}" "${v8_mksnapshot}"
+		chromium_eninja -C "${v8_sr}" "${v8_mksnapshot}"
 		einfo "Regenerating V8's static roots ..."
 		"${EPYTHON}" -B "${FILESDIR}/chromium-v8-static-roots.py" v8 "${v8_sr}/${v8_mksnapshot}" ||
 			die "Failed to regenerate V8's static roots"
-		rm -r "${v8_sr}" || die
+		# A kept build tree keeps it for the next build.
+		if [[ -z ${CHROMIUM_BUILD_TREE} ]]; then
+			rm -r "${v8_sr}" || die
+		fi
 		touch "${WORKDIR}/.v8-static-roots-regenerated" || die
 	fi
 
@@ -3687,10 +3880,11 @@ chromium_compile() {
 		local td_f td_stamp="${T}/top-domains-bootstrap"
 		tc-is-cross-compiler && td_tool=host/make_top_domain_skeletons
 		cp "${WORKDIR}/upstream-generated/${td_dir}"/*.skeletons "${td_dir}/" || die
-		eninja -C out/Release "${td_tool}"
+		chromium_eninja -C "${CHROMIUM_OUT}" "${td_tool}"
 		touch "${td_stamp}" || die
 		einfo "Regenerating the top domains' skeletons ..."
-		"out/Release/${td_tool}" > "${T}/top-domain-skeletons.log" 2>&1 ||
+		# (Chromium's tools take the sources to be two levels above them; not with build/.)
+		CR_SOURCE_ROOT="${S}" "${CHROMIUM_OUT}/${td_tool}" > "${T}/top-domain-skeletons.log" 2>&1 ||
 			die "make_top_domain_skeletons failed (see ${T}/top-domain-skeletons.log)"
 		for td_f in "${td_dir}"/*.skeletons; do
 			[[ ${td_f} -nt ${td_stamp} ]] || die "make_top_domain_skeletons didn't rewrite ${td_f}"
@@ -3703,20 +3897,20 @@ chromium_compile() {
 		local x
 		for x in mksnapshot v8_context_snapshot_generator code_cache_generator; do
 			if tc-is-cross-compiler; then
-				eninja -C out/Release "host/${x}"
-				pax-mark m "out/Release/host/${x}"
+				chromium_eninja -C "${CHROMIUM_OUT}" "host/${x}"
+				pax-mark m "${CHROMIUM_OUT}/host/${x}"
 			else
-				eninja -C out/Release "${x}"
-				pax-mark m "out/Release/${x}"
+				chromium_eninja -C "${CHROMIUM_OUT}" "${x}"
+				pax-mark m "${CHROMIUM_OUT}/${x}"
 			fi
 		done
 	fi
 
 	# Even though ninja autodetects number of CPUs, we respect
 	# user's options, for debugging with -j 1 or any other reason.
-	eninja -C out/Release chrome chromedriver chrome_sandbox $(use test && echo "base_unittests")
+	chromium_eninja -C "${CHROMIUM_OUT}" chrome chromedriver chrome_sandbox $(use test && echo "base_unittests")
 
-	pax-mark m out/Release/chrome
+	pax-mark m "${CHROMIUM_OUT}"/chrome
 
 	# This codepath does minimal patching, so we're at the mercy of upstream
 	# CFLAGS. This is fine - we're not intending to force this on users
@@ -3749,8 +3943,8 @@ chromium_profile() {
 	rm -rf "${1}" || return 1
 
 	if ! "${EPYTHON}" ./chromium_profiler.py \
-		--chrome-executable "${S}/out/Release/chrome" \
-		--chromedriver-executable "${S}/out/Release/chromedriver.unstripped" \
+		--chrome-executable "${S}/${CHROMIUM_OUT}/chrome" \
+		--chromedriver-executable "${S}/${CHROMIUM_OUT}/chromedriver.unstripped" \
 		--add-arg no-sandbox --add-arg disable-dev-shm-usage \
 		--profile-output "${1}"; then
 		eerror "Profiling failed"
@@ -3761,6 +3955,16 @@ chromium_profile() {
 }
 
 chromium-llm_src_compile() {
+	# The kept build tree: the toolchains its objects were built with (see pkg_setup).
+	if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
+		addwrite "${CHROMIUM_BUILD_TREE}"
+		local tc_id
+		tc_id=$(chromium_toolchain_id) || die
+		if ! grep -qxF "${tc_id}" "${CHROMIUM_BUILD_TREE}/build/toolchains" 2>/dev/null; then
+			echo "${tc_id}" >> "${CHROMIUM_BUILD_TREE}/build/toolchains" || die
+		fi
+	fi
+
 	if use pgo; then
 		local profdata
 
@@ -3775,7 +3979,7 @@ chromium-llm_src_compile() {
 
 		if [[ ! -e "${WORKDIR}/.pgo-phase-2-configured" ]]; then
 			# Remove phase 1 output
-			rm -r out/Release || die
+			rm -r "${CHROMIUM_OUT}" || die
 
 			chromium_configure 2 "$profdata"
 
@@ -3790,18 +3994,19 @@ chromium-llm_src_compile() {
 		chromium_compile
 	fi
 
-	mv out/Release/chromedriver{.unstripped,} || die
+	mv "${CHROMIUM_OUT}"/chromedriver{.unstripped,} || die
 
-	rm -f out/Release/locales/*.pak.info || die
+	rm -f "${CHROMIUM_OUT}"/locales/*.pak.info || die
 
 	# Generate support files (desktop file, manpage, etc.) See: #684550 #706786 #968958
 	${EPYTHON} "${FILESDIR}/generate-support-files.py" \
-		--installdir "/usr/$(get_libdir)/chromium-browser" \
+		--installdir "/usr/$(get_libdir)/chromium-browser" --outdir "${CHROMIUM_OUT}" \
 		--channel "${SLOT}" ||
 			die "Failed to generate support files"
 }
 
 chromium-llm_src_test() {
+	chromium_build_tree_addwrite
 	# Tests may be flaky with usersandbox, and the test runner executes significantly faster without.
 	# If you seem to be excluding too many tests for a particular milestone: comment them out, reboot, and
 	# run the tests again. If that doesn't help, try FEATURES="-usersandbox" and send it because obviously the
@@ -3889,12 +4094,13 @@ chromium-llm_src_test() {
 	local test_filter="-$(IFS=:; printf '%s' "${skip_tests[*]}")"
 	# test-launcher-bot-mode enables parallelism and plain output
 	# Check individual tests with --gtest_filter=<test you want> --single-process-tests
-	./out/Release/base_unittests --test-launcher-bot-mode \
+	CR_SOURCE_ROOT="${S}" "./${CHROMIUM_OUT}/base_unittests" --test-launcher-bot-mode \
 		--test-launcher-jobs="$(get_makeopts_jobs)" \
 		--gtest_filter="${test_filter}" || die "Tests failed!"
 }
 
 chromium-llm_src_install() {
+	chromium_build_tree_addwrite
 	local browser_suffix
 	if [[ "${SLOT}" != "stable" ]]; then
 		browser_suffix="-${SLOT}"
@@ -3903,13 +4109,13 @@ chromium-llm_src_install() {
 	fi
 	local CHROMIUM_HOME="/usr/$(get_libdir)/chromium-browser${browser_suffix}"
 	exeinto "${CHROMIUM_HOME}"
-	doexe out/Release/chrome
+	doexe "${CHROMIUM_OUT}"/chrome
 
-	newexe out/Release/chrome_sandbox chrome-sandbox
+	newexe "${CHROMIUM_OUT}"/chrome_sandbox chrome-sandbox
 	fperms 4755 "${CHROMIUM_HOME}/chrome-sandbox"
 
-	doexe out/Release/chromedriver
-	doexe out/Release/chrome_crashpad_handler
+	doexe "${CHROMIUM_OUT}"/chromedriver
+	doexe "${CHROMIUM_OUT}"/chrome_crashpad_handler
 
 	ozone_auto_session () {
 		use X && use wayland && ! use headless && echo true || echo false
@@ -3937,19 +4143,19 @@ chromium-llm_src_install() {
 
 	dosym "${CHROMIUM_HOME}/chromedriver" /usr/bin/chromedriver${browser_suffix}
 
-	pushd out/Release/locales > /dev/null || die
+	pushd "${CHROMIUM_OUT}"/locales > /dev/null || die
 	chromium_remove_language_paks
 	popd > /dev/null || die
 
 	insinto "${CHROMIUM_HOME}"
-	doins out/Release/*.bin
-	doins out/Release/*.pak
+	doins "${CHROMIUM_OUT}"/*.bin
+	doins "${CHROMIUM_OUT}"/*.pak
 
 	if use bindist; then
 		# We built libffmpeg as a component library, but we can't distribute it
 		# with proprietary codec support. Remove it and make a symlink to the requested
 		# system library.
-		rm -f out/Release/libffmpeg.so \
+		rm -f "${CHROMIUM_OUT}"/libffmpeg.so \
 			|| die "Failed to remove bundled libffmpeg.so (with proprietary codecs)"
 		# symlink the libffmpeg.so from either ffmpeg-chromium or ffmpeg[chromium].
 		einfo "Creating symlink to libffmpeg.so from $(usex ffmpeg-chromium ffmpeg-chromium ffmpeg[chromium])..."
@@ -3966,29 +4172,29 @@ chromium-llm_src_install() {
 	if use test; then
 		local test_lib
 		for test_lib in "${test_libs[@]}"; do
-			rm -f "out/Release/${test_lib}" || die "Failed to remove ${test_lib}"
+			rm -f "${CHROMIUM_OUT}/${test_lib}" || die "Failed to remove ${test_lib}"
 		done
 	fi
 
 	(
 		shopt -s nullglob
-		local files=(out/Release/*.so out/Release/*.so.[0-9])
+		local files=("${CHROMIUM_OUT}"/*.so "${CHROMIUM_OUT}"/*.so.[0-9])
 		[[ ${#files[@]} -gt 0 ]] && doins "${files[@]}"
 	)
 
 	if ! use system-icu && ! use headless; then
-		doins out/Release/icudtl.dat
+		doins "${CHROMIUM_OUT}"/icudtl.dat
 	fi
 
-	doins -r out/Release/locales
-	doins -r out/Release/MEIPreload
+	doins -r "${CHROMIUM_OUT}"/locales
+	doins -r "${CHROMIUM_OUT}"/MEIPreload
 
 	# Install vk_swiftshader_icd.json; bug #827861
-	doins out/Release/vk_swiftshader_icd.json
+	doins "${CHROMIUM_OUT}"/vk_swiftshader_icd.json
 
-	if [[ -d out/Release/swiftshader ]]; then
+	if [[ -d ${CHROMIUM_OUT}/swiftshader ]]; then
 		insinto "${CHROMIUM_HOME}/swiftshader"
-		doins out/Release/swiftshader/*.so
+		doins "${CHROMIUM_OUT}"/swiftshader/*.so
 	fi
 
 	# Install icons
@@ -4003,21 +4209,31 @@ chromium-llm_src_install() {
 	done
 
 	# Install desktop entry
-	domenu out/Release/chromium-browser${browser_suffix}.desktop
+	domenu "${CHROMIUM_OUT}"/chromium-browser${browser_suffix}.desktop
 
 	# Install GNOME default application entry (bug #303100).
 	insinto /usr/share/gnome-control-center/default-apps
-	doins out/Release/chromium-browser${browser_suffix}.xml
+	doins "${CHROMIUM_OUT}"/chromium-browser${browser_suffix}.xml
 
 	# Install AppStream metadata
 	insinto /usr/share/metainfo
-	doins out/Release/chromium-browser${browser_suffix}.appdata.xml
+	doins "${CHROMIUM_OUT}"/chromium-browser${browser_suffix}.appdata.xml
 
 	# Install manpage; bug #684550
-	doman out/Release/chromium-browser${browser_suffix}.1
+	doman "${CHROMIUM_OUT}"/chromium-browser${browser_suffix}.1
 	dosym chromium-browser${browser_suffix}.1 /usr/share/man/man1/chromium${browser_suffix}.1
 
 	readme.gentoo_create_doc
+
+	# The kept build tree's sources (its contents: src/ may be a mount point).
+	local keep_src=${CHROMIUM_BUILD_DIR_KEEP_SRC}
+	if [[ -z ${keep_src} ]]; then
+		has keepwork ${FEATURES} && keep_src=1 || keep_src=0
+	fi
+	if [[ -n ${CHROMIUM_BUILD_TREE} && ${keep_src} == 0 ]]; then
+		einfo "Removing the sources from ${S} (CHROMIUM_BUILD_DIR_KEEP_SRC keeps them) ..."
+		find "${S}" -mindepth 1 -maxdepth 1 -exec rm -rf {} + || die
+	fi
 }
 
 chromium-llm_pkg_postrm() {

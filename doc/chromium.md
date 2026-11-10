@@ -34,6 +34,52 @@ masked) keeps the previous set and its packages.
 4. `=dev-python/clang-22*`, pulled in automatically, used by V8's build-time
    header parser ("metagen").
 
+### Faster rebuilds (optional)
+
+`CHROMIUM_BUILD_DIR` in `make.conf` keeps the build tree between builds, so that the next build
+of the same major version only rebuilds what changed. The eclass expands it with `MAJOR` set to
+the major version. Portage expands variables in `make.conf` even single-quoted, so escape the `$`:
+
+```sh
+CHROMIUM_BUILD_DIR="/var/tmp/portage/chromium-build/\${MAJOR}"
+```
+
+A build unpacks the sources to `src/` and builds them in `build/Release` (`../build/Release` from
+the sources), both in its `WORKDIR`, or in this directory with `CHROMIUM_BUILD_DIR`. The kept
+tree (tens of GB per major):
+
+```
+src/                      the sources: each build unpacks its own, src_install removes them
+build/
+├── Release/              the build directory (ninja's)
+├── StaticRoots/          V8's static-roots build
+├── state                 the sources' records: contents (hash) and timestamp at the last ninja run
+├── owner                 the build using the tree
+├── toolchains            the compilers its objects were built with
+└── mojom-message-id-salt
+```
+
+Before each ninja run, files whose contents are those of the last run get that run's timestamp
+back, so ninja only rebuilds from changed files (`files/chromium-build-tree.py`). ninja doesn't
+notice a new compiler version in the same LLVM or Rust slot: the ebuild warns, and deleting
+`build/` forces a full build (with new records and a new salt).
+
+With `USE=official`, Chromium scrambles Mojo's message IDs with a salt that is `chrome/VERSION`
+upstream, so every version bump regenerates every Mojo binding and recompiles what includes one
+(about 3,000 objects). A kept tree uses its own random salt instead, `mojom-message-id-salt`
+(created by its first build): the IDs stay the same across the tree's bumps, but can't be
+computed from the public sources. Delete the file to get a new salt (and a rebuild of those
+objects) on the next build.
+
+The tree's `src/` is emptied at the end of `src_install` (the next build unpacks its own sources
+anyway). `CHROMIUM_BUILD_DIR_KEEP_SRC=1` keeps them until the next build, `0` removes them;
+unset, `FEATURES=keepwork` keeps them.
+`src/` and `build/` can be mount points (e.g. `src/` on tmpfs, `build/` on a disk).
+
+A second build of the same major waits until the first is done (until its Portage build
+directory is unlocked). Running the first one's phases as separate `ebuild` commands unlocks it
+between them, so a waiting build can take the tree before the first one's `install`.
+
 ## Notable ebuild changes vs. 151
 
 - **Gentoo patchset:** forked from `chromium-patches` tag 152 into

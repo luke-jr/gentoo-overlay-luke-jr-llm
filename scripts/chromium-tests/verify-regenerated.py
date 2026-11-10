@@ -6,7 +6,9 @@ chromium_regenerated_outputs in the ebuild). After src_compile, each should exis
 again. Lists how many came back (and how many are identical to the checked-in copy), how many
 were in directories the unbundling removed, and every one that is missing.
 
-Usage: verify-regenerated.py WORKDIR   (e.g. /var/tmp/portage/www-client/chromium-157.0.8103.15/work)
+Usage: verify-regenerated.py WORKDIR [SRC]   (e.g. /var/tmp/portage/www-client/chromium-157.0.8103.15/work)
+  SRC: the source tree when it isn't WORKDIR/src (or WORKDIR/chromium-*, the older layout): a
+  kept build tree's (CHROMIUM_BUILD_DIR).
 """
 import collections
 import filecmp
@@ -14,13 +16,14 @@ import glob
 import os
 import sys
 
-if len(sys.argv) != 2:
+if len(sys.argv) not in (2, 3):
     sys.exit(__doc__)
 work = sys.argv[1]
 moved = os.path.join(work, "upstream-generated")
-trees = [d for d in glob.glob(os.path.join(work, "chromium-*")) if os.path.isdir(os.path.join(d, "chrome"))]
+trees = sys.argv[2:] or [d for d in [os.path.join(work, "src")] + glob.glob(os.path.join(work, "chromium-*"))
+                         if os.path.isdir(os.path.join(d, "chrome"))]
 if not os.path.isdir(moved) or len(trees) != 1:
-    sys.exit(f"{work}: no upstream-generated/ or not exactly one chromium-* tree")
+    sys.exit(f"{work}: no upstream-generated/ or not exactly one source tree")
 tree = trees[0]
 missing, unbundled, same, differ = [], [], 0, 0
 for d, _, files in os.walk(moved):
