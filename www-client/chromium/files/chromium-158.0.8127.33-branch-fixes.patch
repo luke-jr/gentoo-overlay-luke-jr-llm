@@ -1,0 +1,232 @@
+Chromium 158.0.8127.33 + the later changes of its release branch, up to
+e1cd9a1f3cbb07d905899cc00f1ea4180556b9df (refs/branch-heads/8127@{#1530}), for the
+158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
+
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..e1cd9a1f3cbb07d905899cc00f1ea4180556b9df,
+as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
+.33 tree's files, renames included): left out are files not in the release
+tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
+translations, PGO/orderfile pointers, submodule pointer updates. chrome/VERSION,
+DEPS and the stamp files stay at 158.0.8127.33.
+
+Commits contributing to it (oldest first):
+  55a84053fa64 [M158] Add screen reader announcement when reordering shortcuts
+  e1cd9a1f3cbb [M158] Ensure the hover state in reorder mode is visible.
+
+Checked: applies to the 158.0.8127.33 tree; every patched file is
+byte-identical to its version at the last commit above.
+
+diff --git a/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc b/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc
+index af8447b..7b97c73 100644
+--- a/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc
++++ b/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc
+@@ -452,6 +452,7 @@
+       {"linkRemove", IDS_NTP_CUSTOM_LINKS_REMOVE},
+       {"shortcutReorder", IDS_NTP_CUSTOM_LINKS_REORDER},
+       {"shortcutReorderA11y", IDS_NTP_SHORTCUT_REORDER_A11Y},
++      {"shortcutMovedA11y", IDS_NTP_SHORTCUT_MOVED_A11Y},
+       {"linkRemoveA11y", IDS_NTP_MOST_VISITED_SITES_REMOVE},
+       {"linkRemovedMsg", IDS_NTP_CONFIRM_MSG_SHORTCUT_REMOVED},
+       {"shortcutMoreActions", IDS_NTP_CUSTOM_LINKS_MORE_ACTIONS},
+diff --git a/ui/webui/resources/cr_components/most_visited/most_visited.css b/ui/webui/resources/cr_components/most_visited/most_visited.css
+index ec5d4f2..e9d6276b 100644
+--- a/ui/webui/resources/cr_components/most_visited/most_visited.css
++++ b/ui/webui/resources/cr_components/most_visited/most_visited.css
+@@ -103,6 +103,18 @@
+   background-color: var(--google-grey-700);
+ }
+ 
++.sr-only {
++  border: 0;
++  clip: rect(0, 0, 0, 0);
++  height: 1px;
++  margin: -1px;
++  overflow: hidden;
++  padding: 0;
++  position: absolute;
++  white-space: nowrap;
++  width: 1px;
++}
++
+ :host([use-white-tile-icon_]) #addShortcutIcon,
+ :host([use-white-tile-icon_]) #showMoreIcon,
+ :host([use-white-tile-icon_]) #showLessIcon {
+diff --git a/ui/webui/resources/cr_components/most_visited/most_visited.html.ts b/ui/webui/resources/cr_components/most_visited/most_visited.html.ts
+index b37db753..b7f41ce 100644
+--- a/ui/webui/resources/cr_components/most_visited/most_visited.html.ts
++++ b/ui/webui/resources/cr_components/most_visited/most_visited.html.ts
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-import {html, nothing} from '//resources/lit/v3_0/lit.rollup.js';
++import {html, nothing, repeat} from '//resources/lit/v3_0/lit.rollup.js';
+ 
+ import type {MostVisitedElement} from './most_visited.js';
+ 
+@@ -14,7 +14,10 @@
+     .style="--tile-background-color: ${this.getBackgroundColorStyle_()};
+             --column-count: ${this.columnCount_};
+             --row-count: ${this.rowCount_};">
+-  ${this.tiles_.map((item, index) => html`
++  ${repeat(
++      this.tiles_,
++      (item) => `${item.url}:${this.isFromEnterpriseShortcut_(item.source)}`,
++      (item, index) => html`
+     <div class="tile" ?query-tile="${item.isQueryTile}"
+         ?hidden="${this.isHidden_(index)}" title="${item.title}"
+         @dragstart="${this.onDragstart_}" @touchstart="${this.onTouchstart_}"
+@@ -25,7 +28,7 @@
+       <a href="${this.inReorderMode_ ? '' : item.url}"
+           aria-label="${this.getTileAriaLabel_(item.title)}" draggable="false">
+       </a>
+-      <div class="drag-pan-icon"
++      <div class="drag-pan-icon" aria-hidden="true"
+           ?hidden="${!this.inReorderMode_ ||
+               (!this.customLinksEnabled_ &&
+                !this.isFromEnterpriseShortcut_(item.source))}">
+@@ -158,6 +161,9 @@
+     </button>
+   </cr-action-menu>
+ </div>
++<div id="announcer" class="sr-only" aria-live="polite" aria-atomic="true">
++  ${this.reorderAnnouncement_}
++</div>
+ <cr-toast-manager id="toastManager" duration="10000">
+   <cr-button id="undo" aria-label="${this.i18n('undoDescription')}"
+       @click="${this.onUndoClick_}">
+diff --git a/ui/webui/resources/cr_components/most_visited/most_visited.ts b/ui/webui/resources/cr_components/most_visited/most_visited.ts
+index 7373bf5..35751c4 100644
+--- a/ui/webui/resources/cr_components/most_visited/most_visited.ts
++++ b/ui/webui/resources/cr_components/most_visited/most_visited.ts
+@@ -204,6 +204,8 @@
+        * used for calculating the number of MVTs per row.
+        */
+       containerWidth: {type: Number},
++
++      reorderAnnouncement_: {type: String, state: true},
+     };
+   }
+ 
+@@ -249,6 +251,7 @@
+   protected accessor tiles_: MostVisitedTile[] = [];
+   protected accessor toastSource_: TileSource = TileSource.CUSTOM_LINKS;
+   protected accessor visible_: boolean = false;
++  protected accessor reorderAnnouncement_: string = '';
+   private adding_: boolean = false;
+   private isTileMoveInProgress_: boolean = false;
+   private browserProxy_: BrowserProxy;
+@@ -265,6 +268,7 @@
+   private dragImage_: HTMLImageElement;
+   private mostVisitedHighDpiFaviconsEnabled_: boolean =
+       loadTimeData.getBoolean('mostVisitedHighDpiFaviconsEnabled');
++  private reorderAnnouncementTimeout_: number|null = null;
+ 
+   private accessor info_: MostVisitedInfo|null = null;
+ 
+@@ -338,6 +342,7 @@
+     this.eventTracker_.removeAll();
+     this.ownerDocument.removeEventListener(
+         'keydown', this.boundOnDocumentKeyDown_);
++    this.clearReorderAnnouncementTimeout_();
+   }
+ 
+   override willUpdate(changedProperties: PropertyValues<this>) {
+@@ -424,7 +429,7 @@
+ 
+   // Adds "force-hover" class to the tile element positioned at `index`.
+   private enableForceHover_(index: number) {
+-    this.tileElements_[index]!.classList.add('force-hover');
++    this.tileElements_[index]?.classList.add('force-hover');
+   }
+ 
+   private clearForceHover_() {
+@@ -982,12 +987,15 @@
+       this.dragOver_(e.x, e.y);
+     };
+ 
+-    const drop = (e: DragEvent) => {
++    const drop = async (e: DragEvent) => {
+       this.drop_(e.x, e.y);
+ 
+       const dropIndex = getHitIndex(this.tileRects_, e.x, e.y);
+       if (dropIndex !== -1) {
+-        this.enableForceHover_(dropIndex);
++        await this.updateComplete;
++        if (this.reordering_) {
++          this.enableForceHover_(dropIndex);
++        }
+       }
+     };
+ 
+@@ -1025,7 +1033,6 @@
+   protected async onReorderClick_() {
+     this.$.actionMenu.close();
+     this.inReorderMode_ = true;
+-    this.reordering_ = true;
+     await this.updateComplete;
+     await new Promise(requestAnimationFrame);
+     if (this.inReorderMode_) {
+@@ -1144,11 +1151,14 @@
+       // Handle reordering key events.
+       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+         e.preventDefault();
++        const visibleTileCount = this.tileElements_.length;
++        if (visibleTileCount <= 1) {
++          return;
++        }
+         this.isTileMoveInProgress_ = true;
+         const currentIndex = this.actionMenuTargetIndex_;
+         const isForward = e.key === (this.isRtl_ ? 'ArrowLeft' : 'ArrowRight');
+         const direction = isForward ? 1 : -1;
+-        const visibleTileCount = this.tileElements_.length;
+         const newIndex =
+             (currentIndex + direction + visibleTileCount) % visibleTileCount;
+ 
+@@ -1164,6 +1174,9 @@
+         await this.updateComplete;
+         if (this.inReorderMode_) {
+           this.tileFocus_(newIndex);
++          this.announceReorder_(this.i18n(
++              'shortcutMovedA11y', htmlEscape(selectedTile.title), newIndex + 1,
++              visibleTileCount));
+         }
+         this.isTileMoveInProgress_ = false;
+         return;
+@@ -1349,6 +1362,7 @@
+     this.inReorderMode_ = false;
+     this.reordering_ = false;
+     this.actionMenuTargetIndex_ = -1;
++    this.clearReorderAnnouncement_();
+     await this.updateComplete;
+   }
+ 
+@@ -1367,6 +1381,28 @@
+     }
+   }
+ 
++  private clearReorderAnnouncementTimeout_() {
++    if (this.reorderAnnouncementTimeout_ !== null) {
++      clearTimeout(this.reorderAnnouncementTimeout_);
++      this.reorderAnnouncementTimeout_ = null;
++    }
++  }
++
++  private clearReorderAnnouncement_() {
++    this.clearReorderAnnouncementTimeout_();
++    // Clear to guarantee a DOM mutation if consecutive messages are similar.
++    this.reorderAnnouncement_ = '';
++  }
++
++  private announceReorder_(message: string) {
++    this.clearReorderAnnouncement_();
++
++    this.reorderAnnouncementTimeout_ = setTimeout(() => {
++      this.reorderAnnouncement_ = message;
++      this.reorderAnnouncementTimeout_ = null;
++    }, 100);
++  }
++
+   protected onTilesRendered_() {
+     performance.measure('most-visited-rendered');
+     assert(this.maxVisibleTiles_ > 0);
