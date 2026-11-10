@@ -13,7 +13,6 @@ Usage: chromium-ffmpeg-config.py CHROMIUM_SRC BUILD_DIR BRANDING ARCH
 """
 import os
 import platform
-import shutil
 import sys
 import types
 
@@ -67,4 +66,11 @@ for f in ("config.h", "config_components.asm", "config_components.h", "config.as
           "libavformat/muxer_list.c", "libavformat/protocol_list.c"):
     if os.path.exists(os.path.join(config, f)):
         os.makedirs(os.path.dirname(os.path.join(dest, f)), exist_ok=True)
-        shutil.copy(os.path.join(config, f), os.path.join(dest, f))
+        # config.h records configure's arguments (in a comment), with the source directory's
+        # path (--extra-cflags=-I<src>/third_party/opus/src/include): relative to it instead,
+        # so the build doesn't depend on where it is (Clang's source offsets of FFmpeg's inline
+        # asm, which ThinLTO's names of promoted symbols, and so the build ID, depend on).
+        with open(os.path.join(config, f), "rb") as fh:
+            data = fh.read().replace(src.encode() + b"/", b"")
+        with open(os.path.join(dest, f), "wb") as fh:
+            fh.write(data)
