@@ -1,8 +1,8 @@
 Chromium 158.0.8127.33 + the later changes of its release branch, up to
-e1cd9a1f3cbb07d905899cc00f1ea4180556b9df (refs/branch-heads/8127@{#1530}), for the
+1c83c09799a2fcd23c588c5a092665bae86f76a4 (refs/branch-heads/8127@{#1560}), for the
 158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..e1cd9a1f3cbb07d905899cc00f1ea4180556b9df,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..1c83c09799a2fcd23c588c5a092665bae86f76a4,
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .33 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -12,10 +12,274 @@ DEPS and the stamp files stay at 158.0.8127.33.
 Commits contributing to it (oldest first):
   55a84053fa64 [M158] Add screen reader announcement when reordering shortcuts
   e1cd9a1f3cbb [M158] Ensure the hover state in reorder mode is visible.
+  f7470d8ba3b5 [M158] [unbounded] Omit native frame and shadow on shadowless unbounded menus
+  2136976917f8 [M158] [UnboundedElement] Track view under cursor for unbounded surfaces
+  85a140bd2402 [M158] [UnboundedElement] Show renderer cursor over Aura unbounded surfaces
+  5ad5adab153d [M158] [UnboundedElement] Show renderer cursor over macOS unbounded surfaces
+  f03a4ae7cfd4 [M158] [unbounded] Gate shadowless menu frame fix behind feature
+  ea0d502dc2f8 [M158] [ContextualTasks] Unshare zero-state AI Mode tabs
+  ee7ff355ad86 [M158] [ContextualTasks] Fix onboarding anchor crash
+  545534e89c4a [M158] [Contextual Tasks] Close tab picker flyout on single tab row hover
+  bd6e358d1b3b [M158] [omnibox][webui] Hide the Full popup during macOS fullscreen transitions
+  29d2dac530cb [M158] [Android] Guard tab discard on graceful shutdown
+  fc34080c5b6b [M158] Revert CHECK_EQ back to DCHECK_EQ in ProcessInterceptionOrWait
+  fe396fadab1c [M158] Revert CHECK_NE in FullscreenController::IsFullscreenWithinTab
+  4e3312d3e236 [M158] Revert CHECK_LT to DCHECK_LT in TaskPriorityToThreadType
+  1c83c09799a2 [M158] Snapshot srcdoc value during NavigationRequest creation
 
 Checked: applies to the 158.0.8127.33 tree; every patched file is
 byte-identical to its version at the last commit above.
 
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc b/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc
+index 453ff3dc..da06881 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc
+@@ -223,7 +223,8 @@
+ // LINT.IfChange(ContextualTasksTooltipLogic)
+ void ContextualTasksOnboardingTooltipController::MaybeShowBubble(
+     ui::TrackedElement* anchor_element) {
+-  if (IsBubbleShowing() || !anchor_element || !entry_point_.has_value()) {
++  if (IsBubbleShowing() || !anchor_element || !entry_point_.has_value() ||
++      !views::Widget::GetWidgetForNativeView(anchor_element->GetNativeView())) {
+     return;
+   }
+   if (bubble_widget_) {
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
+index ed60117c..69e0b5b 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
+@@ -1207,7 +1207,8 @@
+     target_web_contents.push_back(active_contents);
+   }
+ 
+-  // 2. Also include any open browser tabs hosting a full-tab AI Mode thread.
++  // 2. Also include any open browser tabs hosting a full-tab AI Mode session
++  // (including zero-state tabs that do not have a task ID yet).
+   if (browser_window_) {
+     if (auto* tab_list = TabListInterface::From(browser_window_)) {
+       for (tabs::TabInterface* tab : tab_list->GetAllTabs()) {
+@@ -1216,7 +1217,9 @@
+             tab_contents ? ContextualTasksWebContentsUserData::FromWebContents(
+                                tab_contents)
+                          : nullptr;
+-        if (user_data && user_data->GetEffectiveTaskId().has_value() &&
++        if (user_data &&
++            (user_data->GetEffectiveTaskId().has_value() ||
++             user_data->GetExistingContextualSessionHandle()) &&
+             !std::ranges::contains(target_web_contents, tab_contents)) {
+           target_web_contents.push_back(tab_contents);
+         }
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc b/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc
+index dbe07fd..4dbd54232 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_web_view.cc
+@@ -255,7 +255,9 @@
+   }
+ 
+   if (wc) {
+-    wc->WasShown();
++    if (GetWidget()) {
++      wc->WasShown();
++    }
+     wc->SetDelegate(this);
+     extensions::SetViewType(wc, extensions::mojom::ViewType::kComponent);
+   }
+@@ -301,6 +303,12 @@
+          ghost_loader_view_->is_showing_error_page();
+ }
+ 
++void ContextualTasksWebView::AddedToWidget() {
++  if (content_web_view_ && content_web_view_->web_contents()) {
++    content_web_view_->web_contents()->WasShown();
++  }
++}
++
+ void ContextualTasksWebView::OnThemeChanged() {
+   views::View::OnThemeChanged();
+   if (!IsContextualTasksSidePanelRearchitectureEnabled() || !browser_window_ ||
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_view.h b/chrome/browser/contextual_tasks/contextual_tasks_web_view.h
+index 4eb5cd4..6e8cd97 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_web_view.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_web_view.h
+@@ -95,6 +95,7 @@
+   bool IsErrorPageVisible() const;
+ 
+   // views::View:
++  void AddedToWidget() override;
+   void OnThemeChanged() override;
+ 
+   // content::WebContentsDelegate:
+diff --git a/chrome/browser/performance_manager/mechanisms/page_discarder.cc b/chrome/browser/performance_manager/mechanisms/page_discarder.cc
+index 840d863..c985269 100644
+--- a/chrome/browser/performance_manager/mechanisms/page_discarder.cc
++++ b/chrome/browser/performance_manager/mechanisms/page_discarder.cc
+@@ -65,6 +65,10 @@
+   CHECK(base::FeatureList::IsEnabled(features::kWebContentsDiscard));
+   resource_coordinator::AttemptFastKillForDiscard(contents.get(),
+                                                   discard_reason);
++  if (!contents) {
++    outcome = DiscardPageOnUIThreadOutcome::kDiscardTabFailure;
++    return std::nullopt;
++  }
+   contents->Discard(base::NullCallback());
+ #else
+   auto* lifecycle_unit =
+diff --git a/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.ts b/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.ts
+index c4dcfaf..8c0e7231 100644
+--- a/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.ts
++++ b/chrome/browser/resources/contextual_tasks/extension/tab_picker_app.ts
+@@ -441,6 +441,17 @@
+   protected onSingleTabRowPointerenter_() {
+     this.pointerDownOnTrigger_ = false;
+     this.setFocusOutlineVisible_(false);
++    // The pointer is on a sibling row rather than heading for the flyout, so
++    // close the flyout now instead of after CLOSE_MENU_DELAY_MS. Otherwise
++    // #shareTabsTrigger keeps its aria-expanded highlight alongside this row's
++    // hover highlight until the timer fires.
++    this.shouldOpenMenu_ = false;
++    ++this.openMenuRequestId_;
++    this.cancelCloseTimer_();
++    if (this.$.tabMenu.open) {
++      this.$.tabMenu.close();
++      this.$.shareTabsTrigger.blur();
++    }
+   }
+ 
+   protected onSingleTabRowPointermove_() {
+diff --git a/chrome/browser/signin/dice_web_signin_interceptor.cc b/chrome/browser/signin/dice_web_signin_interceptor.cc
+index e6257d7..5637c96 100644
+--- a/chrome/browser/signin/dice_web_signin_interceptor.cc
++++ b/chrome/browser/signin/dice_web_signin_interceptor.cc
+@@ -1114,7 +1114,9 @@
+ void DiceWebSigninInterceptor::ProcessInterceptionOrWait(
+     const AccountInfo& info,
+     bool timed_out) {
+-  CHECK_EQ(info.GetAccountId(), state_->account_id_, base::NotFatalUntil::M162);
++  // TODO(crbug.com/580836376): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK_EQ(info.GetAccountId(), state_->account_id_);
+ 
+   if (!IsRequiredExtendedAccountInfoAvailable(info)) {
+     // We can't process the interception with the information currently
+diff --git a/chrome/browser/ui/exclusive_access/fullscreen_controller.cc b/chrome/browser/ui/exclusive_access/fullscreen_controller.cc
+index a4d416e..ba26585 100644
+--- a/chrome/browser/ui/exclusive_access/fullscreen_controller.cc
++++ b/chrome/browser/ui/exclusive_access/fullscreen_controller.cc
+@@ -741,7 +741,9 @@
+       web_contents ? FullscreenWithinTabHelper::FromWebContents(web_contents)
+                    : nullptr;
+   if (helper && helper->is_fullscreen_within_tab()) {
+-    CHECK_NE(exclusive_access_tab(), web_contents, base::NotFatalUntil::M162);
++    // TODO(crbug.com/581005180): CHECK-exclusion: Convert to a CHECK once we
++    // are confident it won't be triggered.
++    DCHECK_NE(exclusive_access_tab(), web_contents);
+     return true;
+   }
+   return false;
+diff --git a/chrome/browser/ui/omnibox/omnibox_popup_view.h b/chrome/browser/ui/omnibox/omnibox_popup_view.h
+index c3d25e6..eb4da776 100644
+--- a/chrome/browser/ui/omnibox/omnibox_popup_view.h
++++ b/chrome/browser/ui/omnibox/omnibox_popup_view.h
+@@ -130,6 +130,9 @@
+   virtual bool IsReverting() const;
+   virtual void SetIsReverting(bool reverting);
+ 
++  // Called when a browser fullscreen transition starts, in either direction.
++  virtual void OnFullscreenTransitionStarting() {}
++
+   // Safe downcasting to the BrowserView-embedded implementation.
+   virtual OmniboxPopupViewBrowserView* AsOmniboxPopupViewBrowserView();
+ 
+diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
+index 28d4fea4..764e295 100644
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -2316,6 +2316,20 @@
+                                     widget_for_anchoring);
+   GetFrameView()->OnFullscreenStateChanged();
+ 
++  // Reopen a popup that `OmniboxPopupView::OnFullscreenTransitionStarting()`
++  // closed for the transition. This runs after entering and after exiting, as
++  // immersive fullscreen keeps the location bar drawn. Skip it in content
++  // fullscreen, where the toolbar is hidden. `ReshowPopup()` only reopens the
++  // popup for an unfocused draft.
++  if (!fullscreen_utils::IsInContentFullscreen(browser())) {
++    if (LocationBar* const location_bar = GetLocationBar()) {
++      if (OmniboxPopupView* const popup_view =
++              location_bar->GetOmniboxPopupView()) {
++        popup_view->ReshowPopup();
++      }
++    }
++  }
++
+ #endif  // BUILDFLAG(IS_MAC)
+ 
+   ExclusiveAccessManager::From(browser_)
+@@ -5518,6 +5532,13 @@
+         fullscreen);
+   }
+ 
++  if (LocationBar* const location_bar = GetLocationBar()) {
++    if (OmniboxPopupView* const popup_view =
++            location_bar->GetOmniboxPopupView()) {
++      popup_view->OnFullscreenTransitionStarting();
++    }
++  }
++
+   // Reduce jankiness during the following position changes by:
+   //   * Hiding the window until it's in the final position
+   //   * Ignoring all intervening layout attempts, which would resize the
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc b/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc
+index 35e49c10..6bdcba7e 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc
+@@ -11,6 +11,7 @@
+ 
+ #include "base/auto_reset.h"
+ #include "base/trace_event/trace_event.h"
++#include "build/build_config.h"
+ #include "chrome/browser/ui/location_bar/location_bar.h"
+ #include "chrome/browser/ui/omnibox/omnibox_controller.h"
+ #include "chrome/browser/ui/omnibox/omnibox_edit_model.h"
+@@ -568,6 +569,26 @@
+   is_reverting_ = reverting;
+ }
+ 
++// TODO(crbug.com/582852137): Handle ChromeOS in
++// `OnFullscreenTransitionStarting` too, instead of in
++// `BrowserView::PrepareFullscreen()` (crrev.com/c/8717429).
++void OmniboxPopupViewFullWebUI::OnFullscreenTransitionStarting() {
++#if BUILDFLAG(IS_MAC)
++  // This popup is a child window, so AppKit doesn't animate it with the
++  // browser window, and `LocationBarView` doesn't close it for fullscreen on
++  // macOS, where the location bar stays drawn. Close it for the transition
++  // while the omnibox is unfocused, keeping any draft. `BrowserView` reopens
++  // it with `ReshowPopup()` once the transition completes. A focused popup
++  // holds activation, see crbug.com/582521205.
++  if (!controller()->edit_model()->has_focus() &&
++      controller()->popup_state_manager()->popup_state() ==
++          OmniboxPopupState::kFull) {
++    controller()->popup_state_manager()->SetPopupState(
++        OmniboxPopupState::kNone);
++  }
++#endif  // BUILDFLAG(IS_MAC)
++}
++
+ void OmniboxPopupViewFullWebUI::DidFinishNavigation(
+     content::NavigationHandle* navigation_handle) {
+   // Clicking into the page with a draft in the omnibox leaves the popup open,
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.h b/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.h
+index b384c1e..1da2dd1 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.h
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.h
+@@ -69,6 +69,7 @@
+   bool IsPopupHandlerReady() const override;
+   bool IsReverting() const override;
+   void SetIsReverting(bool reverting) override;
++  void OnFullscreenTransitionStarting() override;
+ 
+   // content::WebContentsObserver:
+   void DidFinishNavigation(
 diff --git a/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc b/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc
 index af8447b..7b97c73 100644
 --- a/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc
@@ -28,6 +292,703 @@ index af8447b..7b97c73 100644
        {"linkRemoveA11y", IDS_NTP_MOST_VISITED_SITES_REMOVE},
        {"linkRemovedMsg", IDS_NTP_CONFIRM_MSG_SHORTCUT_REMOVED},
        {"shortcutMoreActions", IDS_NTP_CUSTOM_LINKS_MORE_ACTIONS},
+diff --git a/components/input/cursor_manager.cc b/components/input/cursor_manager.cc
+index b7aa3703..dc31a69 100644
+--- a/components/input/cursor_manager.cc
++++ b/components/input/cursor_manager.cc
+@@ -27,7 +27,7 @@
+                                  const ui::Cursor& cursor) {
+   AddObservation(view);
+   cursor_map_[view] = cursor;
+-  if (view == view_under_cursor_) {
++  if (view == EffectiveViewUnderCursor()) {
+     UpdateCursor();
+   }
+ }
+@@ -37,36 +37,71 @@
+   if (view == view_under_cursor_)
+     return;
+ 
++  RenderWidgetHostViewInput* previous_effective_view =
++      EffectiveViewUnderCursor();
+   AddObservation(view);
+-
+-  // Whenever we switch from one view to another, clear the tooltip: as the
+-  // mouse moves, the view now controlling the cursor will send a new tooltip,
+-  // though this is only guaranteed if the view's tooltip is non-empty, so
+-  // clearing here is important. Tooltips sent from the previous view will be
+-  // ignored.
+-  root_view_->UpdateTooltip(std::u16string());
+   view_under_cursor_ = view;
+-  UpdateCursor();
++  if (EffectiveViewUnderCursor() != previous_effective_view) {
++    // Whenever we switch from one view to another, clear the tooltip: as the
++    // mouse moves, the view now controlling the cursor will send a new tooltip,
++    // though this is only guaranteed if the view's tooltip is non-empty, so
++    // clearing here is important. Tooltips sent from the previous view will be
++    // ignored.
++    root_view_->UpdateTooltip(std::u16string());
++    UpdateCursor();
++  }
++}
++
++void CursorManager::SetViewUnderCursorOverride(
++    RenderWidgetHostViewInput* view) {
++  if (view == view_under_cursor_override_) {
++    return;
++  }
++
++  RenderWidgetHostViewInput* previous_effective_view =
++      EffectiveViewUnderCursor();
++  AddObservation(view);
++  view_under_cursor_override_ = view;
++  if (EffectiveViewUnderCursor() != previous_effective_view) {
++    root_view_->UpdateTooltip(std::u16string());
++    UpdateCursor();
++  }
+ }
+ 
+ void CursorManager::ViewBeingDestroyed(RenderWidgetHostViewInput* view) {
+   cursor_map_.erase(view);
+   RemoveObservation(view);
+ 
++  if (view == root_view_) {
++    // `root_view_` is tearing down (possibly deferred by
++    // ScopedInputDispatchPin). Clear any active override and stop observing
++    // child views so their subsequent destruction cannot call UpdateTooltip()
++    // or DisplayCursor() on the disconnected `root_view_`.
++    view_under_cursor_override_ = nullptr;
++    view_under_cursor_ = root_view_;
++    observations_.RemoveAllObservations();
++    return;
++  }
++
++  if (view == view_under_cursor_override_) {
++    SetViewUnderCursorOverride(nullptr);
++  }
++
+   // If the view right under the mouse is going away, use the root's cursor
+   // until UpdateViewUnderCursor is called again.
+-  if (view == view_under_cursor_ && view != root_view_)
++  if (view == view_under_cursor_) {
+     UpdateViewUnderCursor(root_view_);
++  }
+ }
+ 
+ bool CursorManager::IsViewUnderCursor(
+     RenderWidgetHostViewInput* view) const {
+-  return view == view_under_cursor_;
++  return view == EffectiveViewUnderCursor();
+ }
+ 
+ base::ScopedClosureRunner CursorManager::CreateDisallowCustomCursorScope(
+     int max_dimension_dips) {
+-  const ui::Cursor& target_cursor = cursor_map_[view_under_cursor_];
++  const ui::Cursor& target_cursor = cursor_map_[EffectiveViewUnderCursor()];
+   const bool cursor_allowed_before = IsCursorAllowed(target_cursor);
+   dimension_restrictions_.push_back(max_dimension_dips);
+ 
+@@ -107,7 +142,7 @@
+ }
+ 
+ void CursorManager::DisallowCustomCursorScopeExpired(int max_dimension_dips) {
+-  const ui::Cursor& target_cursor = cursor_map_[view_under_cursor_];
++  const ui::Cursor& target_cursor = cursor_map_[EffectiveViewUnderCursor()];
+   const bool cursor_allowed_before = IsCursorAllowed(target_cursor);
+ 
+   auto it = std::ranges::find(dimension_restrictions_, max_dimension_dips);
+@@ -119,10 +154,15 @@
+   }
+ }
+ 
++RenderWidgetHostViewInput* CursorManager::EffectiveViewUnderCursor() const {
++  return view_under_cursor_override_ ? view_under_cursor_override_.get()
++                                     : view_under_cursor_.get();
++}
++
+ void CursorManager::UpdateCursor() {
+   ui::Cursor cursor(ui::mojom::CursorType::kPointer);
+ 
+-  auto it = cursor_map_.find(view_under_cursor_);
++  auto it = cursor_map_.find(EffectiveViewUnderCursor());
+   if (it != cursor_map_.end() && IsCursorAllowed(it->second)) {
+     cursor = it->second;
+   }
+diff --git a/components/input/cursor_manager.h b/components/input/cursor_manager.h
+index 4d8052b..fed6869 100644
+--- a/components/input/cursor_manager.h
++++ b/components/input/cursor_manager.h
+@@ -43,9 +43,16 @@
+   // Called when the mouse moves over a different RenderWidgetHostView.
+   void UpdateViewUnderCursor(RenderWidgetHostViewInput*);
+ 
++  // Overrides the view under the cursor while the pointer is over a surface
++  // that dispatches mouse events outside RenderWidgetHostInputEventRouter
++  // (such as an UnboundedSurfaceWindow). Passing nullptr clears the override
++  // and falls back to the view last set by UpdateViewUnderCursor.
++  void SetViewUnderCursorOverride(RenderWidgetHostViewInput*);
++
+   // Notification of a RenderWidgetHostView being destroyed, so that its
+-  // cursor map entry can be removed if it has one. If it is the current
+-  // view_under_cursor_, then the root_view_'s cursor will be displayed.
++  // cursor map entry can be removed if it has one. Clears
++  // `view_under_cursor_override_` if it matches, and falls back to
++  // `root_view_` if `view_under_cursor_` is destroyed.
+   void ViewBeingDestroyed(RenderWidgetHostViewInput*);
+ 
+   // Called by any RenderWidgetHostView before updating the tooltip text to
+@@ -70,6 +77,7 @@
+  private:
+   bool IsCursorAllowed(const ui::Cursor&) const;
+   void DisallowCustomCursorScopeExpired(int max_dimension_dips);
++  RenderWidgetHostViewInput* EffectiveViewUnderCursor() const;
+   void UpdateCursor();
+ 
+   void AddObservation(RenderWidgetHostViewInput* view);
+@@ -83,9 +91,13 @@
+       observations_{this};
+ 
+   // The view currently underneath the cursor, which corresponds to the cursor
+-  // currently displayed.
++  // currently displayed unless overridden by `view_under_cursor_override_`.
+   raw_ptr<RenderWidgetHostViewInput> view_under_cursor_;
+ 
++  // Optional override set while the pointer is over a surface that routes
++  // mouse events outside RenderWidgetHostInputEventRouter.
++  raw_ptr<RenderWidgetHostViewInput> view_under_cursor_override_ = nullptr;
++
+   // The root view is the target for DisplayCursor calls whenever the active
+   // cursor needs to change.
+   const raw_ptr<RenderWidgetHostViewInput> root_view_;
+diff --git a/content/app_shim_remote_cocoa/render_widget_host_view_cocoa.h b/content/app_shim_remote_cocoa/render_widget_host_view_cocoa.h
+index 679c80e..9d0afd9b 100644
+--- a/content/app_shim_remote_cocoa/render_widget_host_view_cocoa.h
++++ b/content/app_shim_remote_cocoa/render_widget_host_view_cocoa.h
+@@ -76,6 +76,9 @@
+ // Confirm ongoing composition.
+ - (void)finishComposingText;
+ - (void)updateCursor:(NSCursor*)cursor;
++// Returns YES when the key-tracking window is key and neither cursor
++// autohide nor a context menu suppresses cursor updates.
++- (BOOL)canChangeCurrentCursor;
+ - (void)tabletEvent:(NSEvent*)theEvent;
+ - (void)quickLookWithEvent:(NSEvent*)event;
+ - (void)showLookUpDictionaryOverlayFromRange:(NSRange)range;
+diff --git a/content/browser/renderer_host/navigation_controller_impl.cc b/content/browser/renderer_host/navigation_controller_impl.cc
+index 95577a5..cf5e166f 100644
+--- a/content/browser/renderer_host/navigation_controller_impl.cc
++++ b/content/browser/renderer_host/navigation_controller_impl.cc
+@@ -5033,11 +5033,6 @@
+           soft_navigation_heuristics_task_id);
+   commit_params->post_content_type = post_content_type;
+ 
+-  if (common_params->url.IsAboutSrcdoc()) {
+-    // TODO(wjmaclean): initialize this in NavigationRequest's constructor
+-    // instead.
+-    commit_params->srcdoc_value = frame_tree_node->srcdoc_value();
+-  }
+   const bool is_browser_initiated = !initiator_frame_token;
+   std::unique_ptr<NavigationRequest> request = NavigationRequest::Create(
+       frame_tree_node, std::move(common_params), std::move(commit_params),
+diff --git a/content/browser/renderer_host/navigation_request.cc b/content/browser/renderer_host/navigation_request.cc
+index 96562d88a..ecdd166 100644
+--- a/content/browser/renderer_host/navigation_request.cc
++++ b/content/browser/renderer_host/navigation_request.cc
+@@ -1962,6 +1962,10 @@
+         blink::kFencedFrameForcedSandboxFlags;
+   }
+ 
++  if (common_params_->url.IsAboutSrcdoc()) {
++    commit_params_->srcdoc_value = frame_tree_node_->srcdoc_value();
++  }
++
+   if (from_begin_navigation_) {
+     // This is needed to commit data: and about: URLs in the same SiteInstance
+     // as the initiator frame. Note that this may not necessarily match the
+@@ -6329,7 +6333,7 @@
+   // for this frame. PDF content frames run in a restricted PDF renderer process
+   // that must not receive service worker capabilities for the hosting origin.
+   bool can_create_service_worker =
+-      !IsPdf() && (frame_tree_node_->pending_frame_policy().sandbox_flags &
++      !IsPdf() && (commit_params_->frame_policy.sandbox_flags &
+                    network::mojom::WebSandboxFlags::kOrigin) !=
+                       network::mojom::WebSandboxFlags::kOrigin;
+   if (can_create_service_worker) {
+@@ -7167,7 +7171,7 @@
+   // PDF content frame or has an opaque sandboxed origin. PDF content frames run
+   // in a restricted PDF renderer process that must not receive service worker
+   // capabilities for the hosting origin.
+-  if (IsPdf() || (frame_tree_node_->pending_frame_policy().sandbox_flags &
++  if (IsPdf() || (commit_params_->frame_policy.sandbox_flags &
+                   network::mojom::WebSandboxFlags::kOrigin) ==
+                      network::mojom::WebSandboxFlags::kOrigin) {
+     return;
+diff --git a/content/browser/renderer_host/render_frame_host_impl.cc b/content/browser/renderer_host/render_frame_host_impl.cc
+index b2ff1aa3..ae294eab 100644
+--- a/content/browser/renderer_host/render_frame_host_impl.cc
++++ b/content/browser/renderer_host/render_frame_host_impl.cc
+@@ -13116,10 +13116,6 @@
+ 
+   bool is_srcdoc = common_params->url.IsAboutSrcdoc();
+   if (is_srcdoc) {
+-    // TODO(wjmaclean): initialize this in NavigationRequest's constructor
+-    // instead.
+-    commit_params->srcdoc_value =
+-        navigation_request->frame_tree_node()->srcdoc_value();
+     // Main frame srcdoc navigation are meaningless. They are blocked whenever a
+     // navigation attempt is made. It shouldn't reach CommitNavigation.
+     CHECK(!is_main_frame());
+diff --git a/content/browser/renderer_host/render_widget_host_view_aura.cc b/content/browser/renderer_host/render_widget_host_view_aura.cc
+index 7294908..a6a1c7e6 100644
+--- a/content/browser/renderer_host/render_widget_host_view_aura.cc
++++ b/content/browser/renderer_host/render_widget_host_view_aura.cc
+@@ -856,16 +856,31 @@
+   display::Screen* screen = display::Screen::Get();
+   CHECK(screen);
+ 
+-  // Ignore cursor update messages if the window under the cursor is not us.
++#if !BUILDFLAG(IS_CHROMEOS)
++  // Ignore cursor update messages if the window under the cursor is neither us
++  // nor the unbounded surface spawned by this view, which shows this view's
++  // cursor too. On desktop Aura the surface is a top-level window with its own
++  // root window.
++  aura::Window* surface_window = GetUnboundedSurfaceNativeWindow();
++  aura::Window* surface_root =
++      surface_window ? surface_window->GetRootWindow() : nullptr;
+ #if BUILDFLAG(IS_WIN)
+   gfx::Point cursor_screen_point = screen->GetCursorScreenPoint();
+   aura::Window* window = screen->GetWindowAtScreenPoint(cursor_screen_point);
+-  if (!window || window->GetRootWindow() != root_window) {
++  if (!window) {
+     return true;
+   }
+-#elif !BUILDFLAG(IS_CHROMEOS)
+-  if (!screen->IsWindowUnderCursor(root_window))
++  aura::Window* window_root = window->GetRootWindow();
++  if (window_root != root_window &&
++      (!surface_root || window_root != surface_root)) {
+     return true;
++  }
++#else
++  if (!screen->IsWindowUnderCursor(root_window) &&
++      (!surface_root || !screen->IsWindowUnderCursor(surface_root))) {
++    return true;
++  }
++#endif
+ #endif  // !BUILDFLAG(IS_CHROMEOS)
+   return false;
+ }
+@@ -1069,6 +1084,9 @@
+ 
+ void RenderWidgetHostViewAura::DisplayCursor(const ui::Cursor& cursor) {
+   current_cursor_ = WebCursor(cursor);
++  // TODO(crbug.com/578617577): Scale custom cursors for the unbounded surface
++  // window's display when the surface escapes onto a monitor with a different
++  // device scale factor.
+   current_cursor_.UpdateDisplayInfoForWindow(window_);
+   UpdateCursorIfOverSelf();
+ }
+@@ -3169,36 +3187,73 @@
+       false /* should_register_frame_sink_id */);
+ }
+ 
++aura::Window* RenderWidgetHostViewAura::GetUnboundedSurfaceNativeWindow()
++    const {
++  UnboundedSurfaceWindow* surface = GetUnboundedSurfaceWindow();
++  return surface ? surface->GetNativeWindow() : nullptr;
++}
++
++bool RenderWidgetHostViewAura::IsPointerOverSelfOrUnboundedSurface() const {
++  display::Screen* screen = display::Screen::Get();
++  CHECK(screen);
++  const gfx::Point cursor_screen_point = screen->GetCursorScreenPoint();
++
++  // Returns the window that would receive a mouse event at the cursor's
++  // position in `root_window`.
++  auto event_handler_at_cursor = [&](aura::Window* root_window) {
++    gfx::Point point = cursor_screen_point;
++    if (aura::client::ScreenPositionClient* screen_position_client =
++            aura::client::GetScreenPositionClient(root_window)) {
++      screen_position_client->ConvertPointFromScreen(root_window, &point);
++    }
++    return root_window->GetEventHandlerForPoint(point);
++  };
++
++  aura::Window* root_window = window_->GetRootWindow();
++  aura::Window* handler_in_root =
++      root_window ? event_handler_at_cursor(root_window) : nullptr;
++  if (handler_in_root == window_) {
++    return true;
++  }
++
++  aura::Window* surface_window = GetUnboundedSurfaceNativeWindow();
++  aura::Window* surface_root =
++      surface_window ? surface_window->GetRootWindow() : nullptr;
++  if (!surface_root) {
++    return false;
++  }
++  aura::Window* handler = surface_root == root_window
++                              ? handler_in_root
++                              : event_handler_at_cursor(surface_root);
++  return handler && surface_window->Contains(handler);
++}
++
+ void RenderWidgetHostViewAura::UpdateCursorIfOverSelf() {
+   if (!host() || host()->GetProcess()->FastShutdownStarted()) {
+     return;
+   }
+ 
+   aura::Window* root_window = window_->GetRootWindow();
+-  if (!root_window)
++  if (!root_window) {
+     return;
+-
+-  if (ShouldSkipCursorUpdate())
+-    return;
+-
+-  display::Screen* screen = display::Screen::Get();
+-  CHECK(screen);
+-  gfx::Point root_window_point = screen->GetCursorScreenPoint();
+-  aura::client::ScreenPositionClient* screen_position_client =
+-      aura::client::GetScreenPositionClient(root_window);
+-  if (screen_position_client) {
+-    screen_position_client->ConvertPointFromScreen(
+-        root_window, &root_window_point);
+   }
+ 
+-  if (root_window->GetEventHandlerForPoint(root_window_point) != window_)
++  if (ShouldSkipCursorUpdate()) {
+     return;
++  }
++
++  if (!IsPointerOverSelfOrUnboundedSurface()) {
++    return;
++  }
+ 
+   gfx::NativeCursor cursor = current_cursor_.GetNativeCursor();
+   // Do not show loading cursor when the cursor is currently hidden.
+-  if (is_loading_ && cursor != ui::mojom::CursorType::kNone)
++  if (is_loading_ && cursor != ui::mojom::CursorType::kNone) {
+     cursor = ui::Cursor(ui::mojom::CursorType::kPointer);
++  }
+ 
++  // On desktop Aura the cursor client is shared by all root windows, so this
++  // also reaches an unbounded surface living in its own root.
+   aura::client::CursorClient* cursor_client =
+       aura::client::GetCursorClient(root_window);
+   if (cursor_client) {
+diff --git a/content/browser/renderer_host/render_widget_host_view_aura.h b/content/browser/renderer_host/render_widget_host_view_aura.h
+index 0ccc352c..16150b4a 100644
+--- a/content/browser/renderer_host/render_widget_host_view_aura.h
++++ b/content/browser/renderer_host/render_widget_host_view_aura.h
+@@ -634,6 +634,17 @@
+ 
+   void CreateDelegatedFrameHostClient();
+ 
++  // Returns the native window of the active unbounded surface, or null when
++  // there is no surface or it has no native window (e.g. mid-destruction).
++  aura::Window* GetUnboundedSurfaceNativeWindow() const;
++
++  // Returns true if the pointer is over `window_` or over the unbounded
++  // surface spawned by this view. The surface may live in its own root
++  // window, so it is hit-tested in that root.
++  bool IsPointerOverSelfOrUnboundedSurface() const;
++
++  // Updates the root window's cursor client if the pointer is over `window_`
++  // or the active unbounded surface spawned by this view.
+   void UpdateCursorIfOverSelf();
+ 
+   bool SynchronizeVisualProperties(
+diff --git a/content/browser/renderer_host/unbounded_surface_window.cc b/content/browser/renderer_host/unbounded_surface_window.cc
+index bd12d2d1..f8c1794 100644
+--- a/content/browser/renderer_host/unbounded_surface_window.cc
++++ b/content/browser/renderer_host/unbounded_surface_window.cc
+@@ -8,6 +8,7 @@
+ #include <utility>
+ 
+ #include "base/task/single_thread_task_runner.h"
++#include "components/input/cursor_manager.h"
+ #include "content/browser/renderer_host/render_widget_host_impl.h"
+ #include "content/browser/renderer_host/render_widget_host_view_base.h"
+ #include "third_party/blink/public/common/input/web_mouse_event.h"
+@@ -61,9 +62,32 @@
+       subframe_view_(std::move(subframe_view)) {}
+ 
+ UnboundedSurfaceWindow::~UnboundedSurfaceWindow() {
++  ClearViewUnderCursorOverride();
+   NotifyWindowDestroyed();
+ }
+ 
++void UnboundedSurfaceWindow::SetViewUnderCursorOverride(
++    RenderWidgetHostViewBase* target_view) {
++  if (!parent_view_ || parent_view_->IsPointerLocked()) {
++    return;
++  }
++  if (input::CursorManager* cursor_manager = parent_view_->GetCursorManager()) {
++    cursor_manager->SetViewUnderCursorOverride(target_view);
++  }
++}
++
++void UnboundedSurfaceWindow::ClearViewUnderCursorOverride() {
++  // Skip this while `parent_view_` is itself inside DestroyOrDefer(): its weak
++  // pointer is still valid at that point, but its platform widget may already
++  // be gone (e.g. `ns_view_` on macOS), and the CursorManager dies with it.
++  if (!parent_view_ || parent_view_->destroy_pending()) {
++    return;
++  }
++  if (input::CursorManager* cursor_manager = parent_view_->GetCursorManager()) {
++    cursor_manager->SetViewUnderCursorOverride(nullptr);
++  }
++}
++
+ void UnboundedSurfaceWindow::NotifyWindowDestroyed() {
+   if (Delegate* delegate = std::exchange(delegate_, nullptr)) {
+     delegate->OnWindowDestroyed();
+@@ -89,9 +113,15 @@
+ 
+ void UnboundedSurfaceWindow::RouteMouseEvent(
+     const blink::WebMouseEvent& event) {
++  if (event.GetType() == blink::WebInputEvent::Type::kMouseLeave) {
++    ClearViewUnderCursorOverride();
++  }
+   blink::WebMouseEvent web_event = event;
+   if (RenderWidgetHostViewBase* target_view =
+           PrepareEventForTargetView(web_event)) {
++    if (web_event.GetType() == blink::WebInputEvent::Type::kMouseMove) {
++      SetViewUnderCursorOverride(target_view);
++    }
+     target_view->ProcessMouseEvent(web_event, ui::LatencyInfo());
+   }
+ }
+diff --git a/content/browser/renderer_host/unbounded_surface_window.h b/content/browser/renderer_host/unbounded_surface_window.h
+index 97f4b259..5457e9b6 100644
+--- a/content/browser/renderer_host/unbounded_surface_window.h
++++ b/content/browser/renderer_host/unbounded_surface_window.h
+@@ -26,6 +26,10 @@
+ class WebMouseWheelEvent;
+ }
+ 
++namespace ui {
++class Cursor;
++}
++
+ namespace content {
+ 
+ class RenderWidgetHostViewBase;
+@@ -84,6 +88,9 @@
+ 
+   virtual void RouteMouseEvent(const blink::WebMouseEvent& event);
+   virtual void RouteMouseWheelEvent(const blink::WebMouseWheelEvent& event);
++  // Updates the cursor shown while the pointer is over the surface window, on
++  // platforms where the surface window pushes cursor updates directly.
++  virtual void DisplayCursor(const ui::Cursor& cursor) {}
+   virtual gfx::Rect GetBounds() const = 0;
+   virtual void CopyFromSurface(
+       const gfx::Rect& src_subrect,
+@@ -121,6 +128,13 @@
+   template <typename EventType>
+   RenderWidgetHostViewBase* PrepareEventForTargetView(EventType& web_event);
+ 
++  // Mouse events over this window bypass RenderWidgetHostInputEventRouter, so
++  // the root view's CursorManager has its view-under-cursor overridden with
++  // `target_view` while the pointer is over the surface and cleared on mouse
++  // leave or window destruction. No-op while the pointer is locked.
++  void SetViewUnderCursorOverride(RenderWidgetHostViewBase* target_view);
++  void ClearViewUnderCursorOverride();
++
+   raw_ptr<Delegate> delegate_ = nullptr;
+ };
+ 
+diff --git a/content/browser/renderer_host/unbounded_surface_window_aura.cc b/content/browser/renderer_host/unbounded_surface_window_aura.cc
+index 6001a162..c45ad40 100644
+--- a/content/browser/renderer_host/unbounded_surface_window_aura.cc
++++ b/content/browser/renderer_host/unbounded_surface_window_aura.cc
+@@ -6,6 +6,7 @@
+ 
+ #include "base/check.h"
+ #include "base/command_line.h"
++#include "base/feature_list.h"
+ #include "base/memory/ptr_util.h"
+ #include "base/task/single_thread_task_runner.h"
+ #include "components/input/native_web_keyboard_event.h"
+@@ -25,6 +26,7 @@
+ #include "ui/aura/client/transient_window_client.h"
+ #include "ui/aura/client/window_parenting_client.h"
+ #include "ui/aura/env.h"
++#include "ui/base/ui_base_features.h"
+ #include "ui/compositor/compositor.h"
+ #include "ui/compositor/layer_surface.h"
+ #include "ui/compositor/layer_textured.h"
+@@ -35,6 +37,7 @@
+ #include "ui/events/blink/web_input_event.h"
+ #include "ui/events/keycodes/keyboard_codes.h"
+ #include "ui/gfx/geometry/rect_conversions.h"
++#include "ui/wm/core/shadow_types.h"
+ #include "ui/wm/core/window_util.h"
+ #include "ui/wm/public/activation_client.h"
+ 
+@@ -226,7 +229,17 @@
+ 
+ gfx::NativeCursor UnboundedSurfaceWindowAura::GetCursor(
+     const gfx::Point& point) {
+-  return gfx::NativeCursor();
++  // wm::CompoundEventFilter asks the window under the pointer for its cursor
++  // on every mouse enter and move. The renderer only sends a cursor when it
++  // changes, and the owner view caches the last one it received (also for its
++  // child frames, through CursorManager), so hand out that cursor rather than
++  // the default arrow. This also yields kNone while the pointer is locked.
++  if (!parent_view_) {
++    return gfx::NativeCursor();
++  }
++  // `parent_view_` is always the RenderWidgetHostViewAura given to Create().
++  return static_cast<RenderWidgetHostViewAura*>(parent_view_.get())
++      ->GetCursor(point);
+ }
+ 
+ int UnboundedSurfaceWindowAura::GetNonClientComponent(
+@@ -327,6 +340,10 @@
+       std::make_unique<aura::Window>(this, aura::client::WINDOW_TYPE_MENU);
+   window_->Init(ui::LayerType::LAYER_SURFACE);
+   window_->SetTransparent(true);
++  if (base::FeatureList::IsEnabled(
++          features::kOmitNativeFrameOnShadowlessMenus)) {
++    wm::SetShadowElevation(window_.get(), wm::kShadowElevationNone);
++  }
+   // TODO(crbug.com/508672616): Note that we may need to change this to a non-
+   // transparent background later, if security issues arise. For example, this
+   // allows content to put up a fully transparent (invisible) overlay over site
+diff --git a/content/browser/scheduler/browser_task_priority.cc b/content/browser/scheduler/browser_task_priority.cc
+index 5a98f84..e1a55d1 100644
+--- a/content/browser/scheduler/browser_task_priority.cc
++++ b/content/browser/scheduler/browser_task_priority.cc
+@@ -62,9 +62,10 @@
+ 
+ base::ThreadType TaskPriorityToThreadType(
+     base::sequence_manager::TaskQueue::QueuePriority priority) {
+-  CHECK_LT(static_cast<size_t>(priority),
+-           static_cast<size_t>(BrowserTaskPriority::kPriorityCount),
+-           base::NotFatalUntil::M160);
++  // TODO(crbug.com/580986950): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK_LT(static_cast<size_t>(priority),
++            static_cast<size_t>(BrowserTaskPriority::kPriorityCount));
+   return ToThreadType(static_cast<BrowserTaskPriority>(priority));
+ }
+ 
+diff --git a/content/test/BUILD.gn b/content/test/BUILD.gn
+index e93880ca..4393239 100644
+--- a/content/test/BUILD.gn
++++ b/content/test/BUILD.gn
+@@ -739,6 +739,8 @@
+     sources += [
+       "mock_overscroll_controller_delegate_aura.cc",
+       "mock_overscroll_controller_delegate_aura.h",
++      "recording_cursor_client.cc",
++      "recording_cursor_client.h",
+     ]
+ 
+     deps += [
+diff --git a/ui/base/ui_base_features.cc b/ui/base/ui_base_features.cc
+index 34c3d92e..691ac33 100644
+--- a/ui/base/ui_base_features.cc
++++ b/ui/base/ui_base_features.cc
+@@ -523,6 +523,9 @@
+ BASE_FEATURE(kColorIdCssStyleSheetOptimization,
+              base::FEATURE_DISABLED_BY_DEFAULT);
+ 
++BASE_FEATURE(kOmitNativeFrameOnShadowlessMenus,
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
+ bool IsGlassFrameEnabled() {
+ #if BUILDFLAG(IS_MAC)
+   return base::mac::MacOSMajorVersion() >= 26 &&
+diff --git a/ui/base/ui_base_features.h b/ui/base/ui_base_features.h
+index 4a3dae96..70db77ed 100644
+--- a/ui/base/ui_base_features.h
++++ b/ui/base/ui_base_features.h
+@@ -372,6 +372,9 @@
+ BASE_DECLARE_FEATURE(kColorIdCssStyleSheetOptimization);
+ 
+ COMPONENT_EXPORT(UI_BASE_FEATURES)
++BASE_DECLARE_FEATURE(kOmitNativeFrameOnShadowlessMenus);
++
++COMPONENT_EXPORT(UI_BASE_FEATURES)
+ bool IsGlassFrameEnabled();
+ COMPONENT_EXPORT(UI_BASE_FEATURES)
+ bool IsRoundedIconsEnabled();
+diff --git a/ui/views/widget/desktop_aura/desktop_native_widget_aura.cc b/ui/views/widget/desktop_aura/desktop_native_widget_aura.cc
+index ecdbbbb6..a007cf3 100644
+--- a/ui/views/widget/desktop_aura/desktop_native_widget_aura.cc
++++ b/ui/views/widget/desktop_aura/desktop_native_widget_aura.cc
+@@ -9,6 +9,7 @@
+ #include <utility>
+ 
+ #include "base/auto_reset.h"
++#include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "base/functional/callback_helpers.h"
+ #include "base/memory/raw_ptr.h"
+@@ -130,6 +131,12 @@
+       init_params.remove_standard_frame = true;
+     }
+ #endif
++    if (base::FeatureList::IsEnabled(
++            ::features::kOmitNativeFrameOnShadowlessMenus) &&
++        child_window->GetProperty(wm::kShadowElevationKey) ==
++            wm::kShadowElevationNone) {
++      init_params.shadow_type = Widget::InitParams::ShadowType::kNone;
++    }
+     // If the window should be transparent, then ensure the top level widget
+     // is also not opaque.
+     if (child_window->GetTransparent()) {
+diff --git a/ui/views/widget/widget_hwnd_utils.cc b/ui/views/widget/widget_hwnd_utils.cc
+index 56ed7cad..a41fce9 100644
+--- a/ui/views/widget/widget_hwnd_utils.cc
++++ b/ui/views/widget/widget_hwnd_utils.cc
+@@ -7,6 +7,7 @@
+ #include <dwmapi.h>
+ 
+ #include "base/command_line.h"
++#include "base/feature_list.h"
+ #include "components/viz/common/features.h"
+ #include "ui/base/l10n/l10n_util_win.h"
+ #include "ui/base/mojom/window_show_state.mojom.h"
+@@ -119,7 +120,13 @@
+       break;
+     case Widget::InitParams::TYPE_MENU:
+       styles.style |= WS_POPUP;
+-      if (params.remove_standard_frame) {
++      // Frameless menus use WS_THICKFRAME on Windows to get a native DWM drop
++      // shadow; omit it when the caller opts out of shadows so shadowless
++      // translucent menus do not get a 1px DWM window border.
++      if (params.remove_standard_frame &&
++          (!base::FeatureList::IsEnabled(
++               ::features::kOmitNativeFrameOnShadowlessMenus) ||
++           params.shadow_type != Widget::InitParams::ShadowType::kNone)) {
+         styles.style |= WS_THICKFRAME;
+       }
+       styles.ex_style |= WS_EX_TOOLWINDOW;
+@@ -160,15 +167,15 @@
+   // to be used to allow for transparent borderless windows.
+   //
+   // 1- To allow the contents of the swapchain to blend with the contents
+-  //    behind it, it must must be created with D3DFMT_A8R8G8B8 in D3D9Ex, or
++  //    behind it, it must be created with D3DFMT_A8R8G8B8 in D3D9Ex, or
+   //    with DXGI_ALPHA_MODE_PREMULTIPLIED with DirectComposition.
+   // 2- When the window is created but before it is presented, call
+   //    DwmExtendFrameIntoClientArea passing -1 as the margins so that
+   //    it's blended with the content below the window and not just black.
+-  // 3- To avoid having a window frame and to avoid blurring the contents
+-  //    behind the window, the window must have WS_POPUP in its style and must
+-  //    not have not have WM_SIZEBOX, WS_THICKFRAME or WS_CAPTION in its
+-  //    style.
++  // 3- To avoid having DWM render a native window frame/border and to avoid
++  //    blurring the contents behind the window, the window must have WS_POPUP
++  //    in its style and must not have WS_SIZEBOX, WS_THICKFRAME, or
++  //    WS_CAPTION in its style.
+   //
+   // Software composited windows can continue to use WS_EX_LAYERED.
+   bool is_translucent =
 diff --git a/ui/webui/resources/cr_components/most_visited/most_visited.css b/ui/webui/resources/cr_components/most_visited/most_visited.css
 index ec5d4f2..e9d6276b 100644
 --- a/ui/webui/resources/cr_components/most_visited/most_visited.css
