@@ -1,8 +1,8 @@
 Chromium 158.0.8127.33 + the later changes of its release branch, up to
-1c83c09799a2fcd23c588c5a092665bae86f76a4 (refs/branch-heads/8127@{#1560}), for the
+55c7f83849917c71ae6194d8ed9da69a0f0e4c2e (refs/branch-heads/8127@{#1570}), for the
 158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..1c83c09799a2fcd23c588c5a092665bae86f76a4,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..55c7f83849917c71ae6194d8ed9da69a0f0e4c2e,
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .33 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -26,10 +26,255 @@ Commits contributing to it (oldest first):
   fe396fadab1c [M158] Revert CHECK_NE in FullscreenController::IsFullscreenWithinTab
   4e3312d3e236 [M158] Revert CHECK_LT to DCHECK_LT in TaskPriorityToThreadType
   1c83c09799a2 [M158] Snapshot srcdoc value during NavigationRequest creation
+  e611b628cbe2 [M158] Copy attributes before applying them
+  f18bbd6690ec [M158] [ImageCapture] Scope device session lookups to the requesting frame
+  55c7f8384991 [M158] cc: Don't cache record shaders that use SharedImages
 
 Checked: applies to the 158.0.8127.33 tree; every patched file is
 byte-identical to its version at the last commit above.
 
+diff --git a/cc/paint/gpu_raster_pixeltest.cc b/cc/paint/gpu_raster_pixeltest.cc
+index cf2732b..9cd387ec 100644
+--- a/cc/paint/gpu_raster_pixeltest.cc
++++ b/cc/paint/gpu_raster_pixeltest.cc
+@@ -1347,6 +1347,7 @@
+ 
+   const SkImageInfo& GetSkImageInfo() override { return info_; }
+   gpu::Mailbox GetMailbox() const override { return mailbox_; }
++  void set_mailbox(const gpu::Mailbox& mailbox) { mailbox_ = mailbox; }
+   void Bind(scoped_refptr<TextureBackingContext>) override {}
+   void Unbind() override {}
+   sk_sp<SkImage> GetSkImageViaReadback() override { return nullptr; }
+@@ -1404,6 +1405,79 @@
+   ExpectEquals(actual_bitmap, expected_bitmap);
+ }
+ 
++// A record shader that draws a SharedImage must not be reused from the GPU
++// process's transfer cache by a later raster, since the client can destroy the
++// SharedImage once the raster that used it ends.
++TEST_F(GpuRasterPixelTest, RecordShaderDoesNotReuseDestroyedSharedImage) {
++  RasterOptions options(gfx::Size(16, 16));
++  options.image_provider_raster_mode = PlaybackImageProvider::RasterMode::kGpu;
++  SkImageInfo info = SkImageInfo::MakeN32Premul(options.resource_size.width(),
++                                                options.resource_size.height());
++
++  auto* ri = raster_context_provider_->RasterInterface();
++  auto* sii = raster_context_provider_->SharedImageInterface();
++  auto create_image = [&](const SkColor4f& color) {
++    SkBitmap bitmap;
++    bitmap.allocPixels(info);
++    bitmap.eraseColor(color);
++    scoped_refptr<gpu::ClientSharedImage> shared_image =
++        CreateClientSharedImage(ri, sii, options,
++                                viz::SinglePlaneFormat::kRGBA_8888);
++    shared_image->UpdateDestructionSyncToken(
++        UploadPixels(ri, shared_image, info, bitmap));
++    return shared_image;
++  };
++  scoped_refptr<gpu::ClientSharedImage> red_image =
++      create_image(SkColors::kRed);
++  scoped_refptr<gpu::ClientSharedImage> green_image =
++      create_image(SkColors::kGreen);
++
++  // The record shader draws a texture-backed image, which is serialized as its
++  // SharedImage mailbox. Both rasters use the same shader, so they send the
++  // same shader id and tile, and only the mailbox changes.
++  auto backing = sk_make_sp<TestMailboxBacking>(red_image->mailbox(), info);
++  auto paint_image =
++      PaintImageBuilder::WithDefault()
++          .set_id(PaintImage::GetNextId())
++          .set_texture_backing(backing, PaintImage::GetNextContentId())
++          .TakePaintImage();
++  PaintOpBuffer shader_buffer;
++  shader_buffer.push<DrawImageOp>(paint_image, 0.f, 0.f);
++  auto shader = PaintShader::MakePaintRecord(
++      shader_buffer.ReleaseAsRecord(), gfx::RectToSkRect(gfx::Rect(16, 16)),
++      SkTileMode::kClamp, SkTileMode::kClamp, nullptr,
++      PaintShader::ScalingBehavior::kFixedScale);
++
++  auto display_item_list = base::MakeRefCounted<DisplayItemList>();
++  display_item_list->StartPaint();
++  PaintFlags flags;
++  flags.setShader(shader);
++  display_item_list->push<DrawRectOp>(gfx::RectToSkRect(gfx::Rect(16, 16)),
++                                      flags);
++  display_item_list->EndPaintOfUnpaired(gfx::Rect(options.resource_size));
++  display_item_list->Finalize();
++
++  SkBitmap first_result = Raster(display_item_list, options);
++  EXPECT_EQ(SK_ColorRED, first_result.getColor(8, 8));
++
++  // The client destroys the red image after the first raster. New images may
++  // reuse its texture. Finishing lets backends that defer texture deletion
++  // until the GPU is done (e.g. Vulkan) actually delete it.
++  gpu::SyncToken post_raster_token;
++  ri->GenUnverifiedSyncTokenCHROMIUM(post_raster_token.GetData());
++  red_image->UpdateDestructionSyncToken(post_raster_token);
++  red_image.reset();
++  std::vector<scoped_refptr<gpu::ClientSharedImage>> other_images;
++  for (int i = 0; i < 4; ++i) {
++    other_images.push_back(create_image(SkColors::kBlue));
++    ri->Finish();
++  }
++
++  backing->set_mailbox(green_image->mailbox());
++  SkBitmap second_result = Raster(display_item_list, options);
++  EXPECT_EQ(SK_ColorGREEN, second_result.getColor(8, 8));
++}
++
+ TEST_F(GpuRasterPixelTest, Preclear) {
+   gfx::Rect rect(10, 10);
+   auto display_item_list = base::MakeRefCounted<DisplayItemList>();
+diff --git a/cc/paint/paint_op_buffer.h b/cc/paint/paint_op_buffer.h
+index bae65652..b0fc5f551 100644
+--- a/cc/paint/paint_op_buffer.h
++++ b/cc/paint/paint_op_buffer.h
+@@ -103,6 +103,8 @@
+   };
+ 
+   virtual ~SharedImageProvider() = default;
++  // The returned SkImage may borrow the SharedImage's texture, and must not be
++  // used after this provider is destroyed.
+   virtual sk_sp<SkImage> OpenSharedImageForRead(const gpu::Mailbox& mailbox,
+                                                 Error& error) = 0;
+ };
+diff --git a/cc/paint/paint_op_reader.cc b/cc/paint/paint_op_reader.cc
+index 53be3b7..e7a05732 100644
+--- a/cc/paint/paint_op_reader.cc
++++ b/cc/paint/paint_op_reader.cc
+@@ -19,6 +19,7 @@
+ #include "base/containers/span.h"
+ #include "base/debug/dump_without_crashing.h"
+ #include "base/memory/raw_ptr.h"
++#include "base/memory/stack_allocated.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/notreached.h"
+ #include "base/numerics/safe_math.h"
+@@ -71,6 +72,30 @@
+          behavior == PaintShader::ScalingBehavior::kFixedScale;
+ }
+ 
++// Forwards to another SharedImageProvider and records whether any SharedImage
++// was opened through it. Nested records are deserialized with the same
++// provider, so this also sees SharedImages opened by records nested inside the
++// record being read.
++class TrackingSharedImageProvider final : public SharedImageProvider {
++  STACK_ALLOCATED();
++
++ public:
++  explicit TrackingSharedImageProvider(SharedImageProvider& provider)
++      : provider_(provider) {}
++
++  sk_sp<SkImage> OpenSharedImageForRead(const gpu::Mailbox& mailbox,
++                                        Error& error) override {
++    opened_shared_image_ = true;
++    return provider_.OpenSharedImageForRead(mailbox, error);
++  }
++
++  bool opened_shared_image() const { return opened_shared_image_; }
++
++ private:
++  SharedImageProvider& provider_;
++  bool opened_shared_image_ = false;
++};
++
+ }  // namespace
+ 
+ // Being a friend to `PaintOpReader`, this cannot be in the anonymous namespace.
+@@ -736,10 +761,17 @@
+   ReadSimple(&ref.end_degrees_);
+   Read(&ref.gradient_interpolation_);
+   Read(&ref.image_);
++  // Only image shaders use an image; clients never serialize one for any other
++  // shader type.
++  if (ref.image_ && shader_type != PaintShader::Type::kImage) {
++    SetInvalid(DeserializationError::kUnexpectedPaintShaderType);
++    return;
++  }
+   bool has_record = false;
+   Read(&has_record);
+   PaintShader::RecordShaderId shader_id = PaintShader::kInvalidRecordShaderId;
+   size_t shader_size = 0;
++  bool record_opened_shared_image = false;
+   if (has_record) {
+     if (shader_type != PaintShader::Type::kPaintRecord) {
+       SetInvalid(DeserializationError::kUnexpectedPaintShaderType);
+@@ -751,12 +783,22 @@
+       return;
+     }
+ 
++    // Note whether the record opens any SharedImages, see below.
++    std::optional<TrackingSharedImageProvider> tracking_provider;
++    PaintOp::DeserializeOptions record_options = options_;
++    if (options_.shared_image_provider) {
++      tracking_provider.emplace(*options_.shared_image_provider);
++      record_options.shared_image_provider = &tracking_provider.value();
++    }
++
+     // Track dependent transfer cache entries to make cached shader size
+     // more realistic.
+     size_t pre_size = options_.transfer_cache->GetTotalEntrySizes();
+-    size_t record_size = Read(&ref.record_);
++    size_t record_size = Read(&ref.record_, record_options);
+     size_t post_size = options_.transfer_cache->GetTotalEntrySizes();
+     shader_size = post_size - pre_size + record_size;
++    record_opened_shared_image =
++        tracking_provider && tracking_provider->opened_shared_image();
+ 
+     ref.id_ = shader_id;
+   }
+@@ -883,6 +925,16 @@
+     return;
+   }
+ 
++  // SkImages opened through `options_.shared_image_provider` borrow their
++  // textures only until the end of the current raster pass, after which the
++  // client can destroy the SharedImages. A shader whose record holds such
++  // images must neither be cached past this pass nor replaced by a cached
++  // version, so resolve it for this use only.
++  if (record_opened_shared_image) {
++    (*shader)->ResolveSkObjects();
++    return;
++  }
++
+   // Record shaders have shader ids.  Attempt to use cached versions of
+   // these so that Skia can cache based on SkPictureShader::fUniqueId.
+   // These shaders are always serialized (and assumed to not be large
+@@ -1736,6 +1788,11 @@
+ }
+ 
+ size_t PaintOpReader::Read(std::optional<PaintRecord>* record) {
++  return Read(record, options_);
++}
++
++size_t PaintOpReader::Read(std::optional<PaintRecord>* record,
++                           const PaintOp::DeserializeOptions& options) {
+   size_t size_bytes = 0;
+   ReadSize(&size_bytes);
+ 
+@@ -1760,7 +1817,7 @@
+     return 0;
+ 
+   auto span = remaining_.first(size_bytes);
+-  sk_sp<PaintOpBuffer> buffer = PaintOpBuffer::MakeFromMemory(span, options_);
++  sk_sp<PaintOpBuffer> buffer = PaintOpBuffer::MakeFromMemory(span, options);
+   if (!buffer) {
+     SetInvalid(DeserializationError::kPaintOpBufferMakeFromMemoryFailure);
+     return 0;
+diff --git a/cc/paint/paint_op_reader.h b/cc/paint/paint_op_reader.h
+index f0ebc98..69a0261 100644
+--- a/cc/paint/paint_op_reader.h
++++ b/cc/paint/paint_op_reader.h
+@@ -361,6 +361,9 @@
+ 
+   // Returns the size of the read record, 0 if error.
+   size_t Read(std::optional<PaintRecord>* record);
++  // Same, but deserializes the record with `options` instead of `options_`.
++  size_t Read(std::optional<PaintRecord>* record,
++              const PaintOp::DeserializeOptions& options);
+ 
+   void Read(SkRegion* region);
+   base::span<uint8_t> CopyScratchSpace(size_t bytes);
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc b/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc
 index 453ff3dc..da06881 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc
@@ -474,6 +719,148 @@ index 679c80e..9d0afd9b 100644
  - (void)tabletEvent:(NSEvent*)theEvent;
  - (void)quickLookWithEvent:(NSEvent*)event;
  - (void)showLookUpDictionaryOverlayFromRange:(NSRange)range;
+diff --git a/content/browser/image_capture/image_capture_impl.cc b/content/browser/image_capture/image_capture_impl.cc
+index 77a6001..8e30f1b 100644
+--- a/content/browser/image_capture/image_capture_impl.cc
++++ b/content/browser/image_capture/image_capture_impl.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "content/browser/image_capture/image_capture_impl.h"
+ 
++#include <string>
+ #include <utility>
+ 
+ #include "base/functional/bind.h"
+@@ -30,6 +31,7 @@
+ namespace {
+ 
+ void GetPhotoStateOnIOThread(const std::string& source_id,
++                             GlobalRenderFrameHostId render_frame_host_id,
+                              ImageCaptureImpl::GetPhotoStateCallback callback) {
+   CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M160);
+ 
+@@ -37,7 +39,8 @@
+   CHECK(media_stream_manager);
+ 
+   const base::UnguessableToken session_id =
+-      media_stream_manager->VideoDeviceIdToSessionId(source_id);
++      media_stream_manager->VideoDeviceIdToSessionId(source_id,
++                                                     render_frame_host_id);
+   if (session_id.is_empty())
+     return;
+ 
+@@ -47,6 +50,7 @@
+ 
+ void SetPhotoOptionsOnIOThread(
+     const std::string& source_id,
++    GlobalRenderFrameHostId render_frame_host_id,
+     media::mojom::PhotoSettingsPtr settings,
+     ImageCaptureImpl::SetPhotoOptionsCallback callback) {
+   CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M160);
+@@ -55,7 +59,8 @@
+   CHECK(media_stream_manager);
+ 
+   const base::UnguessableToken session_id =
+-      media_stream_manager->VideoDeviceIdToSessionId(source_id);
++      media_stream_manager->VideoDeviceIdToSessionId(source_id,
++                                                     render_frame_host_id);
+   if (session_id.is_empty())
+     return;
+   media_stream_manager->video_capture_manager()->SetPhotoOptions(
+@@ -63,6 +68,7 @@
+ }
+ 
+ void TakePhotoOnIOThread(const std::string& source_id,
++                         GlobalRenderFrameHostId render_frame_host_id,
+                          ImageCaptureImpl::TakePhotoCallback callback) {
+   CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M160);
+   TRACE_EVENT_INSTANT0(TRACE_DISABLED_BY_DEFAULT("video_and_image_capture"),
+@@ -73,7 +79,8 @@
+   CHECK(media_stream_manager);
+ 
+   const base::UnguessableToken session_id =
+-      media_stream_manager->VideoDeviceIdToSessionId(source_id);
++      media_stream_manager->VideoDeviceIdToSessionId(source_id,
++                                                     render_frame_host_id);
+   if (session_id.is_empty())
+     return;
+ 
+@@ -112,6 +119,7 @@
+           mojo::CreateEmptyPhotoState());
+   GetIOThreadTaskRunner({})->PostTask(
+       FROM_HERE, base::BindOnce(&GetPhotoStateOnIOThread, source_id,
++                                render_frame_host().GetGlobalId(),
+                                 std::move(scoped_callback)));
+ }
+ 
+@@ -141,7 +149,8 @@
+           base::BindPostTaskToCurrentDefault(std::move(callback)), false);
+   GetIOThreadTaskRunner({})->PostTask(
+       FROM_HERE,
+-      base::BindOnce(&SetPhotoOptionsOnIOThread, source_id, std::move(settings),
++      base::BindOnce(&SetPhotoOptionsOnIOThread, source_id,
++                     render_frame_host().GetGlobalId(), std::move(settings),
+                      std::move(scoped_callback)));
+ }
+ 
+@@ -158,6 +167,7 @@
+           media::mojom::Blob::New());
+   GetIOThreadTaskRunner({})->PostTask(
+       FROM_HERE, base::BindOnce(&TakePhotoOnIOThread, source_id,
++                                render_frame_host().GetGlobalId(),
+                                 std::move(scoped_callback)));
+ }
+ 
+diff --git a/content/browser/renderer_host/media/media_stream_manager.cc b/content/browser/renderer_host/media/media_stream_manager.cc
+index c9850a4..2326a2d 100644
+--- a/content/browser/renderer_host/media/media_stream_manager.cc
++++ b/content/browser/renderer_host/media/media_stream_manager.cc
+@@ -11,6 +11,7 @@
+ #include <list>
+ #include <memory>
+ #include <optional>
++#include <string>
+ #include <vector>
+ 
+ #include "base/command_line.h"
+@@ -2014,10 +2015,15 @@
+ }
+ 
+ base::UnguessableToken MediaStreamManager::VideoDeviceIdToSessionId(
+-    const std::string& device_id) const {
++    const std::string& device_id,
++    GlobalRenderFrameHostId render_frame_host_id) const {
+   CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M158);
+ 
+   for (const LabeledDeviceRequest& device_request : requests_) {
++    if (device_request.second->requesting_render_frame_host_id !=
++        render_frame_host_id) {
++      continue;
++    }
+     for (const blink::mojom::StreamDevicesPtr& stream_devices_ptr :
+          device_request.second->stream_devices_set.stream_devices) {
+       const blink::mojom::StreamDevices& devices = *stream_devices_ptr;
+diff --git a/content/browser/renderer_host/media/media_stream_manager.h b/content/browser/renderer_host/media/media_stream_manager.h
+index 7f5fb21b..426f65f 100644
+--- a/content/browser/renderer_host/media/media_stream_manager.h
++++ b/content/browser/renderer_host/media/media_stream_manager.h
+@@ -300,11 +300,12 @@
+                   OpenDeviceCallback open_device_callback,
+                   DeviceStoppedCallback device_stopped_callback);
+ 
+-  // Find |device_id| in the list of |requests_|, and returns its session id,
+-  // or an empty base::UnguessableToken if not found. Must be called on the IO
+-  // thread.
++  // Find `device_id` in the list of `requests_` for `render_frame_host_id`,
++  // and returns its session id, or an empty base::UnguessableToken if not
++  // found. Must be called on the IO thread.
+   base::UnguessableToken VideoDeviceIdToSessionId(
+-      const std::string& device_id) const;
++      const std::string& device_id,
++      GlobalRenderFrameHostId render_frame_host_id) const;
+ 
+   // Called by UI to make sure the device monitor is started so that UI receive
+   // notifications about device changes.
 diff --git a/content/browser/renderer_host/navigation_controller_impl.cc b/content/browser/renderer_host/navigation_controller_impl.cc
 index 95577a5..cf5e166f 100644
 --- a/content/browser/renderer_host/navigation_controller_impl.cc
@@ -888,6 +1275,26 @@ index e93880ca..4393239 100644
      ]
  
      deps += [
+diff --git a/third_party/blink/renderer/core/inspector/dom_patch_support.cc b/third_party/blink/renderer/core/inspector/dom_patch_support.cc
+index 2a9b8791..d972007 100644
+--- a/third_party/blink/renderer/core/inspector/dom_patch_support.cc
++++ b/third_party/blink/renderer/core/inspector/dom_patch_support.cc
+@@ -219,7 +219,14 @@
+ 
+     // FIXME: Create a function in Element for copying properties.
+     // cloneDataFromElement() is close but not enough for this case.
+-    for (auto& attribute : new_element->AttributesWithoutUpdate()) {
++    //
++    // SetAttribute() may run script (e.g. custom element reactions), which
++    // could mutate the attribute storage of |new_element| and invalidate an
++    // AttributeCollection (a non-owning span) iterating over it. Take an
++    // owning copy of the attributes first.
++    const AttributeVector new_attributes(
++        new_element->AttributesWithoutUpdate());
++    for (const Attribute& attribute : new_attributes) {
+       if (!dom_editor_->SetAttribute(old_element,
+                                      attribute.GetName().ToString(),
+                                      attribute.Value(), exception_state))
 diff --git a/ui/base/ui_base_features.cc b/ui/base/ui_base_features.cc
 index 34c3d92e..691ac33 100644
 --- a/ui/base/ui_base_features.cc
