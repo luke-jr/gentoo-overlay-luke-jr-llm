@@ -1,8 +1,8 @@
 Chromium 158.0.8127.33 + the later changes of its release branch, up to
-2fc814f07769caad6decbbf53cf4a2bd0660dd5d (refs/branch-heads/8127@{#1587}), for the
+5b66f2e70fa99786226a5e45a0cf32b9ff75101a (refs/branch-heads/8127@{#1589}), for the
 158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..2fc814f07769caad6decbbf53cf4a2bd0660dd5d,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..5b66f2e70fa99786226a5e45a0cf32b9ff75101a,
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .33 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -32,6 +32,8 @@ Commits contributing to it (oldest first):
   b38c99803ddc [M158] [Views] Spot-protect button updates in dialogs.
   9a8896d6dc2b [M158] [Extensions] Restrict mimeHandlerPrivate to allowlisted extensions
   2fc814f07769 [M158] Avoid stale-lifecycle state when computing intersections
+  dc95250ff8f7 [M158] [FedCM] Return early in RedirectTo() if the navigation destroys it
+  5b66f2e70fa9 [M158] [FedCM] Close the dialog in a separate task for the close button
 
 Checked: applies to the 158.0.8127.33 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -528,6 +530,72 @@ index b384c1e..1da2dd1 100644
  
    // content::WebContentsObserver:
    void DidFinishNavigation(
+diff --git a/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc b/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc
+index ac1866cd8..609eb3b5 100644
+--- a/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc
++++ b/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc
+@@ -14,6 +14,7 @@
+ #include "base/functional/bind.h"
+ #include "base/logging.h"
+ #include "base/memory/ptr_util.h"
++#include "base/memory/weak_ptr.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/metrics/histogram_macros.h"
+ #include "base/strings/utf_string_conversions.h"
+@@ -878,6 +879,27 @@
+     modal_loading_dialog_state_ = webid::LoadingDialogResult::kCancel;
+   }
+ 
++  views::Widget* widget = GetDialogWidget();
++  if (!widget) {
++    OnUserClosedDialog(views::Widget::ClosedReason::kCloseButtonClicked);
++    return;
++  }
++
++  // Close the dialog in a separate task. The button can be pressed while a
++  // dialog view is still running, and closing synchronously would destroy
++  // that view while it runs.
++  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++      FROM_HERE,
++      base::BindOnce(&FedCmAccountSelectionView::CloseDialogForCloseButton,
++                     weak_ptr_factory_.GetWeakPtr(), widget->GetWeakPtr()));
++}
++
++void FedCmAccountSelectionView::CloseDialogForCloseButton(
++    base::WeakPtr<views::Widget> closing_widget) {
++  // Do nothing if the dialog was closed or replaced since the click.
++  if (!closing_widget || closing_widget.get() != GetDialogWidget()) {
++    return;
++  }
+   OnUserClosedDialog(views::Widget::ClosedReason::kCloseButtonClicked);
+ }
+ 
+diff --git a/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.h b/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.h
+index 05c204e..62115db9 100644
+--- a/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.h
++++ b/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.h
+@@ -530,12 +530,17 @@
+                    views::Widget::ClosedReason reason,
+                    bool hide_widget);
+ 
+-  // Called when the user closes the dialog. This is called by
+-  // OnCloseButtonClicked() if the user clicks the close button, and directly
+-  // called by views toolkit if the user dismisses with another mechanism such
+-  // as pressing "esc".
++  // Called when the user closes the dialog. This is called (in a separate task)
++  // by `OnCloseButtonClicked()` if the user clicks the close button, and
++  // directly called by views toolkit if the user dismisses with another
++  // mechanism such as pressing "esc".
+   void OnUserClosedDialog(views::Widget::ClosedReason reason);
+ 
++  // Closes the dialog for a click on the close button, unless `closing_widget`
++  // was destroyed or replaced since the click. Posted by
++  // `OnCloseButtonClicked()`.
++  void CloseDialogForCloseButton(base::WeakPtr<views::Widget> closing_widget);
++
+   // This method calculates whether the dialog should be visible. This method
+   // always updates the dialog position if the dialog should be visible. If the
+   // dialog should be visible, and it is not, this method makes the dialog
 diff --git a/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc b/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc
 index af8447b..7b97c73 100644
 --- a/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc
@@ -1265,6 +1333,31 @@ index 5a98f84..e1a55d1 100644
    return ToThreadType(static_cast<BrowserTaskPriority>(priority));
  }
  
+diff --git a/content/browser/webid/request_handler.cc b/content/browser/webid/request_handler.cc
+index 6e06fa71..c5d0636 100644
+--- a/content/browser/webid/request_handler.cc
++++ b/content/browser/webid/request_handler.cc
+@@ -17,6 +17,7 @@
+ #include "base/json/json_reader.h"
+ #include "base/json/json_writer.h"
+ #include "base/memory/scoped_refptr.h"
++#include "base/memory/weak_ptr.h"
+ #include "base/metrics/histogram_macros.h"
+ #include "base/rand_util.h"
+ #include "base/strings/escape.h"
+@@ -1622,7 +1623,12 @@
+         "Content-Type: application/x-www-form-urlencoded\r\n";
+   }
+   in_redirect_to_ = true;
++  // The navigation can synchronously destroy `this`.
++  base::WeakPtr<RequestHandler> weak_this = weak_ptr_factory_.GetWeakPtr();
+   web_contents->GetController().LoadURLWithParams(params);
++  if (!weak_this) {
++    return;
++  }
+ 
+   CompleteRequest(FederatedRequestResult::kSuccess,
+                   TokenStatus::kSuccessUsingRedirectTo,
 diff --git a/content/test/BUILD.gn b/content/test/BUILD.gn
 index e93880ca..4393239 100644
 --- a/content/test/BUILD.gn
