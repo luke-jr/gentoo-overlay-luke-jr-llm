@@ -1,8 +1,8 @@
 Chromium 158.0.8127.33 + the later changes of its release branch, up to
-55c7f83849917c71ae6194d8ed9da69a0f0e4c2e (refs/branch-heads/8127@{#1570}), for the
+2fc814f07769caad6decbbf53cf4a2bd0660dd5d (refs/branch-heads/8127@{#1587}), for the
 158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..55c7f83849917c71ae6194d8ed9da69a0f0e4c2e,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..2fc814f07769caad6decbbf53cf4a2bd0660dd5d,
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .33 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -29,6 +29,9 @@ Commits contributing to it (oldest first):
   e611b628cbe2 [M158] Copy attributes before applying them
   f18bbd6690ec [M158] [ImageCapture] Scope device session lookups to the requesting frame
   55c7f8384991 [M158] cc: Don't cache record shaders that use SharedImages
+  b38c99803ddc [M158] [Views] Spot-protect button updates in dialogs.
+  9a8896d6dc2b [M158] [Extensions] Restrict mimeHandlerPrivate to allowlisted extensions
+  2fc814f07769 [M158] Avoid stale-lifecycle state when computing intersections
 
 Checked: applies to the 158.0.8127.33 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -1275,6 +1278,89 @@ index e93880ca..4393239 100644
      ]
  
      deps += [
+diff --git a/extensions/common/api/_api_features.json b/extensions/common/api/_api_features.json
+index 84034e36d..05c5eab 100644
+--- a/extensions/common/api/_api_features.json
++++ b/extensions/common/api/_api_features.json
+@@ -538,7 +538,34 @@
+     "dependencies": ["manifest:mime_types_handler"],
+     "contexts": ["privileged_extension"],
+     // "desktop_android" is not supported.
+-    "platforms": ["chromeos", "linux", "mac", "win"]
++    "platforms": ["chromeos", "linux", "mac", "win"],
++    // The public `mimeHandler` API made `mime_types_handler` available to
++    // any extension, so this API needs its own allowlist. It holds the
++    // hashed IDs of the extensions in `kMIMETypeHandlersAllowlist`.
++    // LINT.IfChange(MimeHandlerPrivateAllowlist)
++    "allowlist": [
++      // browser_tests
++      "787000072C6FBB934AF5A42275CDE73FC977D995",
++      // browser_tests (SHA-256)
++      "E2ECC66FF61D50855BDCE96E37D84AF3727F9384AB4FD8A51354DFD51B05C8DF",
++      // QuickOffice
++      "2FC374607C2DF285634B67C64A2E356C607091C3",
++      // QuickOffice (SHA-256)
++      "5F81F9FE1F4F499490466BC3861653FE72DE22E2BA8E4E5769DED9FB2C7EE2D0",
++      // QuickOffice component extension
++      "12E618C3C6E97495AAECF2AC12DEB082353241C6",
++      // QuickOffice component extension (SHA-256)
++      "0EEEFAA87E292CD986DD0528E90F9128A936B1C4E1C53E7FAA0244594C69DF94",
++      // QuickOffice Editor
++      "3727DD3E564B6055387425027AD74C58784ACC15",
++      // QuickOffice Editor (SHA-256)
++      "04C5C683BDBBDA3120FDD1043E96E551185C57F38BE14EE17B5993F6AD4C592F",
++      // PDF
++      "CBCC42ABED43A4B58FE3810E62AFFA010EB0349F",
++      // PDF (SHA-256)
++      "CDF9DD8503F39D9609C6C191E04450FCCEB41BCF9712F361A9013DEF8B9C7552"
++    ]
++    // LINT.ThenChange(//extensions/common/manifest_handlers/mime_types_handler.cc:MimeTypeHandlersAllowlist)
+   },
+   "mojoPrivate": {
+     "contexts": ["privileged_extension"],
+diff --git a/extensions/common/manifest_handlers/mime_types_handler.cc b/extensions/common/manifest_handlers/mime_types_handler.cc
+index e03992d..441d33a 100644
+--- a/extensions/common/manifest_handlers/mime_types_handler.cc
++++ b/extensions/common/manifest_handlers/mime_types_handler.cc
+@@ -43,6 +43,10 @@
+ // wins; (3) among allowlisted handlers a higher index in this array wins.
+ // As a result, if multiple allowlisted versions of quickoffice are
+ // installed the higher-indexed entry wins.
++//
++// The `allowlist` of the `mimeHandlerPrivate` feature holds the hashed IDs
++// of these extensions.
++// LINT.IfChange(MimeTypeHandlersAllowlist)
+ constexpr const char* kMIMETypeHandlersAllowlist[] = {
+     extension_misc::kPdfExtensionId,
+ #if BUILDFLAG(IS_CHROMEOS)
+@@ -51,6 +55,7 @@
+     extension_misc::kQuickOfficeInternalExtensionId,
+     extension_misc::kQuickOfficeExtensionId,
+     extension_misc::kMimeHandlerPrivateTestExtensionId};
++// LINT.ThenChange(//extensions/common/api/_api_features.json:MimeHandlerPrivateAllowlist)
+ 
+ constexpr SkColor kQuickOfficeExtensionBackgroundColor =
+     SkColorSetRGB(241, 241, 241);
+diff --git a/third_party/blink/renderer/core/frame/frame_view.cc b/third_party/blink/renderer/core/frame/frame_view.cc
+index 172b84f..df07af9 100644
+--- a/third_party/blink/renderer/core/frame/frame_view.cc
++++ b/third_party/blink/renderer/core/frame/frame_view.cc
+@@ -46,6 +46,15 @@
+ 
+ bool FrameView::DisplayLockedInParentFrame() {
+   Frame& frame = GetFrame();
++  // If the parent frame is display locked, then this frame does not get
++  // lifecycle updates either, regardless of whether the owner element has a
++  // layout object (e.g. if it is display:none).
++  if (Frame* parent_frame = frame.Tree().Parent()) {
++    if (FrameView* parent_view = parent_frame->View();
++        parent_view && parent_view->IsDisplayLocked()) {
++      return true;
++    }
++  }
+   LayoutEmbeddedContent* owner = frame.OwnerLayoutObject();
+   if (!owner)
+     return false;
 diff --git a/third_party/blink/renderer/core/inspector/dom_patch_support.cc b/third_party/blink/renderer/core/inspector/dom_patch_support.cc
 index 2a9b8791..d972007 100644
 --- a/third_party/blink/renderer/core/inspector/dom_patch_support.cc
@@ -1295,6 +1381,109 @@ index 2a9b8791..d972007 100644
        if (!dom_editor_->SetAttribute(old_element,
                                       attribute.GetName().ToString(),
                                       attribute.Value(), exception_state))
+diff --git a/third_party/blink/renderer/core/view_transition/view_transition_supplement.cc b/third_party/blink/renderer/core/view_transition/view_transition_supplement.cc
+index 22060ed..5b18380 100644
+--- a/third_party/blink/renderer/core/view_transition/view_transition_supplement.cc
++++ b/third_party/blink/renderer/core/view_transition/view_transition_supplement.cc
+@@ -29,6 +29,7 @@
+ #include "third_party/blink/renderer/core/view_transition/view_transition.h"
+ #include "third_party/blink/renderer/core/view_transition/view_transition_utils.h"
+ #include "third_party/blink/renderer/platform/bindings/exception_state.h"
++#include "third_party/blink/renderer/platform/bindings/script_forbidden_scope.h"
+ #include "third_party/blink/renderer/platform/graphics/compositing/paint_artifact_compositor.h"
+ #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ 
+@@ -348,9 +349,11 @@
+     element_transitions_.erase(scope);
+   }
+ 
+-  if (!captured_transitions_.empty() && !HasActiveCaptures()) {
+-    AdvanceCapturedTransitions();
+-  }
++  // Note that this can be called during the rendering lifecycle (e.g. if the
++  // transition is skipped during view transition steps), in which case
++  // advancing the captured transitions is deferred to a task, since it runs
++  // the DOM callbacks.
++  MaybeAdvanceCapturedTransitions();
+ 
+   // Notify the animator if the set of active view transitions is empty.
+   if (!document_transition_ && element_transitions_.empty()) {
+@@ -414,6 +417,39 @@
+   return false;
+ }
+ 
++void ViewTransitionSupplement::MaybeAdvanceCapturedTransitions() {
++  if (captured_transitions_.empty() || HasActiveCaptures()) {
++    return;
++  }
++
++  // Advancing captured transitions runs the DOM callbacks, which must not run
++  // while script is forbidden, e.g. in the middle of the rendering lifecycle:
++  // script could dirty style, layout or the DOM after the lifecycle has
++  // already processed them.
++  if (!ScriptForbiddenScope::WillBeScriptForbidden() &&
++      !ScriptForbiddenScope::IsScriptForbidden()) {
++    AdvanceCapturedTransitions();
++    return;
++  }
++
++  if (advance_captured_transitions_scheduled_) {
++    return;
++  }
++  advance_captured_transitions_scheduled_ = true;
++  document_->GetTaskRunner(TaskType::kDOMManipulation)
++      ->PostTask(FROM_HERE,
++                 BindOnce(
++                     [](ViewTransitionSupplement* supplement) {
++                       if (!supplement) {
++                         return;
++                       }
++                       supplement->advance_captured_transitions_scheduled_ =
++                           false;
++                       supplement->MaybeAdvanceCapturedTransitions();
++                     },
++                     WrapWeakPersistent(this)));
++}
++
+ void ViewTransitionSupplement::AdvanceCapturedTransitions() {
+   std::sort(captured_transitions_.begin(), captured_transitions_.end(),
+             CompareTransitions);
+@@ -435,9 +471,7 @@
+     return;
+   }
+   captured_transitions_.push_back(transition);
+-  if (!HasActiveCaptures()) {
+-    AdvanceCapturedTransitions();
+-  }
++  MaybeAdvanceCapturedTransitions();
+ }
+ 
+ void ViewTransitionSupplement::OnTransitionCaptured(
+diff --git a/third_party/blink/renderer/core/view_transition/view_transition_supplement.h b/third_party/blink/renderer/core/view_transition/view_transition_supplement.h
+index 6ef5855..f0f0eec 100644
+--- a/third_party/blink/renderer/core/view_transition/view_transition_supplement.h
++++ b/third_party/blink/renderer/core/view_transition/view_transition_supplement.h
+@@ -149,6 +149,11 @@
+   void SendOptInStatusToHost();
+ 
+   bool HasActiveCaptures() const;
++  // Advances captured transitions to their DOM callback phase if no other
++  // captures are in flight. Advancing runs script (the DOM callbacks), so if
++  // script is not allowed (e.g. because we're in the middle of the rendering
++  // lifecycle), this posts a task to do so instead.
++  void MaybeAdvanceCapturedTransitions();
+   void AdvanceCapturedTransitions();
+ 
+   // The document we belong to.
+@@ -187,6 +192,8 @@
+   // DOM callback is deferred until all in flight captures are complete in order
+   // to trigger the DOM callbacks in creation order.
+   HeapVector<Member<ViewTransition>> captured_transitions_;
++  // True if a task has been posted to advance captured transitions.
++  bool advance_captured_transitions_scheduled_ = false;
+ 
+   // This allow deferring starting a navigation transition until some conditions
+   // are met, such as existing transitions are finished.
 diff --git a/ui/base/ui_base_features.cc b/ui/base/ui_base_features.cc
 index 34c3d92e..691ac33 100644
 --- a/ui/base/ui_base_features.cc
@@ -1396,6 +1585,34 @@ index 56ed7cad..a41fce9 100644
    //
    // Software composited windows can continue to use WS_EX_LAYERED.
    bool is_translucent =
+diff --git a/ui/views/window/dialog_client_view.cc b/ui/views/window/dialog_client_view.cc
+index 350e3b3..403df78 100644
+--- a/ui/views/window/dialog_client_view.cc
++++ b/ui/views/window/dialog_client_view.cc
+@@ -35,6 +35,7 @@
+ #include "ui/views/metadata/view_factory.h"
+ #include "ui/views/style/platform_style.h"
+ #include "ui/views/view_class_properties.h"
++#include "ui/views/view_guard.h"
+ #include "ui/views/view_observer.h"
+ #include "ui/views/view_tracker.h"
+ #include "ui/views/view_utils.h"
+@@ -381,6 +382,15 @@
+   const ui::ButtonStyle style = delegate->GetDialogButtonStyle(type);
+ 
+   if (*member) {
++    // Accessibility events sent while updating buttons could theoretically
++    // result in synchronous destruction of the dialog or re-entrancy into this
++    // method via malicious or badly-configured software that hooks
++    // accessibility callbacks.
++    //
++    // Since these errors are difficult to fully protect against, guard the
++    // dialog during these updates instead.
++    ViewGuard guard(*member->get());
++
+     MdTextButton* button = *member;
+     button->SetEnabled(delegate->IsDialogButtonEnabled(type));
+     button->SetIsDefault(is_default);
 diff --git a/ui/webui/resources/cr_components/most_visited/most_visited.css b/ui/webui/resources/cr_components/most_visited/most_visited.css
 index ec5d4f2..e9d6276b 100644
 --- a/ui/webui/resources/cr_components/most_visited/most_visited.css
