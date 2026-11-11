@@ -1,11 +1,12 @@
 Chromium 158.0.8127.33 + the later changes of its release branch, up to
-5bb2754e9d5b9635a773e8dd95938699aed67ff2 (refs/branch-heads/8127@{#1649}), for the
+dcf3d92f02ce39ed76c05b705467f7b5e6d515b5 (refs/branch-heads/8127@{#1681}), for the
 158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..5bb2754e9d5b9635a773e8dd95938699aed67ff2,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..dcf3d92f02ce39ed76c05b705467f7b5e6d515b5,
 and from the branch's rolls of v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..b601a2347f005e8bfadd32f285df97ffba5cf1bd (under v8/),
-devtools/devtools-frontend 8deaa243ad5f7abd50b6c0e17a740d0f00fc068f..047c90eca37c7170d826d72245d5df9281989cf3 (under third_party/devtools-frontend/src/) and
-skia/skia 361c8326695a06b7492fb6eeeff803c0c92a2447..3279352fdf1fbbd01a6dd024a52d3f178a6d5f07 (under third_party/skia/),
+devtools/devtools-frontend 8deaa243ad5f7abd50b6c0e17a740d0f00fc068f..047c90eca37c7170d826d72245d5df9281989cf3 (under third_party/devtools-frontend/src/),
+skia/skia 361c8326695a06b7492fb6eeeff803c0c92a2447..3279352fdf1fbbd01a6dd024a52d3f178a6d5f07 (under third_party/skia/) and
+catapult 74678266b79e0ee388f1021bea36388c854b4a00..4a6f0659c26fc478756e83f0d007b91ca5f6d36f (under third_party/catapult/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .33 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -67,6 +68,13 @@ Commits contributing to it (oldest first):
   cf6798fd0c7e [M158] [RPS] Move the rest of remote actor credential sharing to the controller
   dae91e085d6f [M158] [RPS] Move device reauth to components
   5bb2754e9d5b Roll commits from side projects in M158
+  61cb01aed159 [M158] [iOS][RA] Move remote actor credential strings to components
+  0524ac7b6531 [M158] Roll src/third_party/catapult/ 74678266b..4a6f0659c (1 commit)
+  fececa8c4842 [M158] [iOS][Policy] Support GeminiSparkSettings enterprise policy
+  e64cf13a6b1a [M158] [sync] Validate preference source for kLocalSyncBackendDir
+  d538bdd64170 [M158] [iOS][RPS] Enforce GeminiSparkSettings policy for Remote Actor
+  76dd751fb445 [M158] [RA] Accept a full origin as the remote actor credential sharing domain
+  dcf3d92f02ce [M158] [SPC] Own SecurePaymentConfirmationAppFactory::Request on UI thread
     v8 77192c003a77 [M158] [objects] Disallow JSObject modifications during GC and GC callbacks
     v8 e8f914b08b81 Version 15.8.62.27
     v8 c0b2c2f3ade9 [M158] [compiler] Mark string-keyed ordered hash lookups as writing
@@ -83,6 +91,7 @@ Commits contributing to it (oldest first):
     skia 7fd53188ef76 [M158] [ganesh] Fix skew matrix multiply in EllipticalRRectOp and avoid self intersections
     skia e7f7d600ea00 [M158] Exclude DrawListLayer::reset from MiracleObj
     skia 3279352fdf1f [M158] Exclude SkArenaAllocWithReset::reset from MiracleObj
+    catapult 4a6f0659c26f [M158] [tracing] Use main document.importNode in tr.ui.b.instantiateTemplate
 
 Checked: applies to the 158.0.8127.33 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -329,6 +338,28 @@ index f0ebc98..69a0261 100644
  
    void Read(SkRegion* region);
    base::span<uint8_t> CopyScratchSpace(size_t bytes);
+diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
+index b0c7bded..b9d0f60 100644
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -6900,17 +6900,6 @@
+         Sign in as
+       </message>
+ 
+-      <!-- Remote Actor Credential Sharing Dialog -->
+-      <message name="IDS_REMOTE_ACTOR_SHARING_DIALOG_TITLE" desc="Title of the dialog asking the user to share credentials with a remote actor.">
+-        Allow <ph name="ACTOR_NAME">$1<ex>Gemini</ex></ph> to sign in to <ph name="DOMAIN">$2<ex>example.com</ex></ph> for you?
+-      </message>
+-      <message name="IDS_REMOTE_ACTOR_SHARING_DIALOG_SUBTITLE" desc="Subtitle of the dialog asking the user to share credentials with a remote actor.">
+-        <ph name="ACTOR_NAME">$3<ex>Gemini</ex></ph> can use Google Password Manager to sign in for you. <ph name="BEGIN_LINK">$1</ph>Learn how <ph name="ACTOR_NAME">$3<ex>Gemini</ex></ph> handles your data<ph name="END_LINK">$2</ph>
+-      </message>
+-      <message name="IDS_REMOTE_ACTOR_SHARING_DIALOG_ALLOW_BUTTON" desc="Button label to allow password sharing for the remote actor this time.">
+-        Allow this time
+-      </message>
+-
+       <if expr="not use_titlecase">
+         <message name="IDS_PASSWORD_GENERATION_SUGGESTION_GPM" desc="Text shown next to a generated password describing it as a suggestion.">
+           Use strong password
 diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
 index ad97b5a0..0f43cb2 100644
 --- a/chrome/browser/about_flags.cc
@@ -2277,6 +2308,45 @@ index 5d63e03..8a6a3ed 100644
  };
  
  // Function that allows tts engines to update its list of supported voices at
+diff --git a/chrome/browser/sync/BUILD.gn b/chrome/browser/sync/BUILD.gn
+index 15a18bc1..be5028ea 100644
+--- a/chrome/browser/sync/BUILD.gn
++++ b/chrome/browser/sync/BUILD.gn
+@@ -335,6 +335,7 @@
+     "//chrome/test/base:testing_browser_process",
+     "//components/commerce/core:feature_list",
+     "//components/metrics",
++    "//components/prefs:test_support",
+     "//components/signin/public/base",
+     "//components/skills:features",
+     "//components/spellcheck:buildflags",
+diff --git a/chrome/browser/sync/chrome_sync_client.cc b/chrome/browser/sync/chrome_sync_client.cc
+index 166a54ec..bc219a9d 100644
+--- a/chrome/browser/sync/chrome_sync_client.cc
++++ b/chrome/browser/sync/chrome_sync_client.cc
+@@ -104,8 +104,20 @@
+ }
+ 
+ base::FilePath ChromeSyncClient::GetLocalSyncBackendFolder() {
+-  base::FilePath local_sync_backend_folder =
+-      GetPrefService()->GetFilePath(syncer::prefs::kLocalSyncBackendDir);
++  base::FilePath local_sync_backend_folder;
++  const PrefService::Preference* local_sync_backend_dir_pref =
++      GetPrefService()->FindPreference(syncer::prefs::kLocalSyncBackendDir);
++  // Only honor `kLocalSyncBackendDir` when configured via mandatory policy or
++  // command-line switch, ignoring user-modifiable, extension, or custodian
++  // preference stores.
++  if (local_sync_backend_dir_pref &&
++      (local_sync_backend_dir_pref->IsManaged() ||
++       (!local_sync_backend_dir_pref->IsUserModifiable() &&
++        !local_sync_backend_dir_pref->IsExtensionControlled() &&
++        !local_sync_backend_dir_pref->IsManagedByCustodian()))) {
++    local_sync_backend_folder =
++        GetPrefService()->GetFilePath(syncer::prefs::kLocalSyncBackendDir);
++  }
+ 
+ #if BUILDFLAG(IS_WIN)
+   if (local_sync_backend_folder.empty()) {
 diff --git a/chrome/browser/ui/exclusive_access/fullscreen_controller.cc b/chrome/browser/ui/exclusive_access/fullscreen_controller.cc
 index a4d416e..ba26585 100644
 --- a/chrome/browser/ui/exclusive_access/fullscreen_controller.cc
@@ -2604,6 +2674,20 @@ index c3d25e6..eb4da776 100644
    // Safe downcasting to the BrowserView-embedded implementation.
    virtual OmniboxPopupViewBrowserView* AsOmniboxPopupViewBrowserView();
  
+diff --git a/chrome/browser/ui/passwords/remote_actor_selection_dialog_controller.cc b/chrome/browser/ui/passwords/remote_actor_selection_dialog_controller.cc
+index b57e8448..51cb464 100644
+--- a/chrome/browser/ui/passwords/remote_actor_selection_dialog_controller.cc
++++ b/chrome/browser/ui/passwords/remote_actor_selection_dialog_controller.cc
+@@ -7,8 +7,8 @@
+ #include "base/strings/utf_string_conversions.h"
+ #include "base/task/single_thread_task_runner.h"
+ #include "chrome/browser/ui/passwords/password_dialog_prompts.h"
+-#include "chrome/grit/generated_resources.h"
+ #include "components/password_manager/core/common/password_manager_features.h"
++#include "components/strings/grit/components_strings.h"
+ #include "components/url_formatter/elide_url.h"
+ #include "content/public/browser/page_navigator.h"
+ #include "content/public/browser/web_contents.h"
 diff --git a/chrome/browser/ui/views/extensions/BUILD.gn b/chrome/browser/ui/views/extensions/BUILD.gn
 index e526aa40..e26e7dc 100644
 --- a/chrome/browser/ui/views/extensions/BUILD.gn
@@ -3538,10 +3622,10 @@ index 27ecfd5c..ec21b8c 100644
    if (is_ios) {
 diff --git a/components/password_manager/core/browser/remote_actor/BUILD.gn b/components/password_manager/core/browser/remote_actor/BUILD.gn
 new file mode 100644
-index 0000000..c27ceb1
+index 0000000..9b1a192e
 --- /dev/null
 +++ b/components/password_manager/core/browser/remote_actor/BUILD.gn
-@@ -0,0 +1,98 @@
+@@ -0,0 +1,101 @@
 +# Copyright 2026 The Chromium Authors
 +# Use of this source code is governed by a BSD-style license that can be
 +# found in the LICENSE file.
@@ -3568,6 +3652,8 @@ index 0000000..c27ceb1
 +    "remote_actor_request_helper.h",
 +    "remote_actor_switches.cc",
 +    "remote_actor_switches.h",
++    "remote_actor_utils.cc",
++    "remote_actor_utils.h",
 +  ]
 +
 +  public_deps = [
@@ -3607,6 +3693,7 @@ index 0000000..c27ceb1
 +    "remote_actor_credential_sharing_service_impl_unittest.cc",
 +    "remote_actor_credential_store_client_unittest.cc",
 +    "remote_actor_request_helper_unittest.cc",
++    "remote_actor_utils_unittest.cc",
 +  ]
 +  deps = [
 +    ":remote_actor",
@@ -3722,10 +3809,10 @@ index 37849e6b..3839ab7 100644
 +#endif  // COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_PERMISSION_CLIENT_H_
 diff --git a/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_controller.cc b/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_controller.cc
 new file mode 100644
-index 0000000..7910741
+index 0000000..ceeadfd5
 --- /dev/null
 +++ b/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_controller.cc
-@@ -0,0 +1,370 @@
+@@ -0,0 +1,372 @@
 +// Copyright 2026 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -3743,7 +3830,6 @@ index 0000000..7910741
 +#include "base/functional/bind.h"
 +#include "base/functional/callback.h"
 +#include "base/location.h"
-+#include "base/strings/strcat.h"
 +#include "base/strings/utf_string_conversions.h"
 +#include "base/task/sequenced_task_runner.h"
 +#include "base/time/time.h"
@@ -3761,6 +3847,7 @@ index 0000000..7910741
 +#include "components/password_manager/core/browser/password_sync_util.h"
 +#include "components/password_manager/core/browser/password_ui_utils.h"
 +#include "components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_service.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_utils.h"
 +#include "components/password_manager/core/browser/sync/password_proto_utils.h"
 +#include "components/signin/public/base/consent_level.h"
 +#include "components/signin/public/identity_manager/account_info.h"
@@ -3801,22 +3888,25 @@ index 0000000..7910741
 +  }
 +}
 +
-+void RemoteActorCredentialSharingController::Start(std::string_view gaia_id,
-+                                                   std::string_view domain,
-+                                                   std::string_view task_id,
-+                                                   ResultCallback callback) {
++void RemoteActorCredentialSharingController::Start(
++    std::string_view gaia_id,
++    std::string_view domain_or_origin,
++    std::string_view task_id,
++    ResultCallback callback) {
 +  CHECK(callback_.is_null());
 +  gaia_id_ = gaia_id;
-+  origin_ = url::Origin::Create(GURL(base::StrCat({"https://", domain})));
 +  task_id_ = task_id;
 +  callback_ = std::move(callback);
 +
-+  if (!client_) {
++  std::optional<url::Origin> origin =
++      GetOriginFromDomainOrOrigin(domain_or_origin);
++  if (!client_ || !origin) {
 +    LogRemoteActorCredentialSharingResult(
 +        RemoteActorCredentialSharingResult::kOtherError);
 +    RespondWithError(RemoteActorCredentialSharingResult::kOtherError);
 +    return;
 +  }
++  origin_ = *std::move(origin);
 +
 +  if (!VerifyUserIdentityAndSyncState(gaia_id)) {
 +    LogRemoteActorCredentialSharingResult(
@@ -3826,7 +3916,7 @@ index 0000000..7910741
 +    return;
 +  }
 +
-+  QueryPasswordStores(domain);
++  QueryPasswordStores();
 +}
 +
 +bool RemoteActorCredentialSharingController::IsActive() const {
@@ -3897,8 +3987,7 @@ index 0000000..7910741
 +  return true;
 +}
 +
-+void RemoteActorCredentialSharingController::QueryPasswordStores(
-+    std::string_view domain) {
++void RemoteActorCredentialSharingController::QueryPasswordStores() {
 +  const bool is_password_sync_active =
 +      sync_service_ &&
 +      sync_util::IsSyncFeatureActiveIncludingPasswords(sync_service_);
@@ -3929,9 +4018,9 @@ index 0000000..7910741
 +
 +  expected_callbacks_ = stores.size();
 +
++  const GURL url = origin_.GetURL();
 +  PasswordFormDigest digest(PasswordForm::Scheme::kHtml,
-+                            base::StrCat({"https://", domain, "/"}),
-+                            GURL(base::StrCat({"https://", domain})));
++                            password_manager_util::GetSignonRealm(url), url);
 +
 +  for (PasswordStoreInterface* store : stores) {
 +    store->GetLogins(digest, weak_ptr_factory_.GetWeakPtr());
@@ -4098,10 +4187,10 @@ index 0000000..7910741
 +}  // namespace password_manager
 diff --git a/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_controller.h b/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_controller.h
 new file mode 100644
-index 0000000..a17a2af
+index 0000000..4111130
 --- /dev/null
 +++ b/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_controller.h
-@@ -0,0 +1,165 @@
+@@ -0,0 +1,169 @@
 +// Copyright 2026 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -4187,10 +4276,13 @@ index 0000000..a17a2af
 +      const RemoteActorCredentialSharingController&) = delete;
 +  ~RemoteActorCredentialSharingController() override;
 +
-+  // Starts sharing a credential for `domain` on behalf of the user identified
-+  // by `gaia_id`, scoped to `task_id`. Must be called at most once.
++  // Starts sharing a credential for `domain_or_origin` on behalf of the user
++  // identified by `gaia_id`, scoped to `task_id`. `domain_or_origin` may be a
++  // bare host ("example.com"), in which case HTTPS is assumed, or a full origin
++  // ("https://example.com"). Reports `kOtherError` if `domain_or_origin` does
++  // not form a valid origin. Must be called at most once.
 +  void Start(std::string_view gaia_id,
-+             std::string_view domain,
++             std::string_view domain_or_origin,
 +             std::string_view task_id,
 +             ResultCallback callback);
 +
@@ -4207,8 +4299,9 @@ index 0000000..a17a2af
 +  // Verifies the GAIA ID matches the signed-in user and sync is not in error.
 +  bool VerifyUserIdentityAndSyncState(std::string_view gaia_id) const;
 +
-+  // Initiates asynchronous queries to the relevant password stores.
-+  void QueryPasswordStores(std::string_view domain);
++  // Initiates asynchronous queries to the relevant password stores for
++  // `origin_`.
++  void QueryPasswordStores();
 +
 +  // Called when all password store queries have completed.
 +  void OnAllLoginsRetrieved();
@@ -4575,6 +4668,431 @@ index 2ec5ee52..93e6062 100644
  
 -#endif  // CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_SWITCHES_H_
 +#endif  // COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_SWITCHES_H_
+diff --git a/components/password_manager/core/browser/remote_actor/remote_actor_utils.cc b/components/password_manager/core/browser/remote_actor/remote_actor_utils.cc
+new file mode 100644
+index 0000000..a66bdd0
+--- /dev/null
++++ b/components/password_manager/core/browser/remote_actor/remote_actor_utils.cc
+@@ -0,0 +1,27 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "components/password_manager/core/browser/remote_actor/remote_actor_utils.h"
++
++#include "base/strings/strcat.h"
++#include "url/gurl.h"
++#include "url/url_constants.h"
++
++namespace password_manager {
++
++std::optional<url::Origin> GetOriginFromDomainOrOrigin(
++    std::string_view domain_or_origin) {
++  const GURL url =
++      domain_or_origin.contains(url::kStandardSchemeSeparator)
++          ? GURL(domain_or_origin)
++          : GURL(base::StrCat({url::kHttpsScheme, url::kStandardSchemeSeparator,
++                               domain_or_origin}));
++  // Remote actors only send HTTP(S) origins.
++  if (!url.is_valid() || !url.SchemeIsHTTPOrHTTPS()) {
++    return std::nullopt;
++  }
++  return url::Origin::Create(url);
++}
++
++}  // namespace password_manager
+diff --git a/components/password_manager/core/browser/remote_actor/remote_actor_utils.h b/components/password_manager/core/browser/remote_actor/remote_actor_utils.h
+new file mode 100644
+index 0000000..27e75ee1
+--- /dev/null
++++ b/components/password_manager/core/browser/remote_actor/remote_actor_utils.h
+@@ -0,0 +1,24 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_UTILS_H_
++#define COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_UTILS_H_
++
++#include <optional>
++#include <string_view>
++
++#include "url/origin.h"
++
++namespace password_manager {
++
++// Returns the origin of `domain_or_origin` as sent by a remote actor, or
++// `std::nullopt` if it does not form a valid HTTP(S) origin.
++// `domain_or_origin` may be a bare host ("example.com"), in which case HTTPS is
++// assumed, or a full origin ("http://example.com:8080").
++std::optional<url::Origin> GetOriginFromDomainOrOrigin(
++    std::string_view domain_or_origin);
++
++}  // namespace password_manager
++
++#endif  // COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_UTILS_H_
+diff --git a/components/password_manager_strings.grdp b/components/password_manager_strings.grdp
+index 9e68561..42a6bc7 100644
+--- a/components/password_manager_strings.grdp
++++ b/components/password_manager_strings.grdp
+@@ -342,4 +342,15 @@
+       </message>
+     </else>
+   </if>
++
++  <!-- Remote Actor Credential Sharing Dialog -->
++  <message name="IDS_REMOTE_ACTOR_SHARING_DIALOG_TITLE" desc="Title of the dialog asking the user to share credentials with a remote actor.">
++    Allow <ph name="ACTOR_NAME">$1<ex>Gemini</ex></ph> to sign in to <ph name="DOMAIN">$2<ex>example.com</ex></ph> for you?
++  </message>
++  <message name="IDS_REMOTE_ACTOR_SHARING_DIALOG_SUBTITLE" desc="Subtitle of the dialog asking the user to share credentials with a remote actor.">
++    <ph name="ACTOR_NAME">$3<ex>Gemini</ex></ph> can use Google Password Manager to sign in for you. <ph name="BEGIN_LINK">$1</ph>Learn how <ph name="ACTOR_NAME">$3<ex>Gemini</ex></ph> handles your data<ph name="END_LINK">$2</ph>
++  </message>
++  <message name="IDS_REMOTE_ACTOR_SHARING_DIALOG_ALLOW_BUTTON" desc="Button label to allow password sharing for the remote actor this time.">
++    Allow this time
++  </message>
+ </grit-part>
+diff --git a/chrome/app/generated_resources_grd/IDS_REMOTE_ACTOR_SHARING_DIALOG_ALLOW_BUTTON.png.sha1 b/components/password_manager_strings_grdp/IDS_REMOTE_ACTOR_SHARING_DIALOG_ALLOW_BUTTON.png.sha1
+similarity index 100%
+rename from chrome/app/generated_resources_grd/IDS_REMOTE_ACTOR_SHARING_DIALOG_ALLOW_BUTTON.png.sha1
+rename to components/password_manager_strings_grdp/IDS_REMOTE_ACTOR_SHARING_DIALOG_ALLOW_BUTTON.png.sha1
+diff --git a/chrome/app/generated_resources_grd/IDS_REMOTE_ACTOR_SHARING_DIALOG_SUBTITLE.png.sha1 b/components/password_manager_strings_grdp/IDS_REMOTE_ACTOR_SHARING_DIALOG_SUBTITLE.png.sha1
+similarity index 100%
+rename from chrome/app/generated_resources_grd/IDS_REMOTE_ACTOR_SHARING_DIALOG_SUBTITLE.png.sha1
+rename to components/password_manager_strings_grdp/IDS_REMOTE_ACTOR_SHARING_DIALOG_SUBTITLE.png.sha1
+diff --git a/chrome/app/generated_resources_grd/IDS_REMOTE_ACTOR_SHARING_DIALOG_TITLE.png.sha1 b/components/password_manager_strings_grdp/IDS_REMOTE_ACTOR_SHARING_DIALOG_TITLE.png.sha1
+similarity index 100%
+rename from chrome/app/generated_resources_grd/IDS_REMOTE_ACTOR_SHARING_DIALOG_TITLE.png.sha1
+rename to components/password_manager_strings_grdp/IDS_REMOTE_ACTOR_SHARING_DIALOG_TITLE.png.sha1
+diff --git a/components/payments/content/secure_payment_confirmation_app_factory.cc b/components/payments/content/secure_payment_confirmation_app_factory.cc
+index b83ec2b..4dbc67f8 100644
+--- a/components/payments/content/secure_payment_confirmation_app_factory.cc
++++ b/components/payments/content/secure_payment_confirmation_app_factory.cc
+@@ -67,23 +67,6 @@
+   SkBitmap icon;
+ };
+ 
+-// Handles the download of a given IconInfo; copying the downloaded bitmap into
+-// the IconInfo and notifying the BarrierClosure.
+-void DidDownloadIcon(IconInfo* icon_info,
+-                     base::OnceClosure done_closure,
+-                     int request_id,
+-                     int unused_http_status_code,
+-                     const GURL& unused_image_url,
+-                     const std::vector<SkBitmap>& bitmaps,
+-                     const std::vector<gfx::Size>& unused_sizes) {
+-  CHECK(icon_info);
+-  bool has_icon = icon_info->request_id.has_value() &&
+-                  icon_info->request_id.value() == request_id &&
+-                  !bitmaps.empty();
+-  icon_info->icon = has_icon ? bitmaps.front() : SkBitmap();
+-  std::move(done_closure).Run();
+-}
+-
+ // A helper that waits for the PaymentRequestSpec to be initialized and then
+ // runs a callback.
+ class SpecWaiter : public InitializationTask::Observer {
+@@ -154,6 +137,29 @@
+   Request(const Request& other) = delete;
+   Request& operator=(const Request& other) = delete;
+ 
++  // Handles the download of a given IconInfo; copying the downloaded bitmap
++  // into the IconInfo and notifying the BarrierClosure.
++  //
++  // `icon_info` must point into this Request. This is a member function so
++  // that binding it with a WeakPtr<Request> drops the callback rather than
++  // writing through a dangling `icon_info` if the Request dies.
++  void DidDownloadIcon(IconInfo* icon_info,
++                       base::OnceClosure done_closure,
++                       int request_id,
++                       int unused_http_status_code,
++                       const GURL& unused_image_url,
++                       const std::vector<SkBitmap>& bitmaps,
++                       const std::vector<gfx::Size>& unused_sizes) {
++    CHECK(icon_info == &payment_instrument_icon_info ||
++          std::ranges::contains(payment_entities_logos_infos, icon_info,
++                                [](const IconInfo& info) { return &info; }));
++    bool has_icon = icon_info->request_id.has_value() &&
++                    icon_info->request_id.value() == request_id &&
++                    !bitmaps.empty();
++    icon_info->icon = has_icon ? bitmaps.front() : SkBitmap();
++    std::move(done_closure).Run();
++  }
++
+   // WebContentsObserver:
+   void RenderFrameDeleted(
+       content::RenderFrameHost* render_frame_host) override {
+@@ -174,23 +180,30 @@
+   // If set, the factory will wait for the spec to be initialized before
+   // finalizing the app creation.
+   std::unique_ptr<SpecWaiter> spec_waiter;
++
++  base::WeakPtrFactory<Request> weak_ptr_factory{this};
+ };
+ 
+ void SecurePaymentConfirmationAppFactory::
+     OnIsUserVerifyingPlatformAuthenticatorAvailable(
+-        std::unique_ptr<Request> request,
++        base::WeakPtr<Request> weak_request,
+         bool is_available) {
+-  if (!request->delegate || !request->delegate->GetWebContents()) {
++  if (!weak_request) {
++    return;
++  }
++
++  if (!weak_request->delegate || !weak_request->delegate->GetWebContents()) {
+     VLOG(1) << "SecurePaymentConfirmationAppFactory::"
+                "OnIsUserVerifyingPlatformAuthenticatorAvailable: No delegate "
+                "or webcontents";
++    request_.reset();
+     return;
+   }
+ 
+   base::UmaHistogramBoolean(
+       kUserVerifyingPlatformAuthenticatorAvailableHistogramName, is_available);
+ 
+-  if (!request->authenticator ||
++  if (!weak_request->authenticator ||
+       (!is_available && !base::FeatureList::IsEnabled(
+                             ::features::kSecurePaymentConfirmationDebug))) {
+     VLOG(1) << "SecurePaymentConfirmationAppFactory::"
+@@ -200,20 +213,19 @@
+     // Skip getting matching credential IDs since the authenticator is not
+     // available.
+     OnRetrievedCredentials(
+-        std::move(request),
++        weak_request,
+         std::vector<std::unique_ptr<SecurePaymentConfirmationCredential>>());
+     return;
+   }
+ 
+-  auto* request_ptr = request.get();
+   credential_finder_->GetMatchingCredentials(
+-      request_ptr->mojo_request->credential_ids,
+-      request_ptr->mojo_request->rp_id,
+-      request_ptr->delegate->GetFrameSecurityOrigin(),
+-      request_ptr->authenticator.get(), request_ptr->web_data_service,
++      weak_request->mojo_request->credential_ids,
++      weak_request->mojo_request->rp_id,
++      weak_request->delegate->GetFrameSecurityOrigin(),
++      weak_request->authenticator.get(), weak_request->web_data_service,
+       base::BindOnce(
+           &SecurePaymentConfirmationAppFactory::OnRetrievedCredentials,
+-          weak_ptr_factory_.GetWeakPtr(), std::move(request)));
++          weak_ptr_factory_.GetWeakPtr(), weak_request));
+ }
+ 
+ SecurePaymentConfirmationAppFactory::SecurePaymentConfirmationAppFactory()
+@@ -281,13 +293,14 @@
+         return;
+       }
+       auto* authenticator_pointer = authenticator.get();
++      request_ = std::make_unique<Request>(delegate, web_data_service,
++                                           std::move(spc_request),
++                                           std::move(authenticator));
+       authenticator_pointer->IsUserVerifyingPlatformAuthenticatorAvailable(
+           base::BindOnce(&SecurePaymentConfirmationAppFactory::
+                              OnIsUserVerifyingPlatformAuthenticatorAvailable,
+                          weak_ptr_factory_.GetWeakPtr(),
+-                         std::make_unique<Request>(delegate, web_data_service,
+-                                                   std::move(spc_request),
+-                                                   std::move(authenticator))));
++                         request_->weak_ptr_factory.GetWeakPtr()));
+       return;
+     }
+   }
+@@ -307,14 +320,19 @@
+ }
+ 
+ void SecurePaymentConfirmationAppFactory::OnRetrievedCredentials(
+-    std::unique_ptr<Request> request,
++    base::WeakPtr<Request> weak_request,
+     std::optional<
+         std::vector<std::unique_ptr<SecurePaymentConfirmationCredential>>>
+         credentials) {
+-  if (!request->delegate || !request->delegate->GetWebContents()) {
++  if (!weak_request) {
++    return;
++  }
++
++  if (!weak_request->delegate || !weak_request->delegate->GetWebContents()) {
+     VLOG(1)
+         << "SecurePaymentConfirmationAppFactory::OnRetrievedCredentials: No "
+            "delegate or webcontents";
++    request_.reset();
+     return;
+   }
+ 
+@@ -322,14 +340,15 @@
+     VLOG(1)
+         << "SecurePaymentConfirmationAppFactory::OnRetrievedCredentials: No "
+            "credentials";
+-    request->delegate->OnDoneCreatingPaymentApps();
++    std::unique_ptr<Request> scoped_request = std::move(request_);
++    scoped_request->delegate->OnDoneCreatingPaymentApps();
+     return;
+   }
+ 
+   // Regardless of whether any credentials match, canMakePayment() and
+   // hasEnrolledInstrument() should return true for SPC when a user-verifying
+   // platform authenticator device is available.
+-  request->delegate->SetCanMakePaymentEvenWithoutApps();
++  weak_request->delegate->SetCanMakePaymentEvenWithoutApps();
+ 
+   // For the pilot phase, arbitrarily use the first matching credential.
+   // TODO(crbug.com/40142088): Handle multiple credentials.
+@@ -339,7 +358,7 @@
+             << std::string(credentials->front()->credential_id.begin(),
+                            credentials->front()->credential_id.end());
+ 
+-    request->credential = std::move(credentials->front());
++    weak_request->credential = std::move(credentials->front());
+   }
+ 
+   // Download the icons for the payment instrument icon and the payment entity
+@@ -350,18 +369,17 @@
+   // Perform these downloads regardless of whether there is a matching
+   // credential, so that the hosting server(s) cannot detect presence of the
+   // credential on file.
+-  auto* request_ptr = request.get();
+-
+-  request_ptr->payment_instrument_icon_info = {
+-      .url = request_ptr->mojo_request->instrument->icon};
++  weak_request->payment_instrument_icon_info = {
++      .url = weak_request->mojo_request->instrument->icon};
+   for (const mojom::PaymentEntityLogoPtr& logo :
+-       request_ptr->mojo_request->payment_entities_logos) {
+-    request_ptr->payment_entities_logos_infos.push_back({.url = logo->url});
++       weak_request->mojo_request->payment_entities_logos) {
++    weak_request->payment_entities_logos_infos.push_back({.url = logo->url});
+   }
+ 
+-  base::WeakPtr<PaymentRequestSpec> spec = request_ptr->delegate->GetSpec();
++  base::WeakPtr<PaymentRequestSpec> spec = weak_request->delegate->GetSpec();
+   if (!spec) {
+-    request->delegate->OnDoneCreatingPaymentApps();
++    std::unique_ptr<Request> scoped_request = std::move(request_);
++    scoped_request->delegate->OnDoneCreatingPaymentApps();
+     return;
+   }
+ 
+@@ -369,50 +387,55 @@
+   // * one payment instrument icon download, and
+   // * one waiting for spec initialization, plus
+   // * some number of payment entity logos.
+-  const size_t num_tasks = 2 + request_ptr->payment_entities_logos_infos.size();
++  const size_t num_tasks =
++      2 + weak_request->payment_entities_logos_infos.size();
+   auto barrier_closure = base::BarrierClosure(
+       num_tasks,
+       base::BindOnce(&SecurePaymentConfirmationAppFactory::DidDownloadAllIcons,
+-                     weak_ptr_factory_.GetWeakPtr(), std::move(request)));
++                     weak_ptr_factory_.GetWeakPtr(), weak_request));
+ 
+-  request_ptr->spec_waiter =
++  weak_request->spec_waiter =
+       std::make_unique<SpecWaiter>(spec, barrier_closure);
+ 
+   gfx::Size preferred_size(kSecurePaymentConfirmationIconMaximumWidthPx,
+                            kSecurePaymentConfirmationIconHeightPx);
+ 
+-  request_ptr->payment_instrument_icon_info.request_id =
+-      request_ptr->web_contents()->DownloadImageInFrame(
+-          request_ptr->delegate->GetInitiatorRenderFrameHostId(),
+-          request_ptr->payment_instrument_icon_info.url,  // source URL
+-          false,                                          // is_favicon
++  weak_request->payment_instrument_icon_info.request_id =
++      weak_request->web_contents()->DownloadImageInFrame(
++          weak_request->delegate->GetInitiatorRenderFrameHostId(),
++          weak_request->payment_instrument_icon_info.url,  // source URL
++          false,                                           // is_favicon
+           preferred_size,
+           0,      // no max size
+           false,  // normal cache policy (a.k.a. do not bypass cache)
+-          base::BindOnce(&DidDownloadIcon,
+-                         &request_ptr->payment_instrument_icon_info,
++          base::BindOnce(&Request::DidDownloadIcon, weak_request,
++                         &weak_request->payment_instrument_icon_info,
+                          barrier_closure));
+ 
+-  for (IconInfo& info : request_ptr->payment_entities_logos_infos) {
++  for (IconInfo& info : weak_request->payment_entities_logos_infos) {
+     if (info.url.is_empty()) {
+       // This IconInfo is a placeholder value. No download is necessary.
+       barrier_closure.Run();
+     } else {
+-      info.request_id = request_ptr->web_contents()->DownloadImageInFrame(
+-          request_ptr->delegate->GetInitiatorRenderFrameHostId(),
++      info.request_id = weak_request->web_contents()->DownloadImageInFrame(
++          weak_request->delegate->GetInitiatorRenderFrameHostId(),
+           info.url,  // source URL
+           false,     // is_favicon
+           preferred_size,
+           0,      // no max size
+           false,  // normal cache policy (a.k.a. do not bypass cache)
+-          base::BindOnce(&DidDownloadIcon, &info, barrier_closure));
++          base::BindOnce(&Request::DidDownloadIcon, weak_request, &info,
++                         barrier_closure));
+     }
+   }
+ }
+ 
+ void SecurePaymentConfirmationAppFactory::DidDownloadAllIcons(
+-    std::unique_ptr<Request> request) {
+-  DCHECK(request);
++    base::WeakPtr<Request> weak_request) {
++  if (!weak_request) {
++    return;
++  }
++  std::unique_ptr<Request> request = std::move(request_);
+   if (!request->delegate || !request->web_contents())
+     return;
+ 
+diff --git a/components/payments/content/secure_payment_confirmation_app_factory.h b/components/payments/content/secure_payment_confirmation_app_factory.h
+index 55fb3c5..97b1fef 100644
+--- a/components/payments/content/secure_payment_confirmation_app_factory.h
++++ b/components/payments/content/secure_payment_confirmation_app_factory.h
+@@ -41,11 +41,11 @@
+   struct Request;
+ 
+   void OnIsUserVerifyingPlatformAuthenticatorAvailable(
+-      std::unique_ptr<Request> request,
++      base::WeakPtr<Request> weak_request,
+       bool is_available);
+ 
+   void OnRetrievedCredentials(
+-      std::unique_ptr<Request> request,
++      base::WeakPtr<Request> weak_request,
+       std::optional<
+           std::vector<std::unique_ptr<SecurePaymentConfirmationCredential>>>
+           credentials);
+@@ -56,12 +56,14 @@
+ 
+   // Called once all icons are downloaded and their respective SkBitmaps have
+   // been set into the Request.
+-  void DidDownloadAllIcons(std::unique_ptr<Request> request);
++  void DidDownloadAllIcons(base::WeakPtr<Request> weak_request);
+ 
+   scoped_refptr<BrowserBoundKeyStore> browser_bound_key_store_for_testing_;
+ 
+   std::unique_ptr<SecurePaymentConfirmationCredentialFinder> credential_finder_;
+ 
++  std::unique_ptr<Request> request_;
++
+   base::WeakPtrFactory<SecurePaymentConfirmationAppFactory> weak_ptr_factory_{
+       this};
+ };
+diff --git a/components/policy/resources/templates/policy_definitions/GenerativeAI/GeminiSparkSettings.yaml b/components/policy/resources/templates/policy_definitions/GenerativeAI/GeminiSparkSettings.yaml
+index 793a64f6d..d1818c5 100644
+--- a/components/policy/resources/templates/policy_definitions/GenerativeAI/GeminiSparkSettings.yaml
++++ b/components/policy/resources/templates/policy_definitions/GenerativeAI/GeminiSparkSettings.yaml
+@@ -21,6 +21,7 @@
+ supported_on:
+ - chrome.*:150-
+ - chrome_os:150-
++- ios:158-
+ features:
+   dynamic_refresh: true
+   per_profile: true
 diff --git a/components/translate/core/browser/translate_manager.cc b/components/translate/core/browser/translate_manager.cc
 index de791ae..b2943db 100644
 --- a/components/translate/core/browser/translate_manager.cc
@@ -6355,6 +6873,71 @@ index 7373bf5..35751c4 100644
    protected onTilesRendered_() {
      performance.measure('most-visited-rendered');
      assert(this.maxVisibleTiles_ > 0);
+diff --git a/third_party/catapult/tracing/tracing/ui/base/utils.html b/third_party/catapult/tracing/tracing/ui/base/utils.html
+index c70a56a..3d0fec0 100644
+--- a/third_party/catapult/tracing/tracing/ui/base/utils.html
++++ b/third_party/catapult/tracing/tracing/ui/base/utils.html
+@@ -35,7 +35,12 @@
+     if (!el) {
+       throw new Error('Element not found: ' + selector);
+     }
+-    const node = doc.importNode(el.content, true);
++    // Always call importNode on the main `document` rather than `doc`. Under
++    // the WebComponentsV0 polyfill, CustomElements only hooks `importNode` on
++    // the unwrapped `window.document` to synchronously upgrade custom elements,
++    // whereas `doc` may be an HTMLImports sub-document or a ShadowDOMPolyfill
++    // Document wrapper (e.g. from `document._currentScript.ownerDocument`).
++    const node = document.importNode(el.content, true);
+     // Under the WebComponentsV0 HTMLImports polyfill, when a <template> from
+     // an imported HTML document (such as /tracing/ui/base/quad_stack_view.html)
+     // is cloned and inserted into the main document (e.g.
+diff --git a/third_party/catapult/tracing/tracing/ui/base/utils_test.html b/third_party/catapult/tracing/tracing/ui/base/utils_test.html
+index cb02fb9..2325d67 100644
+--- a/third_party/catapult/tracing/tracing/ui/base/utils_test.html
++++ b/third_party/catapult/tracing/tracing/ui/base/utils_test.html
+@@ -47,8 +47,7 @@
+   const THIS_DOC =
+       (document._currentScript || document.currentScript).ownerDocument;
+ 
+-  // See https://crbug.com/1143376.
+-  skipTest('instantiateTemplatePolymer', function() {
++  test('instantiateTemplatePolymer', function() {
+     const e = tr.ui.b.instantiateTemplate(
+         '#instantiate-template-polymer-test',
+         THIS_DOC);
+@@ -56,8 +55,7 @@
+     assert.strictEqual(e.children[0].testProperty, 'Test');
+   });
+ 
+-  // See https://crbug.com/1143376.
+-  skipTest('instantiateTemplateMultipleTemplates', function() {
++  test('instantiateTemplateMultipleTemplates', function() {
+     const outerElement = tr.ui.b.instantiateTemplate(
+         '#multiple-template-test',
+         THIS_DOC);
+@@ -65,7 +63,7 @@
+     assert.strictEqual(outerElement.children[1].testProperty, 'Test');
+ 
+     // Make sure we can still instantiate inner templates, if we need them.
+-    const innerElement = THIS_DOC.importNode(
++    const innerElement = document.importNode(
+         outerElement.children[0].content, true);
+     assert.strictEqual(innerElement.children.length, 2);
+     assert.strictEqual(innerElement.children[0].testProperty, 'Test');
+diff --git a/third_party/catapult/tracing/tracing/ui/extras/about_tracing/profiling_view_test.html b/third_party/catapult/tracing/tracing/ui/extras/about_tracing/profiling_view_test.html
+index 9906ebe..1e867ec 100644
+--- a/third_party/catapult/tracing/tracing/ui/extras/about_tracing/profiling_view_test.html
++++ b/third_party/catapult/tracing/tracing/ui/extras/about_tracing/profiling_view_test.html
+@@ -12,8 +12,7 @@
+ <script>
+ 'use strict';
+ 
+-// See https://crbug.com/1143376.
+-tr.b.unittest.skippedTestSuite(function() {
++tr.b.unittest.testSuite(function() {
+   const ProfilingView = tr.ui.e.about_tracing.ProfilingView;
+ 
+   test('protobufTraceDetection', function() {
 diff --git a/third_party/skia/src/core/SkArenaAlloc.cpp b/third_party/skia/src/core/SkArenaAlloc.cpp
 index 63bb3cd..9f63cd7 100644
 --- a/third_party/skia/src/core/SkArenaAlloc.cpp
