@@ -1,9 +1,9 @@
 Chromium 158.0.8127.33 + the later changes of its release branch, up to
-00390ff9bb99d85b7fcb3329c57893b246fcc459 (refs/branch-heads/8127@{#1637}), for the
+5bb2754e9d5b9635a773e8dd95938699aed67ff2 (refs/branch-heads/8127@{#1649}), for the
 158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..00390ff9bb99d85b7fcb3329c57893b246fcc459,
-and from the branch's rolls of v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..875534af8903118cd3322a0f80eb0ab770e4847a (under v8/),
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..5bb2754e9d5b9635a773e8dd95938699aed67ff2,
+and from the branch's rolls of v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..b601a2347f005e8bfadd32f285df97ffba5cf1bd (under v8/),
 devtools/devtools-frontend 8deaa243ad5f7abd50b6c0e17a740d0f00fc068f..047c90eca37c7170d826d72245d5df9281989cf3 (under third_party/devtools-frontend/src/) and
 skia/skia 361c8326695a06b7492fb6eeeff803c0c92a2447..3279352fdf1fbbd01a6dd024a52d3f178a6d5f07 (under third_party/skia/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
@@ -62,6 +62,11 @@ Commits contributing to it (oldest first):
   6c0bde1cf739 [M158] Escape strings for HTML on contact info page to mitigate JS error
   adc4ed33ae7e [M158] [RPS] Move Passbox/APS clients and sharing service to components
   00390ff9bb99 [M158] Zero-initialize allocations in ZstdSourceStream::customMalloc
+  1e94d9834e63 [M158] [RPS] Add RemoteActorCredentialSharingController
+  def4b38ac433 [M158] [RPS] Separate UI steps from the sharing logic in the Mojo impl
+  cf6798fd0c7e [M158] [RPS] Move the rest of remote actor credential sharing to the controller
+  dae91e085d6f [M158] [RPS] Move device reauth to components
+  5bb2754e9d5b Roll commits from side projects in M158
     v8 77192c003a77 [M158] [objects] Disallow JSObject modifications during GC and GC callbacks
     v8 e8f914b08b81 Version 15.8.62.27
     v8 c0b2c2f3ade9 [M158] [compiler] Mark string-keyed ordered hash lookups as writing
@@ -70,6 +75,8 @@ Commits contributing to it (oldest first):
     v8 76231bd14f03 Version 15.8.62.29
     v8 8a8f726f82ef [M158] [turboshaft] Invalidate load elimination on CatchBlockBegin
     v8 875534af8903 Version 15.8.62.30
+    v8 2477d612c4c7 [M158] [heap] Read SFI::trusted_function_data_ only once during marking
+    v8 b601a2347f00 Version 15.8.62.31
     devtools-frontend c4aa6a2d6fde Update What's new content for Chrome 158
     devtools-frontend bba4f1dcb490 [M158] Reland "[elements] Skip no-op expand events after "Expand recursively""
     devtools-frontend 047c90eca37c [M158] [elements] Restore the shadow root guide line in the DOM tree
@@ -1014,7 +1021,7 @@ index 839a488..ccecbadcf 100644
      "Auto-framing control override";
  inline constexpr char kAutoFramingOverrideDescription[] =
 diff --git a/chrome/browser/password_manager/remote_actor/BUILD.gn b/chrome/browser/password_manager/remote_actor/BUILD.gn
-index 750ea44..99e5f72 100644
+index 750ea44..ce4bb52 100644
 --- a/chrome/browser/password_manager/remote_actor/BUILD.gn
 +++ b/chrome/browser/password_manager/remote_actor/BUILD.gn
 @@ -6,21 +6,10 @@
@@ -1039,7 +1046,7 @@ index 750ea44..99e5f72 100644
    ]
  
    deps = [
-@@ -28,7 +17,6 @@
+@@ -28,29 +17,22 @@
      "//chrome/browser/glic",
      "//chrome/browser/password_manager",
      "//chrome/browser/password_manager/factories",
@@ -1047,16 +1054,19 @@ index 750ea44..99e5f72 100644
      "//chrome/browser/profiles:profile",
      "//chrome/browser/signin",
      "//chrome/browser/sync:factories",
-@@ -39,18 +27,15 @@
+     "//chrome/browser/ui/passwords",
+     "//chrome/common:mojo_bindings",
+-    "//components/device_reauth",
+     "//components/keyed_service/core",
      "//components/password_manager/core/browser",
      "//components/password_manager/core/browser/actor_login:actor_login_service_impl",
-     "//components/password_manager/core/browser/features:password_features",
+-    "//components/password_manager/core/browser/features:password_features",
 +    "//components/password_manager/core/browser/remote_actor",
      "//components/password_manager/core/browser/sync",
      "//components/password_manager/core/common:features",
      "//components/prefs",
      "//components/signin/public/base",
-     "//components/signin/public/identity_manager",
+-    "//components/signin/public/identity_manager",
 -    "//components/sync/base",
      "//components/sync/protocol",
      "//content/public/browser",
@@ -1067,7 +1077,7 @@ index 750ea44..99e5f72 100644
      "//url",
    ]
  }
-@@ -58,11 +43,8 @@
+@@ -58,11 +40,8 @@
  source_set("unit_tests") {
    testonly = true
    sources = [
@@ -1080,7 +1090,7 @@ index 750ea44..99e5f72 100644
    ]
    deps = [
      ":remote_actor",
-@@ -71,7 +53,6 @@
+@@ -71,28 +50,23 @@
      "//chrome/browser/password_manager",
      "//chrome/browser/password_manager:test_support",
      "//chrome/browser/password_manager/factories",
@@ -1088,19 +1098,44 @@ index 750ea44..99e5f72 100644
      "//chrome/browser/signin:test_support",
      "//chrome/browser/sync:factories",
      "//chrome/browser/ui/autofill",
-@@ -83,6 +64,7 @@
+     "//chrome/browser/ui/passwords",
+     "//chrome/test:test_support",
+     "//chrome/test/base:chrome_render_view_host_test_harness",
+-    "//components/affiliations/core/browser:test_support",
+-    "//components/device_reauth:test_support",
      "//components/password_manager/core/browser:test_support",
      "//components/password_manager/core/browser/actor_login:actor_login_service_impl",
-     "//components/password_manager/core/browser/features:password_features",
+-    "//components/password_manager/core/browser/features:password_features",
 +    "//components/password_manager/core/browser/remote_actor",
      "//components/password_manager/core/common:features",
      "//components/signin/public/identity_manager:test_support",
-     "//components/strings:components_strings",
+-    "//components/strings:components_strings",
+     "//components/sync:test_support",
+     "//components/sync/protocol",
+     "//content/test:test_support",
+     "//services/network:test_support",
+     "//testing/gmock",
+     "//testing/gtest",
+-    "//ui/base",
+   ]
+ }
+ 
 diff --git a/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_impl.cc b/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_impl.cc
-index fd97b1c7..673bfc5 100644
+index fd97b1c7..01cc5b4 100644
 --- a/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_impl.cc
 +++ b/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_impl.cc
-@@ -16,7 +16,6 @@
+@@ -6,48 +6,28 @@
+ 
+ #include "base/check.h"
+ #include "base/functional/bind.h"
+-#include "base/metrics/histogram_functions.h"
+-#include "base/strings/strcat.h"
+-#include "base/strings/utf_string_conversions.h"
+ #include "base/task/sequenced_task_runner.h"
+-#include "base/time/time.h"
++#include "base/types/expected.h"
+ #include "chrome/browser/glic/glic_pref_names.h"
+ #include "chrome/browser/glic/public/glic_enabling.h"
  #include "chrome/browser/password_manager/chrome_password_manager_client.h"
  #include "chrome/browser/password_manager/factories/account_password_store_factory.h"
  #include "chrome/browser/password_manager/factories/profile_password_store_factory.h"
@@ -1108,14 +1143,578 @@ index fd97b1c7..673bfc5 100644
  #include "chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service_factory.h"
  #include "chrome/browser/profiles/profile.h"
  #include "chrome/browser/signin/identity_manager_factory.h"
-@@ -32,6 +31,7 @@
- #include "components/password_manager/core/browser/password_store/password_form_converters.h"
- #include "components/password_manager/core/browser/password_sync_util.h"
- #include "components/password_manager/core/browser/password_ui_utils.h"
-+#include "components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_service.h"
- #include "components/password_manager/core/browser/sync/password_proto_utils.h"
+ #include "chrome/browser/sync/sync_service_factory.h"
+ #include "chrome/browser/ui/passwords/remote_actor_selection_dialog_controller.h"
+ #include "chrome/common/password_manager/remote_actor_credential_sharing_policy.h"
+-#include "components/device_reauth/device_auth_availability_checker.h"
+-#include "components/device_reauth/device_authenticator.h"
+-#include "components/password_manager/core/browser/features/password_features.h"
+-#include "components/password_manager/core/browser/features/password_manager_features_util.h"
++#include "components/keyed_service/core/service_access_type.h"
+ #include "components/password_manager/core/browser/password_form.h"
+-#include "components/password_manager/core/browser/password_manager_util.h"
+-#include "components/password_manager/core/browser/password_store/password_form_converters.h"
+-#include "components/password_manager/core/browser/password_sync_util.h"
+-#include "components/password_manager/core/browser/password_ui_utils.h"
+-#include "components/password_manager/core/browser/sync/password_proto_utils.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_result.h"
  #include "components/prefs/pref_service.h"
- #include "components/signin/public/identity_manager/identity_manager.h"
+-#include "components/signin/public/identity_manager/identity_manager.h"
+-#include "components/strings/grit/components_strings.h"
+-#include "components/sync/protocol/password_specifics.pb.h"
+-#include "components/sync/service/sync_service.h"
+-#include "components/sync/service/sync_user_settings.h"
+ #include "content/public/browser/child_process_security_policy.h"
+ #include "content/public/browser/render_frame_host.h"
+ #include "content/public/browser/render_process_host.h"
+ #include "content/public/browser/web_contents.h"
+-#include "google_apis/gaia/gaia_id.h"
+ #include "mojo/public/cpp/bindings/message.h"
+-#include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
+-#include "ui/base/l10n/l10n_util.h"
+-#include "url/gurl.h"
+ #include "url/origin.h"
+ 
+ namespace password_manager {
+@@ -65,12 +45,6 @@
+ }
+ 
+ constexpr size_t kMaxArgumentLength = 256;
+-constexpr base::TimeDelta kShareTimeToLive = base::Minutes(10);
+-
+-void LogResult(RemoteActorCredentialSharingResult result) {
+-  base::UmaHistogramEnumeration(
+-      "PasswordManager.RemoteActorCredentialSharing.Result", result);
+-}
+ 
+ }  // namespace
+ DOCUMENT_USER_DATA_KEY_IMPL(RemoteActorCredentialSharingImpl);
+@@ -111,7 +85,7 @@
+ }
+ 
+ RemoteActorCredentialSharingImpl::~RemoteActorCredentialSharingImpl() {
+-  // Explicitly close the receiver before `pending_request_` is destroyed during
++  // Explicitly close the receiver before `controller_` is destroyed during
+   // member destruction. Closing the binding endpoint first ensures that any
+   // in-flight request callback can be safely dropped without invoking it when
+   // the hosting frame is destroyed.
+@@ -134,8 +108,9 @@
+     return;
+   }
+ 
+-  if (pending_request_) {
+-    LogResult(RemoteActorCredentialSharingResult::kRequestAlreadyInProgress);
++  if (controller_ && controller_->IsActive()) {
++    LogRemoteActorCredentialSharingResult(
++        RemoteActorCredentialSharingResult::kRequestAlreadyInProgress);
+     RespondWithError(std::move(callback));
+     return;
+   }
+@@ -144,150 +119,62 @@
+       Profile::FromBrowserContext(render_frame_host().GetBrowserContext());
+ 
+   if (!IsAllowedByPolicy(profile)) {
+-    LogResult(RemoteActorCredentialSharingResult::kBlockedByPolicy);
++    LogRemoteActorCredentialSharingResult(
++        RemoteActorCredentialSharingResult::kBlockedByPolicy);
+     RespondWithError(std::move(callback));
+     return;
+   }
+ 
+-  if (!VerifyUserIdentityAndSyncState(profile, gaia_id)) {
+-    LogResult(
++  if (profile->IsOffTheRecord()) {
++    LogRemoteActorCredentialSharingResult(
+         RemoteActorCredentialSharingResult::kUserIdentityOrSyncStateInvalid);
+     RespondWithError(std::move(callback));
+     return;
+   }
+ 
+-  QueryPasswordStores(profile, gaia_id, domain, task_id, std::move(callback));
++  content::WebContents* web_contents =
++      content::WebContents::FromRenderFrameHost(&render_frame_host());
++  ChromePasswordManagerClient* client =
++      web_contents ? ChromePasswordManagerClient::FromWebContents(web_contents)
++                   : nullptr;
++
++  dialog_controller_.reset();
++  controller_ = std::make_unique<RemoteActorCredentialSharingController>(
++      IdentityManagerFactory::GetForProfile(profile),
++      SyncServiceFactory::GetForProfile(profile),
++      ProfilePasswordStoreFactory::GetForProfile(
++          profile, ServiceAccessType::EXPLICIT_ACCESS)
++          .get(),
++      AccountPasswordStoreFactory::GetForProfile(
++          profile, ServiceAccessType::EXPLICIT_ACCESS)
++          .get(),
++      RemoteActorCredentialSharingServiceFactory::GetForProfile(profile),
++      client, this);
++  controller_->Start(
++      gaia_id, domain, task_id,
++      base::BindOnce(&RemoteActorCredentialSharingImpl::OnShareCompleted,
++                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
+ }
+ 
+-void RemoteActorCredentialSharingImpl::OnGetPasswordStoreResultsOrErrorFrom(
+-    PasswordStoreInterface* store,
+-    base::expected<std::vector<StoredCredential>, PasswordStoreBackendError>
+-        results_or_error) {
+-  if (!pending_request_) {
+-    return;
+-  }
+-
+-  pending_request_->received_callbacks++;
+-
+-  if (results_or_error) {
+-    std::vector<StoredCredential> logins = std::move(*results_or_error);
+-
+-    auto* profile =
+-        Profile::FromBrowserContext(render_frame_host().GetBrowserContext());
+-    auto* sync_service = SyncServiceFactory::GetForProfile(profile);
+-    bool is_sync_active =
+-        sync_service &&
+-        sync_util::IsSyncFeatureActiveIncludingPasswords(sync_service);
+-
+-    for (StoredCredential& login : logins) {
+-      password_manager_util::GetLoginMatchType match_type =
+-          password_manager_util::GetMatchType(login);
+-      if (match_type != password_manager_util::GetLoginMatchType::kExact &&
+-          match_type != password_manager_util::GetLoginMatchType::kAffiliated &&
+-          match_type != password_manager_util::GetLoginMatchType::kPSL) {
+-        continue;
+-      }
+-      PasswordForm form = ToPasswordForm(std::move(login));
+-      if (form.IsUsingAccountStore() ||
+-          (form.IsUsingProfileStore() && is_sync_active)) {
+-        pending_request_->credentials.push_back(std::move(form));
+-      }
+-    }
+-  }
+-
+-  if (pending_request_->received_callbacks ==
+-      pending_request_->expected_callbacks) {
+-    OnAllLoginsRetrieved();
+-  }
+-}
+-
+-void RemoteActorCredentialSharingImpl::OnAllLoginsRetrieved() {
+-  if (!pending_request_) {
+-    return;
+-  }
+-
+-  if (pending_request_->credentials.empty()) {
+-    LogResult(RemoteActorCredentialSharingResult::kNoPasswordsFound);
+-    std::move(pending_request_->callback).Run(false);
+-    pending_request_.reset();
+-    return;
+-  }
+-
++void RemoteActorCredentialSharingImpl::ShowCredentialSelection(
++    std::vector<std::unique_ptr<PasswordForm>> credentials,
++    const url::Origin& origin,
++    base::OnceCallback<void(CredentialOrError)> callback) {
+   content::WebContents* web_contents =
+       content::WebContents::FromRenderFrameHost(&render_frame_host());
+   if (!web_contents) {
+-    LogResult(RemoteActorCredentialSharingResult::kOtherError);
+-    std::move(pending_request_->callback).Run(false);
+-    pending_request_.reset();
++    std::move(callback).Run(
++        base::unexpected(RemoteActorCredentialSharingResult::kOtherError));
+     return;
+   }
+ 
+-  std::string credential_domain =
+-      base::StrCat({"https://", pending_request_->domain});
+-
+-  std::vector<std::unique_ptr<PasswordForm>> credentials_ptr;
+-  for (PasswordForm& form : pending_request_->credentials) {
+-    credentials_ptr.push_back(std::make_unique<PasswordForm>(std::move(form)));
+-  }
+-
+-  auto dialog_callback =
++  dialog_controller_ = dialog_factory_.Run(
++      web_contents, std::move(credentials), origin.Serialize(),
+       base::BindOnce(&RemoteActorCredentialSharingImpl::OnDialogResult,
+-                     weak_ptr_factory_.GetWeakPtr());
+-
+-  dialog_controller_ =
+-      dialog_factory_.Run(web_contents, std::move(credentials_ptr),
+-                          credential_domain, std::move(dialog_callback));
++                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
+   dialog_controller_->Show();
+ }
+ 
+-void RemoteActorCredentialSharingImpl::ProceedWithCredential(
+-    PasswordForm selected_form,
+-    bool auth_success) {
+-  device_authenticator_.reset();
+-
+-  if (!pending_request_) {
+-    return;
+-  }
+-
+-  absl::Cleanup cleanup_request = [this] { pending_request_.reset(); };
+-
+-  if (!auth_success) {
+-    LogResult(RemoteActorCredentialSharingResult::kAuthenticatorFailed);
+-    RespondWithError(std::move(pending_request_->callback));
+-    return;
+-  }
+-
+-  Profile* profile =
+-      Profile::FromBrowserContext(render_frame_host().GetBrowserContext());
+-  RemoteActorCredentialSharingService* service =
+-      RemoteActorCredentialSharingServiceFactory::GetForProfile(profile);
+-  if (!service) {
+-    LogResult(RemoteActorCredentialSharingResult::kSharingServiceUnavailable);
+-    RespondWithError(std::move(pending_request_->callback));
+-    return;
+-  }
+-
+-  StoredCredential credential = FromPasswordForm(std::move(selected_form));
+-  sync_pb::PasswordSpecificsData specifics_data =
+-      SpecificsDataFromStoredCredential(credential);
+-
+-  RemoteActorCredentialSharingService::ShareParameters params;
+-  params.obfuscated_gaia_id = pending_request_->gaia_id;
+-  params.web_origin =
+-      url::Origin::Create(
+-          GURL(base::StrCat({"https://", pending_request_->domain})))
+-          .Serialize();
+-  params.password_data = std::move(specifics_data);
+-  params.time_to_live = kShareTimeToLive;
+-  params.task_id = pending_request_->task_id;
+-
+-  service->SharePassword(
+-      params,
+-      base::BindOnce(&RemoteActorCredentialSharingImpl::OnShareCompleted,
+-                     weak_ptr_factory_.GetWeakPtr(),
+-                     std::move(pending_request_->callback)));
+-}
+-
+ bool RemoteActorCredentialSharingImpl::ValidateRequestPreconditions(
+     const std::string& gaia_id,
+     const std::string& domain,
+@@ -352,170 +239,24 @@
+   return true;
+ }
+ 
+-bool RemoteActorCredentialSharingImpl::VerifyUserIdentityAndSyncState(
+-    Profile* profile,
+-    const std::string& gaia_id) {
+-  auto* identity_manager = IdentityManagerFactory::GetForProfile(profile);
+-  if (!identity_manager) {
+-    return false;
+-  }
+-  CoreAccountInfo primary_account =
+-      identity_manager->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin);
+-  if (primary_account.gaia.empty() || primary_account.gaia != GaiaId(gaia_id)) {
+-    return false;
+-  }
+-
+-  auto* sync_service = SyncServiceFactory::GetForProfile(profile);
+-  if (sync_service) {
+-    if (sync_service->GetAuthError().IsPersistentError()) {
+-      return false;
+-    }
+-    if (sync_service->GetUserSettings()
+-            ->IsTrustedVaultKeyRequiredForPreferredDataTypes()) {
+-      return false;
+-    }
+-  }
+-
+-  return true;
+-}
+-
+-void RemoteActorCredentialSharingImpl::QueryPasswordStores(
+-    Profile* profile,
+-    const std::string& gaia_id,
+-    const std::string& domain,
+-    const std::string& task_id,
+-    RequestAgentAuthenticationCallback callback) {
+-  CHECK(!pending_request_);
+-  dialog_controller_.reset();
+-
+-  auto* sync_service = SyncServiceFactory::GetForProfile(profile);
+-  const bool is_password_sync_active =
+-      sync_service &&
+-      sync_util::IsSyncFeatureActiveIncludingPasswords(sync_service);
+-  // We only query stores that contain credentials synced to the Google Account.
+-  // - If password sync is active (sync-the-feature), the profile store contains
+-  //   the synced credentials.
+-  // - If sync is inactive but account storage is active (sync-the-transport),
+-  //   the account store contains the account-scoped credentials.
+-  // Local-only credentials (profile store when sync is inactive) are excluded
+-  // from sharing.
+-  std::vector<PasswordStoreInterface*> stores;
+-  if (is_password_sync_active) {
+-    auto profile_store = ProfilePasswordStoreFactory::GetForProfile(
+-        profile, ServiceAccessType::EXPLICIT_ACCESS);
+-    CHECK(profile_store);
+-    stores.push_back(profile_store.get());
+-  } else if (sync_service &&
+-             features_util::IsAccountStorageActive(sync_service)) {
+-    auto account_store = AccountPasswordStoreFactory::GetForProfile(
+-        profile, ServiceAccessType::EXPLICIT_ACCESS);
+-    CHECK(account_store);
+-    stores.push_back(account_store.get());
+-  }
+-
+-  if (stores.empty()) {
+-    LogResult(RemoteActorCredentialSharingResult::kNoSyncOrAccountStorage);
+-    RespondWithError(std::move(callback));
+-    return;
+-  }
+-
+-  pending_request_ = PendingRequest{
+-      .gaia_id = gaia_id,
+-      .domain = domain,
+-      .task_id = task_id,
+-      .callback = std::move(callback),
+-      .expected_callbacks = static_cast<int>(stores.size()),
+-  };
+-
+-  PasswordFormDigest digest(PasswordForm::Scheme::kHtml,
+-                            base::StrCat({"https://", domain, "/"}),
+-                            GURL(base::StrCat({"https://", domain})));
+-
+-  for (PasswordStoreInterface* store : stores) {
+-    store->GetLogins(digest, weak_ptr_factory_.GetWeakPtr());
+-  }
+-}
+-
+ void RemoteActorCredentialSharingImpl::OnDialogResult(
++    base::OnceCallback<void(CredentialOrError)> callback,
+     std::optional<PasswordForm> selected_form) {
+   dialog_controller_.reset();
+-
+-  if (!pending_request_) {
+-    return;
+-  }
+-
+   if (!selected_form) {
+-    LogResult(RemoteActorCredentialSharingResult::kUserCancelledDialog);
+-    RespondWithError(std::move(pending_request_->callback));
+-    pending_request_.reset();
++    std::move(callback).Run(base::unexpected(
++        RemoteActorCredentialSharingResult::kUserCancelledDialog));
+     return;
+   }
+-
+-  content::WebContents* web_contents =
+-      content::WebContents::FromRenderFrameHost(&render_frame_host());
+-  if (!web_contents) {
+-    LogResult(RemoteActorCredentialSharingResult::kOtherError);
+-    RespondWithError(std::move(pending_request_->callback));
+-    pending_request_.reset();
+-    return;
+-  }
+-
+-  auto* client = ChromePasswordManagerClient::FromWebContents(web_contents);
+-  if (!client) {
+-    LogResult(RemoteActorCredentialSharingResult::kOtherError);
+-    RespondWithError(std::move(pending_request_->callback));
+-    pending_request_.reset();
+-    return;
+-  }
+-
+-  bool reauth_required = false;
+-  if (!base::FeatureList::IsEnabled(
+-          password_manager::features::kDeviceReauthRefactor)) {
+-    if (!device_authenticator_) {
+-      device_authenticator_ = client->GetDeviceAuthenticator();
+-    }
+-    reauth_required =
+-        device_authenticator_ && client->IsReauthBeforeFillingRequiredLegacy(
+-                                     device_authenticator_.get());
+-  } else {
+-    std::unique_ptr<device_reauth::DeviceAuthAvailabilityChecker> checker =
+-        client->GetDeviceAuthAvailabilityChecker();
+-    if (client->IsReauthBeforeFillingRequired(checker.get())) {
+-      if (!device_authenticator_) {
+-        device_authenticator_ = client->GetDeviceAuthenticator();
+-      }
+-      reauth_required = true;
+-    }
+-  }
+-
+-  if (reauth_required) {
+-    CHECK(device_authenticator_);
+-    std::u16string message;
+-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_CHROMEOS)
+-    url::Origin domain_origin = url::Origin::Create(
+-        GURL(base::StrCat({"https://", pending_request_->domain})));
+-    const std::u16string origin_str =
+-        base::UTF8ToUTF16(GetShownOrigin(domain_origin));
+-    message = l10n_util::GetStringFUTF16(IDS_PASSWORD_MANAGER_FILLING_REAUTH,
+-                                         origin_str);
+-#endif
+-    device_authenticator_->AuthenticateWithMessage(
+-        message,
+-        base::BindOnce(&RemoteActorCredentialSharingImpl::ProceedWithCredential,
+-                       weak_ptr_factory_.GetWeakPtr(),
+-                       std::move(*selected_form)));
+-    return;
+-  }
+-
+-  ProceedWithCredential(std::move(*selected_form), /*auth_success=*/true);
++  std::move(callback).Run(std::move(*selected_form));
+ }
+ 
+ void RemoteActorCredentialSharingImpl::OnShareCompleted(
+     RequestAgentAuthenticationCallback callback,
+-    bool success) {
+-  LogResult(success ? RemoteActorCredentialSharingResult::kSuccess
+-                    : RemoteActorCredentialSharingResult::kSharingFailed);
+-  std::move(callback).Run(success);
++    RemoteActorCredentialSharingResult result) {
++  controller_.reset();
++  std::move(callback).Run(result ==
++                          RemoteActorCredentialSharingResult::kSuccess);
+ }
+ 
+ void RemoteActorCredentialSharingImpl::RespondWithError(
+diff --git a/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_impl.h b/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_impl.h
+index 4167326..6a46f160 100644
+--- a/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_impl.h
++++ b/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_impl.h
+@@ -12,12 +12,10 @@
+ 
+ #include "base/functional/callback.h"
+ #include "base/memory/weak_ptr.h"
+-#include "base/types/expected.h"
+ #include "chrome/common/password_manager/remote_actor_credential_sharing.mojom.h"
+ #include "components/password_manager/core/browser/password_form.h"
+-#include "components/password_manager/core/browser/password_store/password_store_backend_error.h"
+-#include "components/password_manager/core/browser/password_store/password_store_consumer.h"
+-#include "components/password_manager/core/browser/password_store/stored_credential.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_controller.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_result.h"
+ #include "content/public/browser/document_user_data.h"
+ #include "mojo/public/cpp/bindings/associated_receiver.h"
+ #include "mojo/public/cpp/bindings/pending_associated_receiver.h"
+@@ -29,38 +27,18 @@
+ class WebContents;
+ }  // namespace content
+ 
+-namespace device_reauth {
+-class DeviceAuthenticator;
+-}
++namespace url {
++class Origin;
++}  // namespace url
+ 
+ namespace password_manager {
+ 
+-// These values are persisted to logs. Entries should not be renumbered and
+-// numeric values should never be reused.
+-//
+-// LINT.IfChange(RemoteActorCredentialSharingResult)
+-enum class RemoteActorCredentialSharingResult {
+-  kOtherError = 0,
+-  kSuccess = 1,
+-  kUserIdentityOrSyncStateInvalid = 2,
+-  kNoSyncOrAccountStorage = 3,
+-  kNoPasswordsFound = 4,
+-  kUserCancelledDialog = 5,
+-  kAuthenticatorFailed = 6,
+-  kSharingServiceUnavailable = 7,
+-  kSharingFailed = 8,
+-  kRequestAlreadyInProgress = 9,
+-  kBlockedByPolicy = 10,
+-  kMaxValue = kBlockedByPolicy,
+-};
+-// LINT.ThenChange(/tools/metrics/histograms/metadata/password/enums.xml:RemoteActorCredentialSharingResult)
+-
+ class RemoteActorSelectionDialogController;
+ 
+ class RemoteActorCredentialSharingImpl
+     : public chrome::mojom::RemoteActorCredentialSharing,
+       public content::DocumentUserData<RemoteActorCredentialSharingImpl>,
+-      public PasswordStoreConsumer {
++      public RemoteActorCredentialSharingController::Delegate {
+  public:
+   // Factory callback type used to create the credential selection dialog.
+   using DialogFactory = base::RepeatingCallback<
+@@ -100,33 +78,6 @@
+   friend class content::DocumentUserData<RemoteActorCredentialSharingImpl>;
+   DOCUMENT_USER_DATA_KEY_DECL();
+ 
+-  struct PendingRequest {
+-    // The GAIA ID of the user requesting authentication.
+-    std::string gaia_id;
+-    // The credential domain for which credentials are requested.
+-    std::string domain;
+-    // The ID of the remote actor task requesting credentials.
+-    std::string task_id;
+-    // The callback to return the result to the Mojo caller.
+-    RequestAgentAuthenticationCallback callback;
+-    // The number of password store queries started.
+-    int expected_callbacks = 0;
+-    // The number of password store queries that have completed.
+-    int received_callbacks = 0;
+-    // Collected credentials from the stores.
+-    std::vector<PasswordForm> credentials;
+-  };
+-
+-  // PasswordStoreConsumer:
+-  void OnGetPasswordStoreResultsOrErrorFrom(
+-      PasswordStoreInterface* store,
+-      base::expected<std::vector<StoredCredential>, PasswordStoreBackendError>
+-          results_or_error) override;
+-
+-  // Called when all password store queries have completed.
+-  void OnAllLoginsRetrieved();
+-  void ProceedWithCredential(PasswordForm selected_form, bool auth_success);
+-
+   // Validates Mojo request preconditions (e.g., primary main frame, user
+   // gesture).
+   bool ValidateRequestPreconditions(const std::string& gaia_id,
+@@ -137,24 +88,20 @@
+   // credential sharing.
+   bool IsAllowedByPolicy(Profile* profile);
+ 
+-  // Verifies the GAIA ID matches the signed-in user and sync is not in error.
+-  bool VerifyUserIdentityAndSyncState(Profile* profile,
+-                                      const std::string& gaia_id);
+-
+-  // Initiates asynchronous queries to the relevant password stores.
+-  void QueryPasswordStores(Profile* profile,
+-                           const std::string& gaia_id,
+-                           const std::string& domain,
+-                           const std::string& task_id,
+-                           RequestAgentAuthenticationCallback callback);
++  // RemoteActorCredentialSharingController::Delegate:
++  void ShowCredentialSelection(
++      std::vector<std::unique_ptr<PasswordForm>> credentials,
++      const url::Origin& origin,
++      base::OnceCallback<void(CredentialOrError)> callback) override;
+ 
+   // Callback triggered when the user selects a credential or cancels the
+   // dialog.
+-  void OnDialogResult(std::optional<PasswordForm> selected_form);
++  void OnDialogResult(base::OnceCallback<void(CredentialOrError)> callback,
++                      std::optional<PasswordForm> selected_form);
+ 
+   // Callback triggered when the sharing service completes the operation.
+   void OnShareCompleted(RequestAgentAuthenticationCallback callback,
+-                        bool success);
++                        RemoteActorCredentialSharingResult result);
+ 
+   // Asynchronously posts a failure response to the Mojo callback.
+   void RespondWithError(RequestAgentAuthenticationCallback callback);
+@@ -164,9 +111,8 @@
+ 
+   DialogFactory dialog_factory_;
+ 
+-  std::optional<PendingRequest> pending_request_;
++  std::unique_ptr<RemoteActorCredentialSharingController> controller_;
+   std::unique_ptr<RemoteActorSelectionDialogController> dialog_controller_;
+-  std::unique_ptr<device_reauth::DeviceAuthenticator> device_authenticator_;
+ 
+   base::WeakPtrFactory<RemoteActorCredentialSharingImpl> weak_ptr_factory_{
+       this};
 diff --git a/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service_factory.cc b/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service_factory.cc
 index 13042f6c..284c3fb 100644
 --- a/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service_factory.cc
@@ -2939,10 +3538,10 @@ index 27ecfd5c..ec21b8c 100644
    if (is_ios) {
 diff --git a/components/password_manager/core/browser/remote_actor/BUILD.gn b/components/password_manager/core/browser/remote_actor/BUILD.gn
 new file mode 100644
-index 0000000..b64ddff1
+index 0000000..c27ceb1
 --- /dev/null
 +++ b/components/password_manager/core/browser/remote_actor/BUILD.gn
-@@ -0,0 +1,72 @@
+@@ -0,0 +1,98 @@
 +# Copyright 2026 The Chromium Authors
 +# Use of this source code is governed by a BSD-style license that can be
 +# found in the LICENSE file.
@@ -2956,6 +3555,10 @@ index 0000000..b64ddff1
 +  sources = [
 +    "remote_actor_credential_permission_client.cc",
 +    "remote_actor_credential_permission_client.h",
++    "remote_actor_credential_sharing_controller.cc",
++    "remote_actor_credential_sharing_controller.h",
++    "remote_actor_credential_sharing_result.cc",
++    "remote_actor_credential_sharing_result.h",
 +    "remote_actor_credential_sharing_service.h",
 +    "remote_actor_credential_sharing_service_impl.cc",
 +    "remote_actor_credential_sharing_service_impl.h",
@@ -2970,6 +3573,7 @@ index 0000000..b64ddff1
 +  public_deps = [
 +    "//base",
 +    "//components/keyed_service/core",
++    "//components/password_manager/core/browser",
 +    "//components/password_manager/core/browser/sync",
 +    "//components/signin/public/base",
 +    "//components/sync/base",
@@ -2980,12 +3584,18 @@ index 0000000..b64ddff1
 +  ]
 +
 +  deps = [
++    "//components/device_reauth",
 +    "//components/password_manager/core/browser:metrics_util",
++    "//components/password_manager/core/browser/features:password_features",
++    "//components/password_manager/core/browser/features:utils",
 +    "//components/password_manager/core/browser/remote_actor/protos",
 +    "//components/password_manager/core/common:features",
 +    "//components/signin/public/identity_manager",
++    "//components/strings:components_strings",
++    "//components/sync/service",
 +    "//google_apis",
 +    "//google_apis/common",
++    "//ui/base",
 +  ]
 +}
 +
@@ -2993,6 +3603,7 @@ index 0000000..b64ddff1
 +  testonly = true
 +  sources = [
 +    "remote_actor_credential_permission_client_unittest.cc",
++    "remote_actor_credential_sharing_controller_unittest.cc",
 +    "remote_actor_credential_sharing_service_impl_unittest.cc",
 +    "remote_actor_credential_store_client_unittest.cc",
 +    "remote_actor_request_helper_unittest.cc",
@@ -3000,18 +3611,32 @@ index 0000000..b64ddff1
 +  deps = [
 +    ":remote_actor",
 +    "//base/test:test_support",
++    "//components/affiliations/core/browser:test_support",
++    "//components/device_reauth",
++    "//components/device_reauth:test_support",
++    "//components/password_manager/core/browser:password_form",
++    "//components/password_manager/core/browser:password_string",
++    "//components/password_manager/core/browser:test_support",
++    "//components/password_manager/core/browser/affiliation:test_support",
++    "//components/password_manager/core/browser/features:password_features",
++    "//components/password_manager/core/browser/password_store:test_support",
 +    "//components/password_manager/core/browser/remote_actor/protos",
 +    "//components/password_manager/core/browser/sync",
 +    "//components/password_manager/core/common:features",
 +    "//components/signin/public/identity_manager:test_support",
++    "//components/strings:components_strings",
++    "//components/sync:test_support",
 +    "//components/sync/base",
 +    "//components/sync/protocol",
++    "//components/sync/service",
 +    "//google_apis",
 +    "//google_apis/common",
 +    "//net",
 +    "//services/network:test_support",
 +    "//services/network/public/cpp",
++    "//testing/gmock",
 +    "//testing/gtest",
++    "//ui/base",
 +    "//url",
 +  ]
 +}
@@ -3095,6 +3720,619 @@ index 37849e6b..3839ab7 100644
  
 -#endif  // CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_PERMISSION_CLIENT_H_
 +#endif  // COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_PERMISSION_CLIENT_H_
+diff --git a/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_controller.cc b/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_controller.cc
+new file mode 100644
+index 0000000..7910741
+--- /dev/null
++++ b/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_controller.cc
+@@ -0,0 +1,370 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_controller.h"
++
++#include <memory>
++#include <string>
++#include <string_view>
++#include <utility>
++#include <vector>
++
++#include "base/check.h"
++#include "base/feature_list.h"
++#include "base/functional/bind.h"
++#include "base/functional/callback.h"
++#include "base/location.h"
++#include "base/strings/strcat.h"
++#include "base/strings/utf_string_conversions.h"
++#include "base/task/sequenced_task_runner.h"
++#include "base/time/time.h"
++#include "base/types/expected.h"
++#include "build/build_config.h"
++#include "components/device_reauth/device_auth_availability_checker.h"
++#include "components/device_reauth/device_authenticator.h"
++#include "components/password_manager/core/browser/features/password_features.h"
++#include "components/password_manager/core/browser/features/password_manager_features_util.h"
++#include "components/password_manager/core/browser/password_form_digest.h"
++#include "components/password_manager/core/browser/password_manager_client.h"
++#include "components/password_manager/core/browser/password_manager_util.h"
++#include "components/password_manager/core/browser/password_store/password_form_converters.h"
++#include "components/password_manager/core/browser/password_store/password_store_interface.h"
++#include "components/password_manager/core/browser/password_sync_util.h"
++#include "components/password_manager/core/browser/password_ui_utils.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_service.h"
++#include "components/password_manager/core/browser/sync/password_proto_utils.h"
++#include "components/signin/public/base/consent_level.h"
++#include "components/signin/public/identity_manager/account_info.h"
++#include "components/signin/public/identity_manager/identity_manager.h"
++#include "components/strings/grit/components_strings.h"
++#include "components/sync/protocol/password_specifics.pb.h"
++#include "components/sync/service/sync_service.h"
++#include "components/sync/service/sync_user_settings.h"
++#include "google_apis/gaia/gaia_id.h"
++#include "google_apis/gaia/google_service_auth_error.h"
++#include "ui/base/l10n/l10n_util.h"
++#include "url/gurl.h"
++#include "url/origin.h"
++
++namespace password_manager {
++
++RemoteActorCredentialSharingController::RemoteActorCredentialSharingController(
++    signin::IdentityManager* identity_manager,
++    syncer::SyncService* sync_service,
++    PasswordStoreInterface* profile_store,
++    PasswordStoreInterface* account_store,
++    RemoteActorCredentialSharingService* sharing_service,
++    PasswordManagerClient* client,
++    Delegate* delegate)
++    : identity_manager_(identity_manager),
++      sync_service_(sync_service),
++      profile_store_(profile_store),
++      account_store_(account_store),
++      sharing_service_(sharing_service),
++      client_(client),
++      delegate_(raw_ref<Delegate>::from_ptr(delegate)) {}
++
++RemoteActorCredentialSharingController::
++    ~RemoteActorCredentialSharingController() {
++  weak_ptr_factory_.InvalidateWeakPtrs();
++  if (device_authenticator_) {
++    device_authenticator_->Cancel();
++  }
++}
++
++void RemoteActorCredentialSharingController::Start(std::string_view gaia_id,
++                                                   std::string_view domain,
++                                                   std::string_view task_id,
++                                                   ResultCallback callback) {
++  CHECK(callback_.is_null());
++  gaia_id_ = gaia_id;
++  origin_ = url::Origin::Create(GURL(base::StrCat({"https://", domain})));
++  task_id_ = task_id;
++  callback_ = std::move(callback);
++
++  if (!client_) {
++    LogRemoteActorCredentialSharingResult(
++        RemoteActorCredentialSharingResult::kOtherError);
++    RespondWithError(RemoteActorCredentialSharingResult::kOtherError);
++    return;
++  }
++
++  if (!VerifyUserIdentityAndSyncState(gaia_id)) {
++    LogRemoteActorCredentialSharingResult(
++        RemoteActorCredentialSharingResult::kUserIdentityOrSyncStateInvalid);
++    RespondWithError(
++        RemoteActorCredentialSharingResult::kUserIdentityOrSyncStateInvalid);
++    return;
++  }
++
++  QueryPasswordStores(domain);
++}
++
++bool RemoteActorCredentialSharingController::IsActive() const {
++  return !callback_.is_null();
++}
++
++void RemoteActorCredentialSharingController::
++    OnGetPasswordStoreResultsOrErrorFrom(
++        PasswordStoreInterface* store,
++        base::expected<std::vector<StoredCredential>, PasswordStoreBackendError>
++            results_or_error) {
++  if (!IsActive()) {
++    return;
++  }
++
++  received_callbacks_++;
++
++  if (results_or_error) {
++    std::vector<StoredCredential> logins = std::move(*results_or_error);
++
++    bool is_sync_active =
++        sync_service_ &&
++        sync_util::IsSyncFeatureActiveIncludingPasswords(sync_service_);
++
++    for (StoredCredential& login : logins) {
++      password_manager_util::GetLoginMatchType match_type =
++          password_manager_util::GetMatchType(login);
++      if (match_type != password_manager_util::GetLoginMatchType::kExact &&
++          match_type != password_manager_util::GetLoginMatchType::kAffiliated &&
++          match_type != password_manager_util::GetLoginMatchType::kPSL) {
++        continue;
++      }
++      PasswordForm form = ToPasswordForm(std::move(login));
++      if (form.IsUsingAccountStore() ||
++          (form.IsUsingProfileStore() && is_sync_active)) {
++        credentials_.push_back(std::move(form));
++      }
++    }
++  }
++
++  if (received_callbacks_ == expected_callbacks_) {
++    OnAllLoginsRetrieved();
++  }
++}
++
++bool RemoteActorCredentialSharingController::VerifyUserIdentityAndSyncState(
++    std::string_view gaia_id) const {
++  if (!identity_manager_) {
++    return false;
++  }
++  CoreAccountInfo primary_account =
++      identity_manager_->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin);
++  if (primary_account.gaia.empty() ||
++      primary_account.gaia != GaiaId(std::string(gaia_id))) {
++    return false;
++  }
++
++  if (sync_service_) {
++    if (sync_service_->GetAuthError().IsPersistentError()) {
++      return false;
++    }
++    if (sync_service_->GetUserSettings()
++            ->IsTrustedVaultKeyRequiredForPreferredDataTypes()) {
++      return false;
++    }
++  }
++
++  return true;
++}
++
++void RemoteActorCredentialSharingController::QueryPasswordStores(
++    std::string_view domain) {
++  const bool is_password_sync_active =
++      sync_service_ &&
++      sync_util::IsSyncFeatureActiveIncludingPasswords(sync_service_);
++  // We only query stores that contain credentials synced to the Google Account.
++  // - If password sync is active (sync-the-feature), the profile store contains
++  //   the synced credentials.
++  // - If sync is inactive but account storage is active (sync-the-transport),
++  //   the account store contains the account-scoped credentials.
++  // Local-only credentials (profile store when sync is inactive) are excluded
++  // from sharing.
++  std::vector<PasswordStoreInterface*> stores;
++  if (is_password_sync_active) {
++    CHECK(profile_store_);
++    stores.push_back(profile_store_);
++  } else if (sync_service_ &&
++             features_util::IsAccountStorageActive(sync_service_)) {
++    CHECK(account_store_);
++    stores.push_back(account_store_);
++  }
++
++  if (stores.empty()) {
++    LogRemoteActorCredentialSharingResult(
++        RemoteActorCredentialSharingResult::kNoSyncOrAccountStorage);
++    RespondWithError(
++        RemoteActorCredentialSharingResult::kNoSyncOrAccountStorage);
++    return;
++  }
++
++  expected_callbacks_ = stores.size();
++
++  PasswordFormDigest digest(PasswordForm::Scheme::kHtml,
++                            base::StrCat({"https://", domain, "/"}),
++                            GURL(base::StrCat({"https://", domain})));
++
++  for (PasswordStoreInterface* store : stores) {
++    store->GetLogins(digest, weak_ptr_factory_.GetWeakPtr());
++  }
++}
++
++void RemoteActorCredentialSharingController::OnAllLoginsRetrieved() {
++  if (!IsActive()) {
++    return;
++  }
++
++  if (credentials_.empty()) {
++    LogRemoteActorCredentialSharingResult(
++        RemoteActorCredentialSharingResult::kNoPasswordsFound);
++    std::move(callback_).Run(
++        RemoteActorCredentialSharingResult::kNoPasswordsFound);
++    return;
++  }
++
++  std::vector<std::unique_ptr<PasswordForm>> credentials_ptr;
++  for (PasswordForm& form : credentials_) {
++    credentials_ptr.push_back(std::make_unique<PasswordForm>(std::move(form)));
++  }
++
++  delegate_->ShowCredentialSelection(
++      std::move(credentials_ptr), origin_,
++      base::BindOnce(
++          &RemoteActorCredentialSharingController::OnCredentialSelected,
++          weak_ptr_factory_.GetWeakPtr()));
++}
++
++void RemoteActorCredentialSharingController::OnCredentialSelected(
++    Delegate::CredentialOrError selected_form) {
++  if (!IsActive()) {
++    return;
++  }
++
++  if (!selected_form.has_value()) {
++    LogRemoteActorCredentialSharingResult(selected_form.error());
++    RespondWithError(selected_form.error());
++    return;
++  }
++
++  AuthenticateIfNeeded(std::move(*selected_form));
++}
++
++void RemoteActorCredentialSharingController::AuthenticateIfNeeded(
++    PasswordForm selected_form) {
++  std::unique_ptr<device_reauth::DeviceAuthenticator> authenticator;
++  bool reauth_required = false;
++  if (!base::FeatureList::IsEnabled(features::kDeviceReauthRefactor)) {
++    authenticator = client_->GetDeviceAuthenticator();
++    reauth_required =
++        authenticator &&
++        client_->IsReauthBeforeFillingRequiredLegacy(authenticator.get());
++  } else {
++    std::unique_ptr<device_reauth::DeviceAuthAvailabilityChecker> checker =
++        client_->GetDeviceAuthAvailabilityChecker();
++    if (checker && client_->IsReauthBeforeFillingRequired(checker.get())) {
++      authenticator = client_->GetDeviceAuthenticator();
++      reauth_required = true;
++    }
++  }
++
++  if (reauth_required) {
++    if (!authenticator) {
++      LogRemoteActorCredentialSharingResult(
++          RemoteActorCredentialSharingResult::kAuthenticatorFailed);
++      RespondWithError(
++          RemoteActorCredentialSharingResult::kAuthenticatorFailed);
++      return;
++    }
++    device_authenticator_ = std::move(authenticator);
++    std::u16string message;
++#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_CHROMEOS) || \
++    BUILDFLAG(IS_IOS)
++    const std::u16string origin_str =
++        base::UTF8ToUTF16(GetShownOrigin(origin_));
++    message = l10n_util::GetStringFUTF16(IDS_PASSWORD_MANAGER_FILLING_REAUTH,
++                                         origin_str);
++#endif
++    device_authenticator_->AuthenticateWithMessage(
++        message,
++        base::BindOnce(
++            &RemoteActorCredentialSharingController::OnAuthenticationResult,
++            weak_ptr_factory_.GetWeakPtr(), std::move(selected_form)));
++    return;
++  }
++
++  ProceedWithCredential(std::move(selected_form));
++}
++
++void RemoteActorCredentialSharingController::OnAuthenticationResult(
++    PasswordForm selected_form,
++    bool success) {
++  device_authenticator_.reset();
++  if (!IsActive()) {
++    return;
++  }
++
++  if (!success) {
++    LogRemoteActorCredentialSharingResult(
++        RemoteActorCredentialSharingResult::kAuthenticatorFailed);
++    RespondWithError(RemoteActorCredentialSharingResult::kAuthenticatorFailed);
++    return;
++  }
++
++  ProceedWithCredential(std::move(selected_form));
++}
++
++void RemoteActorCredentialSharingController::ProceedWithCredential(
++    PasswordForm selected_form) {
++  if (!IsActive()) {
++    return;
++  }
++
++  if (!sharing_service_) {
++    LogRemoteActorCredentialSharingResult(
++        RemoteActorCredentialSharingResult::kSharingServiceUnavailable);
++    RespondWithError(
++        RemoteActorCredentialSharingResult::kSharingServiceUnavailable);
++    return;
++  }
++
++  StoredCredential credential = FromPasswordForm(std::move(selected_form));
++  sync_pb::PasswordSpecificsData specifics_data =
++      SpecificsDataFromStoredCredential(credential);
++
++  static constexpr base::TimeDelta kShareTimeToLive = base::Minutes(10);
++  RemoteActorCredentialSharingService::ShareParameters params;
++  params.obfuscated_gaia_id = gaia_id_;
++  params.web_origin = origin_.Serialize();
++  params.password_data = std::move(specifics_data);
++  params.time_to_live = kShareTimeToLive;
++  params.task_id = task_id_;
++
++  sharing_service_->SharePassword(
++      params,
++      base::BindOnce(&RemoteActorCredentialSharingController::OnShareCompleted,
++                     weak_ptr_factory_.GetWeakPtr()));
++}
++
++void RemoteActorCredentialSharingController::OnShareCompleted(bool success) {
++  RemoteActorCredentialSharingResult result =
++      success ? RemoteActorCredentialSharingResult::kSuccess
++              : RemoteActorCredentialSharingResult::kSharingFailed;
++  LogRemoteActorCredentialSharingResult(result);
++  RunResultCallback(result);
++}
++
++void RemoteActorCredentialSharingController::RespondWithError(
++    RemoteActorCredentialSharingResult result) {
++  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++      FROM_HERE,
++      base::BindOnce(&RemoteActorCredentialSharingController::RunResultCallback,
++                     weak_ptr_factory_.GetWeakPtr(), result));
++}
++
++void RemoteActorCredentialSharingController::RunResultCallback(
++    RemoteActorCredentialSharingResult result) {
++  std::move(callback_).Run(result);
++}
++
++}  // namespace password_manager
+diff --git a/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_controller.h b/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_controller.h
+new file mode 100644
+index 0000000..a17a2af
+--- /dev/null
++++ b/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_controller.h
+@@ -0,0 +1,165 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_SHARING_CONTROLLER_H_
++#define COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_SHARING_CONTROLLER_H_
++
++#include <cstddef>
++#include <memory>
++#include <string>
++#include <string_view>
++#include <vector>
++
++#include "base/functional/callback.h"
++#include "base/memory/raw_ptr.h"
++#include "base/memory/raw_ref.h"
++#include "base/memory/weak_ptr.h"
++#include "base/types/expected.h"
++#include "components/password_manager/core/browser/password_form.h"
++#include "components/password_manager/core/browser/password_store/password_store_backend_error.h"
++#include "components/password_manager/core/browser/password_store/password_store_consumer.h"
++#include "components/password_manager/core/browser/password_store/stored_credential.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_result.h"
++#include "url/origin.h"
++
++namespace device_reauth {
++class DeviceAuthenticator;
++}  // namespace device_reauth
++
++namespace signin {
++class IdentityManager;
++}  // namespace signin
++
++namespace syncer {
++class SyncService;
++}  // namespace syncer
++
++namespace password_manager {
++
++class PasswordManagerClient;
++class PasswordStoreInterface;
++class RemoteActorCredentialSharingService;
++
++// Platform-agnostic logic for sharing one of the user's saved credentials for
++// a domain with a remote actor (e.g. Gemini). Each instance handles a single
++// request.
++class RemoteActorCredentialSharingController : public PasswordStoreConsumer {
++ public:
++  // Called with the outcome of `Start()`.
++  using ResultCallback =
++      base::OnceCallback<void(RemoteActorCredentialSharingResult)>;
++
++  // Platform hooks for the user-facing steps.
++  class Delegate {
++   public:
++    // Selected credential on success, or the failure reason.
++    using CredentialOrError =
++        base::expected<PasswordForm, RemoteActorCredentialSharingResult>;
++
++    virtual ~Delegate() = default;
++
++    // Shows the credential selection dialog for `credentials` on `origin`.
++    virtual void ShowCredentialSelection(
++        std::vector<std::unique_ptr<PasswordForm>> credentials,
++        const url::Origin& origin,
++        base::OnceCallback<void(CredentialOrError)> callback) = 0;
++  };
++
++  // `identity_manager`, `sync_service`, `sharing_service` and `client` may be
++  // null when unavailable. The store matching the user's sync state and
++  // `delegate` must be non-null. All must outlive this controller.
++  RemoteActorCredentialSharingController(
++      signin::IdentityManager* identity_manager,
++      syncer::SyncService* sync_service,
++      PasswordStoreInterface* profile_store,
++      PasswordStoreInterface* account_store,
++      RemoteActorCredentialSharingService* sharing_service,
++      PasswordManagerClient* client,
++      Delegate* delegate);
++  RemoteActorCredentialSharingController(
++      const RemoteActorCredentialSharingController&) = delete;
++  RemoteActorCredentialSharingController& operator=(
++      const RemoteActorCredentialSharingController&) = delete;
++  ~RemoteActorCredentialSharingController() override;
++
++  // Starts sharing a credential for `domain` on behalf of the user identified
++  // by `gaia_id`, scoped to `task_id`. Must be called at most once.
++  void Start(std::string_view gaia_id,
++             std::string_view domain,
++             std::string_view task_id,
++             ResultCallback callback);
++
++  // Returns whether `Start()` was called and the result was not reported yet.
++  bool IsActive() const;
++
++ private:
++  // PasswordStoreConsumer:
++  void OnGetPasswordStoreResultsOrErrorFrom(
++      PasswordStoreInterface* store,
++      base::expected<std::vector<StoredCredential>, PasswordStoreBackendError>
++          results_or_error) override;
++
++  // Verifies the GAIA ID matches the signed-in user and sync is not in error.
++  bool VerifyUserIdentityAndSyncState(std::string_view gaia_id) const;
++
++  // Initiates asynchronous queries to the relevant password stores.
++  void QueryPasswordStores(std::string_view domain);
++
++  // Called when all password store queries have completed.
++  void OnAllLoginsRetrieved();
++
++  // Called with the selected credential, or the error if none was selected.
++  void OnCredentialSelected(Delegate::CredentialOrError selected_form);
++
++  // Re-authenticates the user if required before proceeding with
++  // `selected_form`.
++  void AuthenticateIfNeeded(PasswordForm selected_form);
++
++  // Callback triggered when device re-authentication completes.
++  void OnAuthenticationResult(PasswordForm selected_form, bool success);
++
++  // Shares `selected_form` via `sharing_service_`.
++  void ProceedWithCredential(PasswordForm selected_form);
++
++  // Callback triggered when the sharing service completes the operation.
++  void OnShareCompleted(bool success);
++
++  // Asynchronously posts `result` to the result callback.
++  void RespondWithError(RemoteActorCredentialSharingResult result);
++
++  // Runs `callback_` with `result`.
++  void RunResultCallback(RemoteActorCredentialSharingResult result);
++
++  const raw_ptr<signin::IdentityManager> identity_manager_;
++  const raw_ptr<syncer::SyncService> sync_service_;
++  const raw_ptr<PasswordStoreInterface> profile_store_;
++  const raw_ptr<PasswordStoreInterface> account_store_;
++  const raw_ptr<RemoteActorCredentialSharingService> sharing_service_;
++  const raw_ptr<PasswordManagerClient> client_;
++  const raw_ref<Delegate> delegate_;
++
++  // The GAIA ID of the user requesting authentication.
++  std::string gaia_id_;
++  // The origin for which credentials are requested.
++  url::Origin origin_;
++  // The ID of the remote actor task requesting credentials.
++  std::string task_id_;
++  // The callback to return the result to the caller.
++  ResultCallback callback_;
++  // The number of password store queries started.
++  size_t expected_callbacks_ = 0;
++  // The number of password store queries that have completed.
++  size_t received_callbacks_ = 0;
++  // Collected credentials from the stores.
++  std::vector<PasswordForm> credentials_;
++  // Device authenticator used when re-authentication is required.
++  std::unique_ptr<device_reauth::DeviceAuthenticator> device_authenticator_;
++
++  base::WeakPtrFactory<RemoteActorCredentialSharingController>
++      weak_ptr_factory_{this};
++};
++
++}  // namespace password_manager
++
++#endif  // COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_SHARING_CONTROLLER_H_
+diff --git a/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_result.cc b/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_result.cc
+new file mode 100644
+index 0000000..652f3dbac
+--- /dev/null
++++ b/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_result.cc
+@@ -0,0 +1,17 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_result.h"
++
++#include "base/metrics/histogram_functions.h"
++
++namespace password_manager {
++
++void LogRemoteActorCredentialSharingResult(
++    RemoteActorCredentialSharingResult result) {
++  base::UmaHistogramEnumeration(
++      "PasswordManager.RemoteActorCredentialSharing.Result", result);
++}
++
++}  // namespace password_manager
+diff --git a/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_result.h b/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_result.h
+new file mode 100644
+index 0000000..5c63300e
+--- /dev/null
++++ b/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_result.h
+@@ -0,0 +1,37 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_SHARING_RESULT_H_
++#define COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_SHARING_RESULT_H_
++
++namespace password_manager {
++
++// These values are persisted to logs. Entries should not be renumbered and
++// numeric values should never be reused.
++//
++// LINT.IfChange(RemoteActorCredentialSharingResult)
++enum class RemoteActorCredentialSharingResult {
++  kOtherError = 0,
++  kSuccess = 1,
++  kUserIdentityOrSyncStateInvalid = 2,
++  kNoSyncOrAccountStorage = 3,
++  kNoPasswordsFound = 4,
++  kUserCancelledDialog = 5,
++  kAuthenticatorFailed = 6,
++  kSharingServiceUnavailable = 7,
++  kSharingFailed = 8,
++  kRequestAlreadyInProgress = 9,
++  kBlockedByPolicy = 10,
++  kMaxValue = kBlockedByPolicy,
++};
++// LINT.ThenChange(/tools/metrics/histograms/metadata/password/enums.xml:RemoteActorCredentialSharingResult)
++
++// Records `result` to the
++// `PasswordManager.RemoteActorCredentialSharing.Result` histogram.
++void LogRemoteActorCredentialSharingResult(
++    RemoteActorCredentialSharingResult result);
++
++}  // namespace password_manager
++
++#endif  // COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_SHARING_RESULT_H_
 diff --git a/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service.h b/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_service.h
 similarity index 84%
 rename from chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service.h
@@ -5479,7 +6717,7 @@ index c102d43..1750689 100644
 -Diagnose Web Install (`navigator.install` and `<install>`) manifest errors in the **Issues** panel with direct links to affected manifests. In the **Application** panel's **Ads** section, use the new **Ad provenance** column to see whether script ancestry or a filter list rule tagged an ad script.
 +Parse large performance traces roughly 26% faster with reduced memory usage, and analyze heap snapshot context retention across suspended generators, async functions, and finished ES modules.
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index d9b6596..69f6f0b 100644
+index d9b6596..32a6b4c 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -5487,7 +6725,7 @@ index d9b6596..69f6f0b 100644
  #define V8_MINOR_VERSION 8
  #define V8_BUILD_NUMBER 62
 -#define V8_PATCH_LEVEL 26
-+#define V8_PATCH_LEVEL 30
++#define V8_PATCH_LEVEL 31
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
@@ -6169,6 +7407,25 @@ index 4444726..1e94d0f 100644
    DCHECK_EQ(parent->map(), child->map());
    DCHECK_IMPLIES(name->IsInteresting(isolate),
                   child->may_have_interesting_properties());
+diff --git a/v8/src/objects/shared-function-info.cc b/v8/src/objects/shared-function-info.cc
+index 51c1bdf..a0793e7 100644
+--- a/v8/src/objects/shared-function-info.cc
++++ b/v8/src/objects/shared-function-info.cc
+@@ -30,12 +30,8 @@
+ 
+ Tagged<Union<Smi, TrustedObject>> SharedFunctionInfo::GetTrustedData(
+     IsolateForSandbox isolate) const {
+-  if (HasUnpublishedTrustedData(isolate)) return Smi::zero();
+-  return TrustedPointerField::ReadMaybeEmptyTrustedPointerField<
+-      kTrustedDataTrustedPointerRange>(
+-      Tagged<HeapObject>(this),
+-      offsetof(SharedFunctionInfo, trusted_function_data_), isolate,
+-      kAcquireLoad);
++  return TrustedCast<Union<Smi, TrustedObject>>(
++      trusted_function_data_.load_if_published(isolate));
+ }
+ 
+ uint32_t SharedFunctionInfo::Hash() {
 diff --git a/v8/src/objects/transitions.cc b/v8/src/objects/transitions.cc
 index f20dde6..3e99938 100644
 --- a/v8/src/objects/transitions.cc
@@ -6181,3 +7438,129 @@ index f20dde6..3e99938 100644
    DCHECK(IsUndefined(map->GetBackPointer()));
    DCHECK_NE(map->prototype(), *prototype);
    DCHECK(IsMap(Cast<HeapObject>(*prototype)->map()));
+diff --git a/v8/src/sandbox/trusted-pointer-inl.h b/v8/src/sandbox/trusted-pointer-inl.h
+index 5fa97b3..8cddeda 100644
+--- a/v8/src/sandbox/trusted-pointer-inl.h
++++ b/v8/src/sandbox/trusted-pointer-inl.h
+@@ -223,6 +223,7 @@
+     clear(witness.object());
+   }
+ }
++// TODO(arashk): Remove the indirection between load and Acquire_Load.
+ template <typename T, TrustedPointerTagRange kTagRange>
+ Tagged<T> TrustedPointerMember<T, kTagRange>::load(
+     IsolateForSandbox isolate) const {
+@@ -234,6 +235,11 @@
+   return Acquire_Load_maybe_empty(isolate);
+ }
+ template <typename T, TrustedPointerTagRange kTagRange>
++Tagged<Object> TrustedPointerMember<T, kTagRange>::load_if_published(
++    IsolateForSandbox isolate) const {
++  return Acquire_Load_if_published(isolate);
++}
++template <typename T, TrustedPointerTagRange kTagRange>
+ void TrustedPointerMember<T, kTagRange>::store(HeapObject* host,
+                                                Tagged<T> value,
+                                                WriteBarrierMode mode) {
+@@ -269,6 +275,22 @@
+ }
+ 
+ template <typename T, TrustedPointerTagRange kTagRange>
++Tagged<Object> TrustedPointerMember<T, kTagRange>::Acquire_Load_if_published(
++    IsolateForSandbox isolate) const {
++#ifdef V8_ENABLE_SANDBOX
++  TrustedPointerHandle handle = handle_.load(std::memory_order::acquire);
++  if (handle == kNullTrustedPointerHandle) return Smi::zero();
++  const TrustedPointerTable& table =
++      isolate.GetTrustedPointerTableFor(kTagRange);
++  Address pointer = table.GetIfPublished(handle, kTagRange);
++  if (pointer == kNullAddress) return Smi::zero();
++  return Tagged<Object>(pointer);
++#else
++  return Base::Acquire_Load();
++#endif  // V8_ENABLE_SANDBOX
++}
++
++template <typename T, TrustedPointerTagRange kTagRange>
+ void TrustedPointerMember<T, kTagRange>::Release_Store(HeapObject* host,
+                                                        Tagged<T> value,
+                                                        WriteBarrierMode mode) {
+diff --git a/v8/src/sandbox/trusted-pointer-table-inl.h b/v8/src/sandbox/trusted-pointer-table-inl.h
+index 19fb4ee..3efd297 100644
+--- a/v8/src/sandbox/trusted-pointer-table-inl.h
++++ b/v8/src/sandbox/trusted-pointer-table-inl.h
+@@ -69,6 +69,15 @@
+   return payload.Untag(tag_range);
+ }
+ 
++Address TrustedPointerTableEntry::GetIfPublished(
++    TrustedPointerTagRange tag_range) const {
++  auto payload = payload_.load(std::memory_order_acquire);
++  if (payload.IsTaggedWithTagIn(kUnpublishedTrustedPointerTag)) {
++    return kNullAddress;
++  }
++  return payload.Untag(tag_range);
++}
++
+ TrustedPointerTag TrustedPointerTableEntry::GetTag() const {
+   return payload_.load(std::memory_order_relaxed).ExtractTag();
+ }
+@@ -143,6 +152,11 @@
+   return entry.GetMaybeUnpublished(tag_range);
+ }
+ 
++Address TrustedPointerTable::GetIfPublished(
++    TrustedPointerHandle handle, TrustedPointerTagRange tag_range) const {
++  return at(HandleToIndex(handle)).GetIfPublished(tag_range);
++}
++
+ void TrustedPointerTable::Set(TrustedPointerHandle handle, Address pointer,
+                               TrustedPointerTag tag) {
+   DCHECK_NE(kNullTrustedPointerHandle, handle);
+diff --git a/v8/src/sandbox/trusted-pointer-table.h b/v8/src/sandbox/trusted-pointer-table.h
+index 54b6c45..c83f9b1 100644
+--- a/v8/src/sandbox/trusted-pointer-table.h
++++ b/v8/src/sandbox/trusted-pointer-table.h
+@@ -57,6 +57,10 @@
+   // {kUnpublishedTrustedPointerTag}.
+   inline Address GetMaybeUnpublished(TrustedPointerTagRange tag_range) const;
+ 
++  // Returns kNullAddress if this entry is unpublished, otherwise checks that
++  // the payload matches {tag_range} and returns it.
++  inline Address GetIfPublished(TrustedPointerTagRange tag_range) const;
++
+   // Returns the tag of this entry.
+   inline TrustedPointerTag GetTag() const;
+ 
+@@ -160,6 +164,10 @@
+   inline Address GetMaybeUnpublished(TrustedPointerHandle handle,
+                                      TrustedPointerTagRange tag_range) const;
+ 
++  // Returns kNullAddress if the entry is unpublished.
++  inline Address GetIfPublished(TrustedPointerHandle handle,
++                                TrustedPointerTagRange tag_range) const;
++
+   // Sets the content of the entry referenced by the given handle.
+   //
+   // This method is atomic and can be called from background threads.
+diff --git a/v8/src/sandbox/trusted-pointer.h b/v8/src/sandbox/trusted-pointer.h
+index 236c040..f62694b 100644
+--- a/v8/src/sandbox/trusted-pointer.h
++++ b/v8/src/sandbox/trusted-pointer.h
+@@ -157,6 +157,7 @@
+ 
+   inline Tagged<T> load(IsolateForSandbox isolate) const;
+   inline Tagged<Object> load_maybe_empty(IsolateForSandbox isolate) const;
++  inline Tagged<Object> load_if_published(IsolateForSandbox isolate) const;
+   inline void store(HeapObject* host, Tagged<T> value,
+                     WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
+   inline void store_no_write_barrier(HeapObject* host, Tagged<T> value);
+@@ -164,6 +165,8 @@
+   inline Tagged<T> Acquire_Load(IsolateForSandbox isolate) const;
+   inline Tagged<Object> Acquire_Load_maybe_empty(
+       IsolateForSandbox isolate) const;
++  inline Tagged<Object> Acquire_Load_if_published(
++      IsolateForSandbox isolate) const;
+   inline void Release_Store(HeapObject* host, Tagged<T> value,
+                             WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
+   inline void Release_Store_no_write_barrier(HeapObject* host, Tagged<T> value);
