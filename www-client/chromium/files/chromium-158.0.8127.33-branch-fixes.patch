@@ -1,12 +1,13 @@
 Chromium 158.0.8127.33 + the later changes of its release branch, up to
-dcf3d92f02ce39ed76c05b705467f7b5e6d515b5 (refs/branch-heads/8127@{#1681}), for the
+b3652db5e2396175759926e469e4cf7249c8b19e (refs/branch-heads/8127@{#1687}), for the
 158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..dcf3d92f02ce39ed76c05b705467f7b5e6d515b5,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..b3652db5e2396175759926e469e4cf7249c8b19e,
 and from the branch's rolls of v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..b601a2347f005e8bfadd32f285df97ffba5cf1bd (under v8/),
 devtools/devtools-frontend 8deaa243ad5f7abd50b6c0e17a740d0f00fc068f..047c90eca37c7170d826d72245d5df9281989cf3 (under third_party/devtools-frontend/src/),
-skia/skia 361c8326695a06b7492fb6eeeff803c0c92a2447..3279352fdf1fbbd01a6dd024a52d3f178a6d5f07 (under third_party/skia/) and
-catapult 74678266b79e0ee388f1021bea36388c854b4a00..4a6f0659c26fc478756e83f0d007b91ca5f6d36f (under third_party/catapult/),
+skia/skia 361c8326695a06b7492fb6eeeff803c0c92a2447..3279352fdf1fbbd01a6dd024a52d3f178a6d5f07 (under third_party/skia/),
+catapult 74678266b79e0ee388f1021bea36388c854b4a00..4a6f0659c26fc478756e83f0d007b91ca5f6d36f (under third_party/catapult/) and
+pdfium 43d55e429cf72c21e9a1e60475b50feefa16fda9..b23fee3ac22360878efaa8aa533dac892fe777ab (under third_party/pdfium/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .33 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -75,6 +76,9 @@ Commits contributing to it (oldest first):
   d538bdd64170 [M158] [iOS][RPS] Enforce GeminiSparkSettings policy for Remote Actor
   76dd751fb445 [M158] [RA] Accept a full origin as the remote actor credential sharing domain
   dcf3d92f02ce [M158] [SPC] Own SecurePaymentConfirmationAppFactory::Request on UI thread
+  f67d1a1fd49a Revert "[Dictation] Do not show dictation IPH without a microphone"
+  7b8bdf5527bd [M158] [net/quic] Add initial RTT configuration to ConnectionKeepAliveConfig
+  b3652db5e239 Roll commits from side projects in M158
     v8 77192c003a77 [M158] [objects] Disallow JSObject modifications during GC and GC callbacks
     v8 e8f914b08b81 Version 15.8.62.27
     v8 c0b2c2f3ade9 [M158] [compiler] Mark string-keyed ordered hash lookups as writing
@@ -92,6 +96,8 @@ Commits contributing to it (oldest first):
     skia e7f7d600ea00 [M158] Exclude DrawListLayer::reset from MiracleObj
     skia 3279352fdf1f [M158] Exclude SkArenaAllocWithReset::reset from MiracleObj
     catapult 4a6f0659c26f [M158] [tracing] Use main document.importNode in tr.ui.b.instantiateTemplate
+    pdfium 7aa64b32402a [M158] Use CJS_Runtime::BlockingScope to handle nested blocking calls
+    pdfium b23fee3ac223 [M158] Guard JSPLATFORM dialog call-outs with in_active_ffi_callback_
 
 Checked: applies to the 158.0.8127.33 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -1051,6 +1057,73 @@ index 839a488..ccecbadcf 100644
  inline constexpr char kAutoFramingOverrideName[] =
      "Auto-framing control override";
  inline constexpr char kAutoFramingOverrideDescription[] =
+diff --git a/chrome/browser/navigation_predictor/search_engine_preconnector.cc b/chrome/browser/navigation_predictor/search_engine_preconnector.cc
+index 0b665fdd..c3ba6fd8 100644
+--- a/chrome/browser/navigation_predictor/search_engine_preconnector.cc
++++ b/chrome/browser/navigation_predictor/search_engine_preconnector.cc
+@@ -4,8 +4,11 @@
+ 
+ #include "chrome/browser/navigation_predictor/search_engine_preconnector.h"
+ 
++#include <algorithm>
+ #include <limits>
++#include <optional>
+ 
++#include "base/check.h"
+ #include "base/functional/bind.h"
+ #include "base/functional/callback_helpers.h"
+ #include "base/metrics/field_trial_params.h"
+@@ -417,6 +420,10 @@
+           &SearchEnginePreconnector::OnReconnectObserverPipeDisconnected,
+           base::Unretained(this)));
+     }
++  } else if (std::optional<base::TimeDelta> initial_rtt =
++                 net::features::GetQuicPreconnectInitialRtt()) {
++    keepalive_config.emplace();
++    keepalive_config->initial_rtt = *initial_rtt;
+   }
+ 
+   if (!base::GetFieldTrialParamByFeatureAsBool(features::kPreconnectToSearch,
+@@ -694,18 +701,32 @@
+   net::ConnectionKeepAliveConfig config;
+   config.quic_connection_options = net::features::kQuicConnectionOptions.Get();
+ 
+-  // If the device is in low power mode, we will fallback to the old preconnect
+-  // interval and disable connection keepalive. This is to avoid the battery
+-  // drain when the device is in low power mode.
++  // If the device is in low power mode, fallback to the old preconnect
++  // interval, disable connection keepalive, and leave `initial_rtt` unset so
++  // shortened QUIC handshake PTOs do not trigger extra retransmission wakeups.
+   if (ShouldSavePower()) {
+-    config.idle_timeout_in_seconds = kPreconnectIntervalSec;
+-    config.ping_interval_in_seconds = 0;
++    config.idle_timeout = base::Seconds(kPreconnectIntervalSec);
++    config.ping_interval = base::TimeDelta();
+     config.enable_connection_keep_alive = false;
++    CHECK(config.IsValid());
+     return config;
+   }
+ 
+-  config.idle_timeout_in_seconds = net::features::kIdleTimeoutInSeconds.Get();
+-  config.ping_interval_in_seconds = net::features::kPingIntervalInSeconds.Get();
++  config.idle_timeout =
++      base::Seconds(net::features::kIdleTimeoutInSeconds.Get());
++  config.ping_interval =
++      base::Seconds(net::features::kPingIntervalInSeconds.Get());
++  if (!config.IsValid()) {
++    config.idle_timeout =
++        base::Seconds(net::features::kIdleTimeoutInSeconds.default_value);
++    config.ping_interval =
++        base::Seconds(net::features::kPingIntervalInSeconds.default_value);
++  }
+   config.enable_connection_keep_alive = true;
++  if (std::optional<base::TimeDelta> initial_rtt =
++          net::features::GetQuicPreconnectInitialRtt()) {
++    config.initial_rtt = *initial_rtt;
++  }
++  CHECK(config.IsValid());
+   return config;
+ }
 diff --git a/chrome/browser/password_manager/remote_actor/BUILD.gn b/chrome/browser/password_manager/remote_actor/BUILD.gn
 index 750ea44..ce4bb52 100644
 --- a/chrome/browser/password_manager/remote_actor/BUILD.gn
@@ -1763,7 +1836,7 @@ index 13042f6c..284c3fb 100644
  #include "content/public/browser/storage_partition.h"
  
 diff --git a/chrome/browser/performance_manager/mechanisms/page_discarder.cc b/chrome/browser/performance_manager/mechanisms/page_discarder.cc
-index 840d863..c985269 100644
+index 840d8636..c985269 100644
 --- a/chrome/browser/performance_manager/mechanisms/page_discarder.cc
 +++ b/chrome/browser/performance_manager/mechanisms/page_discarder.cc
 @@ -65,6 +65,10 @@
@@ -2688,6 +2761,88 @@ index b57e8448..51cb464 100644
  #include "components/url_formatter/elide_url.h"
  #include "content/public/browser/page_navigator.h"
  #include "content/public/browser/web_contents.h"
+diff --git a/chrome/browser/ui/views/dictation/BUILD.gn b/chrome/browser/ui/views/dictation/BUILD.gn
+index 58ccb6c..f51c4910 100644
+--- a/chrome/browser/ui/views/dictation/BUILD.gn
++++ b/chrome/browser/ui/views/dictation/BUILD.gn
+@@ -93,7 +93,6 @@
+     ":iph",
+     "//chrome/app:branded_strings",
+     "//chrome/browser/dictation",
+-    "//chrome/browser/media/webrtc",
+     "//chrome/browser/profiles:profile",
+     "//chrome/browser/ui/user_education",
+     "//chrome/browser/ui/views/frame:browser_view_header",
+@@ -153,7 +152,6 @@
+     "//chrome/browser/dictation:features",
+     "//chrome/browser/dictation:impl",
+     "//chrome/browser/dictation:test_support",
+-    "//chrome/browser/media/webrtc",
+     "//chrome/browser/profiles:profile",
+     "//chrome/browser/ui:browser_element_identifiers",
+     "//chrome/browser/user_education",
+diff --git a/chrome/browser/ui/views/dictation/dictation_iph_controller.cc b/chrome/browser/ui/views/dictation/dictation_iph_controller.cc
+index 0000223..0e197ebf 100644
+--- a/chrome/browser/ui/views/dictation/dictation_iph_controller.cc
++++ b/chrome/browser/ui/views/dictation/dictation_iph_controller.cc
+@@ -8,7 +8,6 @@
+ #include "base/notreached.h"
+ #include "chrome/browser/dictation/dictation_keyed_service.h"
+ #include "chrome/browser/dictation/hotkey_manager.h"
+-#include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
+ #include "chrome/browser/ui/views/dictation/dictation_iph.h"
+@@ -69,12 +68,6 @@
+   NOTREACHED();
+ }
+ 
+-bool HasMicrophone() {
+-  return !MediaCaptureDevicesDispatcher::GetInstance()
+-              ->GetAudioCaptureDevices()
+-              .empty();
+-}
+-
+ }  // namespace
+ 
+ DictationIphController::DictationIphController(tabs::TabInterface& tab)
+@@ -90,9 +83,6 @@
+         dictation_service->AddSessionEndedCallback(base::BindRepeating(
+             &DictationIphController::OnSessionEnded, base::Unretained(this)));
+   }
+-  // Start audio device enumeration early so the cached list is populated by the
+-  // time the user focuses a field.
+-  MediaCaptureDevicesDispatcher::GetInstance()->GetAudioCaptureDevices();
+ }
+ 
+ DictationIphController::~DictationIphController() = default;
+@@ -207,9 +197,8 @@
+       break;
+   }
+ 
+-  // Users who already use dictation or have no microphone are not shown the
+-  // IPH.
+-  if (!can_start_promo || HasUsedDictation() || !HasMicrophone()) {
++  // Users who already use dictation don't need to discover it.
++  if (!can_start_promo || HasUsedDictation()) {
+     return;
+   }
+ 
+diff --git a/chrome/browser/ui/views/dictation/dictation_iph_controller.h b/chrome/browser/ui/views/dictation/dictation_iph_controller.h
+index 855ea09..2bd0bee 100644
+--- a/chrome/browser/ui/views/dictation/dictation_iph_controller.h
++++ b/chrome/browser/ui/views/dictation/dictation_iph_controller.h
+@@ -42,8 +42,8 @@
+ // Tab-scoped controller for the dictation IPHs, which are anchored next to a
+ // medium or large editable field:
+ //  - The discovery IPH shows when the user focuses such a field with the mouse
+-//    or keyboard. Users who have already completed dictation onboarding or have
+-//    no microphone never see it.
++//    or keyboard. Users who have already completed dictation onboarding never
++//    see it.
+ //  - The hotkey IPH shows when a dictation session invoked on the focused
+ //    field ends, once the user has invoked dictation at least twice.
+ //
 diff --git a/chrome/browser/ui/views/extensions/BUILD.gn b/chrome/browser/ui/views/extensions/BUILD.gn
 index e526aa40..e26e7dc 100644
 --- a/chrome/browser/ui/views/extensions/BUILD.gn
@@ -5931,6 +6086,209 @@ index 741d786..4f1730ee 100644
  
    DataPipeDrainer(const DataPipeDrainer&) = delete;
    DataPipeDrainer& operator=(const DataPipeDrainer&) = delete;
+diff --git a/net/base/features.cc b/net/base/features.cc
+index 3a3f3a0..7ea61dc 100644
+--- a/net/base/features.cc
++++ b/net/base/features.cc
+@@ -270,6 +270,24 @@
+ 
+ BASE_FEATURE(kConnectionKeepAliveForHttp2, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
++BASE_FEATURE(kQuicPreconnectInitialRtt, base::FEATURE_DISABLED_BY_DEFAULT);
++
++BASE_FEATURE_PARAM(base::TimeDelta,
++                   kQuicPreconnectInitialRttParam,
++                   &kQuicPreconnectInitialRtt,
++                   base::Milliseconds(25));
++
++std::optional<base::TimeDelta> GetQuicPreconnectInitialRtt() {
++  if (!base::FeatureList::IsEnabled(kQuicPreconnectInitialRtt)) {
++    return std::nullopt;
++  }
++  const base::TimeDelta initial_rtt = kQuicPreconnectInitialRttParam.Get();
++  if (!initial_rtt.is_positive() || initial_rtt.is_inf()) {
++    return std::nullopt;
++  }
++  return initial_rtt;
++}
++
+ BASE_FEATURE(kShortLaxAllowUnsafeThreshold, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ BASE_FEATURE(kSameSiteDefaultChecksMethodRigorously,
+diff --git a/net/base/features.h b/net/base/features.h
+index b589550d..a8e12f3 100644
+--- a/net/base/features.h
++++ b/net/base/features.h
+@@ -7,6 +7,7 @@
+ 
+ #include <stddef.h>
+ 
++#include <optional>
+ #include <string>
+ #include <string_view>
+ 
+@@ -314,6 +315,17 @@
+ // Enables Connection Keep-Alive feature for Http2
+ NET_EXPORT BASE_DECLARE_FEATURE(kConnectionKeepAliveForHttp2);
+ 
++// Configures the client-side initial RTT for QUIC preconnect sessions when no
++// cached or 2G/3G RTT estimate is available, reducing the initial handshake
++// Probe Timeout (PTO) delay (`3 * initial_rtt`).
++NET_EXPORT BASE_DECLARE_FEATURE(kQuicPreconnectInitialRtt);
++NET_EXPORT BASE_DECLARE_FEATURE_PARAM(base::TimeDelta,
++                                      kQuicPreconnectInitialRttParam);
++// Returns `kQuicPreconnectInitialRttParam` when `kQuicPreconnectInitialRtt` is
++// enabled and the configured duration is positive and finite; otherwise returns
++// `std::nullopt`.
++NET_EXPORT std::optional<base::TimeDelta> GetQuicPreconnectInitialRtt();
++
+ // When enabled, the time threshold for Lax-allow-unsafe cookies will be lowered
+ // from 2 minutes to 10 seconds. This time threshold refers to the age cutoff
+ // for which cookies that default into SameSite=Lax, which are newer than the
+diff --git a/net/base/reconnect_notifier.cc b/net/base/reconnect_notifier.cc
+index 3e056889..36cc192 100644
+--- a/net/base/reconnect_notifier.cc
++++ b/net/base/reconnect_notifier.cc
+@@ -3,12 +3,24 @@
+ // found in the LICENSE file.
+ #include "net/base/reconnect_notifier.h"
+ 
++#include <cstdint>
++#include <limits>
+ #include <utility>
+ 
+ #include "base/functional/bind.h"
++#include "base/time/time.h"
++#include "net/third_party/quiche/src/quiche/quic/core/quic_constants.h"
+ 
+ namespace net {
+ 
++namespace {
++
++bool IsValidNonNegativeFiniteTimeDelta(base::TimeDelta delta) {
++  return !delta.is_negative() && !delta.is_inf();
++}
++
++}  // namespace
++
+ ConnectionChangeNotifier::Observer::Observer() = default;
+ ConnectionChangeNotifier::Observer::~Observer() {
+   if (notifier_) {
+@@ -85,6 +97,36 @@
+ ConnectionChangeNotifier::ConnectionChangeNotifier() = default;
+ ConnectionChangeNotifier::~ConnectionChangeNotifier() = default;
+ 
++bool ConnectionKeepAliveConfig::IsValid() const {
++  if (!IsValidNonNegativeFiniteTimeDelta(idle_timeout) ||
++      !IsValidNonNegativeFiniteTimeDelta(ping_interval) ||
++      !IsValidNonNegativeFiniteTimeDelta(initial_rtt)) {
++    return false;
++  }
++
++  // `QuicPingManager` schedules keep-alive PINGs at >= 1s granularity.
++  if (!ping_interval.is_zero() && ping_interval < base::Seconds(1)) {
++    return false;
++  }
++
++  // `QuicConnection::SetNetworkTimeouts` subtracts 1s from the client's local
++  // idle timeout and `QuicAlarmMultiplexer::FireAlarms` runs the idle alarm
++  // before the ping alarm on equal deadlines; capping at `UINT32_MAX` seconds
++  // keeps `QuicConfig` storage and `QuicTime` deadline arithmetic
++  // overflow-safe.
++  if (idle_timeout.is_zero()) {
++    return ping_interval.is_zero();
++  }
++  if (idle_timeout < base::Seconds(2) ||
++      idle_timeout > base::Seconds(std::numeric_limits<uint32_t>::max())) {
++    return false;
++  }
++  const base::TimeDelta effective_ping_interval =
++      ping_interval.is_zero() ? base::Seconds(quic::kPingTimeoutSecs)
++                              : ping_interval;
++  return effective_ping_interval < idle_timeout - base::Seconds(1);
++}
++
+ ConnectionManagementConfig::ConnectionManagementConfig() = default;
+ ConnectionManagementConfig::~ConnectionManagementConfig() = default;
+ 
+diff --git a/net/base/reconnect_notifier.h b/net/base/reconnect_notifier.h
+index 580a279..ad0755a 100644
+--- a/net/base/reconnect_notifier.h
++++ b/net/base/reconnect_notifier.h
+@@ -5,10 +5,10 @@
+ #ifndef NET_BASE_RECONNECT_NOTIFIER_H_
+ #define NET_BASE_RECONNECT_NOTIFIER_H_
+ 
+-#include <cstdint>
+ #include <memory>
+ #include <optional>
+ #include <set>
++#include <string>
+ 
+ #include "base/functional/callback.h"
+ #include "base/memory/weak_ptr.h"
+@@ -129,7 +129,8 @@
+   base::WeakPtrFactory<ConnectionChangeNotifier> weak_factory_{this};
+ };
+ 
+-// Keeps track of the relevant information to conduct connection keep-alive.
++// Per-session QUIC keep-alive, handshake initial-RTT, and connection-option
++// tuning passed to `NetworkContext::PreconnectSockets()`.
+ struct NET_EXPORT ConnectionKeepAliveConfig {
+   ConnectionKeepAliveConfig() = default;
+   ~ConnectionKeepAliveConfig() = default;
+@@ -141,22 +142,41 @@
+   ConnectionKeepAliveConfig& operator=(ConnectionKeepAliveConfig&& other) =
+       default;
+ 
+-  // Timeout for the session to be closed. Counted from the last successful
+-  // PING. This is kept as signed integer since it will be later passed as
+-  // a time offset of the underlying time representation such as `QuicTime`.
+-  int32_t idle_timeout_in_seconds = 0;
++  bool operator==(const ConnectionKeepAliveConfig& other) const = default;
+ 
+-  // Interval between two pings. Counted from the last ping. This should be
+-  // reasonably shorter than `idle_timeout` so that a PING frame can be
+-  // exchanged before the idle timeout. This is kept as signed integer since it
+-  // will be later passed as a time offset of the underlying time representation
+-  // such as `QuicTime`.
+-  int32_t ping_interval_in_seconds = 0;
++  // Returns true iff all timeout and RTT fields are non-negative, finite, and
++  // mutually consistent with QUIC's idle-timeout and keep-alive contracts.
++  bool IsValid() const;
++
++  // Timeout for the session to be closed, counted from the last successful
++  // packet/PING. Must be zero or in `(2s, UINT32_MAX s]` so that
++  // `QuicConfig` storage and `QuicTime` deadline arithmetic remain
++  // overflow-safe and `QuicConnection::SetNetworkTimeouts()`'s 1s local client
++  // deduction leaves room for a >= 1s keep-alive interval. If zero, the default
++  // QUIC idle network timeout is preserved (`ping_interval` must also be zero).
++  base::TimeDelta idle_timeout;
++
++  // Interval between keep-alive PINGs, counted from the last ping. Must be zero
++  // or `>= 1s` and finite (`QuicPingManager` schedules keep-alive alarms at 1s
++  // granularity). When `idle_timeout` is positive, the effective ping interval
++  // (`ping_interval` if positive, or QUIC's default `kPingTimeoutSecs` when
++  // zero) must be strictly less than `idle_timeout - 1s` so the ping alarm
++  // fires before the client's local idle detector alarm.
++  base::TimeDelta ping_interval;
+ 
+   // Enables the connection keep alive mechanism to periodically send PING
+   // to the server when there are no active requests.
+   bool enable_connection_keep_alive = false;
+ 
++  // Client-side initial RTT to configure locally on the QUIC connection before
++  // any RTT samples are received, used only when no cached SRTT, 2G/3G
++  // estimate, or explicit handshake RTT is already configured (and not sent in
++  // the `IRTT` transport parameter to the server). This controls the client's
++  // initial Probe Timeout (PTO) delay during the QUIC handshake
++  // (`3 * initial_rtt`). Must be non-negative and finite. If zero, the default
++  // initial RTT is used unchanged.
++  base::TimeDelta initial_rtt;
++
+   // The QUIC connection options which will be sent to the server in order to
+   // enable certain QUIC features. This should be set using `QuicTag`s (32-bit
+   // value represented in ASCII equivalent e.g. EXMP). If we want to set
 diff --git a/net/filter/zstd_source_stream.cc b/net/filter/zstd_source_stream.cc
 index c1840ca2..4d2f7a2 100644
 --- a/net/filter/zstd_source_stream.cc
@@ -5944,6 +6302,53 @@ index c1840ca2..4d2f7a2 100644
      CHECK(address);
      malloc_sizes_.emplace(address, size);
      total_allocated_ += size;
+diff --git a/net/quic/quic_session_pool.cc b/net/quic/quic_session_pool.cc
+index 15841a5..5ad8f3c 100644
+--- a/net/quic/quic_session_pool.cc
++++ b/net/quic/quic_session_pool.cc
+@@ -2509,18 +2509,31 @@
+   bool enabled_connection_keep_alive = false;
+   if (connection_management_config.has_value() &&
+       connection_management_config->keep_alive_config.has_value()) {
+-    config.SetIdleNetworkTimeout(quic::QuicTime::Delta::FromSeconds(
+-        connection_management_config->keep_alive_config
+-            ->idle_timeout_in_seconds));
+-    config.AddConnectionOptionsToSend(
+-        quic::ParseQuicTagVector(connection_management_config->keep_alive_config
+-                                     ->quic_connection_options));
+-    keep_alive_timeout = quic::QuicTime::Delta::FromSeconds(
+-        connection_management_config->keep_alive_config
+-            ->ping_interval_in_seconds);
++    const auto& keep_alive_config =
++        connection_management_config->keep_alive_config.value();
++    if (keep_alive_config.idle_timeout.is_positive()) {
++      config.SetIdleNetworkTimeout(quic::QuicTime::Delta::FromMicroseconds(
++          keep_alive_config.idle_timeout.InMicroseconds()));
++    }
++    if (!keep_alive_config.quic_connection_options.empty()) {
++      config.AddConnectionOptionsToSend(
++          quic::ParseQuicTagVector(keep_alive_config.quic_connection_options));
++    }
++    if (keep_alive_config.ping_interval.is_positive()) {
++      keep_alive_timeout = quic::QuicTime::Delta::FromMicroseconds(
++          keep_alive_config.ping_interval.InMicroseconds());
++    }
+     enabled_connection_keep_alive =
+-        connection_management_config->keep_alive_config
+-            ->enable_connection_keep_alive;
++        keep_alive_config.enable_connection_keep_alive;
++    // Set the initial RTT locally on the client connection to avoid advertising
++    // a synthetic `IRTT` transport parameter to the server.
++    if (keep_alive_config.initial_rtt.is_positive() &&
++        !config.HasInitialRoundTripTimeUsToSend()) {
++      connection->sent_packet_manager().SetInitialRtt(
++          quic::QuicTime::Delta::FromMicroseconds(
++              keep_alive_config.initial_rtt.InMicroseconds()),
++          /*trusted=*/false);
++    }
+   }
+   connection->set_keep_alive_ping_timeout(keep_alive_timeout);
+ 
 diff --git a/remoting/base/crash/breakpad_server.cc b/remoting/base/crash/breakpad_server.cc
 index 6c1ef81..0f9ebe2 100644
 --- a/remoting/base/crash/breakpad_server.cc
@@ -6091,6 +6496,271 @@ index 6c1ef81..0f9ebe2 100644
    crash_server_->Start();
  }
  
+diff --git a/services/network/public/cpp/BUILD.gn b/services/network/public/cpp/BUILD.gn
+index 6f1d2da..6d315220 100644
+--- a/services/network/public/cpp/BUILD.gn
++++ b/services/network/public/cpp/BUILD.gn
+@@ -787,6 +787,7 @@
+     "basic_data_buffer_factory_unittest.cc",
+     "client_hints_unittest.cc",
+     "connection_allowlist_unittest.cc",
++    "connection_change_observer_client_mojom_traits_unittest.cc",
+     "content_decoding_interceptor_unittest.cc",
+     "content_decoding_util_unittest.cc",
+     "content_language_parser_unittest.cc",
+diff --git a/services/network/public/cpp/connection_change_observer_client_mojom_traits.cc b/services/network/public/cpp/connection_change_observer_client_mojom_traits.cc
+index 64d6b58..e6ca463b 100644
+--- a/services/network/public/cpp/connection_change_observer_client_mojom_traits.cc
++++ b/services/network/public/cpp/connection_change_observer_client_mojom_traits.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "services/network/public/cpp/connection_change_observer_client_mojom_traits.h"
+ 
++#include <optional>
++
+ #include "base/notreached.h"
+ #include "mojo/public/cpp/base/time_mojom_traits.h"
+ #include "mojo/public/cpp/bindings/message.h"
+@@ -46,22 +48,56 @@
+ }
+ 
+ // static
++bool StructTraits<network::mojom::QuicKeepAliveTimeoutsDataView,
++                  network::QuicKeepAliveTimeouts>::
++    Read(network::mojom::QuicKeepAliveTimeoutsDataView data,
++         network::QuicKeepAliveTimeouts* out) {
++  if (!data.ReadIdleTimeout(&out->idle_timeout) ||
++      !data.ReadPingInterval(&out->ping_interval)) {
++    return false;
++  }
++  // Null represents an unset `ping_interval`; reject non-null zero on the wire.
++  if (out->idle_timeout.is_zero() ||
++      (out->ping_interval.has_value() && out->ping_interval->is_zero())) {
++    return false;
++  }
++  net::ConnectionKeepAliveConfig config;
++  config.idle_timeout = out->idle_timeout;
++  config.ping_interval = out->ping_interval.value_or(base::TimeDelta());
++  return config.IsValid();
++}
++
++// static
+ bool StructTraits<network::mojom::ConnectionKeepAliveConfigDataView,
+                   net::ConnectionKeepAliveConfig>::
+     Read(network::mojom::ConnectionKeepAliveConfigDataView data,
+          net::ConnectionKeepAliveConfig* out) {
+-  // Check if `ping_interval_sec` is smaller than the `idle_timeout_sec`
+-  // so that we will be able to send at least one ping before closing the
+-  // connection due to the idle timeout.
+-  if (data.ping_interval_in_seconds() > data.idle_timeout_in_seconds()) {
++  std::optional<network::QuicKeepAliveTimeouts> keep_alive_timeouts;
++  std::optional<base::TimeDelta> initial_rtt;
++  if (!data.ReadKeepAliveTimeouts(&keep_alive_timeouts) ||
++      !data.ReadInitialRtt(&initial_rtt) ||
++      !data.ReadQuicConnectionOptions(&out->quic_connection_options)) {
+     return false;
+   }
+-
+-  out->ping_interval_in_seconds = data.ping_interval_in_seconds();
+-  out->idle_timeout_in_seconds = data.idle_timeout_in_seconds();
++  if (keep_alive_timeouts.has_value()) {
++    out->idle_timeout = keep_alive_timeouts->idle_timeout;
++    out->ping_interval =
++        keep_alive_timeouts->ping_interval.value_or(base::TimeDelta());
++  } else {
++    out->idle_timeout = base::TimeDelta();
++    out->ping_interval = base::TimeDelta();
++  }
++  // Null represents an unset `initial_rtt`; reject non-null zero on the wire.
++  if (initial_rtt.has_value()) {
++    if (initial_rtt->is_zero()) {
++      return false;
++    }
++    out->initial_rtt = *initial_rtt;
++  } else {
++    out->initial_rtt = base::TimeDelta();
++  }
+   out->enable_connection_keep_alive = data.enable_connection_keep_alive();
+-
+-  return data.ReadQuicConnectionOptions(&out->quic_connection_options);
++  return out->IsValid();
+ }
+ 
+ net::ConnectionEstablishmentInitiator
+diff --git a/services/network/public/cpp/connection_change_observer_client_mojom_traits.h b/services/network/public/cpp/connection_change_observer_client_mojom_traits.h
+index 3835635..fb2bcdd 100644
+--- a/services/network/public/cpp/connection_change_observer_client_mojom_traits.h
++++ b/services/network/public/cpp/connection_change_observer_client_mojom_traits.h
+@@ -5,7 +5,12 @@
+ #ifndef SERVICES_NETWORK_PUBLIC_CPP_CONNECTION_CHANGE_OBSERVER_CLIENT_MOJOM_TRAITS_H_
+ #define SERVICES_NETWORK_PUBLIC_CPP_CONNECTION_CHANGE_OBSERVER_CLIENT_MOJOM_TRAITS_H_
+ 
++#include <optional>
++#include <string>
++
+ #include "base/component_export.h"
++#include "base/time/time.h"
++#include "mojo/public/cpp/base/time_mojom_traits.h"
+ #include "mojo/public/cpp/bindings/enum_traits.h"
+ #include "mojo/public/cpp/bindings/struct_traits.h"
+ #include "net/base/reconnect_notifier.h"
+@@ -13,6 +18,18 @@
+ #include "services/network/public/mojom/connection_change_observer_client.mojom-shared.h"
+ #include "services/network/public/mojom/network_types.mojom.h"
+ 
++namespace network {
++
++// C++ typemap representation of `network.mojom.QuicKeepAliveTimeouts` for
++// serializing coupled QUIC idle and keep-alive ping timeouts in
++// `net::ConnectionKeepAliveConfig`.
++struct QuicKeepAliveTimeouts {
++  base::TimeDelta idle_timeout;
++  std::optional<base::TimeDelta> ping_interval;
++};
++
++}  // namespace network
++
+ namespace mojo {
+ 
+ template <>
+@@ -25,17 +42,37 @@
+ };
+ 
+ template <>
++struct StructTraits<network::mojom::QuicKeepAliveTimeoutsDataView,
++                    network::QuicKeepAliveTimeouts> {
++  static base::TimeDelta idle_timeout(
++      const network::QuicKeepAliveTimeouts& timeouts) {
++    return timeouts.idle_timeout;
++  }
++
++  static std::optional<base::TimeDelta> ping_interval(
++      const network::QuicKeepAliveTimeouts& timeouts) {
++    return timeouts.ping_interval;
++  }
++
++  static bool Read(network::mojom::QuicKeepAliveTimeoutsDataView data,
++                   network::QuicKeepAliveTimeouts* out);
++};
++
++template <>
+ struct StructTraits<network::mojom::ConnectionKeepAliveConfigDataView,
+                     net::ConnectionKeepAliveConfig> {
+  public:
+-  static int32_t idle_timeout_in_seconds(
++  static std::optional<network::QuicKeepAliveTimeouts> keep_alive_timeouts(
+       const net::ConnectionKeepAliveConfig& keep_alive_config) {
+-    return keep_alive_config.idle_timeout_in_seconds;
+-  }
+-
+-  static int32_t ping_interval_in_seconds(
+-      const net::ConnectionKeepAliveConfig& keep_alive_config) {
+-    return keep_alive_config.ping_interval_in_seconds;
++    if (keep_alive_config.idle_timeout.is_zero() &&
++        keep_alive_config.ping_interval.is_zero()) {
++      return std::nullopt;
++    }
++    return network::QuicKeepAliveTimeouts{
++        keep_alive_config.idle_timeout,
++        keep_alive_config.ping_interval.is_zero()
++            ? std::nullopt
++            : std::optional<base::TimeDelta>(keep_alive_config.ping_interval)};
+   }
+ 
+   static bool enable_connection_keep_alive(
+@@ -43,6 +80,13 @@
+     return keep_alive_config.enable_connection_keep_alive;
+   }
+ 
++  static std::optional<base::TimeDelta> initial_rtt(
++      const net::ConnectionKeepAliveConfig& keep_alive_config) {
++    return keep_alive_config.initial_rtt.is_zero()
++               ? std::nullopt
++               : std::optional<base::TimeDelta>(keep_alive_config.initial_rtt);
++  }
++
+   static const std::string& quic_connection_options(
+       const net::ConnectionKeepAliveConfig& keep_alive_config) {
+     return keep_alive_config.quic_connection_options;
+diff --git a/services/network/public/mojom/BUILD.gn b/services/network/public/mojom/BUILD.gn
+index fe39c3bd..ead4a4e 100644
+--- a/services/network/public/mojom/BUILD.gn
++++ b/services/network/public/mojom/BUILD.gn
+@@ -2214,6 +2214,10 @@
+     {
+       types = [
+         {
++          mojom = "network.mojom.QuicKeepAliveTimeouts"
++          cpp = "::network::QuicKeepAliveTimeouts"
++        },
++        {
+           mojom = "network.mojom.ConnectionKeepAliveConfig"
+           cpp = "::net::ConnectionKeepAliveConfig"
+         },
+diff --git a/services/network/public/mojom/connection_change_observer_client.mojom b/services/network/public/mojom/connection_change_observer_client.mojom
+index 418413b5..d8b5039 100644
+--- a/services/network/public/mojom/connection_change_observer_client.mojom
++++ b/services/network/public/mojom/connection_change_observer_client.mojom
+@@ -69,31 +69,37 @@
+     OnConnectionFailed();
+ };
+ 
+-// Keeps track of the configs to run the connection keep alive.
+-// This represents `net::ConnectionKeepAliveConfig`.
+-// Passed on `NetworkContext::PreconnectSockets()`.
++// Coupled idle-timeout and keep-alive PING schedule for a preconnected QUIC
++// session.
++struct QuicKeepAliveTimeouts {
++  // Timeout for the session to be closed after the last successful packet/PING.
++  // Must be in `(2s, UINT32_MAX s]`.
++  mojo_base.mojom.TimeDelta idle_timeout;
++
++  // Optional interval between keep-alive PINGs (`>= 1s`). When null, QUIC's
++  // default `kPingTimeoutSecs` (15s) is used. The effective ping interval must
++  // be strictly less than `idle_timeout - 1s`.
++  mojo_base.mojom.TimeDelta? ping_interval;
++};
++
++// Per-session QUIC keep-alive, handshake initial-RTT, and connection-option
++// tuning passed to `NetworkContext::PreconnectSockets()`.
++// Typemapped to `net::ConnectionKeepAliveConfig`.
+ struct ConnectionKeepAliveConfig {
+-  // Timeout for the session to be closed in seconds. Counted from the last
+-  // successful PING. 32-bits is enough to hold a reasonable number of seconds
+-  // for a connection to stay alive.
+-  int32 idle_timeout_in_seconds = 0;
++  // Optional keep-alive and idle timeouts. When null, QUIC's default idle
++  // network timeout and ping timeout are preserved unchanged.
++  QuicKeepAliveTimeouts? keep_alive_timeouts;
+ 
+-  // Interval between two pings. Counted from the last ping. This should be
+-  // reasonably shorter than `idle_timeout_sec` so that a PING frame can be
+-  // exchanged before the idle timeout. We choose a reasonable time in seconds
+-  // within the uint32 bounds.
+-  int32 ping_interval_in_seconds = 0;
+-
+-  // Enables the connection keep alive mechanism to periodically send PING
+-  // to the server.
++  // Enables periodic keep-alive PING frames while no requests are active.
+   bool enable_connection_keep_alive = false;
+ 
+-  // The QUIC connection options which will be sent to the server in order to
+-  // enable certain QUIC features. This should be set using `QuicTag`s (32-bit
+-  // value represented in ASCII equivalent e.g. EXMP). If we want to set
+-  // multiple features, then the values should be separated with a comma
+-  // (e.g. "ABCD,EFGH"). Note that this is parsed inside the network layer later
+-  // on, hence we intentionally send the raw string that is received from Finch
+-  // as is.
++  // Optional positive client-side initial RTT (`> 0`, finite) configured
++  // locally before any RTT samples arrive when no cached SRTT, 2G/3G estimate,
++  // or explicit handshake RTT exists (never sent in the `IRTT` transport
++  // parameter).
++  mojo_base.mojom.TimeDelta? initial_rtt;
++
++  // Comma-separated ASCII `QuicTag` connection options sent to the server
++  // (e.g. "ABCD,EFGH"), parsed inside the network layer.
+   string quic_connection_options = "";
+ };
 diff --git a/third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom b/third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom
 index dfd9f2a..437b33e1 100644
 --- a/third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom
@@ -6938,6 +7608,230 @@ index 9906ebe..1e867ec 100644
    const ProfilingView = tr.ui.e.about_tracing.ProfilingView;
  
    test('protobufTraceDetection', function() {
+diff --git a/third_party/pdfium/fpdfsdk/cpdfsdk_formfillenvironment.cpp b/third_party/pdfium/fpdfsdk/cpdfsdk_formfillenvironment.cpp
+index e85a9bf..124f504 100644
+--- a/third_party/pdfium/fpdfsdk/cpdfsdk_formfillenvironment.cpp
++++ b/third_party/pdfium/fpdfsdk/cpdfsdk_formfillenvironment.cpp
+@@ -219,6 +219,7 @@
+ 
+   ByteString bsMsg = Msg.ToUTF16LE();
+   ByteString bsTitle = Title.ToUTF16LE();
++  AutoRestorer<bool> restorer(&in_active_ffi_callback_, true);
+   return js_platform->app_alert(js_platform, AsFPDFWideString(&bsMsg),
+                                 AsFPDFWideString(&bsTitle), Type, Icon);
+ }
+@@ -239,6 +240,7 @@
+   ByteString bsTitle = Title.ToUTF16LE();
+   ByteString bsDefault = Default.ToUTF16LE();
+   ByteString bsLabel = Label.ToUTF16LE();
++  AutoRestorer<bool> restorer(&in_active_ffi_callback_, true);
+   return js_platform->app_response(
+       js_platform, AsFPDFWideString(&bsQuestion), AsFPDFWideString(&bsTitle),
+       AsFPDFWideString(&bsDefault), AsFPDFWideString(&bsLabel), bPassword,
+@@ -251,6 +253,7 @@
+     return;
+   }
+ 
++  AutoRestorer<bool> restorer(&in_active_ffi_callback_, true);
+   js_platform->app_beep(js_platform, nType);
+ }
+ 
+diff --git a/third_party/pdfium/fxjs/cjs_app.cpp b/third_party/pdfium/fxjs/cjs_app.cpp
+index d18663d..39d2ae6 100644
+--- a/third_party/pdfium/fxjs/cjs_app.cpp
++++ b/third_party/pdfium/fxjs/cjs_app.cpp
+@@ -262,11 +262,10 @@
+     swTitle = JSGetStringFromID(JSMessage::kAlert);
+   }
+ 
+-  pRuntime->BeginBlock();
++  CJS_Runtime::BlockingScope scope(pRuntime);
+   pFormFillEnv->KillFocusAnnot({});
+   v8::Local<v8::Value> ret = pRuntime->NewNumber(
+       pFormFillEnv->JS_appAlert(swMsg, swTitle, iType, iIcon));
+-  pRuntime->EndBlock();
+ 
+   return CJS_Result::Success(ret);
+ }
+@@ -282,9 +281,8 @@
+     type = pRuntime->ToInt32Reentrant(params[0]);
+   }
+ 
+-  pRuntime->BeginBlock();
++  CJS_Runtime::BlockingScope scope(pRuntime);
+   pRuntime->GetFormFillEnv()->JS_appBeep(type);
+-  pRuntime->EndBlock();
+ 
+   return CJS_Result::Success();
+ }
+@@ -488,10 +486,9 @@
+     cMsg = pRuntime->ToWideStringReentrant(newParams[5]);
+   }
+ 
+-  pRuntime->BeginBlock();
++  CJS_Runtime::BlockingScope scope(pRuntime);
+   pRuntime->GetFormFillEnv()->JS_docmailForm(pdfium::span<const uint8_t>(), bUI,
+                                              cTo, cSubject, cCc, cBcc, cMsg);
+-  pRuntime->EndBlock();
+   return CJS_Result::Success();
+ }
+ 
+@@ -583,10 +580,9 @@
+   static constexpr int kMaxBytes = kMaxWideChars * sizeof(uint16_t);
+   auto buffer = FixedSizeDataVector<uint8_t>::Zeroed(kMaxBytes);
+ 
+-  pRuntime->BeginBlock();
++  CJS_Runtime::BlockingScope scope(pRuntime);
+   int byte_length = pRuntime->GetFormFillEnv()->JS_appResponse(
+       swQuestion, swTitle, swDefault, swLabel, bPassword, buffer.span());
+-  pRuntime->EndBlock();
+ 
+   if (byte_length < 0 || byte_length > kMaxBytes) {
+     return CJS_Result::Failure(JSMessage::kParamTooLongError);
+diff --git a/third_party/pdfium/fxjs/cjs_document.cpp b/third_party/pdfium/fxjs/cjs_document.cpp
+index ee73eac..1086e6c 100644
+--- a/third_party/pdfium/fxjs/cjs_document.cpp
++++ b/third_party/pdfium/fxjs/cjs_document.cpp
+@@ -364,10 +364,9 @@
+     return CJS_Result::Failure(JSMessage::kBadObjectError);
+   }
+ 
+-  pRuntime->BeginBlock();
++  CJS_Runtime::BlockingScope scope(pRuntime);
+   form_fill_env_->JS_docmailForm(pdfium::span<const uint8_t>(), bUI, cTo,
+                                  cSubject, cCc, cBcc, cMsg);
+-  pRuntime->EndBlock();
+   return CJS_Result::Success();
+ }
+ 
+@@ -424,10 +423,9 @@
+     return CJS_Result::Failure(WideString::FromASCII("Bad FDF format."));
+   }
+ 
+-  pRuntime->BeginBlock();
++  CJS_Runtime::BlockingScope scope(pRuntime);
+   form_fill_env_->JS_docmailForm(sTextBuf.unsigned_span(), bUI, cTo, cSubject,
+                                  cCc, cBcc, cMsg);
+-  pRuntime->EndBlock();
+   return CJS_Result::Success();
+ }
+ 
+@@ -657,9 +655,8 @@
+   CPDF_InteractiveForm* pPDFForm = GetCoreInteractiveForm();
+   if (pRuntime->GetArrayLength(aFields) == 0 && bEmpty) {
+     if (pPDFForm->CheckRequiredFields(nullptr, true)) {
+-      pRuntime->BeginBlock();
++      CJS_Runtime::BlockingScope scope(pRuntime);
+       GetSDKInteractiveForm()->SubmitForm(strURL);
+-      pRuntime->EndBlock();
+     }
+     return CJS_Result::Success();
+   }
+@@ -679,9 +676,8 @@
+   }
+ 
+   if (pPDFForm->CheckRequiredFields(&fieldObjects, true)) {
+-    pRuntime->BeginBlock();
++    CJS_Runtime::BlockingScope scope(pRuntime);
+     GetSDKInteractiveForm()->SubmitFields(strURL, fieldObjects, true, !bFDF);
+-    pRuntime->EndBlock();
+   }
+   return CJS_Result::Success();
+ }
+@@ -1494,10 +1490,9 @@
+ 
+   CPDF_Dest dest(std::move(dest_array));
+   std::vector<float> positions = dest.GetScrollPositionArray();
+-  pRuntime->BeginBlock();
++  CJS_Runtime::BlockingScope scope(pRuntime);
+   form_fill_env_->DoGoToAction(dest.GetDestPageIndex(document),
+                                dest.GetZoomMode(), positions);
+-  pRuntime->EndBlock();
+   return CJS_Result::Success();
+ }
+ 
+diff --git a/third_party/pdfium/fxjs/cjs_publicmethods_embeddertest.cpp b/third_party/pdfium/fxjs/cjs_publicmethods_embeddertest.cpp
+index 3c99d76..037ee10 100644
+--- a/third_party/pdfium/fxjs/cjs_publicmethods_embeddertest.cpp
++++ b/third_party/pdfium/fxjs/cjs_publicmethods_embeddertest.cpp
+@@ -256,3 +256,27 @@
+   handler->SetRCForTest(nullptr);
+   handler->SetStrChangeForTest(nullptr);
+ }
++
++TEST_F(CJSPublicMethodsEmbedderTest, BlockingScope) {
++  v8::Isolate::Scope isolate_scope(isolate());
++  v8::HandleScope handle_scope(isolate());
++  v8::Context::Scope context_scope(GetV8Context());
++
++  ASSERT_TRUE(OpenDocument("calculate.pdf"));
++  ScopedPage page = LoadScopedPage(0);
++  ASSERT_TRUE(page);
++
++  CJS_Runtime runtime(
++      CPDFSDKFormFillEnvironmentFromFPDFFormHandle(form_handle()));
++  EXPECT_FALSE(runtime.IsBlocking());
++  {
++    CJS_Runtime::BlockingScope scope1(&runtime);
++    EXPECT_TRUE(runtime.IsBlocking());
++    {
++      CJS_Runtime::BlockingScope scope2(&runtime);
++      EXPECT_TRUE(runtime.IsBlocking());
++    }
++    EXPECT_TRUE(runtime.IsBlocking());
++  }
++  EXPECT_FALSE(runtime.IsBlocking());
++}
+diff --git a/third_party/pdfium/fxjs/cjs_runtime.cpp b/third_party/pdfium/fxjs/cjs_runtime.cpp
+index dc0403a..47b7938 100644
+--- a/third_party/pdfium/fxjs/cjs_runtime.cpp
++++ b/third_party/pdfium/fxjs/cjs_runtime.cpp
+@@ -94,6 +94,11 @@
+   }
+ }
+ 
++CJS_Runtime::BlockingScope::BlockingScope(CJS_Runtime* runtime)
++    : restorer_(&runtime->blocking_, true) {}
++
++CJS_Runtime::BlockingScope::~BlockingScope() = default;
++
+ void CJS_Runtime::DefineJSObjects() {
+   v8::Isolate::Scope isolate_scope(GetIsolate());
+   v8::HandleScope handle_scope(GetIsolate());
+diff --git a/third_party/pdfium/fxjs/cjs_runtime.h b/third_party/pdfium/fxjs/cjs_runtime.h
+index 84cf6f3..6489985 100644
+--- a/third_party/pdfium/fxjs/cjs_runtime.h
++++ b/third_party/pdfium/fxjs/cjs_runtime.h
+@@ -12,6 +12,7 @@
+ #include <utility>
+ #include <vector>
+ 
++#include "core/fxcrt/autorestorer.h"
+ #include "core/fxcrt/cfx_timer.h"
+ #include "core/fxcrt/observed_ptr.h"
+ #include "fxjs/cfxjs_engine.h"
+@@ -44,8 +45,19 @@
+   bool AddEventToSet(const FieldEvent& event);
+   void RemoveEventFromSet(const FieldEvent& event);
+ 
+-  void BeginBlock() { blocking_ = true; }
+-  void EndBlock() { blocking_ = false; }
++  class [[maybe_unused, nodiscard]] BlockingScope {
++   public:
++    FX_STACK_ALLOCATED();
++
++    explicit BlockingScope(CJS_Runtime* runtime);
++    BlockingScope(const BlockingScope&) = delete;
++    BlockingScope& operator=(const BlockingScope&) = delete;
++    ~BlockingScope();
++
++   private:
++    AutoRestorer<bool> restorer_;
++  };
++
+   bool IsBlocking() const { return blocking_; }
+ 
+   // Attempt to convert the |value| into a number. If successful the number
 diff --git a/third_party/skia/src/core/SkArenaAlloc.cpp b/third_party/skia/src/core/SkArenaAlloc.cpp
 index 63bb3cd..9f63cd7 100644
 --- a/third_party/skia/src/core/SkArenaAlloc.cpp
