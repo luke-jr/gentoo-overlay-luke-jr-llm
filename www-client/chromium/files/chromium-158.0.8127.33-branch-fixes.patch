@@ -1,11 +1,11 @@
 Chromium 158.0.8127.33 + the later changes of its release branch, up to
-0511f7f6635190cd25e7d876cc9d920ff748908f (refs/branch-heads/8127@{#1619}), for the
+47c84db21c767fd455b5772f876c293a9d9e561c (refs/branch-heads/8127@{#1630}), for the
 158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..0511f7f6635190cd25e7d876cc9d920ff748908f,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..47c84db21c767fd455b5772f876c293a9d9e561c,
 and from the branch's rolls of v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..875534af8903118cd3322a0f80eb0ab770e4847a (under v8/),
 devtools/devtools-frontend 8deaa243ad5f7abd50b6c0e17a740d0f00fc068f..c4aa6a2d6fdeec5706f7eda413aab3b66718a780 (under third_party/devtools-frontend/src/) and
-skia/skia 361c8326695a06b7492fb6eeeff803c0c92a2447..7fd53188ef760eddc610ddea519343edc75fc409 (under third_party/skia/),
+skia/skia 361c8326695a06b7492fb6eeeff803c0c92a2447..3279352fdf1fbbd01a6dd024a52d3f178a6d5f07 (under third_party/skia/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .33 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -52,6 +52,10 @@ Commits contributing to it (oldest first):
   b430ff5dda8f [M158] [ImageFetcher] Do not follow symlinks in ImageDataStoreDisk
   7fc2cb78cb58 [M158] Reland "Fix PiP occlusion false positives on Wayland"
   0511f7f66351 Roll commits from side projects in M158
+  223065732917 [M158] Fix crash in NewTabButtonMenuModel when tab groups are not supported.
+  b877ba8f2f4e [M158] Add spec-aligned SW router timing fields and precise UseCounters
+  54d791578a4f Roll commits from side projects in M158
+  47c84db21c76 [M158] Handle reentrant destruction from clients in `mojo::DataPipeDrainer`
     v8 77192c003a77 [M158] [objects] Disallow JSObject modifications during GC and GC callbacks
     v8 e8f914b08b81 Version 15.8.62.27
     v8 c0b2c2f3ade9 [M158] [compiler] Mark string-keyed ordered hash lookups as writing
@@ -62,6 +66,8 @@ Commits contributing to it (oldest first):
     v8 875534af8903 Version 15.8.62.30
     devtools-frontend c4aa6a2d6fde Update What's new content for Chrome 158
     skia 7fd53188ef76 [M158] [ganesh] Fix skew matrix multiply in EllipticalRRectOp and avoid self intersections
+    skia e7f7d600ea00 [M158] Exclude DrawListLayer::reset from MiracleObj
+    skia 3279352fdf1f [M158] Exclude SkArenaAllocWithReset::reset from MiracleObj
 
 Checked: applies to the 158.0.8127.33 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -1931,6 +1937,39 @@ index 23639aa..3191fe4 100644
    }
  
    if (!is_chromeos_device) {
+diff --git a/chrome/browser/ui/views/tabs/shared/new_tab_button_menu_model.cc b/chrome/browser/ui/views/tabs/shared/new_tab_button_menu_model.cc
+index 89836863..4a94dc6 100644
+--- a/chrome/browser/ui/views/tabs/shared/new_tab_button_menu_model.cc
++++ b/chrome/browser/ui/views/tabs/shared/new_tab_button_menu_model.cc
+@@ -32,17 +32,23 @@
+ NewTabButtonMenuModel::NewTabButtonMenuModel(BrowserWindowInterface* browser)
+     : ui::SimpleMenuModel(this), browser_(browser) {
+   CHECK(browser_);
++  TabStripModel* const tab_strip_model = browser_->GetTabStripModel();
++  CHECK(tab_strip_model);
+ 
+   // Build the menu.
+   AddItemWithStringId(IDC_NEW_TAB, IDS_NEW_TAB_BUTTON_CXMENU_NEW_TAB);
+   SetElementIdentifierAt(GetIndexOfCommandId(IDC_NEW_TAB).value(), kNewTab);
+-  AddNewTabInGroupItem();
+ 
+-  AddSeparator(ui::NORMAL_SEPARATOR);
++  if (tab_strip_model->SupportsTabGroups()) {
++    AddNewTabInGroupItem();
+ 
+-  AddItemWithStringId(IDC_CREATE_NEW_TAB_GROUP, IDS_NEW_TAB_GROUP);
+-  SetElementIdentifierAt(GetIndexOfCommandId(IDC_CREATE_NEW_TAB_GROUP).value(),
+-                         kCreateNewTabGroup);
++    AddSeparator(ui::NORMAL_SEPARATOR);
++
++    AddItemWithStringId(IDC_CREATE_NEW_TAB_GROUP, IDS_NEW_TAB_GROUP);
++    SetElementIdentifierAt(
++        GetIndexOfCommandId(IDC_CREATE_NEW_TAB_GROUP).value(),
++        kCreateNewTabGroup);
++  }
+ 
+   AddSeparator(ui::NORMAL_SEPARATOR);
+   AddNewSplitTabItem();
 diff --git a/chrome/browser/ui/views/webid/BUILD.gn b/chrome/browser/ui/views/webid/BUILD.gn
 index b1e4dcf..50cdcd8 100644
 --- a/chrome/browser/ui/views/webid/BUILD.gn
@@ -3317,6 +3356,55 @@ index e03992d..441d33a 100644
  
  constexpr SkColor kQuickOfficeExtensionBackgroundColor =
      SkColorSetRGB(241, 241, 241);
+diff --git a/mojo/public/cpp/system/data_pipe_drainer.cc b/mojo/public/cpp/system/data_pipe_drainer.cc
+index 0d2262b..60d53ee 100644
+--- a/mojo/public/cpp/system/data_pipe_drainer.cc
++++ b/mojo/public/cpp/system/data_pipe_drainer.cc
+@@ -32,7 +32,11 @@
+   base::span<const uint8_t> buffer;
+   MojoResult rv = source_->BeginReadData(MOJO_READ_DATA_FLAG_NONE, buffer);
+   if (rv == MOJO_RESULT_OK) {
++    base::WeakPtr<DataPipeDrainer> weak_self = weak_factory_.GetWeakPtr();
+     client_->OnDataAvailable(buffer);
++    if (!weak_self) {
++      return;
++    }
+     source_->EndReadData(buffer.size());
+   } else if (rv == MOJO_RESULT_FAILED_PRECONDITION) {
+     client_->OnDataComplete();
+diff --git a/mojo/public/cpp/system/data_pipe_drainer.h b/mojo/public/cpp/system/data_pipe_drainer.h
+index 741d786..4f1730ee 100644
+--- a/mojo/public/cpp/system/data_pipe_drainer.h
++++ b/mojo/public/cpp/system/data_pipe_drainer.h
+@@ -5,7 +5,7 @@
+ #ifndef MOJO_PUBLIC_CPP_SYSTEM_DATA_PIPE_DRAINER_H_
+ #define MOJO_PUBLIC_CPP_SYSTEM_DATA_PIPE_DRAINER_H_
+ 
+-#include <stddef.h>
++#include <stdint.h>
+ 
+ #include "base/containers/span.h"
+ #include "base/memory/raw_ptr.h"
+@@ -20,6 +20,9 @@
+  public:
+   class Client {
+    public:
++    // The memory backing `data` is transitively owned by the `DataPipeDrainer`
++    // and is guaranteed to be valid until `OnDataAvailable()` returns, or until
++    // the `DataPipeDrainer` is destroyed.
+     virtual void OnDataAvailable(base::span<const uint8_t> data) = 0;
+     virtual void OnDataComplete() = 0;
+ 
+@@ -27,7 +30,8 @@
+     virtual ~Client() {}
+   };
+ 
+-  DataPipeDrainer(Client*, mojo::ScopedDataPipeConsumerHandle source);
++  // `client` must outlive this `DataPipeDrainer`.
++  DataPipeDrainer(Client* client, mojo::ScopedDataPipeConsumerHandle source);
+ 
+   DataPipeDrainer(const DataPipeDrainer&) = delete;
+   DataPipeDrainer& operator=(const DataPipeDrainer&) = delete;
 diff --git a/remoting/base/crash/breakpad_server.cc b/remoting/base/crash/breakpad_server.cc
 index 6c1ef81..0f9ebe2 100644
 --- a/remoting/base/crash/breakpad_server.cc
@@ -3464,6 +3552,25 @@ index 6c1ef81..0f9ebe2 100644
    crash_server_->Start();
  }
  
+diff --git a/third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom b/third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom
+index dfd9f2a..437b33e1 100644
+--- a/third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom
++++ b/third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom
+@@ -5364,6 +5364,14 @@
+   kSmartCardContextRelease = 6046,
+   kSameDocumentSameSiteCrossOriginInitiator = 6047,
+   kSameDocumentCrossSiteInitiator = 6048,
++  kV8PerformanceResourceTiming_WorkerMatchedRouterSource_AttributeGetter = 6079,
++  kV8PerformanceResourceTiming_WorkerFinalRouterSource_AttributeGetter = 6080,
++  kPerformanceResourceTimingWorkerMatchedSourceTypeNonEmpty = 6081,
++  kPerformanceResourceTimingWorkerFinalSourceTypeNonEmpty = 6082,
++  kPerformanceResourceTimingWorkerMatchedRouterSourceNonEmpty = 6083,
++  kPerformanceResourceTimingWorkerFinalRouterSourceNonEmpty = 6084,
++  kPerformanceResourceTimingWorkerMatchedBothGettersNonEmpty = 6085,
++  kPerformanceResourceTimingWorkerFinalBothGettersNonEmpty = 6086,
+ 
+   // Add new features immediately above this line. Don't change the existing
+   // numbers of any item, and don't reuse removed slots. Also don't add extra
 diff --git a/third_party/blink/renderer/core/dom/element.cc b/third_party/blink/renderer/core/dom/element.cc
 index 1e198ec..19f2e8bf 100644
 --- a/third_party/blink/renderer/core/dom/element.cc
@@ -3556,6 +3663,193 @@ index 2a9b8791..d972007 100644
        if (!dom_editor_->SetAttribute(old_element,
                                       attribute.GetName().ToString(),
                                       attribute.Value(), exception_state))
+diff --git a/third_party/blink/renderer/core/timing/performance_resource_timing.cc b/third_party/blink/renderer/core/timing/performance_resource_timing.cc
+index 4d59038..d73ba62 100644
+--- a/third_party/blink/renderer/core/timing/performance_resource_timing.cc
++++ b/third_party/blink/renderer/core/timing/performance_resource_timing.cc
+@@ -254,7 +254,7 @@
+       info_->allow_negative_values, CrossOriginIsolatedCapability());
+ }
+ 
+-AtomicString PerformanceResourceTiming::workerMatchedSourceType() const {
++AtomicString PerformanceResourceTiming::GetWorkerMatchedRouterSource() const {
+   if (!info_->service_worker_router_info ||
+       !info_->service_worker_router_info->matched_source_type) {
+     return AtomicString();
+@@ -264,7 +264,7 @@
+       *info_->service_worker_router_info->matched_source_type));
+ }
+ 
+-AtomicString PerformanceResourceTiming::workerFinalSourceType() const {
++AtomicString PerformanceResourceTiming::GetWorkerFinalRouterSource() const {
+   if (!info_->service_worker_router_info ||
+       !info_->service_worker_router_info->actual_source_type) {
+     return AtomicString();
+@@ -274,6 +274,77 @@
+       *info_->service_worker_router_info->actual_source_type));
+ }
+ 
++AtomicString PerformanceResourceTiming::workerMatchedRouterSource(
++    ExecutionContext* context) const {
++  AtomicString result = GetWorkerMatchedRouterSource();
++  if (!result.empty()) {
++    UseCounter::Count(
++        context,
++        WebFeature::
++            kPerformanceResourceTimingWorkerMatchedRouterSourceNonEmpty);
++    matched_router_source_read_ = true;
++    if (matched_source_type_read_) {
++      UseCounter::Count(
++          context,
++          WebFeature::
++              kPerformanceResourceTimingWorkerMatchedBothGettersNonEmpty);
++    }
++  }
++  return result;
++}
++
++AtomicString PerformanceResourceTiming::workerFinalRouterSource(
++    ExecutionContext* context) const {
++  AtomicString result = GetWorkerFinalRouterSource();
++  if (!result.empty()) {
++    UseCounter::Count(
++        context,
++        WebFeature::kPerformanceResourceTimingWorkerFinalRouterSourceNonEmpty);
++    final_router_source_read_ = true;
++    if (final_source_type_read_) {
++      UseCounter::Count(
++          context,
++          WebFeature::kPerformanceResourceTimingWorkerFinalBothGettersNonEmpty);
++    }
++  }
++  return result;
++}
++
++AtomicString PerformanceResourceTiming::workerMatchedSourceType(
++    ExecutionContext* context) const {
++  AtomicString result = GetWorkerMatchedRouterSource();
++  if (!result.empty()) {
++    UseCounter::Count(
++        context,
++        WebFeature::kPerformanceResourceTimingWorkerMatchedSourceTypeNonEmpty);
++    matched_source_type_read_ = true;
++    if (matched_router_source_read_) {
++      UseCounter::Count(
++          context,
++          WebFeature::
++              kPerformanceResourceTimingWorkerMatchedBothGettersNonEmpty);
++    }
++  }
++  return result;
++}
++
++AtomicString PerformanceResourceTiming::workerFinalSourceType(
++    ExecutionContext* context) const {
++  AtomicString result = GetWorkerFinalRouterSource();
++  if (!result.empty()) {
++    UseCounter::Count(
++        context,
++        WebFeature::kPerformanceResourceTimingWorkerFinalSourceTypeNonEmpty);
++    final_source_type_read_ = true;
++    if (final_router_source_read_) {
++      UseCounter::Count(
++          context,
++          WebFeature::kPerformanceResourceTimingWorkerFinalBothGettersNonEmpty);
++    }
++  }
++  return result;
++}
++
+ DOMHighResTimeStamp PerformanceResourceTiming::WorkerReady() const {
+   if (!info_->timing || info_->timing->service_worker_ready_time.is_null()) {
+     return 0.0;
+@@ -537,13 +608,22 @@
+   builder.AddString("contentType", contentType());
+   builder.AddString("contentEncoding", contentEncoding());
+   builder.AddNumber("workerStart", workerStart());
++  ExecutionContext* context = ExecutionContext::From(builder.GetScriptState());
+   if (RuntimeEnabledFeatures::ServiceWorkerStaticRouterTimingInfoEnabled(
+-          ExecutionContext::From(builder.GetScriptState()))) {
++          context)) {
+     builder.AddNumber("workerRouterEvaluationStart",
+                       workerRouterEvaluationStart());
+     builder.AddNumber("workerCacheLookupStart", workerCacheLookupStart());
+-    builder.AddString("workerMatchedSourceType", workerMatchedSourceType());
+-    builder.AddString("workerFinalSourceType", workerFinalSourceType());
++    if (RuntimeEnabledFeatures::
++            ServiceWorkerStaticRouterTimingRouterSourceFieldsEnabled(context)) {
++      builder.AddString("workerMatchedRouterSource",
++                        GetWorkerMatchedRouterSource());
++      builder.AddString("workerFinalRouterSource",
++                        GetWorkerFinalRouterSource());
++    }
++    builder.AddString("workerMatchedSourceType",
++                      GetWorkerMatchedRouterSource());
++    builder.AddString("workerFinalSourceType", GetWorkerFinalRouterSource());
+   }
+   if (RuntimeEnabledFeatures::ResourceTimingInitiatorEnabled()) {
+     builder.AddString("initiatorUrl", initiatorUrl());
+diff --git a/third_party/blink/renderer/core/timing/performance_resource_timing.h b/third_party/blink/renderer/core/timing/performance_resource_timing.h
+index 28dab16..daf1f97c 100644
+--- a/third_party/blink/renderer/core/timing/performance_resource_timing.h
++++ b/third_party/blink/renderer/core/timing/performance_resource_timing.h
+@@ -96,8 +96,10 @@
+   virtual uint64_t decodedBodySize() const;
+   uint16_t responseStatus() const;
+   const HeapVector<Member<PerformanceServerTiming>>& serverTiming() const;
+-  AtomicString workerMatchedSourceType() const;
+-  AtomicString workerFinalSourceType() const;
++  AtomicString workerMatchedRouterSource(ExecutionContext*) const;
++  AtomicString workerFinalRouterSource(ExecutionContext*) const;
++  AtomicString workerMatchedSourceType(ExecutionContext*) const;
++  AtomicString workerFinalSourceType(ExecutionContext*) const;
+ 
+   void Trace(Visitor*) const override;
+ 
+@@ -127,6 +129,8 @@
+ 
+   AtomicString GetNextHopProtocol(const AtomicString& alpn_negotiated_protocol,
+                                   const AtomicString& connection_info) const;
++  AtomicString GetWorkerMatchedRouterSource() const;
++  AtomicString GetWorkerFinalRouterSource() const;
+ 
+   // Returns true if the response comes from the CacheStorage. This is
+   // regardless of where the response came from whether it is from the `cache`
+@@ -138,6 +142,14 @@
+ 
+   AtomicString initiator_type_;
+ 
++  // Per-entry getter read tracking for non-empty Service Worker Static Router
++  // source fields to isolate generic `for...in` enumeration from targeted
++  // reads.
++  mutable bool matched_router_source_read_ = false;
++  mutable bool matched_source_type_read_ = false;
++  mutable bool final_router_source_read_ = false;
++  mutable bool final_source_type_read_ = false;
++
+   // Do not access private fields directly. Use getter methods.
+   base::TimeTicks time_origin_;
+   bool cross_origin_isolated_capability_;
+diff --git a/third_party/blink/renderer/core/timing/performance_resource_timing.idl b/third_party/blink/renderer/core/timing/performance_resource_timing.idl
+index ddabc67..c517210 100644
+--- a/third_party/blink/renderer/core/timing/performance_resource_timing.idl
++++ b/third_party/blink/renderer/core/timing/performance_resource_timing.idl
+@@ -45,9 +45,13 @@
+         readonly attribute DOMHighResTimeStamp workerRouterEvaluationStart;
+     [RuntimeEnabled=ServiceWorkerStaticRouterTimingInfo, Measure]
+         readonly attribute DOMHighResTimeStamp workerCacheLookupStart;
+-    [RuntimeEnabled=ServiceWorkerStaticRouterTimingInfo, Measure]
++    [RuntimeEnabled=ServiceWorkerStaticRouterTimingRouterSourceFields, CallWith=ExecutionContext, Measure]
++        readonly attribute DOMString workerMatchedRouterSource;
++    [RuntimeEnabled=ServiceWorkerStaticRouterTimingRouterSourceFields, CallWith=ExecutionContext, Measure]
++        readonly attribute DOMString workerFinalRouterSource;
++    [RuntimeEnabled=ServiceWorkerStaticRouterTimingInfo, CallWith=ExecutionContext, Measure]
+         readonly attribute DOMString workerMatchedSourceType;
+-    [RuntimeEnabled=ServiceWorkerStaticRouterTimingInfo, Measure]
++    [RuntimeEnabled=ServiceWorkerStaticRouterTimingInfo, CallWith=ExecutionContext, Measure]
+         readonly attribute DOMString workerFinalSourceType;
+     readonly attribute DOMHighResTimeStamp redirectStart;
+     readonly attribute DOMHighResTimeStamp redirectEnd;
 diff --git a/third_party/blink/renderer/core/view_transition/view_transition_supplement.cc b/third_party/blink/renderer/core/view_transition/view_transition_supplement.cc
 index 22060ed..5b18380 100644
 --- a/third_party/blink/renderer/core/view_transition/view_transition_supplement.cc
@@ -3659,6 +3953,23 @@ index 6ef5855..f0f0eec 100644
  
    // This allow deferring starting a navigation transition until some conditions
    // are met, such as existing transitions are finished.
+diff --git a/third_party/blink/renderer/platform/runtime_enabled_features.json5 b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+index 7fa945d1..5730001 100644
+--- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
++++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+@@ -6153,6 +6153,12 @@
+       status: "stable",
+     },
+     {
++      // Killswitch for crbug.com/479637572.
++      name: "ServiceWorkerStaticRouterTimingRouterSourceFields",
++      depends_on: ["ServiceWorkerStaticRouterTimingInfo"],
++      status: "stable",
++    },
++    {
+       name: "SetHTMLCanRunScripts",
+       status: "stable",
+     },
 diff --git a/ui/base/ui_base_features.cc b/ui/base/ui_base_features.cc
 index 34c3d92e..691ac33 100644
 --- a/ui/base/ui_base_features.cc
@@ -4008,6 +4319,27 @@ index 7373bf5..35751c4 100644
    protected onTilesRendered_() {
      performance.measure('most-visited-rendered');
      assert(this.maxVisibleTiles_ > 0);
+diff --git a/third_party/skia/src/core/SkArenaAlloc.cpp b/third_party/skia/src/core/SkArenaAlloc.cpp
+index 63bb3cd..9f63cd7 100644
+--- a/third_party/skia/src/core/SkArenaAlloc.cpp
++++ b/third_party/skia/src/core/SkArenaAlloc.cpp
+@@ -8,6 +8,7 @@
+ #include "src/core/SkArenaAlloc.h"
+ 
+ #include "include/private/SkMalloc.h"
++#include "src/core/SkSafetyChecks.h"
+ 
+ #include <algorithm>
+ #include <cassert>
+@@ -152,6 +153,8 @@
+         , fFirstHeapAllocationSize{SkToU32(firstHeapAllocation)} {}
+ 
+ void SkArenaAllocWithReset::reset() {
++    SK_SCOPED_DISABLE_PARTITION_ALLOC_SAFETY_CHECKS;
++
+     char* const    firstBlock              = fFirstBlock;
+     const uint32_t firstSize               = fFirstSize;
+     const uint32_t firstHeapAllocationSize = fFirstHeapAllocationSize;
 diff --git a/third_party/skia/src/gpu/ganesh/ops/GrOvalOpFactory.cpp b/third_party/skia/src/gpu/ganesh/ops/GrOvalOpFactory.cpp
 index 22d188d..9b8a7f1 100644
 --- a/third_party/skia/src/gpu/ganesh/ops/GrOvalOpFactory.cpp
@@ -4112,6 +4444,26 @@ index 22d188d..9b8a7f1 100644
      // The way the effect interpolates the offset-to-ellipse/circle-center attribute only works on
      // the interior of the rrect if the radii are >= 0.5. Otherwise, the inner rect of the nine-
      // patch will have fractional coverage. This only matters when the interior is actually filled.
+diff --git a/third_party/skia/src/gpu/graphite/draw/DrawListLayer.cpp b/third_party/skia/src/gpu/graphite/draw/DrawListLayer.cpp
+index 9355020..9ea38c6 100644
+--- a/third_party/skia/src/gpu/graphite/draw/DrawListLayer.cpp
++++ b/third_party/skia/src/gpu/graphite/draw/DrawListLayer.cpp
+@@ -8,6 +8,7 @@
+ 
+ #include "include/core/SkTypes.h"
+ #include "include/gpu/graphite/Recorder.h"
++#include "src/core/SkSafetyChecks.h"
+ #include "src/core/SkTraceEvent.h"
+ #include "src/gpu/graphite/KeyContext.h"
+ #include "src/gpu/graphite/RecorderPriv.h"
+@@ -19,6 +20,7 @@
+ namespace skgpu::graphite {
+ 
+ void DrawListLayer::reset(LoadOp loadOp, SkColor4f color) {
++    SK_SCOPED_DISABLE_PARTITION_ALLOC_SAFETY_CHECKS;
+     DrawListBase::reset(loadOp, color);
+ 
+     fStorage.reset();
 diff --git a/third_party/devtools-frontend/src/front_end/panels/whats_new/ReleaseNoteText.ts b/third_party/devtools-frontend/src/front_end/panels/whats_new/ReleaseNoteText.ts
 index b07261b..e7b2c2c 100644
 --- a/third_party/devtools-frontend/src/front_end/panels/whats_new/ReleaseNoteText.ts
