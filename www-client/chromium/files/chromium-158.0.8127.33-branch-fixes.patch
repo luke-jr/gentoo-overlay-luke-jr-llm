@@ -1,10 +1,10 @@
 Chromium 158.0.8127.33 + the later changes of its release branch, up to
-47c84db21c767fd455b5772f876c293a9d9e561c (refs/branch-heads/8127@{#1630}), for the
+00390ff9bb99d85b7fcb3329c57893b246fcc459 (refs/branch-heads/8127@{#1637}), for the
 158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..47c84db21c767fd455b5772f876c293a9d9e561c,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..00390ff9bb99d85b7fcb3329c57893b246fcc459,
 and from the branch's rolls of v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..875534af8903118cd3322a0f80eb0ab770e4847a (under v8/),
-devtools/devtools-frontend 8deaa243ad5f7abd50b6c0e17a740d0f00fc068f..c4aa6a2d6fdeec5706f7eda413aab3b66718a780 (under third_party/devtools-frontend/src/) and
+devtools/devtools-frontend 8deaa243ad5f7abd50b6c0e17a740d0f00fc068f..047c90eca37c7170d826d72245d5df9281989cf3 (under third_party/devtools-frontend/src/) and
 skia/skia 361c8326695a06b7492fb6eeeff803c0c92a2447..3279352fdf1fbbd01a6dd024a52d3f178a6d5f07 (under third_party/skia/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .33 tree's files, renames included): left out are files not in the release
@@ -56,6 +56,12 @@ Commits contributing to it (oldest first):
   b877ba8f2f4e [M158] Add spec-aligned SW router timing fields and precise UseCounters
   54d791578a4f Roll commits from side projects in M158
   47c84db21c76 [M158] Handle reentrant destruction from clients in `mojo::DataPipeDrainer`
+  6eeb9a959851 [M158] Revert "Clean up expired flag audio selection improvement"
+  08be0061a931 [M158] mojo: Harden Windows pipe adoption and IO completions
+  a4aeb611f20d Roll commits from side projects in M158
+  6c0bde1cf739 [M158] Escape strings for HTML on contact info page to mitigate JS error
+  adc4ed33ae7e [M158] [RPS] Move Passbox/APS clients and sharing service to components
+  00390ff9bb99 [M158] Zero-initialize allocations in ZstdSourceStream::customMalloc
     v8 77192c003a77 [M158] [objects] Disallow JSObject modifications during GC and GC callbacks
     v8 e8f914b08b81 Version 15.8.62.27
     v8 c0b2c2f3ade9 [M158] [compiler] Mark string-keyed ordered hash lookups as writing
@@ -65,6 +71,8 @@ Commits contributing to it (oldest first):
     v8 8a8f726f82ef [M158] [turboshaft] Invalidate load elimination on CatchBlockBegin
     v8 875534af8903 Version 15.8.62.30
     devtools-frontend c4aa6a2d6fde Update What's new content for Chrome 158
+    devtools-frontend bba4f1dcb490 [M158] Reland "[elements] Skip no-op expand events after "Expand recursively""
+    devtools-frontend 047c90eca37c [M158] [elements] Restore the shadow root guide line in the DOM tree
     skia 7fd53188ef76 [M158] [ganesh] Fix skew matrix multiply in EllipticalRRectOp and avoid self intersections
     skia e7f7d600ea00 [M158] Exclude DrawListLayer::reset from MiracleObj
     skia 3279352fdf1f [M158] Exclude SkArenaAllocWithReset::reset from MiracleObj
@@ -314,6 +322,21 @@ index f0ebc98..69a0261 100644
  
    void Read(SkRegion* region);
    base::span<uint8_t> CopyScratchSpace(size_t bytes);
+diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
+index ad97b5a0..0f43cb2 100644
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -5648,6 +5648,10 @@
+      flag_descriptions::kApplyManagedProxyBypassListVerbatimDescription,
+      kOsCrOS,
+      FEATURE_VALUE_TYPE(ash::features::kApplyManagedProxyBypassListVerbatim)},
++    {"audio-selection-improvement",
++     flag_descriptions::kAudioSelectionImprovementName,
++     flag_descriptions::kAudioSelectionImprovementDescription, kOsCrOS,
++     FEATURE_VALUE_TYPE(ash::features::kAudioSelectionImprovement)},
+     {"cras-processor-wav-dump", flag_descriptions::kCrasProcessorWavDumpName,
+      flag_descriptions::kCrasProcessorWavDumpDescription, kOsCrOS,
+      PLATFORM_FEATURE_NAME_TYPE("CrOSLateBootCrasProcessorWavDump")},
 diff --git a/chrome/browser/contextual_tasks/BUILD.gn b/chrome/browser/contextual_tasks/BUILD.gn
 index 770bcd4..62ea2dd 100644
 --- a/chrome/browser/contextual_tasks/BUILD.gn
@@ -958,6 +981,157 @@ index 0000000..9bef6937
 +message ListAccountsResponse {
 +  repeated Account account = 1;
 +}
+diff --git a/chrome/browser/flag-metadata.json b/chrome/browser/flag-metadata.json
+index a1cd085..6700afb2 100644
+--- a/chrome/browser/flag-metadata.json
++++ b/chrome/browser/flag-metadata.json
+@@ -970,6 +970,11 @@
+     "expiry_milestone": 175
+   },
+   {
++    "name": "audio-selection-improvement",
++    "owners": [ "zhangwenyu@google.com", "cros-device-enablement@google.com" ],
++    "expiry_milestone": 151
++  },
++  {
+     "name": "auto-framing-override",
+     "owners": [ "kamesan@chromium.org", "chromeos-camera-eng@google.com" ],
+     "expiry_milestone": 116
+diff --git a/chrome/browser/flag_descriptions.h b/chrome/browser/flag_descriptions.h
+index 839a488..ccecbadcf 100644
+--- a/chrome/browser/flag_descriptions.h
++++ b/chrome/browser/flag_descriptions.h
+@@ -7535,6 +7535,11 @@
+ inline constexpr char kAshSplitKeyboardRefactorDescription[] =
+     "Enable split keyboard refactor on ChromeOS.";
+ 
++inline constexpr char kAudioSelectionImprovementName[] =
++    "Enable audio selection improvement algorithm";
++inline constexpr char kAudioSelectionImprovementDescription[] =
++    "Enable set-based audio selection improvement algorithm.";
++
+ inline constexpr char kAutoFramingOverrideName[] =
+     "Auto-framing control override";
+ inline constexpr char kAutoFramingOverrideDescription[] =
+diff --git a/chrome/browser/password_manager/remote_actor/BUILD.gn b/chrome/browser/password_manager/remote_actor/BUILD.gn
+index 750ea44..99e5f72 100644
+--- a/chrome/browser/password_manager/remote_actor/BUILD.gn
++++ b/chrome/browser/password_manager/remote_actor/BUILD.gn
+@@ -6,21 +6,10 @@
+ 
+ source_set("remote_actor") {
+   sources = [
+-    "remote_actor_credential_permission_client.cc",
+-    "remote_actor_credential_permission_client.h",
+     "remote_actor_credential_sharing_impl.cc",
+     "remote_actor_credential_sharing_impl.h",
+-    "remote_actor_credential_sharing_service.h",
+     "remote_actor_credential_sharing_service_factory.cc",
+     "remote_actor_credential_sharing_service_factory.h",
+-    "remote_actor_credential_sharing_service_impl.cc",
+-    "remote_actor_credential_sharing_service_impl.h",
+-    "remote_actor_credential_store_client.cc",
+-    "remote_actor_credential_store_client.h",
+-    "remote_actor_request_helper.cc",
+-    "remote_actor_request_helper.h",
+-    "remote_actor_switches.cc",
+-    "remote_actor_switches.h",
+   ]
+ 
+   deps = [
+@@ -28,7 +17,6 @@
+     "//chrome/browser/glic",
+     "//chrome/browser/password_manager",
+     "//chrome/browser/password_manager/factories",
+-    "//chrome/browser/password_manager/remote_actor/protos",
+     "//chrome/browser/profiles:profile",
+     "//chrome/browser/signin",
+     "//chrome/browser/sync:factories",
+@@ -39,18 +27,15 @@
+     "//components/password_manager/core/browser",
+     "//components/password_manager/core/browser/actor_login:actor_login_service_impl",
+     "//components/password_manager/core/browser/features:password_features",
++    "//components/password_manager/core/browser/remote_actor",
+     "//components/password_manager/core/browser/sync",
+     "//components/password_manager/core/common:features",
+     "//components/prefs",
+     "//components/signin/public/base",
+     "//components/signin/public/identity_manager",
+-    "//components/sync/base",
+     "//components/sync/protocol",
+     "//content/public/browser",
+     "//google_apis",
+-    "//google_apis/common",
+-    "//net",
+-    "//services/network/public/cpp",
+     "//url",
+   ]
+ }
+@@ -58,11 +43,8 @@
+ source_set("unit_tests") {
+   testonly = true
+   sources = [
+-    "remote_actor_credential_permission_client_unittest.cc",
+     "remote_actor_credential_sharing_impl_unittest.cc",
+-    "remote_actor_credential_sharing_service_impl_unittest.cc",
+-    "remote_actor_credential_store_client_unittest.cc",
+-    "remote_actor_request_helper_unittest.cc",
++    "remote_actor_credential_sharing_service_factory_unittest.cc",
+   ]
+   deps = [
+     ":remote_actor",
+@@ -71,7 +53,6 @@
+     "//chrome/browser/password_manager",
+     "//chrome/browser/password_manager:test_support",
+     "//chrome/browser/password_manager/factories",
+-    "//chrome/browser/password_manager/remote_actor/protos",
+     "//chrome/browser/signin:test_support",
+     "//chrome/browser/sync:factories",
+     "//chrome/browser/ui/autofill",
+@@ -83,6 +64,7 @@
+     "//components/password_manager/core/browser:test_support",
+     "//components/password_manager/core/browser/actor_login:actor_login_service_impl",
+     "//components/password_manager/core/browser/features:password_features",
++    "//components/password_manager/core/browser/remote_actor",
+     "//components/password_manager/core/common:features",
+     "//components/signin/public/identity_manager:test_support",
+     "//components/strings:components_strings",
+diff --git a/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_impl.cc b/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_impl.cc
+index fd97b1c7..673bfc5 100644
+--- a/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_impl.cc
++++ b/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_impl.cc
+@@ -16,7 +16,6 @@
+ #include "chrome/browser/password_manager/chrome_password_manager_client.h"
+ #include "chrome/browser/password_manager/factories/account_password_store_factory.h"
+ #include "chrome/browser/password_manager/factories/profile_password_store_factory.h"
+-#include "chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service.h"
+ #include "chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service_factory.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/signin/identity_manager_factory.h"
+@@ -32,6 +31,7 @@
+ #include "components/password_manager/core/browser/password_store/password_form_converters.h"
+ #include "components/password_manager/core/browser/password_sync_util.h"
+ #include "components/password_manager/core/browser/password_ui_utils.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_service.h"
+ #include "components/password_manager/core/browser/sync/password_proto_utils.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/signin/public/identity_manager/identity_manager.h"
+diff --git a/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service_factory.cc b/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service_factory.cc
+index 13042f6c..284c3fb 100644
+--- a/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service_factory.cc
++++ b/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service_factory.cc
+@@ -4,10 +4,10 @@
+ 
+ #include "chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service_factory.h"
+ 
+-#include "chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service_impl.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/profiles/profile_selections.h"
+ #include "chrome/browser/signin/identity_manager_factory.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_service_impl.h"
+ #include "components/password_manager/core/common/password_manager_features.h"
+ #include "content/public/browser/storage_partition.h"
+ 
 diff --git a/chrome/browser/performance_manager/mechanisms/page_discarder.cc b/chrome/browser/performance_manager/mechanisms/page_discarder.cc
 index 840d863..c985269 100644
 --- a/chrome/browser/performance_manager/mechanisms/page_discarder.cc
@@ -1367,6 +1541,21 @@ index e8dd381f..10e9b3c7 100644
        return;
      }
      super.onInputWrapperFocusout(e);
+diff --git a/chrome/browser/resources/settings/autofill_page/contact_info/contact_info_page.html.ts b/chrome/browser/resources/settings/autofill_page/contact_info/contact_info_page.html.ts
+index dd542d2..b8d7731 100644
+--- a/chrome/browser/resources/settings/autofill_page/contact_info/contact_info_page.html.ts
++++ b/chrome/browser/resources/settings/autofill_page/contact_info/contact_info_page.html.ts
+@@ -38,8 +38,8 @@
+       </div>
+       <settings-toggle-button id="autofillOtpFillingToggle" class="hr"
+           ?hidden="${!this.shouldShowOtpFillingToggle_()}"
+-          label="$i18n{enableGmailOtpFillingTitle}"
+-          sub-label-with-link="$i18n{enableGmailOtpFillingDescription}"
++          label="$i18n{enableGmailOtpFillingTitle}" sub-label-with-link="${
++              this.getGmailOtpFillingDescription_().toString()}"
+           @sub-label-link-clicked="${
+               this.onGmailOtpFillingSubLabelLinkClicked_}"
+           @settings-boolean-control-change="${
 diff --git a/chrome/browser/signin/dice_web_signin_interceptor.cc b/chrome/browser/signin/dice_web_signin_interceptor.cc
 index e6257d7..5637c96 100644
 --- a/chrome/browser/signin/dice_web_signin_interceptor.cc
@@ -2253,6 +2442,117 @@ index b87d024b..4819960 100644
  
    bool is_composebox_mode() const { return is_composebox_mode_; }
    void SetIsComposebox(bool is_composebox);
+diff --git a/chrome/browser/ui/webui/settings/BUILD.gn b/chrome/browser/ui/webui/settings/BUILD.gn
+index f048a85d..a669b28 100644
+--- a/chrome/browser/ui/webui/settings/BUILD.gn
++++ b/chrome/browser/ui/webui/settings/BUILD.gn
+@@ -554,6 +554,7 @@
+       "safety_hub_handler_unittest.cc",
+       "saved_info_handler_unittest.cc",
+       "search_engines_handler_unittest.cc",
++      "settings_localized_strings_provider_unittest.cc",
+       "settings_media_devices_selection_handler_unittest.cc",
+       "settings_security_key_handler_unittest.cc",
+       "settings_utils_unittest.cc",
+diff --git a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+index c14a8b0f..0bdda85 100644
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -2084,6 +2084,9 @@
+   html_source->AddBoolean("mandatoryReauthFeatureFlagEnabled",
+                           is_mandatory_reauth_feature_flag_enabled);
+ 
++  const std::u16string opens_in_new_tab = base::EscapeForHTML(
++      l10n_util::GetStringUTF16(IDS_SETTINGS_OPENS_IN_NEW_TAB));
++
+   html_source->AddString(
+       "cardBenefitsToggleSublabel",
+       l10n_util::GetStringFUTF16(
+@@ -2091,8 +2094,8 @@
+               autofill::features::kAutofillEnableNewCardBenefitsToggleText)
+               ? IDS_AUTOFILL_SETTINGS_PAGE_CARD_BENEFITS_TOGGLE_SUBLABEL_WITH_ISSUER_TERMS_APPLY_TEXT_AND_LEARN_LINK
+               : IDS_AUTOFILL_SETTINGS_PAGE_CARD_BENEFITS_TOGGLE_SUBLABEL_WITH_LEARN_LINK,
+-          chrome::kCardBenefitsLearnMoreURL,
+-          l10n_util::GetStringUTF16(IDS_SETTINGS_OPENS_IN_NEW_TAB)));
++          base::EscapeForHTML(chrome::kCardBenefitsLearnMoreURL),
++          opens_in_new_tab));
+ 
+   ui::Accelerator undo_accelerator(ui::VKEY_Z, ui::EF_PLATFORM_ACCELERATOR);
+   html_source->AddString(
+@@ -2135,24 +2138,24 @@
+       "enableGmailOtpFillingDescription",
+       l10n_util::GetStringFUTF16(
+           IDS_AUTOFILL_GMAIL_OTP_FILLING_TOGGLE_DESCRIPTION,
+-          chrome::kGmailOtpFillingLearnMoreURL,
+-          l10n_util::GetStringUTF16(IDS_SETTINGS_OPENS_IN_NEW_TAB),
+-          l10n_util::GetStringUTF16(
+-              IDS_AUTOFILL_GMAIL_OTP_OPT_IN_LEARN_MORE_A11Y_NAME)));
++          base::EscapeForHTML(chrome::kGmailOtpFillingLearnMoreURL),
++          opens_in_new_tab,
++          base::EscapeForHTML(l10n_util::GetStringUTF16(
++              IDS_AUTOFILL_GMAIL_OTP_OPT_IN_LEARN_MORE_A11Y_NAME))));
+   html_source->AddString("gmailOtpFillingLearnMoreUrl",
+                          chrome::kGmailOtpFillingLearnMoreURL);
+ 
+   html_source->AddString(
+       "gmailOtpRequiredStep1",
+-      l10n_util::GetStringFUTF16(
+-          IDS_AUTOFILL_GMAIL_OTP_REQUIRED_STEP_1, chrome::kGmailSettingsURL,
+-          l10n_util::GetStringUTF16(IDS_SETTINGS_OPENS_IN_NEW_TAB)));
++      l10n_util::GetStringFUTF16(IDS_AUTOFILL_GMAIL_OTP_REQUIRED_STEP_1,
++                                 base::EscapeForHTML(chrome::kGmailSettingsURL),
++                                 opens_in_new_tab));
+   html_source->AddString(
+       "gmailOtpRequiredStep2",
+       l10n_util::GetStringFUTF16(
+           IDS_AUTOFILL_GMAIL_OTP_REQUIRED_STEP_2,
+-          chrome::kGmailSmartFeaturesURL,
+-          l10n_util::GetStringUTF16(IDS_SETTINGS_OPENS_IN_NEW_TAB)));
++          base::EscapeForHTML(chrome::kGmailSmartFeaturesURL),
++          opens_in_new_tab));
+ 
+   auto* autofill_client =
+       autofill::ContentAutofillClient::FromWebContents(web_contents);
+@@ -2188,8 +2191,9 @@
+   html_source->AddString(
+       "autofillPayOverTimeSettingsSublabel",
+       l10n_util::GetStringFUTF16(
+-          IDS_AUTOFILL_BNPL_SETTINGS_SUBLABEL, chrome::kPayOverTimeLearnMoreUrl,
+-          l10n_util::GetStringUTF16(IDS_SETTINGS_OPENS_IN_NEW_TAB)));
++          IDS_AUTOFILL_BNPL_SETTINGS_SUBLABEL,
++          base::EscapeForHTML(chrome::kPayOverTimeLearnMoreUrl),
++          opens_in_new_tab));
+ 
+   html_source->AddString("googleWalletUrl", chrome::kWalletUrl);
+ 
+@@ -4553,6 +4557,12 @@
+ extern void AddPrivacySandboxStrings(content::WebUIDataSource* html_source,
+                                      Profile* profile);
+ 
++void AddAutofillStringsForTesting(content::WebUIDataSource* html_source,
++                                  Profile* profile,
++                                  content::WebContents* web_contents) {
++  AddAutofillStrings(html_source, profile, web_contents);
++}
++
+ #if !BUILDFLAG(IS_CHROMEOS)
+ std::string GetPeopleSignInPromptSecondaryWithAccountForTesting(
+     Profile* profile) {
+diff --git a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.h b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.h
+index b832ef7f..f7ea9233 100644
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.h
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.h
+@@ -25,6 +25,10 @@
+                          Profile* profile,
+                          content::WebContents* web_contents);
+ 
++void AddAutofillStringsForTesting(content::WebUIDataSource* html_source,
++                                  Profile* profile,
++                                  content::WebContents* web_contents);
++
+ #if !BUILDFLAG(IS_CHROMEOS)
+ std::string GetPeopleSignInPromptSecondaryWithAccountForTesting(
+     Profile* profile);
 diff --git a/chrome/credential_provider/gaiacp/gcp_utils.cc b/chrome/credential_provider/gaiacp/gcp_utils.cc
 index d80cd05d..710031925 100644
 --- a/chrome/credential_provider/gaiacp/gcp_utils.cc
@@ -2621,6 +2921,422 @@ index 4d8052b..fed6869 100644
    // The root view is the target for DisplayCursor calls whenever the active
    // cursor needs to change.
    const raw_ptr<RenderWidgetHostViewInput> root_view_;
+diff --git a/components/password_manager/core/browser/BUILD.gn b/components/password_manager/core/browser/BUILD.gn
+index 27ecfd5c..ec21b8c 100644
+--- a/components/password_manager/core/browser/BUILD.gn
++++ b/components/password_manager/core/browser/BUILD.gn
+@@ -642,7 +642,10 @@
+   ]
+ 
+   if (!is_android) {
+-    deps += [ "//components/webauthn/core/browser:test_support" ]
++    deps += [
++      "//components/password_manager/core/browser/remote_actor:unit_tests",
++      "//components/webauthn/core/browser:test_support",
++    ]
+   }
+ 
+   if (is_ios) {
+diff --git a/components/password_manager/core/browser/remote_actor/BUILD.gn b/components/password_manager/core/browser/remote_actor/BUILD.gn
+new file mode 100644
+index 0000000..b64ddff1
+--- /dev/null
++++ b/components/password_manager/core/browser/remote_actor/BUILD.gn
+@@ -0,0 +1,72 @@
++# Copyright 2026 The Chromium Authors
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++assert(!is_android)
++
++# Clients and service for sharing credentials with remote actors (e.g. Gemini)
++# via Passbox and the Agentic Permission Service. Shared by desktop and iOS;
++# not used on Android.
++source_set("remote_actor") {
++  sources = [
++    "remote_actor_credential_permission_client.cc",
++    "remote_actor_credential_permission_client.h",
++    "remote_actor_credential_sharing_service.h",
++    "remote_actor_credential_sharing_service_impl.cc",
++    "remote_actor_credential_sharing_service_impl.h",
++    "remote_actor_credential_store_client.cc",
++    "remote_actor_credential_store_client.h",
++    "remote_actor_request_helper.cc",
++    "remote_actor_request_helper.h",
++    "remote_actor_switches.cc",
++    "remote_actor_switches.h",
++  ]
++
++  public_deps = [
++    "//base",
++    "//components/keyed_service/core",
++    "//components/password_manager/core/browser/sync",
++    "//components/signin/public/base",
++    "//components/sync/base",
++    "//components/sync/protocol",
++    "//net",
++    "//services/network/public/cpp",
++    "//url",
++  ]
++
++  deps = [
++    "//components/password_manager/core/browser:metrics_util",
++    "//components/password_manager/core/browser/remote_actor/protos",
++    "//components/password_manager/core/common:features",
++    "//components/signin/public/identity_manager",
++    "//google_apis",
++    "//google_apis/common",
++  ]
++}
++
++source_set("unit_tests") {
++  testonly = true
++  sources = [
++    "remote_actor_credential_permission_client_unittest.cc",
++    "remote_actor_credential_sharing_service_impl_unittest.cc",
++    "remote_actor_credential_store_client_unittest.cc",
++    "remote_actor_request_helper_unittest.cc",
++  ]
++  deps = [
++    ":remote_actor",
++    "//base/test:test_support",
++    "//components/password_manager/core/browser/remote_actor/protos",
++    "//components/password_manager/core/browser/sync",
++    "//components/password_manager/core/common:features",
++    "//components/signin/public/identity_manager:test_support",
++    "//components/sync/base",
++    "//components/sync/protocol",
++    "//google_apis",
++    "//google_apis/common",
++    "//net",
++    "//services/network:test_support",
++    "//services/network/public/cpp",
++    "//testing/gtest",
++    "//url",
++  ]
++}
+diff --git a/components/password_manager/core/browser/remote_actor/OWNERS b/components/password_manager/core/browser/remote_actor/OWNERS
+new file mode 100644
+index 0000000..48a04f19
+--- /dev/null
++++ b/components/password_manager/core/browser/remote_actor/OWNERS
+@@ -0,0 +1,2 @@
++derinel@google.com
++rgod@google.com
+diff --git a/chrome/browser/password_manager/remote_actor/protos/BUILD.gn b/components/password_manager/core/browser/remote_actor/protos/BUILD.gn
+similarity index 100%
+rename from chrome/browser/password_manager/remote_actor/protos/BUILD.gn
+rename to components/password_manager/core/browser/remote_actor/protos/BUILD.gn
+diff --git a/chrome/browser/password_manager/remote_actor/protos/remote_actor_list_affiliated_passwords_result.proto b/components/password_manager/core/browser/remote_actor/protos/remote_actor_list_affiliated_passwords_result.proto
+similarity index 100%
+rename from chrome/browser/password_manager/remote_actor/protos/remote_actor_list_affiliated_passwords_result.proto
+rename to components/password_manager/core/browser/remote_actor/protos/remote_actor_list_affiliated_passwords_result.proto
+diff --git a/chrome/browser/password_manager/remote_actor/remote_actor_credential_permission_client.cc b/components/password_manager/core/browser/remote_actor/remote_actor_credential_permission_client.cc
+similarity index 95%
+rename from chrome/browser/password_manager/remote_actor/remote_actor_credential_permission_client.cc
+rename to components/password_manager/core/browser/remote_actor/remote_actor_credential_permission_client.cc
+index c5b25e40f..f059d96 100644
+--- a/chrome/browser/password_manager/remote_actor/remote_actor_credential_permission_client.cc
++++ b/components/password_manager/core/browser/remote_actor/remote_actor_credential_permission_client.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "chrome/browser/password_manager/remote_actor/remote_actor_credential_permission_client.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_credential_permission_client.h"
+ 
+ #include <memory>
+ #include <string>
+@@ -10,13 +10,14 @@
+ 
+ #include "base/command_line.h"
+ #include "base/functional/bind.h"
++#include "base/functional/callback.h"
+ #include "base/json/json_writer.h"
+ #include "base/strings/strcat.h"
+ #include "base/task/sequenced_task_runner.h"
+ #include "base/values.h"
+-#include "chrome/browser/password_manager/remote_actor/remote_actor_request_helper.h"
+-#include "chrome/browser/password_manager/remote_actor/remote_actor_switches.h"
+ #include "components/password_manager/core/browser/password_manager_metrics_util.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_request_helper.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_switches.h"
+ #include "components/password_manager/core/common/password_manager_features.h"
+ #include "components/signin/public/base/oauth_consumer_id.h"
+ #include "components/signin/public/identity_manager/identity_manager.h"
+diff --git a/chrome/browser/password_manager/remote_actor/remote_actor_credential_permission_client.h b/components/password_manager/core/browser/remote_actor/remote_actor_credential_permission_client.h
+similarity index 86%
+rename from chrome/browser/password_manager/remote_actor/remote_actor_credential_permission_client.h
+rename to components/password_manager/core/browser/remote_actor/remote_actor_credential_permission_client.h
+index 37849e6b..3839ab7 100644
+--- a/chrome/browser/password_manager/remote_actor/remote_actor_credential_permission_client.h
++++ b/components/password_manager/core/browser/remote_actor/remote_actor_credential_permission_client.h
+@@ -2,14 +2,14 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_PERMISSION_CLIENT_H_
+-#define CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_PERMISSION_CLIENT_H_
++#ifndef COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_PERMISSION_CLIENT_H_
++#define COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_PERMISSION_CLIENT_H_
+ 
+ #include <memory>
+ #include <string>
+ #include <vector>
+ 
+-#include "base/functional/callback.h"
++#include "base/functional/callback_forward.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/memory/weak_ptr.h"
+@@ -76,4 +76,4 @@
+ 
+ }  // namespace password_manager
+ 
+-#endif  // CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_PERMISSION_CLIENT_H_
++#endif  // COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_PERMISSION_CLIENT_H_
+diff --git a/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service.h b/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_service.h
+similarity index 84%
+rename from chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service.h
+rename to components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_service.h
+index 064dce3..aa6d1fe6 100644
+--- a/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service.h
++++ b/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_service.h
+@@ -2,12 +2,12 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_SHARING_SERVICE_H_
+-#define CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_SHARING_SERVICE_H_
++#ifndef COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_SHARING_SERVICE_H_
++#define COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_SHARING_SERVICE_H_
+ 
+ #include <string>
+ 
+-#include "base/functional/callback.h"
++#include "base/functional/callback_forward.h"
+ #include "base/time/time.h"
+ #include "components/keyed_service/core/keyed_service.h"
+ #include "components/password_manager/core/browser/sync/password_proto_utils.h"
+@@ -60,4 +60,4 @@
+ 
+ }  // namespace password_manager
+ 
+-#endif  // CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_SHARING_SERVICE_H_
++#endif  // COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_SHARING_SERVICE_H_
+diff --git a/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service_impl.cc b/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_service_impl.cc
+similarity index 90%
+rename from chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service_impl.cc
+rename to components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_service_impl.cc
+index 5e6c574b..f47d3fb 100644
+--- a/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service_impl.cc
++++ b/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_service_impl.cc
+@@ -2,16 +2,17 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service_impl.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_service_impl.h"
+ 
+ #include <utility>
+ 
+ #include "base/check.h"
+ #include "base/functional/bind.h"
++#include "base/functional/callback.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/task/sequenced_task_runner.h"
+-#include "chrome/browser/password_manager/remote_actor/remote_actor_credential_permission_client.h"
+-#include "chrome/browser/password_manager/remote_actor/remote_actor_credential_store_client.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_credential_permission_client.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_credential_store_client.h"
+ #include "components/signin/public/identity_manager/identity_manager.h"
+ #include "services/network/public/cpp/shared_url_loader_factory.h"
+ 
+diff --git a/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service_impl.h b/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_service_impl.h
+similarity index 84%
+rename from chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service_impl.h
+rename to components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_service_impl.h
+index f665d95..a901cd4 100644
+--- a/chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service_impl.h
++++ b/components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_service_impl.h
+@@ -2,15 +2,15 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_SHARING_SERVICE_IMPL_H_
+-#define CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_SHARING_SERVICE_IMPL_H_
++#ifndef COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_SHARING_SERVICE_IMPL_H_
++#define COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_SHARING_SERVICE_IMPL_H_
+ 
+ #include <memory>
+ 
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/memory/weak_ptr.h"
+-#include "chrome/browser/password_manager/remote_actor/remote_actor_credential_sharing_service.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_credential_sharing_service.h"
+ #include "services/network/public/cpp/shared_url_loader_factory.h"
+ 
+ namespace signin {
+@@ -58,8 +58,9 @@
+   //   is run with `false`.
+   // - If the Passbox upload succeeds but the subsequent APS grant fails, the
+   //   callback is run with `false`. We do not attempt to clean up or delete the
+-  //   credential from Passbox in this case; instead, we rely on the credential's
+-  //   Time-To-Live (TTL) to automatically expire and delete it from Passbox.
++  //   credential from Passbox in this case; instead, we rely on the
++  //   credential's Time-To-Live (TTL) to automatically expire and delete it
++  //   from Passbox.
+   void SharePassword(const ShareParameters& params,
+                      SharePasswordCallback callback) override;
+ 
+@@ -80,4 +81,4 @@
+ 
+ }  // namespace password_manager
+ 
+-#endif  // CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_SHARING_SERVICE_IMPL_H_
++#endif  // COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_SHARING_SERVICE_IMPL_H_
+diff --git a/chrome/browser/password_manager/remote_actor/remote_actor_credential_store_client.cc b/components/password_manager/core/browser/remote_actor/remote_actor_credential_store_client.cc
+similarity index 95%
+rename from chrome/browser/password_manager/remote_actor/remote_actor_credential_store_client.cc
+rename to components/password_manager/core/browser/remote_actor/remote_actor_credential_store_client.cc
+index 68c8684..92112a4 100644
+--- a/chrome/browser/password_manager/remote_actor/remote_actor_credential_store_client.cc
++++ b/components/password_manager/core/browser/remote_actor/remote_actor_credential_store_client.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "chrome/browser/password_manager/remote_actor/remote_actor_credential_store_client.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_credential_store_client.h"
+ 
+ #include <optional>
+ #include <string>
+@@ -22,10 +22,10 @@
+ #include "base/task/sequenced_task_runner.h"
+ #include "base/time/time.h"
+ #include "base/values.h"
+-#include "chrome/browser/password_manager/remote_actor/protos/remote_actor_list_affiliated_passwords_result.pb.h"
+-#include "chrome/browser/password_manager/remote_actor/remote_actor_request_helper.h"
+-#include "chrome/browser/password_manager/remote_actor/remote_actor_switches.h"
+ #include "components/password_manager/core/browser/password_manager_metrics_util.h"
++#include "components/password_manager/core/browser/remote_actor/protos/remote_actor_list_affiliated_passwords_result.pb.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_request_helper.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_switches.h"
+ #include "components/password_manager/core/browser/sync/password_proto_utils.h"
+ #include "components/signin/public/base/oauth_consumer_id.h"
+ #include "components/signin/public/identity_manager/identity_manager.h"
+diff --git a/chrome/browser/password_manager/remote_actor/remote_actor_credential_store_client.h b/components/password_manager/core/browser/remote_actor/remote_actor_credential_store_client.h
+similarity index 89%
+rename from chrome/browser/password_manager/remote_actor/remote_actor_credential_store_client.h
+rename to components/password_manager/core/browser/remote_actor/remote_actor_credential_store_client.h
+index b890736c..1bbe941 100644
+--- a/chrome/browser/password_manager/remote_actor/remote_actor_credential_store_client.h
++++ b/components/password_manager/core/browser/remote_actor/remote_actor_credential_store_client.h
+@@ -2,14 +2,14 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_STORE_CLIENT_H_
+-#define CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_STORE_CLIENT_H_
++#ifndef COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_STORE_CLIENT_H_
++#define COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_STORE_CLIENT_H_
+ 
+ #include <memory>
+ #include <string>
+ #include <vector>
+ 
+-#include "base/functional/callback.h"
++#include "base/functional/callback_forward.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/memory/weak_ptr.h"
+@@ -88,4 +88,4 @@
+ 
+ }  // namespace password_manager
+ 
+-#endif  // CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_STORE_CLIENT_H_
++#endif  // COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_CREDENTIAL_STORE_CLIENT_H_
+diff --git a/chrome/browser/password_manager/remote_actor/remote_actor_request_helper.cc b/components/password_manager/core/browser/remote_actor/remote_actor_request_helper.cc
+similarity index 97%
+rename from chrome/browser/password_manager/remote_actor/remote_actor_request_helper.cc
+rename to components/password_manager/core/browser/remote_actor/remote_actor_request_helper.cc
+index b9f180a..f45c465 100644
+--- a/chrome/browser/password_manager/remote_actor/remote_actor_request_helper.cc
++++ b/components/password_manager/core/browser/remote_actor/remote_actor_request_helper.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "chrome/browser/password_manager/remote_actor/remote_actor_request_helper.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_request_helper.h"
+ 
+ #include <optional>
+ #include <string>
+diff --git a/chrome/browser/password_manager/remote_actor/remote_actor_request_helper.h b/components/password_manager/core/browser/remote_actor/remote_actor_request_helper.h
+similarity index 92%
+rename from chrome/browser/password_manager/remote_actor/remote_actor_request_helper.h
+rename to components/password_manager/core/browser/remote_actor/remote_actor_request_helper.h
+index c7decfa..47d684a 100644
+--- a/chrome/browser/password_manager/remote_actor/remote_actor_request_helper.h
++++ b/components/password_manager/core/browser/remote_actor/remote_actor_request_helper.h
+@@ -2,8 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_REQUEST_HELPER_H_
+-#define CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_REQUEST_HELPER_H_
++#ifndef COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_REQUEST_HELPER_H_
++#define COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_REQUEST_HELPER_H_
+ 
+ #include <memory>
+ #include <optional>
+@@ -100,4 +100,4 @@
+ 
+ }  // namespace password_manager
+ 
+-#endif  // CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_REQUEST_HELPER_H_
++#endif  // COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_REQUEST_HELPER_H_
+diff --git a/chrome/browser/password_manager/remote_actor/remote_actor_switches.cc b/components/password_manager/core/browser/remote_actor/remote_actor_switches.cc
+similarity index 78%
+rename from chrome/browser/password_manager/remote_actor/remote_actor_switches.cc
+rename to components/password_manager/core/browser/remote_actor/remote_actor_switches.cc
+index 7459717..85ad23ed 100644
+--- a/chrome/browser/password_manager/remote_actor/remote_actor_switches.cc
++++ b/components/password_manager/core/browser/remote_actor/remote_actor_switches.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "chrome/browser/password_manager/remote_actor/remote_actor_switches.h"
++#include "components/password_manager/core/browser/remote_actor/remote_actor_switches.h"
+ 
+ namespace switches {
+ 
+diff --git a/chrome/browser/password_manager/remote_actor/remote_actor_switches.h b/components/password_manager/core/browser/remote_actor/remote_actor_switches.h
+similarity index 62%
+rename from chrome/browser/password_manager/remote_actor/remote_actor_switches.h
+rename to components/password_manager/core/browser/remote_actor/remote_actor_switches.h
+index 2ec5ee52..93e6062 100644
+--- a/chrome/browser/password_manager/remote_actor/remote_actor_switches.h
++++ b/components/password_manager/core/browser/remote_actor/remote_actor_switches.h
+@@ -2,8 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_SWITCHES_H_
+-#define CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_SWITCHES_H_
++#ifndef COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_SWITCHES_H_
++#define COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_SWITCHES_H_
+ 
+ namespace switches {
+ 
+@@ -15,4 +15,4 @@
+ 
+ }  // namespace switches
+ 
+-#endif  // CHROME_BROWSER_PASSWORD_MANAGER_REMOTE_ACTOR_REMOTE_ACTOR_SWITCHES_H_
++#endif  // COMPONENTS_PASSWORD_MANAGER_CORE_BROWSER_REMOTE_ACTOR_REMOTE_ACTOR_SWITCHES_H_
 diff --git a/components/translate/core/browser/translate_manager.cc b/components/translate/core/browser/translate_manager.cc
 index de791ae..b2943db 100644
 --- a/components/translate/core/browser/translate_manager.cc
@@ -3356,6 +4072,60 @@ index e03992d..441d33a 100644
  
  constexpr SkColor kQuickOfficeExtensionBackgroundColor =
      SkColorSetRGB(241, 241, 241);
+diff --git a/mojo/core/ipcz_driver/transport.cc b/mojo/core/ipcz_driver/transport.cc
+index 9886ea9..a05d25dc 100644
+--- a/mojo/core/ipcz_driver/transport.cc
++++ b/mojo/core/ipcz_driver/transport.cc
+@@ -32,6 +32,9 @@
+ #include "third_party/ipcz/include/ipcz/ipcz.h"
+ 
+ #if BUILDFLAG(IS_WIN)
++#include <windows.h>
++
++#include "base/win/security_util.h"
+ #include "base/win/win_util.h"
+ #include "mojo/public/cpp/platform/platform_handle_security_util_win.h"
+ #endif
+@@ -228,6 +231,21 @@
+   }
+   return PlatformHandle(base::win::ScopedHandle(local_dupe));
+ }
++
++// Returns true if `handle` is a named pipe end and is the only open handle to
++// its underlying kernel file object, in any process.
++//
++// On Windows, I/O completion port association is a property of the file
++// object rather than of any one handle to it. A Channel registers its handle
++// with this process's I/O completion port, so it must only adopt pipe ends on
++// which nothing outside this process can start I/O. Once ours is the only
++// handle, no less privileged process can obtain another: opening a pipe by
++// name creates a new file object, and duplicating a handle out of this process
++// requires PROCESS_DUP_HANDLE access to it.
++bool IsExclusivelyOwnedPipe(HANDLE handle) {
++  return base::win::GetObjectHandleCount(handle) == 1u &&
++         ::GetNamedPipeInfo(handle, nullptr, nullptr, nullptr, nullptr);
++}
+ #endif  // BUILDFLAG(IS_WIN)
+ 
+ scoped_refptr<base::SingleThreadTaskRunner>& GetIOTaskRunnerStorage() {
+@@ -710,6 +728,17 @@
+     return nullptr;
+   }
+ 
++#if BUILDFLAG(IS_WIN)
++  // A less privileged peer must hand over its pipe end outright. If it kept
++  // another handle to the same pipe end, it could keep generating completion
++  // packets for the Channel which adopts it. Transferring a handle closes the
++  // sender's copy, so the handle we now hold must be the only one.
++  if (!is_source_at_least_as_privileged &&
++      !IsExclusivelyOwnedPipe(handles[0].GetHandle().get())) {
++    return nullptr;
++  }
++#endif
++
+   // A peer may choose the new transport's remote process, by attaching a
+   // process handle or by claiming the process is its own. Honor either only if
+   // allowed; otherwise an attached handle is closed along with `handles`.
 diff --git a/mojo/public/cpp/system/data_pipe_drainer.cc b/mojo/public/cpp/system/data_pipe_drainer.cc
 index 0d2262b..60d53ee 100644
 --- a/mojo/public/cpp/system/data_pipe_drainer.cc
@@ -3405,6 +4175,19 @@ index 741d786..4f1730ee 100644
  
    DataPipeDrainer(const DataPipeDrainer&) = delete;
    DataPipeDrainer& operator=(const DataPipeDrainer&) = delete;
+diff --git a/net/filter/zstd_source_stream.cc b/net/filter/zstd_source_stream.cc
+index c1840ca2..4d2f7a2 100644
+--- a/net/filter/zstd_source_stream.cc
++++ b/net/filter/zstd_source_stream.cc
+@@ -117,7 +117,7 @@
+   }
+ 
+   void* customMalloc(size_t size) {
+-    void* address = malloc(size);
++    void* address = calloc(1, size);
+     CHECK(address);
+     malloc_sizes_.emplace(address, size);
+     total_allocated_ += size;
 diff --git a/remoting/base/crash/breakpad_server.cc b/remoting/base/crash/breakpad_server.cc
 index 6c1ef81..0f9ebe2 100644
 --- a/remoting/base/crash/breakpad_server.cc
@@ -3970,6 +4753,21 @@ index 7fa945d1..5730001 100644
        name: "SetHTMLCanRunScripts",
        status: "stable",
      },
+diff --git a/tools/traffic_annotation/summary/annotations.xml b/tools/traffic_annotation/summary/annotations.xml
+index 1ad54e77..0ea1886 100644
+--- a/tools/traffic_annotation/summary/annotations.xml
++++ b/tools/traffic_annotation/summary/annotations.xml
+@@ -518,8 +518,8 @@
+  <item id="read_aloud_synthesize" added_in_milestone="152" content_hash_code="01f5f507" os_list="linux,windows,android,chromeos" file_path="components/optimization_guide/core/model_execution/remote_model_execution_common.cc" />
+  <item id="safe_browsing_v5_get_hash" added_in_milestone="152" content_hash_code="042aa735" os_list="linux,windows,android,chromeos" file_path="components/safe_browsing/core/browser/db/v5_get_hash_protocol_manager.cc" />
+  <item id="tab_context_ephemeral_key_fetch" added_in_milestone="152" content_hash_code="01f989a9" os_list="linux,windows,chromeos,android" file_path="components/sync_tab_context/http_rpc_based_ephemeral_key_fetcher.cc" />
+- <item id="remote_actor_passbox_client" added_in_milestone="152" content_hash_code="017774a4" os_list="linux,windows,chromeos" file_path="chrome/browser/password_manager/remote_actor/remote_actor_credential_store_client.cc" />
+- <item id="remote_actor_permission_service" added_in_milestone="152" content_hash_code="047f8476" os_list="linux,windows,chromeos" file_path="chrome/browser/password_manager/remote_actor/remote_actor_credential_permission_client.cc" />
++ <item id="remote_actor_passbox_client" added_in_milestone="152" content_hash_code="017774a4" os_list="linux,windows,chromeos" file_path="components/password_manager/core/browser/remote_actor/remote_actor_credential_store_client.cc" />
++ <item id="remote_actor_permission_service" added_in_milestone="152" content_hash_code="047f8476" os_list="linux,windows,chromeos" file_path="components/password_manager/core/browser/remote_actor/remote_actor_credential_permission_client.cc" />
+  <item id="enterprise_skills_fetcher" added_in_milestone="152" content_hash_code="059461db" os_list="windows,android,chromeos,linux" file_path="components/skills/internal/enterprise_skills_provider.cc" />
+  <item id="iwa_dev_ui_update_manifest" added_in_milestone="153" type="partial" second_id="iwa_update_manifest_fetcher" content_hash_code="03008323" os_list="linux,windows,chromeos" semantics_fields="1,2,3,6" policy_fields="3,5" file_path="chrome/browser/ui/webui/iwa_dev/iwa_dev_page_handler.cc" />
+  <item id="notebooks_service_create_notebook" added_in_milestone="152" content_hash_code="00b284b0" os_list="windows,android,chromeos,linux" file_path="components/notebooks/internal/notebooks_traffic_annotations.cc" />
 diff --git a/ui/base/ui_base_features.cc b/ui/base/ui_base_features.cc
 index 34c3d92e..691ac33 100644
 --- a/ui/base/ui_base_features.cc
@@ -4464,6 +5262,166 @@ index 9355020..9ea38c6 100644
      DrawListBase::reset(loadOp, color);
  
      fStorage.reset();
+diff --git a/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.test.ts b/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.test.ts
+index a7a1c96..56abb40 100644
+--- a/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.test.ts
++++ b/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.test.ts
+@@ -5692,8 +5692,14 @@
+         const depth1Node = rootNode.children()![0];
+         assert.isNull(findTreeElement(domTree, domModel.nodeForId(3 as Protocol.DOM.NodeId)!));
+ 
++        // The tree outline dispatches an `expand` event for every node rendered
++        // with the `open` attribute. These events must not trigger a re-render
++        // per node, which is quadratic in the size of the expanded subtree.
++        const performUpdateSpy = sinon.spy(domTree, 'performUpdate');
+         await domTree.expandRecursively(depth1Node);
+         await waitForTreeUpdates();
++        sinon.assert.callCount(performUpdateSpy, 1);
++        performUpdateSpy.restore();
+ 
+         let currentNode = depth1Node;
+         let currentTreeElement = requireTreeElement(domTree, depth1Node);
+@@ -6081,6 +6087,40 @@
+       }
+     });
+ 
++    it('adds the shadow-root class only to #shadow-root rows for the nesting guide line', async () => {
++      const {domTree, domModel} = setupDOMTreeWidget(target);
++      try {
++        domTree.omitRootDOMNode = true;
++        const shadowPayload = makeNodePayload(3, '#shadow-root', {
++          parentId: 2 as Protocol.DOM.NodeId,
++          nodeType: Node.DOCUMENT_FRAGMENT_NODE,
++          shadowRootType: Protocol.DOM.ShadowRootType.Open,
++          children:
++              [makeNodePayload(4, 'DIV', {parentId: 3 as Protocol.DOM.NodeId, attributes: ['id', 'shadow-child']})],
++        });
++        const hostPayload =
++            makeNodePayload(2, 'DIV', {parentId: 1 as Protocol.DOM.NodeId, shadowRoots: [shadowPayload]});
++        const rootNode = SDK.DOMModel.DOMNode.create(domModel, null, false, makeDocumentPayload(1, [hostPayload]));
++        domTree.rootDOMNode = rootNode;
++        domTree.performUpdate();
++        await waitForTreeUpdates();
++
++        const hostNode = domModel.nodeForId(2 as Protocol.DOM.NodeId)!;
++        const shadowRootNode = domModel.nodeForId(3 as Protocol.DOM.NodeId)!;
++        const hostTreeElement = await expandAndFind(domTree, hostNode);
++        const shadowRootTreeElement = await expandAndFind(domTree, shadowRootNode);
++
++        assert.isFalse(hostTreeElement.listItemElement.classList.contains('shadow-root'));
++        assert.isTrue(shadowRootTreeElement.listItemElement.classList.contains('shadow-root'));
++        const childrenList = shadowRootTreeElement.listItemElement.nextElementSibling;
++        assert.instanceOf(childrenList, HTMLOListElement);
++        assert.isTrue(childrenList.classList.contains('children'));
++        assert.isTrue(childrenList.matches('li.shadow-root + ol.children'));
++      } finally {
++        domTree.detach();
++      }
++    });
++
+     it('renders shadow host with <slot> and distributed nodes in tree children', async () => {
+       const {domTree, domModel} = setupDOMTreeWidget(target);
+       try {
+@@ -6873,4 +6913,34 @@
+       domTree.detach();
+     }
+   });
++
++  it('fires onElementExpanded when expanding nodes recursively', async () => {
++    const {domTree, domModel} = setupDOMTreeWidget(target);
++    try {
++      const rootNode = createTestDOMTree(domModel, {
++        nodeId: 1,
++        nodeName: 'DIV',
++        children: [
++          {
++            nodeId: 2,
++            nodeName: 'SECTION',
++            children: [
++              {nodeId: 3, nodeName: 'SPAN'},
++            ],
++          },
++        ],
++      });
++      domTree.rootDOMNode = rootNode;
++      domTree.performUpdate();
++      await waitForTreeUpdates();
++
++      const onElementExpanded = sinon.spy(domTree, 'onElementExpanded');
++      await domTree.expandRecursively(rootNode);
++      await waitForTreeUpdates();
++
++      sinon.assert.called(onElementExpanded);
++    } finally {
++      domTree.detach();
++    }
++  });
+ });
+diff --git a/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.ts b/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.ts
+index 98bf8fc..3a5f78b 100644
+--- a/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.ts
++++ b/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.ts
+@@ -672,6 +672,8 @@
+       'in-clipboard': input.isNodeInClipboard(node),
+       'elements-drag-over': isDragOver,
+       'always-parent': !isCollapsible && !isEditingAsHTML,
++      // Draws the vertical guide line next to the shadow root children.
++      'shadow-root': node.isShadowRoot(),
+     });
+ 
+     // The opening and the closing tag are separate rows that report the
+@@ -1544,6 +1546,15 @@
+       return;
+     }
+     if (expanded) {
++      // The tree outline dispatches an `expand` event for every node that is
++      // rendered with the `open` attribute. After `expandRecursively()`, this
++      // happens once per node in the subtree. Each event would otherwise
++      // trigger a synchronous re-render of the whole tree, which is quadratic
++      // in the number of expanded nodes. Skip the work when the node is
++      // already expanded and its children are loaded.
++      if (this.#expandedNodes.has(node) && node.children()) {
++        return;
++      }
+       this.#expandedNodes.add(node);
+       // Children that are not collapsible (e.g. the document element) render
+       // without an expand arrow, so their children must be fetched eagerly.
+@@ -1622,6 +1633,7 @@
+     };
+     await expand(node, 0);
+     this.performUpdate();
++    this.onElementExpanded();
+   }
+ 
+   collapseChildren(node: SDK.DOMModel.DOMNode): void {
+diff --git a/third_party/devtools-frontend/src/front_end/panels/elements/domTreeWidget.css b/third_party/devtools-frontend/src/front_end/panels/elements/domTreeWidget.css
+index 619de02..69812b7 100644
+--- a/third_party/devtools-frontend/src/front_end/panels/elements/domTreeWidget.css
++++ b/third_party/devtools-frontend/src/front_end/panels/elements/domTreeWidget.css
+@@ -181,6 +181,7 @@
+ /** Guide line */
+ 
+ li.hovered:not(.always-parent) + ol.children,
++li.shadow-root + ol.children,
+ li.selected:not(.always-parent) + ol.children {
+   background: linear-gradient(to right, var(--override-indentation-level-border-color), var(--override-indentation-level-border-color) 0.5px, transparent 0);
+   background-position-x: 5px;
+@@ -192,10 +193,14 @@
+   --override-indentation-level-border-color: var(--sys-color-divider) !important; /* stylelint-disable-line declaration-no-important */
+ }
+ 
+-li.hovered:not(.always-parent) + ol.children {
++li.hovered:not(.always-parent, .shadow-root) + ol.children {
+   --override-indentation-level-border-color: color-mix(in srgb, var(--ref-palette-neutral0) 10%, transparent);
+ }
+ 
++li.shadow-root + ol.children {
++  --override-indentation-level-border-color: var(--ref-palette-orange95);
++}
++
+ @media (forced-colors: active) {
+   .elements-disclosure li.parent::before {
+     forced-color-adjust: none;
 diff --git a/third_party/devtools-frontend/src/front_end/panels/whats_new/ReleaseNoteText.ts b/third_party/devtools-frontend/src/front_end/panels/whats_new/ReleaseNoteText.ts
 index b07261b..e7b2c2c 100644
 --- a/third_party/devtools-frontend/src/front_end/panels/whats_new/ReleaseNoteText.ts
