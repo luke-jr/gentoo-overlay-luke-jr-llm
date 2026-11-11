@@ -1,8 +1,8 @@
 Chromium 158.0.8127.33 + the later changes of its release branch, up to
-14d6f648e8cd7ad750a4044200ce94d3321be260 (refs/branch-heads/8127@{#1691}), for the
+04148613a268aa603c6ba8edd1eeedec40c0b239 (refs/branch-heads/8127@{#1697}), for the
 158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..14d6f648e8cd7ad750a4044200ce94d3321be260,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..04148613a268aa603c6ba8edd1eeedec40c0b239,
 and from the branch's rolls of v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..b601a2347f005e8bfadd32f285df97ffba5cf1bd (under v8/),
 devtools/devtools-frontend 8deaa243ad5f7abd50b6c0e17a740d0f00fc068f..047c90eca37c7170d826d72245d5df9281989cf3 (under third_party/devtools-frontend/src/),
 skia/skia 361c8326695a06b7492fb6eeeff803c0c92a2447..3279352fdf1fbbd01a6dd024a52d3f178a6d5f07 (under third_party/skia/),
@@ -82,6 +82,7 @@ Commits contributing to it (oldest first):
   43092666e699 [158] Revert "media/gpu/v4l2: Handle source change before dequeuing frames in WaitOnceForEvents()"
   0d34034fdd42 [M158] Settings: Remove use of cache() in settings-main
   14d6f648e8cd [M158] Prevent out-of-bounds marker reads during highlight painting
+  04148613a268 [M158] [PDF] Reject re-entrancy in PDFiumPage::Unload()
     v8 77192c003a77 [M158] [objects] Disallow JSObject modifications during GC and GC callbacks
     v8 e8f914b08b81 Version 15.8.62.27
     v8 c0b2c2f3ade9 [M158] [compiler] Mark string-keyed ordered hash lookups as writing
@@ -6633,6 +6634,66 @@ index 15841a5..5ad8f3c 100644
    }
    connection->set_keep_alive_ping_timeout(keep_alive_timeout);
  
+diff --git a/pdf/pdfium/pdfium_page.cc b/pdf/pdfium/pdfium_page.cc
+index ee268b9c..11c07a5 100644
+--- a/pdf/pdfium/pdfium_page.cc
++++ b/pdf/pdfium/pdfium_page.cc
+@@ -14,6 +14,7 @@
+ #include <utility>
+ #include <vector>
+ 
++#include "base/auto_reset.h"
+ #include "base/check_op.h"
+ #include "base/containers/extend.h"
+ #include "base/containers/span.h"
+@@ -615,6 +616,15 @@
+     return false;
+   }
+ 
++  // Also do not unload when already unloading.
++  if (is_unloading_) {
++    return false;
++  }
++
++  base::AutoReset scoped_is_unloading(&is_unloading_, true);
++  // Also mark `this` as unavailable for the duration of Unload().
++  base::AutoReset scoped_unavailable(&available_, false);
++
+   text_page_.reset();
+ 
+   if (page_) {
+@@ -2341,6 +2351,10 @@
+ }
+ 
+ void PDFiumPage::MarkAvailable() {
++  if (is_unloading_) {
++    return;
++  }
++
+   available_ = true;
+ 
+   // Fulfill pending thumbnail request.
+diff --git a/pdf/pdfium/pdfium_page.h b/pdf/pdfium/pdfium_page.h
+index 6322165..66453a9 100644
+--- a/pdf/pdfium/pdfium_page.h
++++ b/pdf/pdfium/pdfium_page.h
+@@ -475,7 +475,7 @@
+   void GenerateAndSendThumbnail(float device_pixel_ratio,
+                                 SendThumbnailCallback send_callback);
+ 
+-  raw_ptr<PDFiumEngine> engine_;
++  raw_ptr<PDFiumEngine> const engine_;
+   ScopedFPDFPage page_;
+   ScopedFPDFTextPage text_page_;
+   uint32_t index_;
+@@ -508,6 +508,7 @@
+   std::set<int> page_object_text_run_breaks_;
+   base::OnceClosure thumbnail_callback_;
+   bool available_ = false;
++  bool is_unloading_ = false;
+ 
+ #if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
+   // Indicates whether Searchify added text to this page or not. Note that if
 diff --git a/remoting/base/crash/breakpad_server.cc b/remoting/base/crash/breakpad_server.cc
 index 6c1ef81..0f9ebe2 100644
 --- a/remoting/base/crash/breakpad_server.cc
