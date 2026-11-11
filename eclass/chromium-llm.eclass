@@ -1128,6 +1128,32 @@ chromium-llm_src_prepare() {
 
 	default
 
+	# v8.h without V8's version macros (chromium-158-v8-h-without-version.patch): code that
+	# used them through v8.h no longer compiles, but an #if on them would silently see 0. So every
+	# C/C++ file that names one (also put together at its underscores, pasted or as a macro's
+	# arguments) must include v8-version.h or v8-version-string.h itself.
+	if ! grep -q '^#include "v8-version.h"' v8/include/v8.h; then
+		einfo "Checking that V8's version macros are only used with v8-version.h ..."
+		local v8_ver_re= v8_ver_name v8_ver_part v8_ver_alt f v8_ver_bad=()
+		for v8_ver_name in MAJOR_VERSION MINOR_VERSION BUILD_NUMBER PATCH_LEVEL IS_CANDIDATE_VERSION; do
+			v8_ver_alt=V8
+			for v8_ver_part in ${v8_ver_name//_/ }; do
+				v8_ver_alt+="(_|_?[[:space:]]*(##|,)[[:space:]]*_?)${v8_ver_part}"
+			done
+			v8_ver_re+="${v8_ver_re:+|}${v8_ver_alt}"
+		done
+		grep -rlZE --include='*.'{h,hh,hpp,hxx,inc,inl,def,c,cc,cpp,cxx,m,mm} -- "${v8_ver_re}" . \
+			> "${T}/v8-version-users" || [[ $? == 1 ]] || die "Failed to search for V8's version macros"
+		while IFS= read -r -d '' f; do
+			f=${f#./}
+			[[ ${f} == v8/include/v8-version.h ]] && continue
+			grep -qE '^[[:space:]]*#[[:space:]]*include[[:space:]]*["<]([^">]*/)?v8-version(-string)?\.h[">]' \
+				"${f}" || v8_ver_bad+=( "${f}" )
+		done < "${T}/v8-version-users"
+		[[ ${#v8_ver_bad[@]} == 0 ]] ||
+			die "V8's version macros without v8-version.h (see chromium-158-v8-h-without-version.patch): ${v8_ver_bad[*]}"
+	fi
+
 	# third_party/.clang-format-ignore ("**") makes clang-format silently skip every file under
 	# third_party (no output, success), so the generators below that format their output with it
 	# would leave it unformatted. It's only for Chromium's own presubmit tooling, and the unbundling

@@ -212,6 +212,9 @@ CHROMIUM_PATCHES=(
 	chromium-156-icu-rbbicst-header.patch
 	# abseil's BUILD.gn converter without gn features 158's gn lacks (see the patch).
 	chromium-158-abseil-gn-no-strict-includes.patch
+	# v8.h without V8's version macros: a new V8 patch level rebuilds only what uses them (see
+	# the patch, and the eclass's src_prepare).
+	chromium-158-v8-h-without-version.patch
 )
 
 # Copium's patches (with the system toolchain).

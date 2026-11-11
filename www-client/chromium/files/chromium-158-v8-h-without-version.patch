@@ -1,0 +1,22 @@
+v8.h without V8's version macros (v8-version.h), so that a new V8 patch
+level (each roll on a release branch) rebuilds what uses the version, not
+the ~6700 objects that include v8.h (most of Blink).
+
+Nothing in Chromium uses the macros through v8.h: V8's version.cc and
+v8-version-string.h (with which Chromium's version and About pages,
+DevTools and tracing show it) include v8-version.h themselves. Code that
+used them through v8.h would no longer compile; an #if on them would
+silently see 0, which is what the eclass's src_prepare checks for (every
+C/C++ file that names one of them includes v8-version.h or
+v8-version-string.h itself, or the build stops).
+
+--- a/v8/include/v8.h
++++ b/v8/include/v8.h
+@@ -58,7 +58,6 @@
+ #include "v8-unwinder.h"           // NOLINT(build/include_directory)
+ #include "v8-value-serializer.h"   // NOLINT(build/include_directory)
+ #include "v8-value.h"              // NOLINT(build/include_directory)
+-#include "v8-version.h"            // NOLINT(build/include_directory)
+ #include "v8-wasm.h"               // NOLINT(build/include_directory)
+ #include "v8config.h"              // NOLINT(build/include_directory)
+ 
