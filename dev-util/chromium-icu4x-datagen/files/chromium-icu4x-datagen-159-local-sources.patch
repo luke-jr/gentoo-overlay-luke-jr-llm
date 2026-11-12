@@ -1,0 +1,75 @@
+Read the source data (CLDR's JSON, ICU's export data, Unicode's character data, the tzdb and
+the segmenter's LSTM models) from local copies named by environment variables, instead of
+downloading it (icu_provider_source without its networking feature); build without ICU4X's
+compiled data (the data comes from those sources only); and find Chromium's tree from the
+current directory, not from where the tool was built.
+
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -8,14 +8,14 @@
+ clap = { version = "4", features = ["derive"] }
+ env_logger = { version = "0.11", default-features = false, features = ["color"] }
+ # Keep ICU4X crate versions in sync with //third_party/rust/chromium_crates_io/Cargo.toml.
+-icu = { version = "=2.4.0", features = ["datagen", "unstable"] }
+-icu_experimental = { version = "=0.7.0", features = ["datagen"] }
++icu = { version = "=2.4.0", default-features = false, features = ["datagen", "unstable"] }
++icu_experimental = { version = "=0.7.0", default-features = false, features = ["datagen"] }
+ icu_locale_core = "=2.4.0"
+-icu_locale_fallback = "=2.4.0"
++icu_locale_fallback = { version = "=2.4.0", default-features = false }
+ icu_provider = { version = "=2.4.0", features = ["export", "sync"] }
+ icu_provider_export = { version = "=2.4.0", features = ["baked_exporter", "fs_exporter", "rayon"] }
+ icu_provider_registry = "=2.4.0"
+-icu_provider_source = { version = "=2.4.0", features = ["networking", "use_wasm", "unstable"] }
++icu_provider_source = { version = "=2.4.0", default-features = false, features = ["unstable"] }
+ log = { version = "0.4", features = ["std"] }
+ serde = { version = "1", features = ["derive"] }
+ serde_json = "1"
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -77,12 +77,22 @@
+ 
+ impl SourceTags {
+     pub(crate) fn source_data_provider(&self) -> SourceDataProvider {
++        // Local copies of the sources the tags name, instead of downloads: a
++        // directory or ZIP file each, from the environment.
++        let source = |var: &str| -> PathBuf {
++            std::env::var_os(var).unwrap_or_else(|| panic!("{var} is not set")).into()
++        };
+         SourceDataProvider::new_custom()
+-            .with_cldr_for_tag(&self.cldr_tag)
+-            .with_icuexport_for_tag(&self.icuexport_tag)
+-            .with_unicode_rscd_for_tag(&self.unicode_tag)
+-            .with_tzdb_for_tag(&self.tzdb_tag)
+-            .with_segmenter_lstm_for_tag(&self.segmenter_lstm_tag)
++            .with_cldr(&source("ICU4X_CLDR_DIR"))
++            .expect("ICU4X_CLDR_DIR")
++            .with_icuexport(&source("ICU4X_ICUEXPORT_DIR"))
++            .expect("ICU4X_ICUEXPORT_DIR")
++            .with_unicode_rscd(&source("ICU4X_UNICODE_DIR"))
++            .expect("ICU4X_UNICODE_DIR")
++            .with_tzdb(&source("ICU4X_TZDB_DIR"))
++            .expect("ICU4X_TZDB_DIR")
++            .with_segmenter_lstm(&source("ICU4X_SEGMENTER_LSTM_DIR"))
++            .expect("ICU4X_SEGMENTER_LSTM_DIR")
+     }
+ }
+ 
+@@ -681,14 +691,9 @@
+ }
+ 
+ pub(crate) fn chromium_src_root() -> PathBuf {
+-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+-        .parent()
+-        .unwrap()
+-        .parent()
+-        .unwrap()
+-        .parent()
+-        .unwrap()
+-        .to_path_buf()
++    // The current directory (`generate` runs there anyway), not the one the tool
++    // was built in.
++    std::env::current_dir().expect("Failed to get the current directory")
+ }
+ 
+ #[cfg(test)]
