@@ -138,7 +138,7 @@ LICENSE+=" Apache-2.0 MIT Unicode-3.0 || ( MIT Unlicense )"
 SLOT="${PV}"
 # The dev-lang/rust slot this is built against.
 CRUBIT_RUST_SLOT="$(ver_cut 1-3)"
-KEYWORDS="~amd64 ~arm64"
+KEYWORDS="amd64 ~arm64"
 # Crubit's tests need googletest + Bazel-only fixtures; Chromium doesn't run them either.
 RESTRICT="test"
 

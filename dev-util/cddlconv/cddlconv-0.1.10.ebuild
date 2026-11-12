@@ -196,7 +196,7 @@ LICENSE="Apache-2.0"
 LICENSE+=" Apache-2.0-with-LLVM-exceptions Boost-1.0 CC0-1.0 MIT Unicode-3.0 Unlicense"
 # One slot per version (the output differs between versions): bin/cddlconv-<version>.
 SLOT="${PV}"
-KEYWORDS="~amd64 ~arm64"
+KEYWORDS="amd64 ~arm64"
 
 src_compile() {
 	cargo_src_compile --bin "${PN}"

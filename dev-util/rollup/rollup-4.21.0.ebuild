@@ -256,7 +256,7 @@ LICENSE+=" ISC"
 # Dependent crate licenses
 LICENSE+=" Apache-2.0 BSD BSD-2 Boost-1.0 MPL-2.0 Unicode-DFS-2016"
 SLOT="${PV}"
-KEYWORDS="~amd64 ~arm64"
+KEYWORDS="amd64 ~arm64"
 IUSE="test"
 RESTRICT="!test? ( test )"
 

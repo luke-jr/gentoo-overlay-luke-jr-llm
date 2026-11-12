@@ -50,7 +50,7 @@ S="${WORKDIR}/TypeScript-${PV}"
 
 LICENSE="Apache-2.0"
 SLOT="${PV}"
-KEYWORDS="~amd64 ~arm64"
+KEYWORDS="amd64 ~arm64"
 IUSE="test"
 RESTRICT="!test? ( test )"
 

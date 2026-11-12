@@ -12,7 +12,9 @@ was added with (and 156 updated from .12 to .47).
   the browser reports. `KEYWORDS` say how far along the version is:
   - Stable for Linux: `SLOT="stable"`, `KEYWORDS="amd64 ~arm64"`: the official release as a
     plain ebuild, and the bleeding-edge `_p<N>` (below) of the same major if it is also the newest
-    stable branch;
+    stable branch. The overlay packages it builds with, at the versions it uses, get `amd64` too
+    (check with `ACCEPT_KEYWORDS=amd64 emerge -pe --with-bdeps=y =www-client/chromium-<version>`
+    and no `package.accept_keywords`);
   - Google's "Early Stable" (Windows and Mac first, to some users): `SLOT="stable"`,
     `KEYWORDS="~amd64 ~arm64"`. When Google releases it for Linux Stable, it gets `amd64`; no new
     slot, so installed copies keep their profile;
@@ -22,6 +24,9 @@ was added with (and 156 updated from .12 to .47).
     Google's Early Stable (e.g. 158.0.8127.18), there is one plain ebuild, as Early Stable
     (`SLOT="stable"`), and no Beta one until the Linux Beta moves to another version.
   `arm64` stays `~arm64`: nobody has built or run it.
+- **Vulnerable releases:** an official release kept as a plain ebuild that lacks security fixes a
+  newer Google release has (e.g. Early Stable after a Stable update of the previous major) is
+  masked in `profiles/package.mask`, with the CVEs in the comment, until it is replaced.
 - **Source:** Google's official "lite" tarball,
   `https://commondatastorage.googleapis.com/chromium-browser-official/chromium-<version>-lite.tar.xz`;
   check it against the `.hashes` file next to it. For a version without a tarball yet, or for fixes

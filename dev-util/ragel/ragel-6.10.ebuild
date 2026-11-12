@@ -16,7 +16,7 @@ LICENSE="GPL-2"
 # Chromium depends on =dev-util/ragel-6.10*, and emerge -uD installs a higher version here next to
 # an installed ::gentoo 6.10.
 SLOT="6"
-KEYWORDS="~amd64 ~arm64"
+KEYWORDS="amd64 ~arm64"
 
 # We need to get the txl language in Portage to have the tests :(
 RESTRICT="test"

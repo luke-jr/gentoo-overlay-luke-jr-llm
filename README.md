@@ -59,7 +59,7 @@ What the packages here follow, beyond Gentoo's own policies:
 | Package | Why |
 |---|---|
 | `www-client/chromium-157.0.8103.78` | the browser: 157.0.8103.78, Google's Linux **Stable** release of 157, from its official "lite" tarball, with no fixes beyond the release. `SLOT="stable"`, `amd64`. |
-| `www-client/chromium-158.0.8127.18` | the browser: 158.0.8127.18, Google's **Early Stable** release of 158 (Windows and Mac first; on Linux it is the Beta, which therefore has no ebuild of its own), from its official "lite" tarball, with no fixes beyond the release: `SLOT="stable"`, `~amd64`. |
+| `www-client/chromium-158.0.8127.18` | the browser: 158.0.8127.18, Google's **Early Stable** release of 158 (Windows and Mac first; on Linux it is the Beta, which therefore has no ebuild of its own), from its official "lite" tarball, with no fixes beyond the release: `SLOT="stable"`, `~amd64`. Masked (`profiles/package.mask`) since Google's Stable 157.0.8103.78 fixed 61 vulnerabilities that came to the 158 branch after it, until Google's Stable 158 replaces it. |
 | `www-client/chromium-158.0.8127.33_p1699_pre` | the browser: 158.0.8127.33, the newest tag of the 158 branch, plus the branch up to 8127@{#1699} (`_p1699`); no source tarball (`_pre`): built from Google's official "lite" tarball of 158.0.8127.18 plus `files/chromium-158.0.8127.18-to-158.0.8127.33.patch` and `files/chromium-158.0.8127.33-branch-fixes.patch` (see their headers). 158 is Google's Early Stable (since 158.0.8127.18), so `SLOT="stable"`, `~amd64`: this is the bleeding-edge build of it. |
 | `www-client/chromium-common-2` | the launcher script and `/etc/chromium/default` that every `www-client/chromium` slot uses, as `::gentoo` had it before removing it with its Chromium (2026-11-05). |
 | `dev-util/ragel-6.10:6` | Ragel 6 in slot 6, installed as `ragel-6`, for systems that keep `::gentoo`'s Ragel 7 (`::gentoo` has 6 and 7 both in slot 0). Chromium's ebuild regenerates HarfBuzz's state machines with Ragel 6 (HarfBuzz requires 6.10), and depends on `=dev-util/ragel-6.10*`, which either satisfies: `::gentoo`'s `dev-util/ragel-6.10` when that is installed, otherwise this slot (Portage installs it next to a Ragel 7, and prefers it on a system with no Ragel, as the overlay's repository priority is higher). |
@@ -75,10 +75,12 @@ What the packages here follow, beyond Gentoo's own policies:
 | `dev-util/cddlconv` (slots `0.1.10`, `0.2.0`) | The CDDL-to-TypeScript/Zod converter from the WebDriver BiDi tooling, built from source, one slot per version: chromium-bidi's protocol types (157, 158: 0.2.0) and the `webdriver-bidi-protocol` types in `chromium-node-modules` (157, 158: 0.1.10) are each regenerated with the version that made them. |
 
 All are **build-time only** (`BDEPEND`) for Chromium. `USE=ffmpeg-chromium` needs
-`media-video/ffmpeg-chromium:<major>`, which nothing provides for 157 or 158 yet.
+`::gentoo`'s `media-video/ffmpeg-chromium:<major>` (157 and 158 since 2026-11-11; not tested with
+this overlay's builds).
 
-Everything is keyworded `~amd64 ~arm64`, except the Chromium version Google releases as Stable for
-Linux, which is `amd64` (see `doc/chromium-maintenance.md`). Only amd64 has been built and tested.
+The Chromium version Google releases as Stable for Linux is keyworded `amd64`, and so are the versions
+of the packages above that it builds with; everything else is `~amd64` (see
+`doc/chromium-maintenance.md`). arm64 is `~arm64` throughout: only amd64 has been built and tested.
 
 `eclass/chromium-llm.eclass` is the Chromium build, shared by the `www-client/chromium` ebuilds;
 each ebuild has only what is particular to its version: upstream's pins, its patch lists and the
@@ -93,7 +95,7 @@ anything does build it. `scripts/cargo-unused-crates.py` lists the candidates fr
 ## Documentation
 
 - `doc/chromium.md`: the Chromium ebuilds: build machine setup, changes from `::gentoo`, the 157
-  differences, known issues.
+  and 158 differences, known issues.
 - `doc/chromium-generated-files.md`: what is regenerated, rebuilt from source, or used as is.
 - `doc/chromium-maintenance.md`: adding a new Chromium version, and checking it.
 - `doc/chromium-runtime-downloads.md`: what Chromium downloads at runtime, and what the ebuild blocks.
