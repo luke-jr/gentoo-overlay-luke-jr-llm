@@ -1,14 +1,14 @@
 Chromium 158.0.8127.33 + the later changes of its release branch, up to
-98d4cd1cf73f702547c8d158ca1385d9c0c6ea6a (refs/branch-heads/8127@{#1713}), for the
+76332a1f0df6a8afbe4dcb9d4675e2b116893422 (refs/branch-heads/8127@{#1715}), for the
 158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..98d4cd1cf73f702547c8d158ca1385d9c0c6ea6a,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..76332a1f0df6a8afbe4dcb9d4675e2b116893422,
 and from the branch's rolls of v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..c7596de0838cb17a421524051cd891fc783a2d46 (under v8/),
 devtools/devtools-frontend 8deaa243ad5f7abd50b6c0e17a740d0f00fc068f..047c90eca37c7170d826d72245d5df9281989cf3 (under third_party/devtools-frontend/src/),
 skia/skia 361c8326695a06b7492fb6eeeff803c0c92a2447..2d58f195f426c41bd856208ddb85ea8f93c88295 (under third_party/skia/),
 catapult 74678266b79e0ee388f1021bea36388c854b4a00..4a6f0659c26fc478756e83f0d007b91ca5f6d36f (under third_party/catapult/),
 pdfium 43d55e429cf72c21e9a1e60475b50feefa16fda9..b23fee3ac22360878efaa8aa533dac892fe777ab (under third_party/pdfium/) and
-angle/angle 1f6526a566c27c7c33aa73a78517450a4a2a1714..a8f10e3404d687adae6d626aea9ae57ba3da9914 (under third_party/angle/),
+angle/angle 1f6526a566c27c7c33aa73a78517450a4a2a1714..8cb502b922025432c974e18fef13b073c81b6b4c (under third_party/angle/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .33 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -96,6 +96,8 @@ Commits contributing to it (oldest first):
   c1bba38653c6 Roll commits from side projects in M158
   ea976b15a407 [M158] [DCSI] Implement SupportsAccess for WrappedSkImageBacking
   98d4cd1cf73f Roll commits from side projects in M158
+  7abb77bab5e9 [M158] [FedCM] Return early in UpdateTaskId() if the view destroys it
+  76332a1f0df6 Roll commits from side projects in M158
     v8 77192c003a77 [M158] [objects] Disallow JSObject modifications during GC and GC callbacks
     v8 e8f914b08b81 Version 15.8.62.27
     v8 c0b2c2f3ade9 [M158] [compiler] Mark string-keyed ordered hash lookups as writing
@@ -128,6 +130,8 @@ Commits contributing to it (oldest first):
     angle a965a2272e33 [M158] GL: Recreate 3D texture on depth increase from zero-extent level
     angle 7a33c47c44e7 [M158] GL: Pause transform feedback before forcing program binding
     angle a8f10e3404d6 [M158] Vulkan: Keep LoadOp as Load if resolve attachment is present
+    angle 5d2c09b3e395 [M158] Spirv: Use replacement Input varying for interpolate* built-in
+    angle 8cb502b92202 [M158] Vulkan: Refresh read imgviews on tex param change
 
 Checked: applies to the 158.0.8127.33 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -3419,6 +3423,25 @@ index 05c204e..62115db9 100644
    // This method calculates whether the dialog should be visible. This method
    // always updates the dialog position if the dialog should be visible. If the
    // dialog should be visible, and it is not, this method makes the dialog
+diff --git a/chrome/browser/ui/webid/identity_dialog_controller.cc b/chrome/browser/ui/webid/identity_dialog_controller.cc
+index 6226da0..a1bc776 100644
+--- a/chrome/browser/ui/webid/identity_dialog_controller.cc
++++ b/chrome/browser/ui/webid/identity_dialog_controller.cc
+@@ -132,7 +132,14 @@
+ void IdentityDialogController::UpdateTaskId(actor::TaskId task_id) {
+   acting_task_id_ = task_id;
+   if (account_view_) {
++    // Showing the UI again may dismiss it synchronously, which may destroy
++    // this object.
++    base::WeakPtr<IdentityDialogController> weak_this =
++        weak_ptr_factory_.GetWeakPtr();
+     account_view_->SetCanShowUi(acting_task_id_.is_null());
++    if (!weak_this) {
++      return;
++    }
+     if (acting_task_id_.is_null() && did_invoke_show_ui_) {
+       did_show_ui_ = true;
+     }
 diff --git a/chrome/browser/ui/webui/browser_command/BUILD.gn b/chrome/browser/ui/webui/browser_command/BUILD.gn
 index b35c994..be67e6f 100644
 --- a/chrome/browser/ui/webui/browser_command/BUILD.gn
@@ -9701,11 +9724,335 @@ index f723662..95364ae 100644
  
    private:
      const FunctionsGL *mFunctions;
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/FramebufferVk.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/FramebufferVk.cpp
+index 6af6a6d..0fa8ce3 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/FramebufferVk.cpp
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/FramebufferVk.cpp
+@@ -2068,7 +2068,7 @@
+                                                       foveatedAttachmentSize));
+         ASSERT(mFragmentShadingRateImage.valid());
+ 
+-        serial = mFragmentShadingRateImageView.getSubresourceSerial(
++        serial = mFragmentShadingRateImageView.getSubresourceWriteSerial(
+             gl::OwnerLevel(0), 1, gl::OwnerLayer(0), vk::LayerMode::All);
+     }
+ 
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/RenderTargetVk.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/RenderTargetVk.cpp
+index 89a1fac..76f0246 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/RenderTargetVk.cpp
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/RenderTargetVk.cpp
+@@ -88,7 +88,7 @@
+ 
+     vk::LayerMode layerMode = vk::GetLayerMode(*mImage, mLayerCount);
+     vk::ImageOrBufferViewSubresourceSerial imageViewSerial =
+-        imageViews->getSubresourceSerial(mLevelIndexGL, 1, mLayerIndex, layerMode);
++        imageViews->getSubresourceWriteSerial(mLevelIndexGL, 1, mLayerIndex, layerMode);
+     return imageViewSerial;
+ }
+ 
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.cpp
+index da61638..0e806e2 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.cpp
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.cpp
+@@ -4049,7 +4049,7 @@
+     localBits.reset(gl::Texture::DIRTY_BIT_BASE_LEVEL);
+     localBits.reset(gl::Texture::DIRTY_BIT_MAX_LEVEL);
+ 
+-    bool refreshAllImageViews = false;
++    bool refreshAllReadImageViews = false;
+ 
+     // For AHBs, the ImageViews are created with VkSamplerYcbcrConversionInfo's chromaFilter
+     // matching min/magFilters as part of the eglEGLImageTargetTexture2DOES() call. However, the
+@@ -4065,7 +4065,7 @@
+         if (mImage->updateChromaFilter(renderer, chromaFilter))
+         {
+             resetSampler();
+-            refreshAllImageViews = true;
++            refreshAllReadImageViews = true;
+         }
+     }
+ 
+@@ -4075,7 +4075,7 @@
+         localBits.test(gl::Texture::DIRTY_BIT_SWIZZLE_ALPHA) ||
+         localBits.test(gl::Texture::DIRTY_BIT_ASTC_DECODE_PRECISION))
+     {
+-        refreshAllImageViews = true;
++        refreshAllReadImageViews = true;
+     }
+ 
+     if (localBits.test(gl::Texture::DIRTY_BIT_SRGB_OVERRIDE) ||
+@@ -4099,9 +4099,9 @@
+                                          : ImageMipLevels::EnabledLevels;
+     ANGLE_TRY(ensureImageInitialized(contextVk, mipLevels));
+     // If needed, drop the read image views.  In either case, ensure read image views are created.
+-    if (refreshAllImageViews)
++    if (refreshAllReadImageViews)
+     {
+-        ANGLE_TRY(refreshImageViews(contextVk));
++        ANGLE_TRY(refreshReadImageViews(contextVk));
+     }
+     else
+     {
+@@ -4948,8 +4948,8 @@
+     // getMipmapMaxLevel will clamp to the max level if it is smaller than the number of mips.
+     uint32_t levelCount = maxLevel - baseLevel + 1;
+ 
+-    return mImageView.getSubresourceSerialForColorspace(baseLevel, levelCount, gl::OwnerLayer(0),
+-                                                        vk::LayerMode::All, colorspace);
++    return mImageView.getSubresourceReadSerialForColorspace(
++        baseLevel, levelCount, gl::OwnerLayer(0), vk::LayerMode::All, colorspace);
+ }
+ 
+ vk::ImageOrBufferViewSubresourceSerial TextureVk::getBufferViewSerial() const
+@@ -4967,7 +4967,7 @@
+     const gl::OwnerLevel baseLevel =
+         mState.toOwnerLevel(gl::LevelIndex(static_cast<uint32_t>(binding.level)));
+ 
+-    return mImageView.getSubresourceSerial(baseLevel, 1, nativeLayer, layerMode);
++    return mImageView.getSubresourceWriteSerial(baseLevel, 1, nativeLayer, layerMode);
+ }
+ 
+ uint32_t TextureVk::getImageViewLayerCount() const
+@@ -4988,7 +4988,7 @@
+                : 1;
+ }
+ 
+-angle::Result TextureVk::refreshImageViews(ContextVk *contextVk)
++angle::Result TextureVk::refreshReadImageViews(ContextVk *contextVk)
+ {
+     if (mImage == nullptr)
+     {
+@@ -4997,34 +4997,14 @@
+     else
+     {
+         vk::Renderer *renderer = contextVk->getRenderer();
+-        mImageView.release(renderer, mImage->getResourceUse());
++        mImageView.releaseReadImageViews(renderer, mImage->getResourceUse());
+ 
+         // Since view has changed, some descriptorSet cache maybe obsolete. So proactively release
+         // cache.
+         mDescriptorSetCacheManager.releaseKeys(renderer);
+-
+-        for (auto &renderTargets : mSingleLayerRenderTargets)
+-        {
+-            for (RenderTargetVector &renderTargetLevels : renderTargets)
+-            {
+-                for (RenderTargetVk &renderTargetVk : renderTargetLevels)
+-                {
+-                    renderTargetVk.releaseFramebuffers(contextVk);
+-                }
+-            }
+-        }
+-        for (auto &renderTargetPair : mMultiLayerRenderTargets)
+-        {
+-            renderTargetPair.second->releaseFramebuffers(contextVk);
+-        }
+     }
+ 
+-    ANGLE_TRY(initReadImageViews(contextVk, getMipLevelCount(ImageMipLevels::EnabledLevels)));
+-
+-    // Let any Framebuffers know we need to refresh the RenderTarget cache.
+-    onStateChange(angle::SubjectMessage::SubjectChanged);
+-
+-    return angle::Result::Continue;
++    return initReadImageViews(contextVk, getMipLevelCount(ImageMipLevels::EnabledLevels));
+ }
+ 
+ angle::Result TextureVk::ensureRenderable(ContextVk *contextVk,
+@@ -5088,7 +5068,7 @@
+     if (imageWasInitialized)
+     {
+         ANGLE_TRY(ensureImageInitialized(contextVk, ImageMipLevels::EnabledLevels));
+-        ANGLE_TRY(refreshImageViews(contextVk));
++        ANGLE_TRY(refreshReadImageViews(contextVk));
+     }
+ 
+     if (updateResultOut != nullptr)
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.h b/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.h
+index 6fa1224..9e912a4 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.h
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.h
+@@ -602,7 +602,7 @@
+                                                     : VK_IMAGE_TILING_OPTIMAL;
+     }
+ 
+-    angle::Result refreshImageViews(ContextVk *contextVk);
++    angle::Result refreshReadImageViews(ContextVk *contextVk);
+     void initImageUsageFlags(ContextVk *contextVk,
+                              const angle::Format &intendedFormat,
+                              angle::FormatID actualFormatID);
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/spv_utils.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/spv_utils.cpp
+index aa1512b..6dd172c 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/spv_utils.cpp
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/spv_utils.cpp
+@@ -1569,6 +1569,14 @@
+                                           spv::StorageClass storageClass,
+                                           spirv::Blob *blobOut);
+ 
++    TransformationState transformExtInst(const uint32_t *instruction, spirv::Blob *blobOut);
++
++    void transformAccessChain(spirv::IdResultType typeId,
++                              spirv::IdResult id,
++                              spirv::IdRef baseId,
++                              const spirv::IdRefList &indexList,
++                              spirv::Blob *blobOut);
++
+     void modifyEntryPointInterfaceList(EntryPointList entryPointList,
+                                        spirv::IdRefList *interfaceList);
+     void addDecorate(spirv::IdRef replacedId, spirv::Blob *blobOut);
+@@ -1642,6 +1650,53 @@
+     return TransformationState::Unchanged;
+ }
+ 
++TransformationState SpirvVaryingPrecisionFixer::transformExtInst(const uint32_t *instruction,
++                                                                 spirv::Blob *blobOut)
++{
++    spirv::IdResultType typeId;
++    spirv::IdResult id;
++    spirv::IdRef set;
++    spirv::LiteralExtInstInteger extInst;
++    spirv::IdRefList operands;
++    spirv::ParseExtInst(instruction, &typeId, &id, &set, &extInst, &operands);
++
++    switch (extInst)
++    {
++        case spv::GLSLstd450InterpolateAtCentroid:
++        case spv::GLSLstd450InterpolateAtSample:
++        case spv::GLSLstd450InterpolateAtOffset:
++            ASSERT(operands.size() >= 1);
++            ASSERT(operands[0] < mFixedVaryingId.size());
++            if (mFixedVaryingId[operands[0]].valid())
++            {
++                operands[0] = mFixedVaryingId[operands[0]];
++                spirv::WriteExtInst(blobOut, typeId, id, set, extInst, operands);
++                return TransformationState::Transformed;
++            }
++            break;
++        default:
++            return TransformationState::Unchanged;
++    }
++    return TransformationState::Unchanged;
++}
++
++void SpirvVaryingPrecisionFixer::transformAccessChain(spirv::IdResultType typeId,
++                                                      spirv::IdResult id,
++                                                      spirv::IdRef baseId,
++                                                      const spirv::IdRefList &indexList,
++                                                      spirv::Blob *blobOut)
++{
++    ASSERT(baseId < mFixedVaryingId.size());
++    ASSERT(id < mFixedVaryingId.size());
++    if (mFixedVaryingId[baseId].valid())
++    {
++        mFixedVaryingId[id] = SpirvTransformerBase::GetNewId(blobOut);
++        spirv::WriteAccessChain(blobOut, typeId, mFixedVaryingId[id], mFixedVaryingId[baseId],
++                                indexList);
++    }
++    return;
++}
++
+ void SpirvVaryingPrecisionFixer::writeInputPreamble(
+     const std::vector<const ShaderInterfaceVariableInfo *> &variableInfoById,
+     gl::ShaderType shaderType,
+@@ -4826,6 +4881,13 @@
+ 
+ TransformationState SpirvTransformer::transformExtInst(const uint32_t *instruction)
+ {
++    if (mOptions.useSpirvVaryingPrecisionFixer &&
++        mVaryingPrecisionFixer.transformExtInst(instruction, mSpirvBlobOut) ==
++            TransformationState::Transformed)
++    {
++        return TransformationState::Transformed;
++    }
++
+     sh::vk::spirv::NonSemanticInstruction inst;
+     if (!mNonSemanticInstructions.visitExtInst(instruction, &inst))
+     {
+@@ -5014,19 +5076,24 @@
+         }
+     }
+ 
+-    if (mOptions.useSpirvVaryingPrecisionFixer)
++    if (info->activeStages[mOptions.shaderType])
+     {
+-        if (info->activeStages[mOptions.shaderType] &&
++        if (!mOptions.useSpirvVaryingPrecisionFixer ||
+             info->useRelaxedPrecision == PrecisionAdjustmentEnum::kUnchanged)
+         {
+             return TransformationState::Unchanged;
+         }
+-    }
+-    else
+-    {
+-        if (info->activeStages[mOptions.shaderType])
++        // If the fragment shader calls following built-in functions:
++        // interpolateAtCentroid(inputVarying[index])
++        // interpolateAtOffset(inputVarying[index])
++        // interpolateAtSample(inputVarying[index])
++        // And we replace the inputVarying with replacementVarying, we need to generate access chain
++        // instruction on the replaceVarying so that we can modify the functions to take the
++        // replacementVarying[index].
++        if (mOptions.shaderType == gl::ShaderType::Fragment && info->varyingIsInput)
+         {
+-            return TransformationState::Unchanged;
++            mVaryingPrecisionFixer.transformAccessChain(typeId, id, baseId, indexList,
++                                                        mSpirvBlobOut);
+         }
+     }
+ 
 diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.cpp
-index 6730475..931c68a 100644
+index 6730475..eca2484 100644
 --- a/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.cpp
 +++ b/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.cpp
-@@ -873,9 +873,13 @@
+@@ -105,14 +105,19 @@
+     return depthEqual && stencilEqual;
+ }
+ 
++void ReleaseImageView(ImageView *imageView, GarbageObjects *garbage)
++{
++    if (imageView->valid())
++    {
++        garbage->emplace_back(GetGarbage(imageView));
++    }
++}
++
+ void ReleaseImageViews(ImageViewVector *imageViewVector, GarbageObjects *garbage)
+ {
+     for (ImageView &imageView : *imageViewVector)
+     {
+-        if (imageView.valid())
+-        {
+-            garbage->emplace_back(GetGarbage(&imageView));
+-        }
++        ReleaseImageView(&imageView, garbage);
+     }
+     imageViewVector->clear();
+ }
+@@ -133,10 +138,7 @@
+     {
+         for (ImageView &imageView : layerViews)
+         {
+-            if (imageView.valid())
+-            {
+-                garbage->emplace_back(GetGarbage(&imageView));
+-            }
++            ReleaseImageView(&imageView, garbage);
+         }
+     }
+     imageViewVector->clear();
+@@ -159,10 +161,7 @@
+     for (auto &iter : *imageViews)
+     {
+         std::unique_ptr<ImageView> &imageView = iter.second;
+-        if (imageView->valid())
+-        {
+-            garbage->emplace_back(GetGarbage(imageView.get()));
+-        }
++        ReleaseImageView(imageView.get(), garbage);
+     }
+     imageViews->clear();
+ }
+@@ -873,9 +872,13 @@
                      // afterwards)
                      break;
                  case RenderPassLoadOp::Load:
@@ -9722,6 +10069,273 @@ index 6730475..931c68a 100644
                      {
                          *loadOp = RenderPassLoadOp::None;
                      }
+@@ -12769,16 +12772,23 @@
+     std::swap(mLevelStorageImageViews, other.mLevelStorageImageViews);
+     std::swap(mLayerLevelStorageImageViews, other.mLayerLevelStorageImageViews);
+     std::swap(mFragmentShadingRateImageView, other.mFragmentShadingRateImageView);
+-    std::swap(mImageViewSerial, other.mImageViewSerial);
++    std::swap(mWriteImageViewSerial, other.mWriteImageViewSerial);
++    std::swap(mReadImageViewSerial, other.mReadImageViewSerial);
+ }
+ 
+ ImageViewHelper::~ImageViewHelper() {}
+ 
+ void ImageViewHelper::init(Renderer *renderer)
+ {
+-    if (!mImageViewSerial.valid())
++    if (!mWriteImageViewSerial.valid())
+     {
+-        mImageViewSerial = renderer->getResourceSerialFactory().generateImageOrBufferViewSerial();
++        mWriteImageViewSerial =
++            renderer->getResourceSerialFactory().generateImageOrBufferViewSerial();
++    }
++    if (!mReadImageViewSerial.valid())
++    {
++        mReadImageViewSerial =
++            renderer->getResourceSerialFactory().generateImageOrBufferViewSerial();
+     }
+ }
+ 
+@@ -12801,14 +12811,8 @@
+     ReleaseImageViews(&mPerLevelRangeSamplerExternal2DY2YEXTImageViews, &garbage);
+ 
+     // Release the copy views
+-    if (mLinearCopyImageView.valid())
+-    {
+-        garbage.emplace_back(GetGarbage(&mLinearCopyImageView));
+-    }
+-    if (mSRGBCopyImageView.valid())
+-    {
+-        garbage.emplace_back(GetGarbage(&mSRGBCopyImageView));
+-    }
++    ReleaseImageView(&mLinearCopyImageView, &garbage);
++    ReleaseImageView(&mSRGBCopyImageView, &garbage);
+ 
+     // Release the draw views
+     ReleaseLayerLevelImageViews(&mLayerLevelDrawImageViews, &garbage);
+@@ -12838,10 +12842,7 @@
+     mLayerLevelStorageImageViews.clear();
+ 
+     // Release fragment shading rate view
+-    if (mFragmentShadingRateImageView.valid())
+-    {
+-        garbage.emplace_back(GetGarbage(&mFragmentShadingRateImageView));
+-    }
++    ReleaseImageView(&mFragmentShadingRateImageView, &garbage);
+ 
+     if (!garbage.empty())
+     {
+@@ -12849,7 +12850,34 @@
+     }
+ 
+     // Update image view serial.
+-    mImageViewSerial = renderer->getResourceSerialFactory().generateImageOrBufferViewSerial();
++    mWriteImageViewSerial = renderer->getResourceSerialFactory().generateImageOrBufferViewSerial();
++    mReadImageViewSerial  = renderer->getResourceSerialFactory().generateImageOrBufferViewSerial();
++}
++
++void ImageViewHelper::releaseReadImageViews(Renderer *renderer, const ResourceUse &use)
++{
++    mCurrentBaseMaxLevelHash = 0;
++    mReadColorspace          = ImageViewColorspace::Invalid;
++
++    GarbageObjects garbage;
++    garbage.reserve(6);
++
++    // Release the read views
++    ReleaseImageViews(&mPerLevelRangeLinearReadImageViews, &garbage);
++    ReleaseImageViews(&mPerLevelRangeSRGBReadImageViews, &garbage);
++    ReleaseImageViews(&mPerLevelRangeStencilReadImageViews, &garbage);
++    ReleaseImageViews(&mPerLevelRangeSamplerExternal2DY2YEXTImageViews, &garbage);
++
++    // Release the copy views
++    ReleaseImageView(&mLinearCopyImageView, &garbage);
++    ReleaseImageView(&mSRGBCopyImageView, &garbage);
++
++    if (!garbage.empty())
++    {
++        renderer->collectGarbage(use, std::move(garbage));
++    }
++
++    mReadImageViewSerial = renderer->getResourceSerialFactory().generateImageOrBufferViewSerial();
+ }
+ 
+ bool ImageViewHelper::isImageViewGarbageEmpty() const
+@@ -12912,7 +12940,8 @@
+     // Destroy fragment shading rate view
+     mFragmentShadingRateImageView.destroy(device);
+ 
+-    mImageViewSerial = kInvalidImageOrBufferViewSerial;
++    mWriteImageViewSerial = kInvalidImageOrBufferViewSerial;
++    mReadImageViewSerial  = kInvalidImageOrBufferViewSerial;
+ }
+ 
+ angle::Result ImageViewHelper::initReadViews(ContextVk *contextVk,
+@@ -12983,7 +13012,7 @@
+                                                  VkImageUsageFlags imageUsageFlags,
+                                                  GLenum astcDecodePrecision)
+ {
+-    ASSERT(mImageViewSerial.valid());
++    ASSERT(mReadImageViewSerial.valid());
+     ASSERT(mReadColorspace != ImageViewColorspace::Invalid);
+ 
+     const VkImageAspectFlags aspectFlags = GetFormatAspectFlags(image.getIntendedFormat());
+@@ -13135,7 +13164,7 @@
+                                                         angle::FormatID formatID,
+                                                         const ImageView **imageViewOut)
+ {
+-    ASSERT(mImageViewSerial.valid());
++    ASSERT(mWriteImageViewSerial.valid());
+ 
+     if (!mLevelStorageImageViews.contains(formatID))
+     {
+@@ -13170,7 +13199,7 @@
+                                                              const ImageView **imageViewOut)
+ {
+     ASSERT(image.valid());
+-    ASSERT(mImageViewSerial.valid());
++    ASSERT(mWriteImageViewSerial.valid());
+     ASSERT(!image.getActualFormat().isBlock);
+ 
+     if (!mLayerLevelStorageImageViews.contains(formatID))
+@@ -13240,7 +13269,7 @@
+                                                      const ImageView **imageViewOut)
+ {
+     ASSERT(image.valid());
+-    ASSERT(mImageViewSerial.valid());
++    ASSERT(mWriteImageViewSerial.valid());
+     ASSERT(!image.getActualFormat().isBlock);
+ 
+     if (mWriteColorspace == ImageViewColorspace::Invalid)
+@@ -13273,7 +13302,7 @@
+                                                           const ImageView **imageViewOut)
+ {
+     ASSERT(image.valid());
+-    ASSERT(mImageViewSerial.valid());
++    ASSERT(mWriteImageViewSerial.valid());
+     ASSERT(!image.getActualFormat().isBlock);
+ 
+     if (mWriteColorspace == ImageViewColorspace::Invalid)
+@@ -13308,7 +13337,7 @@
+                                                                const ImageView **imageViewOut)
+ {
+     ASSERT(image.valid());
+-    ASSERT(mImageViewSerial.valid());
++    ASSERT(mWriteImageViewSerial.valid());
+     ASSERT((image.getAspectFlags() & aspect) != 0);
+ 
+     ImageSubresourceRange range = MakeImageSubresourceDrawRange(
+@@ -13341,7 +13370,7 @@
+                                                                     const ImageView **imageViewOut)
+ {
+     ASSERT(image.valid());
+-    ASSERT(mImageViewSerial.valid());
++    ASSERT(mWriteImageViewSerial.valid());
+     ASSERT((image.getAspectFlags() & aspect) != 0);
+ 
+     LayerLevelImageViewVector &imageViews = aspect == VK_IMAGE_ASPECT_DEPTH_BIT
+@@ -13382,7 +13411,7 @@
+ angle::Result ImageViewHelper::initFragmentShadingRateView(ContextVk *contextVk, ImageHelper *image)
+ {
+     ASSERT(image->valid());
+-    ASSERT(mImageViewSerial.valid());
++    ASSERT(mWriteImageViewSerial.valid());
+ 
+     // Determine if we already have ImageView
+     if (mFragmentShadingRateImageView.valid())
+@@ -13481,26 +13510,32 @@
+     ASSERT(mWriteColorspace != ImageViewColorspace::Invalid);
+ }
+ 
+-ImageOrBufferViewSubresourceSerial ImageViewHelper::getSubresourceSerial(gl::OwnerLevel levelGL,
+-                                                                         uint32_t levelCount,
+-                                                                         gl::OwnerLayer layer,
+-                                                                         LayerMode layerMode) const
++ImageOrBufferViewSubresourceSerial ImageViewHelper::getSubresourceWriteSerial(
++    gl::OwnerLevel levelGL,
++    uint32_t levelCount,
++    gl::OwnerLayer layer,
++    LayerMode layerMode) const
+ {
+-    return getSubresourceSerialForColorspace(levelGL, levelCount, layer, layerMode,
+-                                             mReadColorspace);
++    ASSERT(mWriteImageViewSerial.valid());
++
++    ImageOrBufferViewSubresourceSerial serial = {};
++    serial.viewSerial                         = mWriteImageViewSerial;
++    serial.subresource = MakeImageSubresourceReadRange(levelGL, levelCount, layer, layerMode,
++                                                       mWriteColorspace, mWriteColorspace);
++    return serial;
+ }
+ 
+-ImageOrBufferViewSubresourceSerial ImageViewHelper::getSubresourceSerialForColorspace(
++ImageOrBufferViewSubresourceSerial ImageViewHelper::getSubresourceReadSerialForColorspace(
+     gl::OwnerLevel levelGL,
+     uint32_t levelCount,
+     gl::OwnerLayer layer,
+     LayerMode layerMode,
+     ImageViewColorspace readColorspace) const
+ {
+-    ASSERT(mImageViewSerial.valid());
++    ASSERT(mReadImageViewSerial.valid());
+ 
+     ImageOrBufferViewSubresourceSerial serial = {};
+-    serial.viewSerial                         = mImageViewSerial;
++    serial.viewSerial                         = mReadImageViewSerial;
+     serial.subresource = MakeImageSubresourceReadRange(levelGL, levelCount, layer, layerMode,
+                                                        readColorspace, mWriteColorspace);
+     return serial;
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.h b/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.h
+index 6063321..272079b 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.h
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.h
+@@ -3793,14 +3793,15 @@
+     // Creates a fragment shading rate view.
+     angle::Result initFragmentShadingRateView(ContextVk *contextVk, ImageHelper *image);
+ 
+-    // Return unique Serial for an imageView.
+-    ImageOrBufferViewSubresourceSerial getSubresourceSerial(gl::OwnerLevel levelGL,
+-                                                            uint32_t levelCount,
+-                                                            gl::OwnerLayer layer,
+-                                                            LayerMode layerMode) const;
++    // Return unique Serial for a write imageView. Used for framebuffer draw attachments,
++    // storage image views, and fragment shading rate attachments.
++    ImageOrBufferViewSubresourceSerial getSubresourceWriteSerial(gl::OwnerLevel levelGL,
++                                                                 uint32_t levelCount,
++                                                                 gl::OwnerLayer layer,
++                                                                 LayerMode layerMode) const;
+ 
+-    // Return unique Serial for an imageView for a specific colorspace.
+-    ImageOrBufferViewSubresourceSerial getSubresourceSerialForColorspace(
++    // Return unique Serial for a read imageView for a specific colorspace.
++    ImageOrBufferViewSubresourceSerial getSubresourceReadSerialForColorspace(
+         gl::OwnerLevel levelGL,
+         uint32_t levelCount,
+         gl::OwnerLayer layer,
+@@ -3814,6 +3815,7 @@
+     bool isImageViewGarbageEmpty() const;
+ 
+     void release(Renderer *renderer, const ResourceUse &use);
++    void releaseReadImageViews(Renderer *renderer, const ResourceUse &use);
+ 
+     // Helpers for colorspace state
+     ImageViewColorspace getColorspaceForRead() const { return mReadColorspace; }
+@@ -4011,8 +4013,13 @@
+     // Fragment shading rate view
+     ImageView mFragmentShadingRateImageView;
+ 
+-    // Serial for the image view set. getSubresourceSerial combines it with subresource info.
+-    ImageOrBufferViewSerial mImageViewSerial;
++    // Serial for write image views (used for framebuffer attachments, storage images, and FSR).
++    // It remains stable as long as the underlying VkImage does not change.
++    ImageOrBufferViewSerial mWriteImageViewSerial;
++
++    // Serial for the read (sampled) image views (used by TextureVk for descriptor set caching).
++    // It is updated whenever read image views are released/recreated (e.g., on swizzle changes).
++    ImageOrBufferViewSerial mReadImageViewSerial;
+ };
+ 
+ class BufferViewHelper final : public Resource
 diff --git a/third_party/angle/src/tests/BUILD.gn b/third_party/angle/src/tests/BUILD.gn
 index 134e68e..c7d1d81 100644
 --- a/third_party/angle/src/tests/BUILD.gn
