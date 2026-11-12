@@ -281,7 +281,11 @@ CHROMIUM_HARDENED_PATCHES=(
 
 # Bundled sources kept besides the eclass's list.
 CHROMIUM_KEEPLIBS=(
+	# 159 renamed ANGLE's libXNVCtrl.
+	third_party/angle/src/third_party/libxnvctrl
 	third_party/oak/src/oak_session/tls
+	# OpenH264 in Rust (159's media_use_rust_openh264, with proprietary_codecs).
+	third_party/openh264rs
 	third_party/safeint
 	third_party/sframe
 )
