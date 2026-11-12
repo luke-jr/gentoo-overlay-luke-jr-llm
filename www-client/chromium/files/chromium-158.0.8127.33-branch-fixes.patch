@@ -1,14 +1,14 @@
 Chromium 158.0.8127.33 + the later changes of its release branch, up to
-c1bba38653c62d391994a7058bf70051f48eb7f2 (refs/branch-heads/8127@{#1710}), for the
+98d4cd1cf73f702547c8d158ca1385d9c0c6ea6a (refs/branch-heads/8127@{#1713}), for the
 158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..c1bba38653c62d391994a7058bf70051f48eb7f2,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..98d4cd1cf73f702547c8d158ca1385d9c0c6ea6a,
 and from the branch's rolls of v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..c7596de0838cb17a421524051cd891fc783a2d46 (under v8/),
 devtools/devtools-frontend 8deaa243ad5f7abd50b6c0e17a740d0f00fc068f..047c90eca37c7170d826d72245d5df9281989cf3 (under third_party/devtools-frontend/src/),
 skia/skia 361c8326695a06b7492fb6eeeff803c0c92a2447..2d58f195f426c41bd856208ddb85ea8f93c88295 (under third_party/skia/),
 catapult 74678266b79e0ee388f1021bea36388c854b4a00..4a6f0659c26fc478756e83f0d007b91ca5f6d36f (under third_party/catapult/),
 pdfium 43d55e429cf72c21e9a1e60475b50feefa16fda9..b23fee3ac22360878efaa8aa533dac892fe777ab (under third_party/pdfium/) and
-angle/angle 1f6526a566c27c7c33aa73a78517450a4a2a1714..7a33c47c44e7c92a173a04aea51d7ad9120d8c03 (under third_party/angle/),
+angle/angle 1f6526a566c27c7c33aa73a78517450a4a2a1714..a8f10e3404d687adae6d626aea9ae57ba3da9914 (under third_party/angle/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .33 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -94,6 +94,8 @@ Commits contributing to it (oldest first):
   5a48fcd17599 [M158] Glic: on What's New click, fall back to a help page if ineligible
   beaa02dec186 Roll commits from side projects in M158
   c1bba38653c6 Roll commits from side projects in M158
+  ea976b15a407 [M158] [DCSI] Implement SupportsAccess for WrappedSkImageBacking
+  98d4cd1cf73f Roll commits from side projects in M158
     v8 77192c003a77 [M158] [objects] Disallow JSObject modifications during GC and GC callbacks
     v8 e8f914b08b81 Version 15.8.62.27
     v8 c0b2c2f3ade9 [M158] [compiler] Mark string-keyed ordered hash lookups as writing
@@ -125,6 +127,7 @@ Commits contributing to it (oldest first):
     angle 69b419c7818d [M158] GL: Fix layer-growth check in TextureGL::setStorage()
     angle a965a2272e33 [M158] GL: Recreate 3D texture on depth increase from zero-extent level
     angle 7a33c47c44e7 [M158] GL: Pause transform feedback before forcing program binding
+    angle a8f10e3404d6 [M158] Vulkan: Keep LoadOp as Load if resolve attachment is present
 
 Checked: applies to the 158.0.8127.33 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -6765,6 +6768,159 @@ index e03992d..441d33a 100644
  
  constexpr SkColor kQuickOfficeExtensionBackgroundColor =
      SkColorSetRGB(241, 241, 241);
+diff --git a/gpu/command_buffer/service/shared_image/shared_image_backing.h b/gpu/command_buffer/service/shared_image/shared_image_backing.h
+index 2c95bba5..9722a137 100644
+--- a/gpu/command_buffer/service/shared_image/shared_image_backing.h
++++ b/gpu/command_buffer/service/shared_image/shared_image_backing.h
+@@ -85,7 +85,7 @@
+ // A struct to hold parameters for shared image access. This allows passing
+ // context-specific information to backings so they can determine if they
+ // can support a given access request.
+-struct AccessParams {
++struct GPU_GLES2_EXPORT AccessParams {
+   AccessParams();
+   AccessParams(const AccessParams&);
+   AccessParams& operator=(const AccessParams&);
+diff --git a/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing.cc b/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing.cc
+index 8e63425..e1b53d0 100644
+--- a/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing.cc
++++ b/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing.cc
+@@ -4,8 +4,10 @@
+ 
+ #include "gpu/command_buffer/service/shared_image/wrapped_sk_image_backing.h"
+ 
++#include <optional>
+ #include <utility>
+ 
++#include "base/feature_list.h"
+ #include "base/logging.h"
+ #include "base/task/bind_post_task.h"
+ #include "base/task/single_thread_task_runner.h"
+@@ -13,8 +15,10 @@
+ #include "gpu/command_buffer/common/shared_image_info.h"
+ #include "gpu/command_buffer/common/shared_image_usage.h"
+ #include "gpu/command_buffer/service/shared_context_state.h"
++#include "gpu/command_buffer/service/shared_image/compound_image_backing.h"
+ #include "gpu/command_buffer/service/shared_image/shared_image_representation.h"
+ #include "gpu/command_buffer/service/skia_utils.h"
++#include "gpu/config/gpu_finch_features.h"
+ #include "gpu/ipc/common/gpu_client_ids.h"
+ #include "third_party/skia/include/core/SkAlphaType.h"
+ #include "third_party/skia/include/core/SkCanvas.h"
+@@ -33,6 +37,7 @@
+ #include "third_party/skia/include/private/chromium/GrPromiseImageTexture.h"
+ #include "ui/gl/gl_context.h"
+ #include "ui/gl/gl_surface.h"
++#include "ui/gl/scoped_make_current.h"
+ 
+ namespace gpu {
+ 
+@@ -380,7 +385,15 @@
+     return false;
+   }
+ 
+-  DCHECK(context_state->IsCurrent(nullptr));
++  std::optional<ui::ScopedMakeCurrent> scoped_make_current;
++  if (!context_state->IsCurrent(nullptr)) {
++    scoped_make_current.emplace(context_state->context(),
++                                context_state->surface());
++    if (!scoped_make_current->IsContextCurrent()) {
++      return false;
++    }
++  }
++  context_state->set_need_context_state_reset(true);
+ 
+   bool updated = true;
+   for (size_t i = 0; i < textures_.size(); ++i) {
+@@ -405,7 +418,15 @@
+     return false;
+   }
+ 
+-  DCHECK(context_state->IsCurrent(nullptr));
++  std::optional<ui::ScopedMakeCurrent> scoped_make_current;
++  if (!context_state->IsCurrent(nullptr)) {
++    scoped_make_current.emplace(context_state->context(),
++                                context_state->surface());
++    if (!scoped_make_current->IsContextCurrent()) {
++      return false;
++    }
++  }
++  context_state->set_need_context_state_reset(true);
+ 
+   bool read = true;
+   for (size_t i = 0; i < textures_.size(); ++i) {
+@@ -426,6 +447,28 @@
+   return read;
+ }
+ 
++bool WrappedSkImageBacking::CheckSupportForAccessStream(
++    SharedImageAccessStream stream,
++    const AccessParams& params) {
++  if (base::FeatureList::IsEnabled(features::kUseDynamicBackingAllocations)) {
++    // WrappedSkImageBacking only produces SkiaGaneshImageRepresentation.
++    // Reject non-Skia streams and non-Ganesh contexts so
++    // CompoundImageBacking allocates a compatible backing instead.
++    if (stream != SharedImageAccessStream::kSkia) {
++      return false;
++    }
++    if (params.context_state && !params.context_state->gr_context()) {
++      return false;
++    }
++  }
++  return true;
++}
++
++bool WrappedSkImageBacking::SupportsAccess(SharedImageAccessStream stream,
++                                           const AccessParams& params) const {
++  return CheckSupportForAccessStream(stream, params);
++}
++
+ SharedContextState* WrappedSkImageBacking::GetContextStateForCurrentThread()
+     const {
+   // `task_runner_` is only set when `is_thread_safe()` is true. On WebView,
+diff --git a/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing.h b/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing.h
+index aa6f6678..1b1438d 100644
+--- a/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing.h
++++ b/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing.h
+@@ -58,6 +58,13 @@
+   bool UploadFromMemory(const std::vector<SkPixmap>& pixmaps) override;
+   bool ReadbackToMemory(const std::vector<SkPixmap>& pixmaps) override;
+ 
++  // Determines if access for a given stream and parameters is supported.
++  static bool CheckSupportForAccessStream(SharedImageAccessStream stream,
++                                          const AccessParams& params);
++
++  bool SupportsAccess(SharedImageAccessStream stream,
++                      const AccessParams& params) const override;
++
+  protected:
+   std::unique_ptr<SkiaGaneshImageRepresentation> ProduceSkiaGanesh(
+       SharedImageManager* manager,
+diff --git a/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing_factory.cc b/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing_factory.cc
+index d12a75b2..02e882881 100644
+--- a/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing_factory.cc
++++ b/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing_factory.cc
+@@ -243,16 +243,16 @@
+     return false;
+   }
+ 
++  AccessParams access_params = params ? *params : AccessParams();
+   if (use_graphite_) {
+     // We create a temporary backing just to check for support.
+     // TODO(crbug.com/394385381): Consider refactoring this to not require a
+     // context_state or a backing instance.
+-    AccessParams access_params = params ? *params : AccessParams();
+-    bool supported = WrappedGraphiteTextureBacking::CheckSupportForAccessStream(
++    return WrappedGraphiteTextureBacking::CheckSupportForAccessStream(
+         stream, format, access_params);
+-    return supported;
+   }
+-  return true;
++  return WrappedSkImageBacking::CheckSupportForAccessStream(stream,
++                                                            access_params);
+ }
+ 
+ }  // namespace gpu
 diff --git a/media/gpu/v4l2/v4l2_stateful_video_decoder.cc b/media/gpu/v4l2/v4l2_stateful_video_decoder.cc
 index cf7c4318..9bd70d3 100644
 --- a/media/gpu/v4l2/v4l2_stateful_video_decoder.cc
@@ -9545,6 +9701,27 @@ index f723662..95364ae 100644
  
    private:
      const FunctionsGL *mFunctions;
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.cpp
+index 6730475..931c68a 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.cpp
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.cpp
+@@ -873,9 +873,13 @@
+                     // afterwards)
+                     break;
+                 case RenderPassLoadOp::Load:
+-                    // Make sure the attachment is neither loaded nor stored (as it's neither used
+-                    // nor invalidated), if possible.
+-                    if (supportsLoadStoreOpNone)
++                    // If the render pass has an active subpass resolve attachment, keep loadOp
++                    // as Load so the resolve operation can read the source data; Otherwise,
++                    // loadOp can be optimized to None.
++                    // storeOp can still be optimized to None regardless of active subpass resolve
++                    // attachment, because the attachment was not modified (mAccess ==
++                    // ResourceAccess::Unused)
++                    if (supportsLoadStoreOpNone && !hasResolveAttachment)
+                     {
+                         *loadOp = RenderPassLoadOp::None;
+                     }
 diff --git a/third_party/angle/src/tests/BUILD.gn b/third_party/angle/src/tests/BUILD.gn
 index 134e68e..c7d1d81 100644
 --- a/third_party/angle/src/tests/BUILD.gn
