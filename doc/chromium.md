@@ -110,7 +110,7 @@ between them, so a waiting build can take the tree before the first one's `insta
   WASM TTS engine, component-extension JavaScript, the Commerce Heuristics component (its
   archive carries a JavaScript file), and the remote DevTools front-end.
   - Code downloaded by an *earlier* build in the same profile isn't loaded either (Widevine
-    hint file, stored TranslateKit path; a Screen AI copy is deleted).
+    hint file, stored TranslateKit and SODA paths; a Screen AI copy is deleted).
   - With `USE=widevine`, a CDM installed next to the browser (`/usr/lib64/chromium-browser/WidevineCdm`,
     e.g. from `www-plugins/chrome-binary-plugins`) is used directly. This is compile-tested, but not
     runtime-tested.

@@ -14,7 +14,11 @@ in a non-Google-branded Linux build, while leaving data-only components
                             www-plugins/chrome-binary-plugins) is used instead.
   * SODA                  - libsoda.so + language packs (Live Caption,
                             on-device Web Speech, Dictation). Reported as
-                            unsupported, so the UI does not offer it.
+                            unsupported, so the UI does not offer it. The
+                            libsoda.so path in Local State is ignored: a web
+                            page asking for on-device-only recognition
+                            reached it, and it can only point at a copy an
+                            earlier, unpatched build downloaded.
   * Screen AI             - libchromescreenai.so (PDF OCR, main-content
                             extraction for Reading Mode).
   * TranslateKit          - libtranslatekit.so (Translator web API). Without
@@ -295,6 +299,21 @@ index 59d6c13..ba34526 100644
  }
  
  const char kTranslateKitPackagePaths[] = "translate-kit-packages";
+diff --git a/chrome/browser/speech/chrome_speech_recognition_service.cc b/chrome/browser/speech/chrome_speech_recognition_service.cc
+--- a/chrome/browser/speech/chrome_speech_recognition_service.cc
++++ b/chrome/browser/speech/chrome_speech_recognition_service.cc
+@@ -291,8 +291,10 @@
+   base::UmaHistogramEnumeration("Accessibility.LiveCaption.SodaLanguage",
+                                 language_config.value().language_code);
+ 
++  // Not the libsoda.so path in Local State: SODA is never downloaded here, and
++  // that path can only lead to a copy an earlier, unpatched build downloaded
++  // into this profile. Without a library, recognition reports SODA as missing.
+   base::FilePath binary_path;
+-  binary_path = global_prefs->GetFilePath(prefs::kSodaBinaryPath);
+   base::flat_map<std::string, base::FilePath> config_paths =
+       ChromeSpeechRecognitionService::GetSodaConfigPaths();
+ 
 diff --git a/chrome/browser/ui/webui/devtools/devtools_ui_data_source.cc b/chrome/browser/ui/webui/devtools/devtools_ui_data_source.cc
 index 31bea97..6c21cae 100644
 --- a/chrome/browser/ui/webui/devtools/devtools_ui_data_source.cc
