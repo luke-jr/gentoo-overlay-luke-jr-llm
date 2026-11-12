@@ -18,7 +18,7 @@ masters = gentoo
 auto-sync = no
 ```
 
-`www-client/chromium-157.0.8103.38`, `158.0.8127.18` and `158.0.8127.33_p1697_pre`, based on `::gentoo`'s
+`www-client/chromium-157.0.8103.78`, `158.0.8127.18` and `158.0.8127.33_p1697_pre`, based on `::gentoo`'s
 `chromium-151.0.7922.169-r1`. `::gentoo` removed `www-client/chromium` on 2026-11-05 (bug #982204),
 with `www-client/chromium-common`, which this overlay now carries. Its `profiles/package.mask`
 entry for `www-client/chromium` was still there that day, and it covers this overlay's
@@ -57,7 +57,7 @@ What the packages here follow, beyond Gentoo's own policies:
 
 | Package | Why |
 |---|---|
-| `www-client/chromium-157.0.8103.38` | the browser: 157.0.8103.38, Google's Linux **Stable** release of 157, from its official "lite" tarball, with no fixes beyond the release. `SLOT="stable"`, `amd64`. Google's 157.0.8103.50 (2026-11-09) is .38 plus a libxslt fix only, and these ebuilds use the system's libxslt: the fix is in `::gentoo`'s `dev-libs/libxslt-1.1.45-r1` (stable on amd64 since 2026-11-10), and .38 stays. |
+| `www-client/chromium-157.0.8103.78` | the browser: 157.0.8103.78, Google's Linux **Stable** release of 157, from its official "lite" tarball, with no fixes beyond the release. `SLOT="stable"`, `amd64`. |
 | `www-client/chromium-158.0.8127.18` | the browser: 158.0.8127.18, Google's **Early Stable** release of 158 (Windows and Mac first; on Linux it is the Beta, which therefore has no ebuild of its own), from its official "lite" tarball, with no fixes beyond the release: `SLOT="stable"`, `~amd64`. |
 | `www-client/chromium-158.0.8127.33_p1697_pre` | the browser: 158.0.8127.33, the newest tag of the 158 branch, plus the branch up to 8127@{#1697} (`_p1697`); no source tarball (`_pre`): built from Google's official "lite" tarball of 158.0.8127.18 plus `files/chromium-158.0.8127.18-to-158.0.8127.33.patch` and `files/chromium-158.0.8127.33-branch-fixes.patch` (see their headers). 158 is Google's Early Stable (since 158.0.8127.18), so `SLOT="stable"`, `~amd64`: this is the bleeding-edge build of it. |
 | `www-client/chromium-common-2` | the launcher script and `/etc/chromium/default` that every `www-client/chromium` slot uses, as `::gentoo` had it before removing it with its Chromium (2026-11-05). |
