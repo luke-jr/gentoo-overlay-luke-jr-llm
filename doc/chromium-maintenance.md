@@ -16,8 +16,11 @@ was added with (and 156 updated from .12 to .47).
     (check with `ACCEPT_KEYWORDS=amd64 emerge -pe --with-bdeps=y =www-client/chromium-<version>`
     and no `package.accept_keywords`);
   - Google's "Early Stable" (Windows and Mac first, to some users): `SLOT="stable"`,
-    `KEYWORDS="~amd64 ~arm64"`. When Google releases it for Linux Stable, it gets `amd64`; no new
-    slot, so installed copies keep their profile;
+    `KEYWORDS="~amd64 ~arm64"`. Like any official release without a tarball (Google often
+    publishes none for Early Stable), it is a `<tag>_pre` built from the newest tarball of its major
+    (below); it replaces the previous Early Stable's ebuild when Google releases it. When Google
+    releases it for Linux Stable, it gets `amd64`; no new slot, so installed copies keep their
+    profile;
   - Beta for Linux: `SLOT="beta"`, `KEYWORDS="~amd64 ~arm64"`: the newest official Linux Beta,
     as a plain ebuild (no carried fixes), so that the next major is ported before it reaches
     Early Stable. It replaces the previous Beta. When the Linux Beta is the same version as
