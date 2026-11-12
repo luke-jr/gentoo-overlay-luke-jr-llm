@@ -133,9 +133,9 @@
 # @USER_VARIABLE
 # @DEFAULT_UNSET
 # @DESCRIPTION:
-# With CHROMIUM_BUILD_DIR, the kept build tree's src/ is emptied at the end of src_install (and
-# its upstream-generated/, the checked-in generated files moved aside): the next build unpacks
-# its own sources anyway, only build/ is reused. 1 keeps them until the next
+# With CHROMIUM_BUILD_DIR, the kept build tree's src/ is emptied at the end of src_install: the
+# next build unpacks its own sources anyway, only build/ is reused. (Its upstream-generated/, the
+# checked-in generated files moved aside, is always removed then.) 1 keeps them until the next
 # build, 0 removes them; unset, FEATURES=keepwork keeps them.
 
 # @FUNCTION: chromium_crubit_rustfmt
@@ -4459,10 +4459,14 @@ chromium-llm_src_install() {
 	if [[ -z ${keep_src} ]]; then
 		has keepwork ${FEATURES} && keep_src=1 || keep_src=0
 	fi
+	if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
+		# Only needed until the build is checked (scripts/chromium-tests/verify-regenerated.py,
+		# after src_compile).
+		rm -rf "${CHROMIUM_BUILD_TREE:?}/upstream-generated" "${WORKDIR}/upstream-generated" || die
+	fi
 	if [[ -n ${CHROMIUM_BUILD_TREE} && ${keep_src} == 0 ]]; then
 		einfo "Removing the sources from ${S} (CHROMIUM_BUILD_DIR_KEEP_SRC keeps them) ..."
 		find "${S}" -mindepth 1 -maxdepth 1 -exec rm -rf {} + || die
-		rm -rf "${CHROMIUM_BUILD_TREE:?}/upstream-generated" || die
 	fi
 }
 
