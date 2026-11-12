@@ -198,6 +198,8 @@ CHROMIUM_PATCHES=(
 	chromium-156-angle-mock-icd-arg.patch
 	# "Restore pages?" only while the last session's crash is pending (see the patch).
 	chromium-156-crash-bubble-once.patch
+	# The Glic extension (Google pages can message it) only with Glic itself (see the patch).
+	chromium-157-glic-extension-needs-glic.patch
 	# BoringSSL's generators, run offline from the tarball (see the eclass).
 	chromium-156-boringssl-pregenerate-offline.patch
 	chromium-156-boringssl-curve25519-tables.patch

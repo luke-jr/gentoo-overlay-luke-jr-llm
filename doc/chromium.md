@@ -194,6 +194,11 @@ again, a launcher) offered to restore again. `HasPendingUncleanExit()` relied on
 `ProfileLaunchObserver`, which forgets the launched profiles once startup is done; it now also
 requires `ExitTypeService` to still be waiting for the user to acknowledge the crash.
 
+`chromium-157-glic-extension-needs-glic.patch` (157 and 158): upstream loads Glic's bundled extension
+whenever `kApiGlicPrivate` is on (the default), although Glic itself is off on Linux; the extension accepts
+messages from pages on `gemini.google.com` and `*.google.com` (its state, `invoke`, `activateTab`, …). It
+now loads only when Glic is enabled too (`chrome://flags/#glic`), as upstream then.
+
 ## 157
 
 The 157 ebuild is the 156 one with these differences:

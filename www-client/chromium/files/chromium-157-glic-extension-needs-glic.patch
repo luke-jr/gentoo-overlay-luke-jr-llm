@@ -1,0 +1,25 @@
+Load the Glic component extension only when Glic is enabled
+
+Upstream loads the bundled Glic extension (glic_extension) whenever
+extensions_features::kApiGlicPrivate is enabled, which it is by default,
+even where Glic itself (features::kGlic) is off, as on Linux. The extension
+accepts messages from pages on gemini.google.com and *.google.com (getState,
+invoke, hasConversation, activateTab, ...). Without Glic it serves nothing
+but those pages. Load it only when Glic is enabled too, so enabling Glic
+(chrome://flags/#glic or --enable-features=Glic) brings it back as upstream.
+
+diff --git a/chrome/browser/extensions/component_loader.cc b/chrome/browser/extensions/component_loader.cc
+--- a/chrome/browser/extensions/component_loader.cc
++++ b/chrome/browser/extensions/component_loader.cc
+@@ -587,7 +587,10 @@
+ }
+ 
+ void ComponentLoader::AddGlicExtension() {
+-  if (IsApiGlicPrivateEnabled()) {
++  // Only with Glic itself (chrome://flags/#glic, off on Linux): otherwise
++  // the extension only lets Google's pages message the browser.
++  if (IsApiGlicPrivateEnabled() &&
++      base::FeatureList::IsEnabled(features::kGlic)) {
+     Add(IDR_GLIC_EXTENSION_MANIFEST,
+         base::FilePath(FILE_PATH_LITERAL("glic_extension")));
+   }

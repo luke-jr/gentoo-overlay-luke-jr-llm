@@ -38,7 +38,9 @@ What the packages here follow, beyond Gentoo's own policies:
   is used, and the ebuilds delete what the source tarballs ship (and die if any is left). The only
   exceptions are opt-in USE flags that say so (e.g. Chromium's `bundled-toolchain`).
 - **No executable code downloaded at runtime**, apart from the JavaScript and WebAssembly that web
-  pages themselves load. Data downloads (lists, dictionaries, certificates) are fine.
+  pages themselves load. Data downloads (lists, dictionaries, certificates) are fine. One exception:
+  "Translate this page" runs Google's translate script (fetched when you translate) on the page
+  (see `doc/chromium-runtime-downloads.md`).
 - **Generated files are regenerated.** A checked-in generated file is not a source: it is made again
   from its inputs with its upstream generator, or replaced by one built here, and the checked-in copy
   is moved aside so the build cannot use it. Prebuilt JavaScript (minified, bundled or compiled) counts
