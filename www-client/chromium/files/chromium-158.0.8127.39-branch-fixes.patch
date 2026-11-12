@@ -1,0 +1,3251 @@
+Chromium 158.0.8127.39 + the later changes of its release branch, up to
+76332a1f0df6a8afbe4dcb9d4675e2b116893422 (refs/branch-heads/8127@{#1715}), for the
+158.0.8127.39 tree that chromium-158.0.8127.18-to-158.0.8127.39.patch makes.
+
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.39..76332a1f0df6a8afbe4dcb9d4675e2b116893422,
+and from the branch's rolls of v8/v8 b601a2347f005e8bfadd32f285df97ffba5cf1bd..c7596de0838cb17a421524051cd891fc783a2d46 (under v8/),
+skia/skia 3279352fdf1fbbd01a6dd024a52d3f178a6d5f07..2d58f195f426c41bd856208ddb85ea8f93c88295 (under third_party/skia/) and
+angle/angle 1f6526a566c27c7c33aa73a78517450a4a2a1714..8cb502b922025432c974e18fef13b073c81b6b4c (under third_party/angle/),
+as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
+.39 tree's files, renames included): left out are files not in the release
+tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
+translations, PGO/orderfile pointers, submodule pointer updates. chrome/VERSION,
+the DEPS files and the stamp files stay at 158.0.8127.39.
+
+Commits contributing to it (oldest first):
+  04148613a268 [M158] [PDF] Reject re-entrancy in PDFiumPage::Unload()
+  e7690956cc56 [M158] [Extensions] Validate pending script input in ScriptInjectionTracker
+  2358f7f7a741 [M158] [DBSC] Make session deletion re-entrancy safe
+  8d9ed53597ad Roll commits from side projects in M158
+  aa889df21a3e Roll commits from side projects in M158
+  e0d3665ffada [M158] Harden P2PSocketManager::DestroySocket against re-entrance
+  cf2183c855de [M158] Handle re-entrancy in P2PSocketManager teardown
+  8fd479ea8a56 [M158] Improve state validation during scroll timeline snapshot updates
+  5a48fcd17599 [M158] Glic: on What's New click, fall back to a help page if ineligible
+  beaa02dec186 Roll commits from side projects in M158
+  c1bba38653c6 Roll commits from side projects in M158
+  ea976b15a407 [M158] [DCSI] Implement SupportsAccess for WrappedSkImageBacking
+  98d4cd1cf73f Roll commits from side projects in M158
+  7abb77bab5e9 [M158] [FedCM] Return early in UpdateTaskId() if the view destroys it
+  76332a1f0df6 Roll commits from side projects in M158
+    v8 a48ee922c86a [M158] [builtins] Unbox radix as Smi in Number.prototype.toString
+    v8 c292af6c1585 [M158] [deoptimizer] Ensure materialized frame slots are HeapObjects
+    v8 cc81dfbed3c9 Version 15.8.62.32
+    v8 1e43c50c48b3 [M158] [builtins] Enforce no-JS execution scopes in InvokeApiFunction
+    v8 3ade1e5265ff Version 15.8.62.33
+    v8 3b82dd063c19 [M158] [compiler] Lower single-input phis via EmitIdentity
+    v8 c7596de0838c Version 15.8.62.34
+    skia 4784c42afdc2 [M158] [Ganesh][Vulkan] Check vkWaitForFences success
+    skia 2d58f195f426 [M158] [skif] Use float2 for displacement filter offset
+    angle 69b419c7818d [M158] GL: Fix layer-growth check in TextureGL::setStorage()
+    angle a965a2272e33 [M158] GL: Recreate 3D texture on depth increase from zero-extent level
+    angle 7a33c47c44e7 [M158] GL: Pause transform feedback before forcing program binding
+    angle a8f10e3404d6 [M158] Vulkan: Keep LoadOp as Load if resolve attachment is present
+    angle 5d2c09b3e395 [M158] Spirv: Use replacement Input varying for interpolate* built-in
+    angle 8cb502b92202 [M158] Vulkan: Refresh read imgviews on tex param change
+
+Checked: applies to the 158.0.8127.39 tree; every patched file is
+byte-identical to its version at the last commit above.
+
+diff --git a/chrome/browser/extensions/api/declarative_content/content_action.cc b/chrome/browser/extensions/api/declarative_content/content_action.cc
+index 72466c9..ef7b4d01 100644
+--- a/chrome/browser/extensions/api/declarative_content/content_action.cc
++++ b/chrome/browser/extensions/api/declarative_content/content_action.cc
+@@ -383,7 +383,7 @@
+   // bypassing the check we have for an invalid selector and getting here).
+   // When access is withheld, the script is still sent to the renderer, which
+   // defers the injection and requests permission from the browser. Trust is
+-  // only granted to the renderer process below when access is allowed.
++  // only granted to the renderer process once access is allowed.
+   std::string error;
+   content::RenderFrameHost* main_frame = contents->GetPrimaryMainFrame();
+   const GURL& url = util::GetURLForExtensionPermissionCheck(main_frame);
+@@ -403,12 +403,13 @@
+     return;
+   }
+ 
+-  // When access is withheld, `ScriptInjectionTracker` is instead updated by
+-  // `ExtensionActionRunner` if the user later grants access and the deferred
+-  // script is permitted to run.
+-  if (page_access == PermissionsData::PageAccess::kAllowed) {
++  // When access is withheld, `ScriptInjectionTracker` records a pending
++  // injection that is only finalized by `ExtensionActionRunner` if the user
++  // later grants access and the deferred script is permitted to run.
++  if (!script_.js_scripts().empty()) {
+     ScriptInjectionTracker::WillExecuteCode(
+-        base::PassKey<RequestContentScript>(), main_frame, *extension);
++        base::PassKey<RequestContentScript>(), main_frame, *extension,
++        page_access == PermissionsData::PageAccess::kWithheld);
+   }
+   local_frame->ExecuteDeclarativeScript(
+       sessions::SessionTabHelper::IdForTab(contents).id(), extension->id(),
+diff --git a/chrome/browser/glic/public/features.cc b/chrome/browser/glic/public/features.cc
+index 6f58411..c173f67 100644
+--- a/chrome/browser/glic/public/features.cc
++++ b/chrome/browser/glic/public/features.cc
+@@ -357,6 +357,11 @@
+ BASE_FEATURE(kGlicActivityHub, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ BASE_FEATURE(kGlicWhatsNewLuminous, base::FEATURE_DISABLED_BY_DEFAULT);
++BASE_FEATURE(kGlicBrowserCommandFallback, base::FEATURE_DISABLED_BY_DEFAULT);
++BASE_FEATURE_PARAM(std::string,
++                   kGlicBrowserCommandFallbackUrl,
++                   &kGlicBrowserCommandFallback,
++                   "https://support.google.com/chrome/answer/17140089");
+ 
+ BASE_FEATURE(kGlicInvokeErrorRecoveryFixes,
+              FEATURE_ENABLED_BY_DEFAULT_ALL_PLATFORMS);
+diff --git a/chrome/browser/glic/public/features.h b/chrome/browser/glic/public/features.h
+index f2cf84d..111e4388 100644
+--- a/chrome/browser/glic/public/features.h
++++ b/chrome/browser/glic/public/features.h
+@@ -262,6 +262,8 @@
+ BASE_DECLARE_FEATURE(kGlicActivityHub);
+ 
+ BASE_DECLARE_FEATURE(kGlicWhatsNewLuminous);
++BASE_DECLARE_FEATURE(kGlicBrowserCommandFallback);
++BASE_DECLARE_FEATURE_PARAM(std::string, kGlicBrowserCommandFallbackUrl);
+ 
+ BASE_DECLARE_FEATURE(kGlicInvokeErrorRecoveryFixes);
+ }  // namespace features
+diff --git a/chrome/browser/ui/webid/identity_dialog_controller.cc b/chrome/browser/ui/webid/identity_dialog_controller.cc
+index 6226da0..a1bc776 100644
+--- a/chrome/browser/ui/webid/identity_dialog_controller.cc
++++ b/chrome/browser/ui/webid/identity_dialog_controller.cc
+@@ -132,7 +132,14 @@
+ void IdentityDialogController::UpdateTaskId(actor::TaskId task_id) {
+   acting_task_id_ = task_id;
+   if (account_view_) {
++    // Showing the UI again may dismiss it synchronously, which may destroy
++    // this object.
++    base::WeakPtr<IdentityDialogController> weak_this =
++        weak_ptr_factory_.GetWeakPtr();
+     account_view_->SetCanShowUi(acting_task_id_.is_null());
++    if (!weak_this) {
++      return;
++    }
+     if (acting_task_id_.is_null() && did_invoke_show_ui_) {
+       did_show_ui_ = true;
+     }
+diff --git a/chrome/browser/ui/webui/browser_command/BUILD.gn b/chrome/browser/ui/webui/browser_command/BUILD.gn
+index b35c994..be67e6f 100644
+--- a/chrome/browser/ui/webui/browser_command/BUILD.gn
++++ b/chrome/browser/ui/webui/browser_command/BUILD.gn
+@@ -58,6 +58,7 @@
+     ":browser_command",
+     "//base",
+     "//base/test:test_support",
++    "//chrome/browser/glic/public:features",
+     "//chrome/browser/ui:chrome_pages",
+     "//chrome/browser/user_education",
+     "//chrome/common",
+diff --git a/chrome/browser/ui/webui/browser_command/browser_command_handler.cc b/chrome/browser/ui/webui/browser_command/browser_command_handler.cc
+index b0c7f07..fa13f21 100644
+--- a/chrome/browser/ui/webui/browser_command/browser_command_handler.cc
++++ b/chrome/browser/ui/webui/browser_command/browser_command_handler.cc
+@@ -7,6 +7,7 @@
+ #include <algorithm>
+ 
+ #include "base/command_line.h"
++#include "base/feature_list.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/metrics/user_metrics.h"
+ #include "chrome/app/chrome_command_ids.h"
+@@ -14,6 +15,7 @@
+ #include "chrome/browser/enterprise/util/managed_browser_utils.h"
+ #include "chrome/browser/feedback/show_feedback_page.h"
+ #include "chrome/browser/glic/glic_settings_util.h"
++#include "chrome/browser/glic/public/features.h"
+ #include "chrome/browser/glic/public/glic_enabling.h"
+ #include "chrome/browser/glic/public/glic_keyed_service.h"
+ #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
+@@ -366,6 +368,10 @@
+   glic::GlicKeyedService* glic_service = glic::GlicKeyedService::Get(profile_);
+ 
+   if (!glic_service) {
++    if (base::FeatureList::IsEnabled(features::kGlicBrowserCommandFallback)) {
++      NavigateToURL(GURL(features::kGlicBrowserCommandFallbackUrl.Get()),
++                    ui::mojom::WindowOpenDisposition::kNewForegroundTab);
++    }
+     return;
+   }
+ 
+diff --git a/extensions/browser/script_executor.cc b/extensions/browser/script_executor.cc
+index 8f88930..fbaee3a 100644
+--- a/extensions/browser/script_executor.cc
++++ b/extensions/browser/script_executor.cc
+@@ -27,11 +27,13 @@
+ #include "content/public/browser/render_view_host.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/browser/web_contents_observer.h"
++#include "extensions/browser/browser_frame_context_data.h"
+ #include "extensions/browser/extension_api_frame_id_map.h"
+ #include "extensions/browser/extension_registry.h"
+ #include "extensions/browser/extension_web_contents_observer.h"
+ #include "extensions/browser/script_injection_tracker.h"
+ #include "extensions/browser/scripting_utils.h"
++#include "extensions/common/content_script_injection_url_getter.h"
+ #include "extensions/common/mojom/host_id.mojom.h"
+ #include "extensions/common/mojom/match_origin_as_fallback.mojom-shared.h"
+ #include "extensions/common/permissions/permissions_data.h"
+@@ -305,32 +307,49 @@
+ 
+       // When the extension's host permission for `frame`'s document is
+       // withheld, the renderer defers execution and asks the browser for
+-      // permission instead of running the script. In that case the
+-      // ScriptInjectionTracker is updated by ExtensionActionRunner if and when
+-      // the user grants access and the deferred script is permitted to run.
+-      bool record_injection = true;
++      // permission instead of running the script. In that case
++      // ScriptInjectionTracker records a pending injection that is only
++      // finalized by ExtensionActionRunner (or permission updates) if and
++      // when access is granted. Otherwise (including when page_access is
++      // kDenied, since a navigation commit to an allowed document may already
++      // be in flight from the renderer), record the injection immediately so
++      // the renderer is not terminated as a bad message sender if the script
++      // runs.
++      bool is_withheld = false;
+       if (!is_web_view_ && extension) {
+         GURL url = frame->GetLastCommittedURL();
++        content::NavigationEntry* pending_entry =
++            frame->IsInPrimaryMainFrame()
++                ? web_contents()->GetController().GetPendingEntry()
++                : nullptr;
+         if (url.is_empty() || url.SchemeIs(url::kAboutScheme)) {
+-          content::NavigationEntry* pending_entry =
+-              web_contents()->GetController().GetPendingEntry();
+           if (pending_entry && !pending_entry->GetURL().is_empty()) {
+             url = pending_entry->GetURL();
+-          } else {
+-            url = frame->GetLastCommittedOrigin().GetURL();
++          } else if (url.is_empty() &&
++                     (!frame->IsInPrimaryMainFrame() ||
++                      !frame->GetLastCommittedOrigin().opaque())) {
++            url = GURL(url::kAboutBlankURL);
+           }
+         }
+         if (!url.is_empty()) {
+-          record_injection = (extension->permissions_data()->GetPageAccess(
+-                                  url, tab_id,
+-                                  /*error=*/nullptr) !=
+-                              PermissionsData::PageAccess::kWithheld);
++          GURL effective_url = ContentScriptInjectionUrlGetter::Get(
++              BrowserFrameContextData(frame), url,
++              params->match_origin_as_fallback_behavior,
++              /*allow_inaccessible_parents=*/true);
++          PermissionsData::PageAccess page_access =
++              extension->permissions_data()->GetPageAccess(effective_url,
++                                                           tab_id,
++                                                           /*error=*/nullptr);
++          if (page_access == PermissionsData::PageAccess::kDenied &&
++              pending_entry && !pending_entry->GetURL().is_empty()) {
++            page_access = extension->permissions_data()->GetPageAccess(
++                pending_entry->GetURL(), tab_id, /*error=*/nullptr);
++          }
++          is_withheld = (page_access == PermissionsData::PageAccess::kWithheld);
+         }
+       }
+-      if (record_injection) {
+-        ScriptInjectionTracker::WillExecuteCode(pass_key, script_type, frame,
+-                                                host_id_);
+-      }
++      ScriptInjectionTracker::WillExecuteCode(pass_key, script_type, frame,
++                                              host_id_, is_withheld);
+     }
+     ExtensionWebContentsObserver::GetForWebContents(web_contents())
+         ->GetLocalFrameChecked(frame)
+diff --git a/extensions/browser/script_injection_tracker.cc b/extensions/browser/script_injection_tracker.cc
+index 19be48c..db085a7 100644
+--- a/extensions/browser/script_injection_tracker.cc
++++ b/extensions/browser/script_injection_tracker.cc
+@@ -5,6 +5,9 @@
+ #include "extensions/browser/script_injection_tracker.h"
+ 
+ #include <algorithm>
++#include <map>
++#include <set>
++#include <utility>
+ 
+ #include "base/check_is_test.h"
+ #include "base/debug/crash_logging.h"
+@@ -71,6 +74,12 @@
+         process.GetUserData(kUserDataKey));
+   }
+ 
++  static RenderProcessHostUserData* Get(content::RenderProcessHost& process) {
++    DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
++    return static_cast<RenderProcessHostUserData*>(
++        process.GetUserData(kUserDataKey));
++  }
++
+   static RenderProcessHostUserData& GetOrCreate(
+       content::RenderProcessHost& process) {
+     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+@@ -113,10 +122,55 @@
+     GetScripts(script_type).insert(extension_id);
+   }
+ 
++  void AddPendingScript(content::GlobalRenderFrameHostId frame_id,
++                        mojom::InjectionType injection_type,
++                        ScriptInjectionTracker::ScriptType script_type,
++                        const ExtensionId& extension_id) {
++    std::erase_if(pending_scripts_, [](const auto& entry) {
++      return !content::RenderFrameHost::FromID(entry.first.frame_id);
++    });
++    pending_scripts_[{frame_id, injection_type, extension_id}].insert(
++        script_type);
++  }
++
++  std::set<ScriptInjectionTracker::ScriptType> TakePendingScripts(
++      content::GlobalRenderFrameHostId frame_id,
++      mojom::InjectionType injection_type,
++      const ExtensionId& extension_id) {
++    auto it = pending_scripts_.find({frame_id, injection_type, extension_id});
++    if (it == pending_scripts_.end()) {
++      return {};
++    }
++    std::set<ScriptInjectionTracker::ScriptType> scripts =
++        std::move(it->second);
++    pending_scripts_.erase(it);
++    return scripts;
++  }
++
++  bool HasPendingScripts(content::GlobalRenderFrameHostId frame_id,
++                         const ExtensionId& extension_id) const {
++    return !pending_scripts_.empty() &&
++           (pending_scripts_.contains(
++                {frame_id, mojom::InjectionType::kProgrammaticScript,
++                 extension_id}) ||
++            pending_scripts_.contains({frame_id,
++                                       mojom::InjectionType::kDeclarativeScript,
++                                       extension_id}));
++  }
++
+   const ExtensionIdSet& content_scripts() const { return content_scripts_; }
+   const ExtensionIdSet& user_scripts() const { return user_scripts_; }
+ 
+  private:
++  struct PendingScriptKey {
++    content::GlobalRenderFrameHostId frame_id;
++    mojom::InjectionType injection_type;
++    ExtensionId extension_id;
++
++    friend auto operator<=>(const PendingScriptKey&,
++                            const PendingScriptKey&) = default;
++  };
++
+   explicit RenderProcessHostUserData(content::RenderProcessHost& process)
+       : process_(process) {
+     TRACE_EVENT_BEGIN("extensions",
+@@ -148,6 +202,14 @@
+   ExtensionIdSet content_scripts_;
+   ExtensionIdSet user_scripts_;
+ 
++  // Browser-dispatched programmatic and declarative script injections whose
++  // execution in a frame was deferred because host permissions were withheld.
++  // Stored here (keyed by GlobalRenderFrameHostId, with destroyed frames pruned
++  // on insertion) rather than in DocumentUserData to avoid ReadyToCommit /
++  // DidCommit races and preserve injections queued on initial empty documents.
++  std::map<PendingScriptKey, std::set<ScriptInjectionTracker::ScriptType>>
++      pending_scripts_;
++
+   // Only used for tracing.
+   const raw_ref<content::RenderProcessHost> process_;
+ };
+@@ -452,13 +514,16 @@
+ 
+ // Adds all scripts from `extension` that matches the `process` renderers to the
+ // process data.
+-void AddMatchingScriptsToProcess(const Extension& extension,
++void AddMatchingScriptsToProcess(base::PassKey<ScriptInjectionTracker> pass_key,
++                                 const Extension& extension,
+                                  content::RenderProcessHost& process) {
+   bool any_frame_matches_content_scripts = false;
+   bool any_frame_matches_user_scripts = false;
++  auto* existing_process_data = RenderProcessHostUserData::Get(process);
+   process.ForEachRenderFrameHost([&any_frame_matches_content_scripts,
+                                   &any_frame_matches_user_scripts,
+-                                  &extension](content::RenderFrameHost* frame) {
++                                  existing_process_data, &extension,
++                                  pass_key](content::RenderFrameHost* frame) {
+     const GURL& url = frame->GetLastCommittedURL();
+     // Ignore error documents, which don't allow scripts to inject.
+     // We need to check whether the committed URL is empty first to avoid a
+@@ -477,6 +542,30 @@
+       any_frame_matches_user_scripts =
+           DoUserScriptsMatch(extension, *frame, url);
+     }
++    if (!existing_process_data || !existing_process_data->HasPendingScripts(
++                                      frame->GetGlobalId(), extension.id())) {
++      return;
++    }
++
++    auto* web_contents = content::WebContents::FromRenderFrameHost(frame);
++    int tab_id = sessions::SessionTabHelper::IdForTab(web_contents).id();
++    GURL effective_url = GetEffectiveDocumentURL(
++        frame, url, mojom::MatchOriginAsFallbackBehavior::kAlways);
++    if (extension.permissions_data()->GetPageAccessForSecurityOrigin(
++            effective_url, tab_id) != PermissionsData::PageAccess::kAllowed) {
++      return;
++    }
++
++    for (mojom::InjectionType injection_type :
++         {mojom::InjectionType::kProgrammaticScript,
++          mojom::InjectionType::kDeclarativeScript}) {
++      for (ScriptInjectionTracker::ScriptType pending_script_type :
++           existing_process_data->TakePendingScripts(
++               frame->GetGlobalId(), injection_type, extension.id())) {
++        HandleProgrammaticScriptInjection(pass_key, pending_script_type, frame,
++                                          extension);
++      }
++    }
+   });
+ 
+   if (any_frame_matches_content_scripts || any_frame_matches_user_scripts) {
+@@ -817,7 +906,8 @@
+     base::PassKey<ScriptExecutor> pass_key,
+     ScriptType script_type,
+     content::RenderFrameHost* frame,
+-    const mojom::HostID& host_id) {
++    const mojom::HostID& host_id,
++    bool is_withheld) {
+   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+ 
+   content::RenderProcessHost& process = *frame->GetProcess();
+@@ -832,6 +922,13 @@
+     return;
+   }
+ 
++  if (is_withheld) {
++    RenderProcessHostUserData::GetOrCreate(process).AddPendingScript(
++        frame->GetGlobalId(), mojom::InjectionType::kProgrammaticScript,
++        script_type, extension->id());
++    return;
++  }
++
+   HandleProgrammaticScriptInjection(PassKey(), script_type, frame, *extension);
+ }
+ 
+@@ -839,13 +936,22 @@
+ void ScriptInjectionTracker::WillExecuteCode(
+     base::PassKey<RequestContentScript> pass_key,
+     content::RenderFrameHost* frame,
+-    const Extension& extension) {
++    const Extension& extension,
++    bool is_withheld) {
+   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
++  content::RenderProcessHost& process = *frame->GetProcess();
+   TRACE_EVENT("extensions", "ScriptInjectionTracker::WillExecuteCode/2",
+-              ChromeTrackEvent::kRenderProcessHost, *frame->GetProcess(),
++              ChromeTrackEvent::kRenderProcessHost, process,
+               ChromeTrackEvent::kChromeExtensionId,
+               ExtensionIdForTracing(extension.id()));
+ 
++  if (is_withheld) {
++    RenderProcessHostUserData::GetOrCreate(process).AddPendingScript(
++        frame->GetGlobalId(), mojom::InjectionType::kDeclarativeScript,
++        ScriptType::kContentScript, extension.id());
++    return;
++  }
++
+   // Declarative content scripts are only ever of a kContentScript type and
+   // never handle user scripts.
+   HandleProgrammaticScriptInjection(PassKey(), ScriptType::kContentScript,
+@@ -859,16 +965,31 @@
+     content::RenderFrameHost* frame,
+     const Extension& extension) {
+   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
++  content::RenderProcessHost& process = *frame->GetProcess();
+   TRACE_EVENT("extensions", "ScriptInjectionTracker::WillExecuteCode/3",
+-              ChromeTrackEvent::kRenderProcessHost, *frame->GetProcess(),
++              ChromeTrackEvent::kRenderProcessHost, process,
+               ChromeTrackEvent::kChromeExtensionId,
+               ExtensionIdForTracing(extension.id()));
+ 
+-  // A programmatic or declarative injection that was deferred while host access
+-  // was withheld is being permitted to run; this is treated like any other
+-  // programmatic content script injection.
+-  HandleProgrammaticScriptInjection(PassKey(), ScriptType::kContentScript,
+-                                    frame, extension);
++  switch (script_type) {
++    case mojom::InjectionType::kContentScript:
++      AddMatchingScriptsToProcess(PassKey(), extension, process);
++      break;
++    case mojom::InjectionType::kProgrammaticScript:
++    case mojom::InjectionType::kDeclarativeScript: {
++      auto* process_data = RenderProcessHostUserData::Get(process);
++      if (!process_data) {
++        return;
++      }
++      std::set<ScriptType> pending_scripts = process_data->TakePendingScripts(
++          frame->GetGlobalId(), script_type, extension.id());
++      for (ScriptType pending_script_type : pending_scripts) {
++        HandleProgrammaticScriptInjection(PassKey(), pending_script_type, frame,
++                                          extension);
++      }
++      break;
++    }
++  }
+ }
+ 
+ // static
+@@ -878,7 +999,7 @@
+     content::RenderProcessHost& process) {
+   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+ 
+-  AddMatchingScriptsToProcess(extension, process);
++  AddMatchingScriptsToProcess(PassKey(), extension, process);
+ }
+ 
+ // static
+@@ -898,7 +1019,7 @@
+     return;
+   }
+ 
+-  AddMatchingScriptsToProcess(*extension, process);
++  AddMatchingScriptsToProcess(PassKey(), *extension, process);
+ }
+ 
+ // static
+@@ -908,7 +1029,7 @@
+     content::RenderProcessHost& process) {
+   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+ 
+-  AddMatchingScriptsToProcess(extension, process);
++  AddMatchingScriptsToProcess(PassKey(), extension, process);
+ }
+ 
+ // static
+@@ -918,7 +1039,7 @@
+     content::RenderProcessHost& process) {
+   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+ 
+-  AddMatchingScriptsToProcess(extension, process);
++  AddMatchingScriptsToProcess(PassKey(), extension, process);
+ }
+ 
+ // static
+diff --git a/extensions/browser/script_injection_tracker.h b/extensions/browser/script_injection_tracker.h
+index cd7af6c..426178ef 100644
+--- a/extensions/browser/script_injection_tracker.h
++++ b/extensions/browser/script_injection_tracker.h
+@@ -121,24 +121,34 @@
+ 
+   // Called before ExtensionMsg_ExecuteCode is sent to a renderer process
+   // (typically when handling chrome.tabs.executeScript or a similar API call).
++  // If `is_withheld` is true (because host access is currently withheld), the
++  // injection is recorded as pending on `frame` and will only be finalized if
++  // `ExtensionActionRunner` later permits it to run.
+   //
+   // The caller needs to ensure that if `host_id.type() == HostID::EXTENSIONS`,
+   // then the extension with the given `host_id` exists and is enabled.
+   static void WillExecuteCode(base::PassKey<ScriptExecutor> pass_key,
+                               ScriptType script_type,
+                               content::RenderFrameHost* frame,
+-                              const mojom::HostID& host_id);
++                              const mojom::HostID& host_id,
++                              bool is_withheld);
+ 
+   // Called before `extensions::mojom::LocalFrame::ExecuteDeclarativeScript` is
+   // invoked in a renderer process (e.g. when handling RequestContentScript
+-  // action of the `chrome.declarativeContent` API).
++  // action of the `chrome.declarativeContent` API). If `is_withheld` is true
++  // (because host access is currently withheld), the injection is recorded as
++  // pending on `frame` and will only be finalized if `ExtensionActionRunner`
++  // later permits it to run.
+   static void WillExecuteCode(base::PassKey<RequestContentScript> pass_key,
+                               content::RenderFrameHost* frame,
+-                              const Extension& extension);
++                              const Extension& extension,
++                              bool is_withheld);
+ 
+-  // Called before a programmatic or declarative injection that was previously
+-  // deferred (because host access was withheld) is permitted to run as a result
+-  // of the user granting the extension access to the page.
++  // Called when `ExtensionActionRunner` permits a script injection to run in
++  // `frame`. For `kProgrammaticScript` and `kDeclarativeScript`, this finalizes
++  // a pending injection that was previously recorded while host access was
++  // withheld. For `kContentScript`, this records any matching scripts for the
++  // extension in `frame`'s process.
+   static void WillExecuteCode(base::PassKey<ExtensionActionRunner> pass_key,
+                               mojom::InjectionType script_type,
+                               content::RenderFrameHost* frame,
+diff --git a/gpu/command_buffer/service/shared_image/shared_image_backing.h b/gpu/command_buffer/service/shared_image/shared_image_backing.h
+index 2c95bba5..9722a137 100644
+--- a/gpu/command_buffer/service/shared_image/shared_image_backing.h
++++ b/gpu/command_buffer/service/shared_image/shared_image_backing.h
+@@ -85,7 +85,7 @@
+ // A struct to hold parameters for shared image access. This allows passing
+ // context-specific information to backings so they can determine if they
+ // can support a given access request.
+-struct AccessParams {
++struct GPU_GLES2_EXPORT AccessParams {
+   AccessParams();
+   AccessParams(const AccessParams&);
+   AccessParams& operator=(const AccessParams&);
+diff --git a/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing.cc b/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing.cc
+index 8e63425..e1b53d0 100644
+--- a/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing.cc
++++ b/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing.cc
+@@ -4,8 +4,10 @@
+ 
+ #include "gpu/command_buffer/service/shared_image/wrapped_sk_image_backing.h"
+ 
++#include <optional>
+ #include <utility>
+ 
++#include "base/feature_list.h"
+ #include "base/logging.h"
+ #include "base/task/bind_post_task.h"
+ #include "base/task/single_thread_task_runner.h"
+@@ -13,8 +15,10 @@
+ #include "gpu/command_buffer/common/shared_image_info.h"
+ #include "gpu/command_buffer/common/shared_image_usage.h"
+ #include "gpu/command_buffer/service/shared_context_state.h"
++#include "gpu/command_buffer/service/shared_image/compound_image_backing.h"
+ #include "gpu/command_buffer/service/shared_image/shared_image_representation.h"
+ #include "gpu/command_buffer/service/skia_utils.h"
++#include "gpu/config/gpu_finch_features.h"
+ #include "gpu/ipc/common/gpu_client_ids.h"
+ #include "third_party/skia/include/core/SkAlphaType.h"
+ #include "third_party/skia/include/core/SkCanvas.h"
+@@ -33,6 +37,7 @@
+ #include "third_party/skia/include/private/chromium/GrPromiseImageTexture.h"
+ #include "ui/gl/gl_context.h"
+ #include "ui/gl/gl_surface.h"
++#include "ui/gl/scoped_make_current.h"
+ 
+ namespace gpu {
+ 
+@@ -380,7 +385,15 @@
+     return false;
+   }
+ 
+-  DCHECK(context_state->IsCurrent(nullptr));
++  std::optional<ui::ScopedMakeCurrent> scoped_make_current;
++  if (!context_state->IsCurrent(nullptr)) {
++    scoped_make_current.emplace(context_state->context(),
++                                context_state->surface());
++    if (!scoped_make_current->IsContextCurrent()) {
++      return false;
++    }
++  }
++  context_state->set_need_context_state_reset(true);
+ 
+   bool updated = true;
+   for (size_t i = 0; i < textures_.size(); ++i) {
+@@ -405,7 +418,15 @@
+     return false;
+   }
+ 
+-  DCHECK(context_state->IsCurrent(nullptr));
++  std::optional<ui::ScopedMakeCurrent> scoped_make_current;
++  if (!context_state->IsCurrent(nullptr)) {
++    scoped_make_current.emplace(context_state->context(),
++                                context_state->surface());
++    if (!scoped_make_current->IsContextCurrent()) {
++      return false;
++    }
++  }
++  context_state->set_need_context_state_reset(true);
+ 
+   bool read = true;
+   for (size_t i = 0; i < textures_.size(); ++i) {
+@@ -426,6 +447,28 @@
+   return read;
+ }
+ 
++bool WrappedSkImageBacking::CheckSupportForAccessStream(
++    SharedImageAccessStream stream,
++    const AccessParams& params) {
++  if (base::FeatureList::IsEnabled(features::kUseDynamicBackingAllocations)) {
++    // WrappedSkImageBacking only produces SkiaGaneshImageRepresentation.
++    // Reject non-Skia streams and non-Ganesh contexts so
++    // CompoundImageBacking allocates a compatible backing instead.
++    if (stream != SharedImageAccessStream::kSkia) {
++      return false;
++    }
++    if (params.context_state && !params.context_state->gr_context()) {
++      return false;
++    }
++  }
++  return true;
++}
++
++bool WrappedSkImageBacking::SupportsAccess(SharedImageAccessStream stream,
++                                           const AccessParams& params) const {
++  return CheckSupportForAccessStream(stream, params);
++}
++
+ SharedContextState* WrappedSkImageBacking::GetContextStateForCurrentThread()
+     const {
+   // `task_runner_` is only set when `is_thread_safe()` is true. On WebView,
+diff --git a/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing.h b/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing.h
+index aa6f6678..1b1438d 100644
+--- a/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing.h
++++ b/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing.h
+@@ -58,6 +58,13 @@
+   bool UploadFromMemory(const std::vector<SkPixmap>& pixmaps) override;
+   bool ReadbackToMemory(const std::vector<SkPixmap>& pixmaps) override;
+ 
++  // Determines if access for a given stream and parameters is supported.
++  static bool CheckSupportForAccessStream(SharedImageAccessStream stream,
++                                          const AccessParams& params);
++
++  bool SupportsAccess(SharedImageAccessStream stream,
++                      const AccessParams& params) const override;
++
+  protected:
+   std::unique_ptr<SkiaGaneshImageRepresentation> ProduceSkiaGanesh(
+       SharedImageManager* manager,
+diff --git a/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing_factory.cc b/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing_factory.cc
+index d12a75b2..02e882881 100644
+--- a/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing_factory.cc
++++ b/gpu/command_buffer/service/shared_image/wrapped_sk_image_backing_factory.cc
+@@ -243,16 +243,16 @@
+     return false;
+   }
+ 
++  AccessParams access_params = params ? *params : AccessParams();
+   if (use_graphite_) {
+     // We create a temporary backing just to check for support.
+     // TODO(crbug.com/394385381): Consider refactoring this to not require a
+     // context_state or a backing instance.
+-    AccessParams access_params = params ? *params : AccessParams();
+-    bool supported = WrappedGraphiteTextureBacking::CheckSupportForAccessStream(
++    return WrappedGraphiteTextureBacking::CheckSupportForAccessStream(
+         stream, format, access_params);
+-    return supported;
+   }
+-  return true;
++  return WrappedSkImageBacking::CheckSupportForAccessStream(stream,
++                                                            access_params);
+ }
+ 
+ }  // namespace gpu
+diff --git a/net/device_bound_sessions/session_service_impl.cc b/net/device_bound_sessions/session_service_impl.cc
+index 11b0f17..1a52087 100644
+--- a/net/device_bound_sessions/session_service_impl.cc
++++ b/net/device_bound_sessions/session_service_impl.cc
+@@ -40,6 +40,7 @@
+ #include "net/device_bound_sessions/registration_request_param.h"
+ #include "net/device_bound_sessions/session_binding_utils.h"
+ #include "net/device_bound_sessions/session_display.h"
++#include "net/device_bound_sessions/session_error.h"
+ #include "net/device_bound_sessions/session_store.h"
+ #include "net/ssl/ssl_cert_request_info.h"
+ #include "net/ssl/ssl_private_key.h"
+@@ -709,6 +710,10 @@
+ std::ranges::subrange<SessionServiceImpl::SessionsMap::iterator>
+ SessionServiceImpl::GetSessionsForSite(const SchemefulSite& site) {
+   const auto now = base::Time::Now();
++  // Deleting a session can synchronously re-enter this class and modify
++  // `unpartitioned_sessions_`, so expired sessions are extracted first and
++  // deleted only after the iteration below is done.
++  std::vector<SessionsMap::node_type> expired_sessions;
+   // Session keys are sorted by site, then identifier. So the first
+   // element not less than (`site`, "") is the first session for this
+   // site.
+@@ -718,20 +723,34 @@
+     auto curit = it;
+     ++it;
+ 
+-    const auto& [session_key, session] = *curit;
+-    if (now >= session->expiry_date()) {
+-      // Since this deletion is not due to a request, we do not need to
+-      // provide a per-request callback here.
+-      DeleteSessionAndNotifyInternal(DeletionReason::kExpired, curit,
+-                                     base::NullCallback());
++    if (now >= curit->second->expiry_date()) {
++      expired_sessions.push_back(unpartitioned_sessions_.extract(curit));
+     } else {
+-      session->RecordAccess();
++      curit->second->RecordAccess();
+     }
+   }
+ 
+-  return std::ranges::subrange<SessionsMap::iterator>(
+-      unpartitioned_sessions_.lower_bound(SessionKey{site, Session::Id("")}),
+-      it);
++  if (expired_sessions.empty()) {
++    return std::ranges::subrange<SessionsMap::iterator>(
++        unpartitioned_sessions_.lower_bound(SessionKey{site, Session::Id("")}),
++        it);
++  }
++
++  for (SessionsMap::node_type& node : expired_sessions) {
++    // Since this deletion is not due to a request, we do not need to
++    // provide a per-request callback here.
++    DeleteSessionAndNotifyInternal(DeletionReason::kExpired, std::move(node),
++                                   base::NullCallback());
++  }
++
++  // The map may have changed while deleting, so compute the range again.
++  auto begin =
++      unpartitioned_sessions_.lower_bound(SessionKey{site, Session::Id("")});
++  auto end = begin;
++  while (end != unpartitioned_sessions_.end() && end->first.site == site) {
++    ++end;
++  }
++  return std::ranges::subrange<SessionsMap::iterator>(begin, end);
+ }
+ 
+ std::optional<SessionService::DeferralParams> SessionServiceImpl::ShouldDefer(
+@@ -752,7 +771,16 @@
+   DebugHeaderBuilder debug_header_builder;
+   const base::flat_map<SessionKey, RefreshResult>& previous_deferrals =
+       request.device_bound_session_deferrals();
+-  for (const auto& [session_key, session] : GetSessionsForSite(site)) {
++  // Iterate over a copy of the keys: starting a proactive refresh below can
++  // complete synchronously and delete sessions.
++  const std::vector<SessionKey> session_keys = base::ToVector(
++      GetSessionsForSite(site), [](const auto& entry) { return entry.first; });
++  for (const SessionKey& session_key : session_keys) {
++    Session* session = GetSession(session_key);
++    if (!session) {
++      continue;
++    }
++
+     MaybeIncreaseSessionUsage(session_key, request,
+                               SessionUsage::kNoSiteMatchNotInScope);
+ 
+@@ -907,17 +935,21 @@
+     std::optional<SessionDisplay> new_session_display,
+     std::optional<bool> is_proactive_refresh_candidate,
+     std::optional<base::TimeDelta> minimum_proactive_refresh_threshold) {
+-  bool has_proactive_request = false;
+-  if (auto node = proactive_requests_.extract(session_key)) {
+-    has_proactive_request = true;
+-    base::UmaHistogramTimes("Net.DeviceBoundSessions.ProactiveRefreshDuration",
+-                            node.mapped().timer.Elapsed());
+-    CompleteProactiveRefresh(session_key, result,
+-                             std::move(node.mapped().completion_callbacks));
+-  }
++  // Remove both entries before running any callbacks, since they can re-enter
++  // this class. Requests deferred re-entrantly then wait for a new refresh
++  // instead of completing with `result`.
++  auto proactive_node = proactive_requests_.extract(session_key);
++  auto deferred_node = deferred_requests_.extract(session_key);
++  const bool has_proactive_request = !proactive_node.empty();
++  const bool has_deferred_request = !deferred_node.empty();
+ 
+-  auto it = deferred_requests_.find(session_key);
+-  bool has_deferred_request = it != deferred_requests_.end();
++  if (has_proactive_request) {
++    base::UmaHistogramTimes("Net.DeviceBoundSessions.ProactiveRefreshDuration",
++                            proactive_node.mapped().timer.Elapsed());
++    CompleteProactiveRefresh(
++        session_key, result,
++        std::move(proactive_node.mapped().completion_callbacks));
++  }
+ 
+   if (has_proactive_request || has_deferred_request) {
+     NotifyIfEventCallbackListeners([&] {
+@@ -933,8 +965,7 @@
+     return;
+   }
+ 
+-  auto requests = std::move(it->second);
+-  deferred_requests_.erase(it);
++  auto requests = std::move(deferred_node.mapped());
+ 
+   base::UmaHistogramCounts100("Net.DeviceBoundSessions.RequestDeferredCount",
+                               requests.size());
+@@ -1109,12 +1140,7 @@
+     return;
+   }
+ 
+-  auto it = unpartitioned_sessions_.find(session_key);
+-  if (it == unpartitioned_sessions_.end()) {
+-    return;
+-  }
+-
+-  DeleteSessionAndNotifyInternal(reason, it, per_request_callback);
++  DeleteSessionAndNotifyInternal(reason, session_key, per_request_callback);
+ }
+ 
+ const Session* SessionServiceImpl::GetSession(
+@@ -1212,8 +1238,7 @@
+     SessionStore::SaveSessionMode mode) {
+   SessionKey session_key{site, session->id()};
+   if (mode != SessionStore::SaveSessionMode::kRefresh) {
+-    auto it = unpartitioned_sessions_.find(session_key);
+-    if (it != unpartitioned_sessions_.end()) {
++    if (auto node = unpartitioned_sessions_.extract(session_key)) {
+       LogSessionDeletionReason(DeletionReason::kReplaced);
+ 
+       if (session_store_) {
+@@ -1222,14 +1247,12 @@
+ 
+       NotifySessionAccess(base::NullCallback(),
+                           SessionAccess::AccessType::kTermination, session_key,
+-                          *it->second);
++                          *node.mapped());
+       NotifyIfEventCallbackListeners([&] {
+         return SessionEvent::MakeTerminationEvent(
+             session_key.site, session_key.id.value(),
+             /*succeeded=*/true, DeletionReason::kReplaced);
+       });
+-
+-      unpartitioned_sessions_.erase(it);
+     }
+   }
+ 
+@@ -1276,6 +1299,10 @@
+     return;
+   }
+ 
++  // Extract all matching sessions before deleting any of them. Deleting a
++  // session can synchronously re-enter this class and modify
++  // `unpartitioned_sessions_`, which would invalidate iterators held here.
++  std::vector<SessionsMap::node_type> sessions_to_delete;
+   for (auto it = unpartitioned_sessions_.begin();
+        it != unpartitioned_sessions_.end();) {
+     auto curit = it;
+@@ -1284,10 +1311,15 @@
+     if (SessionMatchesFilter(curit->first.site, *curit->second,
+                              created_after_time, created_before_time,
+                              origin_and_site_matcher)) {
+-      DeleteSessionAndNotifyInternal(reason, curit, base::NullCallback());
++      sessions_to_delete.push_back(unpartitioned_sessions_.extract(curit));
+     }
+   }
+ 
++  for (SessionsMap::node_type& node : sessions_to_delete) {
++    DeleteSessionAndNotifyInternal(reason, std::move(node),
++                                   base::NullCallback());
++  }
++
+   std::move(completion_callback).Run();
+ }
+ 
+@@ -1309,28 +1341,47 @@
+ 
+ void SessionServiceImpl::DeleteSessionAndNotifyInternal(
+     DeletionReason reason,
+-    SessionServiceImpl::SessionsMap::iterator it,
+-    SessionService::OnAccessCallback per_request_callback) {
++    SessionServiceImpl::SessionsMap::node_type node,
++    SessionService::OnAccessCallback per_request_callback,
++    std::optional<SessionError> fetch_error) {
++  CHECK(!node.empty());
+   LogSessionDeletionReason(reason);
+ 
+-  const auto& [session_key, session] = *it;
++  // `node` is owned here and is no longer in `unpartitioned_sessions_`, so
++  // these references stay valid even if the calls below re-enter this class.
++  const SessionKey& session_key = node.key();
++  const Session& session = *node.mapped();
+ 
+-  UnblockWaitingRequests(session_key, RefreshResult::kFatalError);
+-
++  // Delete the session from the store before unblocking the waiting requests,
++  // to keep the store in sync with `unpartitioned_sessions_` if they re-enter
++  // this class (e.g. to save a new session with the same key).
+   if (session_store_) {
+     session_store_->DeleteSession(session_key);
+   }
+ 
++  UnblockWaitingRequests(session_key, RefreshResult::kFatalError,
++                         std::move(fetch_error));
++
+   NotifySessionAccess(per_request_callback,
+                       SessionAccess::AccessType::kTermination, session_key,
+-                      *session);
++                      session);
+   NotifyIfEventCallbackListeners([&] {
+     return SessionEvent::MakeTerminationEvent(session_key.site,
+                                               session_key.id.value(),
+                                               /*succeeded=*/true, reason);
+   });
++}
+ 
+-  unpartitioned_sessions_.erase(it);
++void SessionServiceImpl::DeleteSessionAndNotifyInternal(
++    DeletionReason reason,
++    const SessionKey& session_key,
++    SessionService::OnAccessCallback per_request_callback,
++    std::optional<SessionError> fetch_error) {
++  if (auto node = unpartitioned_sessions_.extract(session_key)) {
++    DeleteSessionAndNotifyInternal(reason, std::move(node),
++                                   std::move(per_request_callback),
++                                   std::move(fetch_error));
++  }
+ }
+ 
+ void SessionServiceImpl::NotifySessionAccess(
+@@ -1517,19 +1568,20 @@
+               },
+               [&](SessionError error) {
+                 const SessionError::ErrorType error_type = error.type;
+-                std::optional<DeletionReason> deletion_reason =
+-                    error.GetDeletionReason();
+-                RefreshResult refresh_result =
+-                    error.GetRefreshResult().value_or(
+-                        deletion_reason ? RefreshResult::kFatalError
+-                                        : RefreshResult::kUnreachable);
+-
+-                UnblockWaitingRequests(session_key, refresh_result,
+-                                       std::move(error));
+-
+-                if (deletion_reason) {
+-                  DeleteSessionAndNotify(*deletion_reason, session_key,
+-                                         on_access_callback);
++                if (std::optional<DeletionReason> deletion_reason =
++                        error.GetDeletionReason()) {
++                  // Deleting the session also unblocks its waiting requests.
++                  // If it was already deleted while the refresh was in
++                  // flight, they were unblocked then.
++                  DeleteSessionAndNotifyInternal(*deletion_reason, session_key,
++                                                 on_access_callback,
++                                                 std::move(error));
++                } else {
++                  const RefreshResult refresh_result =
++                      error.GetRefreshResult().value_or(
++                          RefreshResult::kUnreachable);
++                  UnblockWaitingRequests(session_key, refresh_result,
++                                         std::move(error));
+                 }
+                 return error_type;
+               }));
+@@ -1572,15 +1624,15 @@
+         std::optional<unexportable_keys::UnexportableSigningKeyId>)> callback,
+     Session::KeyIdOrError key_id_or_error) {
+   if (!key_id_or_error.has_value()) {
+-    const bool is_persistent_error =
+-        unexportable_keys::IsPersistentError(key_id_or_error.error());
+-    UnblockWaitingRequests(session_key,
+-                           is_persistent_error
+-                               ? RefreshResult::kFatalError
+-                               : RefreshResult::kTransientSigningError);
+-    if (is_persistent_error) {
++    if (unexportable_keys::IsPersistentError(key_id_or_error.error())) {
++      // Deleting the session also unblocks its waiting requests. If it was
++      // already deleted while the key was being restored, they were unblocked
++      // then.
+       DeleteSessionAndNotify(DeletionReason::kFailedToUnwrapKey, session_key,
+                              on_access_callback);
++    } else {
++      UnblockWaitingRequests(session_key,
++                             RefreshResult::kTransientSigningError);
+     }
+     std::move(callback).Run(std::nullopt);
+     return;
+@@ -1612,12 +1664,11 @@
+           params.priority;
+       RestoreSessionKey(
+           session_key, access_callback, priority,
+-          base::BindOnce(&SessionServiceImpl::RefreshSessionInternal,
++          base::BindOnce(&SessionServiceImpl::OnSessionKeyRestoredForRefresh,
+                          weak_factory_.GetWeakPtr(), std::move(params),
+                          session_key));
+       return;
+     } else {
+-      UnblockWaitingRequests(session_key, RefreshResult::kFatalError);
+       DeleteSessionAndNotify(DeletionReason::kFailedToRestoreKey, session_key,
+                              params.access_callback);
+       return;
+@@ -1627,20 +1678,29 @@
+   RefreshSessionInternal(std::move(params), session_key, *key_id);
+ }
+ 
+-void SessionServiceImpl::RefreshSessionInternal(
++void SessionServiceImpl::OnSessionKeyRestoredForRefresh(
+     RefreshParams params,
+     const SessionKey& session_key,
+     std::optional<unexportable_keys::UnexportableSigningKeyId> key_id) {
+   if (!key_id) {
+-    UnblockWaitingRequests(session_key, RefreshResult::kFatalError);
++    // `OnSessionKeyRestored()` already unblocked the waiting requests.
++    // Unblocking again would fail requests that were deferred re-entrantly
++    // while it ran.
+     return;
+   }
+ 
++  RefreshSessionInternal(std::move(params), session_key, *key_id);
++}
++
++void SessionServiceImpl::RefreshSessionInternal(
++    RefreshParams params,
++    const SessionKey& session_key,
++    unexportable_keys::UnexportableSigningKeyId key_id) {
+   Session* session = GetSession(session_key);
+   // `session` must exist because this is either called synchronously from
+-  // `StartSessionRefresh` (which checks `session`), or asynchronously after
+-  // `OnSessionKeyRestored` which also checks `session` and returns early if
+-  // null.
++  // `StartSessionRefresh` (which checks `session`), or from
++  // `OnSessionKeyRestoredForRefresh` with a key, which `OnSessionKeyRestored`
++  // only passes if `session` still exists.
+   CHECK(session);
+ 
+   if (params.trigger == RefreshTrigger::kMissingCookie) {
+@@ -1704,7 +1764,7 @@
+           net_log_source_for_refresh, params.initiator, params.priority);
+   RegistrationFetcher* fetcher_raw = fetcher.get();
+   registration_fetchers_.insert(std::move(fetcher));
+-  fetcher_raw->StartFetchWithExistingKey(registration_param, *key_id,
++  fetcher_raw->StartFetchWithExistingKey(registration_param, key_id,
+                                          std::move(callback));
+   // `fetcher_raw` may be deleted.
+ }
+diff --git a/net/device_bound_sessions/session_service_impl.h b/net/device_bound_sessions/session_service_impl.h
+index a3fae2c3..494408e5 100644
+--- a/net/device_bound_sessions/session_service_impl.h
++++ b/net/device_bound_sessions/session_service_impl.h
+@@ -26,6 +26,7 @@
+ #include "net/device_bound_sessions/registration_fetcher_param.h"
+ #include "net/device_bound_sessions/registration_request_param.h"
+ #include "net/device_bound_sessions/session.h"
++#include "net/device_bound_sessions/session_error.h"
+ #include "net/device_bound_sessions/session_key.h"
+ #include "net/device_bound_sessions/session_service.h"
+ #include "net/device_bound_sessions/session_store.h"
+@@ -303,13 +304,30 @@
+   std::ranges::subrange<SessionsMap::iterator> GetSessionsForSite(
+       const SchemefulSite& site);
+ 
+-  // Remove a session from the session map. It also clears the session
+-  // from `session_store_` and notifies any observers (including
+-  // `per_request_callback`) about the termination.
++  // Deletes a session that was already extracted from
++  // `unpartitioned_sessions_`. It also clears the session from
++  // `session_store_`, unblocks the requests waiting on the session with
++  // `RefreshResult::kFatalError`, and notifies any observers (including
++  // `per_request_callback`) about the termination. If set, `fetch_error` is
++  // reported in the refresh event for the unblocked requests.
++  //
++  // Callers must extract the node before calling this, because unblocking
++  // deferred requests can synchronously re-enter this class and modify
++  // `unpartitioned_sessions_`.
+   void DeleteSessionAndNotifyInternal(
+       DeletionReason reason,
+-      SessionsMap::iterator it,
+-      SessionService::OnAccessCallback per_request_callback);
++      SessionsMap::node_type node,
++      SessionService::OnAccessCallback per_request_callback,
++      std::optional<SessionError> fetch_error = std::nullopt);
++
++  // If the session identified by `session_key` exists, extracts it from
++  // `unpartitioned_sessions_` and deletes it with the overload above. Unlike
++  // `DeleteSessionAndNotify()`, this doesn't wait for sessions to load.
++  void DeleteSessionAndNotifyInternal(
++      DeletionReason reason,
++      const SessionKey& session_key,
++      SessionService::OnAccessCallback per_request_callback,
++      std::optional<SessionError> fetch_error = std::nullopt);
+ 
+   // Notify all observers about an access to a session. Will update
+   // `per_request_callback` unconditionally, and any observers in
+@@ -365,11 +383,19 @@
+   // Helper function for starting a refresh.
+   void StartSessionRefresh(const SessionKey& session_key, RefreshParams params);
+ 
+-  void RefreshSessionInternal(
++  // Continues the refresh started by `StartSessionRefresh` after restoring the
++  // session key. Does nothing if the key wasn't restored, because
++  // `OnSessionKeyRestored` already unblocked the waiting requests.
++  void OnSessionKeyRestoredForRefresh(
+       RefreshParams params,
+       const SessionKey& session_key,
+       std::optional<unexportable_keys::UnexportableSigningKeyId> key_id);
+ 
++  void RefreshSessionInternal(
++      RefreshParams params,
++      const SessionKey& session_key,
++      unexportable_keys::UnexportableSigningKeyId key_id);
++
+   // Add a header to `request` indicating which sessions should have
+   // applied, but did not due to error conditions.
+   void AddDebugHeader(const DbscRequest& request);
+diff --git a/pdf/pdfium/pdfium_page.cc b/pdf/pdfium/pdfium_page.cc
+index ee268b9c..11c07a5 100644
+--- a/pdf/pdfium/pdfium_page.cc
++++ b/pdf/pdfium/pdfium_page.cc
+@@ -14,6 +14,7 @@
+ #include <utility>
+ #include <vector>
+ 
++#include "base/auto_reset.h"
+ #include "base/check_op.h"
+ #include "base/containers/extend.h"
+ #include "base/containers/span.h"
+@@ -615,6 +616,15 @@
+     return false;
+   }
+ 
++  // Also do not unload when already unloading.
++  if (is_unloading_) {
++    return false;
++  }
++
++  base::AutoReset scoped_is_unloading(&is_unloading_, true);
++  // Also mark `this` as unavailable for the duration of Unload().
++  base::AutoReset scoped_unavailable(&available_, false);
++
+   text_page_.reset();
+ 
+   if (page_) {
+@@ -2341,6 +2351,10 @@
+ }
+ 
+ void PDFiumPage::MarkAvailable() {
++  if (is_unloading_) {
++    return;
++  }
++
+   available_ = true;
+ 
+   // Fulfill pending thumbnail request.
+diff --git a/pdf/pdfium/pdfium_page.h b/pdf/pdfium/pdfium_page.h
+index 6322165..66453a9 100644
+--- a/pdf/pdfium/pdfium_page.h
++++ b/pdf/pdfium/pdfium_page.h
+@@ -475,7 +475,7 @@
+   void GenerateAndSendThumbnail(float device_pixel_ratio,
+                                 SendThumbnailCallback send_callback);
+ 
+-  raw_ptr<PDFiumEngine> engine_;
++  raw_ptr<PDFiumEngine> const engine_;
+   ScopedFPDFPage page_;
+   ScopedFPDFTextPage text_page_;
+   uint32_t index_;
+@@ -508,6 +508,7 @@
+   std::set<int> page_object_text_run_breaks_;
+   base::OnceClosure thumbnail_callback_;
+   bool available_ = false;
++  bool is_unloading_ = false;
+ 
+ #if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
+   // Indicates whether Searchify added text to this page or not. Note that if
+diff --git a/services/network/network_context.cc b/services/network/network_context.cc
+index 68d93ae..7fec06b 100644
+--- a/services/network/network_context.cc
++++ b/services/network/network_context.cc
+@@ -3564,6 +3564,10 @@
+ void NetworkContext::DestroySocketManager(P2PSocketManager* socket_manager) {
+   auto iter = socket_managers_.find(socket_manager);
+   CHECK(iter != socket_managers_.end());
++  // Move out of `socket_managers_` before erasing so `~P2PSocketManager()`
++  // never runs while `flat_map::erase()` is mutating the container.
++  std::unique_ptr<P2PSocketManager> owned_socket_manager =
++      std::move(iter->second);
+   socket_managers_.erase(iter);
+ }
+ #endif  // BUILDFLAG(IS_P2P_ENABLED)
+diff --git a/services/network/p2p/socket.cc b/services/network/p2p/socket.cc
+index 1c18e75..e621b7f8 100644
+--- a/services/network/p2p/socket.cc
++++ b/services/network/p2p/socket.cc
+@@ -176,7 +176,11 @@
+ void P2PSocket::OnError() {
+   receiver_.reset();
+   client_.reset();
+-  delegate_->DestroySocket(this);
++  // Without a delegate, the former delegate is being destroyed and destroys
++  // this socket as part of that.
++  if (delegate_) {
++    delegate_->DestroySocket(this);
++  }
+ }
+ 
+ }  // namespace network
+diff --git a/services/network/p2p/socket.h b/services/network/p2p/socket.h
+index 4c0398c..15fd2d0 100644
+--- a/services/network/p2p/socket.h
++++ b/services/network/p2p/socket.h
+@@ -94,6 +94,11 @@
+       const P2PHostAndIPEndPoint& remote_address,
+       const net::NetworkAnonymizationKey& network_anonymization_key) = 0;
+ 
++  // Stops all calls to the delegate. The delegate calls this on each of its
++  // sockets before destroying them in its own destructor, because destroying
++  // one socket can synchronously fail other sockets.
++  void ClearDelegate() { delegate_ = nullptr; }
++
+   mojo::PendingRemote<mojom::P2PSocketClient> ReleaseClientForTesting();
+   mojo::PendingReceiver<mojom::P2PSocket> ReleaseReceiverForTesting();
+ 
+diff --git a/services/network/p2p/socket_manager.cc b/services/network/p2p/socket_manager.cc
+index 3a814c1..d92d91fa 100644
+--- a/services/network/p2p/socket_manager.cc
++++ b/services/network/p2p/socket_manager.cc
+@@ -6,6 +6,7 @@
+ 
+ #include <stddef.h>
+ 
++#include <memory>
+ #include <optional>
+ #include <utility>
+ 
+@@ -193,6 +194,15 @@
+   // Reset the P2PSocketManager receiver before dropping pending dns requests.
+   socket_manager_receiver_.reset();
+ 
++  // Destroying a socket or DNS request can synchronously fail its siblings
++  // (e.g. when closing the last active DoH stream on a stalled pool). Make sure
++  // none of them calls back into `this` while they are being destroyed:
++  // invalidate the weak pointers that DNS request callbacks are bound to, and
++  // clear each socket's delegate.
++  weak_factory_.InvalidateWeakPtrs();
++  for (const auto& [socket_ptr, socket] : sockets_) {
++    socket->ClearDelegate();
++  }
+   sockets_.clear();
+   dns_requests_.clear();
+ 
+@@ -235,7 +245,11 @@
+ void P2PSocketManager::DestroySocket(P2PSocket* socket) {
+   auto iter = sockets_.find(socket);
+   CHECK(iter != sockets_.end());
++  std::unique_ptr<P2PSocket> owned = std::move(iter->second);
+   sockets_.erase(iter);
++  // Delete `owned` after completing .erase() on the `sockets_` container.
++  // `~P2PSocket may trigger callbacks that would re-enter `P2PSocketManager`.
++  // `sockets_` should be in consistenct state if that happens.
+ }
+ 
+ void P2PSocketManager::DumpPacket(base::span<const uint8_t> packet,
+@@ -396,10 +410,10 @@
+       url_request_context_->host_resolver(), enable_mdns);
+   DnsRequest* request_ptr = request.get();
+   dns_requests_.insert(std::move(request));
+-  request_ptr->Resolve(
+-      host_name, address_family, network_anonymization_key_,
+-      base::BindOnce(&P2PSocketManager::OnAddressResolved,
+-                     base::Unretained(this), request_ptr, std::move(callback)));
++  request_ptr->Resolve(host_name, address_family, network_anonymization_key_,
++                       base::BindOnce(&P2PSocketManager::OnAddressResolved,
++                                      weak_factory_.GetWeakPtr(), request_ptr,
++                                      std::move(callback)));
+ }
+ 
+ void P2PSocketManager::CreateSocket(
+@@ -476,9 +490,12 @@
+     DnsRequest* request,
+     mojom::P2PSocketManager::GetHostAddressCallback callback,
+     const net::IPAddressList& addresses) {
++  auto iter = dns_requests_.find(request);
++  CHECK(iter != dns_requests_.end());
++  // Unlink before running `callback` or destroying `request` in case teardown
++  // or callback execution re-enters `dns_requests_`.
++  auto owned_request = dns_requests_.extract(iter);
+   std::move(callback).Run(addresses);
+-
+-  dns_requests_.erase(dns_requests_.find(request));
+ }
+ 
+ void P2PSocketManager::OnConnectionError() {
+diff --git a/services/network/p2p/socket_manager.h b/services/network/p2p/socket_manager.h
+index 5505f0b..242f3ed7 100644
+--- a/services/network/p2p/socket_manager.h
++++ b/services/network/p2p/socket_manager.h
+@@ -57,7 +57,7 @@
+ 
+ // Owns all the P2P socket instances and dispatches Mojo calls from the
+ // (untrusted) child and (trusted) browser process.
+-class COMPONENT_EXPORT(NETWORK_SERVICE) P2PSocketManager
++class COMPONENT_EXPORT(NETWORK_SERVICE) P2PSocketManager final
+     : public net::NetworkChangeNotifier::NetworkChangeObserver,
+       public mojom::P2PSocketManager,
+       public mojom::P2PTrustedSocketManager,
+diff --git a/services/network/p2p/socket_tcp.cc b/services/network/p2p/socket_tcp.cc
+index e9c6035..e88d8af 100644
+--- a/services/network/p2p/socket_tcp.cc
++++ b/services/network/p2p/socket_tcp.cc
+@@ -272,7 +272,9 @@
+   // TODO(crbug.com/40243224): Batch multiple packets in the TCP case as well.
+   client_->DataReceived(std::move(received_packets));
+ 
+-  delegate_->DumpPacket(data, true);
++  if (delegate_) {
++    delegate_->DumpPacket(data, true);
++  }
+   return true;
+ }
+ 
+@@ -554,7 +556,9 @@
+           buffer_size));
+ 
+   // WriteOrQueue may free the memory, so dump it first.
+-  delegate_->DumpPacket(send_buffer.buffer->span(), false);
++  if (delegate_) {
++    delegate_->DumpPacket(send_buffer.buffer->span(), false);
++  }
+ 
+   return WriteOrQueue(send_buffer);
+ }
+diff --git a/services/network/p2p/socket_tcp.h b/services/network/p2p/socket_tcp.h
+index 1f4f33d..c166050 100644
+--- a/services/network/p2p/socket_tcp.h
++++ b/services/network/p2p/socket_tcp.h
+@@ -123,7 +123,8 @@
+   raw_ptr<ProxyResolvingClientSocketFactory> proxy_resolving_socket_factory_;
+ };
+ 
+-class COMPONENT_EXPORT(NETWORK_SERVICE) P2PSocketTcp : public P2PSocketTcpBase {
++class COMPONENT_EXPORT(NETWORK_SERVICE) P2PSocketTcp final
++    : public P2PSocketTcpBase {
+  public:
+   P2PSocketTcp(
+       Delegate* delegate,
+@@ -151,7 +152,7 @@
+ // with TURN. These messages will not have length at front of the packet and
+ // are padded to multiple of 4 bytes.
+ // Formatting of messages is defined in RFC5766.
+-class COMPONENT_EXPORT(NETWORK_SERVICE) P2PSocketStunTcp
++class COMPONENT_EXPORT(NETWORK_SERVICE) P2PSocketStunTcp final
+     : public P2PSocketTcpBase {
+  public:
+   P2PSocketStunTcp(
+diff --git a/services/network/p2p/socket_udp.cc b/services/network/p2p/socket_udp.cc
+index 1eeec59..cfd4e3d7 100644
+--- a/services/network/p2p/socket_udp.cc
++++ b/services/network/p2p/socket_udp.cc
+@@ -373,7 +373,9 @@
+       }
+     }
+ 
+-    delegate_->DumpPacket(data, true);
++    if (delegate_) {
++      delegate_->DumpPacket(data, true);
++    }
+     net::DscpAndEcn last_tos =
+         socket_ == nullptr
+             ? net::DscpAndEcn(net::DSCP_DEFAULT, net::ECN_DEFAULT)
+@@ -466,7 +468,7 @@
+       packet.packet_options.ect_1 ? net::ECN_ECT1 : net::ECN_NOT_ECT);
+ 
+   bool success = DoSendToSocket(packet, send_time_ms);
+-  if (success) {
++  if (success && delegate_) {
+     delegate_->DumpPacket(packet.data->first(packet.size), /*incoming=*/false);
+   }
+   return success;
+diff --git a/services/network/p2p/socket_udp.h b/services/network/p2p/socket_udp.h
+index 6cd46c4..c72c9a71 100644
+--- a/services/network/p2p/socket_udp.h
++++ b/services/network/p2p/socket_udp.h
+@@ -54,7 +54,7 @@
+   uint64_t id;
+ };
+ 
+-class COMPONENT_EXPORT(NETWORK_SERVICE) P2PSocketUdp : public P2PSocket {
++class COMPONENT_EXPORT(NETWORK_SERVICE) P2PSocketUdp final : public P2PSocket {
+  public:
+   friend class ThrottlingP2PNetworkInterceptor;
+ 
+diff --git a/third_party/blink/renderer/core/animation/animation.cc b/third_party/blink/renderer/core/animation/animation.cc
+index b1785d1f..d037df5 100644
+--- a/third_party/blink/renderer/core/animation/animation.cc
++++ b/third_party/blink/renderer/core/animation/animation.cc
+@@ -2984,6 +2984,10 @@
+ }
+ 
+ bool Animation::OnValidateSnapshot(bool snapshot_changed) {
++  if (!timeline_) {
++    return true;
++  }
++  AnimationTimeline* initial_timeline = timeline_;
+   bool needs_update = snapshot_changed;
+ 
+   // Track a change in duration and update hold time if required.
+@@ -3013,16 +3017,37 @@
+     if (keyframe_effect->target()) {
+       if (style_dependent_range_start_) {
+         DCHECK(range_start_);
+-        range_changed |= range_start_->UpdateOffset(
+-            keyframe_effect->target(), style_dependent_range_start_);
++        TimelineOffset range_start = *range_start_;
++        CSSValue* range_start_css = style_dependent_range_start_;
++        bool updated = range_start.UpdateOffset(keyframe_effect->target(),
++                                                range_start_css);
++        if (timeline_ == initial_timeline && range_start_ &&
++            style_dependent_range_start_ == range_start_css) {
++          range_start_ = range_start;
++          range_changed |= updated;
++        }
+       }
+-      if (style_dependent_range_end_) {
++      // Updating a style-dependent offset may synchronously recalculate slot
++      // assignments and run script that detaches the animation or modifies its
++      // effect or range offsets.
++      if (style_dependent_range_end_ && timeline_ == initial_timeline &&
++          effect() == keyframe_effect && keyframe_effect->target()) {
+         DCHECK(range_end_);
+-        range_changed |= range_end_->UpdateOffset(keyframe_effect->target(),
+-                                                  style_dependent_range_end_);
++        TimelineOffset range_end = *range_end_;
++        CSSValue* range_end_css = style_dependent_range_end_;
++        bool updated =
++            range_end.UpdateOffset(keyframe_effect->target(), range_end_css);
++        if (timeline_ == initial_timeline && range_end_ &&
++            style_dependent_range_end_ == range_end_css) {
++          range_end_ = range_end;
++          range_changed |= updated;
++        }
+       }
+     }
+   }
++  if (timeline_ != initial_timeline) {
++    return true;
++  }
+ 
+   bool needs_new_start_time = false;
+   switch (CalculateAnimationPlayState()) {
+diff --git a/third_party/blink/renderer/core/animation/scroll_snapshot_timeline.cc b/third_party/blink/renderer/core/animation/scroll_snapshot_timeline.cc
+index 98aaedb..e56eccd 100644
+--- a/third_party/blink/renderer/core/animation/scroll_snapshot_timeline.cc
++++ b/third_party/blink/renderer/core/animation/scroll_snapshot_timeline.cc
+@@ -237,9 +237,10 @@
+     SetHasPendingCompositorUpdate(true);
+   }
+ 
+-  const HeapHashSet<WeakMember<Animation>>& animations = GetAnimations();
+-
+   auto should_skip_validation = [service_animations](Animation* animation) {
++    if (!animation->TimelineInternal()) {
++      return true;
++    }
+     // For scroll-driven aimations, we should avoid setting a deferred start
+     // time during the update snapshot phase. Instead wait for the validation
+     // phase post layout. Skipping OnValidateSnapshot here is necessary for not
+@@ -261,7 +262,7 @@
+     HeapVector<Member<TimelineTrigger>> triggers(GetTriggers());
+     HeapVector<Member<Animation>> animations_to_validate;
+     for (TimelineTrigger* trigger : triggers) {
+-      if (trigger->Update()) {
++      if (!GetTriggers().Contains(trigger) || trigger->Update()) {
+         continue;
+       }
+       snapshot_changed = true;
+@@ -277,7 +278,7 @@
+         }
+         // Avoid superfluous snapshot validation, by skipping the call if it
+         // will be invoked in the loop below.
+-        if (animations.Contains(animation) ||
++        if (GetAnimations().Contains(animation) ||
+             should_skip_validation(animation)) {
+           continue;
+         }
+@@ -287,7 +288,8 @@
+     for (Animation* animation : animations_to_validate) {
+       // A later TimelineTrigger::Update or earlier OnValidateSnapshot call may
+       // have cancelled `animation` and disassociated it from its trigger.
+-      if (animation->GetTriggers().empty()) {
++      if (animation->GetTriggers().empty() ||
++          should_skip_validation(animation)) {
+         continue;
+       }
+       animation->OnValidateSnapshot(true);
+@@ -295,8 +297,13 @@
+     update_triggers_ = false;
+   }
+ 
++  // Validating snapshots may update style-dependent range offsets and
++  // recalculate slot assignments, which can modify the timeline's animation
++  // set.
++  HeapVector<Member<Animation>> animations(GetAnimations());
+   for (Animation* animation : animations) {
+-    if (should_skip_validation(animation)) {
++    if (animation->TimelineInternal() != this ||
++        should_skip_validation(animation)) {
+       continue;
+     }
+     // Compute deferred start times and update animation timing if required.
+diff --git a/third_party/blink/renderer/core/animation/timeline_offset.cc b/third_party/blink/renderer/core/animation/timeline_offset.cc
+index dbde977..73d5e86 100644
+--- a/third_party/blink/renderer/core/animation/timeline_offset.cc
++++ b/third_party/blink/renderer/core/animation/timeline_offset.cc
+@@ -296,6 +296,11 @@
+     return Length::Fixed();
+   }
+   ElementResolveContext element_resolve_context(*element);
++  // Constructing ElementResolveContext walks the flat tree and may trigger slot
++  // assignment recalc, which can detach `element`'s layout tree.
++  if (!element->GetComputedStyle()) {
++    return Length::Fixed();
++  }
+   Document& document = element->GetDocument();
+   CSSToLengthConversionData::Flags ignored_flags = 0;
+ 
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
+index c17b13b..b7a127b 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
+@@ -1488,9 +1488,20 @@
+ angle::Result FramebufferGL::onAttachmentLayerCountChange(gl::FramebufferAttachment *attachment)
+ {
+     ASSERT(!isDefault() && attachment && attachment->isAttached() &&
+-           attachment->type() == GL_TEXTURE && mFunctions->framebufferTextureLayer);
++           attachment->type() == GL_TEXTURE);
+     mStateManager->bindFramebuffer(GL_FRAMEBUFFER, mFramebufferID);
+-    mFunctions->framebufferTextureLayer(GL_FRAMEBUFFER, attachment->getBinding(), 0, 0, 0);
++    // Detaching with a texture of 0 ignores the remaining parameters.  glFramebufferTextureLayer
++    // is not available on ES 2.0 drivers, while cube map textures are, so fall back to
++    // glFramebufferTexture2D in that case.
++    if (mFunctions->framebufferTextureLayer)
++    {
++        mFunctions->framebufferTextureLayer(GL_FRAMEBUFFER, attachment->getBinding(), 0, 0, 0);
++    }
++    else
++    {
++        mFunctions->framebufferTexture2D(GL_FRAMEBUFFER, attachment->getBinding(), GL_TEXTURE_2D, 0,
++                                         0);
++    }
+     return angle::Result::Continue;
+ }
+ 
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.cpp
+index 9cde243..3bfe246 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.cpp
+@@ -23,6 +23,7 @@
+ #include "libANGLE/renderer/gl/RendererGL.h"
+ #include "libANGLE/renderer/gl/ShaderGL.h"
+ #include "libANGLE/renderer/gl/StateManagerGL.h"
++#include "libANGLE/renderer/gl/renderergl_utils.h"
+ #include "libANGLE/trace.h"
+ #include "platform/PlatformMethods.h"
+ #include "platform/autogen/FeaturesGL_autogen.h"
+@@ -109,12 +110,14 @@
+                bool hasNativeParallelCompile,
+                const FunctionsGL *functions,
+                const gl::Extensions &extensions,
++               StateManagerGL *linkStateManager,
+                GLuint programID,
+                bool passthroughShaders)
+         : mProgram(program),
+           mHasNativeParallelCompile(hasNativeParallelCompile),
+           mFunctions(functions),
+           mExtensions(extensions),
++          mLinkStateManager(linkStateManager),
+           mProgramID(programID),
+           mPassthroughShaders(passthroughShaders)
+     {}
+@@ -140,8 +143,9 @@
+         // If there is no native parallel compile, do the post-link right away.
+         if (mResult == angle::Result::Continue && !mHasNativeParallelCompile)
+         {
+-            mResult = mProgram->postLinkJobImpl(resources);
++            mResult = mProgram->postLinkJobImpl(resources, mLinkStateManager);
+         }
++        mLinkStateManager = nullptr;
+ 
+         // See comment on mResources
+         mResources = &resources;
+@@ -154,7 +158,8 @@
+ 
+         if (mResult == angle::Result::Continue && mHasNativeParallelCompile)
+         {
+-            mResult = mProgram->postLinkJobImpl(*mResources);
++            StateManagerGL *stateManager = GetStateManagerGL(context);
++            mResult                      = mProgram->postLinkJobImpl(*mResources, stateManager);
+         }
+ 
+         return mResult;
+@@ -175,6 +180,7 @@
+     const bool mHasNativeParallelCompile;
+     const FunctionsGL *mFunctions;
+     const gl::Extensions &mExtensions;
++    StateManagerGL *mLinkStateManager;
+     const GLuint mProgramID;
+     const bool mPassthroughShaders;
+ 
+@@ -207,7 +213,7 @@
+ 
+ void ProgramGL::destroy(const gl::Context *context)
+ {
+-    mFunctions->deleteProgram(mProgramID);
++    GetStateManagerGL(context)->deleteProgram(mProgramID);
+     mProgramID = 0;
+ }
+ 
+@@ -421,9 +427,10 @@
+ {
+     ANGLE_TRACE_EVENT0("gpu.angle", "ProgramGL::link");
+ 
+-    *linkTaskOut = std::make_shared<LinkTaskGL>(this, mRenderer->hasNativeParallelCompile(),
+-                                                mFunctions, context->getExtensions(), mProgramID,
+-                                                context->getState().usesPassthroughShaders());
++    StateManagerGL *stateManager = GetStateManagerGL(context);
++    *linkTaskOut                 = std::make_shared<LinkTaskGL>(
++        this, mRenderer->hasNativeParallelCompile(), mFunctions, context->getExtensions(),
++        stateManager, mProgramID, context->getState().usesPassthroughShaders());
+ 
+     return angle::Result::Continue;
+ }
+@@ -567,7 +574,8 @@
+     return angle::Result::Continue;
+ }
+ 
+-angle::Result ProgramGL::postLinkJobImpl(const gl::ProgramLinkedResources &resources)
++angle::Result ProgramGL::postLinkJobImpl(const gl::ProgramLinkedResources &resources,
++                                         StateManagerGL *stateManager)
+ {
+     ANGLE_TRACE_EVENT0("gpu.angle", "ProgramGL::postLinkJobImpl");
+ 
+@@ -592,9 +600,13 @@
+         return angle::Result::Stop;
+     }
+ 
++    // glUseProgram applies to the native context that is current, i.e. the one linking or
++    // resolving this program, which may differ from the context that created it (mStateManager).
++    // Use the current context's state manager so that its shadow state and active transform
++    // feedback are the ones updated.
+     if (mFeatures.alwaysCallUseProgramAfterLink.enabled)
+     {
+-        mStateManager->forceUseProgram(mProgramID);
++        stateManager->forceUseProgram(mProgramID);
+     }
+ 
+     linkResources(resources);
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.h b/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.h
+index a788d47..0294e85 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.h
++++ b/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.h
+@@ -80,7 +80,8 @@
+ 
+     angle::Result passthroughLinkJobImpl(const gl::Extensions &extensions);
+     angle::Result linkJobImpl(const gl::Extensions &extensions);
+-    angle::Result postLinkJobImpl(const gl::ProgramLinkedResources &resources);
++    angle::Result postLinkJobImpl(const gl::ProgramLinkedResources &resources,
++                                  StateManagerGL *stateManager);
+ 
+     void attachShaders();
+     void applyTransformFeedbackState();
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp
+index 51eb6bf..0da0715 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp
+@@ -1876,6 +1876,12 @@
+ 
+ void StateManagerGL::forceUseProgram(GLuint program)
+ {
++    // glUseProgram generates GL_INVALID_OPERATION while the current transform feedback is active
++    // and not paused, which would leave mState.program out of sync with the native state.  Pause
++    // it first; syncTransformFeedbackState() resumes it on the next draw if it is still unpaused
++    // in the frontend.
++    pauseTransformFeedback();
++
+     mState.program = program;
+     mFunctions->useProgram(program);
+     mLocalDirtyBits.set(gl::state::DIRTY_BIT_PROGRAM_BINDING);
+@@ -2384,9 +2390,8 @@
+ 
+ void StateManagerGL::pauseTransformFeedback()
+ {
+-    if (mCurrentTransformFeedback != nullptr)
++    if (mCurrentTransformFeedback != nullptr && mCurrentTransformFeedback->syncPausedState(true))
+     {
+-        mCurrentTransformFeedback->syncPausedState(true);
+         onTransformFeedbackStateChange();
+     }
+ }
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/TextureGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/TextureGL.cpp
+index 47e8edf..013aeb8 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/TextureGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/TextureGL.cpp
+@@ -2605,15 +2605,12 @@
+     if (features.reattachTextureToFboAfterLayerIncrease.enabled &&
+         gl::IsLayeredTextureType(getType()))
+     {
+-        for (size_t level = 0; level < levels; level++)
+-        {
+-            const gl::ImageDesc &desc = mState.getImageDesc(gl::TextureTarget::_2DArray, level);
+-            if (size.depth > desc.size.depth)
+-            {
+-                onStateChange(angle::SubjectMessage::TextureLayerCountIncreased);
+-                break;
+-            }
+-        }
++        // gl::Texture::setStorage() replaces the image descs with the new storage sizes before
++        // calling into the backend, so the previous image layout cannot be compared against
++        // here.  Conservatively assume that the number of images grows.  This is cheap: it only
++        // reaches framebuffers that have this texture attached, and TexStorage can be called at
++        // most once per texture since it makes the texture immutable.
++        onStateChange(angle::SubjectMessage::TextureLayerCountIncreased);
+     }
+ 
+     const gl::InternalFormat &originalInternalFormatInfo =
+@@ -4477,7 +4474,12 @@
+     StateManagerGL *stateManager      = GetStateManagerGL(context);
+ 
+     const gl::ImageDesc &currentDesc = mState.getImageDesc(target, level);
+-    if (currentDesc.size.empty() || size.depth <= currentDesc.size.depth)
++    // Only skip the workaround when the level has never been defined or its depth is not
++    // increasing. A level that was defined with a zero extent (e.g. 64x0x4 or 64x64x0) still
++    // exists in the driver, so a redefinition with a larger depth must still go through the
++    // recreate path. Extents::empty() returns true if any dimension is zero and would wrongly
++    // treat such a level as undefined.
++    if (!currentDesc.format.valid() || size.depth <= currentDesc.size.depth)
+     {
+         return angle::Result::Continue;
+     }
+@@ -4510,6 +4512,10 @@
+         const gl::ImageDesc &desc = mState.getImageDesc(target, l);
+         if (desc.size.empty())
+         {
++            // Zero-extent levels have no contents to copy, so they are not redefined in the new
++            // native texture even though the front-end still tracks them as defined. This is
++            // harmless: queries are answered by the front-end, such levels make the texture
++            // incomplete either way, and a later depth increase on them only recreates again.
+             continue;
+         }
+ 
+@@ -4542,7 +4548,15 @@
+ 
+     stateManager->deleteTexture(oldTextureID);
+ 
++    // The new texture's filters and base/max levels were changed above to make the levels
++    // complete for copyImageSubData, and mAppliedSampler/mAppliedBaseLevel/mAppliedMaxLevel track
++    // those native values. These states may never have been modified by the application, so they
++    // may not be in mAllModifiedDirtyBits; flag them explicitly so syncState() restores them.
+     mLocalDirtyBits = mAllModifiedDirtyBits;
++    mLocalDirtyBits.set(gl::Texture::DIRTY_BIT_MIN_FILTER);
++    mLocalDirtyBits.set(gl::Texture::DIRTY_BIT_MAG_FILTER);
++    mLocalDirtyBits.set(gl::Texture::DIRTY_BIT_BASE_LEVEL);
++    mLocalDirtyBits.set(gl::Texture::DIRTY_BIT_MAX_LEVEL);
+     onStateChange(angle::SubjectMessage::SubjectChanged);
+ 
+     return angle::Result::Continue;
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.cpp
+index 77b028b..2637abc 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.cpp
+@@ -129,38 +129,40 @@
+ {
+     if (mIsActive != active)
+     {
+-        mIsActive = active;
+-        mIsPaused = false;
+-
+         mStateManager->bindTransformFeedback(GL_TRANSFORM_FEEDBACK, mTransformFeedbackID);
+-        if (mIsActive)
++
++        // Bind the program associated with this transform feedback for both BeginTransformFeedback
++        // and EndTransformFeedback (implementations disagree about what should happen if a
++        // different program is bound when calling EndTransformFeedback).  The previously bound
++        // program is not restored, as it may have been deleted since; useProgram() marks the
++        // program binding dirty so the current program is re-applied on the next draw.
++        mStateManager->useProgram(mActiveProgram);
++
++        if (active)
+         {
++            ASSERT(!mIsPaused);
+             ASSERT(primitiveMode != gl::PrimitiveMode::InvalidEnum);
+-            mStateManager->useProgram(mActiveProgram);
+             mFunctions->beginTransformFeedback(gl::ToGLenum(primitiveMode));
+         }
+         else
+         {
+-            // Implementations disagree about what should happen if a different program is bound
+-            // when calling EndTransformFeedback. We avoid the ambiguity by always re-binding the
+-            // program associated with this transform feedback.
+-            GLuint previousProgram = mStateManager->getProgramID();
+-            mStateManager->useProgram(mActiveProgram);
+             mFunctions->endTransformFeedback();
+-            // Restore the current program if we changed it.
+-            mStateManager->useProgram(previousProgram);
+         }
++
++        // mIsActive and mIsPaused are only updated after the native calls: useProgram() may call
++        // back into StateManagerGL::pauseTransformFeedback(), which must observe the state of the
++        // native transform feedback from before this transition.
++        mIsActive = active;
++        mIsPaused = false;
+     }
+ }
+ 
+-void TransformFeedbackGL::syncPausedState(bool paused) const
++bool TransformFeedbackGL::syncPausedState(bool paused) const
+ {
+     if (mIsActive && mIsPaused != paused)
+     {
+-        mIsPaused = paused;
+-
+         mStateManager->bindTransformFeedback(GL_TRANSFORM_FEEDBACK, mTransformFeedbackID);
+-        if (mIsPaused)
++        if (paused)
+         {
+             // If we're transitioning from active to paused, the currently bound program must be the
+             // one associated with this transform feedback.
+@@ -174,6 +176,12 @@
+             mStateManager->useProgram(mActiveProgram);
+             mFunctions->resumeTransformFeedback();
+         }
++
++        // As in syncActiveState(), mIsPaused is only updated after the native call because
++        // useProgram() may call back into StateManagerGL::pauseTransformFeedback().
++        mIsPaused = paused;
++        return true;
+     }
++    return false;
+ }
+ }  // namespace rx
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.h b/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.h
+index f723662..95364ae 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.h
++++ b/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.h
+@@ -39,7 +39,8 @@
+     void syncActiveState(const gl::Context *context,
+                          bool active,
+                          gl::PrimitiveMode primitiveMode) const;
+-    void syncPausedState(bool paused) const;
++    // Returns true if the native paused state changed.
++    bool syncPausedState(bool paused) const;
+ 
+   private:
+     const FunctionsGL *mFunctions;
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/FramebufferVk.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/FramebufferVk.cpp
+index 6af6a6d..0fa8ce3 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/FramebufferVk.cpp
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/FramebufferVk.cpp
+@@ -2068,7 +2068,7 @@
+                                                       foveatedAttachmentSize));
+         ASSERT(mFragmentShadingRateImage.valid());
+ 
+-        serial = mFragmentShadingRateImageView.getSubresourceSerial(
++        serial = mFragmentShadingRateImageView.getSubresourceWriteSerial(
+             gl::OwnerLevel(0), 1, gl::OwnerLayer(0), vk::LayerMode::All);
+     }
+ 
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/RenderTargetVk.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/RenderTargetVk.cpp
+index 89a1fac..76f0246 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/RenderTargetVk.cpp
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/RenderTargetVk.cpp
+@@ -88,7 +88,7 @@
+ 
+     vk::LayerMode layerMode = vk::GetLayerMode(*mImage, mLayerCount);
+     vk::ImageOrBufferViewSubresourceSerial imageViewSerial =
+-        imageViews->getSubresourceSerial(mLevelIndexGL, 1, mLayerIndex, layerMode);
++        imageViews->getSubresourceWriteSerial(mLevelIndexGL, 1, mLayerIndex, layerMode);
+     return imageViewSerial;
+ }
+ 
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.cpp
+index da61638..0e806e2 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.cpp
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.cpp
+@@ -4049,7 +4049,7 @@
+     localBits.reset(gl::Texture::DIRTY_BIT_BASE_LEVEL);
+     localBits.reset(gl::Texture::DIRTY_BIT_MAX_LEVEL);
+ 
+-    bool refreshAllImageViews = false;
++    bool refreshAllReadImageViews = false;
+ 
+     // For AHBs, the ImageViews are created with VkSamplerYcbcrConversionInfo's chromaFilter
+     // matching min/magFilters as part of the eglEGLImageTargetTexture2DOES() call. However, the
+@@ -4065,7 +4065,7 @@
+         if (mImage->updateChromaFilter(renderer, chromaFilter))
+         {
+             resetSampler();
+-            refreshAllImageViews = true;
++            refreshAllReadImageViews = true;
+         }
+     }
+ 
+@@ -4075,7 +4075,7 @@
+         localBits.test(gl::Texture::DIRTY_BIT_SWIZZLE_ALPHA) ||
+         localBits.test(gl::Texture::DIRTY_BIT_ASTC_DECODE_PRECISION))
+     {
+-        refreshAllImageViews = true;
++        refreshAllReadImageViews = true;
+     }
+ 
+     if (localBits.test(gl::Texture::DIRTY_BIT_SRGB_OVERRIDE) ||
+@@ -4099,9 +4099,9 @@
+                                          : ImageMipLevels::EnabledLevels;
+     ANGLE_TRY(ensureImageInitialized(contextVk, mipLevels));
+     // If needed, drop the read image views.  In either case, ensure read image views are created.
+-    if (refreshAllImageViews)
++    if (refreshAllReadImageViews)
+     {
+-        ANGLE_TRY(refreshImageViews(contextVk));
++        ANGLE_TRY(refreshReadImageViews(contextVk));
+     }
+     else
+     {
+@@ -4948,8 +4948,8 @@
+     // getMipmapMaxLevel will clamp to the max level if it is smaller than the number of mips.
+     uint32_t levelCount = maxLevel - baseLevel + 1;
+ 
+-    return mImageView.getSubresourceSerialForColorspace(baseLevel, levelCount, gl::OwnerLayer(0),
+-                                                        vk::LayerMode::All, colorspace);
++    return mImageView.getSubresourceReadSerialForColorspace(
++        baseLevel, levelCount, gl::OwnerLayer(0), vk::LayerMode::All, colorspace);
+ }
+ 
+ vk::ImageOrBufferViewSubresourceSerial TextureVk::getBufferViewSerial() const
+@@ -4967,7 +4967,7 @@
+     const gl::OwnerLevel baseLevel =
+         mState.toOwnerLevel(gl::LevelIndex(static_cast<uint32_t>(binding.level)));
+ 
+-    return mImageView.getSubresourceSerial(baseLevel, 1, nativeLayer, layerMode);
++    return mImageView.getSubresourceWriteSerial(baseLevel, 1, nativeLayer, layerMode);
+ }
+ 
+ uint32_t TextureVk::getImageViewLayerCount() const
+@@ -4988,7 +4988,7 @@
+                : 1;
+ }
+ 
+-angle::Result TextureVk::refreshImageViews(ContextVk *contextVk)
++angle::Result TextureVk::refreshReadImageViews(ContextVk *contextVk)
+ {
+     if (mImage == nullptr)
+     {
+@@ -4997,34 +4997,14 @@
+     else
+     {
+         vk::Renderer *renderer = contextVk->getRenderer();
+-        mImageView.release(renderer, mImage->getResourceUse());
++        mImageView.releaseReadImageViews(renderer, mImage->getResourceUse());
+ 
+         // Since view has changed, some descriptorSet cache maybe obsolete. So proactively release
+         // cache.
+         mDescriptorSetCacheManager.releaseKeys(renderer);
+-
+-        for (auto &renderTargets : mSingleLayerRenderTargets)
+-        {
+-            for (RenderTargetVector &renderTargetLevels : renderTargets)
+-            {
+-                for (RenderTargetVk &renderTargetVk : renderTargetLevels)
+-                {
+-                    renderTargetVk.releaseFramebuffers(contextVk);
+-                }
+-            }
+-        }
+-        for (auto &renderTargetPair : mMultiLayerRenderTargets)
+-        {
+-            renderTargetPair.second->releaseFramebuffers(contextVk);
+-        }
+     }
+ 
+-    ANGLE_TRY(initReadImageViews(contextVk, getMipLevelCount(ImageMipLevels::EnabledLevels)));
+-
+-    // Let any Framebuffers know we need to refresh the RenderTarget cache.
+-    onStateChange(angle::SubjectMessage::SubjectChanged);
+-
+-    return angle::Result::Continue;
++    return initReadImageViews(contextVk, getMipLevelCount(ImageMipLevels::EnabledLevels));
+ }
+ 
+ angle::Result TextureVk::ensureRenderable(ContextVk *contextVk,
+@@ -5088,7 +5068,7 @@
+     if (imageWasInitialized)
+     {
+         ANGLE_TRY(ensureImageInitialized(contextVk, ImageMipLevels::EnabledLevels));
+-        ANGLE_TRY(refreshImageViews(contextVk));
++        ANGLE_TRY(refreshReadImageViews(contextVk));
+     }
+ 
+     if (updateResultOut != nullptr)
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.h b/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.h
+index 6fa1224..9e912a4 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.h
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.h
+@@ -602,7 +602,7 @@
+                                                     : VK_IMAGE_TILING_OPTIMAL;
+     }
+ 
+-    angle::Result refreshImageViews(ContextVk *contextVk);
++    angle::Result refreshReadImageViews(ContextVk *contextVk);
+     void initImageUsageFlags(ContextVk *contextVk,
+                              const angle::Format &intendedFormat,
+                              angle::FormatID actualFormatID);
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/spv_utils.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/spv_utils.cpp
+index aa1512b..6dd172c 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/spv_utils.cpp
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/spv_utils.cpp
+@@ -1569,6 +1569,14 @@
+                                           spv::StorageClass storageClass,
+                                           spirv::Blob *blobOut);
+ 
++    TransformationState transformExtInst(const uint32_t *instruction, spirv::Blob *blobOut);
++
++    void transformAccessChain(spirv::IdResultType typeId,
++                              spirv::IdResult id,
++                              spirv::IdRef baseId,
++                              const spirv::IdRefList &indexList,
++                              spirv::Blob *blobOut);
++
+     void modifyEntryPointInterfaceList(EntryPointList entryPointList,
+                                        spirv::IdRefList *interfaceList);
+     void addDecorate(spirv::IdRef replacedId, spirv::Blob *blobOut);
+@@ -1642,6 +1650,53 @@
+     return TransformationState::Unchanged;
+ }
+ 
++TransformationState SpirvVaryingPrecisionFixer::transformExtInst(const uint32_t *instruction,
++                                                                 spirv::Blob *blobOut)
++{
++    spirv::IdResultType typeId;
++    spirv::IdResult id;
++    spirv::IdRef set;
++    spirv::LiteralExtInstInteger extInst;
++    spirv::IdRefList operands;
++    spirv::ParseExtInst(instruction, &typeId, &id, &set, &extInst, &operands);
++
++    switch (extInst)
++    {
++        case spv::GLSLstd450InterpolateAtCentroid:
++        case spv::GLSLstd450InterpolateAtSample:
++        case spv::GLSLstd450InterpolateAtOffset:
++            ASSERT(operands.size() >= 1);
++            ASSERT(operands[0] < mFixedVaryingId.size());
++            if (mFixedVaryingId[operands[0]].valid())
++            {
++                operands[0] = mFixedVaryingId[operands[0]];
++                spirv::WriteExtInst(blobOut, typeId, id, set, extInst, operands);
++                return TransformationState::Transformed;
++            }
++            break;
++        default:
++            return TransformationState::Unchanged;
++    }
++    return TransformationState::Unchanged;
++}
++
++void SpirvVaryingPrecisionFixer::transformAccessChain(spirv::IdResultType typeId,
++                                                      spirv::IdResult id,
++                                                      spirv::IdRef baseId,
++                                                      const spirv::IdRefList &indexList,
++                                                      spirv::Blob *blobOut)
++{
++    ASSERT(baseId < mFixedVaryingId.size());
++    ASSERT(id < mFixedVaryingId.size());
++    if (mFixedVaryingId[baseId].valid())
++    {
++        mFixedVaryingId[id] = SpirvTransformerBase::GetNewId(blobOut);
++        spirv::WriteAccessChain(blobOut, typeId, mFixedVaryingId[id], mFixedVaryingId[baseId],
++                                indexList);
++    }
++    return;
++}
++
+ void SpirvVaryingPrecisionFixer::writeInputPreamble(
+     const std::vector<const ShaderInterfaceVariableInfo *> &variableInfoById,
+     gl::ShaderType shaderType,
+@@ -4826,6 +4881,13 @@
+ 
+ TransformationState SpirvTransformer::transformExtInst(const uint32_t *instruction)
+ {
++    if (mOptions.useSpirvVaryingPrecisionFixer &&
++        mVaryingPrecisionFixer.transformExtInst(instruction, mSpirvBlobOut) ==
++            TransformationState::Transformed)
++    {
++        return TransformationState::Transformed;
++    }
++
+     sh::vk::spirv::NonSemanticInstruction inst;
+     if (!mNonSemanticInstructions.visitExtInst(instruction, &inst))
+     {
+@@ -5014,19 +5076,24 @@
+         }
+     }
+ 
+-    if (mOptions.useSpirvVaryingPrecisionFixer)
++    if (info->activeStages[mOptions.shaderType])
+     {
+-        if (info->activeStages[mOptions.shaderType] &&
++        if (!mOptions.useSpirvVaryingPrecisionFixer ||
+             info->useRelaxedPrecision == PrecisionAdjustmentEnum::kUnchanged)
+         {
+             return TransformationState::Unchanged;
+         }
+-    }
+-    else
+-    {
+-        if (info->activeStages[mOptions.shaderType])
++        // If the fragment shader calls following built-in functions:
++        // interpolateAtCentroid(inputVarying[index])
++        // interpolateAtOffset(inputVarying[index])
++        // interpolateAtSample(inputVarying[index])
++        // And we replace the inputVarying with replacementVarying, we need to generate access chain
++        // instruction on the replaceVarying so that we can modify the functions to take the
++        // replacementVarying[index].
++        if (mOptions.shaderType == gl::ShaderType::Fragment && info->varyingIsInput)
+         {
+-            return TransformationState::Unchanged;
++            mVaryingPrecisionFixer.transformAccessChain(typeId, id, baseId, indexList,
++                                                        mSpirvBlobOut);
+         }
+     }
+ 
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.cpp
+index 6730475..eca2484 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.cpp
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.cpp
+@@ -105,14 +105,19 @@
+     return depthEqual && stencilEqual;
+ }
+ 
++void ReleaseImageView(ImageView *imageView, GarbageObjects *garbage)
++{
++    if (imageView->valid())
++    {
++        garbage->emplace_back(GetGarbage(imageView));
++    }
++}
++
+ void ReleaseImageViews(ImageViewVector *imageViewVector, GarbageObjects *garbage)
+ {
+     for (ImageView &imageView : *imageViewVector)
+     {
+-        if (imageView.valid())
+-        {
+-            garbage->emplace_back(GetGarbage(&imageView));
+-        }
++        ReleaseImageView(&imageView, garbage);
+     }
+     imageViewVector->clear();
+ }
+@@ -133,10 +138,7 @@
+     {
+         for (ImageView &imageView : layerViews)
+         {
+-            if (imageView.valid())
+-            {
+-                garbage->emplace_back(GetGarbage(&imageView));
+-            }
++            ReleaseImageView(&imageView, garbage);
+         }
+     }
+     imageViewVector->clear();
+@@ -159,10 +161,7 @@
+     for (auto &iter : *imageViews)
+     {
+         std::unique_ptr<ImageView> &imageView = iter.second;
+-        if (imageView->valid())
+-        {
+-            garbage->emplace_back(GetGarbage(imageView.get()));
+-        }
++        ReleaseImageView(imageView.get(), garbage);
+     }
+     imageViews->clear();
+ }
+@@ -873,9 +872,13 @@
+                     // afterwards)
+                     break;
+                 case RenderPassLoadOp::Load:
+-                    // Make sure the attachment is neither loaded nor stored (as it's neither used
+-                    // nor invalidated), if possible.
+-                    if (supportsLoadStoreOpNone)
++                    // If the render pass has an active subpass resolve attachment, keep loadOp
++                    // as Load so the resolve operation can read the source data; Otherwise,
++                    // loadOp can be optimized to None.
++                    // storeOp can still be optimized to None regardless of active subpass resolve
++                    // attachment, because the attachment was not modified (mAccess ==
++                    // ResourceAccess::Unused)
++                    if (supportsLoadStoreOpNone && !hasResolveAttachment)
+                     {
+                         *loadOp = RenderPassLoadOp::None;
+                     }
+@@ -12769,16 +12772,23 @@
+     std::swap(mLevelStorageImageViews, other.mLevelStorageImageViews);
+     std::swap(mLayerLevelStorageImageViews, other.mLayerLevelStorageImageViews);
+     std::swap(mFragmentShadingRateImageView, other.mFragmentShadingRateImageView);
+-    std::swap(mImageViewSerial, other.mImageViewSerial);
++    std::swap(mWriteImageViewSerial, other.mWriteImageViewSerial);
++    std::swap(mReadImageViewSerial, other.mReadImageViewSerial);
+ }
+ 
+ ImageViewHelper::~ImageViewHelper() {}
+ 
+ void ImageViewHelper::init(Renderer *renderer)
+ {
+-    if (!mImageViewSerial.valid())
++    if (!mWriteImageViewSerial.valid())
+     {
+-        mImageViewSerial = renderer->getResourceSerialFactory().generateImageOrBufferViewSerial();
++        mWriteImageViewSerial =
++            renderer->getResourceSerialFactory().generateImageOrBufferViewSerial();
++    }
++    if (!mReadImageViewSerial.valid())
++    {
++        mReadImageViewSerial =
++            renderer->getResourceSerialFactory().generateImageOrBufferViewSerial();
+     }
+ }
+ 
+@@ -12801,14 +12811,8 @@
+     ReleaseImageViews(&mPerLevelRangeSamplerExternal2DY2YEXTImageViews, &garbage);
+ 
+     // Release the copy views
+-    if (mLinearCopyImageView.valid())
+-    {
+-        garbage.emplace_back(GetGarbage(&mLinearCopyImageView));
+-    }
+-    if (mSRGBCopyImageView.valid())
+-    {
+-        garbage.emplace_back(GetGarbage(&mSRGBCopyImageView));
+-    }
++    ReleaseImageView(&mLinearCopyImageView, &garbage);
++    ReleaseImageView(&mSRGBCopyImageView, &garbage);
+ 
+     // Release the draw views
+     ReleaseLayerLevelImageViews(&mLayerLevelDrawImageViews, &garbage);
+@@ -12838,10 +12842,7 @@
+     mLayerLevelStorageImageViews.clear();
+ 
+     // Release fragment shading rate view
+-    if (mFragmentShadingRateImageView.valid())
+-    {
+-        garbage.emplace_back(GetGarbage(&mFragmentShadingRateImageView));
+-    }
++    ReleaseImageView(&mFragmentShadingRateImageView, &garbage);
+ 
+     if (!garbage.empty())
+     {
+@@ -12849,7 +12850,34 @@
+     }
+ 
+     // Update image view serial.
+-    mImageViewSerial = renderer->getResourceSerialFactory().generateImageOrBufferViewSerial();
++    mWriteImageViewSerial = renderer->getResourceSerialFactory().generateImageOrBufferViewSerial();
++    mReadImageViewSerial  = renderer->getResourceSerialFactory().generateImageOrBufferViewSerial();
++}
++
++void ImageViewHelper::releaseReadImageViews(Renderer *renderer, const ResourceUse &use)
++{
++    mCurrentBaseMaxLevelHash = 0;
++    mReadColorspace          = ImageViewColorspace::Invalid;
++
++    GarbageObjects garbage;
++    garbage.reserve(6);
++
++    // Release the read views
++    ReleaseImageViews(&mPerLevelRangeLinearReadImageViews, &garbage);
++    ReleaseImageViews(&mPerLevelRangeSRGBReadImageViews, &garbage);
++    ReleaseImageViews(&mPerLevelRangeStencilReadImageViews, &garbage);
++    ReleaseImageViews(&mPerLevelRangeSamplerExternal2DY2YEXTImageViews, &garbage);
++
++    // Release the copy views
++    ReleaseImageView(&mLinearCopyImageView, &garbage);
++    ReleaseImageView(&mSRGBCopyImageView, &garbage);
++
++    if (!garbage.empty())
++    {
++        renderer->collectGarbage(use, std::move(garbage));
++    }
++
++    mReadImageViewSerial = renderer->getResourceSerialFactory().generateImageOrBufferViewSerial();
+ }
+ 
+ bool ImageViewHelper::isImageViewGarbageEmpty() const
+@@ -12912,7 +12940,8 @@
+     // Destroy fragment shading rate view
+     mFragmentShadingRateImageView.destroy(device);
+ 
+-    mImageViewSerial = kInvalidImageOrBufferViewSerial;
++    mWriteImageViewSerial = kInvalidImageOrBufferViewSerial;
++    mReadImageViewSerial  = kInvalidImageOrBufferViewSerial;
+ }
+ 
+ angle::Result ImageViewHelper::initReadViews(ContextVk *contextVk,
+@@ -12983,7 +13012,7 @@
+                                                  VkImageUsageFlags imageUsageFlags,
+                                                  GLenum astcDecodePrecision)
+ {
+-    ASSERT(mImageViewSerial.valid());
++    ASSERT(mReadImageViewSerial.valid());
+     ASSERT(mReadColorspace != ImageViewColorspace::Invalid);
+ 
+     const VkImageAspectFlags aspectFlags = GetFormatAspectFlags(image.getIntendedFormat());
+@@ -13135,7 +13164,7 @@
+                                                         angle::FormatID formatID,
+                                                         const ImageView **imageViewOut)
+ {
+-    ASSERT(mImageViewSerial.valid());
++    ASSERT(mWriteImageViewSerial.valid());
+ 
+     if (!mLevelStorageImageViews.contains(formatID))
+     {
+@@ -13170,7 +13199,7 @@
+                                                              const ImageView **imageViewOut)
+ {
+     ASSERT(image.valid());
+-    ASSERT(mImageViewSerial.valid());
++    ASSERT(mWriteImageViewSerial.valid());
+     ASSERT(!image.getActualFormat().isBlock);
+ 
+     if (!mLayerLevelStorageImageViews.contains(formatID))
+@@ -13240,7 +13269,7 @@
+                                                      const ImageView **imageViewOut)
+ {
+     ASSERT(image.valid());
+-    ASSERT(mImageViewSerial.valid());
++    ASSERT(mWriteImageViewSerial.valid());
+     ASSERT(!image.getActualFormat().isBlock);
+ 
+     if (mWriteColorspace == ImageViewColorspace::Invalid)
+@@ -13273,7 +13302,7 @@
+                                                           const ImageView **imageViewOut)
+ {
+     ASSERT(image.valid());
+-    ASSERT(mImageViewSerial.valid());
++    ASSERT(mWriteImageViewSerial.valid());
+     ASSERT(!image.getActualFormat().isBlock);
+ 
+     if (mWriteColorspace == ImageViewColorspace::Invalid)
+@@ -13308,7 +13337,7 @@
+                                                                const ImageView **imageViewOut)
+ {
+     ASSERT(image.valid());
+-    ASSERT(mImageViewSerial.valid());
++    ASSERT(mWriteImageViewSerial.valid());
+     ASSERT((image.getAspectFlags() & aspect) != 0);
+ 
+     ImageSubresourceRange range = MakeImageSubresourceDrawRange(
+@@ -13341,7 +13370,7 @@
+                                                                     const ImageView **imageViewOut)
+ {
+     ASSERT(image.valid());
+-    ASSERT(mImageViewSerial.valid());
++    ASSERT(mWriteImageViewSerial.valid());
+     ASSERT((image.getAspectFlags() & aspect) != 0);
+ 
+     LayerLevelImageViewVector &imageViews = aspect == VK_IMAGE_ASPECT_DEPTH_BIT
+@@ -13382,7 +13411,7 @@
+ angle::Result ImageViewHelper::initFragmentShadingRateView(ContextVk *contextVk, ImageHelper *image)
+ {
+     ASSERT(image->valid());
+-    ASSERT(mImageViewSerial.valid());
++    ASSERT(mWriteImageViewSerial.valid());
+ 
+     // Determine if we already have ImageView
+     if (mFragmentShadingRateImageView.valid())
+@@ -13481,26 +13510,32 @@
+     ASSERT(mWriteColorspace != ImageViewColorspace::Invalid);
+ }
+ 
+-ImageOrBufferViewSubresourceSerial ImageViewHelper::getSubresourceSerial(gl::OwnerLevel levelGL,
+-                                                                         uint32_t levelCount,
+-                                                                         gl::OwnerLayer layer,
+-                                                                         LayerMode layerMode) const
++ImageOrBufferViewSubresourceSerial ImageViewHelper::getSubresourceWriteSerial(
++    gl::OwnerLevel levelGL,
++    uint32_t levelCount,
++    gl::OwnerLayer layer,
++    LayerMode layerMode) const
+ {
+-    return getSubresourceSerialForColorspace(levelGL, levelCount, layer, layerMode,
+-                                             mReadColorspace);
++    ASSERT(mWriteImageViewSerial.valid());
++
++    ImageOrBufferViewSubresourceSerial serial = {};
++    serial.viewSerial                         = mWriteImageViewSerial;
++    serial.subresource = MakeImageSubresourceReadRange(levelGL, levelCount, layer, layerMode,
++                                                       mWriteColorspace, mWriteColorspace);
++    return serial;
+ }
+ 
+-ImageOrBufferViewSubresourceSerial ImageViewHelper::getSubresourceSerialForColorspace(
++ImageOrBufferViewSubresourceSerial ImageViewHelper::getSubresourceReadSerialForColorspace(
+     gl::OwnerLevel levelGL,
+     uint32_t levelCount,
+     gl::OwnerLayer layer,
+     LayerMode layerMode,
+     ImageViewColorspace readColorspace) const
+ {
+-    ASSERT(mImageViewSerial.valid());
++    ASSERT(mReadImageViewSerial.valid());
+ 
+     ImageOrBufferViewSubresourceSerial serial = {};
+-    serial.viewSerial                         = mImageViewSerial;
++    serial.viewSerial                         = mReadImageViewSerial;
+     serial.subresource = MakeImageSubresourceReadRange(levelGL, levelCount, layer, layerMode,
+                                                        readColorspace, mWriteColorspace);
+     return serial;
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.h b/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.h
+index 6063321..272079b 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.h
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/vk_helpers.h
+@@ -3793,14 +3793,15 @@
+     // Creates a fragment shading rate view.
+     angle::Result initFragmentShadingRateView(ContextVk *contextVk, ImageHelper *image);
+ 
+-    // Return unique Serial for an imageView.
+-    ImageOrBufferViewSubresourceSerial getSubresourceSerial(gl::OwnerLevel levelGL,
+-                                                            uint32_t levelCount,
+-                                                            gl::OwnerLayer layer,
+-                                                            LayerMode layerMode) const;
++    // Return unique Serial for a write imageView. Used for framebuffer draw attachments,
++    // storage image views, and fragment shading rate attachments.
++    ImageOrBufferViewSubresourceSerial getSubresourceWriteSerial(gl::OwnerLevel levelGL,
++                                                                 uint32_t levelCount,
++                                                                 gl::OwnerLayer layer,
++                                                                 LayerMode layerMode) const;
+ 
+-    // Return unique Serial for an imageView for a specific colorspace.
+-    ImageOrBufferViewSubresourceSerial getSubresourceSerialForColorspace(
++    // Return unique Serial for a read imageView for a specific colorspace.
++    ImageOrBufferViewSubresourceSerial getSubresourceReadSerialForColorspace(
+         gl::OwnerLevel levelGL,
+         uint32_t levelCount,
+         gl::OwnerLayer layer,
+@@ -3814,6 +3815,7 @@
+     bool isImageViewGarbageEmpty() const;
+ 
+     void release(Renderer *renderer, const ResourceUse &use);
++    void releaseReadImageViews(Renderer *renderer, const ResourceUse &use);
+ 
+     // Helpers for colorspace state
+     ImageViewColorspace getColorspaceForRead() const { return mReadColorspace; }
+@@ -4011,8 +4013,13 @@
+     // Fragment shading rate view
+     ImageView mFragmentShadingRateImageView;
+ 
+-    // Serial for the image view set. getSubresourceSerial combines it with subresource info.
+-    ImageOrBufferViewSerial mImageViewSerial;
++    // Serial for write image views (used for framebuffer attachments, storage images, and FSR).
++    // It remains stable as long as the underlying VkImage does not change.
++    ImageOrBufferViewSerial mWriteImageViewSerial;
++
++    // Serial for the read (sampled) image views (used by TextureVk for descriptor set caching).
++    // It is updated whenever read image views are released/recreated (e.g., on swizzle changes).
++    ImageOrBufferViewSerial mReadImageViewSerial;
+ };
+ 
+ class BufferViewHelper final : public Resource
+diff --git a/third_party/angle/src/tests/BUILD.gn b/third_party/angle/src/tests/BUILD.gn
+index 134e68e..c7d1d81 100644
+--- a/third_party/angle/src/tests/BUILD.gn
++++ b/third_party/angle/src/tests/BUILD.gn
+@@ -552,6 +552,10 @@
+       sources += angle_white_box_tests_win_sources
+     }
+ 
++    if (angle_enable_gl) {
++      sources += angle_white_box_tests_gl_sources
++    }
++
+     configs += [ "${angle_root}:libANGLE_config" ]
+ 
+     deps = [
+diff --git a/third_party/angle/src/tests/angle_white_box_tests.gni b/third_party/angle/src/tests/angle_white_box_tests.gni
+index e00afa9..b4a2f98 100644
+--- a/third_party/angle/src/tests/angle_white_box_tests.gni
++++ b/third_party/angle/src/tests/angle_white_box_tests.gni
+@@ -16,6 +16,7 @@
+   "gl_tests/D3D11InputLayoutCacheTest.cpp",
+   "gl_tests/D3DTextureTest.cpp",
+ ]
++angle_white_box_tests_gl_sources = [ "gl_tests/GLReattachTextureToFboTest.cpp" ]
+ angle_white_box_tests_vulkan_sources = [
+   "gl_tests/VulkanDescriptorSetTest.cpp",
+   "gl_tests/VulkanFormatTablesTest.cpp",
+diff --git a/third_party/skia/src/core/SkKnownRuntimeEffects.cpp b/third_party/skia/src/core/SkKnownRuntimeEffects.cpp
+index 8d5ca9b..9003b19 100644
+--- a/third_party/skia/src/core/SkKnownRuntimeEffects.cpp
++++ b/third_party/skia/src/core/SkKnownRuntimeEffects.cpp
+@@ -269,7 +269,7 @@
+     static constexpr char kDisplacementShaderCode[] =
+         "uniform shader displMap;"
+         "uniform shader colorMap;"
+-        "uniform half2 scale;"
++        "uniform float2 scale;"
+         "uniform half4 xSelect;" // Only one of RGBA will be 1, the rest are 0
+         "uniform half4 ySelect;"
+ 
+diff --git a/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.cpp b/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.cpp
+index cb588e0..b6635cc 100644
+--- a/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.cpp
++++ b/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.cpp
+@@ -696,9 +696,9 @@
+     return true;
+ }
+ 
+-void GrVkPrimaryCommandBuffer::forceSync(GrVkGpu* gpu) {
++bool GrVkPrimaryCommandBuffer::forceSync(GrVkGpu* gpu) {
+     if (fSubmitFence == VK_NULL_HANDLE) {
+-        return;
++        return true;
+     }
+     // On some drivers vkWaitForFences() can spuriously return VK_TIMEOUT when a signal handler
+     // runs. Work around this by retrying on VK_TIMEOUT.
+@@ -711,6 +711,7 @@
+         SkDebugf("vkWaitForFences() failed. Error: %d\n", result);
+     }
+     SkASSERT(VK_SUCCESS == result || VK_ERROR_DEVICE_LOST == result);
++    return result == VK_SUCCESS;
+ }
+ 
+ bool GrVkPrimaryCommandBuffer::finished(GrVkGpu* gpu) {
+diff --git a/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.h b/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.h
+index 2fdb224..6fd6917 100644
+--- a/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.h
++++ b/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.h
+@@ -331,7 +331,9 @@
+                        skia_private::TArray<GrVkSemaphore::Resource*>& waitSemaphores,
+                        const GrSubmitInfo&);
+ 
+-    void forceSync(GrVkGpu* gpu);
++    // Blocks until the last submission of this command buffer has finished executing. Returns
++    // false if the wait did not succeed (e.g. VK_ERROR_DEVICE_LOST).
++    bool forceSync(GrVkGpu* gpu);
+ 
+     bool finished(GrVkGpu* gpu);
+ 
+diff --git a/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp b/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp
+index 8f3c0a9..ee55ad7 100644
+--- a/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp
++++ b/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp
+@@ -383,8 +383,9 @@
+     bool didSubmit = fMainCmdBuffer->submitToQueue(this, fQueue, fSemaphoresToSignal,
+                                                    fSemaphoresToWaitOn, submitInfo);
+ 
++    bool syncSucceeded = true;
+     if (didSubmit && submitInfo.fSync == GrSyncCpu::kYes) {
+-        fMainCmdBuffer->forceSync(this);
++        syncSucceeded = fMainCmdBuffer->forceSync(this);
+     }
+ 
+     // We must delete any drawables that had to wait until submit to destroy.
+@@ -424,7 +425,7 @@
+     // released GrVkImage. That barrier needs to be put into a new command buffer and not the old
+     // one that was just submitted.
+     fResourceProvider.checkCommandBuffers();
+-    return didSubmit;
++    return didSubmit && syncSucceeded;
+ }
+ 
+ ///////////////////////////////////////////////////////////////////////////////
+diff --git a/third_party/skia/src/sksl/generated/sksl_rt_shader.minified.sksl b/third_party/skia/src/sksl/generated/sksl_rt_shader.minified.sksl
+index 50a39b7..1f10fcb 100644
+--- a/third_party/skia/src/sksl/generated/sksl_rt_shader.minified.sksl
++++ b/third_party/skia/src/sksl/generated/sksl_rt_shader.minified.sksl
+@@ -3,21 +3,21 @@
+ ",0.,0.,saturate(dot(half3(.2126,.7152,.0722),a)));}half4 sk_decal(shader a,"
+ "float2 b,float4 c){half4 e=half4(c-b.xyxy)*half4(-1.,-1.,1.,1.);e=saturate("
+ "e+.5);return(((e.x*e.y)*e.z)*e.w)*a.eval(b);}half4 sk_displacement(shader a"
+-",shader b,float2 c,half2 d,half4 e,half4 f){half4 g=saturate(unpremul(a.eval"
+-"(c)));half2 h=half2(dot(g,e),dot(g,f));h=d*(h-.5);return b.eval(c+float2(h)"
+-");}half4 sk_magnifier(shader a,float2 b,float4 c,float4 d,float2 e){float2 f"
+-"=d.xy+d.zw*b;float2 g=min(b-c.xy,c.zw-b)*e;float h=all(lessThan(g,2..xx))?2."
+-"-length(2.-g):min(g.x,g.y);h=saturate(h);return a.eval(mix(b,f,h*h));}$pure"
+-" half3 $b(half3 a){half b=max(max(a.x,a.y),a.z);half e=min(min(a.x,a.y),a.z"
+-");half f=b-e;half g=1./f;half i=half(a.y<a.z?6.:0.);half j=.166666672*(b==e"
+-"?0.:(a.x>=a.y&&a.x>=a.z?g*(a.y-a.z)+i:(a.y>=a.z?g*(a.z-a.x)+2.:g*(a.x-a.y)+"
+-"4.)));half k=b+e;half m=k*.5;half n=b==e?0.:f/(m>.5?2.-k:k);return half3(j,"
+-"n,m);}half3 sk_high_contrast(half3 a,half b,half c,half d){if(b==1.)a=dot(half3"
+-"(.2126,.7152,.0722),a).xxx;if(c==1.)a=1.-a;else if(c==2.){a=$b(a);a.z=1.-a."
+-"z;a=$hsl_to_rgb(a);}return saturate(mix(half3(.5),a,d));}$pure half3 $c(half3"
+-" a,half3 b,half3 c,half d){const half3 e=half3(.25,.5,.25);half3 f=half3(a."
+-"x,b.x,c.x);half3 g=half3(a.z,b.z,c.z);half h=dot(e,c)-dot(e,a);half i=dot(e"
+-",g)-dot(e,f);return normalize(half3(d*half2(h,i),1.));}half4 sk_normal(shader"
++",shader b,float2 c,float2 d,half4 e,half4 f){half4 g=saturate(unpremul(a.eval"
++"(c)));float2 h=float2(float(dot(g,e)),float(dot(g,f)));h=d*(h-.5);return b."
++"eval(c+h);}half4 sk_magnifier(shader a,float2 b,float4 c,float4 d,float2 e)"
++"{float2 f=d.xy+d.zw*b;float2 g=min(b-c.xy,c.zw-b)*e;float h=all(lessThan(g,"
++"2..xx))?2.-length(2.-g):min(g.x,g.y);h=saturate(h);return a.eval(mix(b,f,h*"
++"h));}$pure half3 $b(half3 a){half b=max(max(a.x,a.y),a.z);half e=min(min(a."
++"x,a.y),a.z);half f=b-e;half g=1./f;half i=half(a.y<a.z?6.:0.);half j=.166666672"
++"*(b==e?0.:(a.x>=a.y&&a.x>=a.z?g*(a.y-a.z)+i:(a.y>=a.z?g*(a.z-a.x)+2.:g*(a.x"
++"-a.y)+4.)));half k=b+e;half m=k*.5;half n=b==e?0.:f/(m>.5?2.-k:k);return half3"
++"(j,n,m);}half3 sk_high_contrast(half3 a,half b,half c,half d){if(b==1.)a=dot"
++"(half3(.2126,.7152,.0722),a).xxx;if(c==1.)a=1.-a;else if(c==2.){a=$b(a);a.z"
++"=1.-a.z;a=$hsl_to_rgb(a);}return saturate(mix(half3(.5),a,d));}$pure half3 $c"
++"(half3 a,half3 b,half3 c,half d){const half3 e=half3(.25,.5,.25);half3 f=half3"
++"(a.x,b.x,c.x);half3 g=half3(a.z,b.z,c.z);half h=dot(e,c)-dot(e,a);half i=dot"
++"(e,g)-dot(e,f);return normalize(half3(d*half2(h,i),1.));}half4 sk_normal(shader"
+ " a,float2 b,float4 c,half d){half3 e=half3(a.eval(clamp(b+ -1..xx,c.xy,c.zw"
+ ")).w,a.eval(clamp(b+float2(-1.,0.),c.xy,c.zw)).w,a.eval(clamp(b+float2(-1.,"
+ "1.),c.xy,c.zw)).w);half3 f=half3(a.eval(clamp(b+float2(0.,-1.),c.xy,c.zw))."
+diff --git a/third_party/skia/src/sksl/generated/sksl_rt_shader.unoptimized.sksl b/third_party/skia/src/sksl/generated/sksl_rt_shader.unoptimized.sksl
+index b3c09b8..14803c2 100644
+--- a/third_party/skia/src/sksl/generated/sksl_rt_shader.unoptimized.sksl
++++ b/third_party/skia/src/sksl/generated/sksl_rt_shader.unoptimized.sksl
+@@ -4,46 +4,46 @@
+ " image,float2 coord,float4 decalBounds){half4 d=half4(decalBounds-coord.xyxy"
+ ")*half4(-1.,-1.,1.,1.);d=saturate(d+.5);return(((d.x*d.y)*d.z)*d.w)*image.eval"
+ "(coord);}half4 sk_displacement(shader displMap,shader colorMap,float2 coord"
+-",half2 scale,half4 xSelect,half4 ySelect){half4 displColor=saturate(unpremul"
+-"(displMap.eval(coord)));half2 displ=half2(dot(displColor,xSelect),dot(displColor"
+-",ySelect));displ=scale*(displ-.5);return colorMap.eval(coord+float2(displ))"
+-";}half4 sk_magnifier(shader src,float2 coord,float4 lensBounds,float4 zoomXform"
+-",float2 invInset){float2 zoomCoord=zoomXform.xy+zoomXform.zw*coord;float2 edgeInset"
+-"=min(coord-lensBounds.xy,lensBounds.zw-coord)*invInset;float weight=all(lessThan"
+-"(edgeInset,2..xx))?2.-length(2.-edgeInset):min(edgeInset.x,edgeInset.y);weight"
+-"=saturate(weight);return src.eval(mix(coord,zoomCoord,weight*weight));}$pure"
+-" half3 $high_contrast_rgb_to_hsl(half3 c){half mx=max(max(c.x,c.y),c.z);half"
+-" mn=min(min(c.x,c.y),c.z);half d=mx-mn;half invd=1./d;half g_lt_b=half(c.y<"
+-"c.z?6.:0.);half h=.166666672*(mx==mn?0.:(c.x>=c.y&&c.x>=c.z?invd*(c.y-c.z)+"
+-"g_lt_b:(c.y>=c.z?invd*(c.z-c.x)+2.:invd*(c.x-c.y)+4.)));half sum=mx+mn;half"
+-" l=sum*.5;half s=mx==mn?0.:d/(l>.5?2.-sum:sum);return half3(h,s,l);}half3 sk_high_contrast"
+-"(half3 color,half grayscale,half invertStyle,half contrast){if(grayscale==1."
+-")color=dot(half3(.2126,.7152,.0722),color).xxx;if(invertStyle==1.)color=1.-"
+-"color;else if(invertStyle==2.){color=$high_contrast_rgb_to_hsl(color);color"
+-".z=1.-color.z;color=$hsl_to_rgb(color);}return saturate(mix(half3(.5),color"
+-",contrast));}$pure half3 $normal_filter(half3 alphaC0,half3 alphaC1,half3 alphaC2"
+-",half negSurfaceDepth){const half3 kSobel=half3(.25,.5,.25);half3 alphaR0=half3"
+-"(alphaC0.x,alphaC1.x,alphaC2.x);half3 alphaR2=half3(alphaC0.z,alphaC1.z,alphaC2"
+-".z);half nx=dot(kSobel,alphaC2)-dot(kSobel,alphaC0);half ny=dot(kSobel,alphaR2"
+-")-dot(kSobel,alphaR0);return normalize(half3(negSurfaceDepth*half2(nx,ny),1."
+-"));}half4 sk_normal(shader alphaMap,float2 coord,float4 edgeBounds,half negSurfaceDepth"
+-"){half3 alphaC0=half3(alphaMap.eval(clamp(coord+ -1..xx,edgeBounds.xy,edgeBounds"
+-".zw)).w,alphaMap.eval(clamp(coord+float2(-1.,0.),edgeBounds.xy,edgeBounds.zw"
+-")).w,alphaMap.eval(clamp(coord+float2(-1.,1.),edgeBounds.xy,edgeBounds.zw))"
+-".w);half3 alphaC1=half3(alphaMap.eval(clamp(coord+float2(0.,-1.),edgeBounds"
+-".xy,edgeBounds.zw)).w,alphaMap.eval(clamp(coord,edgeBounds.xy,edgeBounds.zw"
+-")).w,alphaMap.eval(clamp(coord+float2(0.,1.),edgeBounds.xy,edgeBounds.zw))."
+-"w);half3 alphaC2=half3(alphaMap.eval(clamp(coord+float2(1.,-1.),edgeBounds."
+-"xy,edgeBounds.zw)).w,alphaMap.eval(clamp(coord+float2(1.,0.),edgeBounds.xy,"
+-"edgeBounds.zw)).w,alphaMap.eval(clamp(coord+1..xx,edgeBounds.xy,edgeBounds."
+-"zw)).w);half mainAlpha=alphaC1.y;return half4($normal_filter(alphaC0,alphaC1"
+-",alphaC2,negSurfaceDepth),mainAlpha);}$pure half3 $surface_to_light(half lightType"
+-",half3 lightPos,half3 lightDir,half3 coord){return lightType>=0.?normalize("
+-"lightPos-coord):lightDir;}$pure half $spotlight_scale(half3 lightDir,half3 surfaceToLight"
+-",half cosCutoffAngle,half spotFalloff){const half kConeAAThreshold=.016;const"
+-" half kConeScale=62.4999962;half cosAngle=-dot(surfaceToLight,lightDir);if("
+-"cosAngle<cosCutoffAngle)return 0.;else{half scale=pow(cosAngle,spotFalloff)"
+-";return cosAngle<cosCutoffAngle+kConeAAThreshold?(scale*(cosAngle-cosCutoffAngle"
++",float2 scale,half4 xSelect,half4 ySelect){half4 displColor=saturate(unpremul"
++"(displMap.eval(coord)));float2 displ=float2(float(dot(displColor,xSelect)),"
++"float(dot(displColor,ySelect)));displ=scale*(displ-.5);return colorMap.eval"
++"(coord+displ);}half4 sk_magnifier(shader src,float2 coord,float4 lensBounds"
++",float4 zoomXform,float2 invInset){float2 zoomCoord=zoomXform.xy+zoomXform."
++"zw*coord;float2 edgeInset=min(coord-lensBounds.xy,lensBounds.zw-coord)*invInset"
++";float weight=all(lessThan(edgeInset,2..xx))?2.-length(2.-edgeInset):min(edgeInset"
++".x,edgeInset.y);weight=saturate(weight);return src.eval(mix(coord,zoomCoord"
++",weight*weight));}$pure half3 $high_contrast_rgb_to_hsl(half3 c){half mx=max"
++"(max(c.x,c.y),c.z);half mn=min(min(c.x,c.y),c.z);half d=mx-mn;half invd=1./"
++"d;half g_lt_b=half(c.y<c.z?6.:0.);half h=.166666672*(mx==mn?0.:(c.x>=c.y&&c"
++".x>=c.z?invd*(c.y-c.z)+g_lt_b:(c.y>=c.z?invd*(c.z-c.x)+2.:invd*(c.x-c.y)+4."
++")));half sum=mx+mn;half l=sum*.5;half s=mx==mn?0.:d/(l>.5?2.-sum:sum);return"
++" half3(h,s,l);}half3 sk_high_contrast(half3 color,half grayscale,half invertStyle"
++",half contrast){if(grayscale==1.)color=dot(half3(.2126,.7152,.0722),color)."
++"xxx;if(invertStyle==1.)color=1.-color;else if(invertStyle==2.){color=$high_contrast_rgb_to_hsl"
++"(color);color.z=1.-color.z;color=$hsl_to_rgb(color);}return saturate(mix(half3"
++"(.5),color,contrast));}$pure half3 $normal_filter(half3 alphaC0,half3 alphaC1"
++",half3 alphaC2,half negSurfaceDepth){const half3 kSobel=half3(.25,.5,.25);half3"
++" alphaR0=half3(alphaC0.x,alphaC1.x,alphaC2.x);half3 alphaR2=half3(alphaC0.z"
++",alphaC1.z,alphaC2.z);half nx=dot(kSobel,alphaC2)-dot(kSobel,alphaC0);half ny"
++"=dot(kSobel,alphaR2)-dot(kSobel,alphaR0);return normalize(half3(negSurfaceDepth"
++"*half2(nx,ny),1.));}half4 sk_normal(shader alphaMap,float2 coord,float4 edgeBounds"
++",half negSurfaceDepth){half3 alphaC0=half3(alphaMap.eval(clamp(coord+ -1..xx"
++",edgeBounds.xy,edgeBounds.zw)).w,alphaMap.eval(clamp(coord+float2(-1.,0.),edgeBounds"
++".xy,edgeBounds.zw)).w,alphaMap.eval(clamp(coord+float2(-1.,1.),edgeBounds.xy"
++",edgeBounds.zw)).w);half3 alphaC1=half3(alphaMap.eval(clamp(coord+float2(0."
++",-1.),edgeBounds.xy,edgeBounds.zw)).w,alphaMap.eval(clamp(coord,edgeBounds."
++"xy,edgeBounds.zw)).w,alphaMap.eval(clamp(coord+float2(0.,1.),edgeBounds.xy,"
++"edgeBounds.zw)).w);half3 alphaC2=half3(alphaMap.eval(clamp(coord+float2(1.,"
++"-1.),edgeBounds.xy,edgeBounds.zw)).w,alphaMap.eval(clamp(coord+float2(1.,0."
++"),edgeBounds.xy,edgeBounds.zw)).w,alphaMap.eval(clamp(coord+1..xx,edgeBounds"
++".xy,edgeBounds.zw)).w);half mainAlpha=alphaC1.y;return half4($normal_filter"
++"(alphaC0,alphaC1,alphaC2,negSurfaceDepth),mainAlpha);}$pure half3 $surface_to_light"
++"(half lightType,half3 lightPos,half3 lightDir,half3 coord){return lightType"
++">=0.?normalize(lightPos-coord):lightDir;}$pure half $spotlight_scale(half3 lightDir"
++",half3 surfaceToLight,half cosCutoffAngle,half spotFalloff){const half kConeAAThreshold"
++"=.016;const half kConeScale=62.4999962;half cosAngle=-dot(surfaceToLight,lightDir"
++");if(cosAngle<cosCutoffAngle)return 0.;else{half scale=pow(cosAngle,spotFalloff"
++");return cosAngle<cosCutoffAngle+kConeAAThreshold?(scale*(cosAngle-cosCutoffAngle"
+ "))*kConeScale:scale;}}$pure half4 $compute_lighting(half3 color,half shininess"
+ ",half materialType,half lightType,half3 normal,half3 lightDir,half3 surfaceToLight"
+ ",half cosCutoffAngle,half spotFalloff){if(lightType>0.)color*=$spotlight_scale"
+diff --git a/third_party/skia/src/sksl/sksl_rt_shader.sksl b/third_party/skia/src/sksl/sksl_rt_shader.sksl
+index 03378cb..a73f413 100644
+--- a/third_party/skia/src/sksl/sksl_rt_shader.sksl
++++ b/third_party/skia/src/sksl/sksl_rt_shader.sksl
+@@ -19,11 +19,11 @@
+ half4 sk_displacement(shader displMap,
+                       shader colorMap,
+                       float2 coord,
+-                      half2 scale,
++                      float2 scale,
+                       half4 xSelect,  // Only one of RGBA will be 1, the rest are 0
+                       half4 ySelect) {
+     half4 displColor = saturate(unpremul(displMap.eval(coord)));
+-    half2 displ = half2(dot(displColor, xSelect), dot(displColor, ySelect));
++    float2 displ = float2(dot(displColor, xSelect), dot(displColor, ySelect));
+     displ = scale * (displ - 0.5);
+     return colorMap.eval(coord + displ);
+ }
+diff --git a/v8/include/v8-function.h b/v8/include/v8-function.h
+index 1853251..a7ed18e 100644
+--- a/v8/include/v8-function.h
++++ b/v8/include/v8-function.h
+@@ -48,6 +48,10 @@
+    * When side effect checks are enabled, passing kHasNoSideEffect allows the
+    * constructor to be invoked without throwing. Calls made within the
+    * constructor are still checked.
++   *
++   * Passing kHasNoSideEffect also allows an API constructor to be instantiated
++   * inside a DisallowJavascriptExecutionScope, provided the constructor
++   * callback itself does not execute JavaScript.
+    */
+   V8_WARN_UNUSED_RESULT MaybeLocal<Object> NewInstanceWithSideEffectType(
+       Local<Context> context, int argc, Local<Value> argv[],
+diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
+index 32a6b4c..dc7dd19 100644
+--- a/v8/include/v8-version.h
++++ b/v8/include/v8-version.h
+@@ -11,7 +11,7 @@
+ #define V8_MAJOR_VERSION 15
+ #define V8_MINOR_VERSION 8
+ #define V8_BUILD_NUMBER 62
+-#define V8_PATCH_LEVEL 31
++#define V8_PATCH_LEVEL 34
+ 
+ // Use 1 for candidates and 0 otherwise.
+ // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/api/api.cc b/v8/src/api/api.cc
+index 5e9bbb9..5dacb03 100644
+--- a/v8/src/api/api.cc
++++ b/v8/src/api/api.cc
+@@ -5765,24 +5765,23 @@
+   i::NestedTimedHistogramScope execute_timer(i_isolate->counters()->execute(),
+                                              i_isolate);
+   auto self = Utils::OpenDirectHandle(this);
+-  bool should_set_has_no_side_effect =
+-      side_effect_type == SideEffectType::kHasNoSideEffect &&
+-      i_isolate->should_check_side_effects();
+-  if (should_set_has_no_side_effect) {
++  if (side_effect_type == SideEffectType::kHasNoSideEffect) {
+     CHECK(IsJSFunction(*self) &&
+           i::Cast<i::JSFunction>(*self)->shared()->IsApiFunction());
+-    i::Tagged<i::FunctionTemplateInfo> func_data =
+-        i::Cast<i::JSFunction>(*self)->shared()->api_func_data();
+-    if (func_data->has_callback(i_isolate)) {
+-      if (func_data->has_side_effects()) {
+-        i_isolate->debug()->IgnoreSideEffectsOnNextCallTo(
+-            handle(func_data, i_isolate));
++    if (i_isolate->should_check_side_effects()) {
++      i::Tagged<i::FunctionTemplateInfo> func_data =
++          i::Cast<i::JSFunction>(*self)->shared()->api_func_data();
++      if (func_data->has_callback(i_isolate)) {
++        if (func_data->has_side_effects()) {
++          i_isolate->debug()->IgnoreSideEffectsOnNextCallTo(
++              handle(func_data, i_isolate));
++        }
+       }
+     }
+   }
+   auto args = PrepareArguments(argc, argv);
+-  return api_scope.EscapeMaybe(
+-      Utils::ToMaybeLocal(i::Execution::New(i_isolate, self, self, args)));
++  return api_scope.EscapeMaybe(Utils::ToMaybeLocal(
++      i::Execution::New(i_isolate, self, self, args, side_effect_type)));
+ }
+ 
+ MaybeLocal<v8::Value> Function::Call(v8::Isolate* isolate,
+diff --git a/v8/src/builtins/builtins-api.cc b/v8/src/builtins/builtins-api.cc
+index 24c7180..83e67ce 100644
+--- a/v8/src/builtins/builtins-api.cc
++++ b/v8/src/builtins/builtins-api.cc
+@@ -154,9 +154,32 @@
+     Isolate* isolate, bool is_construct,
+     DirectHandle<FunctionTemplateInfo> function, DirectHandle<Object> receiver,
+     base::Vector<const DirectHandle<Object>> args,
+-    DirectHandle<HeapObject> new_target) {
++    DirectHandle<HeapObject> new_target,
++    SideEffectType overrider_side_effect_type) {
+   RCS_SCOPE(isolate, RuntimeCallCounterId::kInvokeApiFunction);
+ 
++  if (!is_construct ||
++      (function->has_callback(isolate) && function->has_side_effects() &&
++       overrider_side_effect_type != SideEffectType::kHasNoSideEffect)) {
++    if (!AllowJavascriptExecution::IsAllowed(isolate)) {
++      GRACEFUL_FATAL("Invoke in DisallowJavascriptExecutionScope");
++    }
++    if (!ThrowOnJavascriptExecution::IsAllowed(isolate)) {
++      isolate->ThrowIllegalOperation();
++      return MaybeHandle<Object>();
++    }
++    if (!DumpOnJavascriptExecution::IsAllowed(isolate)) {
++      V8::GetCurrentPlatform()->DumpWithoutCrashing();
++      if (is_construct) {
++        // TODO(crbug.com/576333024): Fix callers to handle empty return values
++        // without a pending exception when DumpOnJavascriptExecution disallows
++        // execution.
++        return isolate->factory()->NewJSObject(isolate->object_function());
++      }
++      return isolate->factory()->undefined_value();
++    }
++  }
++
+   // Do proper receiver conversion for non-strict mode api functions.
+   if (!is_construct && !IsJSReceiver(*receiver)) {
+     ASSIGN_RETURN_ON_EXCEPTION(isolate, receiver,
+diff --git a/v8/src/builtins/builtins.h b/v8/src/builtins/builtins.h
+index 3582121..28fbcc7 100644
+--- a/v8/src/builtins/builtins.h
++++ b/v8/src/builtins/builtins.h
+@@ -5,6 +5,7 @@
+ #ifndef V8_BUILTINS_BUILTINS_H_
+ #define V8_BUILTINS_BUILTINS_H_
+ 
++#include "include/v8-object.h"
+ #include "src/base/bounds.h"
+ #include "src/base/flags.h"
+ #include "src/base/vector.h"
+@@ -435,7 +436,9 @@
+       DirectHandle<FunctionTemplateInfo> function,
+       DirectHandle<Object> receiver,
+       base::Vector<const DirectHandle<Object>> args,
+-      DirectHandle<HeapObject> new_target);
++      DirectHandle<HeapObject> new_target,
++      SideEffectType overrider_side_effect_type =
++          SideEffectType::kHasSideEffect);
+ 
+   static void Generate_Adaptor(MacroAssembler* masm, int formal_parameter_count,
+                                Address builtin_address);
+diff --git a/v8/src/builtins/number.tq b/v8/src/builtins/number.tq
+index b2ea79b..d05232c 100644
+--- a/v8/src/builtins/number.tq
++++ b/v8/src/builtins/number.tq
+@@ -124,6 +124,7 @@
+ }
+ 
+ macro IntToString(x: int32, radix: uint32): String {
++  dcheck(radix >= 2 && radix <= 36);
+   if constexpr (Is64()) {
+     dcheck(radix != 10);  // Use IntToDecimalString otherwise.
+   }
+@@ -187,15 +188,24 @@
+   // 3. Else if radix is undefined, let radixNumber be 10.
+   // 4. Else, let radixNumber be ? ToInteger(radix).
+   const radix: JSAny = arguments[0];
+-  const radixNumber: Number = radix == Undefined ? 10 : ToInteger_Inline(radix);
++  let radixInt32: int32;
++  try {
++    // Valid radices [2, 36] always fit in a Smi, where ToInteger_Inline
++    // should canonicalize incoming in-range Numbers to Smi.
++    radixInt32 = radix == Undefined ?
++        10 :
++        SmiToInt32(Cast<Smi>(ToInteger_Inline(radix)) otherwise RangeError);
+ 
+-  // 5. If radixNumber < 2 or radixNumber > 36, throw a RangeError exception.
+-  if (radixNumber < 2 || radixNumber > 36) {
++    // 5. If radixNumber < 2 or radixNumber > 36, throw a RangeError exception.
++    if (radixInt32 < 2 || radixInt32 > 36) {
++      goto RangeError;
++    }
++  } label RangeError deferred {
+     ThrowRangeError(MessageTemplate::kToRadixFormatRange);
+   }
+ 
+   // 6. If radixNumber = 10, return ! ToString(x).
+-  if (radixNumber == 10) {
++  if (radixInt32 == 10) {
+     return NumberToString(x);
+   }
+ 
+@@ -203,8 +213,7 @@
+   //    value using the radix specified by radixNumber.
+ 
+   if (TaggedIsSmi(x)) {
+-    return IntToString(
+-        Convert<int32>(x), Unsigned(Convert<int32>(radixNumber)));
++    return IntToString(Convert<int32>(x), Unsigned(radixInt32));
+   }
+ 
+   if (x == -0) {
+@@ -217,7 +226,7 @@
+     return MinusInfinityStringConstant();
+   }
+ 
+-  return runtime::DoubleToStringWithRadix(x, radixNumber);
++  return runtime::DoubleToStringWithRadix(x, SmiFromInt32(radixInt32));
+ }
+ 
+ // https://tc39.es/ecma262/#sec-number.isfinite
+diff --git a/v8/src/compiler/backend/instruction-selector.cc b/v8/src/compiler/backend/instruction-selector.cc
+index 2783fe7..7487c94 100644
+--- a/v8/src/compiler/backend/instruction-selector.cc
++++ b/v8/src/compiler/backend/instruction-selector.cc
+@@ -2071,6 +2071,10 @@
+ void InstructionSelector::VisitPhi(OpIndex node) {
+   const Operation& op = Get(node);
+   DCHECK_EQ(op.input_count, PredecessorCount(current_block_));
++  if (V8_UNLIKELY(op.input_count == 1)) {
++    EmitIdentity(node);
++    return;
++  }
+   PhiInstruction* phi = instruction_zone()->template New<PhiInstruction>(
+       instruction_zone(), GetVirtualRegister(node),
+       static_cast<size_t>(op.input_count));
+diff --git a/v8/src/deoptimizer/deoptimizer.cc b/v8/src/deoptimizer/deoptimizer.cc
+index f042f90..70ac609 100644
+--- a/v8/src/deoptimizer/deoptimizer.cc
++++ b/v8/src/deoptimizer/deoptimizer.cc
+@@ -180,11 +180,18 @@
+     DebugPrintOutputValue(cp, "caller's constant_pool\n");
+   }
+ 
+-  void PushTranslatedValue(const TranslatedFrame::iterator& iterator,
+-                           const char* debug_hint = "") {
++  Tagged<Object> PushTranslatedValue(const TranslatedFrame::iterator& iterator,
++                                     const char* debug_hint = "") {
+     CHECK_GE(top_offset_, kSystemPointerSize);
+     top_offset_ -= kSystemPointerSize;
+-    WriteTranslatedValueAt(top_offset_, iterator, debug_hint);
++    return WriteTranslatedValueAt(top_offset_, iterator, debug_hint);
++  }
++
++  void PushTranslatedContext(const TranslatedFrame::iterator& iterator) {
++    Tagged<Object> obj = PushTranslatedValue(iterator, "context");
++    // The context slot of a StandardFrame shares its offset with the frame
++    // type marker of a TypedFrame, so it must never contain a Smi marker.
++    SBXCHECK(IsHeapObject(obj));
+   }
+ 
+   void PushFeedbackVectorForMaterialization(
+@@ -229,9 +236,9 @@
+     return output_address;
+   }
+ 
+-  void WriteTranslatedValueAt(unsigned offset,
+-                              const TranslatedFrame::iterator& iterator,
+-                              const char* debug_hint) {
++  Tagged<Object> WriteTranslatedValueAt(
++      unsigned offset, const TranslatedFrame::iterator& iterator,
++      const char* debug_hint) {
+     Tagged<Object> obj = iterator->GetRawValue();
+     frame_->SetFrameSlot(offset, obj.ptr());
+     if (trace_scope_ != nullptr) {
+@@ -240,6 +247,7 @@
+     }
+     deoptimizer_->QueueValueForMaterialization(output_address(offset), obj,
+                                                iterator);
++    return obj;
+   }
+ 
+   void DebugPrintOutputValue(intptr_t value, const char* debug_hint = "") {
+@@ -2182,7 +2190,7 @@
+     }
+   }
+   // Read the context from the translations.
+-  frame_writer.PushTranslatedValue(context_pos, "context");
++  frame_writer.PushTranslatedContext(context_pos);
+ 
+   // The function was mentioned explicitly in the BEGIN_FRAME.
+   frame_writer.PushTranslatedValue(function_iterator, "function");
+@@ -3158,6 +3166,7 @@
+ 
+   for (auto& materialization : values_to_materialize_) {
+     DirectHandle<Object> value = materialization.value_->GetValue();
++    SBXCHECK(IsHeapObject(*value));
+ 
+     if (verbose_tracing_enabled()) {
+       PrintF(trace_scope()->file(),
+diff --git a/v8/src/execution/execution.cc b/v8/src/execution/execution.cc
+index e031b5d..54f7258 100644
+--- a/v8/src/execution/execution.cc
++++ b/v8/src/execution/execution.cc
+@@ -40,10 +40,11 @@
+   CPPGC_STACK_ALLOCATED();
+ 
+  public:
+-  static InvokeParams SetUpForNew(
+-      Isolate* isolate, DirectHandle<Object> constructor,
+-      DirectHandle<Object> new_target,
+-      base::Vector<const DirectHandle<Object>> args);
++  static InvokeParams SetUpForNew(Isolate* isolate,
++                                  DirectHandle<Object> constructor,
++                                  DirectHandle<Object> new_target,
++                                  base::Vector<const DirectHandle<Object>> args,
++                                  SideEffectType side_effect_type);
+ 
+   static InvokeParams SetUpForCall(
+       Isolate* isolate, DirectHandle<Object> callable,
+@@ -86,13 +87,15 @@
+ 
+   bool is_construct;
+   Execution::Target execution_target;
++  SideEffectType overrider_side_effect_type = SideEffectType::kHasSideEffect;
+ };
+ 
+ // static
+ InvokeParams InvokeParams::SetUpForNew(
+     Isolate* isolate, DirectHandle<Object> constructor,
+     DirectHandle<Object> new_target,
+-    base::Vector<const DirectHandle<Object>> args) {
++    base::Vector<const DirectHandle<Object>> args,
++    SideEffectType overrider_side_effect_type) {
+   InvokeParams params;
+   params.target = constructor;
+   params.receiver = isolate->factory()->undefined_value();
+@@ -104,6 +107,7 @@
+   params.exception_out = nullptr;
+   params.is_construct = true;
+   params.execution_target = Execution::Target::kCallable;
++  params.overrider_side_effect_type = overrider_side_effect_type;
+   return params;
+ }
+ 
+@@ -350,7 +354,8 @@
+           function->shared()->api_func_data(), isolate);
+       auto value = Builtins::InvokeApiFunction(
+           isolate, params.is_construct, fun_data, receiver, params.args,
+-          Cast<HeapObject>(params.new_target));
++          Cast<HeapObject>(params.new_target),
++          params.overrider_side_effect_type);
+       bool has_exception = value.is_null();
+       DCHECK_EQ(has_exception, isolate->has_exception());
+       if (has_exception) {
+@@ -404,6 +409,12 @@
+   }
+   if (!DumpOnJavascriptExecution::IsAllowed(isolate)) {
+     V8::GetCurrentPlatform()->DumpWithoutCrashing();
++    if (params.is_construct) {
++      // TODO(crbug.com/576333024): Fix callers to handle empty return values
++      // without a pending exception when DumpOnJavascriptExecution disallows
++      // execution.
++      return isolate->factory()->NewJSObject(isolate->object_function());
++    }
+     return isolate->factory()->undefined_value();
+   }
+   isolate->IncrementJavascriptExecutionCounter();
+@@ -616,10 +627,11 @@
+ MaybeDirectHandle<JSReceiver> Execution::New(
+     Isolate* isolate, DirectHandle<Object> constructor,
+     DirectHandle<Object> new_target,
+-    base::Vector<const DirectHandle<Object>> args) {
++    base::Vector<const DirectHandle<Object>> args,
++    SideEffectType overrider_side_effect_type) {
+   return Cast<JSReceiver>(Invoke(
+-      isolate,
+-      InvokeParams::SetUpForNew(isolate, constructor, new_target, args)));
++      isolate, InvokeParams::SetUpForNew(isolate, constructor, new_target, args,
++                                         overrider_side_effect_type)));
+ }
+ 
+ // static
+diff --git a/v8/src/execution/execution.h b/v8/src/execution/execution.h
+index f623a4a..9367892 100644
+--- a/v8/src/execution/execution.h
++++ b/v8/src/execution/execution.h
+@@ -5,6 +5,7 @@
+ #ifndef V8_EXECUTION_EXECUTION_H_
+ #define V8_EXECUTION_EXECUTION_H_
+ 
++#include "include/v8-object.h"
+ #include "src/base/vector.h"
+ #include "src/common/globals.h"
+ 
+@@ -47,7 +48,9 @@
+   V8_WARN_UNUSED_RESULT static MaybeDirectHandle<JSReceiver> New(
+       Isolate* isolate, DirectHandle<Object> constructor,
+       DirectHandle<Object> new_target,
+-      base::Vector<const DirectHandle<Object>> args);
++      base::Vector<const DirectHandle<Object>> args,
++      SideEffectType overrider_side_effect_type =
++          SideEffectType::kHasSideEffect);
+ 
+   // Call a function, just like Call(), but handle don't report exceptions
+   // externally.
+diff --git a/v8/src/objects/value-serializer.cc b/v8/src/objects/value-serializer.cc
+index 28316b0..b01fee2 100644
+--- a/v8/src/objects/value-serializer.cc
++++ b/v8/src/objects/value-serializer.cc
+@@ -19,7 +19,7 @@
+ #include "src/handles/handles-inl.h"
+ #include "src/handles/maybe-handles-inl.h"
+ #include "src/handles/shared-object-conveyor-handles.h"
+-#include "src/heap/factory.h"
++#include "src/heap/factory-inl.h"
+ #include "src/numbers/conversions.h"
+ #include "src/objects/dictionary-inl.h"
+ #include "src/objects/heap-number-inl.h"
+@@ -2093,6 +2093,22 @@
+   return regexp;
+ }
+ 
++namespace {
++
++DirectHandle<Object> CanonicalizeCollectionKey(Isolate* isolate,
++                                               DirectHandle<Object> key) {
++  if (IsString(*key)) {
++    // Deserialized strings are allocated as fresh SeqStrings, whereas
++    // OrderedHashTable CSA lookups require string keys to be internalized
++    // (compared by pointer equality).
++    return isolate->factory()->InternalizeString(Cast<String>(key));
++  }
++  CHECK(!IsHeapNumber(*key) || Cast<HeapNumber>(*key)->value() != 0.0);
++  return key;
++}
++
++}  // namespace
++
+ MaybeDirectHandle<JSMap> ValueDeserializer::ReadJSMap() {
+   // If we are at the end of the stack, abort. This function may recurse.
+   STACK_CHECK(isolate_, MaybeDirectHandle<JSMap>());
+@@ -2102,7 +2118,12 @@
+   DirectHandle<JSMap> map = isolate_->factory()->NewJSMap();
+   AddObjectWithID(id, map);
+ 
+-  DirectHandle<JSFunction> map_set = isolate_->map_set();
++  // We can populate the table directly because:
++  // 1) The resulting object is not observable until deserialization is over, so
++  //    we do not need to deal with live iterators.
++  // 2) We are populating the table from a serialized source JSMap table, so the
++  //    keys are already valid/canonicalized (once strings are internalized) and
++  //    do not contain duplicates.
+   uint32_t length = 0;
+   while (true) {
+     SerializationTag tag;
+@@ -2112,16 +2133,19 @@
+       break;
+     }
+ 
+-    DirectHandle<Object> args[2];
+-    if (!ReadObject().ToHandle(&args[0]) || !ReadObject().ToHandle(&args[1])) {
++    HandleScope loop_scope(isolate_);
++    DirectHandle<Object> key;
++    DirectHandle<Object> value;
++    if (!ReadObject().ToHandle(&key) || !ReadObject().ToHandle(&value)) {
+       return MaybeDirectHandle<JSMap>();
+     }
+ 
+-    AllowJavascriptExecution allow_js(isolate_);
+-    if (Execution::Call(isolate_, map_set, map, base::VectorOf(args))
+-            .is_null()) {
++    key = CanonicalizeCollectionKey(isolate_, key);
++    Handle<OrderedHashMap> table(Cast<OrderedHashMap>(map->table()), isolate_);
++    if (!OrderedHashMap::Add(isolate_, table, key, value).ToHandle(&table)) {
+       return MaybeDirectHandle<JSMap>();
+     }
++    map->set_table(*table);
+     length += 2;
+   }
+ 
+@@ -2142,7 +2166,13 @@
+   uint32_t id = next_id_++;
+   DirectHandle<JSSet> set = isolate_->factory()->NewJSSet();
+   AddObjectWithID(id, set);
+-  DirectHandle<JSFunction> set_add = isolate_->set_add();
++
++  // We can populate the table directly because:
++  // 1) The resulting object is not observable until deserialization is over, so
++  //    we do not need to deal with live iterators.
++  // 2) We are populating the table from a serialized source JSSet table, so the
++  //    keys are already valid/canonicalized (once strings are internalized) and
++  //    do not contain duplicates.
+   uint32_t length = 0;
+   while (true) {
+     SerializationTag tag;
+@@ -2152,14 +2182,17 @@
+       break;
+     }
+ 
+-    DirectHandle<Object> args[1];
+-    if (!ReadObject().ToHandle(&args[0])) return MaybeDirectHandle<JSSet>();
++    HandleScope loop_scope(isolate_);
++    DirectHandle<Object> key;
++    if (!ReadObject().ToHandle(&key)) return MaybeDirectHandle<JSSet>();
+ 
+-    AllowJavascriptExecution allow_js(isolate_);
+-    if (Execution::Call(isolate_, set_add, set, base::VectorOf(args))
+-            .is_null()) {
++    key = CanonicalizeCollectionKey(isolate_, key);
++    DirectHandle<OrderedHashSet> table(Cast<OrderedHashSet>(set->table()),
++                                       isolate_);
++    if (!OrderedHashSet::Add(isolate_, table, key).ToHandle(&table)) {
+       return MaybeDirectHandle<JSSet>();
+     }
++    set->set_table(*table);
+     length++;
+   }
+ 
