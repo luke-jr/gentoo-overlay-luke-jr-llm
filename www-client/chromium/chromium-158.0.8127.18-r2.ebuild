@@ -43,9 +43,6 @@ RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit build (rustc driver, ti
 CRUBIT_DATE="20261015"
 PPC64_HASH="7aae8a84e327fc2078ce1625c9c70bfda77d626f"
 COPIUM_COMMIT="84aa29c73d11981f56eb9a9fbbf35ec993f9d7ff"
-# 158.0.8127.33 is a tag without a tarball: built from the 158.0.8127.18 tarball plus
-# files/chromium-158.0.8127.18-to-158.0.8127.33.patch (see its header).
-CHROMIUM_TARBALL_PV="158.0.8127.18"
 # Inputs of ANGLE's code generators that the tarball lacks (files/chromium-angle-regen.py):
 # Khronos' registries at ANGLE's (and, for Vulkan, Chromium's) DEPS revisions; perfect-hash,
 # the version its built-in symbols generator is written for. Its Vulkan back-end's shaders are
@@ -175,11 +172,6 @@ LICENSE+=" rar? ( unRAR )"
 SLOT="stable"
 KEYWORDS="~amd64 ~arm64"
 
-# The 158 branch's changes after the 158.0.8127.33 tag (see its header).
-CHROMIUM_FIXES=(
-	chromium-158.0.8127.33-branch-fixes.patch
-)
-
 # The overlay's patches, after the Gentoo patchset's common ones.
 CHROMIUM_PATCHES=(
 	# Chromium must not download executable code at runtime (other than
@@ -206,15 +198,14 @@ CHROMIUM_PATCHES=(
 	chromium-156-angle-mock-icd-arg.patch
 	# "Restore pages?" only while the last session's crash is pending (see the patch).
 	chromium-156-crash-bubble-once.patch
+	# The Glic extension (Google pages can message it) only with Glic itself (see the patch).
+	chromium-157-glic-extension-needs-glic.patch
 	# BoringSSL's generators, run offline from the tarball (see the eclass).
 	chromium-156-boringssl-pregenerate-offline.patch
 	# A reproducible header for ICU's generated rbbirpt.h (see the eclass).
 	chromium-156-icu-rbbicst-header.patch
 	# abseil's BUILD.gn converter without gn features 158's gn lacks (see the patch).
 	chromium-158-abseil-gn-no-strict-includes.patch
-	# v8.h without V8's version macros: a new V8 patch level rebuilds only what uses them (see
-	# the patch, and the eclass's src_prepare).
-	chromium-158-v8-h-without-version.patch
 )
 
 # Copium's patches (with the system toolchain).
