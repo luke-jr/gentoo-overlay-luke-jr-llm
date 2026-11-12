@@ -1,8 +1,10 @@
-# Chromium 156 (Linux, unbranded): runtime downloads of executable code, and privacy notes
+# Chromium 158 (Linux, unbranded): runtime downloads of executable code, and privacy notes
 
-Scope: Chromium 156.0.8078.12, `is_chrome_branded=false`, Linux desktop, as built by
-`www-client/chromium/chromium-156.0.8078.12.ebuild`. All `file:line` references are
-into the pristine 156 tree. Research was read-only (no compile).
+Scope: Chromium 158.0.8127.33 plus the 158 branch up to 8127@{#1699}, `is_chrome_branded=false`,
+Linux desktop, default GN args (plus `enable_widevine=true`), as built by the 158 ebuilds. All
+`file:line` references are into that pristine tree (before our patches). First written for 156.0.8078.12
+(2026-10), re-audited for 158 on 2026-11-12 by reading the source (no compile); 157 differs from 158 only
+where noted.
 
 Hard rule this work enforces: **Chromium must not download executable code at runtime,
 aside from wasm/JS used by actual web pages.** "Executable" = native shared libraries,
@@ -13,8 +15,11 @@ an interpreter that is compiled into Chromium*; custom ops are compiled in, not
 downloaded. They are treated as **data** here (with that nuance noted), as are lists,
 protobuf configs and dictionaries.
 
-Deliverable patch: `www-client/chromium/files/chromium-157-no-runtime-executable-downloads.patch`
-(applies cleanly to the pristine tree: `git apply --check` and `patch -p1 --dry-run` both OK).
+The patches: `www-client/chromium/files/chromium-158-no-runtime-executable-downloads.patch` (and
+`chromium-157-…` for 157; same gates).
+
+**Open question:** Translate's `element.js` (§1b) is browser-fetched JavaScript run in an isolated world,
+not by the page. The 156 audit counted it as web-page JS because the user asks for it; it is untouched.
 
 ---
 
@@ -22,224 +27,214 @@ Deliverable patch: `www-client/chromium/files/chromium-157-no-runtime-executable
 
 ### 1a. Component updater components registered in `chrome/browser/component_updater/registration.cc`
 
-`RegisterComponentsForUpdate()` is at `registration.cc:144-256`. "Active" = registered in a
-Linux Chromium build with the ebuild's default GN config. "User cfg" = a custom `EXTRA_GN`
-(e.g. `build_with_internal_optimization_guide=false`).
+`RegisterComponentsForUpdate()` is at `registration.cc:145-260`. "Active" = registered in a
+Linux Chromium build with the ebuild's default GN config.
 
-| # | Component (manifest name / dir) | Registered at | Payload | Exec? | Active on Linux Chromium | Build / feature control | User cfg already | Action |
-|---|---|---|---|---|---|---|---|---|
-| 1 | Recovery Improved | `registration.cc:147-149` | updater recovery binary | native | **No** (`IS_WIN \|\| IS_MAC` only; impl files only built `if (is_chrome_branded)`, `component_updater/BUILD.gn:265-283`) | platform | n/a | none |
-| 2 | **Widevine CDM** (`WidevineCdm`, id oimompecagnajdejgnnjijobebaeigek) | `registration.cc:151-153` | `_platform_specific/linux_x64/libwidevinecdm.so` + manifest | **native .so** | **Yes** when `enable_widevine=true` (USE=widevine, Gentoo default on) | `ENABLE_WIDEVINE_CDM_COMPONENT` = `enable_library_widevine_cdm && is_linux` (`third_party/widevine/cdm/widevine.gni`, plain assignment, **not** a `declare_args()` so it cannot be set from GN args) | – | **patched**: `RegisterWidevineCdmComponent()` is a no-op (`widevine_cdm_component_installer.cc:438`). System CDM still works, see §3 |
-| 3 | Subresource Filter (`Unindexed Rules`) | `:155` | filter ruleset | data | Yes | always | – | none |
-| 4 | On-Device Head Suggest | `:156` | binary suggestion model (trie) | data | Yes | always | – | none |
-| 5 | Optimization Hints | `:158` | protobuf hints config | data | Yes | always | – | none (data) |
-| 6 | Trust Token Key Commitments | `:159` | JSON | data | Yes | feature | – | none |
-| 7 | Private Verification Tokens | `:160` | JSON config | data | Yes | feature | – | none |
-| 8 | First-Party Sets | `:161` | list | data | Yes | always | – | none |
-| 9 | Privacy Sandbox Attestations | `:162` | proto list | data | Yes | always | – | none |
-| 10 | Actor Safety Lists | `:163` | allow/block lists (Glic actor) | data | Yes | always | – | none |
-| 11 | History Search Strings | `:164-166` | strings | data | only if history-embeddings feature | feature | – | none |
-| 12 | SSL Error Assistant | `:167` | proto | data | Yes | always | – | none |
-| 13 | **Indigo** (`indigo/content_script.js`) | `:169` | `content_script.js` injected into web pages by `chrome/browser/indigo/indigo_service.cc:205` | **JS (browser-injected content script)** | registered only if `features::kIndigoComponent` (DISABLED by default, `chrome/common/chrome_features.cc:1467`) | feature flag only | – | **patched**: `RegisterIndigoComponent()` no-op (`indigo_component_installer.cc:127`) |
-| 14 | File Type Policies | `:171-173` | proto | data | Yes (`SAFE_BROWSING_AVAILABLE`) | `safe_browsing_mode` | – | none |
-| 15 | CRLSet | `:179` | cert revocation list | data | Yes | always | – | none |
-| 16 | Origin Trials | `:182` | config | data | Yes | always | – | none |
-| 17 | Media Engagement Preload | `:183` | list | data | Yes | always | – | none |
-| 18 | PKI Metadata (+ fast-push) | `:185` | Chrome Root Store / CT logs | data | Yes | `chrome_root_store_supported` | – | none |
-| 19 | Safety Tips | `:187` | list | data | Yes | always | – | none |
-| 20 | Crowd Deny | `:188` | list | data | Yes | always | – | none |
-| 21 | Smart Dim / Chrome Apps allowlist | `:190-193` | – | – | **No** (ChromeOS) | platform | n/a | none |
-| 22 | Hyphenation | `:195-197` | hyphenation dictionaries | data | Yes (`use_minikin_hyphenation = !is_apple`, `third_party/blink/public/public_features.gni:13`) | GN | – | none |
-| 23 | **Dictation Connector** (`DictationConnector`) | `:200` | `manifest.json`, `background_compiled.js`, `offscreen_compiled.js`, `offscreen.html` loaded as a component extension (`chrome/browser/dictation/connector_component_extension.cc:53-96`) | **JS (component extension)** | registered only if `dictation::kDictation` (DISABLED by default, `chrome/browser/dictation/features.cc`) | feature flag only | – | **patched**: `RegisterDictationConnectorComponent()` no-op (`dictation_connector_component_installer.cc:181`) |
-| 24 | IWA Key Distribution | `:201` | key/config proto | data | Yes | always | – | none |
-| 25 | Zxcvbn Data | `:202` | password-strength word lists | data | Yes | always | – | none |
-| 26 | Real-Time URL Checks Allowlist | `:205-207` | – | – | **No** (Android) | platform | n/a | none |
-| 27 | **Screen AI** (`screen_ai`) | `:209-211` (`ManageScreenAIComponentRegistration`, registers at startup if used recently / a11y feature on) and **on demand** from `chrome/browser/screen_ai/screen_ai_downloader_non_chromeos.cc:35` (PDF OCR, Reading Mode main-content extraction) | `libchromescreenai.so` | **native .so** | **Yes** in default config | `enable_screen_ai_service` (`services/screen_ai/buildflags/features.gni`, default true on Linux). NB: `=false` alone does **not** build: `component_updater/BUILD.gn:230-235` depends on `//chrome/browser/screen_ai:screen_ai_install_state` unconditionally and `chrome/browser/screen_ai/BUILD.gn:8` asserts the flag | – | **patched**: `ManageScreenAIComponentRegistration()` only cleans up, `RegisterScreenAIComponent()` reports `kDownloadFailed` (`screen_ai_component_installer.cc:125-151`) |
-| 28 | Commerce Heuristics | `:213` | JSON | data | Yes | always | – | none |
-| 29 | **TranslateKit** (`TranslateKit`) | `:215-225` (startup, only if previously registered) and **on demand** from `chrome/browser/on_device_translation/installer_impl.cc:344` when a page uses the `Translator`/`LanguageDetector` web APIs | `TranslateKitFiles/libtranslatekit.so` | **native .so** | **Yes** | `ENABLE_ON_DEVICE_TRANSLATION` (`components/on_device_translation/buildflags/features.gni`, default true on Linux). `enable_on_device_translation=false` is **not buildable on Linux** as-is: `chrome/browser/chrome_browser_interface_binders_webui_parts_desktop.cc:158,519-521` includes/binds `on_device_translation_internals` unguarded and `chrome/browser/ui/BUILD.gn:3245` depends on it | – | **patched**: `RegisterTranslateKitComponent()` no-op (`translate_kit_component_installer.cc:207`); `--translate-kit-binary-path` (system-provided library) still honoured (`installer_impl.cc:52-55,328-333`) |
-| 29b | TranslateKit language packs (`:221-224`, `installer_impl.cc:376`) | | translation model/dictionary files | data (ML) | Yes | same | – | none (useless without the library; harmless) |
-| 30 | Amount Extraction Heuristic Regexes | `:227-231` | regex list | data | Yes | always | – | none |
-| 31 | **WASM TTS Engine** (`WasmTtsEngine`, id bjbcblmdcnggnibecjikpoljcgkbgphl) | `:233-235` (startup) + on-demand `UpdateWasmComponentOnDemand()` from `chrome/browser/ui/read_anything/read_anything_service.cc:71` when Reading Mode opens | `bindings_main.wasm`, `bindings_main.js`, `streaming_worklet_processor.js`, `background_compiled.js`, `offscreen_compiled.js`, manifest; installed as a component extension via `EmbeddedA11yExtensionLoader` (`wasm_tts_engine_component_installer.cc:214-216`) | **wasm + JS (component extension)** | **Yes** | platform (`IS_WIN\|\|IS_MAC\|\|IS_LINUX`); `features::kWasmTtsEngineAutoInstallDisabled` is DISABLED by default (`ui/accessibility/accessibility_features.cc:497`) | – | **patched**: `RegisterWasmTtsEngineComponent()` no-op (`:305`). The on-demand update of an unregistered id is rejected with `INVALID_ARGUMENT` (`components/component_updater/component_updater_service.cc:384-397`) |
-| 32 | Captcha Providers | `:237` | JSON | data | Yes | always | – | none |
-| 33 | Platform Runtime (`chrome_platform_runtime`) | `:239` | native library loaded with `LoadNativeLibraryWithOptions` (`chrome/common/platform_runtime/platform_runtime_impl.cc:79`) | **native** | **No**: registration body is `#if BUILDFLAG(IS_WIN) && BUILDFLAG(GOOGLE_CHROME_BRANDING)` (`platform_runtime_component_installer.cc:554-594`) | platform+branding | n/a | none needed |
-| 34 | AI Embeddings Model | `:243-244` | `model.tflite` + `tokenizer.spm` | data (ML) | only if `blink::features::kAIEmbeddingsAPI` / passage-embedder features | feature | – | none |
-| 35 | **AIM Eligibility Component Extension** (id kabpfonokkamggpgbldambnmkliehlbh) | `:249-251` | a newer copy of the *bundled* omnibox "AI Mode" eligibility component extension (HTML/JS), staged via `extensions::ComponentLoader::MaybeStageExtension` (`aim_eligibility_component_installer.cc:84`; loader side `chrome/browser/extensions/component_loader.cc:540-559`) | **JS (component extension)** | registered only if `omnibox::kAimEligibilityComponentExtension` (DISABLED by default, `components/omnibox/common/omnibox_features.cc:175`) | feature flag only; `ENABLE_EXTENSIONS_CORE` | – | **patched**: always takes the `Uninstall()` branch; the **bundled** extension keeps being loaded, the AI Mode button is untouched |
+| # | Component | Registered at | Payload | Exec? | Active on Linux Chromium | Control | Action |
+|---|---|---|---|---|---|---|---|
+| 1 | Recovery Improved | `:148-150` | updater recovery binary | native | **No** (`IS_WIN \|\| IS_MAC`; implementation only built when branded, `component_updater/BUILD.gn:286-288,301-303`) | platform | none |
+| 2 | **Widevine CDM** (`WidevineCdm`) | `:152-154` | `libwidevinecdm.so` | **native** | **Yes** with `enable_widevine` (USE=widevine, default on) | `ENABLE_WIDEVINE_CDM_COMPONENT` = `enable_library_widevine_cdm && (is_win\|\|is_mac\|\|is_linux\|\|is_chromeos)` (`third_party/widevine/cdm/widevine.gni:42-43`, not a GN arg) | **patched**: `RegisterWidevineCdmComponent()` no-op (`widevine_cdm_component_installer.cc:438-442`); system CDM: §3 |
+| 3 | Subresource Filter | `:156` | filter ruleset | data | Yes | always | none |
+| 4 | On-Device Head Suggest | `:157-158` | suggestion model | data | Yes | always | none |
+| 5 | Optimization Hints | `:159` | protobuf hints | data | Yes | always | none |
+| 6 | Trust Token Key Commitments | `:160` | JSON | data | Yes | always | none |
+| 7 | Private Verification Tokens | `:161` | JSON | data | Yes | `kEnablePrivateVerificationTokens` | none |
+| — | First-Party Sets | — | — | — | removed in 158 | — | — |
+| 8 | Privacy Sandbox Attestations | `:162` | proto list | data | Yes | always | none |
+| 9 | Actor Safety Lists | `:163` | allow/block lists | data | Yes | always | none |
+| 10 | History Search Strings | `:164-166` | strings | data | with history embeddings | feature | none |
+| 11 | SSL Error Assistant | `:167` | proto | data | Yes | always | none |
+| 12 | **Indigo** | `:169` | `content_script.js`, injected by `indigo/indigo_agent_host.cc:69,115` | **JS (browser-injected)** | only with `kIndigoComponent` (DISABLED, `chrome_features.cc:1516`) | feature | **patched**: `RegisterIndigoComponent()` no-op (`indigo_component_installer.cc:127-136`) |
+| 13 | File Type Policies | `:171-173` | proto | data | Yes | `safe_browsing_mode` | none |
+| 14 | CRLSet, Origin Trials, MEI Preload, PKI Metadata (+ fast push, also gated by `kVerifyMTCs`), Safety Tips, Crowd Deny | `:179`, `:182`, `:183`, `:185`, `:187`, `:188` | lists, configs, root store | data | Yes | always | none |
+| 15 | Smart Dim / app allowlist | `:190-193` | – | – | No (ChromeOS) | platform | none |
+| 16 | Hyphenation | `:195-197` | dictionaries | data | Yes (`use_minikin_hyphenation = !is_apple`) | GN | none |
+| 17 | **Dictation Connector** | `:200` | component extension JS | **JS** | only with `dictation::kDictation` (DISABLED, `dictation/features.cc:14`) | feature | **patched**: no-op (`dictation_connector_component_installer.cc:182-191`) |
+| 18 | IWA Key Distribution, Zxcvbn | `:201`, `:202` | keys, word lists | data | Yes | always | none |
+| 19 | Real-Time URL Allowlist | `:205-207` | – | – | No (Android) | platform | none |
+| 20 | **Screen AI** | `:209-211`; on demand `screen_ai_downloader_non_chromeos.cc:37` | `libchromescreenai.so` | **native** | **Yes** | `enable_screen_ai_service` (default true; `=false` doesn't build: `component_updater/BUILD.gn:244-249`, `chrome/browser/screen_ai/BUILD.gn:8`) | **patched**: registration only cleans up, `RegisterScreenAIComponent()` reports `kDownloadFailed` (`screen_ai_component_installer.cc:125-152`, incl. 158's `MayTryDownload()` logic) |
+| 21 | **Commerce Heuristics** | `:213` | JSON **and `cart_product_extraction.js`** (`commerce_heuristics_component_installer.cc:46`) | **JS** | only with the NTP cart module (`IsCartModuleEnabled()`, `new_tab_page_util.cc:75-81`; `IsOsSupportedForCart()` false on Linux, `:49-55`); no desktop caller of the script in 158 | feature | **patched**: uninstalls (`:189-202`) |
+| 22 | **TranslateKit** | `:215-220`; on demand `on_device_translation/installer_impl.cc:344` | `libtranslatekit.so` | **native** | **Yes** | `enable_on_device_translation` (`=false` doesn't build on Linux: `chrome_browser_interface_binders_webui_parts_desktop.cc:160,526`) | **patched**: no-op (`translate_kit_component_installer.cc:206-233`); stored path ignored (`installer_impl.cc:50-56`); `--translate-kit-binary-path` still works |
+| 22b | TranslateKit language packs | `:221-224` | models | data | Yes | same | none (useless without the library) |
+| 23 | Amount Extraction Regexes | `:227-231` | regexes | data | Yes | always | none |
+| 24 | **WASM TTS Engine** | `:233-235`; on demand `wasm_tts_engine_component_installer.cc:279-300` from `read_anything_service.cc:66-70` | `bindings_main.wasm` + JS, a component extension | **wasm + JS** | **Yes** | platform; `kWasmTtsEngineAutoInstallDisabled` DISABLED (`accessibility_features.cc:470-471`) | **patched**: no-op (`:302-307`); on-demand updates of unregistered ids fail (`component_updater_service.cc:391-412`) |
+| 25 | Captcha Providers | `:237` | JSON | data | Yes | always | none |
+| 26 | Platform Runtime | `:239` | native library (`chrome/services/platform_runtime/platform_runtime_service_impl.cc:73`) | **native** | **No**: `IS_WIN && GOOGLE_CHROME_BRANDING` (`platform_runtime_component_installer.cc:458-459`); service built only with `enable_request_header_integrity = is_chrome_branded` | platform + branding | none |
+| 27 | Dynamic Patch (new in 158) | `:241-243` | `chrome_dynamic_patch.crx3` (child process binaries) | **native** | **No**: `#if IS_WIN`, built `if (is_win)` (`component_updater/BUILD.gn:280-283`), body branded only (`dynamic_patch_component_installer.cc:193-221`) | platform + branding | none |
+| 28 | AI Embeddings Model | `:247-248` | `model.tflite`, `tokenizer.spm` | data (ML) | with the embeddings features (`ai_embeddings_component_installer.cc:161-187`) | feature | none |
+| 29 | **Component extensions** (`ManageComponentExtensionRegistrations`, `component_extension_installer.cc`; 157: AIM eligibility only) | `:253-255` | newer copies of the bundled AIM eligibility and (new) New Tab Page component extensions, staged with `MaybeStageExtension` (`:109`; loader `component_loader.cc:268-295,435-478`) | **JS (component extensions)** | AIM: `kAimEligibilityComponentExtension` (DISABLED, `omnibox_features.cc:181-183`); NTP: `ntp_features::kNtpComponentExtension` (DISABLED, `ntp_features.cc:101-103`; built with `enable_webui_ntp`, true on Linux) | feature | **patched**: both uninstall and clear their staged copies (`component_extension_installer.cc:239-254`); the bundled extensions load as upstream (in 158 also only with those features, `component_loader.cc:552-586`) |
 
-Other users of `ComponentInstaller` outside `registration.cc` (`git grep MakeRefCounted<ComponentInstaller>`):
+Other users of `ComponentInstaller` (`MakeRefCounted<ComponentInstaller>`, `ComponentInstallerPolicy`):
 
-| Component | Registered from | Payload | Exec? | Active | Control | Action |
-|---|---|---|---|---|---|---|
-| **SODA** (`SODA Library`) + SODA language packs | `chrome/browser/accessibility/soda_installer_impl.cc:65,93` ← `speech::SodaInstaller::Init()` (`components/soda/soda_installer.cc:90-128`), called from `chrome/browser/chrome_browser_main.cc:1660` and `components/live_caption/live_caption_controller.cc:137` when Live Caption / on-device Web Speech / Dictation is enabled, was used recently, or `media::kPreemptiveSodaDownload` (DISABLED by default, `media/base/media_switches.cc:911`) | `libsoda.so` (+ language pack model files) | **native .so** (packs: data) | **Yes** on x86-64 with AVX (`components/soda/soda_util.cc:43-53`) | `captions::IsLiveCaptionFeatureSupported()` → `speech::IsOnDeviceSpeechRecognitionSupported()` → `IsSupportedLinux()`; `media::kLiveCaption` ENABLED by default | **patched**: `IsSupportedLinux()` returns false, so neither `RegisterSodaComponent` nor `RegisterSodaLanguageComponent` ever registers (`soda_component_installer.cc:234,259`) and the Live Caption / on-device speech UI reports "unsupported" instead of offering a download |
-| Optimization Guide on-device model (`OptGuideOnDeviceModel`, `OptimizationGuideModelsManifest`) | `chrome/browser/optimization_guide/model_execution/optimization_guide_global_state.cc:108-121` (`ManifestBrokerState`) under `USE_ON_DEVICE_MODEL_SERVICE` (true on Linux) | model weights/config | data (ML) | gated on `kOptimizationGuideModelExecution` + performance-class evaluation; in unbranded builds `ENABLE_ML_INTERNAL=false` so the service uses the fake backend (`services/on_device_model/on_device_model_service.cc:38-42`) | `build_with_internal_optimization_guide` (default = `is_chrome_branded` = false) | none. The inference library `liboptimization_guide_internal.so` is **never downloaded**: it is only looked up in `DIR_MODULE` (`services/on_device_model/ml/chrome_ml_holder.cc:28-51`, `components/optimization_guide/core/optimization_guide_library_holder.cc`) and does not exist in Chromium builds |
-| Prediction models (`OptGuidePredictionModels`) and direct model downloads | `optimization_guide_global_state.cc:136-144` → `components/component_updater/installer_policies/prediction_model_component_installer.cc`; and `components/optimization_guide/core/delivery/prediction_model_download_manager.cc` (CRX from the OptimizationGuide service) | TFLite flatbuffers (+ metadata) | data (ML; executed by the compiled-in TFLite interpreter) | Yes | `kOptimizationHints`, `kRemoteOptimizationGuideFetching`, MSBB consent | none (see §5 for the privacy angle) |
-| ChromeOS `cros_component_installer`, smart dim, app deprecation allowlist | ChromeOS only | – | – | No | platform | none |
+| Component | Registered from | Payload | Exec? | Active | Action |
+|---|---|---|---|---|---|
+| **SODA** + language packs | `accessibility/soda_installer_impl.cc:65,93` ← `SodaInstaller::Init()` (`components/soda/soda_installer.cc:90-127`), from `chrome_browser_main.cc:1660` and `live_caption_controller.cc:137` | `libsoda.so` (packs: data) | **native** | **Yes** on x86-64 with SSE4.1 (`soda_util.cc:43-53`); `kLiveCaption` ENABLED (`media_switches.cc:744`), `kPreemptiveSodaDownload` DISABLED (`:924`) | **patched**: `IsSupportedLinux()` → false, so neither component registers (`soda_component_installer.cc:228-267`). **And** the stored `libsoda.so` path (Local State `kSodaBinaryPath`) is ignored (`chrome/browser/speech/chrome_speech_recognition_service.cc:295`): a web page asking for on-device-only Web Speech recognition reaches the SODA engine regardless of support (`content/browser/speech/speech_recognition_manager_impl.cc:887-897,988-995`), and that path could only lead to a copy an earlier, unpatched build downloaded |
+| Optimization Guide on-device model (158: `chrome/browser/component_updater/optimization_guide_on_device_model_installer.cc`, manifest + per-asset components, `:245,357`) | `optimization_guide_global_state.cc:82-91,171-172` | weights, config (`manifest.proto:42-100`) | data (ML) | unbranded: `ENABLE_ML_INTERNAL` false (`on_device_model.gni:24-25`) | none; the inference library is only looked up in `DIR_MODULE` (`chrome_ml_holder.cc:36-43`) and isn't built |
+| Prediction models | `optimization_guide_global_state.cc:196-203` → `prediction_model_component_installer.cc:159-172` | TFLite | data (ML) | Yes | none |
+| ChromeOS installers | ChromeOS only | – | – | No | none |
 
-Sanity sweep: `git grep LoadNativeLibrary -- chrome components services media content/browser` finds only
-`DIR_MODULE`-relative loads (optimization_guide_internal, chrome_shape_detection, chrome_ml), Android/Windows
-system libraries, and the platform-runtime component (Windows+branded). The CDM (`media/cdm/cdm_module.cc`),
-SODA (`chrome/services/speech/soda`), Screen AI (`services/screen_ai`) and TranslateKit
-(`components/on_device_translation/service`) loaders are fed only by the components covered above.
+No other `ComponentInstaller` users exist in content, media, services, ui or extensions. The other
+`update_client` users are the extension updater and `components/activity_reporter` (a ping only, built only
+when branded). `install_product_component.cc` is a stub returning `kLaunchFailed` outside Windows.
+
+Sanity sweep (`LoadNativeLibrary`, `dlopen`, `ScopedNativeLibrary` in chrome, components, services, media,
+content, outside Windows/Mac/Android/ChromeOS files): `DIR_MODULE`-relative loads (`chrome_ml_holder.cc:43`,
+`optimization_guide_library_holder.cc:39`, `shape_detection_library_holder.cc:24`, WebNN's
+`libLiteRtWebGpuAccelerator.so` in `webnn_sandbox_init.cc:42-63`), system libraries (audio, network, GPU,
+VA-API, libunity, EGL; the XR hook reads `$XR_RUNTIME_JSON` or `/etc`), and the loaders fed only by the
+components above: CDM (`cdm_module.cc:123`), SODA (`soda_client_impl.cc:20`), Screen AI
+(`screen_ai_library_wrapper_impl.cc:59`), TranslateKit (`translate_kit_client.cc:140`).
 
 ### 1b. Mechanisms other than the component updater
 
 | Mechanism | Where | What | Exec? | Status / action |
 |---|---|---|---|---|
-| **DevTools remote front-end** | `chrome/browser/ui/webui/devtools/devtools_ui_data_source.cc:182-204` serves `devtools://devtools/remote/serve_file/@<rev>/…` by fetching from `https://chrome-devtools-frontend.appspot.com/` (`chrome/browser/devtools/url_constants.cc:7-10`); CSP explicitly allows that host (`:234`). Used when `chrome://inspect` opens a remote target (Android device / remote-debugging browser) whose version differs, and for the `remoteBase` module loading of such sessions (`chrome/browser/devtools/devtools_ui_bindings.cc:388-409`) | JS run in the privileged `devtools://` origin | **JS** | **patched**: the `remote/` branch now always answers 404. The bundled front-end (`devtools://devtools/bundled/`) is unaffected. `--custom-devtools-frontend=<url>` (`devtools://devtools/custom/`) is an explicit developer switch and is left alone |
-| Extensions from the Chrome Web Store | `extensions::ExtensionUpdater`, `chrome/browser/extensions/updater/` | user-installed extensions and their auto-updates | JS | **user-initiated** – out of scope, untouched. Policy force-installs (`ExtensionInstallForcelist`, `external_provider_impl.cc:760-765`) are admin-initiated |
-| External extensions from JSON manifests | `ExternalPrefLoader` for `/usr/share/chromium/extensions` (`chrome::DIR_EXTERNAL_EXTENSIONS`, `external_provider_impl.cc:895-900`) and `~/.config/chromium/External Extensions` (`DIR_USER_EXTERNAL_EXTENSIONS`, `:905-912`) | whatever the admin/user drops there (may point at the Web Store) | JS | admin/user-controlled; nothing ships there by default. Untouched |
-| "External component" extensions (Web Store installs that look built-in) | `chrome/browser/extensions/external_component_loader.cc:45-47` | In-App Payments Support app | JS | **not active**: `GOOGLE_CHROME_BRANDING` only. Other entries are ChromeOS only. `default_apps.cc` no longer exists in 156 |
-| Component extensions bundled in resources (PDF viewer, Hangouts (`enable_hangout_services_extension`), network speech synthesis, Glic (off by default on Linux; its web client is loaded from Google only if enabled by flag), AIM eligibility, …) | `chrome/browser/extensions/component_loader.cc` | compiled into the binary | JS | not downloaded. The only component extension with a component-updater refresh path (`MaybeStageExtension`) is AIM eligibility (patched) |
-| Hunspell dictionaries | `chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc:281` (`redirector.gvt1.com/edgedl/chrome/dict/*.bdic`) | dictionaries | data | untouched |
-| Safe Browsing lists / client-side-detection model | `components/safe_browsing/core/browser/db/v4_update_protocol_manager.cc`, CSD model via Optimization Guide | lists / TFLite | data | untouched |
-| Google web content in `chrome-untrusted://` iframes (NTP OneGoogleBar/Doodle/modules, `chrome://whats-new`, Lens overlay) | `chrome/browser/new_tab_page/one_google_bar/one_google_bar_loader_impl.cc`, `chrome/browser/ui/webui/whats_new/whats_new_util.cc`, `components/lens` | ordinary web pages in sandboxed frames | web-page JS | this *is* "wasm/JS used by actual web pages", served by Google about Google things. Untouched; listed in §5 |
-| Translate element | `components/translate/core/browser/translate_script.cc` fetches `translate.googleapis.com/translate_a/element.js` and injects it into the page when the user asks to translate | JS in the page's renderer | web-page JS, user-initiated | untouched; §5 |
-| Variations seed | `components/variations/service/variations_service.cc:276-290`: fetching is **disabled in non-Google-branded builds** unless `--variations-server-url` is passed | – | – | so feature flags that are DISABLED by default (Indigo, Dictation, AIM component, preemptive SODA) stay off unless the user flips them; the patch nevertheless removes those registrations so the hard rule does not depend on feature defaults |
+| **DevTools remote front-end** | its own host `devtools://devtools-remote/remote/…` (`chrome/browser/ui/webui/devtools/devtools_ui.cc:81-85`), fetched from `https://chrome-devtools-frontend.appspot.com/` (`devtools_ui_data_source.cc:166-195`, constants `chrome/browser/devtools/url_constants.cc:7-10`); the host is still accepted by `DevToolsUIBindings::SanitizeFrontendURL` (`devtools_ui_bindings.cc:752-758`), so a remote front-end would get the bindings | JS in a privileged origin | **JS** | **patched**: 404, and CSP `script-src 'self'` (`:258`). `--custom-devtools-frontend` still works |
+| Chrome Web Store extensions | `chrome/browser/extensions/updater/` | user-installed | JS | user-initiated; untouched. Policy force-installs (`external_provider_impl.cc:775-779`) are admin-initiated |
+| External extensions from JSON / initial preferences | `external_provider_impl.cc`: `DIR_STANDALONE_EXTERNAL_EXTENSIONS` (`:862-869`), `DIR_EXTERNAL_EXTENSIONS` (`/usr/share/chromium/extensions`, `:899-906`), `DIR_USER_EXTERNAL_EXTENSIONS` (`:910-918`, Linux only when branded); all gated by pref `kBlockExternalExtensions` (`:860`). New: `kInitialExternalExtensions` (ENABLED, `chrome/browser/browser_features.cc:91`) installs Web Store ids listed in `initial_preferences` (`chrome_browser_main.cc:1995`, provider `:957-968`) | admin/user-supplied | JS | admin-controlled; nothing ships by default. Untouched |
+| "External component" extensions | `external_component_loader.cc:43-46` | In-App Payments | JS | not active (branded only) |
+| Bundled component extensions | `component_loader.cc:552-602` | compiled into the binary | JS | not downloaded. AIM eligibility and the NTP extension (both DISABLED) have component-updater refresh paths, patched (row 29). **Glic's extension now loads by default** (`kApiGlicPrivate` ENABLED, `extensions/common/extension_features.cc:34`, `component_loader.cc:589-594`), although Glic itself is off on Linux: pages on `gemini.google.com`, `www.google.com` and other Google hosts can message it (§5) |
+| Hunspell dictionaries | `spellcheck_hunspell_dictionary.cc:280-284` | dictionaries | data | untouched |
+| Safe Browsing lists / CSD model | `v4_update_protocol_manager.cc`; CSD model via Optimization Guide | lists / TFLite | data | untouched |
+| Google web content in `chrome-untrusted://` | NTP OneGoogleBar: the browser fetches `/async/newtab_ogb` (`one_google_bar_loader_impl.cc:42`) and splices its script fields into a bundled template served as `chrome-untrusted://new-tab-page/one-google-bar` (`untrusted_source.cc:174,342-352`, CSP `script-src 'self' 'unsafe-inline' https:` `:140`); no WebUI controller or Mojo there. Lens overlay. What's New is branded only in 158 (`whats_new_util.cc:35-42`) | Google web content | web-page JS | counted as web content (no privileged interfaces); §5 |
+| **Translate element** | `components/translate/core/browser/translate_script.cc:55-56` fetches `translate.googleapis.com/translate_a/element.js`; `OnScriptFetchComplete` (`:197-245`) prepends the bundled `translate.js`; run in the translate isolated world (`translate_agent.cc:387-394`); `translate.js` then fetches more script from `translate.googleapis.com` and runs it with `new Function(…)` (`translate.js:433`). Triggered by "Translate this page" or a language set to always translate (`translate_manager.cc:466-485`), on any translatable URL (`translate_service.cc:147-154`) | browser-fetched JS, isolated world (no Mojo) | **JS** | **untouched, open question** (see the top). Blocking it means no "Translate this page" (pref `translate.enabled` / policy `TranslateEnabled` turns it off). Partial translate (`translateHtml`) is data |
+| Variations seed | `variations_service.cc:284-300` | – | – | fetching is off in unbranded builds unless `--variations-server-url` is passed (`:290-297`); the patch doesn't rely on feature defaults anyway |
+
+Also checked, nothing to block: Glic (off on Linux, `chrome_features.cc:528-535`; if enabled by flag,
+`https://gemini.google.com/glic` gets privileged APIs through `chrome://glic`), the actor / agentic
+browsing code (server actions are data; script tools only call tools the page declares,
+`chrome/renderer/actor/script_tool.cc:112-123`), Contextual Tasks (a `<webview>` of Google AI Mode,
+`postMessage` only), Reading Mode's CSP allowing translate hosts (`read_anything_untrusted_ui.cc:251-255`,
+nothing bundled uses it), `chrome://newtab`'s CSP allowing Google hosts (`new_tab_ui.cc:208-212`, unused),
+`.wasm` loaded by browser features (only WASM TTS, patched), browser-registered service workers (none),
+Isolated Web Apps and Skills (DISABLED on Linux).
 
 ---
 
 ## 2. What the patch does
 
-`www-client/chromium/files/chromium-157-no-runtime-executable-downloads.patch` – 12 files, ~140 changed lines,
-plain `git diff` with `a/` `b/` prefixes, free-text header on top (works with `eapply`/`git apply`/`patch -p1`).
+`chromium-158-no-runtime-executable-downloads.patch`: 14 files, plain `git diff` with `a/` `b/`
+prefixes and a free-text header (works with `eapply`/`git apply`/`patch -p1`).
 
 Design choices:
 
 * Gates live in the individual installers' `Register*()` functions, **not** in `registration.cc`.
   That covers the on-demand registration paths too (SODA installer, Screen AI downloader,
-  TranslateKit `installer_impl.cc`, Reading Mode's WASM TTS update), keeps every hunk inside a function
-  body that rarely changes upstream.
-* Function bodies are *replaced* instead of adding an early `return` because Chromium compiles with
-  `-Wunreachable-code-aggressive` (`build/config/compiler/BUILD.gn:2243`). Unused parameters are fine
-  (`-Wno-unused-parameter`, `:1962`). No anonymous-namespace helper becomes unused
-  (`SetBinaryPathInPrefs` is still used twice in the TranslateKit installer; `ShouldInstall` is a static
-  member; `StartRemoteDataRequest` is a private member that stays defined).
-* Every edited region is compiled identically under the default GN config and under such an EXTRA_GN;
-  the only config-dependent file is `screen_ai_component_installer.cc`, which isn't compiled with
-  `enable_screen_ai_service=false` (the hunk still applies textually).
+  TranslateKit `installer_impl.cc`, Reading Mode's WASM TTS update), and keeps every hunk inside a
+  function body that rarely changes upstream.
+* Function bodies are *replaced* instead of adding an early `return`, because Chromium compiles with
+  `-Wunreachable-code-aggressive`. Unused parameters are fine (`-Wno-unused-parameter`).
+* Paths that an earlier, unpatched build stored (Widevine hint file, TranslateKit and SODA library
+  paths) are ignored, so nothing such a build downloaded is loaded.
+* Every edited region compiles the same under the default GN config and with
+  `enable_screen_ai_service=false` / `build_with_tflite_lib=false` /
+  `build_with_internal_optimization_guide=false` (files not built in a configuration are simply not
+  compiled).
 
 | File | Change |
 |---|---|
 | `chrome/browser/component_updater/widevine_cdm_component_installer.cc` | `RegisterWidevineCdmComponent()` → no-op |
-| `chrome/common/media/cdm_registration.cc` | `GetHintedWidevine()` ignores the Component Update hint file (it may point at a CDM downloaded by an earlier build) and uses `<module dir>/WidevineCdm` instead, see §3 |
+| `chrome/common/media/cdm_registration.cc` | `GetHintedWidevine()` ignores the Component Update hint file and uses `<module dir>/WidevineCdm` (§3) |
 | `chrome/browser/component_updater/wasm_tts_engine_component_installer.cc` | `RegisterWasmTtsEngineComponent()` → no-op |
 | `chrome/browser/component_updater/dictation_connector_component_installer.cc` | `RegisterDictationConnectorComponent()` → no-op |
 | `chrome/browser/component_updater/indigo_component_installer.cc` | `RegisterIndigoComponent()` → no-op |
+| `chrome/browser/component_updater/commerce_heuristics_component_installer.cc` | always uninstalls |
+| `chrome/browser/component_updater/component_extension_installer.cc` | AIM eligibility and NTP component extensions: always uninstalled (bundled copies unaffected) |
 | `chrome/browser/component_updater/translate_kit_component_installer.cc` | `RegisterTranslateKitComponent()` → no-op (`--translate-kit-binary-path` still works) |
-| `chrome/browser/on_device_translation/installer_impl.cc` | `GetTranslateKitLibraryPath()` only honours `--translate-kit-binary-path`, not a path stored in local state by the installer of an earlier build |
-| `components/on_device_translation/service_controller.cc` | `CanTranslateImpl()` reports `kNoNotSupportedLanguage` while there is no library, so `Translator.availability()` is `"unavailable"` and `create()` rejects instead of waiting for a download |
-| `chrome/browser/component_updater/screen_ai_component_installer.cc` | `ManageScreenAIComponentRegistration()` only cleans up an old copy; `RegisterScreenAIComponent()` sets `kDownloadFailed` so UI waiting on it gives up |
-| `chrome/browser/component_updater/aim_eligibility_component_installer.cc` | `ManageAimEligibilityComponentRegistration()` always uninstalls the component-updated copy; bundled extension keeps loading |
-| `components/soda/soda_util.cc` | `IsSupportedLinux()` → `false` (on-device speech reported unsupported, no SODA/language-pack registration) |
-| `chrome/browser/ui/webui/devtools/devtools_ui_data_source.cc` | `devtools://devtools/remote/…` → 404 instead of fetching from appspot.com; CSP `script-src 'self'` (no longer allows chrome-devtools-frontend.appspot.com) |
+| `chrome/browser/on_device_translation/installer_impl.cc` | the library path stored in Local State is ignored |
+| `components/on_device_translation/service_controller.cc` | `Translator.availability()` is `"unavailable"` without a library, so `create()` rejects instead of waiting for a download |
+| `chrome/browser/component_updater/screen_ai_component_installer.cc` | registration only cleans up an old copy; `RegisterScreenAIComponent()` sets `kDownloadFailed` |
+| `components/soda/soda_util.cc` | `IsSupportedLinux()` → `false` |
+| `chrome/browser/speech/chrome_speech_recognition_service.cc` | the `libsoda.so` path stored in Local State is ignored |
+| `chrome/browser/ui/webui/devtools/devtools_ui_data_source.cc` | `devtools://devtools-remote/…` → 404; CSP `script-src 'self'` |
 
-Behavioural consequences: Live Caption / on-device Web Speech / Dictation are shown as unsupported; Reading Mode
-falls back to system TTS voices (no "natural" voices); PDF OCR / main-content extraction report failure instead
-of downloading Screen AI; the Translator web API reports every language pair as unavailable;
-`chrome://inspect` of remote targets with a different DevTools version does not get a front-end; DevTools UI
-languages outside DevTools' bundled locales fall back to en-US (they were fetched from `remoteBase`).
-
-Confidence that it compiles in both configs: **high**. Risky spots, in order: (1) the ScreenAI hunk relies on
-`ScreenAIInstallState::SetState(kDownloadFailed)` being legal from any state (it is: `screen_ai_install_state.cc:161-174`
-only DCHECKs on *repeated* states and explicitly allows repeated `kDownloadFailed`); (2) the DevTools hunk leaves
-`kRemoteFrontendBase`/`kRemoteFrontendDomain` (extern consts) and `DevToolsUIBindings` unused in that TU – not a
-warning; (3) `base/cpu.h` becomes an unused include in `soda_util.cc` – not a warning.
+Behavioural consequences: Live Caption / on-device Web Speech / Dictation are shown as unsupported; Reading
+Mode falls back to system TTS voices; PDF OCR / main-content extraction report failure instead of downloading
+Screen AI; the Translator web API reports every language pair as unavailable; `chrome://inspect` of remote
+targets with a different DevTools version gets no front-end; DevTools UI languages outside its bundled
+locales fall back to en-US.
 
 ---
 
 ## 3. Widevine with a system-provided CDM (USE=widevine)
 
-How upstream 156 finds a CDM on Linux (`chrome/common/media/cdm_registration.cc`, `chrome/common/chrome_paths.cc:310-332`):
+How upstream finds a CDM on Linux (`chrome/common/media/cdm_registration.cc`, `chrome/common/chrome_paths.cc`):
 
-1. **Bundled**: only with `bundle_widevine_cdm=true` (`BUNDLE_WIDEVINE_CDM`, Chrome-branded builds only).
-   Looks at `<module dir>/WidevineCdm/` (`chrome::DIR_BUNDLED_WIDEVINE_CDM`).
-2. **Hinted** (`ENABLE_WIDEVINE_CDM_COMPONENT`, true on Linux x64/arm64 with `enable_widevine=true`): reads
+1. **Bundled**: only with `bundle_widevine_cdm=true` (Chrome-branded builds). Looks at
+   `<module dir>/WidevineCdm/` (`chrome::DIR_BUNDLED_WIDEVINE_CDM`).
+2. **Hinted** (`ENABLE_WIDEVINE_CDM_COMPONENT`): reads
    `$USER_DATA_DIR/WidevineCdm/latest-component-updated-widevine-cdm` (`{"Path": "<cdm base dir>"}`). Only the
-   Widevine component installer writes it, either for a downloaded CDM or for a "preinstalled" one it found in
-   `<module dir>/WidevineCdm` – which is how `www-plugins/chrome-binary-plugins`
+   Widevine component installer writes it, for a downloaded CDM or for a "preinstalled" one it found in
+   `<module dir>/WidevineCdm`, which is how `www-plugins/chrome-binary-plugins`
    (`/usr/lib64/chromium-browser/WidevineCdm`) used to be picked up.
 
-With the installer disabled, (2) would never see a system CDM again, but would still follow a hint file left by an
-earlier build – possibly to a CDM *downloaded* by that build. So the patch changes `GetHintedWidevine()` to ignore
-the hint file and use `<module dir>/WidevineCdm` (i.e. `/usr/lib64/chromium-browser/WidevineCdm`) if present.
-Result: `chrome-binary-plugins` works without any user action (after a restart: the CDM is loaded before the zygote
-locks down), and nothing downloaded at runtime is ever loaded. Compile-tested with the default `USE=widevine`;
-not runtime-tested (needs the proprietary CDM).
+With the installer disabled, (2) would never see a system CDM again, but would still follow a hint file left by
+an earlier build, possibly to a CDM *downloaded* by that build. So the patch changes `GetHintedWidevine()` to
+ignore the hint file and use `<module dir>/WidevineCdm` if present. Result: `chrome-binary-plugins` works without
+any user action (after a restart: the CDM is loaded before the zygote locks down), and nothing downloaded at
+runtime is loaded. Compile-tested with the default `USE=widevine`; not runtime-tested (needs the proprietary
+CDM).
 
 ---
 
-## 4. Recommended ebuild changes (written before implementation; 1–2 are done)
+## 4. Ebuild settings
 
-1. Add `"${FILESDIR}/chromium-157-no-runtime-executable-downloads.patch"` to `PATCHES`. Unconditional (hard rule).
-2. No new GN args are required for the hard rule. Explicitly **not** recommended: `enable_on_device_translation=false`
-   (not buildable on Linux without extra patches, see table row 29) and `enable_screen_ai_service=false`
-   (doesn't build as is, row 27).
-3. USE-flag ideas (optional; the executable-download gates stay unconditional either way):
-   * `component-updates` (default on): default component updates off only with `-component-updates`, for users who
-     also want to stop data components. Alternative: a `--component-updater=...` runtime flag / policy
-     `ComponentUpdatesEnabled=false` already exists (`components/component_updater/pref_names.cc`).
-   * `widevine`: kept; handled in the patch (§3), no user action needed.
-   * Nothing sensible for SODA/ScreenAI/TranslateKit/WASM-TTS: they cannot work without the download, so a USE flag
-     would only re-enable the download.
+The patch is applied unconditionally (hard rule). No GN args are needed for it; `enable_on_device_translation=false`
+and `enable_screen_ai_service=false` don't build on Linux as is (rows 20, 22). Data components can be turned off
+at runtime with policy `ComponentUpdatesEnabled=false`. Nothing sensible for SODA, Screen AI, TranslateKit or
+WASM TTS as USE flags: they can't work without the download, so a flag would only re-enable it.
 
 ---
 
 ## 5. For later: "talking to Google about non-Google things"
 
-Not required for the first ebuild; a seed list of background flows seen while doing the above, with the control
-point. "MSBB" = the "Make searches and browsing better" / URL-keyed anonymized data collection consent
-(`url_keyed_anonymized_data_collection.enabled`), off by default in Chromium but easy to toggle on.
+Not addressed yet; background flows with their control point. "MSBB" = the "Make searches and browsing better"
+consent (`url_keyed_anonymized_data_collection.enabled`), off by default in Chromium.
 
 | Flow | Where | Trigger / data | Control |
 |---|---|---|---|
-| Optimization Guide hints | `components/optimization_guide/core/hints/hints_fetcher.cc`, `chrome/browser/optimization_guide/chrome_hints_manager.cc` | per-navigation host/URL lists sent to `optimizationguide-pa.googleapis.com` | `kOptimizationHints` (ENABLED, `optimization_guide_features.cc:60`), remote fetching requires MSBB; the component (row 5) is the no-consent fallback |
-| Optimization Guide model downloads | `components/optimization_guide/core/delivery/prediction_model_fetcher_impl.cc`, `prediction_model_download_manager.cc` | model requests include locale/version, not URLs | same |
-| Server-side model execution (Compose, tab organization, history search, …) | `components/optimization_guide/core/model_execution/model_execution_fetcher.cc` | page content | none; feature-gated, privacy work |
-| Network time | `components/network_time/network_time_tracker.cc:58-64` | periodic `clients2.google.com/time` | none |
-| Safe Browsing | list updates `components/safe_browsing/core/browser/db/v4_update_protocol_manager.cc`; real-time URL lookups `components/safe_browsing/core/browser/realtime/url_lookup_service.cc`; download protection `chrome/browser/safe_browsing/download_protection/`; CSD phishing pings `components/safe_browsing/content/browser/client_side_detection_service.cc`; extended reporting | hashed prefixes (standard), full URLs (enhanced), download metadata | prefs `safebrowsing.enabled/enhanced`, policy `SafeBrowsingProtectionLevel`, GN `safe_browsing_mode` |
-| SCT auditing | `chrome/browser/ssl/sct_reporting_service.cc` | certificate SCTs of any site | only with Safe Browsing extended reporting / enhanced |
-| Omnibox suggest / zero-suggest | `components/omnibox/browser/search_provider.cc`, `remote_suggestions_service.cc` | typed text; current page URL for zero-suggest when MSBB | pref `search.suggest_enabled`; default search engine |
-| Preconnect to default search engine | `chrome/browser/predictors/loading_predictor.cc` | at startup / omnibox focus | pref `net.network_prediction_options` |
-| Autofill crowdsourcing / server predictions | `components/autofill/core/browser/crowdsourcing/autofill_crowdsourcing_manager.cc` | form signatures of visited sites queried/uploaded | `kAutofillServerCommunication`, autofill prefs |
-| Password leak detection | `components/password_manager/core/browser/leak_detection/leak_detection_request.cc` | hashed credentials on every sign-in | pref `profile.password_manager_leak_detection`, policy `PasswordLeakDetectionEnabled` |
-| Translate | `components/translate/core/browser/translate_script.cc`, `translate_ranker_impl.cc` | page text to `translate.googleapis.com` when the user translates; ranker model fetch | prefs `translate.enabled`; Vanadium patches 0084/0099/0147 as reference |
-| Spelling service | `components/spellcheck/browser/spelling_service_client.cc`; dictionaries `chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc:281` | typed text (opt-in) / dictionary downloads | pref `spellcheck.use_spelling_service` |
-| Component updater pings | `components/component_updater/configurator_impl.cc`, `component_updater_url_constants.cc:17-21` (`update.googleapis.com`) | list of installed components + versions, periodic | policy `ComponentUpdatesEnabled`; Vanadium patch 0090 ("disable component updater pings") as reference |
-| Variations seed | `components/variations/service/variations_service.cc:276-290` | – | already off in unbranded builds |
-| UMA / crash reporting | `chrome/browser/metrics/chrome_metrics_services_manager_client.cc` | – | consent-gated, off by default |
-| Domain reliability | `components/domain_reliability/google_configs.cc` | beacons about failures reaching Google domains only | policy `DomainReliabilityAllowed` |
-| Captive-portal / connectivity probes | `components/captive_portal/core/captive_portal_detector.cc` (`gstatic.com/generate_204`) | on network errors | pref `captive_portal` / policy |
-| Page content annotations / history embeddings | `components/page_content_annotations/core/page_content_annotations_service.cc`, `components/history_embeddings/` | page content, on-device mostly | none; privacy work |
-| Commerce / shopping | `components/commerce/core/shopping_service.cc` | product URLs/page info of shopping sites | MSBB + `kShoppingList`-style features |
-| HaTS surveys | `chrome/browser/ui/hats/hats_service_desktop.cc` | loads Google survey web content triggered on arbitrary sites | feature-gated |
-| NTP remote content, What's New | `chrome/browser/new_tab_page/one_google_bar/one_google_bar_loader_impl.cc`, `chrome/browser/ui/webui/whats_new/whats_new_util.cc` | Google web content about Google things | prefs/policies (`PromotionsEnabled`, NTP customizations) |
-| Image proxy | `components/image_fetcher/core/image_fetcher_service.cc` | NTP module images via Google image service | with the features that use it |
-| Search-engine-choice / geo | `components/search_engines/search_engine_choice/search_engine_choice_service.cc` | – | – |
-| Media Router / Cast | local mDNS discovery | local network | pref `media_router.enable_media_router`; cloud services off by default |
-| DevTools `remoteBase` | `chrome/browser/devtools/devtools_window.cc:1445`, front-end `panels/elements/WebCustomData.ts`, `core/i18n/i18nImpl.ts` | when DevTools is open: CSS documentation data and non-bundled UI locales (JSON) from `chrome-devtools-frontend.appspot.com` | make `DevToolsUI::GetRemoteBaseURL()` return an empty URL; code from there is already blocked by the patch and the CSP |
-| Attribution / private aggregation reports | sites, not Google | – | privacy sandbox prefs |
+| Optimization Guide hints | `components/optimization_guide/core/hints/hints_manager.cc:88-89` (GetHints) | per-navigation host/URL lists to `optimizationguide-pa.googleapis.com` | remote fetching needs MSBB **and** a Google API key (`optimization_guide_permissions_util.cc:15-56`); the component (row 5) is the no-consent fallback |
+| Optimization Guide model downloads | `prediction_model_fetcher_impl.cc`, `prediction_model_download_manager.cc` | model requests (locale, version) | same |
+| Server-side model execution (Compose, tab organization, …) | `remote_model_execution_common.h:34` (`chromemodelexecution-pa`); `kOptimizationGuideModelExecution` ENABLED (`optimization_guide_features.cc:100`) | page content | each feature has its own opt-in |
+| Network time | `components/network_time/network_time_tracker.cc:155` | periodic `clients2.google.com/time` | feature `kNetworkTimeServiceQuerying` (ENABLED on Linux, `:73-78`), pref `network_time.network_time_queries_enabled` (`:309`, `:747`), policy `BrowserNetworkTimeQueriesEnabled` |
+| Safe Browsing | list updates `v4_update_protocol_manager.cc`; real-time lookups `realtime/url_lookup_service.cc`; download protection `chrome/browser/safe_browsing/download_protection/`; CSD pings `client_side_detection_service.cc` | hashed prefixes (standard), full URLs (enhanced), download metadata | prefs `safebrowsing.enabled/enhanced`, policy `SafeBrowsingProtectionLevel`, GN `safe_browsing_mode` |
+| SCT auditing | `chrome/browser/ssl/sct_reporting_service.cc` | certificate SCTs | only with Safe Browsing extended reporting / enhanced |
+| Omnibox suggest / zero-suggest | `search_provider.cc`, `remote_suggestions_service.cc` | typed text; page URL for zero-suggest with MSBB | pref `search.suggest_enabled`; default search engine |
+| Search prefetch, preconnect | `search_prefetch/field_trial_settings.cc:44` (ENABLED), `predictors/loading_predictor.cc` | – | pref `net.network_prediction_options` |
+| NTP doodle, OneGoogleBar | `google_logo_api.cc:47`; `one_google_bar_loader_impl.cc:42` (`kNtpOneGoogleBar` ENABLED, `ntp_features.cc:178-184`) | with Google as default search engine; no consent | NTP customization prefs / policies |
+| AI Mode eligibility | `aim_eligibility_service.cc:746`; `kAimEnabled`, `kAimServerEligibilityEnabled` ENABLED (`aim_eligibility_service_features.cc:11,13`) | OAuth token: signed-in users only | – |
+| Glic extension bridge | `resources/glic/extension/manifest.json` (`externally_connectable` Google hosts), loaded by default (§1b) | Google pages can query Glic state and ask it to act (`getState`, `invoke`, `activateTab`, …) | feature `kApiGlicPrivate` |
+| Autofill crowdsourcing / server predictions | `autofill_crowdsourcing_manager.cc:129` | form signatures of visited sites | `kAutofillServerCommunication` (`autofill_debug_features.cc:143`), autofill prefs |
+| Password leak detection | `leak_detection_request.cc` | hashed credentials on sign-in | pref `profile.password_manager_leak_detection`, policy `PasswordLeakDetectionEnabled` |
+| Translate | `translate_script.cc` (§1b), `translate_ranker_impl.cc`; partial translate `contextual_translate_delegate.cc:27` (`translate-pa`) | page text when the user translates; ranker model | pref `translate.enabled` |
+| Spelling service | `spelling_service_client.cc`; dictionaries `spellcheck_hunspell_dictionary.cc:280-284` | typed text (opt-in) / dictionary downloads | pref `spellcheck.use_spelling_service` (`components/spellcheck/browser/pref_names.h:32`) |
+| Component updater pings | `configurator_impl.cc`, `component_updater_url_constants.cc` (`update.googleapis.com`) | installed components + versions | policy `ComponentUpdatesEnabled` |
+| About this site / merchant trust | `page_info/core/features.cc:33,40` (ENABLED) | when page info is opened | features |
+| Private AI | `components/private_ai/features.cc:14` (ENABLED), `phosphor-pa.googleapis.com` (`:36-39`) | unclear whether it fires on its own | feature |
+| Lens | `lens_features.cc:272,510` (`lensfrontend-pa`, `lens.google.com`) | screenshots, user-initiated | `kLensOverlay` |
+| Variations seed | `variations_service.cc:284-300` | – | off in unbranded builds |
+| UMA / crash reporting | `chrome_metrics_services_manager_client.cc` | – | consent, off by default |
+| Domain reliability | `components/domain_reliability/google_configs.cc` | failures reaching Google domains; uploads also need UMA (`profile_network_context_service.cc:1496-1507`) | policy `DomainReliabilityAllowed` |
+| Captive-portal probes | `captive_portal_detector.cc:24-26` | on network errors | tied to `kAlternateErrorPagesEnabled` (`captive_portal_service.cc:85-92`) |
+| Commerce / shopping, history embeddings | `shopping_service.cc`; `components/history_embeddings/` | – | `kShoppingList` and history embeddings DISABLED |
+| HaTS surveys | `hats_service_desktop.cc:595-604` | survey web content | needs metrics consent |
+| Geolocation | `network_location_request.cc:49` | after a site gets location permission | site permission |
+| DevTools `remoteBase` | `devtools_window.cc:1460-1489`, `devtools_ui.cc:42-45` | with DevTools open: CSS docs data and non-bundled UI locales from `chrome-devtools-frontend.appspot.com` | make `GetRemoteBaseURL()` empty; code from there is already blocked (patch + CSP) |
+| Media Router, image proxy, search-engine choice, attribution reports | as in the 156 audit | – | not re-checked for 158 |
 
 ---
 
-## Observed: first-launch traffic (2026-10-14, default USE config)
+## Observed: first-launch traffic (156, 2026-10-14, default USE config)
 
-These are hosts contacted within about 90 seconds of the first start, with a fresh
-profile and Google as the default search engine. The smoke test opened the NTP and
-typed into the omnibox. Data comes from `--log-net-log`.
+Hosts contacted within about 90 seconds of the first start, with a fresh profile and Google as the default
+search engine; the smoke test opened the NTP and typed into the omnibox (`--log-net-log`). Not repeated for 158.
 
-- **Google NTP / search (expected, Google features):** `www.google.com` (NTP,
-  `/complete/search` suggestions, `/async/*`), `www.gstatic.com`, `fonts.gstatic.com`,
-  `ogads-pa.clients6.google.com` (OneGoogle bar), `accounts.google.com/ListAccounts`,
-  and `play.google.com/log` (logging from the Google NTP page itself).
-- **Component updater:** `update.googleapis.com/service/update2/json`, with downloads
-  from `edgedl.me.gvt1.com`.
-  - Installed within the window: Optimization Guide Models Manifest (a list of
-    models), Optimization Hints, and Trust Token key commitments. All are data.
-  - Other downloads in flight were differential updates (subresource filter rules, …).
-  - No executable code: the profile contained no ELF/WASM/JS outside the web cache.
-- **Optimization guide:** `optimizationguide-pa.googleapis.com/v1:GetModels`
-  (model metadata).
+- **Google NTP / search (expected, Google features):** `www.google.com` (NTP, `/complete/search` suggestions,
+  `/async/*`), `www.gstatic.com`, `fonts.gstatic.com`, `ogads-pa.clients6.google.com` (OneGoogle bar),
+  `accounts.google.com/ListAccounts`, and `play.google.com/log` (logging from the Google NTP page itself).
+- **Component updater:** `update.googleapis.com/service/update2/json`, with downloads from `edgedl.me.gvt1.com`:
+  Optimization Guide Models Manifest, Optimization Hints, Trust Token key commitments (all data), and
+  differential updates. No executable code: the profile contained no ELF/WASM/JS outside the web cache.
+- **Optimization guide:** `optimizationguide-pa.googleapis.com/v1:GetModels` (model metadata).
 - **Spellcheck dictionary:** `redirector.gvt1.com/edgedl/chrome/dict/en-us-10-2.bdic`.
 - **Network time:** `clients2.google.com/time/1/current`.
-
-Candidates for the privacy work are the component-updater pings, `GetModels`, network
-time and the dictionary fetch. The NTP traffic is part of using Google's NTP and search.
