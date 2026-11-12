@@ -127,7 +127,10 @@
 # (files/chromium-build-tree.py). ninja tracks system headers too (system_headers_in_deps). A
 # toolchain change (not tracked by ninja) gets a warning: delete build/ for a full build. One
 # build at a time uses the directory: another one waits until it is done. USE=pgo builds
-# everything twice anyway.
+# everything twice anyway. The tree can be moved (src/ and build/ together, with their
+# timestamps; then set CHROMIUM_BUILD_DIR to the new place), but GN writes paths outside it (the
+# system's headers, Crubit's support library, ...) relative to build/Release: at another
+# directory depth, the steps that use them are run again once.
 
 # @ECLASS_VARIABLE: CHROMIUM_REGEN_CHECKPOINT
 # @USER_VARIABLE
