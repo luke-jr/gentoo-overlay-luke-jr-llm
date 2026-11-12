@@ -292,7 +292,9 @@ CHROMIUM_TS_DEFINITIONS_KEPT=(
 )
 # Those of the eclass's list that 159 no longer has.
 CHROMIUM_KEEPLIBS_DROP=(
+	third_party/angle/src/third_party/libXNVCtrl
 	third_party/dom_distiller_js
 	third_party/khronos
+	third_party/libaom/source/libaom/third_party/vector
 	third_party/libsecret
 )
