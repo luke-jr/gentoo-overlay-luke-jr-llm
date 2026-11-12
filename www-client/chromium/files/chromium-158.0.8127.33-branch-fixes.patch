@@ -1,9 +1,9 @@
 Chromium 158.0.8127.33 + the later changes of its release branch, up to
-8d9ed53597ad2b6584057aae2daf830f5d60ad47 (refs/branch-heads/8127@{#1702}), for the
+aa889df21a3e928736060cd018ef32732812eaae (refs/branch-heads/8127@{#1703}), for the
 158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..8d9ed53597ad2b6584057aae2daf830f5d60ad47,
-and from the branch's rolls of v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..3ade1e5265ffe441c6137876be7ffdd87fa7baad (under v8/),
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..aa889df21a3e928736060cd018ef32732812eaae,
+and from the branch's rolls of v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..c7596de0838cb17a421524051cd891fc783a2d46 (under v8/),
 devtools/devtools-frontend 8deaa243ad5f7abd50b6c0e17a740d0f00fc068f..047c90eca37c7170d826d72245d5df9281989cf3 (under third_party/devtools-frontend/src/),
 skia/skia 361c8326695a06b7492fb6eeeff803c0c92a2447..3279352fdf1fbbd01a6dd024a52d3f178a6d5f07 (under third_party/skia/),
 catapult 74678266b79e0ee388f1021bea36388c854b4a00..4a6f0659c26fc478756e83f0d007b91ca5f6d36f (under third_party/catapult/) and
@@ -86,6 +86,7 @@ Commits contributing to it (oldest first):
   e7690956cc56 [M158] [Extensions] Validate pending script input in ScriptInjectionTracker
   2358f7f7a741 [M158] [DBSC] Make session deletion re-entrancy safe
   8d9ed53597ad Roll commits from side projects in M158
+  aa889df21a3e Roll commits from side projects in M158
     v8 77192c003a77 [M158] [objects] Disallow JSObject modifications during GC and GC callbacks
     v8 e8f914b08b81 Version 15.8.62.27
     v8 c0b2c2f3ade9 [M158] [compiler] Mark string-keyed ordered hash lookups as writing
@@ -101,6 +102,8 @@ Commits contributing to it (oldest first):
     v8 cc81dfbed3c9 Version 15.8.62.32
     v8 1e43c50c48b3 [M158] [builtins] Enforce no-JS execution scopes in InvokeApiFunction
     v8 3ade1e5265ff Version 15.8.62.33
+    v8 3b82dd063c19 [M158] [compiler] Lower single-input phis via EmitIdentity
+    v8 c7596de0838c Version 15.8.62.34
     devtools-frontend c4aa6a2d6fde Update What's new content for Chrome 158
     devtools-frontend bba4f1dcb490 [M158] Reland "[elements] Skip no-op expand events after "Expand recursively""
     devtools-frontend 047c90eca37c [M158] [elements] Restore the shadow root guide line in the DOM tree
@@ -9445,7 +9448,7 @@ index 1853251..a7ed18e 100644
    V8_WARN_UNUSED_RESULT MaybeLocal<Object> NewInstanceWithSideEffectType(
        Local<Context> context, int argc, Local<Value> argv[],
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index d9b6596..e57d3bc 100644
+index d9b6596..dc7dd19 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -9453,7 +9456,7 @@ index d9b6596..e57d3bc 100644
  #define V8_MINOR_VERSION 8
  #define V8_BUILD_NUMBER 62
 -#define V8_PATCH_LEVEL 26
-+#define V8_PATCH_LEVEL 33
++#define V8_PATCH_LEVEL 34
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
@@ -9663,6 +9666,21 @@ index ca36c69..2dcb5b0 100644
  
  #define PER_ISOLATE_CHECK_TYPE(V, enable)                                    \
    /* Scope in which javascript execution leads to exception being thrown. */ \
+diff --git a/v8/src/compiler/backend/instruction-selector.cc b/v8/src/compiler/backend/instruction-selector.cc
+index 2783fe7..7487c94 100644
+--- a/v8/src/compiler/backend/instruction-selector.cc
++++ b/v8/src/compiler/backend/instruction-selector.cc
+@@ -2071,6 +2071,10 @@
+ void InstructionSelector::VisitPhi(OpIndex node) {
+   const Operation& op = Get(node);
+   DCHECK_EQ(op.input_count, PredecessorCount(current_block_));
++  if (V8_UNLIKELY(op.input_count == 1)) {
++    EmitIdentity(node);
++    return;
++  }
+   PhiInstruction* phi = instruction_zone()->template New<PhiInstruction>(
+       instruction_zone(), GetVirtualRegister(node),
+       static_cast<size_t>(op.input_count));
 diff --git a/v8/src/compiler/simplified-operator.cc b/v8/src/compiler/simplified-operator.cc
 index 8922e87..3a34404 100644
 --- a/v8/src/compiler/simplified-operator.cc
