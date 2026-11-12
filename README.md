@@ -20,9 +20,10 @@ auto-sync = no
 
 `www-client/chromium-157.0.8103.78`, `158.0.8127.18` and `158.0.8127.33_p1699_pre`, based on `::gentoo`'s
 `chromium-151.0.7922.169-r1`. `::gentoo` removed `www-client/chromium` on 2026-11-05 (bug #982204),
-with `www-client/chromium-common`, which this overlay now carries. Its `profiles/package.mask`
-entry for `www-client/chromium` was still there that day, and it covers this overlay's
-`www-client/chromium` too: until `::gentoo` drops it, unmask the package (see `doc/chromium.md`).
+with `www-client/chromium-common`, which this overlay now carries. Since that day its
+`profiles/package.mask` masks only its own old versions (`<www-client/chromium-151.0.7922.169-r1`),
+so this overlay's need no unmasking; remove any `package.unmask` entry for them, as it would also
+override this overlay's own masks of vulnerable versions (see `doc/chromium.md`).
 The `chromium-2` eclass the build inherits from `::gentoo` stays, since `google-chrome`,
 `vivaldi`, `opera` and `microsoft-edge` use it.
 All are built from Google's official "lite" source tarballs.
