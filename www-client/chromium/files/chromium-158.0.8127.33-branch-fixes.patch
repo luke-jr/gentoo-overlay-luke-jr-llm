@@ -1,9 +1,9 @@
 Chromium 158.0.8127.33 + the later changes of its release branch, up to
-e7690956cc5683d960dbcc602e8ecc95ae6a93f1 (refs/branch-heads/8127@{#1699}), for the
+8d9ed53597ad2b6584057aae2daf830f5d60ad47 (refs/branch-heads/8127@{#1702}), for the
 158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..e7690956cc5683d960dbcc602e8ecc95ae6a93f1,
-and from the branch's rolls of v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..b601a2347f005e8bfadd32f285df97ffba5cf1bd (under v8/),
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..8d9ed53597ad2b6584057aae2daf830f5d60ad47,
+and from the branch's rolls of v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..3ade1e5265ffe441c6137876be7ffdd87fa7baad (under v8/),
 devtools/devtools-frontend 8deaa243ad5f7abd50b6c0e17a740d0f00fc068f..047c90eca37c7170d826d72245d5df9281989cf3 (under third_party/devtools-frontend/src/),
 skia/skia 361c8326695a06b7492fb6eeeff803c0c92a2447..3279352fdf1fbbd01a6dd024a52d3f178a6d5f07 (under third_party/skia/),
 catapult 74678266b79e0ee388f1021bea36388c854b4a00..4a6f0659c26fc478756e83f0d007b91ca5f6d36f (under third_party/catapult/) and
@@ -84,6 +84,8 @@ Commits contributing to it (oldest first):
   14d6f648e8cd [M158] Prevent out-of-bounds marker reads during highlight painting
   04148613a268 [M158] [PDF] Reject re-entrancy in PDFiumPage::Unload()
   e7690956cc56 [M158] [Extensions] Validate pending script input in ScriptInjectionTracker
+  2358f7f7a741 [M158] [DBSC] Make session deletion re-entrancy safe
+  8d9ed53597ad Roll commits from side projects in M158
     v8 77192c003a77 [M158] [objects] Disallow JSObject modifications during GC and GC callbacks
     v8 e8f914b08b81 Version 15.8.62.27
     v8 c0b2c2f3ade9 [M158] [compiler] Mark string-keyed ordered hash lookups as writing
@@ -94,6 +96,11 @@ Commits contributing to it (oldest first):
     v8 875534af8903 Version 15.8.62.30
     v8 2477d612c4c7 [M158] [heap] Read SFI::trusted_function_data_ only once during marking
     v8 b601a2347f00 Version 15.8.62.31
+    v8 a48ee922c86a [M158] [builtins] Unbox radix as Smi in Number.prototype.toString
+    v8 c292af6c1585 [M158] [deoptimizer] Ensure materialized frame slots are HeapObjects
+    v8 cc81dfbed3c9 Version 15.8.62.32
+    v8 1e43c50c48b3 [M158] [builtins] Enforce no-JS execution scopes in InvokeApiFunction
+    v8 3ade1e5265ff Version 15.8.62.33
     devtools-frontend c4aa6a2d6fde Update What's new content for Chrome 158
     devtools-frontend bba4f1dcb490 [M158] Reland "[elements] Skip no-op expand events after "Expand recursively""
     devtools-frontend 047c90eca37c [M158] [elements] Restore the shadow root guide line in the DOM tree
@@ -7007,6 +7014,441 @@ index 580a279..ad0755a 100644
    // The QUIC connection options which will be sent to the server in order to
    // enable certain QUIC features. This should be set using `QuicTag`s (32-bit
    // value represented in ASCII equivalent e.g. EXMP). If we want to set
+diff --git a/net/device_bound_sessions/session_service_impl.cc b/net/device_bound_sessions/session_service_impl.cc
+index 11b0f17..1a52087 100644
+--- a/net/device_bound_sessions/session_service_impl.cc
++++ b/net/device_bound_sessions/session_service_impl.cc
+@@ -40,6 +40,7 @@
+ #include "net/device_bound_sessions/registration_request_param.h"
+ #include "net/device_bound_sessions/session_binding_utils.h"
+ #include "net/device_bound_sessions/session_display.h"
++#include "net/device_bound_sessions/session_error.h"
+ #include "net/device_bound_sessions/session_store.h"
+ #include "net/ssl/ssl_cert_request_info.h"
+ #include "net/ssl/ssl_private_key.h"
+@@ -709,6 +710,10 @@
+ std::ranges::subrange<SessionServiceImpl::SessionsMap::iterator>
+ SessionServiceImpl::GetSessionsForSite(const SchemefulSite& site) {
+   const auto now = base::Time::Now();
++  // Deleting a session can synchronously re-enter this class and modify
++  // `unpartitioned_sessions_`, so expired sessions are extracted first and
++  // deleted only after the iteration below is done.
++  std::vector<SessionsMap::node_type> expired_sessions;
+   // Session keys are sorted by site, then identifier. So the first
+   // element not less than (`site`, "") is the first session for this
+   // site.
+@@ -718,20 +723,34 @@
+     auto curit = it;
+     ++it;
+ 
+-    const auto& [session_key, session] = *curit;
+-    if (now >= session->expiry_date()) {
+-      // Since this deletion is not due to a request, we do not need to
+-      // provide a per-request callback here.
+-      DeleteSessionAndNotifyInternal(DeletionReason::kExpired, curit,
+-                                     base::NullCallback());
++    if (now >= curit->second->expiry_date()) {
++      expired_sessions.push_back(unpartitioned_sessions_.extract(curit));
+     } else {
+-      session->RecordAccess();
++      curit->second->RecordAccess();
+     }
+   }
+ 
+-  return std::ranges::subrange<SessionsMap::iterator>(
+-      unpartitioned_sessions_.lower_bound(SessionKey{site, Session::Id("")}),
+-      it);
++  if (expired_sessions.empty()) {
++    return std::ranges::subrange<SessionsMap::iterator>(
++        unpartitioned_sessions_.lower_bound(SessionKey{site, Session::Id("")}),
++        it);
++  }
++
++  for (SessionsMap::node_type& node : expired_sessions) {
++    // Since this deletion is not due to a request, we do not need to
++    // provide a per-request callback here.
++    DeleteSessionAndNotifyInternal(DeletionReason::kExpired, std::move(node),
++                                   base::NullCallback());
++  }
++
++  // The map may have changed while deleting, so compute the range again.
++  auto begin =
++      unpartitioned_sessions_.lower_bound(SessionKey{site, Session::Id("")});
++  auto end = begin;
++  while (end != unpartitioned_sessions_.end() && end->first.site == site) {
++    ++end;
++  }
++  return std::ranges::subrange<SessionsMap::iterator>(begin, end);
+ }
+ 
+ std::optional<SessionService::DeferralParams> SessionServiceImpl::ShouldDefer(
+@@ -752,7 +771,16 @@
+   DebugHeaderBuilder debug_header_builder;
+   const base::flat_map<SessionKey, RefreshResult>& previous_deferrals =
+       request.device_bound_session_deferrals();
+-  for (const auto& [session_key, session] : GetSessionsForSite(site)) {
++  // Iterate over a copy of the keys: starting a proactive refresh below can
++  // complete synchronously and delete sessions.
++  const std::vector<SessionKey> session_keys = base::ToVector(
++      GetSessionsForSite(site), [](const auto& entry) { return entry.first; });
++  for (const SessionKey& session_key : session_keys) {
++    Session* session = GetSession(session_key);
++    if (!session) {
++      continue;
++    }
++
+     MaybeIncreaseSessionUsage(session_key, request,
+                               SessionUsage::kNoSiteMatchNotInScope);
+ 
+@@ -907,17 +935,21 @@
+     std::optional<SessionDisplay> new_session_display,
+     std::optional<bool> is_proactive_refresh_candidate,
+     std::optional<base::TimeDelta> minimum_proactive_refresh_threshold) {
+-  bool has_proactive_request = false;
+-  if (auto node = proactive_requests_.extract(session_key)) {
+-    has_proactive_request = true;
+-    base::UmaHistogramTimes("Net.DeviceBoundSessions.ProactiveRefreshDuration",
+-                            node.mapped().timer.Elapsed());
+-    CompleteProactiveRefresh(session_key, result,
+-                             std::move(node.mapped().completion_callbacks));
+-  }
++  // Remove both entries before running any callbacks, since they can re-enter
++  // this class. Requests deferred re-entrantly then wait for a new refresh
++  // instead of completing with `result`.
++  auto proactive_node = proactive_requests_.extract(session_key);
++  auto deferred_node = deferred_requests_.extract(session_key);
++  const bool has_proactive_request = !proactive_node.empty();
++  const bool has_deferred_request = !deferred_node.empty();
+ 
+-  auto it = deferred_requests_.find(session_key);
+-  bool has_deferred_request = it != deferred_requests_.end();
++  if (has_proactive_request) {
++    base::UmaHistogramTimes("Net.DeviceBoundSessions.ProactiveRefreshDuration",
++                            proactive_node.mapped().timer.Elapsed());
++    CompleteProactiveRefresh(
++        session_key, result,
++        std::move(proactive_node.mapped().completion_callbacks));
++  }
+ 
+   if (has_proactive_request || has_deferred_request) {
+     NotifyIfEventCallbackListeners([&] {
+@@ -933,8 +965,7 @@
+     return;
+   }
+ 
+-  auto requests = std::move(it->second);
+-  deferred_requests_.erase(it);
++  auto requests = std::move(deferred_node.mapped());
+ 
+   base::UmaHistogramCounts100("Net.DeviceBoundSessions.RequestDeferredCount",
+                               requests.size());
+@@ -1109,12 +1140,7 @@
+     return;
+   }
+ 
+-  auto it = unpartitioned_sessions_.find(session_key);
+-  if (it == unpartitioned_sessions_.end()) {
+-    return;
+-  }
+-
+-  DeleteSessionAndNotifyInternal(reason, it, per_request_callback);
++  DeleteSessionAndNotifyInternal(reason, session_key, per_request_callback);
+ }
+ 
+ const Session* SessionServiceImpl::GetSession(
+@@ -1212,8 +1238,7 @@
+     SessionStore::SaveSessionMode mode) {
+   SessionKey session_key{site, session->id()};
+   if (mode != SessionStore::SaveSessionMode::kRefresh) {
+-    auto it = unpartitioned_sessions_.find(session_key);
+-    if (it != unpartitioned_sessions_.end()) {
++    if (auto node = unpartitioned_sessions_.extract(session_key)) {
+       LogSessionDeletionReason(DeletionReason::kReplaced);
+ 
+       if (session_store_) {
+@@ -1222,14 +1247,12 @@
+ 
+       NotifySessionAccess(base::NullCallback(),
+                           SessionAccess::AccessType::kTermination, session_key,
+-                          *it->second);
++                          *node.mapped());
+       NotifyIfEventCallbackListeners([&] {
+         return SessionEvent::MakeTerminationEvent(
+             session_key.site, session_key.id.value(),
+             /*succeeded=*/true, DeletionReason::kReplaced);
+       });
+-
+-      unpartitioned_sessions_.erase(it);
+     }
+   }
+ 
+@@ -1276,6 +1299,10 @@
+     return;
+   }
+ 
++  // Extract all matching sessions before deleting any of them. Deleting a
++  // session can synchronously re-enter this class and modify
++  // `unpartitioned_sessions_`, which would invalidate iterators held here.
++  std::vector<SessionsMap::node_type> sessions_to_delete;
+   for (auto it = unpartitioned_sessions_.begin();
+        it != unpartitioned_sessions_.end();) {
+     auto curit = it;
+@@ -1284,10 +1311,15 @@
+     if (SessionMatchesFilter(curit->first.site, *curit->second,
+                              created_after_time, created_before_time,
+                              origin_and_site_matcher)) {
+-      DeleteSessionAndNotifyInternal(reason, curit, base::NullCallback());
++      sessions_to_delete.push_back(unpartitioned_sessions_.extract(curit));
+     }
+   }
+ 
++  for (SessionsMap::node_type& node : sessions_to_delete) {
++    DeleteSessionAndNotifyInternal(reason, std::move(node),
++                                   base::NullCallback());
++  }
++
+   std::move(completion_callback).Run();
+ }
+ 
+@@ -1309,28 +1341,47 @@
+ 
+ void SessionServiceImpl::DeleteSessionAndNotifyInternal(
+     DeletionReason reason,
+-    SessionServiceImpl::SessionsMap::iterator it,
+-    SessionService::OnAccessCallback per_request_callback) {
++    SessionServiceImpl::SessionsMap::node_type node,
++    SessionService::OnAccessCallback per_request_callback,
++    std::optional<SessionError> fetch_error) {
++  CHECK(!node.empty());
+   LogSessionDeletionReason(reason);
+ 
+-  const auto& [session_key, session] = *it;
++  // `node` is owned here and is no longer in `unpartitioned_sessions_`, so
++  // these references stay valid even if the calls below re-enter this class.
++  const SessionKey& session_key = node.key();
++  const Session& session = *node.mapped();
+ 
+-  UnblockWaitingRequests(session_key, RefreshResult::kFatalError);
+-
++  // Delete the session from the store before unblocking the waiting requests,
++  // to keep the store in sync with `unpartitioned_sessions_` if they re-enter
++  // this class (e.g. to save a new session with the same key).
+   if (session_store_) {
+     session_store_->DeleteSession(session_key);
+   }
+ 
++  UnblockWaitingRequests(session_key, RefreshResult::kFatalError,
++                         std::move(fetch_error));
++
+   NotifySessionAccess(per_request_callback,
+                       SessionAccess::AccessType::kTermination, session_key,
+-                      *session);
++                      session);
+   NotifyIfEventCallbackListeners([&] {
+     return SessionEvent::MakeTerminationEvent(session_key.site,
+                                               session_key.id.value(),
+                                               /*succeeded=*/true, reason);
+   });
++}
+ 
+-  unpartitioned_sessions_.erase(it);
++void SessionServiceImpl::DeleteSessionAndNotifyInternal(
++    DeletionReason reason,
++    const SessionKey& session_key,
++    SessionService::OnAccessCallback per_request_callback,
++    std::optional<SessionError> fetch_error) {
++  if (auto node = unpartitioned_sessions_.extract(session_key)) {
++    DeleteSessionAndNotifyInternal(reason, std::move(node),
++                                   std::move(per_request_callback),
++                                   std::move(fetch_error));
++  }
+ }
+ 
+ void SessionServiceImpl::NotifySessionAccess(
+@@ -1517,19 +1568,20 @@
+               },
+               [&](SessionError error) {
+                 const SessionError::ErrorType error_type = error.type;
+-                std::optional<DeletionReason> deletion_reason =
+-                    error.GetDeletionReason();
+-                RefreshResult refresh_result =
+-                    error.GetRefreshResult().value_or(
+-                        deletion_reason ? RefreshResult::kFatalError
+-                                        : RefreshResult::kUnreachable);
+-
+-                UnblockWaitingRequests(session_key, refresh_result,
+-                                       std::move(error));
+-
+-                if (deletion_reason) {
+-                  DeleteSessionAndNotify(*deletion_reason, session_key,
+-                                         on_access_callback);
++                if (std::optional<DeletionReason> deletion_reason =
++                        error.GetDeletionReason()) {
++                  // Deleting the session also unblocks its waiting requests.
++                  // If it was already deleted while the refresh was in
++                  // flight, they were unblocked then.
++                  DeleteSessionAndNotifyInternal(*deletion_reason, session_key,
++                                                 on_access_callback,
++                                                 std::move(error));
++                } else {
++                  const RefreshResult refresh_result =
++                      error.GetRefreshResult().value_or(
++                          RefreshResult::kUnreachable);
++                  UnblockWaitingRequests(session_key, refresh_result,
++                                         std::move(error));
+                 }
+                 return error_type;
+               }));
+@@ -1572,15 +1624,15 @@
+         std::optional<unexportable_keys::UnexportableSigningKeyId>)> callback,
+     Session::KeyIdOrError key_id_or_error) {
+   if (!key_id_or_error.has_value()) {
+-    const bool is_persistent_error =
+-        unexportable_keys::IsPersistentError(key_id_or_error.error());
+-    UnblockWaitingRequests(session_key,
+-                           is_persistent_error
+-                               ? RefreshResult::kFatalError
+-                               : RefreshResult::kTransientSigningError);
+-    if (is_persistent_error) {
++    if (unexportable_keys::IsPersistentError(key_id_or_error.error())) {
++      // Deleting the session also unblocks its waiting requests. If it was
++      // already deleted while the key was being restored, they were unblocked
++      // then.
+       DeleteSessionAndNotify(DeletionReason::kFailedToUnwrapKey, session_key,
+                              on_access_callback);
++    } else {
++      UnblockWaitingRequests(session_key,
++                             RefreshResult::kTransientSigningError);
+     }
+     std::move(callback).Run(std::nullopt);
+     return;
+@@ -1612,12 +1664,11 @@
+           params.priority;
+       RestoreSessionKey(
+           session_key, access_callback, priority,
+-          base::BindOnce(&SessionServiceImpl::RefreshSessionInternal,
++          base::BindOnce(&SessionServiceImpl::OnSessionKeyRestoredForRefresh,
+                          weak_factory_.GetWeakPtr(), std::move(params),
+                          session_key));
+       return;
+     } else {
+-      UnblockWaitingRequests(session_key, RefreshResult::kFatalError);
+       DeleteSessionAndNotify(DeletionReason::kFailedToRestoreKey, session_key,
+                              params.access_callback);
+       return;
+@@ -1627,20 +1678,29 @@
+   RefreshSessionInternal(std::move(params), session_key, *key_id);
+ }
+ 
+-void SessionServiceImpl::RefreshSessionInternal(
++void SessionServiceImpl::OnSessionKeyRestoredForRefresh(
+     RefreshParams params,
+     const SessionKey& session_key,
+     std::optional<unexportable_keys::UnexportableSigningKeyId> key_id) {
+   if (!key_id) {
+-    UnblockWaitingRequests(session_key, RefreshResult::kFatalError);
++    // `OnSessionKeyRestored()` already unblocked the waiting requests.
++    // Unblocking again would fail requests that were deferred re-entrantly
++    // while it ran.
+     return;
+   }
+ 
++  RefreshSessionInternal(std::move(params), session_key, *key_id);
++}
++
++void SessionServiceImpl::RefreshSessionInternal(
++    RefreshParams params,
++    const SessionKey& session_key,
++    unexportable_keys::UnexportableSigningKeyId key_id) {
+   Session* session = GetSession(session_key);
+   // `session` must exist because this is either called synchronously from
+-  // `StartSessionRefresh` (which checks `session`), or asynchronously after
+-  // `OnSessionKeyRestored` which also checks `session` and returns early if
+-  // null.
++  // `StartSessionRefresh` (which checks `session`), or from
++  // `OnSessionKeyRestoredForRefresh` with a key, which `OnSessionKeyRestored`
++  // only passes if `session` still exists.
+   CHECK(session);
+ 
+   if (params.trigger == RefreshTrigger::kMissingCookie) {
+@@ -1704,7 +1764,7 @@
+           net_log_source_for_refresh, params.initiator, params.priority);
+   RegistrationFetcher* fetcher_raw = fetcher.get();
+   registration_fetchers_.insert(std::move(fetcher));
+-  fetcher_raw->StartFetchWithExistingKey(registration_param, *key_id,
++  fetcher_raw->StartFetchWithExistingKey(registration_param, key_id,
+                                          std::move(callback));
+   // `fetcher_raw` may be deleted.
+ }
+diff --git a/net/device_bound_sessions/session_service_impl.h b/net/device_bound_sessions/session_service_impl.h
+index a3fae2c3..494408e5 100644
+--- a/net/device_bound_sessions/session_service_impl.h
++++ b/net/device_bound_sessions/session_service_impl.h
+@@ -26,6 +26,7 @@
+ #include "net/device_bound_sessions/registration_fetcher_param.h"
+ #include "net/device_bound_sessions/registration_request_param.h"
+ #include "net/device_bound_sessions/session.h"
++#include "net/device_bound_sessions/session_error.h"
+ #include "net/device_bound_sessions/session_key.h"
+ #include "net/device_bound_sessions/session_service.h"
+ #include "net/device_bound_sessions/session_store.h"
+@@ -303,13 +304,30 @@
+   std::ranges::subrange<SessionsMap::iterator> GetSessionsForSite(
+       const SchemefulSite& site);
+ 
+-  // Remove a session from the session map. It also clears the session
+-  // from `session_store_` and notifies any observers (including
+-  // `per_request_callback`) about the termination.
++  // Deletes a session that was already extracted from
++  // `unpartitioned_sessions_`. It also clears the session from
++  // `session_store_`, unblocks the requests waiting on the session with
++  // `RefreshResult::kFatalError`, and notifies any observers (including
++  // `per_request_callback`) about the termination. If set, `fetch_error` is
++  // reported in the refresh event for the unblocked requests.
++  //
++  // Callers must extract the node before calling this, because unblocking
++  // deferred requests can synchronously re-enter this class and modify
++  // `unpartitioned_sessions_`.
+   void DeleteSessionAndNotifyInternal(
+       DeletionReason reason,
+-      SessionsMap::iterator it,
+-      SessionService::OnAccessCallback per_request_callback);
++      SessionsMap::node_type node,
++      SessionService::OnAccessCallback per_request_callback,
++      std::optional<SessionError> fetch_error = std::nullopt);
++
++  // If the session identified by `session_key` exists, extracts it from
++  // `unpartitioned_sessions_` and deletes it with the overload above. Unlike
++  // `DeleteSessionAndNotify()`, this doesn't wait for sessions to load.
++  void DeleteSessionAndNotifyInternal(
++      DeletionReason reason,
++      const SessionKey& session_key,
++      SessionService::OnAccessCallback per_request_callback,
++      std::optional<SessionError> fetch_error = std::nullopt);
+ 
+   // Notify all observers about an access to a session. Will update
+   // `per_request_callback` unconditionally, and any observers in
+@@ -365,11 +383,19 @@
+   // Helper function for starting a refresh.
+   void StartSessionRefresh(const SessionKey& session_key, RefreshParams params);
+ 
+-  void RefreshSessionInternal(
++  // Continues the refresh started by `StartSessionRefresh` after restoring the
++  // session key. Does nothing if the key wasn't restored, because
++  // `OnSessionKeyRestored` already unblocked the waiting requests.
++  void OnSessionKeyRestoredForRefresh(
+       RefreshParams params,
+       const SessionKey& session_key,
+       std::optional<unexportable_keys::UnexportableSigningKeyId> key_id);
+ 
++  void RefreshSessionInternal(
++      RefreshParams params,
++      const SessionKey& session_key,
++      unexportable_keys::UnexportableSigningKeyId key_id);
++
+   // Add a header to `request` indicating which sessions should have
+   // applied, but did not due to error conditions.
+   void AddDebugHeader(const DbscRequest& request);
 diff --git a/net/filter/zstd_source_stream.cc b/net/filter/zstd_source_stream.cc
 index c1840ca2..4d2f7a2 100644
 --- a/net/filter/zstd_source_stream.cc
@@ -8987,8 +9429,23 @@ index c102d43..1750689 100644
  
 -Diagnose Web Install (`navigator.install` and `<install>`) manifest errors in the **Issues** panel with direct links to affected manifests. In the **Application** panel's **Ads** section, use the new **Ad provenance** column to see whether script ancestry or a filter list rule tagged an ad script.
 +Parse large performance traces roughly 26% faster with reduced memory usage, and analyze heap snapshot context retention across suspended generators, async functions, and finished ES modules.
+diff --git a/v8/include/v8-function.h b/v8/include/v8-function.h
+index 1853251..a7ed18e 100644
+--- a/v8/include/v8-function.h
++++ b/v8/include/v8-function.h
+@@ -48,6 +48,10 @@
+    * When side effect checks are enabled, passing kHasNoSideEffect allows the
+    * constructor to be invoked without throwing. Calls made within the
+    * constructor are still checked.
++   *
++   * Passing kHasNoSideEffect also allows an API constructor to be instantiated
++   * inside a DisallowJavascriptExecutionScope, provided the constructor
++   * callback itself does not execute JavaScript.
+    */
+   V8_WARN_UNUSED_RESULT MaybeLocal<Object> NewInstanceWithSideEffectType(
+       Local<Context> context, int argc, Local<Value> argv[],
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index d9b6596..32a6b4c 100644
+index d9b6596..e57d3bc 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -8996,10 +9453,171 @@ index d9b6596..32a6b4c 100644
  #define V8_MINOR_VERSION 8
  #define V8_BUILD_NUMBER 62
 -#define V8_PATCH_LEVEL 26
-+#define V8_PATCH_LEVEL 31
++#define V8_PATCH_LEVEL 33
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/api/api.cc b/v8/src/api/api.cc
+index 5e9bbb9..5dacb03 100644
+--- a/v8/src/api/api.cc
++++ b/v8/src/api/api.cc
+@@ -5765,24 +5765,23 @@
+   i::NestedTimedHistogramScope execute_timer(i_isolate->counters()->execute(),
+                                              i_isolate);
+   auto self = Utils::OpenDirectHandle(this);
+-  bool should_set_has_no_side_effect =
+-      side_effect_type == SideEffectType::kHasNoSideEffect &&
+-      i_isolate->should_check_side_effects();
+-  if (should_set_has_no_side_effect) {
++  if (side_effect_type == SideEffectType::kHasNoSideEffect) {
+     CHECK(IsJSFunction(*self) &&
+           i::Cast<i::JSFunction>(*self)->shared()->IsApiFunction());
+-    i::Tagged<i::FunctionTemplateInfo> func_data =
+-        i::Cast<i::JSFunction>(*self)->shared()->api_func_data();
+-    if (func_data->has_callback(i_isolate)) {
+-      if (func_data->has_side_effects()) {
+-        i_isolate->debug()->IgnoreSideEffectsOnNextCallTo(
+-            handle(func_data, i_isolate));
++    if (i_isolate->should_check_side_effects()) {
++      i::Tagged<i::FunctionTemplateInfo> func_data =
++          i::Cast<i::JSFunction>(*self)->shared()->api_func_data();
++      if (func_data->has_callback(i_isolate)) {
++        if (func_data->has_side_effects()) {
++          i_isolate->debug()->IgnoreSideEffectsOnNextCallTo(
++              handle(func_data, i_isolate));
++        }
+       }
+     }
+   }
+   auto args = PrepareArguments(argc, argv);
+-  return api_scope.EscapeMaybe(
+-      Utils::ToMaybeLocal(i::Execution::New(i_isolate, self, self, args)));
++  return api_scope.EscapeMaybe(Utils::ToMaybeLocal(
++      i::Execution::New(i_isolate, self, self, args, side_effect_type)));
+ }
+ 
+ MaybeLocal<v8::Value> Function::Call(v8::Isolate* isolate,
+diff --git a/v8/src/builtins/builtins-api.cc b/v8/src/builtins/builtins-api.cc
+index 24c7180..83e67ce 100644
+--- a/v8/src/builtins/builtins-api.cc
++++ b/v8/src/builtins/builtins-api.cc
+@@ -154,9 +154,32 @@
+     Isolate* isolate, bool is_construct,
+     DirectHandle<FunctionTemplateInfo> function, DirectHandle<Object> receiver,
+     base::Vector<const DirectHandle<Object>> args,
+-    DirectHandle<HeapObject> new_target) {
++    DirectHandle<HeapObject> new_target,
++    SideEffectType overrider_side_effect_type) {
+   RCS_SCOPE(isolate, RuntimeCallCounterId::kInvokeApiFunction);
+ 
++  if (!is_construct ||
++      (function->has_callback(isolate) && function->has_side_effects() &&
++       overrider_side_effect_type != SideEffectType::kHasNoSideEffect)) {
++    if (!AllowJavascriptExecution::IsAllowed(isolate)) {
++      GRACEFUL_FATAL("Invoke in DisallowJavascriptExecutionScope");
++    }
++    if (!ThrowOnJavascriptExecution::IsAllowed(isolate)) {
++      isolate->ThrowIllegalOperation();
++      return MaybeHandle<Object>();
++    }
++    if (!DumpOnJavascriptExecution::IsAllowed(isolate)) {
++      V8::GetCurrentPlatform()->DumpWithoutCrashing();
++      if (is_construct) {
++        // TODO(crbug.com/576333024): Fix callers to handle empty return values
++        // without a pending exception when DumpOnJavascriptExecution disallows
++        // execution.
++        return isolate->factory()->NewJSObject(isolate->object_function());
++      }
++      return isolate->factory()->undefined_value();
++    }
++  }
++
+   // Do proper receiver conversion for non-strict mode api functions.
+   if (!is_construct && !IsJSReceiver(*receiver)) {
+     ASSIGN_RETURN_ON_EXCEPTION(isolate, receiver,
+diff --git a/v8/src/builtins/builtins.h b/v8/src/builtins/builtins.h
+index 3582121..28fbcc7 100644
+--- a/v8/src/builtins/builtins.h
++++ b/v8/src/builtins/builtins.h
+@@ -5,6 +5,7 @@
+ #ifndef V8_BUILTINS_BUILTINS_H_
+ #define V8_BUILTINS_BUILTINS_H_
+ 
++#include "include/v8-object.h"
+ #include "src/base/bounds.h"
+ #include "src/base/flags.h"
+ #include "src/base/vector.h"
+@@ -435,7 +436,9 @@
+       DirectHandle<FunctionTemplateInfo> function,
+       DirectHandle<Object> receiver,
+       base::Vector<const DirectHandle<Object>> args,
+-      DirectHandle<HeapObject> new_target);
++      DirectHandle<HeapObject> new_target,
++      SideEffectType overrider_side_effect_type =
++          SideEffectType::kHasSideEffect);
+ 
+   static void Generate_Adaptor(MacroAssembler* masm, int formal_parameter_count,
+                                Address builtin_address);
+diff --git a/v8/src/builtins/number.tq b/v8/src/builtins/number.tq
+index b2ea79b..d05232c 100644
+--- a/v8/src/builtins/number.tq
++++ b/v8/src/builtins/number.tq
+@@ -124,6 +124,7 @@
+ }
+ 
+ macro IntToString(x: int32, radix: uint32): String {
++  dcheck(radix >= 2 && radix <= 36);
+   if constexpr (Is64()) {
+     dcheck(radix != 10);  // Use IntToDecimalString otherwise.
+   }
+@@ -187,15 +188,24 @@
+   // 3. Else if radix is undefined, let radixNumber be 10.
+   // 4. Else, let radixNumber be ? ToInteger(radix).
+   const radix: JSAny = arguments[0];
+-  const radixNumber: Number = radix == Undefined ? 10 : ToInteger_Inline(radix);
++  let radixInt32: int32;
++  try {
++    // Valid radices [2, 36] always fit in a Smi, where ToInteger_Inline
++    // should canonicalize incoming in-range Numbers to Smi.
++    radixInt32 = radix == Undefined ?
++        10 :
++        SmiToInt32(Cast<Smi>(ToInteger_Inline(radix)) otherwise RangeError);
+ 
+-  // 5. If radixNumber < 2 or radixNumber > 36, throw a RangeError exception.
+-  if (radixNumber < 2 || radixNumber > 36) {
++    // 5. If radixNumber < 2 or radixNumber > 36, throw a RangeError exception.
++    if (radixInt32 < 2 || radixInt32 > 36) {
++      goto RangeError;
++    }
++  } label RangeError deferred {
+     ThrowRangeError(MessageTemplate::kToRadixFormatRange);
+   }
+ 
+   // 6. If radixNumber = 10, return ! ToString(x).
+-  if (radixNumber == 10) {
++  if (radixInt32 == 10) {
+     return NumberToString(x);
+   }
+ 
+@@ -203,8 +213,7 @@
+   //    value using the radix specified by radixNumber.
+ 
+   if (TaggedIsSmi(x)) {
+-    return IntToString(
+-        Convert<int32>(x), Unsigned(Convert<int32>(radixNumber)));
++    return IntToString(Convert<int32>(x), Unsigned(radixInt32));
+   }
+ 
+   if (x == -0) {
+@@ -217,7 +226,7 @@
+     return MinusInfinityStringConstant();
+   }
+ 
+-  return runtime::DoubleToStringWithRadix(x, radixNumber);
++  return runtime::DoubleToStringWithRadix(x, SmiFromInt32(radixInt32));
+ }
+ 
+ // https://tc39.es/ecma262/#sec-number.isfinite
 diff --git a/v8/src/common/assert-scope.h b/v8/src/common/assert-scope.h
 index ca36c69..2dcb5b0 100644
 --- a/v8/src/common/assert-scope.h
@@ -9230,6 +9848,176 @@ index db870dc..47f2014 100644
    // The call could modify arbitrary memory, so we invalidate every
    // potentially-aliasing object.
    memory_.InvalidateMaybeAliasing();
+diff --git a/v8/src/deoptimizer/deoptimizer.cc b/v8/src/deoptimizer/deoptimizer.cc
+index f042f90..70ac609 100644
+--- a/v8/src/deoptimizer/deoptimizer.cc
++++ b/v8/src/deoptimizer/deoptimizer.cc
+@@ -180,11 +180,18 @@
+     DebugPrintOutputValue(cp, "caller's constant_pool\n");
+   }
+ 
+-  void PushTranslatedValue(const TranslatedFrame::iterator& iterator,
+-                           const char* debug_hint = "") {
++  Tagged<Object> PushTranslatedValue(const TranslatedFrame::iterator& iterator,
++                                     const char* debug_hint = "") {
+     CHECK_GE(top_offset_, kSystemPointerSize);
+     top_offset_ -= kSystemPointerSize;
+-    WriteTranslatedValueAt(top_offset_, iterator, debug_hint);
++    return WriteTranslatedValueAt(top_offset_, iterator, debug_hint);
++  }
++
++  void PushTranslatedContext(const TranslatedFrame::iterator& iterator) {
++    Tagged<Object> obj = PushTranslatedValue(iterator, "context");
++    // The context slot of a StandardFrame shares its offset with the frame
++    // type marker of a TypedFrame, so it must never contain a Smi marker.
++    SBXCHECK(IsHeapObject(obj));
+   }
+ 
+   void PushFeedbackVectorForMaterialization(
+@@ -229,9 +236,9 @@
+     return output_address;
+   }
+ 
+-  void WriteTranslatedValueAt(unsigned offset,
+-                              const TranslatedFrame::iterator& iterator,
+-                              const char* debug_hint) {
++  Tagged<Object> WriteTranslatedValueAt(
++      unsigned offset, const TranslatedFrame::iterator& iterator,
++      const char* debug_hint) {
+     Tagged<Object> obj = iterator->GetRawValue();
+     frame_->SetFrameSlot(offset, obj.ptr());
+     if (trace_scope_ != nullptr) {
+@@ -240,6 +247,7 @@
+     }
+     deoptimizer_->QueueValueForMaterialization(output_address(offset), obj,
+                                                iterator);
++    return obj;
+   }
+ 
+   void DebugPrintOutputValue(intptr_t value, const char* debug_hint = "") {
+@@ -2182,7 +2190,7 @@
+     }
+   }
+   // Read the context from the translations.
+-  frame_writer.PushTranslatedValue(context_pos, "context");
++  frame_writer.PushTranslatedContext(context_pos);
+ 
+   // The function was mentioned explicitly in the BEGIN_FRAME.
+   frame_writer.PushTranslatedValue(function_iterator, "function");
+@@ -3158,6 +3166,7 @@
+ 
+   for (auto& materialization : values_to_materialize_) {
+     DirectHandle<Object> value = materialization.value_->GetValue();
++    SBXCHECK(IsHeapObject(*value));
+ 
+     if (verbose_tracing_enabled()) {
+       PrintF(trace_scope()->file(),
+diff --git a/v8/src/execution/execution.cc b/v8/src/execution/execution.cc
+index e031b5d..54f7258 100644
+--- a/v8/src/execution/execution.cc
++++ b/v8/src/execution/execution.cc
+@@ -40,10 +40,11 @@
+   CPPGC_STACK_ALLOCATED();
+ 
+  public:
+-  static InvokeParams SetUpForNew(
+-      Isolate* isolate, DirectHandle<Object> constructor,
+-      DirectHandle<Object> new_target,
+-      base::Vector<const DirectHandle<Object>> args);
++  static InvokeParams SetUpForNew(Isolate* isolate,
++                                  DirectHandle<Object> constructor,
++                                  DirectHandle<Object> new_target,
++                                  base::Vector<const DirectHandle<Object>> args,
++                                  SideEffectType side_effect_type);
+ 
+   static InvokeParams SetUpForCall(
+       Isolate* isolate, DirectHandle<Object> callable,
+@@ -86,13 +87,15 @@
+ 
+   bool is_construct;
+   Execution::Target execution_target;
++  SideEffectType overrider_side_effect_type = SideEffectType::kHasSideEffect;
+ };
+ 
+ // static
+ InvokeParams InvokeParams::SetUpForNew(
+     Isolate* isolate, DirectHandle<Object> constructor,
+     DirectHandle<Object> new_target,
+-    base::Vector<const DirectHandle<Object>> args) {
++    base::Vector<const DirectHandle<Object>> args,
++    SideEffectType overrider_side_effect_type) {
+   InvokeParams params;
+   params.target = constructor;
+   params.receiver = isolate->factory()->undefined_value();
+@@ -104,6 +107,7 @@
+   params.exception_out = nullptr;
+   params.is_construct = true;
+   params.execution_target = Execution::Target::kCallable;
++  params.overrider_side_effect_type = overrider_side_effect_type;
+   return params;
+ }
+ 
+@@ -350,7 +354,8 @@
+           function->shared()->api_func_data(), isolate);
+       auto value = Builtins::InvokeApiFunction(
+           isolate, params.is_construct, fun_data, receiver, params.args,
+-          Cast<HeapObject>(params.new_target));
++          Cast<HeapObject>(params.new_target),
++          params.overrider_side_effect_type);
+       bool has_exception = value.is_null();
+       DCHECK_EQ(has_exception, isolate->has_exception());
+       if (has_exception) {
+@@ -404,6 +409,12 @@
+   }
+   if (!DumpOnJavascriptExecution::IsAllowed(isolate)) {
+     V8::GetCurrentPlatform()->DumpWithoutCrashing();
++    if (params.is_construct) {
++      // TODO(crbug.com/576333024): Fix callers to handle empty return values
++      // without a pending exception when DumpOnJavascriptExecution disallows
++      // execution.
++      return isolate->factory()->NewJSObject(isolate->object_function());
++    }
+     return isolate->factory()->undefined_value();
+   }
+   isolate->IncrementJavascriptExecutionCounter();
+@@ -616,10 +627,11 @@
+ MaybeDirectHandle<JSReceiver> Execution::New(
+     Isolate* isolate, DirectHandle<Object> constructor,
+     DirectHandle<Object> new_target,
+-    base::Vector<const DirectHandle<Object>> args) {
++    base::Vector<const DirectHandle<Object>> args,
++    SideEffectType overrider_side_effect_type) {
+   return Cast<JSReceiver>(Invoke(
+-      isolate,
+-      InvokeParams::SetUpForNew(isolate, constructor, new_target, args)));
++      isolate, InvokeParams::SetUpForNew(isolate, constructor, new_target, args,
++                                         overrider_side_effect_type)));
+ }
+ 
+ // static
+diff --git a/v8/src/execution/execution.h b/v8/src/execution/execution.h
+index f623a4a..9367892 100644
+--- a/v8/src/execution/execution.h
++++ b/v8/src/execution/execution.h
+@@ -5,6 +5,7 @@
+ #ifndef V8_EXECUTION_EXECUTION_H_
+ #define V8_EXECUTION_EXECUTION_H_
+ 
++#include "include/v8-object.h"
+ #include "src/base/vector.h"
+ #include "src/common/globals.h"
+ 
+@@ -47,7 +48,9 @@
+   V8_WARN_UNUSED_RESULT static MaybeDirectHandle<JSReceiver> New(
+       Isolate* isolate, DirectHandle<Object> constructor,
+       DirectHandle<Object> new_target,
+-      base::Vector<const DirectHandle<Object>> args);
++      base::Vector<const DirectHandle<Object>> args,
++      SideEffectType overrider_side_effect_type =
++          SideEffectType::kHasSideEffect);
+ 
+   // Call a function, just like Call(), but handle don't report exceptions
+   // externally.
 diff --git a/v8/src/execution/isolate.h b/v8/src/execution/isolate.h
 index c191781..bb742ca 100644
 --- a/v8/src/execution/isolate.h
@@ -9709,6 +10497,119 @@ index f20dde6..3e99938 100644
    DCHECK(IsUndefined(map->GetBackPointer()));
    DCHECK_NE(map->prototype(), *prototype);
    DCHECK(IsMap(Cast<HeapObject>(*prototype)->map()));
+diff --git a/v8/src/objects/value-serializer.cc b/v8/src/objects/value-serializer.cc
+index 28316b0..b01fee2 100644
+--- a/v8/src/objects/value-serializer.cc
++++ b/v8/src/objects/value-serializer.cc
+@@ -19,7 +19,7 @@
+ #include "src/handles/handles-inl.h"
+ #include "src/handles/maybe-handles-inl.h"
+ #include "src/handles/shared-object-conveyor-handles.h"
+-#include "src/heap/factory.h"
++#include "src/heap/factory-inl.h"
+ #include "src/numbers/conversions.h"
+ #include "src/objects/dictionary-inl.h"
+ #include "src/objects/heap-number-inl.h"
+@@ -2093,6 +2093,22 @@
+   return regexp;
+ }
+ 
++namespace {
++
++DirectHandle<Object> CanonicalizeCollectionKey(Isolate* isolate,
++                                               DirectHandle<Object> key) {
++  if (IsString(*key)) {
++    // Deserialized strings are allocated as fresh SeqStrings, whereas
++    // OrderedHashTable CSA lookups require string keys to be internalized
++    // (compared by pointer equality).
++    return isolate->factory()->InternalizeString(Cast<String>(key));
++  }
++  CHECK(!IsHeapNumber(*key) || Cast<HeapNumber>(*key)->value() != 0.0);
++  return key;
++}
++
++}  // namespace
++
+ MaybeDirectHandle<JSMap> ValueDeserializer::ReadJSMap() {
+   // If we are at the end of the stack, abort. This function may recurse.
+   STACK_CHECK(isolate_, MaybeDirectHandle<JSMap>());
+@@ -2102,7 +2118,12 @@
+   DirectHandle<JSMap> map = isolate_->factory()->NewJSMap();
+   AddObjectWithID(id, map);
+ 
+-  DirectHandle<JSFunction> map_set = isolate_->map_set();
++  // We can populate the table directly because:
++  // 1) The resulting object is not observable until deserialization is over, so
++  //    we do not need to deal with live iterators.
++  // 2) We are populating the table from a serialized source JSMap table, so the
++  //    keys are already valid/canonicalized (once strings are internalized) and
++  //    do not contain duplicates.
+   uint32_t length = 0;
+   while (true) {
+     SerializationTag tag;
+@@ -2112,16 +2133,19 @@
+       break;
+     }
+ 
+-    DirectHandle<Object> args[2];
+-    if (!ReadObject().ToHandle(&args[0]) || !ReadObject().ToHandle(&args[1])) {
++    HandleScope loop_scope(isolate_);
++    DirectHandle<Object> key;
++    DirectHandle<Object> value;
++    if (!ReadObject().ToHandle(&key) || !ReadObject().ToHandle(&value)) {
+       return MaybeDirectHandle<JSMap>();
+     }
+ 
+-    AllowJavascriptExecution allow_js(isolate_);
+-    if (Execution::Call(isolate_, map_set, map, base::VectorOf(args))
+-            .is_null()) {
++    key = CanonicalizeCollectionKey(isolate_, key);
++    Handle<OrderedHashMap> table(Cast<OrderedHashMap>(map->table()), isolate_);
++    if (!OrderedHashMap::Add(isolate_, table, key, value).ToHandle(&table)) {
+       return MaybeDirectHandle<JSMap>();
+     }
++    map->set_table(*table);
+     length += 2;
+   }
+ 
+@@ -2142,7 +2166,13 @@
+   uint32_t id = next_id_++;
+   DirectHandle<JSSet> set = isolate_->factory()->NewJSSet();
+   AddObjectWithID(id, set);
+-  DirectHandle<JSFunction> set_add = isolate_->set_add();
++
++  // We can populate the table directly because:
++  // 1) The resulting object is not observable until deserialization is over, so
++  //    we do not need to deal with live iterators.
++  // 2) We are populating the table from a serialized source JSSet table, so the
++  //    keys are already valid/canonicalized (once strings are internalized) and
++  //    do not contain duplicates.
+   uint32_t length = 0;
+   while (true) {
+     SerializationTag tag;
+@@ -2152,14 +2182,17 @@
+       break;
+     }
+ 
+-    DirectHandle<Object> args[1];
+-    if (!ReadObject().ToHandle(&args[0])) return MaybeDirectHandle<JSSet>();
++    HandleScope loop_scope(isolate_);
++    DirectHandle<Object> key;
++    if (!ReadObject().ToHandle(&key)) return MaybeDirectHandle<JSSet>();
+ 
+-    AllowJavascriptExecution allow_js(isolate_);
+-    if (Execution::Call(isolate_, set_add, set, base::VectorOf(args))
+-            .is_null()) {
++    key = CanonicalizeCollectionKey(isolate_, key);
++    DirectHandle<OrderedHashSet> table(Cast<OrderedHashSet>(set->table()),
++                                       isolate_);
++    if (!OrderedHashSet::Add(isolate_, table, key).ToHandle(&table)) {
+       return MaybeDirectHandle<JSSet>();
+     }
++    set->set_table(*table);
+     length++;
+   }
+ 
 diff --git a/v8/src/sandbox/trusted-pointer-inl.h b/v8/src/sandbox/trusted-pointer-inl.h
 index 5fa97b3..8cddeda 100644
 --- a/v8/src/sandbox/trusted-pointer-inl.h
