@@ -133,7 +133,7 @@ between them, so a waiting build can take the tree before the first one's `insta
 - **`chromium-157-v8-metagen-resource-dir.patch`** (first made for 156) plus GN args: V8 metagen uses the
   system libclang instead of a prebuilt one.
 - **Unused npm packages are deleted** (`files/chromium-prune-node-modules.py`, keep list
-  `files/chromium-156-node-modules.txt`): 144 of the tarball's 1329 packages (372 MiB, mostly
+  `files/chromium-<major>-node-modules.txt`): 144 of the tarball's 1329 packages (372 MiB, mostly
   generated JavaScript) are used. `scripts/chromium-node-modules-used.py` regenerates the list
   for a new version: in a built tree, it rebuilds every Node/tsc step under strace.
   - **`chromium-156-webui-lint-arg.patch`** adds the GN arg `enable_webui_lint`, which the
@@ -219,7 +219,8 @@ Built offline and runtime-tested like 156 (components, DevTools, WebDriver BiDi,
 
 ## 158
 
-The 158 ebuild (`158.0.8127.18`, Google's Early Stable: `SLOT="stable"`) is the 157 one with these
+The 158 ebuilds (`158.0.8127.18`, Google's Early Stable: `SLOT="stable"`, and the bleeding-edge
+`158.0.8127.33_p<N>_pre`, built from its tarball and upgrade patches) are the 157 one with these
 differences:
 - No Crubit patch: 158 supports a system Crubit itself (its `rust_crubit_root` GN argument, and
   C++ bindings of the prebuilt stdlib from its `.rmeta` files), which the ebuild says with
@@ -267,7 +268,8 @@ OpenXR's with `USE=-openxr`, XNNPACK's RISC-V kernels).
   2. V8's Temporal code includes ICU-internal headers (`udatamem.h`) that system ICU doesn't install.
   3. Build-time generators expect `icudtl.dat`. A GN fix for this one is shelved, since it doesn't help
      without the other two.
-- **`USE=ffmpeg-chromium` with 157:** there is no `media-video/ffmpeg-chromium-157` yet.
+- **`USE=ffmpeg-chromium`** hasn't been tested with this overlay's builds (`::gentoo` added
+  `media-video/ffmpeg-chromium:157` and `:158` on 2026-11-11).
 - **USE=bundled-toolchain** (Google's prebuilt clang/Rust) isn't adapted to the 156/157
   changes (e.g. its bundled clang-format is removed but referenced by Crubit). It's
   opt-in and by definition uses prebuilt binaries.

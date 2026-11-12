@@ -75,7 +75,8 @@ What the packages here follow, beyond Gentoo's own policies:
 | `dev-util/cddlconv` (slots `0.1.10`, `0.2.0`) | The CDDL-to-TypeScript/Zod converter from the WebDriver BiDi tooling, built from source, one slot per version: chromium-bidi's protocol types (157, 158: 0.2.0) and the `webdriver-bidi-protocol` types in `chromium-node-modules` (157, 158: 0.1.10) are each regenerated with the version that made them. |
 
 All are **build-time only** (`BDEPEND`) for Chromium. `USE=ffmpeg-chromium` needs
-`media-video/ffmpeg-chromium:<major>`, which nothing provides for 157 or 158 yet.
+`::gentoo`'s `media-video/ffmpeg-chromium:<major>` (157 and 158 since 2026-11-11; not tested with
+this overlay's builds).
 
 The Chromium version Google releases as Stable for Linux is keyworded `amd64`, and so are the versions
 of the packages above that it builds with; everything else is `~amd64` (see
@@ -94,7 +95,7 @@ anything does build it. `scripts/cargo-unused-crates.py` lists the candidates fr
 ## Documentation
 
 - `doc/chromium.md`: the Chromium ebuilds: build machine setup, changes from `::gentoo`, the 157
-  differences, known issues.
+  and 158 differences, known issues.
 - `doc/chromium-generated-files.md`: what is regenerated, rebuilt from source, or used as is.
 - `doc/chromium-maintenance.md`: adding a new Chromium version, and checking it.
 - `doc/chromium-runtime-downloads.md`: what Chromium downloads at runtime, and what the ebuild blocks.
