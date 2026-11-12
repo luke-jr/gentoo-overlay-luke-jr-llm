@@ -982,6 +982,19 @@ chromium-llm_src_prepare() {
 	# Calling this here supports resumption via FEATURES=keepwork
 	python_setup
 
+	# The files the upgrade and fix patches changed, as they are now: upstream's own changes,
+	# which the move of the checked-in generated files (below) allows.
+	local upstream_patched=()
+	if [[ ${CHROMIUM_TARBALL_PV} != "${tag}" || ${#CHROMIUM_FIXES[@]} -gt 0 ]]; then
+		upstream_patched=( "${T}/upstream-patched" )
+		{
+			[[ ${CHROMIUM_TARBALL_PV} != "${tag}" ]] &&
+				echo "${FILESDIR}/chromium-${CHROMIUM_TARBALL_PV}-to-${tag}.patch"
+			printf '%s\n' "${CHROMIUM_FIXES[@]/#/${FILESDIR}/}"
+		} | "${EPYTHON}" -B "${FILESDIR}/chromium-move-generated.py" --record "${S}" "${upstream_patched[0]}" ||
+			die "Failed to record the files of the upstream patches"
+	fi
+
 	# We'll fill this in as we go. Patches go in chromium-patches.
 	local PATCHES=()
 
@@ -1408,7 +1421,7 @@ print(version)
 	einfo "Moving the checked-in generated files out of the tree ..."
 	chromium_regenerated_outputs | tr ' ' '\n' |
 		"${EPYTHON}" -B "${FILESDIR}/chromium-move-generated.py" "${S}" "${WORKDIR}/upstream-generated" \
-		"${PORTAGE_BUILDDIR}/.unpacked" || die "Failed to move the checked-in generated files"
+		"${PORTAGE_BUILDDIR}/.unpacked" "${upstream_patched[@]}" || die "Failed to move the checked-in generated files"
 }
 
 # The checked-in generated files the regeneration steps make again (chromium_regenerate_gn,
