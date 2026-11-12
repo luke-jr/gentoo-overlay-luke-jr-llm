@@ -1614,10 +1614,13 @@ chromium_regenerated_outputs() {
 	# DevTools' generated files, and its JavaScript bundles (lit's, codemirror.next's,
 	# web-vitals', third-party-web's) and ClientVariations.js
 	local d=third_party/devtools-frontend/src
-	echo "${d}"/front_end/generated/{ARIAProperties,Deprecation,InspectorBackendCommands,protocol,SupportedCSSProperties}.ts \
-		"${d}"/front_end/generated/protocol-{mapping,proxy-api}.d.ts \
-		"${d}/front_end/models/javascript_metadata/NativeFunctions.ts" \
-		"${d}/third_party/blink/public/devtools_protocol/browser_protocol.json"
+	echo "${d}/front_end/generated/SupportedCSSProperties.ts" \
+		"${d}/front_end/models/javascript_metadata/NativeFunctions.ts"
+	# Up to 158 (159's DevTools build generates these itself)
+	[[ -e ${d}/front_end/generated/InspectorBackendCommands.ts ]] &&
+		echo "${d}"/front_end/generated/{ARIAProperties,Deprecation,InspectorBackendCommands,protocol}.ts \
+			"${d}"/front_end/generated/protocol-{mapping,proxy-api}.d.ts \
+			"${d}/third_party/blink/public/devtools_protocol/browser_protocol.json"
 	# XNNPACK's micro-kernels and build_identifier.c
 	echo 'third_party/xnnpack/src/src/**/gen/' third_party/xnnpack/build_identifier.c
 	# Polymer's bundle
@@ -2760,7 +2763,8 @@ chromium_regen_openxr() {
 
 chromium_regen_devtools_generated() {
 	# DevTools checks in files generated from Blink's and V8's definitions: front_end/generated/
-	# (the protocol, ARIA, CSS and deprecation data) and models/javascript_metadata/
+	# (the protocol, ARIA, CSS and deprecation data; since 159 only the CSS data, its build makes
+	# the rest) and models/javascript_metadata/
 	# NativeFunctions.ts (from Blink's Web IDL). Regenerate them with DevTools' own scripts (the
 	# first gives byte-identical files; NativeFunctions.ts differs: 156's IDL, which DevTools'
 	# copy lags behind, and the order of its lists, made deterministic by
