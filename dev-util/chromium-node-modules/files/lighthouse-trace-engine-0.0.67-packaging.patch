@@ -1,0 +1,31 @@
+@paulirish/trace_engine 0.0.67 is DevTools' compiled front_end/models/trace (and what
+it imports); its source maps hold DevTools' files unchanged, and its compiled code is
+their compiler output, but for core/platform/HostRuntime.js: DevTools' packaging
+replaces it with a stub, as HOST_RUNTIME's top-level await loads modules
+(./browser/browser.js, ./node/node.js) that the package doesn't have. The same stub,
+in the source (the compiled file is then the package's, but for comments).
+
+--- a/core/platform/HostRuntime.ts
++++ b/core/platform/HostRuntime.ts
+@@ -25,19 +25,5 @@
+     // @ts-ignore 'window' is not available when type-checking against node.js types.
+     typeof window !== 'undefined' || (typeof self !== 'undefined' && typeof self.postMessage === 'function');
+ 
+-export const HOST_RUNTIME: Api.HostRuntime.HostRuntime = await (async(): Promise<Api.HostRuntime.HostRuntime> => {
+-  // Check IS_BROWSER first: in some embedder environments, both IS_NODE
+-  // and IS_BROWSER can be true because `process` is available in renderer
+-  // contexts. The browser runtime is always correct when browser APIs
+-  // (window/self) are available; the Node.js runtime should only be used in
+-  // pure Node.js environments where those APIs don't exist.
+-  if (IS_BROWSER) {
+-    return (await import('./browser/browser.js')).HostRuntime.HOST_RUNTIME;
+-  }
+-
+-  if (IS_NODE) {
+-    return (await import('./node/node.js')).HostRuntime.HOST_RUNTIME;
+-  }
+-
+-  throw new Error('Unknown runtime!');
+-})();
++// Not needed by trace_engine's users, and its modules aren't packaged.
++export const HOST_RUNTIME = {} as Api.HostRuntime.HostRuntime;
