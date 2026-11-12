@@ -29,7 +29,8 @@ was added with (and 156 updated from .12 to .47).
   `arm64` stays `~arm64`: nobody has built or run it.
 - **Vulnerable releases:** an official release kept as a plain ebuild that lacks security fixes a
   newer Google release has (e.g. Early Stable after a Stable update of the previous major) is
-  masked in `profiles/package.mask`, with the CVEs in the comment, until it is replaced.
+  masked in `profiles/package.mask`, with the CVEs in the comment. The mask stays after its
+  ebuild is replaced and removed, so that Portage keeps reporting installed copies of it.
 - **Source:** Google's official "lite" tarball,
   `https://commondatastorage.googleapis.com/chromium-browser-official/chromium-<version>-lite.tar.xz`;
   check it against the `.hashes` file next to it. For a version without a tarball yet, or for fixes
