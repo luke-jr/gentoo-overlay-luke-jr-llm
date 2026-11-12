@@ -24,6 +24,7 @@ Usage: chromium-move-generated.py SRC DEST [STAMP [UPSTREAM]] < PATTERNS
 import bisect
 import os
 import re
+import shutil
 import sys
 
 
@@ -110,7 +111,9 @@ def main():
     for f in selected:
         target = os.path.join(dest, f)
         os.makedirs(os.path.dirname(target), exist_ok=True)
-        os.rename(os.path.join(src, f), target)
+        # A kept build tree (CHROMIUM_BUILD_DIR) can be on another filesystem than DEST: a rename
+        # there, else a copy (with the file's times) and a delete.
+        shutil.move(os.path.join(src, f), target)
     print(f"{len(selected)} checked-in generated files moved to {dest}")
 
 
