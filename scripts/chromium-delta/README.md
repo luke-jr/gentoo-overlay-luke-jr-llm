@@ -135,3 +135,10 @@ Comparing the upgraded tree with the real tarball turned up 650 differences.
 downloaded every changed file's old and new contents, one request each: over 10 minutes
 for chromium/src's 59 files. Fix: the script takes Gitiles' diff instead, and fetches only
 trees. The byte checks use the trees' blob ids, so they download nothing either.
+
+### 158.0.8127.33_p1707 (branch fixes up to 8127@{#1707})
+
+**Intentional:** a dependency's own `DEPS` (at its root: `third_party/dawn/DEPS`, `v8/DEPS`,
+...) is dropped like chromium/src's: gclient reads it, the build doesn't. Dawn's roll #1705
+changed only `DEPS` (DirectXShaderCompiler's revision) and the DXC submodule pointer, and
+the filter had kept `DEPS` "to be safe". Re-filtering p1704's diffs gives the same result.
