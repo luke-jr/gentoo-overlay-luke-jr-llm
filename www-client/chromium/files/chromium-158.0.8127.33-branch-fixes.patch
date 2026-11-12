@@ -1,13 +1,14 @@
 Chromium 158.0.8127.33 + the later changes of its release branch, up to
-8fd479ea8a565ea2ee8d4b138b3247862019a2dc (refs/branch-heads/8127@{#1707}), for the
+c1bba38653c62d391994a7058bf70051f48eb7f2 (refs/branch-heads/8127@{#1710}), for the
 158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..8fd479ea8a565ea2ee8d4b138b3247862019a2dc,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..c1bba38653c62d391994a7058bf70051f48eb7f2,
 and from the branch's rolls of v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..c7596de0838cb17a421524051cd891fc783a2d46 (under v8/),
 devtools/devtools-frontend 8deaa243ad5f7abd50b6c0e17a740d0f00fc068f..047c90eca37c7170d826d72245d5df9281989cf3 (under third_party/devtools-frontend/src/),
-skia/skia 361c8326695a06b7492fb6eeeff803c0c92a2447..3279352fdf1fbbd01a6dd024a52d3f178a6d5f07 (under third_party/skia/),
-catapult 74678266b79e0ee388f1021bea36388c854b4a00..4a6f0659c26fc478756e83f0d007b91ca5f6d36f (under third_party/catapult/) and
-pdfium 43d55e429cf72c21e9a1e60475b50feefa16fda9..b23fee3ac22360878efaa8aa533dac892fe777ab (under third_party/pdfium/),
+skia/skia 361c8326695a06b7492fb6eeeff803c0c92a2447..2d58f195f426c41bd856208ddb85ea8f93c88295 (under third_party/skia/),
+catapult 74678266b79e0ee388f1021bea36388c854b4a00..4a6f0659c26fc478756e83f0d007b91ca5f6d36f (under third_party/catapult/),
+pdfium 43d55e429cf72c21e9a1e60475b50feefa16fda9..b23fee3ac22360878efaa8aa533dac892fe777ab (under third_party/pdfium/) and
+angle/angle 1f6526a566c27c7c33aa73a78517450a4a2a1714..7a33c47c44e7c92a173a04aea51d7ad9120d8c03 (under third_party/angle/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .33 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -90,6 +91,9 @@ Commits contributing to it (oldest first):
   e0d3665ffada [M158] Harden P2PSocketManager::DestroySocket against re-entrance
   cf2183c855de [M158] Handle re-entrancy in P2PSocketManager teardown
   8fd479ea8a56 [M158] Improve state validation during scroll timeline snapshot updates
+  5a48fcd17599 [M158] Glic: on What's New click, fall back to a help page if ineligible
+  beaa02dec186 Roll commits from side projects in M158
+  c1bba38653c6 Roll commits from side projects in M158
     v8 77192c003a77 [M158] [objects] Disallow JSObject modifications during GC and GC callbacks
     v8 e8f914b08b81 Version 15.8.62.27
     v8 c0b2c2f3ade9 [M158] [compiler] Mark string-keyed ordered hash lookups as writing
@@ -113,9 +117,14 @@ Commits contributing to it (oldest first):
     skia 7fd53188ef76 [M158] [ganesh] Fix skew matrix multiply in EllipticalRRectOp and avoid self intersections
     skia e7f7d600ea00 [M158] Exclude DrawListLayer::reset from MiracleObj
     skia 3279352fdf1f [M158] Exclude SkArenaAllocWithReset::reset from MiracleObj
+    skia 4784c42afdc2 [M158] [Ganesh][Vulkan] Check vkWaitForFences success
+    skia 2d58f195f426 [M158] [skif] Use float2 for displacement filter offset
     catapult 4a6f0659c26f [M158] [tracing] Use main document.importNode in tr.ui.b.instantiateTemplate
     pdfium 7aa64b32402a [M158] Use CJS_Runtime::BlockingScope to handle nested blocking calls
     pdfium b23fee3ac223 [M158] Guard JSPLATFORM dialog call-outs with in_active_ffi_callback_
+    angle 69b419c7818d [M158] GL: Fix layer-growth check in TextureGL::setStorage()
+    angle a965a2272e33 [M158] GL: Recreate 3D texture on depth increase from zero-extent level
+    angle 7a33c47c44e7 [M158] GL: Pause transform feedback before forcing program binding
 
 Checked: applies to the 158.0.8127.33 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -1107,6 +1116,35 @@ index 839a488..ccecbadcf 100644
  inline constexpr char kAutoFramingOverrideName[] =
      "Auto-framing control override";
  inline constexpr char kAutoFramingOverrideDescription[] =
+diff --git a/chrome/browser/glic/public/features.cc b/chrome/browser/glic/public/features.cc
+index 6f58411..c173f67 100644
+--- a/chrome/browser/glic/public/features.cc
++++ b/chrome/browser/glic/public/features.cc
+@@ -357,6 +357,11 @@
+ BASE_FEATURE(kGlicActivityHub, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ BASE_FEATURE(kGlicWhatsNewLuminous, base::FEATURE_DISABLED_BY_DEFAULT);
++BASE_FEATURE(kGlicBrowserCommandFallback, base::FEATURE_DISABLED_BY_DEFAULT);
++BASE_FEATURE_PARAM(std::string,
++                   kGlicBrowserCommandFallbackUrl,
++                   &kGlicBrowserCommandFallback,
++                   "https://support.google.com/chrome/answer/17140089");
+ 
+ BASE_FEATURE(kGlicInvokeErrorRecoveryFixes,
+              FEATURE_ENABLED_BY_DEFAULT_ALL_PLATFORMS);
+diff --git a/chrome/browser/glic/public/features.h b/chrome/browser/glic/public/features.h
+index f2cf84d..111e4388 100644
+--- a/chrome/browser/glic/public/features.h
++++ b/chrome/browser/glic/public/features.h
+@@ -262,6 +262,8 @@
+ BASE_DECLARE_FEATURE(kGlicActivityHub);
+ 
+ BASE_DECLARE_FEATURE(kGlicWhatsNewLuminous);
++BASE_DECLARE_FEATURE(kGlicBrowserCommandFallback);
++BASE_DECLARE_FEATURE_PARAM(std::string, kGlicBrowserCommandFallbackUrl);
+ 
+ BASE_DECLARE_FEATURE(kGlicInvokeErrorRecoveryFixes);
+ }  // namespace features
 diff --git a/chrome/browser/navigation_predictor/search_engine_preconnector.cc b/chrome/browser/navigation_predictor/search_engine_preconnector.cc
 index 0b665fdd..c3ba6fd8 100644
 --- a/chrome/browser/navigation_predictor/search_engine_preconnector.cc
@@ -3378,6 +3416,49 @@ index 05c204e..62115db9 100644
    // This method calculates whether the dialog should be visible. This method
    // always updates the dialog position if the dialog should be visible. If the
    // dialog should be visible, and it is not, this method makes the dialog
+diff --git a/chrome/browser/ui/webui/browser_command/BUILD.gn b/chrome/browser/ui/webui/browser_command/BUILD.gn
+index b35c994..be67e6f 100644
+--- a/chrome/browser/ui/webui/browser_command/BUILD.gn
++++ b/chrome/browser/ui/webui/browser_command/BUILD.gn
+@@ -58,6 +58,7 @@
+     ":browser_command",
+     "//base",
+     "//base/test:test_support",
++    "//chrome/browser/glic/public:features",
+     "//chrome/browser/ui:chrome_pages",
+     "//chrome/browser/user_education",
+     "//chrome/common",
+diff --git a/chrome/browser/ui/webui/browser_command/browser_command_handler.cc b/chrome/browser/ui/webui/browser_command/browser_command_handler.cc
+index b0c7f07..fa13f21 100644
+--- a/chrome/browser/ui/webui/browser_command/browser_command_handler.cc
++++ b/chrome/browser/ui/webui/browser_command/browser_command_handler.cc
+@@ -7,6 +7,7 @@
+ #include <algorithm>
+ 
+ #include "base/command_line.h"
++#include "base/feature_list.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/metrics/user_metrics.h"
+ #include "chrome/app/chrome_command_ids.h"
+@@ -14,6 +15,7 @@
+ #include "chrome/browser/enterprise/util/managed_browser_utils.h"
+ #include "chrome/browser/feedback/show_feedback_page.h"
+ #include "chrome/browser/glic/glic_settings_util.h"
++#include "chrome/browser/glic/public/features.h"
+ #include "chrome/browser/glic/public/glic_enabling.h"
+ #include "chrome/browser/glic/public/glic_keyed_service.h"
+ #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
+@@ -366,6 +368,10 @@
+   glic::GlicKeyedService* glic_service = glic::GlicKeyedService::Get(profile_);
+ 
+   if (!glic_service) {
++    if (base::FeatureList::IsEnabled(features::kGlicBrowserCommandFallback)) {
++      NavigateToURL(GURL(features::kGlicBrowserCommandFallbackUrl.Get()),
++                    ui::mojom::WindowOpenDisposition::kNewForegroundTab);
++    }
+     return;
+   }
+ 
 diff --git a/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc b/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc
 index af8447b..7b97c73 100644
 --- a/chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.cc
@@ -9136,6 +9217,361 @@ index 7373bf5..35751c4 100644
    protected onTilesRendered_() {
      performance.measure('most-visited-rendered');
      assert(this.maxVisibleTiles_ > 0);
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
+index c17b13b..b7a127b 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
+@@ -1488,9 +1488,20 @@
+ angle::Result FramebufferGL::onAttachmentLayerCountChange(gl::FramebufferAttachment *attachment)
+ {
+     ASSERT(!isDefault() && attachment && attachment->isAttached() &&
+-           attachment->type() == GL_TEXTURE && mFunctions->framebufferTextureLayer);
++           attachment->type() == GL_TEXTURE);
+     mStateManager->bindFramebuffer(GL_FRAMEBUFFER, mFramebufferID);
+-    mFunctions->framebufferTextureLayer(GL_FRAMEBUFFER, attachment->getBinding(), 0, 0, 0);
++    // Detaching with a texture of 0 ignores the remaining parameters.  glFramebufferTextureLayer
++    // is not available on ES 2.0 drivers, while cube map textures are, so fall back to
++    // glFramebufferTexture2D in that case.
++    if (mFunctions->framebufferTextureLayer)
++    {
++        mFunctions->framebufferTextureLayer(GL_FRAMEBUFFER, attachment->getBinding(), 0, 0, 0);
++    }
++    else
++    {
++        mFunctions->framebufferTexture2D(GL_FRAMEBUFFER, attachment->getBinding(), GL_TEXTURE_2D, 0,
++                                         0);
++    }
+     return angle::Result::Continue;
+ }
+ 
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.cpp
+index 9cde243..3bfe246 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.cpp
+@@ -23,6 +23,7 @@
+ #include "libANGLE/renderer/gl/RendererGL.h"
+ #include "libANGLE/renderer/gl/ShaderGL.h"
+ #include "libANGLE/renderer/gl/StateManagerGL.h"
++#include "libANGLE/renderer/gl/renderergl_utils.h"
+ #include "libANGLE/trace.h"
+ #include "platform/PlatformMethods.h"
+ #include "platform/autogen/FeaturesGL_autogen.h"
+@@ -109,12 +110,14 @@
+                bool hasNativeParallelCompile,
+                const FunctionsGL *functions,
+                const gl::Extensions &extensions,
++               StateManagerGL *linkStateManager,
+                GLuint programID,
+                bool passthroughShaders)
+         : mProgram(program),
+           mHasNativeParallelCompile(hasNativeParallelCompile),
+           mFunctions(functions),
+           mExtensions(extensions),
++          mLinkStateManager(linkStateManager),
+           mProgramID(programID),
+           mPassthroughShaders(passthroughShaders)
+     {}
+@@ -140,8 +143,9 @@
+         // If there is no native parallel compile, do the post-link right away.
+         if (mResult == angle::Result::Continue && !mHasNativeParallelCompile)
+         {
+-            mResult = mProgram->postLinkJobImpl(resources);
++            mResult = mProgram->postLinkJobImpl(resources, mLinkStateManager);
+         }
++        mLinkStateManager = nullptr;
+ 
+         // See comment on mResources
+         mResources = &resources;
+@@ -154,7 +158,8 @@
+ 
+         if (mResult == angle::Result::Continue && mHasNativeParallelCompile)
+         {
+-            mResult = mProgram->postLinkJobImpl(*mResources);
++            StateManagerGL *stateManager = GetStateManagerGL(context);
++            mResult                      = mProgram->postLinkJobImpl(*mResources, stateManager);
+         }
+ 
+         return mResult;
+@@ -175,6 +180,7 @@
+     const bool mHasNativeParallelCompile;
+     const FunctionsGL *mFunctions;
+     const gl::Extensions &mExtensions;
++    StateManagerGL *mLinkStateManager;
+     const GLuint mProgramID;
+     const bool mPassthroughShaders;
+ 
+@@ -207,7 +213,7 @@
+ 
+ void ProgramGL::destroy(const gl::Context *context)
+ {
+-    mFunctions->deleteProgram(mProgramID);
++    GetStateManagerGL(context)->deleteProgram(mProgramID);
+     mProgramID = 0;
+ }
+ 
+@@ -421,9 +427,10 @@
+ {
+     ANGLE_TRACE_EVENT0("gpu.angle", "ProgramGL::link");
+ 
+-    *linkTaskOut = std::make_shared<LinkTaskGL>(this, mRenderer->hasNativeParallelCompile(),
+-                                                mFunctions, context->getExtensions(), mProgramID,
+-                                                context->getState().usesPassthroughShaders());
++    StateManagerGL *stateManager = GetStateManagerGL(context);
++    *linkTaskOut                 = std::make_shared<LinkTaskGL>(
++        this, mRenderer->hasNativeParallelCompile(), mFunctions, context->getExtensions(),
++        stateManager, mProgramID, context->getState().usesPassthroughShaders());
+ 
+     return angle::Result::Continue;
+ }
+@@ -567,7 +574,8 @@
+     return angle::Result::Continue;
+ }
+ 
+-angle::Result ProgramGL::postLinkJobImpl(const gl::ProgramLinkedResources &resources)
++angle::Result ProgramGL::postLinkJobImpl(const gl::ProgramLinkedResources &resources,
++                                         StateManagerGL *stateManager)
+ {
+     ANGLE_TRACE_EVENT0("gpu.angle", "ProgramGL::postLinkJobImpl");
+ 
+@@ -592,9 +600,13 @@
+         return angle::Result::Stop;
+     }
+ 
++    // glUseProgram applies to the native context that is current, i.e. the one linking or
++    // resolving this program, which may differ from the context that created it (mStateManager).
++    // Use the current context's state manager so that its shadow state and active transform
++    // feedback are the ones updated.
+     if (mFeatures.alwaysCallUseProgramAfterLink.enabled)
+     {
+-        mStateManager->forceUseProgram(mProgramID);
++        stateManager->forceUseProgram(mProgramID);
+     }
+ 
+     linkResources(resources);
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.h b/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.h
+index a788d47..0294e85 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.h
++++ b/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.h
+@@ -80,7 +80,8 @@
+ 
+     angle::Result passthroughLinkJobImpl(const gl::Extensions &extensions);
+     angle::Result linkJobImpl(const gl::Extensions &extensions);
+-    angle::Result postLinkJobImpl(const gl::ProgramLinkedResources &resources);
++    angle::Result postLinkJobImpl(const gl::ProgramLinkedResources &resources,
++                                  StateManagerGL *stateManager);
+ 
+     void attachShaders();
+     void applyTransformFeedbackState();
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp
+index 51eb6bf..0da0715 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp
+@@ -1876,6 +1876,12 @@
+ 
+ void StateManagerGL::forceUseProgram(GLuint program)
+ {
++    // glUseProgram generates GL_INVALID_OPERATION while the current transform feedback is active
++    // and not paused, which would leave mState.program out of sync with the native state.  Pause
++    // it first; syncTransformFeedbackState() resumes it on the next draw if it is still unpaused
++    // in the frontend.
++    pauseTransformFeedback();
++
+     mState.program = program;
+     mFunctions->useProgram(program);
+     mLocalDirtyBits.set(gl::state::DIRTY_BIT_PROGRAM_BINDING);
+@@ -2384,9 +2390,8 @@
+ 
+ void StateManagerGL::pauseTransformFeedback()
+ {
+-    if (mCurrentTransformFeedback != nullptr)
++    if (mCurrentTransformFeedback != nullptr && mCurrentTransformFeedback->syncPausedState(true))
+     {
+-        mCurrentTransformFeedback->syncPausedState(true);
+         onTransformFeedbackStateChange();
+     }
+ }
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/TextureGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/TextureGL.cpp
+index 47e8edf..013aeb8 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/TextureGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/TextureGL.cpp
+@@ -2605,15 +2605,12 @@
+     if (features.reattachTextureToFboAfterLayerIncrease.enabled &&
+         gl::IsLayeredTextureType(getType()))
+     {
+-        for (size_t level = 0; level < levels; level++)
+-        {
+-            const gl::ImageDesc &desc = mState.getImageDesc(gl::TextureTarget::_2DArray, level);
+-            if (size.depth > desc.size.depth)
+-            {
+-                onStateChange(angle::SubjectMessage::TextureLayerCountIncreased);
+-                break;
+-            }
+-        }
++        // gl::Texture::setStorage() replaces the image descs with the new storage sizes before
++        // calling into the backend, so the previous image layout cannot be compared against
++        // here.  Conservatively assume that the number of images grows.  This is cheap: it only
++        // reaches framebuffers that have this texture attached, and TexStorage can be called at
++        // most once per texture since it makes the texture immutable.
++        onStateChange(angle::SubjectMessage::TextureLayerCountIncreased);
+     }
+ 
+     const gl::InternalFormat &originalInternalFormatInfo =
+@@ -4477,7 +4474,12 @@
+     StateManagerGL *stateManager      = GetStateManagerGL(context);
+ 
+     const gl::ImageDesc &currentDesc = mState.getImageDesc(target, level);
+-    if (currentDesc.size.empty() || size.depth <= currentDesc.size.depth)
++    // Only skip the workaround when the level has never been defined or its depth is not
++    // increasing. A level that was defined with a zero extent (e.g. 64x0x4 or 64x64x0) still
++    // exists in the driver, so a redefinition with a larger depth must still go through the
++    // recreate path. Extents::empty() returns true if any dimension is zero and would wrongly
++    // treat such a level as undefined.
++    if (!currentDesc.format.valid() || size.depth <= currentDesc.size.depth)
+     {
+         return angle::Result::Continue;
+     }
+@@ -4510,6 +4512,10 @@
+         const gl::ImageDesc &desc = mState.getImageDesc(target, l);
+         if (desc.size.empty())
+         {
++            // Zero-extent levels have no contents to copy, so they are not redefined in the new
++            // native texture even though the front-end still tracks them as defined. This is
++            // harmless: queries are answered by the front-end, such levels make the texture
++            // incomplete either way, and a later depth increase on them only recreates again.
+             continue;
+         }
+ 
+@@ -4542,7 +4548,15 @@
+ 
+     stateManager->deleteTexture(oldTextureID);
+ 
++    // The new texture's filters and base/max levels were changed above to make the levels
++    // complete for copyImageSubData, and mAppliedSampler/mAppliedBaseLevel/mAppliedMaxLevel track
++    // those native values. These states may never have been modified by the application, so they
++    // may not be in mAllModifiedDirtyBits; flag them explicitly so syncState() restores them.
+     mLocalDirtyBits = mAllModifiedDirtyBits;
++    mLocalDirtyBits.set(gl::Texture::DIRTY_BIT_MIN_FILTER);
++    mLocalDirtyBits.set(gl::Texture::DIRTY_BIT_MAG_FILTER);
++    mLocalDirtyBits.set(gl::Texture::DIRTY_BIT_BASE_LEVEL);
++    mLocalDirtyBits.set(gl::Texture::DIRTY_BIT_MAX_LEVEL);
+     onStateChange(angle::SubjectMessage::SubjectChanged);
+ 
+     return angle::Result::Continue;
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.cpp
+index 77b028b..2637abc 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.cpp
+@@ -129,38 +129,40 @@
+ {
+     if (mIsActive != active)
+     {
+-        mIsActive = active;
+-        mIsPaused = false;
+-
+         mStateManager->bindTransformFeedback(GL_TRANSFORM_FEEDBACK, mTransformFeedbackID);
+-        if (mIsActive)
++
++        // Bind the program associated with this transform feedback for both BeginTransformFeedback
++        // and EndTransformFeedback (implementations disagree about what should happen if a
++        // different program is bound when calling EndTransformFeedback).  The previously bound
++        // program is not restored, as it may have been deleted since; useProgram() marks the
++        // program binding dirty so the current program is re-applied on the next draw.
++        mStateManager->useProgram(mActiveProgram);
++
++        if (active)
+         {
++            ASSERT(!mIsPaused);
+             ASSERT(primitiveMode != gl::PrimitiveMode::InvalidEnum);
+-            mStateManager->useProgram(mActiveProgram);
+             mFunctions->beginTransformFeedback(gl::ToGLenum(primitiveMode));
+         }
+         else
+         {
+-            // Implementations disagree about what should happen if a different program is bound
+-            // when calling EndTransformFeedback. We avoid the ambiguity by always re-binding the
+-            // program associated with this transform feedback.
+-            GLuint previousProgram = mStateManager->getProgramID();
+-            mStateManager->useProgram(mActiveProgram);
+             mFunctions->endTransformFeedback();
+-            // Restore the current program if we changed it.
+-            mStateManager->useProgram(previousProgram);
+         }
++
++        // mIsActive and mIsPaused are only updated after the native calls: useProgram() may call
++        // back into StateManagerGL::pauseTransformFeedback(), which must observe the state of the
++        // native transform feedback from before this transition.
++        mIsActive = active;
++        mIsPaused = false;
+     }
+ }
+ 
+-void TransformFeedbackGL::syncPausedState(bool paused) const
++bool TransformFeedbackGL::syncPausedState(bool paused) const
+ {
+     if (mIsActive && mIsPaused != paused)
+     {
+-        mIsPaused = paused;
+-
+         mStateManager->bindTransformFeedback(GL_TRANSFORM_FEEDBACK, mTransformFeedbackID);
+-        if (mIsPaused)
++        if (paused)
+         {
+             // If we're transitioning from active to paused, the currently bound program must be the
+             // one associated with this transform feedback.
+@@ -174,6 +176,12 @@
+             mStateManager->useProgram(mActiveProgram);
+             mFunctions->resumeTransformFeedback();
+         }
++
++        // As in syncActiveState(), mIsPaused is only updated after the native call because
++        // useProgram() may call back into StateManagerGL::pauseTransformFeedback().
++        mIsPaused = paused;
++        return true;
+     }
++    return false;
+ }
+ }  // namespace rx
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.h b/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.h
+index f723662..95364ae 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.h
++++ b/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.h
+@@ -39,7 +39,8 @@
+     void syncActiveState(const gl::Context *context,
+                          bool active,
+                          gl::PrimitiveMode primitiveMode) const;
+-    void syncPausedState(bool paused) const;
++    // Returns true if the native paused state changed.
++    bool syncPausedState(bool paused) const;
+ 
+   private:
+     const FunctionsGL *mFunctions;
+diff --git a/third_party/angle/src/tests/BUILD.gn b/third_party/angle/src/tests/BUILD.gn
+index 134e68e..c7d1d81 100644
+--- a/third_party/angle/src/tests/BUILD.gn
++++ b/third_party/angle/src/tests/BUILD.gn
+@@ -552,6 +552,10 @@
+       sources += angle_white_box_tests_win_sources
+     }
+ 
++    if (angle_enable_gl) {
++      sources += angle_white_box_tests_gl_sources
++    }
++
+     configs += [ "${angle_root}:libANGLE_config" ]
+ 
+     deps = [
+diff --git a/third_party/angle/src/tests/angle_white_box_tests.gni b/third_party/angle/src/tests/angle_white_box_tests.gni
+index e00afa9..b4a2f98 100644
+--- a/third_party/angle/src/tests/angle_white_box_tests.gni
++++ b/third_party/angle/src/tests/angle_white_box_tests.gni
+@@ -16,6 +16,7 @@
+   "gl_tests/D3D11InputLayoutCacheTest.cpp",
+   "gl_tests/D3DTextureTest.cpp",
+ ]
++angle_white_box_tests_gl_sources = [ "gl_tests/GLReattachTextureToFboTest.cpp" ]
+ angle_white_box_tests_vulkan_sources = [
+   "gl_tests/VulkanDescriptorSetTest.cpp",
+   "gl_tests/VulkanFormatTablesTest.cpp",
 diff --git a/third_party/catapult/tracing/tracing/ui/base/utils.html b/third_party/catapult/tracing/tracing/ui/base/utils.html
 index c70a56a..3d0fec0 100644
 --- a/third_party/catapult/tracing/tracing/ui/base/utils.html
@@ -9446,6 +9882,19 @@ index 63bb3cd..9f63cd7 100644
      char* const    firstBlock              = fFirstBlock;
      const uint32_t firstSize               = fFirstSize;
      const uint32_t firstHeapAllocationSize = fFirstHeapAllocationSize;
+diff --git a/third_party/skia/src/core/SkKnownRuntimeEffects.cpp b/third_party/skia/src/core/SkKnownRuntimeEffects.cpp
+index 8d5ca9b..9003b19 100644
+--- a/third_party/skia/src/core/SkKnownRuntimeEffects.cpp
++++ b/third_party/skia/src/core/SkKnownRuntimeEffects.cpp
+@@ -269,7 +269,7 @@
+     static constexpr char kDisplacementShaderCode[] =
+         "uniform shader displMap;"
+         "uniform shader colorMap;"
+-        "uniform half2 scale;"
++        "uniform float2 scale;"
+         "uniform half4 xSelect;" // Only one of RGBA will be 1, the rest are 0
+         "uniform half4 ySelect;"
+ 
 diff --git a/third_party/skia/src/gpu/ganesh/ops/GrOvalOpFactory.cpp b/third_party/skia/src/gpu/ganesh/ops/GrOvalOpFactory.cpp
 index 22d188d..9b8a7f1 100644
 --- a/third_party/skia/src/gpu/ganesh/ops/GrOvalOpFactory.cpp
@@ -9550,6 +9999,69 @@ index 22d188d..9b8a7f1 100644
      // The way the effect interpolates the offset-to-ellipse/circle-center attribute only works on
      // the interior of the rrect if the radii are >= 0.5. Otherwise, the inner rect of the nine-
      // patch will have fractional coverage. This only matters when the interior is actually filled.
+diff --git a/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.cpp b/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.cpp
+index cb588e0..b6635cc 100644
+--- a/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.cpp
++++ b/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.cpp
+@@ -696,9 +696,9 @@
+     return true;
+ }
+ 
+-void GrVkPrimaryCommandBuffer::forceSync(GrVkGpu* gpu) {
++bool GrVkPrimaryCommandBuffer::forceSync(GrVkGpu* gpu) {
+     if (fSubmitFence == VK_NULL_HANDLE) {
+-        return;
++        return true;
+     }
+     // On some drivers vkWaitForFences() can spuriously return VK_TIMEOUT when a signal handler
+     // runs. Work around this by retrying on VK_TIMEOUT.
+@@ -711,6 +711,7 @@
+         SkDebugf("vkWaitForFences() failed. Error: %d\n", result);
+     }
+     SkASSERT(VK_SUCCESS == result || VK_ERROR_DEVICE_LOST == result);
++    return result == VK_SUCCESS;
+ }
+ 
+ bool GrVkPrimaryCommandBuffer::finished(GrVkGpu* gpu) {
+diff --git a/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.h b/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.h
+index 2fdb224..6fd6917 100644
+--- a/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.h
++++ b/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.h
+@@ -331,7 +331,9 @@
+                        skia_private::TArray<GrVkSemaphore::Resource*>& waitSemaphores,
+                        const GrSubmitInfo&);
+ 
+-    void forceSync(GrVkGpu* gpu);
++    // Blocks until the last submission of this command buffer has finished executing. Returns
++    // false if the wait did not succeed (e.g. VK_ERROR_DEVICE_LOST).
++    bool forceSync(GrVkGpu* gpu);
+ 
+     bool finished(GrVkGpu* gpu);
+ 
+diff --git a/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp b/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp
+index 8f3c0a9..ee55ad7 100644
+--- a/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp
++++ b/third_party/skia/src/gpu/ganesh/vk/GrVkGpu.cpp
+@@ -383,8 +383,9 @@
+     bool didSubmit = fMainCmdBuffer->submitToQueue(this, fQueue, fSemaphoresToSignal,
+                                                    fSemaphoresToWaitOn, submitInfo);
+ 
++    bool syncSucceeded = true;
+     if (didSubmit && submitInfo.fSync == GrSyncCpu::kYes) {
+-        fMainCmdBuffer->forceSync(this);
++        syncSucceeded = fMainCmdBuffer->forceSync(this);
+     }
+ 
+     // We must delete any drawables that had to wait until submit to destroy.
+@@ -424,7 +425,7 @@
+     // released GrVkImage. That barrier needs to be put into a new command buffer and not the old
+     // one that was just submitted.
+     fResourceProvider.checkCommandBuffers();
+-    return didSubmit;
++    return didSubmit && syncSucceeded;
+ }
+ 
+ ///////////////////////////////////////////////////////////////////////////////
 diff --git a/third_party/skia/src/gpu/graphite/draw/DrawListLayer.cpp b/third_party/skia/src/gpu/graphite/draw/DrawListLayer.cpp
 index 9355020..9ea38c6 100644
 --- a/third_party/skia/src/gpu/graphite/draw/DrawListLayer.cpp
@@ -9570,6 +10082,156 @@ index 9355020..9ea38c6 100644
      DrawListBase::reset(loadOp, color);
  
      fStorage.reset();
+diff --git a/third_party/skia/src/sksl/generated/sksl_rt_shader.minified.sksl b/third_party/skia/src/sksl/generated/sksl_rt_shader.minified.sksl
+index 50a39b7..1f10fcb 100644
+--- a/third_party/skia/src/sksl/generated/sksl_rt_shader.minified.sksl
++++ b/third_party/skia/src/sksl/generated/sksl_rt_shader.minified.sksl
+@@ -3,21 +3,21 @@
+ ",0.,0.,saturate(dot(half3(.2126,.7152,.0722),a)));}half4 sk_decal(shader a,"
+ "float2 b,float4 c){half4 e=half4(c-b.xyxy)*half4(-1.,-1.,1.,1.);e=saturate("
+ "e+.5);return(((e.x*e.y)*e.z)*e.w)*a.eval(b);}half4 sk_displacement(shader a"
+-",shader b,float2 c,half2 d,half4 e,half4 f){half4 g=saturate(unpremul(a.eval"
+-"(c)));half2 h=half2(dot(g,e),dot(g,f));h=d*(h-.5);return b.eval(c+float2(h)"
+-");}half4 sk_magnifier(shader a,float2 b,float4 c,float4 d,float2 e){float2 f"
+-"=d.xy+d.zw*b;float2 g=min(b-c.xy,c.zw-b)*e;float h=all(lessThan(g,2..xx))?2."
+-"-length(2.-g):min(g.x,g.y);h=saturate(h);return a.eval(mix(b,f,h*h));}$pure"
+-" half3 $b(half3 a){half b=max(max(a.x,a.y),a.z);half e=min(min(a.x,a.y),a.z"
+-");half f=b-e;half g=1./f;half i=half(a.y<a.z?6.:0.);half j=.166666672*(b==e"
+-"?0.:(a.x>=a.y&&a.x>=a.z?g*(a.y-a.z)+i:(a.y>=a.z?g*(a.z-a.x)+2.:g*(a.x-a.y)+"
+-"4.)));half k=b+e;half m=k*.5;half n=b==e?0.:f/(m>.5?2.-k:k);return half3(j,"
+-"n,m);}half3 sk_high_contrast(half3 a,half b,half c,half d){if(b==1.)a=dot(half3"
+-"(.2126,.7152,.0722),a).xxx;if(c==1.)a=1.-a;else if(c==2.){a=$b(a);a.z=1.-a."
+-"z;a=$hsl_to_rgb(a);}return saturate(mix(half3(.5),a,d));}$pure half3 $c(half3"
+-" a,half3 b,half3 c,half d){const half3 e=half3(.25,.5,.25);half3 f=half3(a."
+-"x,b.x,c.x);half3 g=half3(a.z,b.z,c.z);half h=dot(e,c)-dot(e,a);half i=dot(e"
+-",g)-dot(e,f);return normalize(half3(d*half2(h,i),1.));}half4 sk_normal(shader"
++",shader b,float2 c,float2 d,half4 e,half4 f){half4 g=saturate(unpremul(a.eval"
++"(c)));float2 h=float2(float(dot(g,e)),float(dot(g,f)));h=d*(h-.5);return b."
++"eval(c+h);}half4 sk_magnifier(shader a,float2 b,float4 c,float4 d,float2 e)"
++"{float2 f=d.xy+d.zw*b;float2 g=min(b-c.xy,c.zw-b)*e;float h=all(lessThan(g,"
++"2..xx))?2.-length(2.-g):min(g.x,g.y);h=saturate(h);return a.eval(mix(b,f,h*"
++"h));}$pure half3 $b(half3 a){half b=max(max(a.x,a.y),a.z);half e=min(min(a."
++"x,a.y),a.z);half f=b-e;half g=1./f;half i=half(a.y<a.z?6.:0.);half j=.166666672"
++"*(b==e?0.:(a.x>=a.y&&a.x>=a.z?g*(a.y-a.z)+i:(a.y>=a.z?g*(a.z-a.x)+2.:g*(a.x"
++"-a.y)+4.)));half k=b+e;half m=k*.5;half n=b==e?0.:f/(m>.5?2.-k:k);return half3"
++"(j,n,m);}half3 sk_high_contrast(half3 a,half b,half c,half d){if(b==1.)a=dot"
++"(half3(.2126,.7152,.0722),a).xxx;if(c==1.)a=1.-a;else if(c==2.){a=$b(a);a.z"
++"=1.-a.z;a=$hsl_to_rgb(a);}return saturate(mix(half3(.5),a,d));}$pure half3 $c"
++"(half3 a,half3 b,half3 c,half d){const half3 e=half3(.25,.5,.25);half3 f=half3"
++"(a.x,b.x,c.x);half3 g=half3(a.z,b.z,c.z);half h=dot(e,c)-dot(e,a);half i=dot"
++"(e,g)-dot(e,f);return normalize(half3(d*half2(h,i),1.));}half4 sk_normal(shader"
+ " a,float2 b,float4 c,half d){half3 e=half3(a.eval(clamp(b+ -1..xx,c.xy,c.zw"
+ ")).w,a.eval(clamp(b+float2(-1.,0.),c.xy,c.zw)).w,a.eval(clamp(b+float2(-1.,"
+ "1.),c.xy,c.zw)).w);half3 f=half3(a.eval(clamp(b+float2(0.,-1.),c.xy,c.zw))."
+diff --git a/third_party/skia/src/sksl/generated/sksl_rt_shader.unoptimized.sksl b/third_party/skia/src/sksl/generated/sksl_rt_shader.unoptimized.sksl
+index b3c09b8..14803c2 100644
+--- a/third_party/skia/src/sksl/generated/sksl_rt_shader.unoptimized.sksl
++++ b/third_party/skia/src/sksl/generated/sksl_rt_shader.unoptimized.sksl
+@@ -4,46 +4,46 @@
+ " image,float2 coord,float4 decalBounds){half4 d=half4(decalBounds-coord.xyxy"
+ ")*half4(-1.,-1.,1.,1.);d=saturate(d+.5);return(((d.x*d.y)*d.z)*d.w)*image.eval"
+ "(coord);}half4 sk_displacement(shader displMap,shader colorMap,float2 coord"
+-",half2 scale,half4 xSelect,half4 ySelect){half4 displColor=saturate(unpremul"
+-"(displMap.eval(coord)));half2 displ=half2(dot(displColor,xSelect),dot(displColor"
+-",ySelect));displ=scale*(displ-.5);return colorMap.eval(coord+float2(displ))"
+-";}half4 sk_magnifier(shader src,float2 coord,float4 lensBounds,float4 zoomXform"
+-",float2 invInset){float2 zoomCoord=zoomXform.xy+zoomXform.zw*coord;float2 edgeInset"
+-"=min(coord-lensBounds.xy,lensBounds.zw-coord)*invInset;float weight=all(lessThan"
+-"(edgeInset,2..xx))?2.-length(2.-edgeInset):min(edgeInset.x,edgeInset.y);weight"
+-"=saturate(weight);return src.eval(mix(coord,zoomCoord,weight*weight));}$pure"
+-" half3 $high_contrast_rgb_to_hsl(half3 c){half mx=max(max(c.x,c.y),c.z);half"
+-" mn=min(min(c.x,c.y),c.z);half d=mx-mn;half invd=1./d;half g_lt_b=half(c.y<"
+-"c.z?6.:0.);half h=.166666672*(mx==mn?0.:(c.x>=c.y&&c.x>=c.z?invd*(c.y-c.z)+"
+-"g_lt_b:(c.y>=c.z?invd*(c.z-c.x)+2.:invd*(c.x-c.y)+4.)));half sum=mx+mn;half"
+-" l=sum*.5;half s=mx==mn?0.:d/(l>.5?2.-sum:sum);return half3(h,s,l);}half3 sk_high_contrast"
+-"(half3 color,half grayscale,half invertStyle,half contrast){if(grayscale==1."
+-")color=dot(half3(.2126,.7152,.0722),color).xxx;if(invertStyle==1.)color=1.-"
+-"color;else if(invertStyle==2.){color=$high_contrast_rgb_to_hsl(color);color"
+-".z=1.-color.z;color=$hsl_to_rgb(color);}return saturate(mix(half3(.5),color"
+-",contrast));}$pure half3 $normal_filter(half3 alphaC0,half3 alphaC1,half3 alphaC2"
+-",half negSurfaceDepth){const half3 kSobel=half3(.25,.5,.25);half3 alphaR0=half3"
+-"(alphaC0.x,alphaC1.x,alphaC2.x);half3 alphaR2=half3(alphaC0.z,alphaC1.z,alphaC2"
+-".z);half nx=dot(kSobel,alphaC2)-dot(kSobel,alphaC0);half ny=dot(kSobel,alphaR2"
+-")-dot(kSobel,alphaR0);return normalize(half3(negSurfaceDepth*half2(nx,ny),1."
+-"));}half4 sk_normal(shader alphaMap,float2 coord,float4 edgeBounds,half negSurfaceDepth"
+-"){half3 alphaC0=half3(alphaMap.eval(clamp(coord+ -1..xx,edgeBounds.xy,edgeBounds"
+-".zw)).w,alphaMap.eval(clamp(coord+float2(-1.,0.),edgeBounds.xy,edgeBounds.zw"
+-")).w,alphaMap.eval(clamp(coord+float2(-1.,1.),edgeBounds.xy,edgeBounds.zw))"
+-".w);half3 alphaC1=half3(alphaMap.eval(clamp(coord+float2(0.,-1.),edgeBounds"
+-".xy,edgeBounds.zw)).w,alphaMap.eval(clamp(coord,edgeBounds.xy,edgeBounds.zw"
+-")).w,alphaMap.eval(clamp(coord+float2(0.,1.),edgeBounds.xy,edgeBounds.zw))."
+-"w);half3 alphaC2=half3(alphaMap.eval(clamp(coord+float2(1.,-1.),edgeBounds."
+-"xy,edgeBounds.zw)).w,alphaMap.eval(clamp(coord+float2(1.,0.),edgeBounds.xy,"
+-"edgeBounds.zw)).w,alphaMap.eval(clamp(coord+1..xx,edgeBounds.xy,edgeBounds."
+-"zw)).w);half mainAlpha=alphaC1.y;return half4($normal_filter(alphaC0,alphaC1"
+-",alphaC2,negSurfaceDepth),mainAlpha);}$pure half3 $surface_to_light(half lightType"
+-",half3 lightPos,half3 lightDir,half3 coord){return lightType>=0.?normalize("
+-"lightPos-coord):lightDir;}$pure half $spotlight_scale(half3 lightDir,half3 surfaceToLight"
+-",half cosCutoffAngle,half spotFalloff){const half kConeAAThreshold=.016;const"
+-" half kConeScale=62.4999962;half cosAngle=-dot(surfaceToLight,lightDir);if("
+-"cosAngle<cosCutoffAngle)return 0.;else{half scale=pow(cosAngle,spotFalloff)"
+-";return cosAngle<cosCutoffAngle+kConeAAThreshold?(scale*(cosAngle-cosCutoffAngle"
++",float2 scale,half4 xSelect,half4 ySelect){half4 displColor=saturate(unpremul"
++"(displMap.eval(coord)));float2 displ=float2(float(dot(displColor,xSelect)),"
++"float(dot(displColor,ySelect)));displ=scale*(displ-.5);return colorMap.eval"
++"(coord+displ);}half4 sk_magnifier(shader src,float2 coord,float4 lensBounds"
++",float4 zoomXform,float2 invInset){float2 zoomCoord=zoomXform.xy+zoomXform."
++"zw*coord;float2 edgeInset=min(coord-lensBounds.xy,lensBounds.zw-coord)*invInset"
++";float weight=all(lessThan(edgeInset,2..xx))?2.-length(2.-edgeInset):min(edgeInset"
++".x,edgeInset.y);weight=saturate(weight);return src.eval(mix(coord,zoomCoord"
++",weight*weight));}$pure half3 $high_contrast_rgb_to_hsl(half3 c){half mx=max"
++"(max(c.x,c.y),c.z);half mn=min(min(c.x,c.y),c.z);half d=mx-mn;half invd=1./"
++"d;half g_lt_b=half(c.y<c.z?6.:0.);half h=.166666672*(mx==mn?0.:(c.x>=c.y&&c"
++".x>=c.z?invd*(c.y-c.z)+g_lt_b:(c.y>=c.z?invd*(c.z-c.x)+2.:invd*(c.x-c.y)+4."
++")));half sum=mx+mn;half l=sum*.5;half s=mx==mn?0.:d/(l>.5?2.-sum:sum);return"
++" half3(h,s,l);}half3 sk_high_contrast(half3 color,half grayscale,half invertStyle"
++",half contrast){if(grayscale==1.)color=dot(half3(.2126,.7152,.0722),color)."
++"xxx;if(invertStyle==1.)color=1.-color;else if(invertStyle==2.){color=$high_contrast_rgb_to_hsl"
++"(color);color.z=1.-color.z;color=$hsl_to_rgb(color);}return saturate(mix(half3"
++"(.5),color,contrast));}$pure half3 $normal_filter(half3 alphaC0,half3 alphaC1"
++",half3 alphaC2,half negSurfaceDepth){const half3 kSobel=half3(.25,.5,.25);half3"
++" alphaR0=half3(alphaC0.x,alphaC1.x,alphaC2.x);half3 alphaR2=half3(alphaC0.z"
++",alphaC1.z,alphaC2.z);half nx=dot(kSobel,alphaC2)-dot(kSobel,alphaC0);half ny"
++"=dot(kSobel,alphaR2)-dot(kSobel,alphaR0);return normalize(half3(negSurfaceDepth"
++"*half2(nx,ny),1.));}half4 sk_normal(shader alphaMap,float2 coord,float4 edgeBounds"
++",half negSurfaceDepth){half3 alphaC0=half3(alphaMap.eval(clamp(coord+ -1..xx"
++",edgeBounds.xy,edgeBounds.zw)).w,alphaMap.eval(clamp(coord+float2(-1.,0.),edgeBounds"
++".xy,edgeBounds.zw)).w,alphaMap.eval(clamp(coord+float2(-1.,1.),edgeBounds.xy"
++",edgeBounds.zw)).w);half3 alphaC1=half3(alphaMap.eval(clamp(coord+float2(0."
++",-1.),edgeBounds.xy,edgeBounds.zw)).w,alphaMap.eval(clamp(coord,edgeBounds."
++"xy,edgeBounds.zw)).w,alphaMap.eval(clamp(coord+float2(0.,1.),edgeBounds.xy,"
++"edgeBounds.zw)).w);half3 alphaC2=half3(alphaMap.eval(clamp(coord+float2(1.,"
++"-1.),edgeBounds.xy,edgeBounds.zw)).w,alphaMap.eval(clamp(coord+float2(1.,0."
++"),edgeBounds.xy,edgeBounds.zw)).w,alphaMap.eval(clamp(coord+1..xx,edgeBounds"
++".xy,edgeBounds.zw)).w);half mainAlpha=alphaC1.y;return half4($normal_filter"
++"(alphaC0,alphaC1,alphaC2,negSurfaceDepth),mainAlpha);}$pure half3 $surface_to_light"
++"(half lightType,half3 lightPos,half3 lightDir,half3 coord){return lightType"
++">=0.?normalize(lightPos-coord):lightDir;}$pure half $spotlight_scale(half3 lightDir"
++",half3 surfaceToLight,half cosCutoffAngle,half spotFalloff){const half kConeAAThreshold"
++"=.016;const half kConeScale=62.4999962;half cosAngle=-dot(surfaceToLight,lightDir"
++");if(cosAngle<cosCutoffAngle)return 0.;else{half scale=pow(cosAngle,spotFalloff"
++");return cosAngle<cosCutoffAngle+kConeAAThreshold?(scale*(cosAngle-cosCutoffAngle"
+ "))*kConeScale:scale;}}$pure half4 $compute_lighting(half3 color,half shininess"
+ ",half materialType,half lightType,half3 normal,half3 lightDir,half3 surfaceToLight"
+ ",half cosCutoffAngle,half spotFalloff){if(lightType>0.)color*=$spotlight_scale"
+diff --git a/third_party/skia/src/sksl/sksl_rt_shader.sksl b/third_party/skia/src/sksl/sksl_rt_shader.sksl
+index 03378cb..a73f413 100644
+--- a/third_party/skia/src/sksl/sksl_rt_shader.sksl
++++ b/third_party/skia/src/sksl/sksl_rt_shader.sksl
+@@ -19,11 +19,11 @@
+ half4 sk_displacement(shader displMap,
+                       shader colorMap,
+                       float2 coord,
+-                      half2 scale,
++                      float2 scale,
+                       half4 xSelect,  // Only one of RGBA will be 1, the rest are 0
+                       half4 ySelect) {
+     half4 displColor = saturate(unpremul(displMap.eval(coord)));
+-    half2 displ = half2(dot(displColor, xSelect), dot(displColor, ySelect));
++    float2 displ = float2(dot(displColor, xSelect), dot(displColor, ySelect));
+     displ = scale * (displ - 0.5);
+     return colorMap.eval(coord + displ);
+ }
 diff --git a/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.test.ts b/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.test.ts
 index a7a1c96..56abb40 100644
 --- a/third_party/devtools-frontend/src/front_end/panels/elements/DOMTreeWidget.test.ts
