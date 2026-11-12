@@ -60,7 +60,7 @@ S="${WORKDIR}/TypeScript-${PV}/tsc"
 LICENSE="Apache-2.0 BSD BSD-2 MIT"
 # Slotted by exact version: Chromium pins one release (see above).
 SLOT="${PV}"
-KEYWORDS="~amd64 ~arm64"
+KEYWORDS="amd64 ~arm64"
 
 # go.mod: "go 1.26"
 BDEPEND=">=dev-lang/go-1.26:="

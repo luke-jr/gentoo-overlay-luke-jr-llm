@@ -421,7 +421,7 @@ LICENSE+=" MPL-2.0 BSD Unicode-3.0"
 # spdx-license-ids, spdx-exceptions (data)
 LICENSE+=" CC-BY-3.0 CC0-1.0"
 SLOT="${PV%%.*}"
-KEYWORDS="~amd64 ~arm64"
+KEYWORDS="amd64 ~arm64"
 IUSE="test"
 RESTRICT="!test? ( test )"
 

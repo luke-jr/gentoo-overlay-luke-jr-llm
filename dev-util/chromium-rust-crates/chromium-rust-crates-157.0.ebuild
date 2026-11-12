@@ -610,7 +610,7 @@ S="${WORKDIR}"
 # What is installed: the generated files of the crates above.
 LICENSE="Apache-2.0 MIT Unicode-3.0 public-domain"
 SLOT="$(ver_cut 1)"
-KEYWORDS="~amd64 ~arm64"
+KEYWORDS="amd64 ~arm64"
 RESTRICT="test"
 
 # genrb, and ICU4C's code point trie builder for ICU4X's property tries.
