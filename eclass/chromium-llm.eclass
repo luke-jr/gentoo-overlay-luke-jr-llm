@@ -118,8 +118,9 @@
 # to the major version. Portage expands variables in make.conf even single-quoted, so escape
 # the $, e.g.
 #   CHROMIUM_BUILD_DIR="/var/tmp/portage/chromium-build/\${MAJOR}"
-# The sources are unpacked to its src/ (S), replacing the last build's; everything else is in
-# its build/, which stays: the build directory (build/Release), and the tree's records (state,
+# The sources are unpacked to its src/ (S), replacing the last build's, and the checked-in
+# generated files the build regenerates are moved aside to its upstream-generated/ (the same
+# filesystem as src/: a rename each); everything else is in its build/, which stays: the build directory (build/Release), and the tree's records (state,
 # owner, mojom-message-id-salt, toolchains). Before each ninja run, files whose contents are
 # those of the last run (whatever build it was in) get that run's timestamp back, changed ones a
 # new one
@@ -132,8 +133,9 @@
 # @USER_VARIABLE
 # @DEFAULT_UNSET
 # @DESCRIPTION:
-# With CHROMIUM_BUILD_DIR, the kept build tree's src/ is emptied at the end of src_install: the
-# next build unpacks its own sources anyway, only build/ is reused. 1 keeps them until the next
+# With CHROMIUM_BUILD_DIR, the kept build tree's src/ is emptied at the end of src_install (and
+# its upstream-generated/, the checked-in generated files moved aside): the next build unpacks
+# its own sources anyway, only build/ is reused. 1 keeps them until the next
 # build, 0 removes them; unset, FEATURES=keepwork keeps them.
 
 # @FUNCTION: chromium_crubit_rustfmt
@@ -1419,6 +1421,13 @@ print(version)
 	# The checked-in generated files that are regenerated (in src_configure and src_compile): out
 	# of the tree, so that only the regenerated ones can be used (see chromium_regenerated_outputs).
 	einfo "Moving the checked-in generated files out of the tree ..."
+	# With a kept build tree (CHROMIUM_BUILD_DIR), to its upstream-generated/, beside src/ (on the
+	# same filesystem: a rename each; the tree may be on another one than ${WORKDIR}).
+	if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
+		rm -rf "${CHROMIUM_BUILD_TREE:?}/upstream-generated" || die
+		mkdir -p "${CHROMIUM_BUILD_TREE}/upstream-generated" || die
+		ln -s "${CHROMIUM_BUILD_TREE}/upstream-generated" "${WORKDIR}/upstream-generated" || die
+	fi
 	chromium_regenerated_outputs | tr ' ' '\n' |
 		"${EPYTHON}" -B "${FILESDIR}/chromium-move-generated.py" "${S}" "${WORKDIR}/upstream-generated" \
 		"${PORTAGE_BUILDDIR}/.unpacked" "${upstream_patched[@]}" || die "Failed to move the checked-in generated files"
@@ -4453,6 +4462,7 @@ chromium-llm_src_install() {
 	if [[ -n ${CHROMIUM_BUILD_TREE} && ${keep_src} == 0 ]]; then
 		einfo "Removing the sources from ${S} (CHROMIUM_BUILD_DIR_KEEP_SRC keeps them) ..."
 		find "${S}" -mindepth 1 -maxdepth 1 -exec rm -rf {} + || die
+		rm -rf "${CHROMIUM_BUILD_TREE:?}/upstream-generated" || die
 	fi
 }
 
