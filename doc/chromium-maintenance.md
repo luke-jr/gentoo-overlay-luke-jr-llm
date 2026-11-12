@@ -31,6 +31,13 @@ was added with (and 156 updated from .12 to .47).
   newer Google release has (e.g. Early Stable after a Stable update of the previous major) is
   masked in `profiles/package.mask`, with the CVEs in the comment. The mask stays after its
   ebuild is replaced and removed, so that Portage keeps reporting installed copies of it.
+  A version (a superseded bleeding-edge build too, or an older major) is masked when it lacks
+  security fixes an unmasked official Stable or Early Stable has: e.g. `<…-157.0.8103.78`, and the
+  158 bleeding-edge builds older than 158.0.8127.37's branch position (one `=…-<tag>*` per older
+  tag; Portage's `*` matches whole version components, so `.2*` doesn't cover `.22`; exact atoms
+  for the builds of the tag in use). Fixes the official releases lack too don't mask anything,
+  unless they are severe enough (e.g. Critical, or exploited in the wild) to mask the newest
+  official Stable or Early Stable as well. Masks stay after the ebuilds are gone.
 - **Source:** Google's official "lite" tarball,
   `https://commondatastorage.googleapis.com/chromium-browser-official/chromium-<version>-lite.tar.xz`;
   check it against the `.hashes` file next to it. For a version without a tarball yet, or for fixes
