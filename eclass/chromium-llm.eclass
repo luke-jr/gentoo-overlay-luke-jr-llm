@@ -129,6 +129,15 @@
 # build at a time uses the directory: another one waits until it is done. USE=pgo builds
 # everything twice anyway.
 
+# @ECLASS_VARIABLE: CHROMIUM_REGEN_CHECKPOINT
+# @USER_VARIABLE
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# For a test harness: a directory. When every regeneration step is done (in src_compile, before
+# ninja builds chrome), the build touches its "regenerated" and waits until it can lock its
+# "lock" (flock), so that a harness holding that lock can check the regenerated files (e.g.
+# scripts/chromium-tests/verify-regenerated.py) before the long build, and then release it.
+
 # @ECLASS_VARIABLE: CHROMIUM_BUILD_DIR_KEEP_SRC
 # @USER_VARIABLE
 # @DEFAULT_UNSET
@@ -4133,6 +4142,14 @@ chromium_compile() {
 				pax-mark m "${CHROMIUM_OUT}/${x}"
 			fi
 		done
+	fi
+
+	# Every regeneration step is done: a test harness can check them now (CHROMIUM_REGEN_CHECKPOINT).
+	if [[ -n ${CHROMIUM_REGEN_CHECKPOINT} ]]; then
+		addwrite "${CHROMIUM_REGEN_CHECKPOINT}"
+		touch "${CHROMIUM_REGEN_CHECKPOINT}/regenerated" || die
+		einfo "Waiting for ${CHROMIUM_REGEN_CHECKPOINT}/lock (CHROMIUM_REGEN_CHECKPOINT) ..."
+		flock "${CHROMIUM_REGEN_CHECKPOINT}/lock" true || die "Failed to lock ${CHROMIUM_REGEN_CHECKPOINT}/lock"
 	fi
 
 	# Even though ninja autodetects number of CPUs, we respect
