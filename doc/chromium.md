@@ -27,7 +27,9 @@ masked) keeps the previous set and its packages.
    build: it uses its exact `librustc_driver-<hash>.so`. Rebuilding Rust means rebuilding
    the installed `dev-util/crubit` versions (the Chromium ebuild checks this). If you installed
    `dev-lang/rustc-dev`, unmerge it: Crubit no longer uses it.
-3. Accept `~amd64` for the overlay's packages. Don't unmask `www-client/chromium`: since
+3. Google's Linux Stable needs only `amd64`. For Early Stable and the bleeding-edge `_p<N>_pre`
+   builds, accept `~amd64` for `www-client/chromium` and the overlay packages they build with (their
+   newer versions are `~amd64`). Don't unmask `www-client/chromium`: since
    2026-11-05 (bug #982204), `::gentoo`'s `profiles/package.mask` masks only
    `<www-client/chromium-151.0.7922.169-r1`, and an unmask entry would also override the
    overlay's `profiles/package.mask`, which masks versions with known unfixed vulnerabilities.

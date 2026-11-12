@@ -77,8 +77,9 @@ What the packages here follow, beyond Gentoo's own policies:
 All are **build-time only** (`BDEPEND`) for Chromium. `USE=ffmpeg-chromium` needs
 `media-video/ffmpeg-chromium:<major>`, which nothing provides for 157 or 158 yet.
 
-Everything is keyworded `~amd64 ~arm64`, except the Chromium version Google releases as Stable for
-Linux, which is `amd64` (see `doc/chromium-maintenance.md`). Only amd64 has been built and tested.
+The Chromium version Google releases as Stable for Linux is keyworded `amd64`, and so are the versions
+of the packages above that it builds with; everything else is `~amd64` (see
+`doc/chromium-maintenance.md`). arm64 is `~arm64` throughout: only amd64 has been built and tested.
 
 `eclass/chromium-llm.eclass` is the Chromium build, shared by the `www-client/chromium` ebuilds;
 each ebuild has only what is particular to its version: upstream's pins, its patch lists and the
