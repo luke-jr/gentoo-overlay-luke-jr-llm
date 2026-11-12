@@ -1,8 +1,8 @@
 Chromium 158.0.8127.33 + the later changes of its release branch, up to
-e0d3665ffada93b5cfc1ccdc0a383d21f1c1caf7 (refs/branch-heads/8127@{#1704}), for the
+8fd479ea8a565ea2ee8d4b138b3247862019a2dc (refs/branch-heads/8127@{#1707}), for the
 158.0.8127.33 tree that chromium-158.0.8127.18-to-158.0.8127.33.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..e0d3665ffada93b5cfc1ccdc0a383d21f1c1caf7,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.33..8fd479ea8a565ea2ee8d4b138b3247862019a2dc,
 and from the branch's rolls of v8/v8 5a03ee6be7040558aa71a10e7b025431a7aa0ab9..c7596de0838cb17a421524051cd891fc783a2d46 (under v8/),
 devtools/devtools-frontend 8deaa243ad5f7abd50b6c0e17a740d0f00fc068f..047c90eca37c7170d826d72245d5df9281989cf3 (under third_party/devtools-frontend/src/),
 skia/skia 361c8326695a06b7492fb6eeeff803c0c92a2447..3279352fdf1fbbd01a6dd024a52d3f178a6d5f07 (under third_party/skia/),
@@ -12,7 +12,7 @@ as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .33 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
 translations, PGO/orderfile pointers, submodule pointer updates. chrome/VERSION,
-DEPS and the stamp files stay at 158.0.8127.33.
+the DEPS files and the stamp files stay at 158.0.8127.33.
 
 Commits contributing to it (oldest first):
   55a84053fa64 [M158] Add screen reader announcement when reordering shortcuts
@@ -88,6 +88,8 @@ Commits contributing to it (oldest first):
   8d9ed53597ad Roll commits from side projects in M158
   aa889df21a3e Roll commits from side projects in M158
   e0d3665ffada [M158] Harden P2PSocketManager::DestroySocket against re-entrance
+  cf2183c855de [M158] Handle re-entrancy in P2PSocketManager teardown
+  8fd479ea8a56 [M158] Improve state validation during scroll timeline snapshot updates
     v8 77192c003a77 [M158] [objects] Disallow JSObject modifications during GC and GC callbacks
     v8 e8f914b08b81 Version 15.8.62.27
     v8 c0b2c2f3ade9 [M158] [compiler] Mark string-keyed ordered hash lookups as writing
@@ -7720,8 +7722,56 @@ index 6c1ef81..0f9ebe2 100644
    crash_server_->Start();
  }
  
+diff --git a/services/network/network_context.cc b/services/network/network_context.cc
+index 68d93ae..7fec06b 100644
+--- a/services/network/network_context.cc
++++ b/services/network/network_context.cc
+@@ -3564,6 +3564,10 @@
+ void NetworkContext::DestroySocketManager(P2PSocketManager* socket_manager) {
+   auto iter = socket_managers_.find(socket_manager);
+   CHECK(iter != socket_managers_.end());
++  // Move out of `socket_managers_` before erasing so `~P2PSocketManager()`
++  // never runs while `flat_map::erase()` is mutating the container.
++  std::unique_ptr<P2PSocketManager> owned_socket_manager =
++      std::move(iter->second);
+   socket_managers_.erase(iter);
+ }
+ #endif  // BUILDFLAG(IS_P2P_ENABLED)
+diff --git a/services/network/p2p/socket.cc b/services/network/p2p/socket.cc
+index 1c18e75..e621b7f8 100644
+--- a/services/network/p2p/socket.cc
++++ b/services/network/p2p/socket.cc
+@@ -176,7 +176,11 @@
+ void P2PSocket::OnError() {
+   receiver_.reset();
+   client_.reset();
+-  delegate_->DestroySocket(this);
++  // Without a delegate, the former delegate is being destroyed and destroys
++  // this socket as part of that.
++  if (delegate_) {
++    delegate_->DestroySocket(this);
++  }
+ }
+ 
+ }  // namespace network
+diff --git a/services/network/p2p/socket.h b/services/network/p2p/socket.h
+index 4c0398c..15fd2d0 100644
+--- a/services/network/p2p/socket.h
++++ b/services/network/p2p/socket.h
+@@ -94,6 +94,11 @@
+       const P2PHostAndIPEndPoint& remote_address,
+       const net::NetworkAnonymizationKey& network_anonymization_key) = 0;
+ 
++  // Stops all calls to the delegate. The delegate calls this on each of its
++  // sockets before destroying them in its own destructor, because destroying
++  // one socket can synchronously fail other sockets.
++  void ClearDelegate() { delegate_ = nullptr; }
++
+   mojo::PendingRemote<mojom::P2PSocketClient> ReleaseClientForTesting();
+   mojo::PendingReceiver<mojom::P2PSocket> ReleaseReceiverForTesting();
+ 
 diff --git a/services/network/p2p/socket_manager.cc b/services/network/p2p/socket_manager.cc
-index 3a814c1..c9fcf966 100644
+index 3a814c1..d92d91fa 100644
 --- a/services/network/p2p/socket_manager.cc
 +++ b/services/network/p2p/socket_manager.cc
 @@ -6,6 +6,7 @@
@@ -7732,7 +7782,23 @@ index 3a814c1..c9fcf966 100644
  #include <optional>
  #include <utility>
  
-@@ -235,7 +236,11 @@
+@@ -193,6 +194,15 @@
+   // Reset the P2PSocketManager receiver before dropping pending dns requests.
+   socket_manager_receiver_.reset();
+ 
++  // Destroying a socket or DNS request can synchronously fail its siblings
++  // (e.g. when closing the last active DoH stream on a stalled pool). Make sure
++  // none of them calls back into `this` while they are being destroyed:
++  // invalidate the weak pointers that DNS request callbacks are bound to, and
++  // clear each socket's delegate.
++  weak_factory_.InvalidateWeakPtrs();
++  for (const auto& [socket_ptr, socket] : sockets_) {
++    socket->ClearDelegate();
++  }
+   sockets_.clear();
+   dns_requests_.clear();
+ 
+@@ -235,7 +245,11 @@
  void P2PSocketManager::DestroySocket(P2PSocket* socket) {
    auto iter = sockets_.find(socket);
    CHECK(iter != sockets_.end());
@@ -7744,6 +7810,135 @@ index 3a814c1..c9fcf966 100644
  }
  
  void P2PSocketManager::DumpPacket(base::span<const uint8_t> packet,
+@@ -396,10 +410,10 @@
+       url_request_context_->host_resolver(), enable_mdns);
+   DnsRequest* request_ptr = request.get();
+   dns_requests_.insert(std::move(request));
+-  request_ptr->Resolve(
+-      host_name, address_family, network_anonymization_key_,
+-      base::BindOnce(&P2PSocketManager::OnAddressResolved,
+-                     base::Unretained(this), request_ptr, std::move(callback)));
++  request_ptr->Resolve(host_name, address_family, network_anonymization_key_,
++                       base::BindOnce(&P2PSocketManager::OnAddressResolved,
++                                      weak_factory_.GetWeakPtr(), request_ptr,
++                                      std::move(callback)));
+ }
+ 
+ void P2PSocketManager::CreateSocket(
+@@ -476,9 +490,12 @@
+     DnsRequest* request,
+     mojom::P2PSocketManager::GetHostAddressCallback callback,
+     const net::IPAddressList& addresses) {
++  auto iter = dns_requests_.find(request);
++  CHECK(iter != dns_requests_.end());
++  // Unlink before running `callback` or destroying `request` in case teardown
++  // or callback execution re-enters `dns_requests_`.
++  auto owned_request = dns_requests_.extract(iter);
+   std::move(callback).Run(addresses);
+-
+-  dns_requests_.erase(dns_requests_.find(request));
+ }
+ 
+ void P2PSocketManager::OnConnectionError() {
+diff --git a/services/network/p2p/socket_manager.h b/services/network/p2p/socket_manager.h
+index 5505f0b..242f3ed7 100644
+--- a/services/network/p2p/socket_manager.h
++++ b/services/network/p2p/socket_manager.h
+@@ -57,7 +57,7 @@
+ 
+ // Owns all the P2P socket instances and dispatches Mojo calls from the
+ // (untrusted) child and (trusted) browser process.
+-class COMPONENT_EXPORT(NETWORK_SERVICE) P2PSocketManager
++class COMPONENT_EXPORT(NETWORK_SERVICE) P2PSocketManager final
+     : public net::NetworkChangeNotifier::NetworkChangeObserver,
+       public mojom::P2PSocketManager,
+       public mojom::P2PTrustedSocketManager,
+diff --git a/services/network/p2p/socket_tcp.cc b/services/network/p2p/socket_tcp.cc
+index e9c6035..e88d8af 100644
+--- a/services/network/p2p/socket_tcp.cc
++++ b/services/network/p2p/socket_tcp.cc
+@@ -272,7 +272,9 @@
+   // TODO(crbug.com/40243224): Batch multiple packets in the TCP case as well.
+   client_->DataReceived(std::move(received_packets));
+ 
+-  delegate_->DumpPacket(data, true);
++  if (delegate_) {
++    delegate_->DumpPacket(data, true);
++  }
+   return true;
+ }
+ 
+@@ -554,7 +556,9 @@
+           buffer_size));
+ 
+   // WriteOrQueue may free the memory, so dump it first.
+-  delegate_->DumpPacket(send_buffer.buffer->span(), false);
++  if (delegate_) {
++    delegate_->DumpPacket(send_buffer.buffer->span(), false);
++  }
+ 
+   return WriteOrQueue(send_buffer);
+ }
+diff --git a/services/network/p2p/socket_tcp.h b/services/network/p2p/socket_tcp.h
+index 1f4f33d..c166050 100644
+--- a/services/network/p2p/socket_tcp.h
++++ b/services/network/p2p/socket_tcp.h
+@@ -123,7 +123,8 @@
+   raw_ptr<ProxyResolvingClientSocketFactory> proxy_resolving_socket_factory_;
+ };
+ 
+-class COMPONENT_EXPORT(NETWORK_SERVICE) P2PSocketTcp : public P2PSocketTcpBase {
++class COMPONENT_EXPORT(NETWORK_SERVICE) P2PSocketTcp final
++    : public P2PSocketTcpBase {
+  public:
+   P2PSocketTcp(
+       Delegate* delegate,
+@@ -151,7 +152,7 @@
+ // with TURN. These messages will not have length at front of the packet and
+ // are padded to multiple of 4 bytes.
+ // Formatting of messages is defined in RFC5766.
+-class COMPONENT_EXPORT(NETWORK_SERVICE) P2PSocketStunTcp
++class COMPONENT_EXPORT(NETWORK_SERVICE) P2PSocketStunTcp final
+     : public P2PSocketTcpBase {
+  public:
+   P2PSocketStunTcp(
+diff --git a/services/network/p2p/socket_udp.cc b/services/network/p2p/socket_udp.cc
+index 1eeec59..cfd4e3d7 100644
+--- a/services/network/p2p/socket_udp.cc
++++ b/services/network/p2p/socket_udp.cc
+@@ -373,7 +373,9 @@
+       }
+     }
+ 
+-    delegate_->DumpPacket(data, true);
++    if (delegate_) {
++      delegate_->DumpPacket(data, true);
++    }
+     net::DscpAndEcn last_tos =
+         socket_ == nullptr
+             ? net::DscpAndEcn(net::DSCP_DEFAULT, net::ECN_DEFAULT)
+@@ -466,7 +468,7 @@
+       packet.packet_options.ect_1 ? net::ECN_ECT1 : net::ECN_NOT_ECT);
+ 
+   bool success = DoSendToSocket(packet, send_time_ms);
+-  if (success) {
++  if (success && delegate_) {
+     delegate_->DumpPacket(packet.data->first(packet.size), /*incoming=*/false);
+   }
+   return success;
+diff --git a/services/network/p2p/socket_udp.h b/services/network/p2p/socket_udp.h
+index 6cd46c4..c72c9a71 100644
+--- a/services/network/p2p/socket_udp.h
++++ b/services/network/p2p/socket_udp.h
+@@ -54,7 +54,7 @@
+   uint64_t id;
+ };
+ 
+-class COMPONENT_EXPORT(NETWORK_SERVICE) P2PSocketUdp : public P2PSocket {
++class COMPONENT_EXPORT(NETWORK_SERVICE) P2PSocketUdp final : public P2PSocket {
+  public:
+   friend class ThrottlingP2PNetworkInterceptor;
+ 
 diff --git a/services/network/public/cpp/BUILD.gn b/services/network/public/cpp/BUILD.gn
 index 6f1d2da..6d315220 100644
 --- a/services/network/public/cpp/BUILD.gn
@@ -8028,6 +8223,140 @@ index dfd9f2a..437b33e1 100644
  
    // Add new features immediately above this line. Don't change the existing
    // numbers of any item, and don't reuse removed slots. Also don't add extra
+diff --git a/third_party/blink/renderer/core/animation/animation.cc b/third_party/blink/renderer/core/animation/animation.cc
+index b1785d1f..d037df5 100644
+--- a/third_party/blink/renderer/core/animation/animation.cc
++++ b/third_party/blink/renderer/core/animation/animation.cc
+@@ -2984,6 +2984,10 @@
+ }
+ 
+ bool Animation::OnValidateSnapshot(bool snapshot_changed) {
++  if (!timeline_) {
++    return true;
++  }
++  AnimationTimeline* initial_timeline = timeline_;
+   bool needs_update = snapshot_changed;
+ 
+   // Track a change in duration and update hold time if required.
+@@ -3013,16 +3017,37 @@
+     if (keyframe_effect->target()) {
+       if (style_dependent_range_start_) {
+         DCHECK(range_start_);
+-        range_changed |= range_start_->UpdateOffset(
+-            keyframe_effect->target(), style_dependent_range_start_);
++        TimelineOffset range_start = *range_start_;
++        CSSValue* range_start_css = style_dependent_range_start_;
++        bool updated = range_start.UpdateOffset(keyframe_effect->target(),
++                                                range_start_css);
++        if (timeline_ == initial_timeline && range_start_ &&
++            style_dependent_range_start_ == range_start_css) {
++          range_start_ = range_start;
++          range_changed |= updated;
++        }
+       }
+-      if (style_dependent_range_end_) {
++      // Updating a style-dependent offset may synchronously recalculate slot
++      // assignments and run script that detaches the animation or modifies its
++      // effect or range offsets.
++      if (style_dependent_range_end_ && timeline_ == initial_timeline &&
++          effect() == keyframe_effect && keyframe_effect->target()) {
+         DCHECK(range_end_);
+-        range_changed |= range_end_->UpdateOffset(keyframe_effect->target(),
+-                                                  style_dependent_range_end_);
++        TimelineOffset range_end = *range_end_;
++        CSSValue* range_end_css = style_dependent_range_end_;
++        bool updated =
++            range_end.UpdateOffset(keyframe_effect->target(), range_end_css);
++        if (timeline_ == initial_timeline && range_end_ &&
++            style_dependent_range_end_ == range_end_css) {
++          range_end_ = range_end;
++          range_changed |= updated;
++        }
+       }
+     }
+   }
++  if (timeline_ != initial_timeline) {
++    return true;
++  }
+ 
+   bool needs_new_start_time = false;
+   switch (CalculateAnimationPlayState()) {
+diff --git a/third_party/blink/renderer/core/animation/scroll_snapshot_timeline.cc b/third_party/blink/renderer/core/animation/scroll_snapshot_timeline.cc
+index 98aaedb..e56eccd 100644
+--- a/third_party/blink/renderer/core/animation/scroll_snapshot_timeline.cc
++++ b/third_party/blink/renderer/core/animation/scroll_snapshot_timeline.cc
+@@ -237,9 +237,10 @@
+     SetHasPendingCompositorUpdate(true);
+   }
+ 
+-  const HeapHashSet<WeakMember<Animation>>& animations = GetAnimations();
+-
+   auto should_skip_validation = [service_animations](Animation* animation) {
++    if (!animation->TimelineInternal()) {
++      return true;
++    }
+     // For scroll-driven aimations, we should avoid setting a deferred start
+     // time during the update snapshot phase. Instead wait for the validation
+     // phase post layout. Skipping OnValidateSnapshot here is necessary for not
+@@ -261,7 +262,7 @@
+     HeapVector<Member<TimelineTrigger>> triggers(GetTriggers());
+     HeapVector<Member<Animation>> animations_to_validate;
+     for (TimelineTrigger* trigger : triggers) {
+-      if (trigger->Update()) {
++      if (!GetTriggers().Contains(trigger) || trigger->Update()) {
+         continue;
+       }
+       snapshot_changed = true;
+@@ -277,7 +278,7 @@
+         }
+         // Avoid superfluous snapshot validation, by skipping the call if it
+         // will be invoked in the loop below.
+-        if (animations.Contains(animation) ||
++        if (GetAnimations().Contains(animation) ||
+             should_skip_validation(animation)) {
+           continue;
+         }
+@@ -287,7 +288,8 @@
+     for (Animation* animation : animations_to_validate) {
+       // A later TimelineTrigger::Update or earlier OnValidateSnapshot call may
+       // have cancelled `animation` and disassociated it from its trigger.
+-      if (animation->GetTriggers().empty()) {
++      if (animation->GetTriggers().empty() ||
++          should_skip_validation(animation)) {
+         continue;
+       }
+       animation->OnValidateSnapshot(true);
+@@ -295,8 +297,13 @@
+     update_triggers_ = false;
+   }
+ 
++  // Validating snapshots may update style-dependent range offsets and
++  // recalculate slot assignments, which can modify the timeline's animation
++  // set.
++  HeapVector<Member<Animation>> animations(GetAnimations());
+   for (Animation* animation : animations) {
+-    if (should_skip_validation(animation)) {
++    if (animation->TimelineInternal() != this ||
++        should_skip_validation(animation)) {
+       continue;
+     }
+     // Compute deferred start times and update animation timing if required.
+diff --git a/third_party/blink/renderer/core/animation/timeline_offset.cc b/third_party/blink/renderer/core/animation/timeline_offset.cc
+index dbde977..73d5e86 100644
+--- a/third_party/blink/renderer/core/animation/timeline_offset.cc
++++ b/third_party/blink/renderer/core/animation/timeline_offset.cc
+@@ -296,6 +296,11 @@
+     return Length::Fixed();
+   }
+   ElementResolveContext element_resolve_context(*element);
++  // Constructing ElementResolveContext walks the flat tree and may trigger slot
++  // assignment recalc, which can detach `element`'s layout tree.
++  if (!element->GetComputedStyle()) {
++    return Length::Fixed();
++  }
+   Document& document = element->GetDocument();
+   CSSToLengthConversionData::Flags ignored_flags = 0;
+ 
 diff --git a/third_party/blink/renderer/core/dom/element.cc b/third_party/blink/renderer/core/dom/element.cc
 index 1e198ec..19f2e8bf 100644
 --- a/third_party/blink/renderer/core/dom/element.cc

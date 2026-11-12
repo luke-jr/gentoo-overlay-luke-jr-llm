@@ -14,7 +14,8 @@ Usage: filter.py [--branch-fixes] OUT_DIR TREE_FILES BUILD_INPUTS DIFF:PREFIX...
 
 The rules, in order (the first that matches decides):
   - submodule pointer updates: dropped (the dependencies' own diffs carry their changes)
-  - DEPS: dropped (not used by the build); chrome/VERSION with --branch-fixes: dropped
+  - DEPS, and the DEPS at the root of each dependency (third_party/dawn/DEPS, ...): dropped
+    (gclient reads them, the build doesn't); chrome/VERSION with --branch-fixes: dropped
   - files neither in the tree nor added: dropped (not in the tarball)
   - translations other than en-GB (Chromium's .xtb files, DevTools' locale files other than
     en-US, en-XL and en-GB): dropped
@@ -46,13 +47,14 @@ PLATFORM = re.compile(
     r"^tools/metrics/")
 
 
-def decide(f, p, tree, inputs, branch_fixes, old=None):
-    """old: the source path of a rename or copy (the file the base tree has), else f."""
+def decide(f, p, tree, inputs, branch_fixes, old=None, prefix=""):
+    """old: the source path of a rename or copy (the file the base tree has), else f.
+    prefix: where the diff's repository is in chromium/src ("" for chromium/src)."""
     new = re.search(r"(?m)^--- /dev/null", p) is not None
     binary = "\nBinary files differ" in p or "\nGIT binary patch" in p
     if re.search(r"(?m)^index \S+ 160000|^\+Subproject commit", p):
         return None, "submodule pointer"
-    if f == "DEPS" or (branch_fixes and f == "chrome/VERSION"):
+    if f == prefix + "DEPS" or (branch_fixes and f == "chrome/VERSION"):
         return None, "version/DEPS"
     if not new and (old or f) not in tree:
         return None, "not in the tarball"
@@ -102,7 +104,7 @@ def main():
                 old, new = section_paths(p)
                 f = prefix + new
                 keep, why = decide(f, p, tree, inputs, branch_fixes,
-                                   prefix + old if old != new else None)
+                                   prefix + old if old != new else None, prefix)
                 stats[("keep: " if keep else "drop: ") + why] += 1
                 report.write(f"{f}\t{'keep' if keep else 'drop'}\t{why}\n")
                 if keep:
