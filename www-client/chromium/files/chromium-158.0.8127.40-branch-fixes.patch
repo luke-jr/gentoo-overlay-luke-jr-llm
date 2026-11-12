@@ -1,20 +1,18 @@
-Chromium 158.0.8127.39 + the later changes of its release branch, up to
-76332a1f0df6a8afbe4dcb9d4675e2b116893422 (refs/branch-heads/8127@{#1715}), for the
-158.0.8127.39 tree that chromium-158.0.8127.18-to-158.0.8127.39.patch makes.
+Chromium 158.0.8127.40 + the later changes of its release branch, up to
+82db7681ab3418903cd8c27faa793c8a0f3046c3 (refs/branch-heads/8127@{#1717}), for the
+158.0.8127.40 tree that chromium-158.0.8127.18-to-158.0.8127.40.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.39..76332a1f0df6a8afbe4dcb9d4675e2b116893422,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.40..82db7681ab3418903cd8c27faa793c8a0f3046c3,
 and from the branch's rolls of v8/v8 b601a2347f005e8bfadd32f285df97ffba5cf1bd..c7596de0838cb17a421524051cd891fc783a2d46 (under v8/),
 skia/skia 3279352fdf1fbbd01a6dd024a52d3f178a6d5f07..2d58f195f426c41bd856208ddb85ea8f93c88295 (under third_party/skia/) and
 angle/angle 1f6526a566c27c7c33aa73a78517450a4a2a1714..8cb502b922025432c974e18fef13b073c81b6b4c (under third_party/angle/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
-.39 tree's files, renames included): left out are files not in the release
+.40 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
 translations, PGO/orderfile pointers, submodule pointer updates. chrome/VERSION,
-the DEPS files and the stamp files stay at 158.0.8127.39.
+the DEPS files and the stamp files stay at 158.0.8127.40.
 
 Commits contributing to it (oldest first):
-  04148613a268 [M158] [PDF] Reject re-entrancy in PDFiumPage::Unload()
-  e7690956cc56 [M158] [Extensions] Validate pending script input in ScriptInjectionTracker
   2358f7f7a741 [M158] [DBSC] Make session deletion re-entrancy safe
   8d9ed53597ad Roll commits from side projects in M158
   aa889df21a3e Roll commits from side projects in M158
@@ -28,6 +26,8 @@ Commits contributing to it (oldest first):
   98d4cd1cf73f Roll commits from side projects in M158
   7abb77bab5e9 [M158] [FedCM] Return early in UpdateTaskId() if the view destroys it
   76332a1f0df6 Roll commits from side projects in M158
+  528092b05964 [M158] glic: prevent crash when BrowserCommand::kOpenGlic is invoked on an ineligible profile
+  82db7681ab34 [M158] [FedCM] Return early in ShowVerifyingDialog() if the view destroys it
     v8 a48ee922c86a [M158] [builtins] Unbox radix as Smi in Number.prototype.toString
     v8 c292af6c1585 [M158] [deoptimizer] Ensure materialized frame slots are HeapObjects
     v8 cc81dfbed3c9 Version 15.8.62.32
@@ -44,41 +44,9 @@ Commits contributing to it (oldest first):
     angle 5d2c09b3e395 [M158] Spirv: Use replacement Input varying for interpolate* built-in
     angle 8cb502b92202 [M158] Vulkan: Refresh read imgviews on tex param change
 
-Checked: applies to the 158.0.8127.39 tree; every patched file is
+Checked: applies to the 158.0.8127.40 tree; every patched file is
 byte-identical to its version at the last commit above.
 
-diff --git a/chrome/browser/extensions/api/declarative_content/content_action.cc b/chrome/browser/extensions/api/declarative_content/content_action.cc
-index 72466c9..ef7b4d01 100644
---- a/chrome/browser/extensions/api/declarative_content/content_action.cc
-+++ b/chrome/browser/extensions/api/declarative_content/content_action.cc
-@@ -383,7 +383,7 @@
-   // bypassing the check we have for an invalid selector and getting here).
-   // When access is withheld, the script is still sent to the renderer, which
-   // defers the injection and requests permission from the browser. Trust is
--  // only granted to the renderer process below when access is allowed.
-+  // only granted to the renderer process once access is allowed.
-   std::string error;
-   content::RenderFrameHost* main_frame = contents->GetPrimaryMainFrame();
-   const GURL& url = util::GetURLForExtensionPermissionCheck(main_frame);
-@@ -403,12 +403,13 @@
-     return;
-   }
- 
--  // When access is withheld, `ScriptInjectionTracker` is instead updated by
--  // `ExtensionActionRunner` if the user later grants access and the deferred
--  // script is permitted to run.
--  if (page_access == PermissionsData::PageAccess::kAllowed) {
-+  // When access is withheld, `ScriptInjectionTracker` records a pending
-+  // injection that is only finalized by `ExtensionActionRunner` if the user
-+  // later grants access and the deferred script is permitted to run.
-+  if (!script_.js_scripts().empty()) {
-     ScriptInjectionTracker::WillExecuteCode(
--        base::PassKey<RequestContentScript>(), main_frame, *extension);
-+        base::PassKey<RequestContentScript>(), main_frame, *extension,
-+        page_access == PermissionsData::PageAccess::kWithheld);
-   }
-   local_frame->ExecuteDeclarativeScript(
-       sessions::SessionTabHelper::IdForTab(contents).id(), extension->id(),
 diff --git a/chrome/browser/glic/public/features.cc b/chrome/browser/glic/public/features.cc
 index 6f58411..c173f67 100644
 --- a/chrome/browser/glic/public/features.cc
@@ -109,10 +77,18 @@ index f2cf84d..111e4388 100644
  BASE_DECLARE_FEATURE(kGlicInvokeErrorRecoveryFixes);
  }  // namespace features
 diff --git a/chrome/browser/ui/webid/identity_dialog_controller.cc b/chrome/browser/ui/webid/identity_dialog_controller.cc
-index 6226da0..a1bc776 100644
+index 6226da0..62469ab 100644
 --- a/chrome/browser/ui/webid/identity_dialog_controller.cc
 +++ b/chrome/browser/ui/webid/identity_dialog_controller.cc
-@@ -132,7 +132,14 @@
+@@ -8,6 +8,7 @@
+ #include <utility>
+ 
+ #include "base/functional/bind.h"
++#include "base/memory/weak_ptr.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "build/build_config.h"
+ #include "chrome/browser/actor/actor_keyed_service.h"
+@@ -132,7 +133,14 @@
  void IdentityDialogController::UpdateTaskId(actor::TaskId task_id) {
    acting_task_id_ = task_id;
    if (account_view_) {
@@ -127,6 +103,22 @@ index 6226da0..a1bc776 100644
      if (acting_task_id_.is_null() && did_invoke_show_ui_) {
        did_show_ui_ = true;
      }
+@@ -413,9 +421,13 @@
+     return false;
+   }
+   // Do not modify any member variables if the verifying dialog is not shown
+-  // because the caller may have destroyed this object.
++  // or if showing it destroyed this object, e.g. because the dialog was
++  // dismissed right away.
++  base::WeakPtr<IdentityDialogController> weak_this =
++      weak_ptr_factory_.GetWeakPtr();
+   if (account_view_->ShowVerifyingDialog(rp_data, idp_data, account,
+-                                         sign_in_mode, rp_mode)) {
++                                         sign_in_mode, rp_mode) &&
++      weak_this) {
+     DidInvokeShowUi();
+     return true;
+   }
 diff --git a/chrome/browser/ui/webui/browser_command/BUILD.gn b/chrome/browser/ui/webui/browser_command/BUILD.gn
 index b35c994..be67e6f 100644
 --- a/chrome/browser/ui/webui/browser_command/BUILD.gn
@@ -140,7 +132,7 @@ index b35c994..be67e6f 100644
      "//chrome/browser/user_education",
      "//chrome/common",
 diff --git a/chrome/browser/ui/webui/browser_command/browser_command_handler.cc b/chrome/browser/ui/webui/browser_command/browser_command_handler.cc
-index b0c7f07..fa13f21 100644
+index b0c7f07..e91d137 100644
 --- a/chrome/browser/ui/webui/browser_command/browser_command_handler.cc
 +++ b/chrome/browser/ui/webui/browser_command/browser_command_handler.cc
 @@ -7,6 +7,7 @@
@@ -159,10 +151,12 @@ index b0c7f07..fa13f21 100644
  #include "chrome/browser/glic/public/glic_enabling.h"
  #include "chrome/browser/glic/public/glic_keyed_service.h"
  #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
-@@ -366,6 +368,10 @@
+@@ -365,7 +367,11 @@
+ void BrowserCommandHandler::OpenGlic() {
    glic::GlicKeyedService* glic_service = glic::GlicKeyedService::Get(profile_);
  
-   if (!glic_service) {
+-  if (!glic_service) {
++  if (!glic_service || !glic::GlicEnabling::ShouldShowGlicButton(profile_)) {
 +    if (base::FeatureList::IsEnabled(features::kGlicBrowserCommandFallback)) {
 +      NavigateToURL(GURL(features::kGlicBrowserCommandFallbackUrl.Get()),
 +                    ui::mojom::WindowOpenDisposition::kNewForegroundTab);
@@ -170,406 +164,6 @@ index b0c7f07..fa13f21 100644
      return;
    }
  
-diff --git a/extensions/browser/script_executor.cc b/extensions/browser/script_executor.cc
-index 8f88930..fbaee3a 100644
---- a/extensions/browser/script_executor.cc
-+++ b/extensions/browser/script_executor.cc
-@@ -27,11 +27,13 @@
- #include "content/public/browser/render_view_host.h"
- #include "content/public/browser/web_contents.h"
- #include "content/public/browser/web_contents_observer.h"
-+#include "extensions/browser/browser_frame_context_data.h"
- #include "extensions/browser/extension_api_frame_id_map.h"
- #include "extensions/browser/extension_registry.h"
- #include "extensions/browser/extension_web_contents_observer.h"
- #include "extensions/browser/script_injection_tracker.h"
- #include "extensions/browser/scripting_utils.h"
-+#include "extensions/common/content_script_injection_url_getter.h"
- #include "extensions/common/mojom/host_id.mojom.h"
- #include "extensions/common/mojom/match_origin_as_fallback.mojom-shared.h"
- #include "extensions/common/permissions/permissions_data.h"
-@@ -305,32 +307,49 @@
- 
-       // When the extension's host permission for `frame`'s document is
-       // withheld, the renderer defers execution and asks the browser for
--      // permission instead of running the script. In that case the
--      // ScriptInjectionTracker is updated by ExtensionActionRunner if and when
--      // the user grants access and the deferred script is permitted to run.
--      bool record_injection = true;
-+      // permission instead of running the script. In that case
-+      // ScriptInjectionTracker records a pending injection that is only
-+      // finalized by ExtensionActionRunner (or permission updates) if and
-+      // when access is granted. Otherwise (including when page_access is
-+      // kDenied, since a navigation commit to an allowed document may already
-+      // be in flight from the renderer), record the injection immediately so
-+      // the renderer is not terminated as a bad message sender if the script
-+      // runs.
-+      bool is_withheld = false;
-       if (!is_web_view_ && extension) {
-         GURL url = frame->GetLastCommittedURL();
-+        content::NavigationEntry* pending_entry =
-+            frame->IsInPrimaryMainFrame()
-+                ? web_contents()->GetController().GetPendingEntry()
-+                : nullptr;
-         if (url.is_empty() || url.SchemeIs(url::kAboutScheme)) {
--          content::NavigationEntry* pending_entry =
--              web_contents()->GetController().GetPendingEntry();
-           if (pending_entry && !pending_entry->GetURL().is_empty()) {
-             url = pending_entry->GetURL();
--          } else {
--            url = frame->GetLastCommittedOrigin().GetURL();
-+          } else if (url.is_empty() &&
-+                     (!frame->IsInPrimaryMainFrame() ||
-+                      !frame->GetLastCommittedOrigin().opaque())) {
-+            url = GURL(url::kAboutBlankURL);
-           }
-         }
-         if (!url.is_empty()) {
--          record_injection = (extension->permissions_data()->GetPageAccess(
--                                  url, tab_id,
--                                  /*error=*/nullptr) !=
--                              PermissionsData::PageAccess::kWithheld);
-+          GURL effective_url = ContentScriptInjectionUrlGetter::Get(
-+              BrowserFrameContextData(frame), url,
-+              params->match_origin_as_fallback_behavior,
-+              /*allow_inaccessible_parents=*/true);
-+          PermissionsData::PageAccess page_access =
-+              extension->permissions_data()->GetPageAccess(effective_url,
-+                                                           tab_id,
-+                                                           /*error=*/nullptr);
-+          if (page_access == PermissionsData::PageAccess::kDenied &&
-+              pending_entry && !pending_entry->GetURL().is_empty()) {
-+            page_access = extension->permissions_data()->GetPageAccess(
-+                pending_entry->GetURL(), tab_id, /*error=*/nullptr);
-+          }
-+          is_withheld = (page_access == PermissionsData::PageAccess::kWithheld);
-         }
-       }
--      if (record_injection) {
--        ScriptInjectionTracker::WillExecuteCode(pass_key, script_type, frame,
--                                                host_id_);
--      }
-+      ScriptInjectionTracker::WillExecuteCode(pass_key, script_type, frame,
-+                                              host_id_, is_withheld);
-     }
-     ExtensionWebContentsObserver::GetForWebContents(web_contents())
-         ->GetLocalFrameChecked(frame)
-diff --git a/extensions/browser/script_injection_tracker.cc b/extensions/browser/script_injection_tracker.cc
-index 19be48c..db085a7 100644
---- a/extensions/browser/script_injection_tracker.cc
-+++ b/extensions/browser/script_injection_tracker.cc
-@@ -5,6 +5,9 @@
- #include "extensions/browser/script_injection_tracker.h"
- 
- #include <algorithm>
-+#include <map>
-+#include <set>
-+#include <utility>
- 
- #include "base/check_is_test.h"
- #include "base/debug/crash_logging.h"
-@@ -71,6 +74,12 @@
-         process.GetUserData(kUserDataKey));
-   }
- 
-+  static RenderProcessHostUserData* Get(content::RenderProcessHost& process) {
-+    DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-+    return static_cast<RenderProcessHostUserData*>(
-+        process.GetUserData(kUserDataKey));
-+  }
-+
-   static RenderProcessHostUserData& GetOrCreate(
-       content::RenderProcessHost& process) {
-     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-@@ -113,10 +122,55 @@
-     GetScripts(script_type).insert(extension_id);
-   }
- 
-+  void AddPendingScript(content::GlobalRenderFrameHostId frame_id,
-+                        mojom::InjectionType injection_type,
-+                        ScriptInjectionTracker::ScriptType script_type,
-+                        const ExtensionId& extension_id) {
-+    std::erase_if(pending_scripts_, [](const auto& entry) {
-+      return !content::RenderFrameHost::FromID(entry.first.frame_id);
-+    });
-+    pending_scripts_[{frame_id, injection_type, extension_id}].insert(
-+        script_type);
-+  }
-+
-+  std::set<ScriptInjectionTracker::ScriptType> TakePendingScripts(
-+      content::GlobalRenderFrameHostId frame_id,
-+      mojom::InjectionType injection_type,
-+      const ExtensionId& extension_id) {
-+    auto it = pending_scripts_.find({frame_id, injection_type, extension_id});
-+    if (it == pending_scripts_.end()) {
-+      return {};
-+    }
-+    std::set<ScriptInjectionTracker::ScriptType> scripts =
-+        std::move(it->second);
-+    pending_scripts_.erase(it);
-+    return scripts;
-+  }
-+
-+  bool HasPendingScripts(content::GlobalRenderFrameHostId frame_id,
-+                         const ExtensionId& extension_id) const {
-+    return !pending_scripts_.empty() &&
-+           (pending_scripts_.contains(
-+                {frame_id, mojom::InjectionType::kProgrammaticScript,
-+                 extension_id}) ||
-+            pending_scripts_.contains({frame_id,
-+                                       mojom::InjectionType::kDeclarativeScript,
-+                                       extension_id}));
-+  }
-+
-   const ExtensionIdSet& content_scripts() const { return content_scripts_; }
-   const ExtensionIdSet& user_scripts() const { return user_scripts_; }
- 
-  private:
-+  struct PendingScriptKey {
-+    content::GlobalRenderFrameHostId frame_id;
-+    mojom::InjectionType injection_type;
-+    ExtensionId extension_id;
-+
-+    friend auto operator<=>(const PendingScriptKey&,
-+                            const PendingScriptKey&) = default;
-+  };
-+
-   explicit RenderProcessHostUserData(content::RenderProcessHost& process)
-       : process_(process) {
-     TRACE_EVENT_BEGIN("extensions",
-@@ -148,6 +202,14 @@
-   ExtensionIdSet content_scripts_;
-   ExtensionIdSet user_scripts_;
- 
-+  // Browser-dispatched programmatic and declarative script injections whose
-+  // execution in a frame was deferred because host permissions were withheld.
-+  // Stored here (keyed by GlobalRenderFrameHostId, with destroyed frames pruned
-+  // on insertion) rather than in DocumentUserData to avoid ReadyToCommit /
-+  // DidCommit races and preserve injections queued on initial empty documents.
-+  std::map<PendingScriptKey, std::set<ScriptInjectionTracker::ScriptType>>
-+      pending_scripts_;
-+
-   // Only used for tracing.
-   const raw_ref<content::RenderProcessHost> process_;
- };
-@@ -452,13 +514,16 @@
- 
- // Adds all scripts from `extension` that matches the `process` renderers to the
- // process data.
--void AddMatchingScriptsToProcess(const Extension& extension,
-+void AddMatchingScriptsToProcess(base::PassKey<ScriptInjectionTracker> pass_key,
-+                                 const Extension& extension,
-                                  content::RenderProcessHost& process) {
-   bool any_frame_matches_content_scripts = false;
-   bool any_frame_matches_user_scripts = false;
-+  auto* existing_process_data = RenderProcessHostUserData::Get(process);
-   process.ForEachRenderFrameHost([&any_frame_matches_content_scripts,
-                                   &any_frame_matches_user_scripts,
--                                  &extension](content::RenderFrameHost* frame) {
-+                                  existing_process_data, &extension,
-+                                  pass_key](content::RenderFrameHost* frame) {
-     const GURL& url = frame->GetLastCommittedURL();
-     // Ignore error documents, which don't allow scripts to inject.
-     // We need to check whether the committed URL is empty first to avoid a
-@@ -477,6 +542,30 @@
-       any_frame_matches_user_scripts =
-           DoUserScriptsMatch(extension, *frame, url);
-     }
-+    if (!existing_process_data || !existing_process_data->HasPendingScripts(
-+                                      frame->GetGlobalId(), extension.id())) {
-+      return;
-+    }
-+
-+    auto* web_contents = content::WebContents::FromRenderFrameHost(frame);
-+    int tab_id = sessions::SessionTabHelper::IdForTab(web_contents).id();
-+    GURL effective_url = GetEffectiveDocumentURL(
-+        frame, url, mojom::MatchOriginAsFallbackBehavior::kAlways);
-+    if (extension.permissions_data()->GetPageAccessForSecurityOrigin(
-+            effective_url, tab_id) != PermissionsData::PageAccess::kAllowed) {
-+      return;
-+    }
-+
-+    for (mojom::InjectionType injection_type :
-+         {mojom::InjectionType::kProgrammaticScript,
-+          mojom::InjectionType::kDeclarativeScript}) {
-+      for (ScriptInjectionTracker::ScriptType pending_script_type :
-+           existing_process_data->TakePendingScripts(
-+               frame->GetGlobalId(), injection_type, extension.id())) {
-+        HandleProgrammaticScriptInjection(pass_key, pending_script_type, frame,
-+                                          extension);
-+      }
-+    }
-   });
- 
-   if (any_frame_matches_content_scripts || any_frame_matches_user_scripts) {
-@@ -817,7 +906,8 @@
-     base::PassKey<ScriptExecutor> pass_key,
-     ScriptType script_type,
-     content::RenderFrameHost* frame,
--    const mojom::HostID& host_id) {
-+    const mojom::HostID& host_id,
-+    bool is_withheld) {
-   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
- 
-   content::RenderProcessHost& process = *frame->GetProcess();
-@@ -832,6 +922,13 @@
-     return;
-   }
- 
-+  if (is_withheld) {
-+    RenderProcessHostUserData::GetOrCreate(process).AddPendingScript(
-+        frame->GetGlobalId(), mojom::InjectionType::kProgrammaticScript,
-+        script_type, extension->id());
-+    return;
-+  }
-+
-   HandleProgrammaticScriptInjection(PassKey(), script_type, frame, *extension);
- }
- 
-@@ -839,13 +936,22 @@
- void ScriptInjectionTracker::WillExecuteCode(
-     base::PassKey<RequestContentScript> pass_key,
-     content::RenderFrameHost* frame,
--    const Extension& extension) {
-+    const Extension& extension,
-+    bool is_withheld) {
-   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-+  content::RenderProcessHost& process = *frame->GetProcess();
-   TRACE_EVENT("extensions", "ScriptInjectionTracker::WillExecuteCode/2",
--              ChromeTrackEvent::kRenderProcessHost, *frame->GetProcess(),
-+              ChromeTrackEvent::kRenderProcessHost, process,
-               ChromeTrackEvent::kChromeExtensionId,
-               ExtensionIdForTracing(extension.id()));
- 
-+  if (is_withheld) {
-+    RenderProcessHostUserData::GetOrCreate(process).AddPendingScript(
-+        frame->GetGlobalId(), mojom::InjectionType::kDeclarativeScript,
-+        ScriptType::kContentScript, extension.id());
-+    return;
-+  }
-+
-   // Declarative content scripts are only ever of a kContentScript type and
-   // never handle user scripts.
-   HandleProgrammaticScriptInjection(PassKey(), ScriptType::kContentScript,
-@@ -859,16 +965,31 @@
-     content::RenderFrameHost* frame,
-     const Extension& extension) {
-   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-+  content::RenderProcessHost& process = *frame->GetProcess();
-   TRACE_EVENT("extensions", "ScriptInjectionTracker::WillExecuteCode/3",
--              ChromeTrackEvent::kRenderProcessHost, *frame->GetProcess(),
-+              ChromeTrackEvent::kRenderProcessHost, process,
-               ChromeTrackEvent::kChromeExtensionId,
-               ExtensionIdForTracing(extension.id()));
- 
--  // A programmatic or declarative injection that was deferred while host access
--  // was withheld is being permitted to run; this is treated like any other
--  // programmatic content script injection.
--  HandleProgrammaticScriptInjection(PassKey(), ScriptType::kContentScript,
--                                    frame, extension);
-+  switch (script_type) {
-+    case mojom::InjectionType::kContentScript:
-+      AddMatchingScriptsToProcess(PassKey(), extension, process);
-+      break;
-+    case mojom::InjectionType::kProgrammaticScript:
-+    case mojom::InjectionType::kDeclarativeScript: {
-+      auto* process_data = RenderProcessHostUserData::Get(process);
-+      if (!process_data) {
-+        return;
-+      }
-+      std::set<ScriptType> pending_scripts = process_data->TakePendingScripts(
-+          frame->GetGlobalId(), script_type, extension.id());
-+      for (ScriptType pending_script_type : pending_scripts) {
-+        HandleProgrammaticScriptInjection(PassKey(), pending_script_type, frame,
-+                                          extension);
-+      }
-+      break;
-+    }
-+  }
- }
- 
- // static
-@@ -878,7 +999,7 @@
-     content::RenderProcessHost& process) {
-   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
- 
--  AddMatchingScriptsToProcess(extension, process);
-+  AddMatchingScriptsToProcess(PassKey(), extension, process);
- }
- 
- // static
-@@ -898,7 +1019,7 @@
-     return;
-   }
- 
--  AddMatchingScriptsToProcess(*extension, process);
-+  AddMatchingScriptsToProcess(PassKey(), *extension, process);
- }
- 
- // static
-@@ -908,7 +1029,7 @@
-     content::RenderProcessHost& process) {
-   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
- 
--  AddMatchingScriptsToProcess(extension, process);
-+  AddMatchingScriptsToProcess(PassKey(), extension, process);
- }
- 
- // static
-@@ -918,7 +1039,7 @@
-     content::RenderProcessHost& process) {
-   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
- 
--  AddMatchingScriptsToProcess(extension, process);
-+  AddMatchingScriptsToProcess(PassKey(), extension, process);
- }
- 
- // static
-diff --git a/extensions/browser/script_injection_tracker.h b/extensions/browser/script_injection_tracker.h
-index cd7af6c..426178ef 100644
---- a/extensions/browser/script_injection_tracker.h
-+++ b/extensions/browser/script_injection_tracker.h
-@@ -121,24 +121,34 @@
- 
-   // Called before ExtensionMsg_ExecuteCode is sent to a renderer process
-   // (typically when handling chrome.tabs.executeScript or a similar API call).
-+  // If `is_withheld` is true (because host access is currently withheld), the
-+  // injection is recorded as pending on `frame` and will only be finalized if
-+  // `ExtensionActionRunner` later permits it to run.
-   //
-   // The caller needs to ensure that if `host_id.type() == HostID::EXTENSIONS`,
-   // then the extension with the given `host_id` exists and is enabled.
-   static void WillExecuteCode(base::PassKey<ScriptExecutor> pass_key,
-                               ScriptType script_type,
-                               content::RenderFrameHost* frame,
--                              const mojom::HostID& host_id);
-+                              const mojom::HostID& host_id,
-+                              bool is_withheld);
- 
-   // Called before `extensions::mojom::LocalFrame::ExecuteDeclarativeScript` is
-   // invoked in a renderer process (e.g. when handling RequestContentScript
--  // action of the `chrome.declarativeContent` API).
-+  // action of the `chrome.declarativeContent` API). If `is_withheld` is true
-+  // (because host access is currently withheld), the injection is recorded as
-+  // pending on `frame` and will only be finalized if `ExtensionActionRunner`
-+  // later permits it to run.
-   static void WillExecuteCode(base::PassKey<RequestContentScript> pass_key,
-                               content::RenderFrameHost* frame,
--                              const Extension& extension);
-+                              const Extension& extension,
-+                              bool is_withheld);
- 
--  // Called before a programmatic or declarative injection that was previously
--  // deferred (because host access was withheld) is permitted to run as a result
--  // of the user granting the extension access to the page.
-+  // Called when `ExtensionActionRunner` permits a script injection to run in
-+  // `frame`. For `kProgrammaticScript` and `kDeclarativeScript`, this finalizes
-+  // a pending injection that was previously recorded while host access was
-+  // withheld. For `kContentScript`, this records any matching scripts for the
-+  // extension in `frame`'s process.
-   static void WillExecuteCode(base::PassKey<ExtensionActionRunner> pass_key,
-                               mojom::InjectionType script_type,
-                               content::RenderFrameHost* frame,
 diff --git a/gpu/command_buffer/service/shared_image/shared_image_backing.h b/gpu/command_buffer/service/shared_image/shared_image_backing.h
 index 2c95bba5..9722a137 100644
 --- a/gpu/command_buffer/service/shared_image/shared_image_backing.h
@@ -1158,66 +752,6 @@ index a3fae2c3..494408e5 100644
    // Add a header to `request` indicating which sessions should have
    // applied, but did not due to error conditions.
    void AddDebugHeader(const DbscRequest& request);
-diff --git a/pdf/pdfium/pdfium_page.cc b/pdf/pdfium/pdfium_page.cc
-index ee268b9c..11c07a5 100644
---- a/pdf/pdfium/pdfium_page.cc
-+++ b/pdf/pdfium/pdfium_page.cc
-@@ -14,6 +14,7 @@
- #include <utility>
- #include <vector>
- 
-+#include "base/auto_reset.h"
- #include "base/check_op.h"
- #include "base/containers/extend.h"
- #include "base/containers/span.h"
-@@ -615,6 +616,15 @@
-     return false;
-   }
- 
-+  // Also do not unload when already unloading.
-+  if (is_unloading_) {
-+    return false;
-+  }
-+
-+  base::AutoReset scoped_is_unloading(&is_unloading_, true);
-+  // Also mark `this` as unavailable for the duration of Unload().
-+  base::AutoReset scoped_unavailable(&available_, false);
-+
-   text_page_.reset();
- 
-   if (page_) {
-@@ -2341,6 +2351,10 @@
- }
- 
- void PDFiumPage::MarkAvailable() {
-+  if (is_unloading_) {
-+    return;
-+  }
-+
-   available_ = true;
- 
-   // Fulfill pending thumbnail request.
-diff --git a/pdf/pdfium/pdfium_page.h b/pdf/pdfium/pdfium_page.h
-index 6322165..66453a9 100644
---- a/pdf/pdfium/pdfium_page.h
-+++ b/pdf/pdfium/pdfium_page.h
-@@ -475,7 +475,7 @@
-   void GenerateAndSendThumbnail(float device_pixel_ratio,
-                                 SendThumbnailCallback send_callback);
- 
--  raw_ptr<PDFiumEngine> engine_;
-+  raw_ptr<PDFiumEngine> const engine_;
-   ScopedFPDFPage page_;
-   ScopedFPDFTextPage text_page_;
-   uint32_t index_;
-@@ -508,6 +508,7 @@
-   std::set<int> page_object_text_run_breaks_;
-   base::OnceClosure thumbnail_callback_;
-   bool available_ = false;
-+  bool is_unloading_ = false;
- 
- #if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
-   // Indicates whether Searchify added text to this page or not. Note that if
 diff --git a/services/network/network_context.cc b/services/network/network_context.cc
 index 68d93ae..7fec06b 100644
 --- a/services/network/network_context.cc
