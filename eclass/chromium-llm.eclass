@@ -1551,8 +1551,12 @@ chromium_regenerated_outputs() {
 		echo third_party/icu/common/icudtl.dat "${i}/norm2/*.txt" \
 			"${i}"/{CaseFolding,confusables,DerivedCoreProperties,DerivedNormalizationProps}.txt \
 			"${i}"/{emoji-sequences,emoji-zwj-sequences,NormalizationCorrections,NormalizationTest}.txt \
-			"${i}"/{ppucd,SpecialCasing,UnicodeData}.txt \
-			third_party/icu/source/test/testdata/{Bidi,GraphemeBreak,LineBreak,SentenceBreak,WordBreak}Test.txt
+			"${i}"/{ppucd,SpecialCasing,UnicodeData}.txt
+		# Its test data, which the slimmer tarballs of late 2026 (158.0.8127.37, 159.0.8154.6) leave out.
+		local t
+		for t in third_party/icu/source/test/testdata/{Bidi,GraphemeBreak,LineBreak,SentenceBreak,WordBreak}Test.txt; do
+			[[ -e ${t} ]] && echo "${t}"
+		done
 	fi
 	# libc++'s <format> tables and <version>
 	echo 'third_party/libc++/src/include/__format/*_table.h' \
