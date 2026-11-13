@@ -16,8 +16,11 @@ was added with (and 156 updated from .12 to .47).
     (check with `ACCEPT_KEYWORDS=amd64 emerge -pe --with-bdeps=y =www-client/chromium-<version>`
     and no `package.accept_keywords`);
   - Google's "Early Stable" (Windows and Mac first, to some users): `SLOT="stable"`,
-    `KEYWORDS="~amd64 ~arm64"`. When Google releases it for Linux Stable, it gets `amd64`; no new
-    slot, so installed copies keep their profile;
+    `KEYWORDS="~amd64 ~arm64"`. Like any official release without a tarball (Google often
+    publishes none for Early Stable), it is a `<tag>_pre` built from the newest tarball of its major
+    (below); it replaces the previous Early Stable's ebuild when Google releases it. When Google
+    releases it for Linux Stable, it gets `amd64`; no new slot, so installed copies keep their
+    profile;
   - Beta for Linux: `SLOT="beta"`, `KEYWORDS="~amd64 ~arm64"`: the newest official Linux Beta,
     as a plain ebuild (no carried fixes), so that the next major is ported before it reaches
     Early Stable. It replaces the previous Beta. When the Linux Beta is the same version as
@@ -26,7 +29,15 @@ was added with (and 156 updated from .12 to .47).
   `arm64` stays `~arm64`: nobody has built or run it.
 - **Vulnerable releases:** an official release kept as a plain ebuild that lacks security fixes a
   newer Google release has (e.g. Early Stable after a Stable update of the previous major) is
-  masked in `profiles/package.mask`, with the CVEs in the comment, until it is replaced.
+  masked in `profiles/package.mask`, with the CVEs in the comment. The mask stays after its
+  ebuild is replaced and removed, so that Portage keeps reporting installed copies of it.
+  A version (a superseded bleeding-edge build too, or an older major) is masked when it lacks
+  security fixes an unmasked official Stable or Early Stable has: e.g. `<…-157.0.8103.78`, and the
+  158 bleeding-edge builds older than 158.0.8127.37's branch position (one `=…-<tag>*` per older
+  tag; Portage's `*` matches whole version components, so `.2*` doesn't cover `.22`; exact atoms
+  for the builds of the tag in use). Fixes the official releases lack too don't mask anything,
+  unless they are severe enough (e.g. Critical, or exploited in the wild) to mask the newest
+  official Stable or Early Stable as well. Masks stay after the ebuilds are gone.
 - **Source:** Google's official "lite" tarball,
   `https://commondatastorage.googleapis.com/chromium-browser-official/chromium-<version>-lite.tar.xz`;
   check it against the `.hashes` file next to it. For a version without a tarball yet, or for fixes

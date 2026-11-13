@@ -3,8 +3,9 @@
 # (2026-11-11), 4 of them Critical (CVE-2026-126846, CVE-2026-126885, CVE-2026-126895,
 # CVE-2026-126911): they landed on the 158 branch after it.
 # https://chromereleases.googleblog.com/2026/11/stable-channel-update-for-desktop_01744469280.html
-# Use 157.0.8103.78, or 158.0.8127.40_p<N>_pre, which has them. The mask goes when
-# Google's Stable 158 replaces this ebuild. The CVEs:
+# Use 157.0.8103.78, 158.0.8127.37 (Google's next Early Stable, which replaced
+# 158.0.8127.18's ebuild here on 2026-11-12) or the 158 bleeding edge, which have them.
+# The mask stays after the ebuild's removal, so that installed copies are reported. The CVEs:
 # CVE-2026-126840 CVE-2026-126841 CVE-2026-126842 CVE-2026-126843 CVE-2026-126845
 # CVE-2026-126846 CVE-2026-126848 CVE-2026-126849 CVE-2026-126850 CVE-2026-126852
 # CVE-2026-126853 CVE-2026-126854 CVE-2026-126855 CVE-2026-126857 CVE-2026-126860
@@ -19,3 +20,36 @@
 # CVE-2026-126916 CVE-2026-126917 CVE-2026-126918 CVE-2026-126920 CVE-2026-126921
 # CVE-2026-126922
 ~www-client/chromium-158.0.8127.18
+
+# Security: 157 and older before Google's Stable 157.0.8103.78 (2026-11-11) lack its 83
+# security fixes (4 Critical).
+# https://chromereleases.googleblog.com/2026/11/stable-channel-update-for-desktop_01744469280.html
+# Use 157.0.8103.78, 158.0.8127.37 or the 158 bleeding edge.
+<www-client/chromium-157.0.8103.78
+
+# Security: builds of the 158 bleeding edge (158.0.8127.<tag>_p<N>_pre) older than #1691, the
+# last security fix of Google's Early Stable 158.0.8127.37 (8127@{#1692}), lack fixes it has (e.g.
+# those of Stable 157.0.8103.78 that landed on the 158 branch after them). Use 158.0.8127.37 or
+# the newest 158.0.8127.<tag>_p<N>_pre. (Builds that lack only fixes the official releases lack
+# too aren't masked, unless those fixes are severe enough to mask the official ones as well.)
+=www-client/chromium-158.0.8127.2*
+=www-client/chromium-158.0.8127.22*
+=www-client/chromium-158.0.8127.23*
+=www-client/chromium-158.0.8127.24*
+=www-client/chromium-158.0.8127.28*
+=www-client/chromium-158.0.8127.29*
+=www-client/chromium-158.0.8127.30*
+=www-client/chromium-158.0.8127.31*
+~www-client/chromium-158.0.8127.33_p1530_pre
+~www-client/chromium-158.0.8127.33_p1560_pre
+~www-client/chromium-158.0.8127.33_p1570_pre
+~www-client/chromium-158.0.8127.33_p1587_pre
+~www-client/chromium-158.0.8127.33_p1589_pre
+~www-client/chromium-158.0.8127.33_p1599_pre
+~www-client/chromium-158.0.8127.33_p1608_pre
+~www-client/chromium-158.0.8127.33_p1619_pre
+~www-client/chromium-158.0.8127.33_p1630_pre
+~www-client/chromium-158.0.8127.33_p1637_pre
+~www-client/chromium-158.0.8127.33_p1649_pre
+~www-client/chromium-158.0.8127.33_p1681_pre
+~www-client/chromium-158.0.8127.33_p1687_pre

@@ -18,7 +18,7 @@ masters = gentoo
 auto-sync = no
 ```
 
-`www-client/chromium-157.0.8103.78`, `158.0.8127.18`, `158.0.8127.40_p1717_pre` and `159.0.8154.7_p191_pre`, based on `::gentoo`'s
+`www-client/chromium-157.0.8103.78`, `158.0.8127.37`, `158.0.8127.40_p1717_pre` and `159.0.8154.7_p191_pre`, based on `::gentoo`'s
 `chromium-151.0.7922.169-r1`. `::gentoo` removed `www-client/chromium` on 2026-11-05 (bug #982204),
 with `www-client/chromium-common`, which this overlay now carries. Since that day its
 `profiles/package.mask` masks only its own old versions (`<www-client/chromium-151.0.7922.169-r1`),
@@ -61,7 +61,7 @@ What the packages here follow, beyond Gentoo's own policies:
 | Package | Why |
 |---|---|
 | `www-client/chromium-157.0.8103.78` | the browser: 157.0.8103.78, Google's Linux **Stable** release of 157, from its official "lite" tarball, with no fixes beyond the release. `SLOT="stable"`, `amd64`. |
-| `www-client/chromium-158.0.8127.18` | the browser: 158.0.8127.18, Google's **Early Stable** release of 158 (Windows and Mac first; on Linux it was the Beta until 159 replaced it), from its official "lite" tarball, with no fixes beyond the release: `SLOT="stable"`, `~amd64`. Masked (`profiles/package.mask`) since Google's Stable 157.0.8103.78 fixed 61 vulnerabilities that came to the 158 branch after it, until Google's Stable 158 replaces it. |
+| `www-client/chromium-158.0.8127.37` | the browser: 158.0.8127.37, Google's **Early Stable** release of 158 (with .36; Windows and Mac first), from its official "lite" tarball, with no fixes beyond the release: `SLOT="stable"`, `~amd64`. |
 | `www-client/chromium-158.0.8127.40_p1717_pre` | the browser: 158.0.8127.40, the newest tag of the 158 branch, plus the branch up to 8127@{#1717} (`_p1717`); no source tarball (`_pre`): built from Google's official "lite" tarball of 158.0.8127.18 plus `files/chromium-158.0.8127.18-to-158.0.8127.39.patch` and `files/chromium-158.0.8127.39-branch-fixes.patch` (see their headers). 158 is Google's Early Stable (since 158.0.8127.18), so `SLOT="stable"`, `~amd64`: this is the bleeding-edge build of it. |
 | `www-client/chromium-159.0.8154.7_p191_pre` | the browser: 159.0.8154.7, the newest tag of the 159 branch, plus the branch up to 8154@{#191} (`_p191`); no source tarball (`_pre`): built from Google's official "lite" tarball of 159.0.8154.4 plus `files/chromium-159.0.8154.4-to-159.0.8154.7.patch` and `files/chromium-159.0.8154.7-branch-fixes.patch` (see their headers). 159 is Google's Linux **Beta** (159.0.8154.6), so `SLOT="beta"`, `~amd64`: the bleeding-edge build of it, installed beside the stable slot. |
 | `www-client/chromium-common-2` | the launcher script and `/etc/chromium/default` that every `www-client/chromium` slot uses, as `::gentoo` had it before removing it with its Chromium (2026-11-05). |

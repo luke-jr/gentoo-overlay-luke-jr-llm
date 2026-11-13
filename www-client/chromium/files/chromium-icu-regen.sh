@@ -51,6 +51,11 @@ genuca_dir=${work}/root/tools/unicode/c/genuca
 # only (packaging it as a library would run the compiler with this ICU's
 # libraries in LD_LIBRARY_PATH, which breaks one that loads the system's ICU).
 step "building ICU's libraries and tools"
+# The slimmer tarballs of late 2026 (158.0.8127.37, 159.0.8154.6) leave out ICU's test data,
+# but configure still writes its Makefiles (unused with --disable-tests): empty inputs for them.
+for f in test/testdata/Makefile.in test/testdata/pkgdataMakefile.in; do
+	[[ -e ${src}/${f} ]] || : > "${src}/${f}"
+done
 mkdir -p "${work}/build"
 cd "${work}/build"
 ICU_DATA_FILTER_FILE="${icu}/filters/common.json" "${src}/configure" \
