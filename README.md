@@ -23,12 +23,12 @@ auto-sync = no
 with `www-client/chromium-common`, which this overlay now carries. Since that day its
 `profiles/package.mask` masks only its own old versions (`<www-client/chromium-151.0.7922.169-r1`),
 so this overlay's need no unmasking; remove any `package.unmask` entry for them, as it would also
-override this overlay's own masks of vulnerable versions (see `doc/chromium.md`).
+override this overlay's own masks of vulnerable versions (see [`doc/chromium.md`](doc/chromium.md)).
 The `chromium-2` eclass the build inherits from `::gentoo` stays, since `google-chrome`,
 `vivaldi`, `opera` and `microsoft-edge` use it.
 All are built from Google's official "lite" source tarballs.
 
-See `doc/chromium.md`.
+See [`doc/chromium.md`](doc/chromium.md).
 
 ## Rules
 
@@ -40,7 +40,7 @@ What the packages here follow, beyond Gentoo's own policies:
 - **No executable code downloaded at runtime**, apart from the JavaScript and WebAssembly that web
   pages themselves load. Data downloads (lists, dictionaries, certificates) are fine. One exception:
   "Translate this page" runs Google's translate script (fetched when you translate) on the page
-  (see `doc/chromium-runtime-downloads.md`).
+  (see [`doc/chromium-runtime-downloads.md`](doc/chromium-runtime-downloads.md)).
 - **Generated files are regenerated.** A checked-in generated file is not a source: it is made again
   from its inputs with its upstream generator, or replaced by one built here, and the checked-in copy
   is moved aside so the build cannot use it. Prebuilt JavaScript (minified, bundled or compiled) counts
@@ -82,7 +82,7 @@ this overlay's builds).
 
 The Chromium version Google releases as Stable for Linux is keyworded `amd64`, and so are the versions
 of the packages above that it builds with; everything else is `~amd64` (see
-`doc/chromium-maintenance.md`). arm64 is `~arm64` throughout: only amd64 has been built and tested.
+[`doc/chromium-maintenance.md`](doc/chromium-maintenance.md)). arm64 is `~arm64` throughout: only amd64 has been built and tested.
 
 `eclass/chromium-llm.eclass` is the Chromium build, shared by the `www-client/chromium` ebuilds;
 each ebuild has only what is particular to its version: upstream's pins, its patch lists and the
@@ -96,12 +96,12 @@ anything does build it. `scripts/cargo-unused-crates.py` lists the candidates fr
 
 ## Documentation
 
-- `doc/chromium.md`: the Chromium ebuilds: build machine setup, changes from `::gentoo`, the 157
+- [`doc/chromium.md`](doc/chromium.md): the Chromium ebuilds: build machine setup, changes from `::gentoo`, the 157
   and 158 differences, known issues.
-- `doc/chromium-generated-files.md`: what is regenerated, rebuilt from source, or used as is.
-- `doc/chromium-maintenance.md`: adding a new Chromium version, and checking it.
-- `doc/chromium-runtime-downloads.md`: what Chromium downloads at runtime, and what the ebuild blocks.
-- `doc/crubit.md`: notes on Crubit (the C++/Rust bindings generator).
+- [`doc/chromium-generated-files.md`](doc/chromium-generated-files.md): what is regenerated, rebuilt from source, or used as is.
+- [`doc/chromium-maintenance.md`](doc/chromium-maintenance.md): adding a new Chromium version, and checking it.
+- [`doc/chromium-runtime-downloads.md`](doc/chromium-runtime-downloads.md): what Chromium downloads at runtime, and what the ebuild blocks.
+- [`doc/crubit.md`](doc/crubit.md): notes on Crubit (the C++/Rust bindings generator).
 - `scripts/chromium-delta/README.md`: upgrade patches for releases without a tarball yet.
 - `scripts/chromium-ebuild-env/README.md`: checking that an eclass change leaves the existing
   ebuilds alone.
