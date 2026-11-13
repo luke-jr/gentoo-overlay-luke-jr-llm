@@ -11,6 +11,7 @@ run components node "${here}/components.mjs" "${chrome}"
 run devtools node "${here}/devtools.mjs" "${chrome}" "${out}/devtools"
 run bidi node "${here}/bidi.mjs" "${driver}" "${chrome}"
 run webgl node "${here}/webgl.mjs" "${chrome}"
+run mv2 node "${here}/mv2.mjs" "${chrome}"
 if command -v Xvfb >/dev/null && command -v xdotool >/dev/null && command -v import >/dev/null; then
 	echo "### restore-pages"; "${here}/restore-pages.sh" "${chrome}" "${out}/restore-pages"
 else
