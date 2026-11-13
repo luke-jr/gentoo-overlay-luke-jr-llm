@@ -4337,9 +4337,11 @@ chromium-llm_src_compile() {
 		chromium_compile
 	fi
 
-	mv "${CHROMIUM_OUT}"/chromedriver{.unstripped,} || die
-
-	rm -f "${CHROMIUM_OUT}"/locales/*.pak.info || die
+	# The build directory stays as ninja left it (a kept build tree's next build would otherwise
+	# make chromedriver.unstripped and the locales again): chromedriver under its final name as a
+	# hard link (the strip step is a no-op here), and the locales are pruned in a copy (in
+	# src_install).
+	ln -f "${CHROMIUM_OUT}"/chromedriver{.unstripped,} || die
 
 	# Generate support files (desktop file, manpage, etc.) See: #684550 #706786 #968958
 	${EPYTHON} "${FILESDIR}/generate-support-files.py" \
@@ -4486,7 +4488,10 @@ chromium-llm_src_install() {
 
 	dosym "${CHROMIUM_HOME}/chromedriver" /usr/bin/chromedriver${browser_suffix}
 
-	pushd "${CHROMIUM_OUT}"/locales > /dev/null || die
+	rm -rf "${T}/locales" || die
+	cp -r "${CHROMIUM_OUT}"/locales "${T}/locales" || die
+	rm -f "${T}"/locales/*.pak.info || die
+	pushd "${T}/locales" > /dev/null || die
 	chromium_remove_language_paks
 	popd > /dev/null || die
 
@@ -4529,7 +4534,7 @@ chromium-llm_src_install() {
 		doins "${CHROMIUM_OUT}"/icudtl.dat
 	fi
 
-	doins -r "${CHROMIUM_OUT}"/locales
+	doins -r "${T}/locales"
 	doins -r "${CHROMIUM_OUT}"/MEIPreload
 
 	# Install vk_swiftshader_icd.json; bug #827861
