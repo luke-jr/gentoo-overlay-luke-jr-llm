@@ -1,0 +1,112 @@
+Chromium 159.0.8154.8 + the later changes of its release branch, up to
+59f4679706ef58b6501b7797df90f80b7200df3c (refs/branch-heads/8154@{#240}), for the
+159.0.8154.8 tree that chromium-159.0.8154.6-to-159.0.8154.8.patch makes.
+
+Generated from the upstream diff chromium/src refs/tags/159.0.8154.8..59f4679706ef58b6501b7797df90f80b7200df3c,
+as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
+.8 tree's files; no dependency's DEPS revision changed): left out are files
+not in the release tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests
+and docs, translations, PGO/orderfile pointers. chrome/VERSION, the DEPS files
+and the stamp files stay at 159.0.8154.8.
+
+Commits contributing to it (oldest first):
+  3467769d4f38 [M159] [context-input] Add "Tabs" header to WebUI and Views context menus
+  59f4679706ef [M159] Handle RenderProcessHost destruction in ChromePluginServiceFilter
+
+Checked: applies to the 159.0.8154.8 tree; every patched file is
+byte-identical to its version at the last commit above.
+
+diff --git a/chrome/browser/plugins/chrome_plugin_service_filter.cc b/chrome/browser/plugins/chrome_plugin_service_filter.cc
+index 5085f81d..493017b 100644
+--- a/chrome/browser/plugins/chrome_plugin_service_filter.cc
++++ b/chrome/browser/plugins/chrome_plugin_service_filter.cc
+@@ -158,6 +158,11 @@
+ void ChromePluginServiceFilter::RenderProcessExited(
+     content::RenderProcessHost* host,
+     const content::ChildProcessTerminationInfo& info) {
++  RenderProcessHostDestroyed(host);
++}
++
++void ChromePluginServiceFilter::RenderProcessHostDestroyed(
++    content::RenderProcessHost* host) {
+   CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M163);
+   base::AutoLock auto_lock(lock_);
+   plugin_details_.erase(host->GetDeprecatedID());
+diff --git a/chrome/browser/plugins/chrome_plugin_service_filter.h b/chrome/browser/plugins/chrome_plugin_service_filter.h
+index 88b3864..5d81f69 100644
+--- a/chrome/browser/plugins/chrome_plugin_service_filter.h
++++ b/chrome/browser/plugins/chrome_plugin_service_filter.h
+@@ -62,6 +62,7 @@
+   void RenderProcessExited(
+       content::RenderProcessHost* host,
+       const content::ChildProcessTerminationInfo& info) override;
++  void RenderProcessHostDestroyed(content::RenderProcessHost* host) override;
+ 
+   // Sets a callback to be called when `this` adds itself as an observer to a
+   // RenderProcessHost.
+diff --git a/chrome/browser/ui/omnibox/omnibox_context_menu_controller.cc b/chrome/browser/ui/omnibox/omnibox_context_menu_controller.cc
+index 67028b42..70fce37 100644
+--- a/chrome/browser/ui/omnibox/omnibox_context_menu_controller.cc
++++ b/chrome/browser/ui/omnibox/omnibox_context_menu_controller.cc
+@@ -491,6 +491,9 @@
+     // "Add tabs" row, so it can be toggled without opening the flyout.
+     if (omnibox::IsSingleTabMenuItemInComposeboxEnabled() &&
+         single_tab_index.has_value()) {
++      if (omnibox::kShowContextMenuHeaders.Get()) {
++        AddTitleWithStringId(IDS_OMNIBOX_NAVATTACH_TABS);
++      }
+       AddSingleTabItem(tabs[*single_tab_index],
+                        next_command_id_ + static_cast<int>(*single_tab_index));
+     }
+diff --git a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
+index f115db1e..d17139b 100644
+--- a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
++++ b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
+@@ -432,6 +432,7 @@
+       {"addImage", IDS_NTP_COMPOSE_ADD_IMAGE},
+       {"addDriveFile", IDS_NTP_COMPOSE_ADD_DRIVE},
+       {"addTab", IDS_NTP_COMPOSEBOX_TAB_PICKER_ADD_TABS_TITLE},
++      {"tabsHeader", IDS_OMNIBOX_NAVATTACH_TABS},
+       {"shareTabs", IDS_COMPOSE_ADD_TABS},
+       {"recentTabsSuffix", IDS_NTP_COMPOSEBOX_RECENT_TAB_SUFFIX},
+       {"sharingTabsWithGoogle", IDS_COMPOSE_SHARING_TABS_WITH_GOOGLE},
+diff --git a/components/omnibox_strings.grdp b/components/omnibox_strings.grdp
+index 6fd35736..20aea27 100644
+--- a/components/omnibox_strings.grdp
++++ b/components/omnibox_strings.grdp
+@@ -143,6 +143,9 @@
+   <message name="IDS_OFFLINE_VERBOSE_STATE" desc="Text for the Offline Omnibox Verbose state. Displayed when the current page is loaded from a previously-downloaded cache.">
+     Offline
+   </message>
++  <message name="IDS_OMNIBOX_NAVATTACH_TABS" desc="The text displayed in the omnibox attachments popup. When clicked - opens tabs picker." formatter_data="android_java">
++    Tabs
++  </message>
+   <if expr="is_ios or is_android or enable_vr">
+     <message name="IDS_OMNIBOX_EMPTY_HINT" desc="The text displayed in the omnibox when it is empty." formatter_data="android_java">
+       Search or type URL
+@@ -166,9 +169,6 @@
+       <message name="IDS_OMNIBOX_NAVATTACH_ADD_FILES" desc="The text displayed in the omnibox attachments popup. When clicked - opens file picker." formatter_data="android_java">
+         Add files
+       </message>
+-      <message name="IDS_OMNIBOX_NAVATTACH_TABS" desc="The text displayed in the omnibox attachments popup. When clicked - opens tabs picker." formatter_data="android_java">
+-        Tabs
+-      </message>
+       <message name="IDS_OMNIBOX_NAVATTACH_DRIVE" desc="The text displayed in the omnibox attachments popup. When clicked - opens drive file picker." formatter_data="android_java">
+         Drive
+       </message>
+diff --git a/ui/webui/resources/cr_components/composebox/contextual_action_menu.html.ts b/ui/webui/resources/cr_components/composebox/contextual_action_menu.html.ts
+index 523fed7..c820bc0 100644
+--- a/ui/webui/resources/cr_components/composebox/contextual_action_menu.html.ts
++++ b/ui/webui/resources/cr_components/composebox/contextual_action_menu.html.ts
+@@ -19,6 +19,11 @@
+           this.isInputTypeAllowed_(InputType.kBrowserTab) ? html`
+           ${this.contextManagementInComposeboxEnabled ? html`
+             ${this.shouldShowSingleTabItem_() ? html`
++              ${this.showContextMenuHeaders_ ? html`
++                <h4 id="tabHeader" aria-hidden="true">
++                  ${this.i18n('tabsHeader')}
++                </h4>
++              ` : ''}
+               <button id="singleTabItem" class="dropdown-item"
+                   role="${this.enableMultiTabSelection_ ?
+                       'menuitemcheckbox' : 'menuitem'}"
