@@ -206,6 +206,9 @@ CHROMIUM_PATCHES=(
 	chromium-156-icu-rbbicst-header.patch
 	# abseil's BUILD.gn converter without gn features 158's gn lacks (see the patch).
 	chromium-158-abseil-gn-no-strict-includes.patch
+	# Manifest V2 extensions with --disable-features=ExtensionManifestV2Disabled (see the patch,
+	# and doc/chromium.md).
+	chromium-157-manifest-v2-features.patch
 )
 
 # Copium's patches (with the system toolchain).

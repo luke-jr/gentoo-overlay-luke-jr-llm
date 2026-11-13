@@ -205,6 +205,9 @@ CHROMIUM_PATCHES=(
 	chromium-156-boringssl-curve25519-tables.patch
 	# A reproducible header for ICU's generated rbbirpt.h (see the eclass).
 	chromium-156-icu-rbbicst-header.patch
+	# Manifest V2 extensions with --disable-features=ExtensionManifestV2Disabled (see the patch,
+	# and doc/chromium.md).
+	chromium-157-manifest-v2-features.patch
 )
 
 # Copium's patches (with the system toolchain).
