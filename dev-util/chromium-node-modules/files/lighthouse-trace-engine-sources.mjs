@@ -19,7 +19,7 @@ import fs from 'fs';
 import path from 'path';
 
 const [mode, pkgDir, ...rest] = process.argv.slice(2);
-const SHIM_MAX_BYTES = 300;
+const SHIM_MAX_BYTES = 512;
 const stats = {sources: 0, shims: 0, other: 0, skipped: [], differ: [], missing: []};
 
 function sourceOf(mapFile, rel) {

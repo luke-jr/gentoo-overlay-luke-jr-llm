@@ -1,0 +1,18 @@
+159's tools/binary_size/libsupersize/viewer/caspian depends on //third_party/zstd:headers (a
+target the bundled zstd's BUILD.gn has), which build/linux/unbundle/zstd.gn lacks, so gn gen fails
+with use_system_zstd: add it, like the others.
+
+--- a/build/linux/unbundle/zstd.gn
++++ b/build/linux/unbundle/zstd.gn
+@@ -17,6 +17,11 @@ shim_headers("zstd_headers") {
+   ]
+ }
+ 
++source_set("headers") {
++  public_configs = [ ":system_zstd" ]
++  public_deps = [ ":zstd_headers" ]
++}
++
+ source_set("compress") {
+   public_configs = [ ":system_zstd" ]
+   public_deps = [ ":zstd_headers" ]

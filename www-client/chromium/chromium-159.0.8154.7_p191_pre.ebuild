@@ -7,12 +7,12 @@ EAPI=8
 # version: upstream's pins (set before inherit: the eclass's global scope uses them), and
 # the patches and fixes it applies.
 
-GN_MIN_VER=0.2603
+GN_MIN_VER=0.2616
 # chromium-tools/get-chromium-toolchain-strings.py (or just use Chromicler)
 # Node for M145+ should be 24.12.0 but that's not packaged in Gentoo yet. See #969145
 TEST_FONT="9c07d19d9c5ee1ff94f717e6fb17e0c8c354e6f9"
-BUNDLED_CLANG_VER="llvmorg-24-init-14453-ge063be79-1"
-BUNDLED_RUST_VER="8a9dd7abdf013ec10cfeaaa3685feba18ef1c90c-1"
+BUNDLED_CLANG_VER="llvmorg-24-init-17044-gc3223914-1"
+BUNDLED_RUST_VER="96a18bf5ffa2b24f9cf3d1c731a9eb121c1acad9-4"
 NODE_VER="24.12.0"
 GO_MIN_VER="1.25.0"
 ESBUILD_VER="0.28.2"
@@ -40,12 +40,12 @@ RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit build (rustc driver, ti
 # The dev-util/crubit this version needs: <Rust version>_p<CRUBIT_DATE>, the commit date of
 # CRUBIT_REVISION in tools/rust/update_rust.py (each Crubit version has its own slot). BDEPEND
 # names the one for RUST_MIN_VER, the only Rust that goes with LLVM_COMPAT.
-CRUBIT_DATE="20261015"
+CRUBIT_DATE="20261104"
 PPC64_HASH="7aae8a84e327fc2078ce1625c9c70bfda77d626f"
-COPIUM_COMMIT="84aa29c73d11981f56eb9a9fbbf35ec993f9d7ff"
-# 158.0.8127.39 is a tag without a tarball: built from the 158.0.8127.18 tarball plus
-# files/chromium-158.0.8127.18-to-158.0.8127.39.patch (see its header).
-CHROMIUM_TARBALL_PV="158.0.8127.18"
+COPIUM_COMMIT="8f644ae974c69af28134dd8b3b4ca4cf20bfe602"
+# 159.0.8154.7 is a tag without a tarball: built from the 159.0.8154.4 tarball plus
+# files/chromium-159.0.8154.4-to-159.0.8154.7.patch (see its header).
+CHROMIUM_TARBALL_PV="159.0.8154.4"
 # Inputs of ANGLE's code generators that the tarball lacks (files/chromium-angle-regen.py):
 # Khronos' registries at ANGLE's (and, for Vulkan, Chromium's) DEPS revisions; perfect-hash,
 # the version its built-in symbols generator is written for. Its Vulkan back-end's shaders are
@@ -53,7 +53,7 @@ CHROMIUM_TARBALL_PV="158.0.8127.18"
 ANGLE_GL_REGISTRY_COMMIT=9cb90ca4902d588bef3c830fbb1da484893bd5fb
 ANGLE_EGL_REGISTRY_COMMIT=7dea2ed79187cd13f76183c4b9100159b9e3e071
 ANGLE_CL_DOCS_COMMIT=5b4ca15f0e5a5be87b56b99f652f728e05cab587
-VULKAN_HEADERS_COMMIT=73814d006638aa00bd553215b054f0f02e457e22
+VULKAN_HEADERS_COMMIT=88487f687f3100ebe1d3559a8a34d971ee85b977
 ANGLE_PERFECT_HASH_VER=0.2.1
 # Inputs of ICU's generated files (files/chromium-icu-regen.sh): Unicode's release files for
 # the Unicode version of the bundled ICU, and the generators from ICU's repository that its
@@ -78,8 +78,8 @@ DAWN_GO_MODULES="
 	github.com/tidwall/jsonc@v0.3.3
 "
 # Vulkan-Docs' header generator script, which Vulkan-Headers (third_party/vulkan-headers) doesn't
-# ship (its registry has the rest), at the tag of the headers' version (v1.4.366).
-VULKAN_DOCS_COMMIT="a8b088a3fae12c8575407ea90c7c09bd653db923"
+# ship (its registry has the rest), at the tag of the headers' version (v1.4.368).
+VULKAN_DOCS_COMMIT="fa30d4e312e843193601be7cb926c7e25d9ec885"
 # SwiftShader's Vulkan headers (third_party/swiftshader/include): its C headers come from the
 # registry of Vulkan-Headers v1.4.355 (the video headers: v1.4.322's), made with Vulkan-Docs'
 # genvk.py at the same tags, its C++ headers from Vulkan-Hpp v1.4.355's generator (with the
@@ -160,6 +160,17 @@ HB_PACKTAB_VER="1.9.0"
 # from (its README.chromium), for building them without Closure Compiler (see the eclass's src_prepare).
 SELENIUM_COMMIT="c0b8ff6451419542dcecc53c922e1a79e4dc3940"
 
+# 159's tools/crates/gnrt is 158's.
+CHROMIUM_GNRT_SLOT=158
+
+# ICU4X's baked data (third_party/rust/icu4x_data, see the eclass's chromium_regen_icu4x_data):
+# the sources the tags of icu4x_datagen's icu_provider_source (2.4.0) name.
+ICU4X_DATAGEN_CLDR_VER="49.0.0"
+ICU4X_DATAGEN_ICUEXPORT_VER="79.1rc"
+ICU4X_DATAGEN_UNICODE_VER="18.0.0"
+ICU4X_DATAGEN_TZDB_VER="2026e"
+ICU4X_DATAGEN_LSTM_VER="v0.1.0"
+
 inherit chromium-llm
 
 DESCRIPTION="Open-source version of Google Chrome web browser"
@@ -172,12 +183,12 @@ LICENSE+=" IJG ISC LGPL-2 LGPL-2.1 MIT MPL-1.1 MPL-2.0 Ms-PL Old-MIT PSF-2 SGI-B
 LICENSE+=" Unicode-DFS-2015 Unlicense UoI-NCSA ZLIB libtiff openssl"
 LICENSE+=" rar? ( unRAR )"
 
-SLOT="stable"
+SLOT="beta"
 KEYWORDS="~amd64 ~arm64"
 
-# The 158 branch's changes after the 158.0.8127.39 tag (see its header).
+# The 159 branch's changes after the 159.0.8154.7 tag (see its header).
 CHROMIUM_FIXES=(
-	chromium-158.0.8127.39-branch-fixes.patch
+	chromium-159.0.8154.7-branch-fixes.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
@@ -212,8 +223,8 @@ CHROMIUM_PATCHES=(
 	chromium-156-boringssl-pregenerate-offline.patch
 	# A reproducible header for ICU's generated rbbirpt.h (see the eclass).
 	chromium-156-icu-rbbicst-header.patch
-	# abseil's BUILD.gn converter without gn features 158's gn lacks (see the patch).
-	chromium-158-abseil-gn-no-strict-includes.patch
+	# //third_party/zstd:headers for USE=system-zstd (see the patch).
+	chromium-159-unbundle-zstd-headers.patch
 	# v8.h without V8's version macros: a new V8 patch level rebuilds only what uses them (see
 	# the patch, and the eclass's src_prepare).
 	chromium-158-v8-h-without-version.patch
@@ -222,13 +233,11 @@ CHROMIUM_PATCHES=(
 # Copium's patches (with the system toolchain).
 CHROMIUM_COPIUM_PATCHES=(
 	cr145-iwyu-dev_t.patch
-	cr147-simdutf-8.0-base-char.patch
 	cr148-rust-1.95-bytemuck.patch
 	cr152-unbundle-minizip-undo-unicode.patch
 	cr152-unbundle-opus-devtools.patch
 	cr153-unbundle-opus-iamf.patch
 	cr156-unbundle-icu-remoting.patch
-	cr156-v8-no-san-trap.patch
 )
 
 # 158 supports a system Crubit (dev-util/crubit, rust_crubit_root) with the prebuilt system
@@ -248,8 +257,6 @@ CHROMIUM_HARDENED_PATCHES=(
 	chromium-156-hardened-0178-seccomp-restrict-dynamic-code.patch
 	chromium-156-hardened-0183-seccomp-restrict-dynamic-code-support.patch
 	chromium-156-hardened-0212-wasm-interpreter-without-jit.patch
-	# DrumBrake (v8_enable_drumbrake, below) doesn't build in 158 without these V8 main fixes.
-	chromium-158-hardened-v8-drumbrake-build-fixes.patch
 	# Page info bubble toggles for the JavaScript JIT and optimizer site
 	# settings (JIT off makes the above apply to that site).
 	chromium-156-hardened-page-info-jsjit.patch
@@ -274,7 +281,12 @@ CHROMIUM_HARDENED_PATCHES=(
 
 # Bundled sources kept besides the eclass's list.
 CHROMIUM_KEEPLIBS=(
+	# 159 renamed ANGLE's libXNVCtrl.
+	third_party/angle/src/third_party/libxnvctrl
 	third_party/oak/src/oak_session/tls
+	# OpenH264 in Rust (159's media_use_rust_openh264, with proprietary_codecs).
+	third_party/openh264rs
+	third_party/safeint
 	third_party/sframe
 )
 # 158 removed the schema of this extension API TypeScript declaration (ChromeOS' wallpaper API):
@@ -282,8 +294,11 @@ CHROMIUM_KEEPLIBS=(
 CHROMIUM_TS_DEFINITIONS_KEPT=(
 	tools/typescript/definitions/wallpaper.d.ts
 )
-# Those of the eclass's list that 158 no longer has.
+# Those of the eclass's list that 159 no longer has.
 CHROMIUM_KEEPLIBS_DROP=(
+	third_party/angle/src/third_party/libXNVCtrl
+	third_party/dom_distiller_js
 	third_party/khronos
+	third_party/libaom/source/libaom/third_party/vector
 	third_party/libsecret
 )

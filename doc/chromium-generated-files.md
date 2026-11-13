@@ -68,6 +68,15 @@ deliberately:
   tries are built with the system ICU4C instead of its prebuilt WebAssembly module. Kept as source:
   pxfm's constants (computed once with SageMath, Sollya and Mathematica). skrifa's autohint styles
   were edited by hand after they were generated (`pub(super)`): its script is patched to match.
+- Since 159, Chromium checks in its own ICU4X baked data (`third_party/rust/icu4x_data`, made by
+  its `tools/crates/icu4x_datagen` with its ICU data filters and patches), and the vendored
+  `icu_*_data` crates are empty placeholders. Linux's part (`src/data/common/`, `src/lib.rs`,
+  `sources.gni`) is regenerated with `dev-util/chromium-icu4x-datagen` (that tool, built without
+  ICU4X's own compiled data) from CLDR's JSON 49.0.0, ICU's export data 79.1rc, Unicode 18.0.0's
+  UCD and emoji data, IANA's tzdata 2026e and the segmenter's LSTM models v0.1.0: byte-identical.
+  The other platforms' data (Android, ChromeOS, iOS, …) isn't built.
+- OpenH264rs' `sources.gni` (since 159) is regenerated with its `tools/gen_sources_gni.rs`:
+  byte-identical.
 - The Babel passes that lower code for old browsers are left out (axe-core, and Puppeteer's
   `es5-iife` bundle, which nothing loads); Chromium runs the modern code. axe-core's polyfills stay
   in, but only apply where a feature is missing.

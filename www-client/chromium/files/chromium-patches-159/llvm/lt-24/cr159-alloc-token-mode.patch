@@ -1,0 +1,18 @@
+159 builds with clang's alloc-token sanitizer in its typefunchashpointersplit mode, which only
+LLVM 24 has (LLVM 22 and 23 reject it): use the default mode (typehashpointersplit) there.
+
+--- a/build/config/sanitizers/BUILD.gn
++++ b/build/config/sanitizers/BUILD.gn
+@@ -771,11 +771,7 @@ config("proto_fuzzer_optimizations") {
+ # See: https://clang.llvm.org/docs/AllocToken.html
+ config("alloc_token") {
+   if (use_alloc_token) {
+-    cflags = [
+-      "-fsanitize=alloc-token",
+-      "-Xclang",
+-      "-falloc-token-mode=typefunchashpointersplit",
+-    ]
++    cflags = [ "-fsanitize=alloc-token" ]
+     if (is_linux || is_chromeos) {
+       ldflags = [
+         # go/keep-sorted start

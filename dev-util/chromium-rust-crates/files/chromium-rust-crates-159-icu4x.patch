@@ -1,0 +1,106 @@
+Build only ICU4X's codegen tool (icu_capi's generated FFI code, icu_properties'
+enum values). (ICU4X 2.4's codegen needs no compiled data. Since Chromium 159, the
+baked data comes from Chromium's own icu4x_datagen, not ICU4X's bakeddata.)
+
+diff --git a/Cargo.toml b/Cargo.toml
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -5,98 +5,7 @@
+ [workspace]
+ resolver = "2"
+ members = [
+-    # KEEP IN SYNC WITH workspace.dependencies and examples/.cargo/config.toml
+-
+-    # ICU4X core
+-    "components/locale_core",
+-    "provider/core",
+-
+-    # Components
+-    "components/calendar",
+-    "components/casemap",
+-    "components/collator",
+-    "components/collections",
+-    "components/collections/codepointtrie_builder",
+-    "components/datetime",
+-    "components/decimal",
+-    "components/experimental",
+-    "components/icu",
+-    "components/list",
+-    "components/locale",
+-    "components/locale_fallback",
+-    "components/normalizer",
+-    "components/pattern",
+-    "components/plurals",
+-    "components/properties",
+-    "components/segmenter",
+-    "components/time",
+-
+-    # FFI
+-    "ffi/capi",
+-    "ffi/ecma402",
+-    "ffi/freertos",
+-
+-    # Provider
+-    "provider/adapters",
+-    "provider/baked",
+-    "provider/source",
+-    "provider/blob",
+-    "provider/export",
+-    "provider/fs",
+-    "provider/registry",
+-    "provider/icu4x-datagen",
+-
+-    # Baked data
+-    "provider/data/calendar",
+-    "provider/data/casemap",
+-    "provider/data/collator",
+-    "provider/data/datetime",
+-    "provider/data/decimal",
+-    "provider/data/list",
+-    "provider/data/locale",
+-    "provider/data/locale_fallback",
+-    "provider/data/normalizer",
+-    "provider/data/plurals",
+-    "provider/data/properties",
+-    "provider/data/segmenter",
+-    "provider/data/time",
+-
+-    # Utils
+-    "utils/calendrical_calculations",
+-    "utils/crlify",
+-    "utils/databake",
+-    "utils/databake/derive",
+-    "utils/fixed_decimal",
+-    "utils/host_info",
+-    "utils/ixdtf",
+-    "utils/litemap",
+-    "utils/resb",
+-    "utils/tinystr",
+-    "utils/tzif",
+-    "utils/potential_utf",
+-    "utils/writeable",
+-    "utils/yoke",
+-    "utils/yoke/derive",
+-    "utils/zerofrom",
+-    "utils/zerofrom/derive",
+-    "utils/zerotrie",
+-    "utils/zerovec",
+-    "utils/zerovec/derive",
+-    "utils/zoneinfo64",
+-
+-    # Tools
+-    "tools/benchmark/binsize",
+-    "tools/benchmark/macros",
+-    "tools/benchmark/memory",
+-    "tools/changelog",
+-    "tools/dump-json",
+-    "tools/make/bakeddata",
+     "tools/make/codegen",
+-    "tools/make/depcheck",
+-    "tools/make/diplomat-coverage",
+-    "tools/make/diplomat-gen",
+-    "tools/md-tests",
+-    "tools/noalloctest",
+ ]
+ # Note: Workspaces in subdirectories, such as components/collator/fuzz, are
+ # implicitly excluded from the main workspace.

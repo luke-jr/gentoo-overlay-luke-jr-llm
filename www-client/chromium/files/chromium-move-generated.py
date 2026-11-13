@@ -22,6 +22,7 @@ Usage: chromium-move-generated.py SRC DEST [STAMP [UPSTREAM]] < PATTERNS
   each with its modification time, after the patches are applied.
 """
 import bisect
+import errno
 import os
 import re
 import sys
@@ -110,7 +111,12 @@ def main():
     for f in selected:
         target = os.path.join(dest, f)
         os.makedirs(os.path.dirname(target), exist_ok=True)
-        os.rename(os.path.join(src, f), target)
+        try:
+            os.rename(os.path.join(src, f), target)
+        except OSError as e:
+            if e.errno == errno.EXDEV:
+                sys.exit(f"{dest} is on another filesystem than {src}: it must be on the same one")
+            raise
     print(f"{len(selected)} checked-in generated files moved to {dest}")
 
 
