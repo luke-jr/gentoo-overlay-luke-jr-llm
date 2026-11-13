@@ -156,6 +156,9 @@
 # ninja builds chrome), the build touches its "regenerated" and waits until it can lock its
 # "lock" (flock), so that a harness holding that lock can check the regenerated files (e.g.
 # scripts/chromium-tests/verify-regenerated.py) before the long build, and then release it.
+# Set it from the first phase on (e.g. for "ebuild ... clean prepare" too): Portage keeps it in the
+# build's saved environment then, but filters the calling environment of later phases to its own
+# whitelist.
 
 # @ECLASS_VARIABLE: CHROMIUM_BUILD_DIR_KEEP_SRC
 # @USER_VARIABLE
