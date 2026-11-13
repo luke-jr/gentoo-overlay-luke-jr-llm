@@ -184,7 +184,8 @@ LICENSE+=" Unicode-DFS-2015 Unlicense UoI-NCSA ZLIB libtiff openssl"
 LICENSE+=" rar? ( unRAR )"
 
 SLOT="beta"
-KEYWORDS="~amd64 ~arm64"
+# Linux Beta: no keywords (accept it with "**"); ~amd64 once it is Early Stable.
+KEYWORDS=""
 
 # The 159 branch's changes after the 159.0.8154.7 tag (see its header).
 CHROMIUM_FIXES=(
