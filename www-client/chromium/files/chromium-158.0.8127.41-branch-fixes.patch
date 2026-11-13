@@ -1,0 +1,102 @@
+Chromium 158.0.8127.41 + the later changes of its release branch, up to
+aec13f949d31369bfe396a0e5cc31999214af4f8 (refs/branch-heads/8127@{#1722}), for the
+158.0.8127.41 tree that chromium-158.0.8127.37-to-158.0.8127.41.patch makes.
+
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.41..aec13f949d31369bfe396a0e5cc31999214af4f8
+(no dependency's DEPS revision changed),
+as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
+.41 tree's files, renames included): left out are files not in the release
+tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
+translations, PGO/orderfile pointers, submodule pointer updates. chrome/VERSION,
+the DEPS files and the stamp files stay at 158.0.8127.41.
+
+Commits contributing to it (oldest first):
+  aec13f949d31 [M158] [gpu] Exclude ephemeral OOP-R PaintOp rasterization from SLQ
+
+Checked: applies to the 158.0.8127.41 tree; every patched file is
+byte-identical to its version at the last commit above.
+
+diff --git a/gpu/command_buffer/service/raster_decoder.cc b/gpu/command_buffer/service/raster_decoder.cc
+index c1ab819..5d757e86 100644
+--- a/gpu/command_buffer/service/raster_decoder.cc
++++ b/gpu/command_buffer/service/raster_decoder.cc
+@@ -22,11 +22,13 @@
+ #include "base/containers/flat_map.h"
+ #include "base/containers/span.h"
+ #include "base/debug/crash_logging.h"
++#include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "base/logging.h"
+ #include "base/memory/aligned_memory.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/ref_counted.h"
++#include "base/memory/safety_checks.h"
+ #include "base/memory/weak_ptr.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/notimplemented.h"
+@@ -2840,6 +2842,13 @@
+     shared_context_state_->progress_reporter()->ReportProgress();
+ }
+ 
++namespace {
++
++BASE_FEATURE(kExcludeOopRasterizationFromSafetyChecks,
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
++}  // namespace
++
+ void RasterDecoderImpl::DoRasterCHROMIUM(GLuint raster_shm_id,
+                                          GLuint raster_shm_offset,
+                                          GLuint raster_shm_size,
+@@ -2912,6 +2921,8 @@
+                            new_locked_handles.end());
+   }
+ 
++  const bool exclude_from_safety_checks =
++      base::FeatureList::IsEnabled(kExcludeOopRasterizationFromSafetyChecks);
+   while (!paint_buffer.empty()) {
+     size_t skip = 0;
+     cc::PaintOp* deserialized_op =
+@@ -2922,8 +2933,14 @@
+       return;
+     }
+ 
+-    deserialized_op->Raster(raster_canvas_, playback_params);
+-    deserialized_op->DestroyThis();
++    {
++      std::optional<base::ScopedSafetyChecksExclusion> excluded;
++      if (exclude_from_safety_checks) {
++        excluded.emplace();
++      }
++      deserialized_op->Raster(raster_canvas_, playback_params);
++      deserialized_op->DestroyThis();
++    }
+ 
+     paint_buffer = paint_buffer.subspan(skip);
+   }
+@@ -2940,6 +2957,11 @@
+   raster_canvas_ = nullptr;
+ 
+   {
++    std::optional<base::ScopedSafetyChecksExclusion> excluded;
++    if (base::FeatureList::IsEnabled(
++            kExcludeOopRasterizationFromSafetyChecks)) {
++      excluded.emplace();
++    }
+     TRACE_EVENT0("gpu", "RasterDecoderImpl::DoEndRasterCHROMIUM::Flush");
+     // This is a slow operation since skia will execute the GPU work for the
+     // complete tile. Make sure the progress reporter is notified to avoid
+@@ -2967,10 +2989,10 @@
+     } else {
+       DCHECK(end_semaphores_.empty());
+     }
+-  }
+ 
+-  shared_context_state_->UpdateSkiaOwnedMemorySize();
+-  sk_surface_ = nullptr;
++    shared_context_state_->UpdateSkiaOwnedMemorySize();
++    sk_surface_ = nullptr;
++  }
+   scoped_shared_image_write_.reset();
+   shared_image_.reset();
+   paint_op_shared_image_provider_.reset();
