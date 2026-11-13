@@ -1,8 +1,8 @@
 Chromium 159.0.8154.8 + the later changes of its release branch, up to
-59f4679706ef58b6501b7797df90f80b7200df3c (refs/branch-heads/8154@{#240}), for the
+93f828c8cc48eb19d3ff31933fc796f331c5335c (refs/branch-heads/8154@{#252}), for the
 159.0.8154.8 tree that chromium-159.0.8154.6-to-159.0.8154.8.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/159.0.8154.8..59f4679706ef58b6501b7797df90f80b7200df3c,
+Generated from the upstream diff chromium/src refs/tags/159.0.8154.8..93f828c8cc48eb19d3ff31933fc796f331c5335c,
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .8 tree's files; no dependency's DEPS revision changed): left out are files
 not in the release tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests
@@ -12,6 +12,8 @@ and the stamp files stay at 159.0.8154.8.
 Commits contributing to it (oldest first):
   3467769d4f38 [M159] [context-input] Add "Tabs" header to WebUI and Views context menus
   59f4679706ef [M159] Handle RenderProcessHost destruction in ChromePluginServiceFilter
+  cefc5c559f2e [M159] Use one directory database per first-party default bucket
+  1eec01d76a0e [M159] Validate sparse entries before serving any request that needs the network
 
 Checked: applies to the 159.0.8154.8 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -94,6 +96,96 @@ index 6fd35736..20aea27 100644
        <message name="IDS_OMNIBOX_NAVATTACH_DRIVE" desc="The text displayed in the omnibox attachments popup. When clicked - opens drive file picker." formatter_data="android_java">
          Drive
        </message>
+diff --git a/net/http/http_cache_transaction.cc b/net/http/http_cache_transaction.cc
+index c3c242a5a..ffbae11 100644
+--- a/net/http/http_cache_transaction.cc
++++ b/net/http/http_cache_transaction.cc
+@@ -2213,7 +2213,11 @@
+   response_.headers->Update(*new_response_->headers.get());
+   response_.stale_revalidate_timeout = base::Time();
+   response_.response_time = new_response_->response_time;
+-  if (new_response_->headers->response_code() != net::HTTP_NOT_MODIFIED) {
++  // For partial requests `original_response_time` always follows
++  // `response_time` (see DoPartialHeadersReceived()), so keep the stored value
++  // consistent with what is returned to the consumer.
++  if (new_response_->headers->response_code() != net::HTTP_NOT_MODIFIED ||
++      partial_) {
+     response_.original_response_time = new_response_->response_time;
+   }
+   response_.request_time = new_response_->request_time;
+@@ -2411,6 +2415,16 @@
+                       "DoPartialHeadersReceived", track_for_state_change_);
+   new_response_ = nullptr;
+ 
++  if (partial_) {
++    // Consumers may use `original_response_time` to detect whether the body
++    // is unchanged since a previous response. For partial requests, parts of
++    // the body may be fetched from the network after the headers have been
++    // returned, so this cannot be guaranteed. Set `original_response_time` to
++    // `response_time` unconditionally so that it changes on every validation
++    // and such consumers never see a stale value for a body that may differ.
++    response_.original_response_time = response_.response_time;
++  }
++
+   if (partial_ && mode_ != NONE && !reading_) {
+     // We are about to return the headers for a byte-range request to the user,
+     // so let's fix them.
+@@ -3057,22 +3071,22 @@
+   }
+ 
+   // If this is the first request (!reading_) of a 206 entry (is_sparse_) that
+-  // doesn't actually cover the entire file (which with !reading would require
+-  // partial->IsLastRange()), and the user is requesting the whole thing
+-  // (!partial_->range_requested()), make sure to validate the first chunk,
++  // doesn't cover the whole requested range (which with !reading_ would
++  // require partial->IsLastRange()), make sure to validate the first chunk,
+   // since afterwards it will be too late if it's actually out-of-date (or the
+-  // server bungles invalidation). This is limited to the whole-file request
+-  // as a targeted fix for https://crbug.com/888742 while avoiding extra
+-  // requests in other cases, but the problem can occur more generally as well;
+-  // it's just a lot less likely with applications actively using ranges.
+-  // See https://crbug.com/902724 for the more general case.
+-  bool first_read_of_full_from_partial =
+-      is_sparse_ && !reading_ &&
+-      (partial_ && !partial_->range_requested() && !partial_->IsLastRange());
++  // server bungles invalidation). See https://crbug.com/888742 and
++  // https://crbug.com/902724.
++  //
++  // This also guarantees that whenever any part of the body may be fetched
++  // from the network, a network response (and so a new `response_time`, which
++  // DoPartialHeadersReceived() copies to `original_response_time`) is
++  // received and stored before the headers are returned to the consumer.
++  bool first_read_of_incomplete_sparse_entry =
++      is_sparse_ && !reading_ && partial_ && !partial_->IsLastRange();
+ 
+   if (partial_ && (is_sparse_ || truncated_) &&
+       (!partial_->IsCurrentRangeCached() || invalid_range_ ||
+-       first_read_of_full_from_partial)) {
++       first_read_of_incomplete_sparse_entry)) {
+     // Force revalidation for sparse or truncated entries. Note that we don't
+     // want to ignore the regular validation logic just because a byte range was
+     // part of the request.
+diff --git a/storage/browser/file_system/obfuscated_file_util.cc b/storage/browser/file_system/obfuscated_file_util.cc
+index 29b7a23..1bc9829e 100644
+--- a/storage/browser/file_system/obfuscated_file_util.cc
++++ b/storage/browser/file_system/obfuscated_file_util.cc
+@@ -127,7 +127,15 @@
+                          const std::optional<BucketLocator>& bucket,
+                          const std::string& type) {
+   storage_key_ = storage_key;
+-  bucket_ = bucket;
++  // The directory of a first-party default bucket only depends on the
++  // StorageKey (see GetDirectoryForBucketAndType()), so don't include the
++  // bucket ID in the key either. Otherwise, different IDs for the same default
++  // bucket (e.g. from before and after it was deleted and recreated) would
++  // result in multiple SandboxDirectoryDatabases for the same directory.
++  bucket_ = (bucket.has_value() && bucket->is_default &&
++             storage_key.IsFirstPartyContext())
++                ? BucketLocator::ForDefaultBucket(storage_key)
++                : bucket;
+   type_ = type;
+ }
+ 
 diff --git a/ui/webui/resources/cr_components/composebox/contextual_action_menu.html.ts b/ui/webui/resources/cr_components/composebox/contextual_action_menu.html.ts
 index 523fed7..c820bc0 100644
 --- a/ui/webui/resources/cr_components/composebox/contextual_action_menu.html.ts
