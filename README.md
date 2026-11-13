@@ -83,8 +83,9 @@ All are **build-time only** (`BDEPEND`) for Chromium. `USE=ffmpeg-chromium` need
 this overlay's builds).
 
 The Chromium version Google releases as Stable for Linux is keyworded `amd64`, and so are the versions
-of the packages above that it builds with; everything else is `~amd64` (see
-[`doc/chromium-maintenance.md`](doc/chromium-maintenance.md)). arm64 is `~arm64` throughout: only amd64 has been built and tested.
+of the packages above that it builds with; everything else is `~amd64`, except the Beta
+(`SLOT="beta"`), which has no keywords (see
+[`doc/chromium-maintenance.md`](doc/chromium-maintenance.md)). arm64 is `~arm64` (the Beta aside): only amd64 has been built and tested.
 
 `eclass/chromium-llm.eclass` is the Chromium build, shared by the `www-client/chromium` ebuilds;
 each ebuild has only what is particular to its version: upstream's pins, its patch lists and the
