@@ -85,6 +85,17 @@ A second build of the same major waits until the first is done (until its Portag
 directory is unlocked). Running the first one's phases as separate `ebuild` commands unlocks it
 between them, so a waiting build can take the tree before the first one's `install`.
 
+### Manifest V2 extensions (optional)
+
+Upstream Chromium has refused Manifest V2 extensions (e.g. the original uBlock Origin) since 152.
+With `chromium-157-manifest-v2-features.patch` (the builds that list it), starting Chromium with
+`--disable-features=ExtensionManifestV2Disabled` (e.g. in `CHROMIUM_FLAGS` in
+`/etc/chromium/default`) keeps them installable and enabled, as that flag did in 138-150.
+Mind the tradeoff: an MV2 extension's blocking `webRequest` lets it see and rewrite all traffic
+of the sites it has host permissions for, and MV2 extensions may run remotely hosted code; install
+only ones you trust. It lasts only as long as upstream keeps the MV2 extension platform's code.
+MV2 extensions are no longer in the Chrome Web Store: load them unpacked (developer mode).
+
 ## Notable ebuild changes vs. 151
 
 - **Gentoo patchset:** forked from `chromium-patches` tag 152 into

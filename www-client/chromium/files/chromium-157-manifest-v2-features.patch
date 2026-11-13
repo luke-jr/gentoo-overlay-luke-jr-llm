@@ -1,0 +1,53 @@
+Bring back the features of Chromium 138-150's Manifest V2 deprecation stages, on by default:
+--disable-features=ExtensionManifestV2Disabled (or ExtensionManifestV2Unsupported) at startup keeps
+MV2 extensions installable and enabled, without deprecation warnings in chrome://extensions, as
+it did then. Since 152 Chromium blocks them unconditionally (ManifestV2Handler), but the MV2
+extension platform itself (background pages, blocking webRequest for MV2, ...) is still there.
+
+--- a/extensions/browser/manifest_v2_handler.cc
++++ b/extensions/browser/manifest_v2_handler.cc
+@@ -5,6 +5,7 @@
+ #include "extensions/browser/manifest_v2_handler.h"
+ 
+ #include "base/auto_reset.h"
++#include "base/feature_list.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/one_shot_event.h"
+ #include "base/strings/stringprintf.h"
+@@ -34,6 +35,13 @@
+ // Whether to override the MV2 deprecation for testing purposes.
+ bool g_allow_mv2_for_testing = false;
+ 
++// The features Chromium 138-150 had for the MV2 deprecation's stages: starting
++// the browser with --disable-features=ExtensionManifestV2Disabled (or
++// ExtensionManifestV2Unsupported) keeps MV2 extensions installable and enabled,
++// as it did then. The MV2 extension platform itself is still there.
++BASE_FEATURE(kExtensionManifestV2Disabled, base::FEATURE_ENABLED_BY_DEFAULT);
++BASE_FEATURE(kExtensionManifestV2Unsupported, base::FEATURE_ENABLED_BY_DEFAULT);
++
+ // Returns the suffix to use for histograms related to the manifest location
+ // grouping.
+ const char* GetHistogramManifestLocation(mojom::ManifestLocation location) {
+@@ -114,6 +122,11 @@
+     return false;
+   }
+ 
++  if (!base::FeatureList::IsEnabled(kExtensionManifestV2Disabled) ||
++      !base::FeatureList::IsEnabled(kExtensionManifestV2Unsupported)) {
++    return false;
++  }
++
+   return true;
+ }
+ 
+@@ -151,6 +164,10 @@
+ }
+ 
+ bool ManifestV2Handler::IsExtensionAffected(const Extension& extension) {
++  // MV2 kept (see above): no deprecation warnings in chrome://extensions.
++  if (!ShouldDisableLegacyExtensions()) {
++    return false;
++  }
+   return manifest_v2_util::IsExtensionAffected(extension);
+ }
+ 

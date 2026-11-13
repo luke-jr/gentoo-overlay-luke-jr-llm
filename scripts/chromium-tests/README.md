@@ -18,6 +18,9 @@ Run them for every new version, and compare the results with the previous versio
   - `bidi.mjs`: WebDriver BiDi through chromedriver's chromium-bidi mapper (also rebuilt here).
   - `webgl.mjs`: WebGL 2 on ANGLE's Vulkan back-end over SwiftShader, through ANGLE's internal shaders
     (which the ebuild compiles with the system glslang): pixel hashes per operation.
+  - `mv2.mjs`: Manifest V2 extensions: a minimal MV2 extension that cancels requests with
+    blocking `webRequest` must not load by default, and must run and block when Chromium starts with
+    `--disable-features=ExtensionManifestV2Disabled` (`chromium-157-manifest-v2-features.patch`).
   - `restore-pages.sh`: the "Restore pages?" bubble after a crash must not come back in a window
     opened later (`chromium-156-crash-bubble-once.patch`); three screenshots to look at. Needs Xvfb,
     xdotool and ImageMagick.

@@ -226,6 +226,9 @@ CHROMIUM_PATCHES=(
 	chromium-156-icu-rbbicst-header.patch
 	# //third_party/zstd:headers for USE=system-zstd (see the patch).
 	chromium-159-unbundle-zstd-headers.patch
+	# Manifest V2 extensions with --disable-features=ExtensionManifestV2Disabled (see the patch,
+	# and doc/chromium.md).
+	chromium-157-manifest-v2-features.patch
 	# v8.h without V8's version macros: a new V8 patch level rebuilds only what uses them (see
 	# the patch, and the eclass's src_prepare).
 	chromium-158-v8-h-without-version.patch
