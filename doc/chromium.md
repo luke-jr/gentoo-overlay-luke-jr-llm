@@ -224,8 +224,8 @@ Built offline and runtime-tested like 156 (components, DevTools, WebDriver BiDi,
 
 ## 158
 
-The 158 ebuilds (`158.0.8127.37_pre`, Google's Early Stable: `SLOT="stable"`, and the bleeding-edge
-`158.0.8127.39_p<N>_pre`, both built from the 158.0.8127.18 tarball and upgrade patches) are the 157 one with these
+The 158 ebuilds (`158.0.8127.37`, Google's Early Stable from its tarball: `SLOT="stable"`, and the
+bleeding-edge `158.0.8127.<tag>_p<N>_pre`, built from a tarball and upgrade patches) are the 157 one with these
 differences:
 - No Crubit patch: 158 supports a system Crubit itself (its `rust_crubit_root` GN argument, and
   C++ bindings of the prebuilt stdlib from its `.rmeta` files), which the ebuild says with
