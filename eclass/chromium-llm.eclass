@@ -109,6 +109,22 @@
 # upstream sources ("src" since 158, where pdfium's own files stay one level up). Unset: the
 # sources are in those directories themselves.
 
+# @ECLASS_VARIABLE: CHROMIUM_GNRT_SLOT
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# The dev-util/gnrt slot (an older major's) when this version's tools/crates/gnrt is the same as
+# that major's (159: 158's). Unset: the major version's own.
+
+# @ECLASS_VARIABLE: ICU4X_DATAGEN_CLDR_VER
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# Set (159 and later) when Chromium checks in ICU4X baked data made by its icu4x_datagen
+# (third_party/rust/icu4x_data): the CLDR version of the sources it is made from, which the tags
+# of its icu_provider_source name, with ICU4X_DATAGEN_ICUEXPORT_VER (ICU's export data),
+# ICU4X_DATAGEN_UNICODE_VER (Unicode's character data), ICU4X_DATAGEN_TZDB_VER (the tzdb) and
+# ICU4X_DATAGEN_LSTM_VER (the segmenter's LSTM models). The data is regenerated with
+# dev-util/chromium-icu4x-datagen. Unset: no such data.
+
 # @ECLASS_VARIABLE: CHROMIUM_BUILD_DIR
 # @USER_VARIABLE
 # @DEFAULT_UNSET
@@ -378,6 +394,18 @@ SRC_URI+=" !prebuilt-chromedriver-atoms? (
 	https://github.com/SeleniumHQ/selenium/archive/${SELENIUM_COMMIT}.tar.gz -> selenium-${SELENIUM_COMMIT}.gh.tar.gz
 )"
 
+# The sources of ICU4X's baked data (ICU4X_DATAGEN_CLDR_VER, see chromium_regen_icu4x_data).
+[[ -n ${ICU4X_DATAGEN_CLDR_VER} ]] && SRC_URI+="
+	https://github.com/unicode-org/cldr-json/releases/download/${ICU4X_DATAGEN_CLDR_VER}/cldr-${ICU4X_DATAGEN_CLDR_VER}-json-full.zip
+	https://github.com/unicode-org/icu/releases/download/release-${ICU4X_DATAGEN_ICUEXPORT_VER}/icu4x-icuexportdata-${ICU4X_DATAGEN_ICUEXPORT_VER}.zip
+	https://www.unicode.org/Public/${ICU4X_DATAGEN_UNICODE_VER}/ucd/UCD.zip -> unicode-data-${ICU4X_DATAGEN_UNICODE_VER}-UCD.zip
+	https://www.unicode.org/Public/${ICU4X_DATAGEN_UNICODE_VER}/emoji/emoji-sequences.txt
+		-> unicode-${ICU4X_DATAGEN_UNICODE_VER}-emoji-sequences.txt
+	https://data.iana.org/time-zones/releases/tzdata${ICU4X_DATAGEN_TZDB_VER}.tar.gz
+	https://github.com/unicode-org/lstm_word_segmentation/releases/download/${ICU4X_DATAGEN_LSTM_VER}/models.zip
+		-> lstm_word_segmentation-${ICU4X_DATAGEN_LSTM_VER}-models.zip
+"
+
 IUSE_SYSTEM_LIBS="+system-harfbuzz +system-icu +system-zstd"
 IUSE="+X ${IUSE_SYSTEM_LIBS} bindist bundled-toolchain cups debug ffmpeg-chromium gtk4 +hangouts headless kerberos +lto +official pax-kernel pgo"
 IUSE+=" +proprietary-codecs pulseaudio qt6 +rar +screencast selinux test +vaapi +wayland +widevine cpu_flags_ppc_vsx3"
@@ -530,7 +558,7 @@ BDEPEND="
 	dev-lang/typescript:${DEVTOOLS_TS_VER}
 	dev-util/rollup:${ROLLUP_VER}
 	dev-util/chromium-node-modules:${PV%%.*}
-	dev-util/gnrt:${PV%%.*}
+	dev-util/gnrt:${CHROMIUM_GNRT_SLOT:-${PV%%.*}}
 	dev-util/chromium-rust-crates:${PV%%.*}
 	dev-util/cddlconv:${CDDLCONV_VER}
 	dev-libs/protobuf
@@ -551,6 +579,7 @@ BDEPEND="
 	virtual/pkgconfig
 	x11-misc/xdg-utils
 "
+[[ -n ${ICU4X_DATAGEN_CLDR_VER} ]] && BDEPEND+=" dev-util/chromium-icu4x-datagen:${PV%%.*}"
 
 if ! has chromium_pkg_die ${EBUILD_DEATH_HOOKS}; then
 	EBUILD_DEATH_HOOKS+=" chromium_pkg_die";
@@ -1475,6 +1504,11 @@ chromium_regenerated_outputs() {
 	echo third_party/jinja2/_identifier.py
 	# The vendored Rust crates' BUILD.gn files (gnrt)
 	echo 'third_party/rust/*/*/BUILD.gn'
+	# OpenH264rs' list of sources (159 and later)
+	[[ -f third_party/openh264rs/src/tools/gen_sources_gni.rs ]] && echo third_party/openh264rs/src/sources.gni
+	# ICU4X's baked data, Linux's (icu4x_datagen)
+	[[ -n ${ICU4X_DATAGEN_CLDR_VER} ]] &&
+		echo third_party/rust/icu4x_data/{sources.gni,src/lib.rs,src/data/common/}
 	# Dawn's (Tint's) generated BUILD.gn files; src/tint/BUILD.gn is written by hand
 	echo 'third_party/dawn/src/tint/*/**/BUILD.gn'
 	# abseil's BUILD.gn files (convert_bazel_to_gn.py; of the root BUILD.gn, only two lists)
@@ -1601,10 +1635,13 @@ chromium_regenerated_outputs() {
 	# DevTools' generated files, and its JavaScript bundles (lit's, codemirror.next's,
 	# web-vitals', third-party-web's) and ClientVariations.js
 	local d=third_party/devtools-frontend/src
-	echo "${d}"/front_end/generated/{ARIAProperties,Deprecation,InspectorBackendCommands,protocol,SupportedCSSProperties}.ts \
-		"${d}"/front_end/generated/protocol-{mapping,proxy-api}.d.ts \
-		"${d}/front_end/models/javascript_metadata/NativeFunctions.ts" \
-		"${d}/third_party/blink/public/devtools_protocol/browser_protocol.json"
+	echo "${d}/front_end/generated/SupportedCSSProperties.ts" \
+		"${d}/front_end/models/javascript_metadata/NativeFunctions.ts"
+	# Up to 158 (159's DevTools build generates these itself)
+	[[ -e ${d}/front_end/generated/InspectorBackendCommands.ts ]] &&
+		echo "${d}"/front_end/generated/{ARIAProperties,Deprecation,InspectorBackendCommands,protocol}.ts \
+			"${d}"/front_end/generated/protocol-{mapping,proxy-api}.d.ts \
+			"${d}/third_party/blink/public/devtools_protocol/browser_protocol.json"
 	# XNNPACK's micro-kernels and build_identifier.c
 	echo 'third_party/xnnpack/src/src/**/gen/' third_party/xnnpack/build_identifier.c
 	# Polymer's bundle
@@ -1723,8 +1760,56 @@ chromium_regen_rust_gn() {
 	# dev-util/gnrt. It runs `cargo metadata` offline on the vendored crates, with a nightly
 	# flag (Chromium's cargo is a beta), and `gn format`.
 	einfo "Regenerating the vendored Rust crates' BUILD.gn files ..."
-	RUSTC_BOOTSTRAP=1 CARGO_HOME="${T}/gnrt-cargo-home" "${BROOT}/usr/lib/gnrt/${PV%%.*}/gnrt" gen \
+	RUSTC_BOOTSTRAP=1 CARGO_HOME="${T}/gnrt-cargo-home" "${BROOT}/usr/lib/gnrt/${CHROMIUM_GNRT_SLOT:-${PV%%.*}}/gnrt" gen \
 		> "${T}/gnrt.log" 2>&1 || die "gnrt gen failed (see ${T}/gnrt.log)"
+}
+
+chromium_regen_icu4x_data() {
+	# ICU4X's baked data for Chromium (third_party/rust/icu4x_data: src/lib.rs, sources.gni and
+	# src/data/<platform>/ for each of Chromium's ICU data platforms; Linux's is common) is the
+	# output of Chromium's tools/crates/icu4x_datagen, from CLDR's JSON, ICU's export data,
+	# Unicode's character data, the tzdb and the segmenter's LSTM models (ICU4X_DATAGEN_*),
+	# filtered by third_party/icu/filters/ and patched with third_party/rust/icu4x_data/patches/.
+	# Regenerate common's with dev-util/chromium-icu4x-datagen (sources.gni is a GN input: before
+	# gn gen). It formats mod.rs with third_party/rust-toolchain/bin/rustfmt when there is one,
+	# and checks that sources.gni exists before it rewrites it.
+	einfo "Regenerating ICU4X's baked data ..."
+	local d="${WORKDIR}/icu4x-sources"
+	mkdir -p "${d}"/unicode/{ucd,emoji} "${d}/tzdb" || die
+	cp "${DISTDIR}/unicode-data-${ICU4X_DATAGEN_UNICODE_VER}-UCD.zip" "${d}/unicode/ucd/UCD.zip" || die
+	cp "${DISTDIR}/unicode-${ICU4X_DATAGEN_UNICODE_VER}-emoji-sequences.txt" \
+		"${d}/unicode/emoji/emoji-sequences.txt" || die
+	tar -xzf "${DISTDIR}/tzdata${ICU4X_DATAGEN_TZDB_VER}.tar.gz" -C "${d}/tzdb" || die
+	touch third_party/rust/icu4x_data/sources.gni || die
+	ICU4X_CLDR_DIR="${DISTDIR}/cldr-${ICU4X_DATAGEN_CLDR_VER}-json-full.zip" \
+		ICU4X_ICUEXPORT_DIR="${DISTDIR}/icu4x-icuexportdata-${ICU4X_DATAGEN_ICUEXPORT_VER}.zip" \
+		ICU4X_UNICODE_DIR="${d}/unicode" ICU4X_TZDB_DIR="${d}/tzdb" \
+		ICU4X_SEGMENTER_LSTM_DIR="${DISTDIR}/lstm_word_segmentation-${ICU4X_DATAGEN_LSTM_VER}-models.zip" \
+		"${BROOT}/usr/lib/chromium-icu4x-datagen/${PV%%.*}/icu4x_datagen" generate --platforms common \
+		> "${T}/icu4x_datagen.log" 2>&1 || die "icu4x_datagen failed (see ${T}/icu4x_datagen.log)"
+	if [[ ! -e third_party/rust-toolchain/bin/rustfmt ]]; then
+		# As icu4x_datagen formats them (its mod.rs starts with @generated, which rustfmt skips
+		# in a file but not on stdin).
+		# The selected Rust's rustfmt, as src_prepare points bindgen to it.
+		local rustfmt="${BROOT}/usr/bin/rustfmt-$([[ ${RUST_TYPE} == binary ]] && echo bin-)${RUST_SLOT}" f
+		[[ -x ${rustfmt} ]] || die "${rustfmt} not found"
+		"${rustfmt}" --config-path=.rustfmt.toml third_party/rust/icu4x_data/src/lib.rs || die
+		f=third_party/rust/icu4x_data/src/data/common/mod.rs
+		"${rustfmt}" --config-path=.rustfmt.toml --emit=stdout < "${f}" > "${f}.fmt" && mv "${f}.fmt" "${f}" ||
+			die "Failed to format ${f}"
+	fi
+}
+
+chromium_regen_openh264rs_gn() {
+	# OpenH264rs' sources.gni (159 and later; a GN input: before gn gen) is the output of its
+	# tools/gen_sources_gni.rs (`cargo run --bin gen_sources_gni`), which only uses std and
+	# CARGO_MANIFEST_DIR: build it with rustc and run it.
+	local d=third_party/openh264rs/src
+	[[ -f ${d}/tools/gen_sources_gni.rs ]] || return 0
+	einfo "Regenerating OpenH264rs' sources.gni ..."
+	CARGO_MANIFEST_DIR="${S}/${d}" rustc --edition=2024 -O "${d}/tools/gen_sources_gni.rs" \
+		-o "${T}/gen_sources_gni" && "${T}/gen_sources_gni" ||
+		die "Failed to regenerate OpenH264rs' sources.gni"
 }
 
 chromium_regen_dawn_gn() {
@@ -1938,7 +2023,8 @@ chromium_regenerate_gn() {
 	# Jinja first (the others use Chromium's jinja2), the Khronos headers before the GPU code (which
 	# reads them); the rest in parallel (see chromium_regen_steps).
 	chromium_regen_steps jinja
-	chromium_regen_steps angle libvpx boringssl khronos+gpu_code dawn_gn rust_gn abseil_gn
+	chromium_regen_steps angle libvpx boringssl khronos+gpu_code dawn_gn rust_gn abseil_gn openh264rs_gn \
+		${ICU4X_DATAGEN_CLDR_VER:+icu4x_data}
 }
 
 # Regeneration of the other generated files, with their generators: run from chromium_compile
@@ -2698,7 +2784,8 @@ chromium_regen_openxr() {
 
 chromium_regen_devtools_generated() {
 	# DevTools checks in files generated from Blink's and V8's definitions: front_end/generated/
-	# (the protocol, ARIA, CSS and deprecation data) and models/javascript_metadata/
+	# (the protocol, ARIA, CSS and deprecation data; since 159 only the CSS data, its build makes
+	# the rest) and models/javascript_metadata/
 	# NativeFunctions.ts (from Blink's Web IDL). Regenerate them with DevTools' own scripts (the
 	# first gives byte-identical files; NativeFunctions.ts differs: 156's IDL, which DevTools'
 	# copy lags behind, and the order of its lists, made deterministic by
