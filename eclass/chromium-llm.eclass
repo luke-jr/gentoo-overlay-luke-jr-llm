@@ -134,22 +134,36 @@
 # to the major version. Portage expands variables in make.conf even single-quoted, so escape
 # the $, e.g.
 #   CHROMIUM_BUILD_DIR="/var/tmp/portage/chromium-build/\${MAJOR}"
-# The sources are unpacked to its src/ (S), replacing the last build's; everything else is in
-# its build/, which stays: the build directory (build/Release), and the tree's records (state,
+# The sources are unpacked to its src/ (S), replacing the last build's, and the checked-in
+# generated files the build regenerates are moved aside to its upstream-generated/ (the same
+# filesystem as src/: a rename each); everything else is in its build/, which stays: the build directory (build/Release), and the tree's records (state,
 # owner, mojom-message-id-salt, toolchains). Before each ninja run, files whose contents are
 # those of the last run (whatever build it was in) get that run's timestamp back, changed ones a
 # new one
 # (files/chromium-build-tree.py). ninja tracks system headers too (system_headers_in_deps). A
 # toolchain change (not tracked by ninja) gets a warning: delete build/ for a full build. One
 # build at a time uses the directory: another one waits until it is done. USE=pgo builds
-# everything twice anyway.
+# everything twice anyway. The tree can be moved (src/ and build/ together, with their
+# timestamps; then set CHROMIUM_BUILD_DIR to the new place), but GN writes paths outside it (the
+# system's headers, Crubit's support library, ...) relative to build/Release: at another
+# directory depth, the steps that use them are run again once.
+
+# @ECLASS_VARIABLE: CHROMIUM_REGEN_CHECKPOINT
+# @USER_VARIABLE
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# For a test harness: a directory. When every regeneration step is done (in src_compile, before
+# ninja builds chrome), the build touches its "regenerated" and waits until it can lock its
+# "lock" (flock), so that a harness holding that lock can check the regenerated files (e.g.
+# scripts/chromium-tests/verify-regenerated.py) before the long build, and then release it.
 
 # @ECLASS_VARIABLE: CHROMIUM_BUILD_DIR_KEEP_SRC
 # @USER_VARIABLE
 # @DEFAULT_UNSET
 # @DESCRIPTION:
 # With CHROMIUM_BUILD_DIR, the kept build tree's src/ is emptied at the end of src_install: the
-# next build unpacks its own sources anyway, only build/ is reused. 1 keeps them until the next
+# next build unpacks its own sources anyway, only build/ is reused. (Its upstream-generated/, the
+# checked-in generated files moved aside, is always removed then.) 1 keeps them until the next
 # build, 0 removes them; unset, FEATURES=keepwork keeps them.
 
 # @FUNCTION: chromium_crubit_rustfmt
@@ -1448,6 +1462,13 @@ print(version)
 	# The checked-in generated files that are regenerated (in src_configure and src_compile): out
 	# of the tree, so that only the regenerated ones can be used (see chromium_regenerated_outputs).
 	einfo "Moving the checked-in generated files out of the tree ..."
+	# With a kept build tree (CHROMIUM_BUILD_DIR), to its upstream-generated/, beside src/ (on the
+	# same filesystem: a rename each; the tree may be on another one than ${WORKDIR}).
+	if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
+		rm -rf "${CHROMIUM_BUILD_TREE:?}/upstream-generated" || die
+		mkdir -p "${CHROMIUM_BUILD_TREE}/upstream-generated" || die
+		ln -s "${CHROMIUM_BUILD_TREE}/upstream-generated" "${WORKDIR}/upstream-generated" || die
+	fi
 	chromium_regenerated_outputs | tr ' ' '\n' |
 		"${EPYTHON}" -B "${FILESDIR}/chromium-move-generated.py" "${S}" "${WORKDIR}/upstream-generated" \
 		"${PORTAGE_BUILDDIR}/.unpacked" "${upstream_patched[@]}" || die "Failed to move the checked-in generated files"
@@ -4213,6 +4234,14 @@ chromium_compile() {
 		done
 	fi
 
+	# Every regeneration step is done: a test harness can check them now (CHROMIUM_REGEN_CHECKPOINT).
+	if [[ -n ${CHROMIUM_REGEN_CHECKPOINT} ]]; then
+		addwrite "${CHROMIUM_REGEN_CHECKPOINT}"
+		touch "${CHROMIUM_REGEN_CHECKPOINT}/regenerated" || die
+		einfo "Waiting for ${CHROMIUM_REGEN_CHECKPOINT}/lock (CHROMIUM_REGEN_CHECKPOINT) ..."
+		flock "${CHROMIUM_REGEN_CHECKPOINT}/lock" true || die "Failed to lock ${CHROMIUM_REGEN_CHECKPOINT}/lock"
+	fi
+
 	# Even though ninja autodetects number of CPUs, we respect
 	# user's options, for debugging with -j 1 or any other reason.
 	chromium_eninja -C "${CHROMIUM_OUT}" chrome chromedriver chrome_sandbox $(use test && echo "base_unittests")
@@ -4536,6 +4565,11 @@ chromium-llm_src_install() {
 	local keep_src=${CHROMIUM_BUILD_DIR_KEEP_SRC}
 	if [[ -z ${keep_src} ]]; then
 		has keepwork ${FEATURES} && keep_src=1 || keep_src=0
+	fi
+	if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
+		# Only needed until the build is checked (scripts/chromium-tests/verify-regenerated.py,
+		# after src_compile).
+		rm -rf "${CHROMIUM_BUILD_TREE:?}/upstream-generated" "${WORKDIR}/upstream-generated" || die
 	fi
 	if [[ -n ${CHROMIUM_BUILD_TREE} && ${keep_src} == 0 ]]; then
 		einfo "Removing the sources from ${S} (CHROMIUM_BUILD_DIR_KEEP_SRC keeps them) ..."
