@@ -1,8 +1,13 @@
 Bring back the features of Chromium 138-150's Manifest V2 deprecation stages, on by default:
 --disable-features=ExtensionManifestV2Disabled (or ExtensionManifestV2Unsupported) at startup keeps
-MV2 extensions installable and enabled, without deprecation warnings in chrome://extensions, as
-it did then. Since 152 Chromium blocks them unconditionally (ManifestV2Handler), but the MV2
-extension platform itself (background pages, blocking webRequest for MV2, ...) is still there.
+MV2 extensions installable and enabled, as it did then. Since 152 Chromium blocks them
+unconditionally (ManifestV2Handler), but the MV2 extension platform itself (background pages,
+blocking webRequest for MV2, ...) is still there.
+
+chrome://extensions still warns about the deprecation then, as in 138-150's warning stage: for
+affected extensions that are enabled, the deprecation panel and the extension's detail page show
+the warning stage's strings ("may soon no longer be supported", still in Chromium); for ones it
+turned off, the disabled stage's, as before.
 
 --- a/extensions/browser/manifest_v2_handler.cc
 +++ b/extensions/browser/manifest_v2_handler.cc
@@ -40,14 +45,86 @@ extension platform itself (background pages, blocking webRequest for MV2, ...) i
    return true;
  }
  
-@@ -151,6 +164,10 @@
- }
+--- a/chrome/browser/resources/extensions/detail_view.ts
++++ b/chrome/browser/resources/extensions/detail_view.ts
+@@ -525,8 +525,9 @@
+    * Returns whether the mv2 deprecation message should be displayed.
+    */
+   protected shouldShowMv2DeprecationMessage_(): boolean {
+-    return this.data.isAffectedByMV2Deprecation &&
+-        this.data.disableReasons.unsupportedManifestVersion;
++    // Also while Manifest V2 is kept (--disable-features=
++    // ExtensionManifestV2Disabled): the warning stage's message.
++    return this.data.isAffectedByMV2Deprecation;
+   }
  
- bool ManifestV2Handler::IsExtensionAffected(const Extension& extension) {
-+  // MV2 kept (see above): no deprecation warnings in chrome://extensions.
-+  if (!ShouldDisableLegacyExtensions()) {
-+    return false;
-+  }
-   return manifest_v2_util::IsExtensionAffected(extension);
- }
+   /**
+@@ -612,7 +613,10 @@
+    * Returns the Manifest V2 deprecation message header.
+    */
+   protected getMv2DeprecationMessageHeader_(): string {
+-    return this.i18n('mv2DeprecationMessageDisabledHeader');
++    return this.i18n(
++        this.data.disableReasons.unsupportedManifestVersion ?
++            'mv2DeprecationMessageDisabledHeader' :
++            'mv2DeprecationMessageWarningHeader');
+   }
+ 
+   /**
+@@ -621,7 +625,10 @@
+    * since the string holds substitutions.
+    */
+   protected getMv2DeprecationMessageSubtitle_(): TrustedHTML {
+-    return this.i18nAdvanced('mv2DeprecationMessageDisabledSubtitle', {
++    return this.i18nAdvanced(
++        this.data.disableReasons.unsupportedManifestVersion ?
++            'mv2DeprecationMessageDisabledSubtitle' :
++            'mv2DeprecationMessageWarningSubtitle', {
+       substitutions: [
+         'https://support.google.com/chrome_webstore' +
+             '?p=unsupported_extensions',
+@@ -635,6 +642,11 @@
+    * Returns the Manifest V2 deprecation message icon.
+    */
+   protected getMv2DeprecationMessageIcon_(): string {
++    if (!this.data.disableReasons.unsupportedManifestVersion) {
++      return loadTimeData.getBoolean('webuiRoundedIconsEnabled') ?
++          'extensions-icons:chrome-extension' :
++          'extensions-icons:my_extensions-old';
++    }
+     return (
+         loadTimeData.getBoolean('webuiRoundedIconsEnabled') ?
+             'extensions-icons:chrome-extension-off' :
+--- a/chrome/browser/resources/extensions/item_list.ts
++++ b/chrome/browser/resources/extensions/item_list.ts
+@@ -227,8 +227,9 @@
+   private computeMv2DeprecatedExtensions_():
+       chrome.developerPrivate.ExtensionInfo[] {
+     return this.extensions.filter((extension) => {
+-      return extension.isAffectedByMV2Deprecation &&
+-          extension.disableReasons.unsupportedManifestVersion;
++      // Also while Manifest V2 is kept (--disable-features=
++      // ExtensionManifestV2Disabled): the warning stage's notice.
++      return extension.isAffectedByMV2Deprecation;
+     });
+   }
+ 
+--- a/chrome/browser/resources/extensions/mv2_deprecation_panel.ts
++++ b/chrome/browser/resources/extensions/mv2_deprecation_panel.ts
+@@ -101,8 +101,14 @@
+    * Updates properties after extensions change.
+    */
+   private async onExtensionsChanged_(): Promise<void> {
+-    const headerVar = 'mv2DeprecationPanelDisabledHeader';
+-    const subtitleVar = 'mv2DeprecationPanelDisabledSubtitle';
++    // While Manifest V2 is kept, the affected extensions stay enabled: show
++    // the warning stage's strings then.
++    const disabled = this.extensions.some(
++        e => e.disableReasons.unsupportedManifestVersion);
++    const headerVar = disabled ? 'mv2DeprecationPanelDisabledHeader' :
++                                 'mv2DeprecationPanelWarningHeader';
++    const subtitleVar = disabled ? 'mv2DeprecationPanelDisabledSubtitle' :
++                                   'mv2DeprecationPanelWarningSubtitle';
+     const subtitleLink = 'https://support.google.com/chrome_webstore?' +
+         'p=unsupported_extensions';
  

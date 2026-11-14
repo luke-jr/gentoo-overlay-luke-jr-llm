@@ -2,6 +2,8 @@
 // (--load-extension) that cancels requests to URLs containing "blocked" with blocking webRequest,
 // and reports whether it runs (its background page) and whether it blocks: by default, Chromium
 // refuses it (both false); with --disable-features=ExtensionManifestV2Disabled, both must be true.
+// It also reports chrome://extensions' deprecation notices for it (the panel's heading, and the
+// message on its detail page): with MV2 kept, the warning stage's "may soon no longer be supported".
 // Usage: node mv2.mjs CHROME
 import { createServer } from 'http';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
@@ -26,13 +28,16 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 
 async function check(extraArgs) {
 const browser = await launch(chrome, [`--load-extension=${ext}`, ...extraArgs]);
-const result = { backgroundPage: false, blocked: null, allowedLoads: null };
+const result = { backgroundPage: false, blocked: null, allowedLoads: null, panel: null, detail: null };
+let id = null;
 try {
   // The extension's background page shows up as a DevTools target when it runs.
   for (let i = 0; i < 50 && !result.backgroundPage; i++) {
     const targets = await (await fetch(`${browser.base}/json/list`)).json();
-    result.backgroundPage = targets.some((t) => t.type === 'background_page' && t.title === 'mv2-test');
-    if (!result.backgroundPage) await sleep(200);
+    const bg = targets.find((t) => t.type === 'background_page' && t.title === 'mv2-test');
+    result.backgroundPage = !!bg;
+    if (bg) id = new URL(bg.url).host;
+    else await sleep(200);
   }
   const tab = await newTab(browser, `${origin}/page`);
   const cdp = await connect(tab.webSocketDebuggerUrl);
@@ -43,6 +48,26 @@ try {
   result.allowedLoads = await probe('/allowed');
   result.blocked = !(await probe('/blocked'));
   cdp.close();
+  if (id) {
+    // chrome://extensions' notices (shadow DOM; poll until rendered).
+    const text = async (page, expr) => {
+      const t = await newTab(browser, page);
+      const c = await connect(t.webSocketDebuggerUrl);
+      let v = null;
+      for (let i = 0; i < 25 && v === null; i++) {
+        await sleep(200);
+        v = (await c.send('Runtime.evaluate', { expression: expr })).result.result.value ?? null;
+      }
+      c.close();
+      return v;
+    };
+    const mgr = "document.querySelector('extensions-manager')?.shadowRoot";
+    result.panel = await text('chrome://extensions/', `${mgr}?.querySelector('extensions-item-list')` +
+      "?.shadowRoot?.querySelector('extensions-mv2-deprecation-panel')?.shadowRoot" +
+      "?.querySelector('#headingText')?.textContent.trim() || null");
+    result.detail = await text(`chrome://extensions/?id=${id}`, `${mgr}?.querySelector('extensions-detail-view')` +
+      "?.shadowRoot?.querySelector('#mv2DeprecationMessage .section-title')?.textContent.trim() || null");
+  }
 } finally {
   await browser.close();
 }
