@@ -1,0 +1,330 @@
+Chromium 158.0.8127.62 + the later changes of its release branch, up to
+f9301621ad4de25ca5a9780998d29a586af8423e (refs/branch-heads/8127@{#1761}), for the
+158.0.8127.62 tree that chromium-158.0.8127.37-to-158.0.8127.62.patch makes.
+
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.62..f9301621ad4de25ca5a9780998d29a586af8423e,
+and the dependencies whose DEPS revision changed:
+angle/angle 680c5e69edc723ce38342f99b70c765382c2db9f..3708e472b77d8338dbc7365fea884beb0272c6de (under third_party/angle/) and
+dawn 04a00943345765ffa2f602573ded8ad830221514..071f953465453913194423f18ac320f6c586b1b1 (under third_party/dawn/),
+as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
+.62 tree's files, renames included): left out are files not in the release
+tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
+translations, PGO/orderfile pointers, submodule pointer updates. chrome/VERSION,
+the DEPS files and the stamp files stay at 158.0.8127.62.
+
+Commits contributing to it (oldest first):
+  781019c19f82 Roll commits from side projects in M158
+  27c6661da8ae [M158] bluetooth: Bind chooser event handler with WeakPtr in GetDevice
+  d204468485af [M158] Defer IsolatedSVGDocumentHost::Shutdown() in ~SVGImage()
+  f9301621ad4d Roll commits from side projects in M158
+    angle 8b017dcd1a1a [M158] Vulkan: Reset all cached default attribs on VAO bind
+    angle 3708e472b77d [M158] Vulkan: Skip streamed attribs in XFB write hazard check
+    dawn 071f95346545 [M158] [d3d12] Track shared texture usage when recording commands.
+
+Checked: applies to the 158.0.8127.62 tree; every patched file is
+byte-identical to its version at the commits above.
+
+diff --git a/content/browser/bluetooth/bluetooth_device_chooser_controller.cc b/content/browser/bluetooth/bluetooth_device_chooser_controller.cc
+index a09e0f5c..12d499ca 100644
+--- a/content/browser/bluetooth/bluetooth_device_chooser_controller.cc
++++ b/content/browser/bluetooth/bluetooth_device_chooser_controller.cc
+@@ -312,12 +312,13 @@
+ 
+   BluetoothChooser::EventHandler chooser_event_handler = base::BindRepeating(
+       &BluetoothDeviceChooserController::OnBluetoothChooserEvent,
+-      base::Unretained(this));
++      weak_ptr_factory_.GetWeakPtr());
+ 
+   // The delegate's chooser implementation may spin a nested message loop (e.g.
+   // to drop fullscreen), during which the frame may be detached and the
+-  // controller destroyed. Check that the controller is still alive before
+-  // accessing member variables.
++  // controller destroyed. In addition, the chooser event handler could be
++  // invoked synchronously. Check that the controller is still alive and that
++  // the request hasn't already completed before assigning `chooser_`.
+   base::WeakPtr<BluetoothDeviceChooserController> weak_this =
+       weak_ptr_factory_.GetWeakPtr();
+   std::unique_ptr<BluetoothChooser> chooser;
+@@ -326,7 +327,7 @@
+                                             std::move(chooser_event_handler));
+   }
+ 
+-  if (!weak_this) {
++  if (!weak_this || !callback_) {
+     return;
+   }
+ 
+diff --git a/third_party/blink/renderer/core/loader/resource/image_resource_content.cc b/third_party/blink/renderer/core/loader/resource/image_resource_content.cc
+index ef774496..3ceb97c2 100644
+--- a/third_party/blink/renderer/core/loader/resource/image_resource_content.cc
++++ b/third_party/blink/renderer/core/loader/resource/image_resource_content.cc
+@@ -491,10 +491,8 @@
+     bool is_multipart) {
+   TRACE_EVENT0("blink", "ImageResourceContent::updateImage");
+ 
+-#if DCHECK_IS_ON()
+-  DCHECK(!is_update_image_being_called_);
++  CHECK(!is_update_image_being_called_);
+   base::AutoReset<bool> scope(&is_update_image_being_called_, true);
+-#endif
+ 
+   // Clears the existing image, if instructed by |updateImageOption|.
+   switch (update_image_option) {
+@@ -521,7 +519,10 @@
+         if (!image_)
+           image_ = CreateImage(is_multipart);
+         DCHECK(image_);
+-        size_available_ = image_->SetData(std::move(data), all_data_received);
++        // Hold a local reference across `SetData()` as defense-in-depth in
++        // case `image_` is cleared before `SetData()` returns.
++        scoped_refptr<Image> image = image_;
++        size_available_ = image->SetData(std::move(data), all_data_received);
+         DCHECK(all_data_received ||
+                size_available_ !=
+                    Image::kSizeAvailableAndLoadingAsynchronously);
+diff --git a/third_party/blink/renderer/core/loader/resource/image_resource_content.h b/third_party/blink/renderer/core/loader/resource/image_resource_content.h
+index 714db22..fce3ec7 100644
+--- a/third_party/blink/renderer/core/loader/resource/image_resource_content.h
++++ b/third_party/blink/renderer/core/loader/resource/image_resource_content.h
+@@ -8,7 +8,6 @@
+ #include <cstddef>
+ 
+ #include "base/auto_reset.h"
+-#include "base/dcheck_is_on.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "third_party/blink/renderer/core/core_export.h"
+ #include "third_party/blink/renderer/core/loader/resource/image_resource_observer.h"
+@@ -300,9 +299,7 @@
+ 
+   bool is_broken_ = false;
+ 
+-#if DCHECK_IS_ON()
+   bool is_update_image_being_called_ = false;
+-#endif
+ };
+ 
+ template <>
+diff --git a/third_party/blink/renderer/core/svg/graphics/svg_image.cc b/third_party/blink/renderer/core/svg/graphics/svg_image.cc
+index cae6788..10ee6f4 100644
+--- a/third_party/blink/renderer/core/svg/graphics/svg_image.cc
++++ b/third_party/blink/renderer/core/svg/graphics/svg_image.cc
+@@ -61,8 +61,10 @@
+ #include "third_party/blink/renderer/platform/graphics/paint/paint_record_builder.h"
+ #include "third_party/blink/renderer/platform/graphics/paint/paint_shader.h"
+ #include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
++#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ #include "third_party/blink/renderer/platform/scheduler/public/main_thread.h"
+ #include "third_party/blink/renderer/platform/scheduler/public/main_thread_scheduler.h"
++#include "third_party/blink/renderer/platform/scheduler/public/thread_scheduler.h"
+ #include "third_party/blink/renderer/platform/wtf/functional.h"
+ #include "ui/gfx/geometry/rect.h"
+ #include "ui/gfx/geometry/rect_conversions.h"
+@@ -104,14 +106,25 @@
+       has_pending_timeline_rewind_(false) {}
+ 
+ SVGImage::~SVGImage() {
++  if (chrome_client_) {
++    chrome_client_->DetachImage();
++  }
+   if (document_host_) {
+-    // Store `document_host_` in a local variable and clear it so that
+-    // SVGImageChromeClient knows we're destructed.
++    // Clear `document_host_` before shutdown so re-entrant queries observe
++    // that teardown has started.
+     auto* document_host = document_host_.Release();
+-    document_host->Shutdown();
++    // Avoid synchronous page/frame teardown in ~SVGImage(), as cancelling
++    // inner loads or detaching frames can re-enter image/resource code or
++    // allocate on the Oilpan heap mid-sweep.
++    if (!RuntimeEnabledFeatures::SvgImageDeferShutdownEnabled() ||
++        !ThreadScheduler::Current()->CleanupTaskRunner()->PostTask(
++            FROM_HERE, BindOnce(&IsolatedSVGDocumentHost::Shutdown,
++                                WrapPersistent(document_host)))) {
++      document_host->Shutdown();
++    }
+   }
+ 
+-  // Verify that page teardown destroyed the Chrome
++  // Verify that `chrome_client_` does not retain a dangling pointer to `this`.
+   DCHECK(!chrome_client_ || !chrome_client_->GetImage());
+ }
+ 
+diff --git a/third_party/blink/renderer/core/svg/graphics/svg_image_chrome_client.cc b/third_party/blink/renderer/core/svg/graphics/svg_image_chrome_client.cc
+index ecb747c..02d82f1 100644
+--- a/third_party/blink/renderer/core/svg/graphics/svg_image_chrome_client.cc
++++ b/third_party/blink/renderer/core/svg/graphics/svg_image_chrome_client.cc
+@@ -55,8 +55,15 @@
+       &SVGImageChromeClient::AnimationTimerFired);
+ }
+ 
+-void SVGImageChromeClient::ChromeDestroyed() {
++void SVGImageChromeClient::DetachImage() {
+   image_ = nullptr;
++  if (animation_timer_) {
++    animation_timer_->Value().Stop();
++  }
++}
++
++void SVGImageChromeClient::ChromeDestroyed() {
++  DetachImage();
+ }
+ 
+ void SVGImageChromeClient::InvalidateContainer() {
+@@ -68,6 +75,9 @@
+ }
+ 
+ void SVGImageChromeClient::SuspendAnimation() {
++  if (!image_) {
++    return;
++  }
+   if (image_->MaybeAnimated()) {
+     timeline_state_ = kSuspendedWithAnimationPending;
+   } else {
+@@ -77,6 +87,9 @@
+ }
+ 
+ void SVGImageChromeClient::ResumeAnimation() {
++  if (!image_) {
++    return;
++  }
+   bool have_pending_animation =
+       timeline_state_ == kSuspendedWithAnimationPending;
+   timeline_state_ = kRunning;
+@@ -90,19 +103,25 @@
+ 
+ void SVGImageChromeClient::RestoreAnimationIfNeeded() {
+   // If the timeline is not suspended we needn't attempt to restore.
+-  if (!IsSuspended())
++  if (!image_ || !IsSuspended()) {
+     return;
++  }
+   image_->RestoreAnimation();
+ }
+ 
+ void SVGImageChromeClient::SetDidEncounterXSL() {
+-  image_->SetDidEncounterXSL();
++  if (image_) {
++    image_->SetDidEncounterXSL();
++  }
+ }
+ 
+ void SVGImageChromeClient::ScheduleAnimation(const LocalFrameView*,
+                                              cc::BeginMainFrameReason,
+                                              base::TimeDelta fire_time,
+                                              bool urgent) {
++  if (!image_) {
++    return;
++  }
+   DCHECK(animation_timer_);
+   // Because a single SVGImage can be shared by multiple pages, we can't key
+   // our svg image layout on the page's real animation frame. Therefore, we
+diff --git a/third_party/blink/renderer/core/svg/graphics/svg_image_chrome_client.h b/third_party/blink/renderer/core/svg/graphics/svg_image_chrome_client.h
+index 0c9ccec..bd4dead 100644
+--- a/third_party/blink/renderer/core/svg/graphics/svg_image_chrome_client.h
++++ b/third_party/blink/renderer/core/svg/graphics/svg_image_chrome_client.h
+@@ -63,6 +63,7 @@
+       scoped_refptr<base::SingleThreadTaskRunner> compositor_task_runner);
+ 
+   SVGImage* GetImage() const { return image_; }
++  void DetachImage();
+ 
+   void SuspendAnimation();
+   void ResumeAnimation();
+@@ -87,7 +88,7 @@
+   TimerBase& GetTimerForTesting() const { return animation_timer_->Value(); }
+   void AnimationTimerFired(TimerBase*);
+ 
+-  raw_ptr<SVGImage, UnprotectedInRelease | DanglingUntriaged> image_;
++  raw_ptr<SVGImage, UnprotectedInRelease> image_;
+   Member<DisallowNewWrapper<HeapTaskRunnerTimer<SVGImageChromeClient>>>
+       animation_timer_;
+   enum {
+diff --git a/third_party/blink/renderer/platform/runtime_enabled_features.json5 b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+index 20e233d..4d4dce811 100644
+--- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
++++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+@@ -6618,6 +6618,10 @@
+       status: "stable",
+     },
+     {
++      name: "SvgImageDeferShutdown",
++      status: "stable",
++    },
++    {
+       name: "SvgImageNonUniformScalingFix",
+       status: "stable",
+     },
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/ContextVk.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/ContextVk.cpp
+index e6ad6dd..6903238 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/ContextVk.cpp
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/ContextVk.cpp
+@@ -5823,10 +5823,20 @@
+                 break;
+             case gl::state::DIRTY_BIT_VERTEX_ARRAY_BINDING:
+             {
+-                gl::AttributesMask staleDefaultAttribsMask =
+-                    vertexArrayVk->getCurrentDefaultAttribsMask() &
+-                    ~programExecutable->getAttributesMask();
+-                vertexArrayVk->syncDirtyDisabledAttribs(this, staleDefaultAttribsMask);
++                // The default attribute buffers cached in the newly bound vertex array are
++                // suballocated from mStreamedVertexBuffers, which may have been reallocated (and
++                // the old BufferHelpers freed) while this vertex array was not bound.  Reset all of
++                // them to the empty buffer; the active ones are reallocated by
++                // handleDirtyGraphicsDefaultAttribs() before they are used.
++                //
++                // Note that the active ones cannot be left stale in anticipation of that update:
++                // the state may be synced without a draw (e.g. a multi-draw where every draw is a
++                // no-op), and the program may change before the next draw.  In that case,
++                // handleDirtyGraphicsDefaultAttribs() skips attributes that are not used by the new
++                // program, while the vertex buffers handler still binds (and tracks) every
++                // attribute up to the program's max active attribute location.
++                vertexArrayVk->syncDirtyDisabledAttribs(
++                    this, vertexArrayVk->getCurrentDefaultAttribsMask());
+                 invalidateDefaultAttributes(context->getActiveDefaultAttribsMask());
+                 ANGLE_TRY(onVertexArrayChange(vertexArrayVk->getCurrentEnabledAttribsMask()));
+                 ANGLE_TRY(onIndexBufferChange(vertexArrayVk->getCurrentElementArrayBuffer()));
+@@ -9257,9 +9267,21 @@
+ 
+     if (ANGLE_UNLIKELY(mCurrentTransformFeedbackQueueSerial.valid()))
+     {
++        // Only enabled non-streamed attributes need to be checked, as only they source their data
++        // from GL buffer objects, which may have been written by transform feedback.  Default
++        // attributes and streamed attributes (client memory or emulated divisor) use internal
++        // buffers suballocated from mStreamedVertexBuffers, which are written by the host.  (The
++        // GL buffer of an emulated divisor attribute is read on the CPU when streamed, which
++        // already waits for any pending GPU write.)  Additionally, mStreamedVertexBuffers may have
++        // been reallocated (and the old BufferHelpers freed) since the streamed attributes were
++        // last streamed, e.g. while the vertex array was not bound, so their buffers must not be
++        // accessed until they are streamed again by setupDraw().
++        const gl::AttributesMask enabledNonStreamingAttribDirtyBits =
++            dirtyAttribBits & vertexArray.getCurrentEnabledAttribsMask() &
++            ~vertexArray.getStreamingVertexAttribsMask();
+         const gl::AttribArray<vk::BufferHelper *> &buffers = vertexArray.getCurrentArrayBuffers();
+         bool breakRenderPass                               = false;
+-        for (size_t attribIndex : dirtyAttribBits)
++        for (size_t attribIndex : enabledNonStreamingAttribDirtyBits)
+         {
+             ASSERT(buffers[attribIndex] != nullptr);
+             if (buffers[attribIndex]->writtenByCommandBuffer(mCurrentTransformFeedbackQueueSerial))
+diff --git a/third_party/dawn/src/dawn/native/d3d12/TextureD3D12.cpp b/third_party/dawn/src/dawn/native/d3d12/TextureD3D12.cpp
+index b6f6b73..eb8eec5 100644
+--- a/third_party/dawn/src/dawn/native/d3d12/TextureD3D12.cpp
++++ b/third_party/dawn/src/dawn/native/d3d12/TextureD3D12.cpp
+@@ -427,7 +427,6 @@
+     if (mKeyedMutex != nullptr) {
+         DAWN_TRY(commandContext->AcquireKeyedMutex(mKeyedMutex));
+     }
+-    mLastSharedTextureMemoryUsageSerial = queue->GetPendingCommandSerial();
+     return {};
+ }
+ 
+@@ -628,6 +627,9 @@
+     // See CommandRecordingContext::ExecuteCommandList.
+     if (mResourceAllocation.GetInfo().mMethod == AllocationMethod::kExternal) {
+         commandContext->AddToSharedTextureList(this);
++        // Track the usage of the texture immediately so that we know the texture was used in the
++        // current access even before the commands are actually submitted.
++        mLastSharedTextureMemoryUsageSerial = GetDevice()->GetQueue()->GetPendingCommandSerial();
+     }
+ }
+ 

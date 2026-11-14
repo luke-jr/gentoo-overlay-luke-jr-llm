@@ -43,8 +43,8 @@ RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit build (rustc driver, ti
 CRUBIT_DATE="20261015"
 PPC64_HASH="7aae8a84e327fc2078ce1625c9c70bfda77d626f"
 COPIUM_COMMIT="84aa29c73d11981f56eb9a9fbbf35ec993f9d7ff"
-# 158.0.8127.41 is a tag without a tarball: built from the 158.0.8127.37 tarball plus
-# files/chromium-158.0.8127.37-to-158.0.8127.41.patch (see its header).
+# 158.0.8127.62 is a tag without a tarball: built from the 158.0.8127.37 tarball plus
+# files/chromium-158.0.8127.37-to-158.0.8127.62.patch (see its header).
 CHROMIUM_TARBALL_PV="158.0.8127.37"
 # Inputs of ANGLE's code generators that the tarball lacks (files/chromium-angle-regen.py):
 # Khronos' registries at ANGLE's (and, for Vulkan, Chromium's) DEPS revisions; perfect-hash,
@@ -175,9 +175,9 @@ LICENSE+=" rar? ( unRAR )"
 SLOT="stable"
 KEYWORDS="~amd64 ~arm64"
 
-# The 158 branch's changes after the 158.0.8127.41 tag (see its header).
+# The 158 branch's changes after the 158.0.8127.62 tag (see its header).
 CHROMIUM_FIXES=(
-	chromium-158.0.8127.41-branch-fixes.patch
+	chromium-158.0.8127.62-branch-fixes.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
@@ -217,6 +217,9 @@ CHROMIUM_PATCHES=(
 	# v8.h without V8's version macros: a new V8 patch level rebuilds only what uses them (see
 	# the patch, and the eclass's src_prepare).
 	chromium-158-v8-h-without-version.patch
+	# Manifest V2 extensions with --disable-features=ExtensionManifestV2Disabled (see the patch,
+	# and doc/chromium.md).
+	chromium-157-manifest-v2-features.patch
 )
 
 # Copium's patches (with the system toolchain).
