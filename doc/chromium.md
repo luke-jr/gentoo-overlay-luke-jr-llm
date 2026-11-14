@@ -91,6 +91,7 @@ Upstream Chromium has refused Manifest V2 extensions (e.g. the original uBlock O
 With `chromium-157-manifest-v2-features.patch` (the builds that list it), starting Chromium with
 `--disable-features=ExtensionManifestV2Disabled` (e.g. in `CHROMIUM_FLAGS` in
 `/etc/chromium/default`) keeps them installable and enabled, as that flag did in 138-150.
+chrome://extensions still warns about them ("may soon no longer be supported"), as it did then.
 Mind the tradeoff: an MV2 extension's blocking `webRequest` lets it see and rewrite all traffic
 of the sites it has host permissions for, and MV2 extensions may run remotely hosted code; install
 only ones you trust. It lasts only as long as upstream keeps the MV2 extension platform's code.
