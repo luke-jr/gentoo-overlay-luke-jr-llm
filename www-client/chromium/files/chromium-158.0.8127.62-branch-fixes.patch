@@ -1,11 +1,11 @@
 Chromium 158.0.8127.62 + the later changes of its release branch, up to
-f9301621ad4de25ca5a9780998d29a586af8423e (refs/branch-heads/8127@{#1761}), for the
+a2194772f78dd44adf39a4f31381f81897573df1 (refs/branch-heads/8127@{#1763}), for the
 158.0.8127.62 tree that chromium-158.0.8127.37-to-158.0.8127.62.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.62..f9301621ad4de25ca5a9780998d29a586af8423e,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.62..a2194772f78dd44adf39a4f31381f81897573df1,
 and the dependencies whose DEPS revision changed:
 angle/angle 680c5e69edc723ce38342f99b70c765382c2db9f..3708e472b77d8338dbc7365fea884beb0272c6de (under third_party/angle/) and
-dawn 04a00943345765ffa2f602573ded8ad830221514..071f953465453913194423f18ac320f6c586b1b1 (under third_party/dawn/),
+dawn 04a00943345765ffa2f602573ded8ad830221514..9f3a719b96d9eea1c1d52edc1c275188451152c2 (under third_party/dawn/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .62 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -17,9 +17,11 @@ Commits contributing to it (oldest first):
   27c6661da8ae [M158] bluetooth: Bind chooser event handler with WeakPtr in GetDevice
   d204468485af [M158] Defer IsolatedSVGDocumentHost::Shutdown() in ~SVGImage()
   f9301621ad4d Roll commits from side projects in M158
+  a2194772f78d Roll commits from side projects in M158
     angle 8b017dcd1a1a [M158] Vulkan: Reset all cached default attribs on VAO bind
     angle 3708e472b77d [M158] Vulkan: Skip streamed attribs in XFB write hazard check
     dawn 071f95346545 [M158] [d3d12] Track shared texture usage when recording commands.
+    dawn 9f3a719b96d9 [M158] [native] Fix shared memory EndAccess after device loss/destruction.
 
 Checked: applies to the 158.0.8127.62 tree; every patched file is
 byte-identical to its version at the commits above.
@@ -306,6 +308,69 @@ index e6ad6dd..6903238 100644
          {
              ASSERT(buffers[attribIndex] != nullptr);
              if (buffers[attribIndex]->writtenByCommandBuffer(mCurrentTransformFeedbackQueueSerial))
+diff --git a/third_party/dawn/src/dawn/native/SharedResourceMemory.cpp b/third_party/dawn/src/dawn/native/SharedResourceMemory.cpp
+index 401b27d..291686f 100644
+--- a/third_party/dawn/src/dawn/native/SharedResourceMemory.cpp
++++ b/third_party/dawn/src/dawn/native/SharedResourceMemory.cpp
+@@ -314,13 +314,15 @@
+ 
+     DAWN_CHECK(!resource->IsError());
+     ExecutionSerial lastUsageSerial = resource->OnEndAccess();
++    // If the last usage serial is non-zero, the resource was used by GPU commands during this
++    // access.
++    const bool usedDuringAccess = lastUsageSerial != kBeginningOfGPUTime;
+ 
+-    // If the last usage serial is non-zero, the texture was used.
+-    // Call the error-generating part of the EndAccess implementation to export a fence.
+-    // This is separated out because writing the output state must happen regardless of whether
+-    // or not EndAccessInternal succeeds.
++    // If the resource was used, call the error-generating part of the EndAccess implementation to
++    // export a fence. This is separated out because writing the output state must happen
++    // regardless of whether or not EndAccessInternal succeeds.
+     MaybeUnknownError err;
+-    if (lastUsageSerial != kBeginningOfGPUTime) {
++    if (usedDuringAccess) {
+         ResultOrUnknownError<FenceAndSignalValue> result =
+             EndAccessInternal(lastUsageSerial, resource, state);
+         if (result.IsSuccess()) {
+@@ -351,7 +353,16 @@
+         state->fences = {};
+         state->signaledValues = {};
+     }
+-    state->initialized = resource->IsResourceInitialized();
++    // If EndAccessInternal failed, including because the device is lost (or destroyed), commands
++    // using the resource during this access may not have been flushed, may have been dropped
++    // without ever executing (e.g. a queue.writeTexture recorded in a passive pending command
++    // context, or a submit that failed), or may have been in the middle of executing when the
++    // device was lost, even though the resource was already marked as initialized on the CPU side.
++    // In that case, conservatively report the resource as uninitialized so that the next user
++    // lazily clears it instead of reading back undefined contents. If the resource wasn't used
++    // during the access, its initialized state is still the one set on BeginAccess.
++    bool dirtyDueToErrors = !err.IsSuccess() && usedDuringAccess;
++    state->initialized = resource->IsResourceInitialized() && !dirtyDueToErrors;
+     return err;
+ }
+ 
+@@ -360,12 +371,15 @@
+     ExecutionSerial lastUsageSerial,
+     Resource* resource,
+     EndAccessState* rawState) {
++    // If the device is lost (including when it is destroyed), the backend can't record or submit
++    // any more commands, and the commands using the resource may have been dropped, so there is
++    // nothing to export for them. Return an error so that EndAccess reports the resource as
++    // uninitialized, and so that the backend part of EndAccess is skipped entirely.
++    DAWN_TRY(GetDevice()->ValidateIsAlive());
+     UnpackedPtr<EndAccessState> state;
+     DAWN_TRY_ASSIGN(state, ValidateAndUnpack(rawState));
+-    if (!GetDevice()->IsLost()) {
+-        // Ensure that commands are submitted before exporting fences with the last usage serial.
+-        DAWN_TRY(GetDevice()->GetQueue()->EnsureCommandsFlushed(lastUsageSerial));
+-    }
++    // Ensure that commands are submitted before exporting fences with the last usage serial.
++    DAWN_TRY(GetDevice()->GetQueue()->EnsureCommandsFlushed(lastUsageSerial));
+     return EndAccessImpl(resource, lastUsageSerial, state);
+ }
+ 
 diff --git a/third_party/dawn/src/dawn/native/d3d12/TextureD3D12.cpp b/third_party/dawn/src/dawn/native/d3d12/TextureD3D12.cpp
 index b6f6b73..eb8eec5 100644
 --- a/third_party/dawn/src/dawn/native/d3d12/TextureD3D12.cpp
