@@ -1,24 +1,29 @@
-Chromium 158.0.8127.37 -> 158.0.8127.41, for the 158.0.8127.37 tarball.
+Chromium 158.0.8127.37 -> 158.0.8127.62, for the 158.0.8127.37 tarball.
 
-158.0.8127.41 is a tag on the 158 branch (refs/branch-heads/8127@{#1720}) that
-has no source tarball (as of 2026-11-13). It adds 28 branch commits to
-158.0.8127.37 (#1692), 22 of them not PGO/orderfile/AFDO rolls, translation
+158.0.8127.62 is a tag on the 158 branch (refs/branch-heads/8127@{#1756}) that
+has no source tarball (as of 2026-11-14). It adds 64 branch commits to
+158.0.8127.37 (#1692), 52 of them not PGO/orderfile/AFDO rolls, translation
 updates or VERSION increments: security fixes (PDFium page unloading, extension
 script injection, DBSC session deletion, the P2P socket manager (two), scroll
-timeline snapshots, FedCM (two), and in the "Roll commits from side projects":
-ANGLE's GL texture and transform feedback and Vulkan render pass, image view
-and SPIR-V varyings fixes, Dawn's wire buffer mapping, Skia's Vulkan fence wait
-and displacement filter, V8's Number.prototype.toString radix, deoptimizer,
-InvokeApiFunction, phi lowering and RegionAllocator fixes), DCSI's
-WrappedSkImageBacking, glic.
+timeline snapshots, FedCM (four), ChromePluginServiceFilter's RenderProcessHost
+handling, Blink's AtomicString attribute references and HTMLPlugInElement image
+loads, MediaPermissionDispatcher, and in the "Roll commits from side projects":
+ANGLE's GL texture and Vulkan render pass, image view and SPIR-V varyings fixes
+(two GL ones reverted again upstream), Dawn's wire buffer mapping, OpenGL snorm
+and shared texture and WGSL minBindingSize fixes, Skia's Vulkan fence wait,
+displacement filter and mask-filtered getImage, V8's Number.prototype.toString
+radix, deoptimizer, InvokeApiFunction, phi lowering, RegionAllocator and three
+sandbox fixes, PDFium's AlertIfPossible), DCSI's WrappedSkImageBacking, glic
+(three), GPU raster SLQ, Device Sync field trials.
 
 Generated from the upstream diffs between the tags: chromium/src
-refs/tags/158.0.8127.37..158.0.8127.41 and the dependencies whose DEPS
+refs/tags/158.0.8127.37..158.0.8127.62 and the dependencies whose DEPS
 revision changed:
-angle/angle 1f6526a566c27c7c33aa73a78517450a4a2a1714..8cb502b922025432c974e18fef13b073c81b6b4c (under third_party/angle/)
-dawn 6e24542436a3ef58d4a1110f01712da9afbff3e3..c6c757b3f4548c6532a9f9a608d4f7322180eb53 (under third_party/dawn/)
-skia/skia 3279352fdf1fbbd01a6dd024a52d3f178a6d5f07..2d58f195f426c41bd856208ddb85ea8f93c88295 (under third_party/skia/)
-v8/v8 b601a2347f005e8bfadd32f285df97ffba5cf1bd..6f0c0825e0512e5b4984632f3b6f85bd87d618ee (under v8/),
+angle/angle 1f6526a566c27c7c33aa73a78517450a4a2a1714..680c5e69edc723ce38342f99b70c765382c2db9f (under third_party/angle/),
+dawn 6e24542436a3ef58d4a1110f01712da9afbff3e3..04a00943345765ffa2f602573ded8ad830221514 (under third_party/dawn/),
+pdfium b23fee3ac22360878efaa8aa533dac892fe777ab..65a1784fbce7c80d4e3e226f69d56e28de06425b (under third_party/pdfium/),
+skia/skia 3279352fdf1fbbd01a6dd024a52d3f178a6d5f07..707e33875fb45f2997a4d781128bec122fb777b4 (under third_party/skia/) and
+v8/v8 b601a2347f005e8bfadd32f285df97ffba5cf1bd..19c06df29e0050413f5f041888f4c990de970314 (under v8/),
 as served by Gitiles, with scripts/chromium-delta.
 
 Left out, as they cannot affect a Linux build: files not in the release
@@ -29,8 +34,8 @@ updates, DEPS.
 Added: the tarball's stamp files for the new commit (stamps.py:
 build/util/LASTCHANGE{,.committime}, gpu/config/gpu_lists_version.h,
 skia/ext/skia_commit_hash.h, gpu/webgpu/DAWN_VERSION and
-gpu/webgpu/dawn_commit_hash.h; commit 3479de84eee002e487bd69155ff66f28042e3de6,
-refs/branch-heads/8127@{#1720}). build/util/MINIBRANCH doesn't change.
+gpu/webgpu/dawn_commit_hash.h; commit 543e9a921cde734aef341fe72aa5179ecac03c0f,
+refs/branch-heads/8127@{#1756}). build/util/MINIBRANCH doesn't change.
 
 Commits contributing to it (oldest first):
   04148613a268 [M158] [PDF] Reject re-entrancy in PDFiumPage::Unload()
@@ -46,32 +51,63 @@ Commits contributing to it (oldest first):
   beaa02dec186 Roll commits from side projects in M158
   c1bba38653c6 Roll commits from side projects in M158
   ea976b15a407 [M158] [DCSI] Implement SupportsAccess for WrappedSkImageBacking
-  b881c29418c6 Roll commits from side projects in M158
   98d4cd1cf73f Roll commits from side projects in M158
   7abb77bab5e9 [M158] [FedCM] Return early in UpdateTaskId() if the view destroys it
   76332a1f0df6 Roll commits from side projects in M158
-  528092b05964 [M158] glic: prevent crash when BrowserCommand::kOpenGlic is invoked on an ineli
+  528092b05964 [M158] glic: prevent crash when BrowserCommand::kOpenGlic is invoked on an ineligible profile
   82db7681ab34 [M158] [FedCM] Return early in ShowVerifyingDialog() if the view destroys it
   c6b4c63792ae Roll commits from side projects in M158
-  79c019e7a86f 🌺 [M158] Disable flaky SendTabToSelfReceiverTest on tablets
   3479de84eee0 Roll commits from side projects in M158
-    angle 69b419c7818d [M158] GL: Fix layer-growth check in TextureGL::setStorage()
-    angle a965a2272e33 [M158] GL: Recreate 3D texture on depth increase from zero-extent level
-    angle 7a33c47c44e7 [M158] GL: Pause transform feedback before forcing program binding
-    angle a8f10e3404d6 [M158] Vulkan: Keep LoadOp as Load if resolve attachment is present
-    angle 5d2c09b3e395 [M158] Spirv: Use replacement Input varying for interpolate* built-in
-    angle 8cb502b92202 [M158] Vulkan: Refresh read imgviews on tex param change
-    dawn c6c757b3f454 [M158] fix(wire): guard against null memoryHandle in OnBufferMapAsyncCallback
-    skia 4784c42afdc2 [M158] [Ganesh][Vulkan] Check vkWaitForFences success
-    skia 2d58f195f426 [M158] [skif] Use float2 for displacement filter offset
+  aec13f949d31 [M158] [gpu] Exclude ephemeral OOP-R PaintOp rasterization from SLQ
+  267ddc613094 [M158] [glic] Reset ShowInstanceTask::options_ before calling Show()
+  745e6d287204 Autogenerate rust dependencies for gn2bp
+  6701cdec7f9c Extend dependencies generation to //components and //third_party
+  72b9fffd130d Roll commits from side projects in M158
+  9d1a04b3a17d Generate a file-exact Copybara origin list from GN and Soong AST
+  cea727508b12 Roll commits from side projects in M158
+  5199514596b4 Roll commits from side projects in M158
+  72eb6c72c5fd [M158] Handle RenderProcessHost destruction in ChromePluginServiceFilter
+  8f2570065142 Roll commits from side projects in M158
+  e6261117574d Roll commits from side projects in M158
+  ea298f7cedfe Roll commits from side projects in M158
+  fb850a9a6419 Roll commits from side projects in M158
+  83e22a44a821 [M158] Copy-construct AtomicStrings rather than holding references to attribute storage.
+  a0b154f7b6f5 Roll commits from side projects in M158
+  d5ad6c65f43b [Device Sync] Update the X-Client-Data for WV.
+  acaba3bc1e6d Roll commits from side projects in M158
+  d80f5514326c [M158] Defer HTMLPlugInElement image loads from style recalc to a task
+  f04a5c2ad4fc [M158] Fix UAF in MediaPermissionDispatcher
+  18a5d89ec6a5 [M158 MB][Device Sync] Remove layered studies from denylist
+  77c47a4729d7 Roll commits from side projects in M158
+  4f84c27329a9 [M158] [FedCM] Return early if closing the pop-up destroys the view or handler
+  641dc0fe311a [M158] [FedCM] Return early if focusing the pop-up destroys the view
     v8 a48ee922c86a [M158] [builtins] Unbox radix as Smi in Number.prototype.toString
     v8 c292af6c1585 [M158] [deoptimizer] Ensure materialized frame slots are HeapObjects
     v8 1e43c50c48b3 [M158] [builtins] Enforce no-JS execution scopes in InvokeApiFunction
     v8 3b82dd063c19 [M158] [compiler] Lower single-input phis via EmitIdentity
     v8 f1b3ff97d999 [M158] [base] Reject invalid allocation sizes in RegionAllocator
+    v8 a12049bc9700 [M158] [sandbox] Avoid re-fetching accessors from LookupIterator
+    v8 4b4dc90e5048 [M158] [heap, sandbox] Use trusted page metadata flags when BasePage is available
+    v8 8f8da5c31b06 [M158] [heap][sandbox] Add and use TrustedHeapLayout::InYoungGeneration
+    skia 4784c42afdc2 [M158] [Ganesh][Vulkan] Check vkWaitForFences success
+    skia 2d58f195f426 [M158] [skif] Use float2 for displacement filter offset
+    skia 707e33875fb4 [M158] [SkScalerContext] Harden mask-filtered getImage
+    dawn c6c757b3f454 [M158] fix(wire): guard against null memoryHandle in OnBufferMapAsyncCallback
+    dawn 0e455505e770 [M158] [glsl][opengl] Add snorm pack/unpack workaround
+    dawn 5151f32bb36f [M158] [opengl] Synchronize shared textures in Queue::WriteTexture.
+    dawn 04a009433457 [M158] [wgsl] Fix minBindingSize propagations
+    angle 69b419c7818d [M158] GL: Fix layer-growth check in TextureGL::setStorage()
+    angle a965a2272e33 [M158] GL: Recreate 3D texture on depth increase from zero-extent level
+    angle a8f10e3404d6 [M158] Vulkan: Keep LoadOp as Load if resolve attachment is present
+    angle 5d2c09b3e395 [M158] Spirv: Use replacement Input varying for interpolate* built-in
+    angle 8cb502b92202 [M158] Vulkan: Refresh read imgviews on tex param change
+    angle 1f25c8edb9bb [M158] GL: Don't skip 3D texture recreation without glCopyImageSubData
+    angle 913b4e2610cb Revert "[M158] GL: Don't skip 3D texture recreation without glCopyImageSubData"
+    angle 680c5e69edc7 Revert "[M158] GL: Fix layer-growth check in TextureGL::setStorage()"
+    pdfium 65a1784fbce7 [M158] Add BlockingScope in AlertIfPossible()
 
 Checked: applies to the 158.0.8127.37 tarball; chrome/VERSION becomes
-158.0.8127.41; every patched source file is byte-identical to its version
+158.0.8127.62; every patched source file is byte-identical to its version
 at the tag (or the dependency's DEPS revision); it adds, deletes and renames
 no files; the 158.0.8127.37 tarball's non-git files are all classified
 (tarball-generated.py with generated.conf).
@@ -79,7 +115,7 @@ no files; the 158.0.8127.37 tarball's non-git files are all classified
 Apply with git apply.
 
 diff --git a/chrome/VERSION b/chrome/VERSION
-index ee74b6d..26d517f5 100644
+index ee74b6d..eff662a3 100644
 --- a/chrome/VERSION
 +++ b/chrome/VERSION
 @@ -1,4 +1,4 @@
@@ -87,7 +123,7 @@ index ee74b6d..26d517f5 100644
  MINOR=0
  BUILD=8127
 -PATCH=37
-+PATCH=41
++PATCH=62
 diff --git a/chrome/browser/extensions/api/declarative_content/content_action.cc b/chrome/browser/extensions/api/declarative_content/content_action.cc
 index 72466c9..ef7b4d01 100644
 --- a/chrome/browser/extensions/api/declarative_content/content_action.cc
@@ -149,6 +185,124 @@ index f2cf84d..111e4388 100644
  
  BASE_DECLARE_FEATURE(kGlicInvokeErrorRecoveryFixes);
  }  // namespace features
+diff --git a/chrome/browser/glic/service/glic_invoke_task.cc b/chrome/browser/glic/service/glic_invoke_task.cc
+index 686035d..641a001673d 100644
+--- a/chrome/browser/glic/service/glic_invoke_task.cc
++++ b/chrome/browser/glic/service/glic_invoke_task.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "chrome/browser/glic/service/glic_invoke_task.h"
+ 
++#include <utility>
++
+ #include "base/barrier_closure.h"
+ #include "base/feature_list.h"
+ #include "base/functional/bind.h"
+@@ -219,8 +221,10 @@
+ 
+ void ShowInstanceTask::Start(base::OnceClosure done_callback) {
+   if (options_) {
+-    instance_->Show(*options_);
+-    options_.reset();
++    // Move `options_` out before `Show()`, as `Show()` can synchronously close
++    // the embedder and cancel/destroy the owning `GlicInvokeHandler` (and
++    // `this`).
++    instance_->Show(*std::exchange(options_, std::nullopt));
+   }
+   std::move(done_callback).Run();
+ }
+diff --git a/chrome/browser/plugins/chrome_plugin_service_filter.cc b/chrome/browser/plugins/chrome_plugin_service_filter.cc
+index 2928fd32..1cb236d 100644
+--- a/chrome/browser/plugins/chrome_plugin_service_filter.cc
++++ b/chrome/browser/plugins/chrome_plugin_service_filter.cc
+@@ -159,6 +159,12 @@
+     content::RenderProcessHost* host,
+     const content::ChildProcessTerminationInfo& info) {
+   DCHECK_CURRENTLY_ON(BrowserThread::UI);
++  RenderProcessHostDestroyed(host);
++}
++
++void ChromePluginServiceFilter::RenderProcessHostDestroyed(
++    content::RenderProcessHost* host) {
++  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+   base::AutoLock auto_lock(lock_);
+   plugin_details_.erase(host->GetDeprecatedID());
+   host_observation_.RemoveObservation(host);
+diff --git a/chrome/browser/plugins/chrome_plugin_service_filter.h b/chrome/browser/plugins/chrome_plugin_service_filter.h
+index 88b3864..5d81f69 100644
+--- a/chrome/browser/plugins/chrome_plugin_service_filter.h
++++ b/chrome/browser/plugins/chrome_plugin_service_filter.h
+@@ -62,6 +62,7 @@
+   void RenderProcessExited(
+       content::RenderProcessHost* host,
+       const content::ChildProcessTerminationInfo& info) override;
++  void RenderProcessHostDestroyed(content::RenderProcessHost* host) override;
+ 
+   // Sets a callback to be called when `this` adds itself as an observer to a
+   // RenderProcessHost.
+diff --git a/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc b/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc
+index 609eb3b5..7fd0c08 100644
+--- a/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc
++++ b/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.cc
+@@ -1008,7 +1008,12 @@
+     // TODO(crbug.com/324052630): Support add account with multi IDP API. An add
+     // account pop-up of a different IDP might be open, so this might need to
+     // load the new IDP's login URL.
+-    popup_window_->ResizeAndFocusPopupWindow();
++    //
++    // Resizing and focusing the pop-up can synchronously destroy `this`.
++    if (!NotifyDelegate(
++            [&]() { popup_window_->ResizeAndFocusPopupWindow(); })) {
++      return nullptr;
++    }
+   } else {
+     popup_window_ = CreatePopupWindow();
+   }
+@@ -1078,7 +1083,12 @@
+     // This ensures that OnPopupWindowDestroyed is only called when the user
+     // closes the popup.
+     popup_window_->ResetObserver();
+-    popup_window_->ClosePopupWindow();
++
++    // Closing the pop-up can synchronously destroy `this`, e.g. if it activates
++    // another tab.
++    if (!NotifyDelegate([&]() { popup_window_->ClosePopupWindow(); })) {
++      return;
++    }
+     popup_window_.reset();
+ 
+     UpdateDialogVisibilityAndPosition();
+diff --git a/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.h b/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.h
+index 62115db9..b292db7 100644
+--- a/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.h
++++ b/chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.h
+@@ -430,9 +430,9 @@
+   // the background, becomes foregrounded.
+   void BackgroundTaskTabForegrounded(tabs::TabInterface* tab);
+ 
+-  // Calls a delegate method while guarding against `this` being deleted.
+-  // Returns false if `this` got deleted. In that case, the caller must early
+-  // return.
++  // Runs `notify_callback` while guarding against `this` being deleted, e.g. by
++  // a delegate method or by closing the pop-up window. Returns false if `this`
++  // got deleted. In that case, the caller must early return.
+   [[nodiscard]] bool NotifyDelegate(base::FunctionRef<void()> notify_callback);
+ 
+   // Shows the verifying sheet.
+diff --git a/chrome/browser/ui/views/webid/fedcm_modal_dialog_view.cc b/chrome/browser/ui/views/webid/fedcm_modal_dialog_view.cc
+index fe8e23e..287285a 100644
+--- a/chrome/browser/ui/views/webid/fedcm_modal_dialog_view.cc
++++ b/chrome/browser/ui/views/webid/fedcm_modal_dialog_view.cc
+@@ -129,6 +129,9 @@
+   content::WebContents* popup = popup_window_;
+   popup_window_ = nullptr;
+   popup->Close();
++  // `this` may be deleted now: closing the pop-up can destroy the
++  // `FedCmAccountSelectionView` that owns this object. Do not access members
++  // after this point.
+ 
+   UMA_HISTOGRAM_ENUMERATION(
+       "Blink.FedCm.IdpSigninStatus.ClosePopupWindowReason",
 diff --git a/chrome/browser/ui/webid/identity_dialog_controller.cc b/chrome/browser/ui/webid/identity_dialog_controller.cc
 index 6226da0..62469ab 100644
 --- a/chrome/browser/ui/webid/identity_dialog_controller.cc
@@ -237,6 +391,941 @@ index b0c7f07..e91d137 100644
      return;
    }
  
+diff --git a/components/cronet/gn2bp/copy.bara.sky b/components/cronet/gn2bp/copy.bara.sky
+index 27547de7..cb0b3b93 100644
+--- a/components/cronet/gn2bp/copy.bara.sky
++++ b/components/cronet/gn2bp/copy.bara.sky
+@@ -14,6 +14,13 @@
+ 
+ # Copybara config for Cronet to AOSP import.
+ 
++# Generated by gen_android_bp.py.
++load(
++    "//out/gn2bp/copybara_generated_paths.bara.sky",
++    "GENERATED_ORIGIN_FILES",
++    "GENERATED_ORIGIN_GLOBS",
++)
++
+ # Convenience function for specifying a glob pattern for matching both
+ # the original source in the root, and the corresponding gn2bp generated
+ # files in` out/gn2bp/`. We can't simply include "out/gn2bp/**" because gn2bp
+@@ -25,289 +32,26 @@
+     return glob(with_gn2bp(include), exclude = with_gn2bp(exclude))
+ 
+ # The set of files to be read from the origin (Chromium src/).
+-origin_files = glob_with_gn2bp([
+-    "chrome/VERSION",
+-    "components/metrics/**",
+-    # See https://chromium-review.googlesource.com/c/chromium/src/+/4896104
+-    "components/nacl/**",
+-    "components/prefs/**",
+-    "components/unexportable_keys/**",
+-    "crypto/**",
+-    "ipc/**",
+-    "net/**",
+-    "url/**",
+-    # https://crrev.com/c/5800287
+-    "components/network_time/**",
+-    # https://crrev.com/c/7217451
+-    "tools/metrics/**",
+-    # https://crbug.com/514683156
+-    "tools/i18n/generate_canonical_locales_list.py",
+-    "tools/i18n/generate_known_bcp47_subtags.py",
+-]) + glob_with_gn2bp(["base/**"], exclude = [
+-    # Exclude test files to reduce the number of gn2bp files
+-    "base/tracing/test/**",
+-]) + glob_with_gn2bp(["build/**"], exclude = [
+-    # Per aosp/2367109
+-    "build/android/CheckInstallApk-debug.apk",
+-    "build/android/unused_resources/**",
+-    "build/linux/**",
+-    "build/win/**",
+-    # We don't care about siso, and the contents of the .sisoenv file tend to be
+-    # non-deterministic, causing spurious diffs.
+-    "build/config/siso/**",
+-]) + glob_with_gn2bp(["components/cronet/**"], exclude = [
+-    # Don't copy gn2bp itself. It's unnecessary, and can cause confusion when
+-    # people unfamiliar with gn2bp try to understand where to run it and where
+-    # to make changes. Excluding it makes it clear gn2bp is meant to live in
+-    # Chromium and Chromium only. It also avoids Code Search pollution.
+-    "components/cronet/gn2bp/**",
+-]) + glob_with_gn2bp(["testing/**"], exclude = [
+-    # Per aosp/2399270
+-    "testing/buildbot/**",
+-    # Exclude test files to reduce the number of gn2bp files
+-    "testing/fuzzer/**",
+-    "testing/libfuzzer/fuzzers/wasm_corpus/**",
+-]) - glob(["**/third_party/**"]) + glob_with_gn2bp([
+-    "base/third_party/cityhash/**",
+-    "base/third_party/cityhash_v103/**",
+-    "base/third_party/double_conversion/**",
+-    "base/third_party/dynamic_annotations/**",
+-    "base/third_party/icu/**",
+-    "base/third_party/nspr/**",
+-    "base/third_party/superfasthash/**",
+-    # Those are temporarily needed until Chromium finish the migration
+-    # of libc++[abi]
+-    "buildtools/third_party/libc++/**",
+-    "buildtools/third_party/libc++abi/**",
+-    "net/third_party/quiche/**",
+-    "net/third_party/uri_template/**",
+-    "third_party/abseil-cpp/**",
+-    "third_party/android_ndk/sources/android/cpufeatures/**",
+-    # See https://chromium-review.googlesource.com/c/chromium/src/+/4885470
+-    # Note: Only used for tests.
+-    "third_party/anonymous_tokens/**",
+-    # Note: Only used for tests.
+-    "third_party/apache-portable-runtime/**",
+-    "third_party/brotli/**",
+-    # Note: Only used for tests.
+-    "third_party/ced/**",
+-    "third_party/cpu_features/**",
+-    # Note: Only used for tests.
+-    "third_party/fuzztest/**",
+-    # Note: Only used for tests.
+-    "third_party/google_benchmark/**",
+-    # Note: Only used for tests.
+-    "third_party/googletest/**",
+-    "third_party/icu/**",
+-    "third_party/jni_zero/**",
+-    "third_party/libc++abi/**",
+-    # Note: Only used for tests.
+-    "third_party/libxml/**",
+-    # Note: Only used for tests.
+-    "third_party/lss/**",
+-    "third_party/metrics_proto/**",
+-    "third_party/modp_b64/**",
+-    # Note: Only used for tests.
+-    "third_party/netty4/**",
+-    # Note: Only used for tests.
+-    "third_party/netty-tcnative/**",
+-    "third_party/protobuf/**",
+-    # Note: Only used for tests.
+-    "third_party/re2/**",
+-    # Note: Cronet currently uses Android's zlib
+-    # "third_party/zlib/**",
+-    "url/third_party/mozilla/**",
+-    "third_party/simdutf/**",
+-    "third_party/perfetto/**",
+-    "third_party/zstd/**",
+-]) + glob_with_gn2bp([
+-    "third_party/compiler-rt/**",
+-], exclude = [
+-    # This is not used, and contains a large number of files that slows down
+-    # imports and checkouts.
+-    "third_party/compiler-rt/src/test/**",
+-]) + glob_with_gn2bp([
+-    "third_party/libc++/**",
+-], exclude = [
+-    # This is not used, and contains a huge number of files (~10k) that slows
+-    # down imports and checkouts.
+-    "third_party/libc++/src/test/**",
+-]) + glob_with_gn2bp([
+-    "components/cbor/**",
+-]) + glob_with_gn2bp([
+-    "third_party/llvm-libc/**",
+-], exclude = [
+-    # This is not used, and contains a large number of files that slows down
+-    # imports and checkouts.
+-    "third_party/llvm-libc/src/test/**",
+-]) + glob_with_gn2bp([
+-    "third_party/boringssl/**",
+-], exclude = [
+-    # This is not used, and contains a large number of files that slows down
+-    # imports and checkouts.
+-    "third_party/boringssl/src/fuzz/**",
+-    "third_party/boringssl/src/pki/testdata/**",
+-]) + glob_with_gn2bp([
+-    # Note: Only used for tests.
+-    "third_party/quic_trace/**",
+-], exclude = [
+-    # This is not used and it doesn't have a README.chromium for us to generate
+-    # a license.
+-    "third_party/quic_trace/src/third_party/glew/**",
+-]) + glob_with_gn2bp([
+-    "third_party/rust/anstyle/**",
+-    "third_party/rust/chromium_crates_io/vendor/anstyle-v*/**",
+-    "third_party/rust/base64/**",
+-    "third_party/rust/chromium_crates_io/vendor/base64-v*/**",
+-    "third_party/rust/clap/**",
+-    "third_party/rust/chromium_crates_io/vendor/clap-v*/**",
+-    "third_party/rust/clap_builder/**",
+-    "third_party/rust/chromium_crates_io/vendor/clap_builder-v*/**",
+-    "third_party/rust/clap_lex/**",
+-    "third_party/rust/chromium_crates_io/vendor/clap_lex-v*/**",
+-    "third_party/rust/codespan_reporting/**",
+-    "third_party/rust/chromium_crates_io/vendor/codespan-reporting-v*/**",
+-    "third_party/rust/cxx/**",
+-    "third_party/rust/chromium_crates_io/vendor/cxx-v*/**",
+-    "third_party/rust/cxxbridge_cmd/**",
+-    "third_party/rust/chromium_crates_io/vendor/cxxbridge-cmd-v*/**",
+-    "third_party/rust/cxxbridge_macro/**",
+-    "third_party/rust/chromium_crates_io/vendor/cxxbridge-macro-v*/**",
+-    "third_party/rust/displaydoc/**",
+-    "third_party/rust/chromium_crates_io/vendor/displaydoc-v*/**",
+-    "third_party/rust/diplomat/**",
+-    "third_party/rust/chromium_crates_io/vendor/diplomat-v*/**",
+-    "third_party/rust/diplomat_core/**",
+-    "third_party/rust/chromium_crates_io/vendor/diplomat_core-v*/**",
+-    "third_party/rust/diplomat_runtime/**",
+-    "third_party/rust/chromium_crates_io/vendor/diplomat-runtime-v*/**",
+-    "third_party/rust/either/**",
+-    "third_party/rust/chromium_crates_io/vendor/either-v*/**",
+-    "third_party/rust/equivalent/**",
+-    "third_party/rust/chromium_crates_io/vendor/equivalent-v*/**",
+-    "third_party/rust/fixed_decimal/**",
+-    "third_party/rust/chromium_crates_io/vendor/fixed_decimal-v*/**",
+-    "third_party/rust/foldhash/**",
+-    "third_party/rust/chromium_crates_io/vendor/foldhash-v*/**",
+-    "third_party/rust/hashbrown/**",
+-    "third_party/rust/chromium_crates_io/vendor/hashbrown-v*/**",
+-    "third_party/rust/hmac_sha256/**",
+-    "third_party/rust/chromium_crates_io/vendor/hmac-sha256-v*/**",
+-    "third_party/rust/icu_capi/**",
+-    "third_party/rust/chromium_crates_io/vendor/icu_capi-v*/**",
+-    "third_party/rust/icu_collections/**",
+-    "third_party/rust/chromium_crates_io/vendor/icu_collections-v*/**",
+-    "third_party/rust/icu_decimal/**",
+-    "third_party/rust/chromium_crates_io/vendor/icu_decimal-v*/**",
+-    "third_party/rust/icu_decimal_data/**",
+-    "third_party/rust/chromium_crates_io/vendor/icu_decimal_data-v*/**",
+-    "third_party/rust/icu_locale/**",
+-    "third_party/rust/chromium_crates_io/vendor/icu_locale-v*/**",
+-    "third_party/rust/icu_locale_core/**",
+-    "third_party/rust/chromium_crates_io/vendor/icu_locale_core-v*/**",
+-    "third_party/rust/icu_locale_data/**",
+-    "third_party/rust/chromium_crates_io/vendor/icu_locale_data-v*/**",
+-    "third_party/rust/icu_locale_fallback/**",
+-    "third_party/rust/chromium_crates_io/vendor/icu_locale_fallback-v*/**",
+-    "third_party/rust/icu_locale_fallback_data/**",
+-    "third_party/rust/chromium_crates_io/vendor/icu_locale_fallback_data-v*/**",
+-    "third_party/rust/icu_normalizer/**",
+-    "third_party/rust/chromium_crates_io/vendor/icu_normalizer-v*/**",
+-    "third_party/rust/icu_normalizer_data/**",
+-    "third_party/rust/chromium_crates_io/vendor/icu_normalizer_data-v*/**",
+-    "third_party/rust/icu_pattern/**",
+-    "third_party/rust/chromium_crates_io/vendor/icu_pattern-v*/**",
+-    "third_party/rust/icu_plurals/**",
+-    "third_party/rust/chromium_crates_io/vendor/icu_plurals-v*/**",
+-    "third_party/rust/icu_plurals_data/**",
+-    "third_party/rust/chromium_crates_io/vendor/icu_plurals_data-v*/**",
+-    "third_party/rust/icu_provider_adapters/**",
+-    "third_party/rust/chromium_crates_io/vendor/icu_provider_adapters-v*/**",
+-    "third_party/rust/icu_provider/**",
+-    "third_party/rust/chromium_crates_io/vendor/icu_provider-v*/**",
+-    "third_party/rust/indexmap/**",
+-    "third_party/rust/chromium_crates_io/vendor/indexmap-v*/**",
+-    "third_party/rust/itoa/**",
+-    "third_party/rust/chromium_crates_io/vendor/itoa-v*/**",
+-    "third_party/rust/litemap/**",
+-    "third_party/rust/chromium_crates_io/vendor/litemap-v*/**",
+-    "third_party/rust/log/**",
+-    "third_party/rust/chromium_crates_io/vendor/log-v*/**",
+-    "third_party/rust/memchr/**",
+-    "third_party/rust/chromium_crates_io/vendor/memchr-v*/**",
+-    "third_party/rust/potential_utf/**",
+-    "third_party/rust/chromium_crates_io/vendor/potential_utf-v*/**",
+-    "third_party/rust/proc_macro2/**",
+-    "third_party/rust/chromium_crates_io/vendor/proc-macro2-v*/**",
+-    "third_party/rust/quote/**",
+-    "third_party/rust/chromium_crates_io/vendor/quote-v*/**",
+-    "third_party/rust/ref_cast/**",
+-    "third_party/rust/chromium_crates_io/vendor/ref-cast-v*/**",
+-    "third_party/rust/ref_cast_impl/**",
+-    "third_party/rust/chromium_crates_io/vendor/ref-cast-impl-v*/**",
+-    "third_party/rust/rustversion/**",
+-    "third_party/rust/chromium_crates_io/vendor/rustversion-v*/**",
+-    "third_party/rust/ryu/**",
+-    "third_party/rust/chromium_crates_io/vendor/ryu-v*/**",
+-    "third_party/rust/serde/**",
+-    "third_party/rust/chromium_crates_io/vendor/serde-v*/**",
+-    "third_party/rust/serde_core/**",
+-    "third_party/rust/chromium_crates_io/vendor/serde_core-v*/**",
+-    "third_party/rust/serde_derive/**",
+-    "third_party/rust/chromium_crates_io/vendor/serde_derive-v*/**",
+-    "third_party/rust/serde_json_lenient/**",
+-    "third_party/rust/chromium_crates_io/vendor/serde_json_lenient-v*/**",
+-    "third_party/rust/small_ctor/**",
+-    "third_party/rust/chromium_crates_io/vendor/small_ctor-v*/**",
+-    "third_party/rust/smallvec/**",
+-    "third_party/rust/chromium_crates_io/vendor/smallvec-v*/**",
+-    "third_party/rust/sfv/**",
+-    "third_party/rust/chromium_crates_io/vendor/sfv-v*/**",
+-    "third_party/rust/stable_deref_trait/**",
+-    "third_party/rust/chromium_crates_io/vendor/stable_deref_trait-v*/**",
+-    "third_party/rust/strck/**",
+-    "third_party/rust/chromium_crates_io/vendor/strck-v*/**",
+-    "third_party/rust/strsim/**",
+-    "third_party/rust/chromium_crates_io/vendor/strsim-v*/**",
+-    "third_party/rust/syn/**",
+-    "third_party/rust/chromium_crates_io/vendor/syn-v*/**",
+-    "third_party/rust/synstructure/**",
+-    "third_party/rust/chromium_crates_io/vendor/synstructure-v*/**",
+-    "third_party/rust/termcolor/**",
+-    "third_party/rust/chromium_crates_io/vendor/termcolor-v*/**",
+-    "third_party/rust/tinystr/**",
+-    "third_party/rust/chromium_crates_io/vendor/tinystr-v*/**",
+-    "third_party/rust/unicode_ident/**",
+-    "third_party/rust/chromium_crates_io/vendor/unicode-ident-v*/**",
+-    "third_party/rust/unicode_width/**",
+-    "third_party/rust/chromium_crates_io/vendor/unicode-width-v*/**",
+-    "third_party/rust/utf16_iter/**",
+-    "third_party/rust/chromium_crates_io/vendor/utf16_iter-v*/**",
+-    "third_party/rust/utf8_iter/**",
+-    "third_party/rust/chromium_crates_io/vendor/utf8_iter-v*/**",
+-    "third_party/rust/write16/**",
+-    "third_party/rust/chromium_crates_io/vendor/write16-v*/**",
+-    "third_party/rust/writeable/**",
+-    "third_party/rust/chromium_crates_io/vendor/writeable-v*/**",
+-    "third_party/rust/yoke/**",
+-    "third_party/rust/chromium_crates_io/vendor/yoke-v*/**",
+-    "third_party/rust/yoke_derive/**",
+-    "third_party/rust/chromium_crates_io/vendor/yoke-derive-v*/**",
+-    "third_party/rust/zerofrom/**",
+-    "third_party/rust/chromium_crates_io/vendor/zerofrom-v*/**",
+-    "third_party/rust/zerofrom_derive/**",
+-    "third_party/rust/chromium_crates_io/vendor/zerofrom-derive-v*/**",
+-    "third_party/rust/zerotrie/**",
+-    "third_party/rust/chromium_crates_io/vendor/zerotrie-v*/**",
+-    "third_party/rust/zerovec/**",
+-    "third_party/rust/chromium_crates_io/vendor/zerovec-v*/**",
+-    "third_party/rust/zerovec_derive/**",
+-    "third_party/rust/chromium_crates_io/vendor/zerovec-derive-v*/**",
+-]) + glob([
+-    # Include any files generated by gn2bp in the root. Subdirectories are
+-    # handled by with_gn2bp above.
+-    "out/gn2bp/*",
+-]) - glob([
++# Note: GENERATED_ORIGIN_FILES is concatenated (+) as a plain list onto a glob
++# so that Copybara uses SequenceGlob (O(1) hash-set lookup) instead of compiling
++# thousands of individual regex PathMatchers.
++origin_files = (
++    glob([
++        # Include any files generated by gn2bp in the root. Subdirectories are
++        # handled by with_gn2bp above.
++        "out/gn2bp/*",
++    ], exclude = [
++        "out/gn2bp/*.bara.sky",
++    ]) + with_gn2bp(GENERATED_ORIGIN_FILES)
++) + glob_with_gn2bp(
++    GENERATED_ORIGIN_GLOBS,
++    exclude = [
++        # This is not used, and contains a large number of files that slows down
++        # imports and checkouts.
++        "third_party/boringssl/src/fuzz/**",
++        "third_party/boringssl/src/pki/testdata/**",
++    ],
++) - glob([
+     # We only want to import the Android.bp build files that we generated
+     # ourselves; get rid of any spurious Android build files that may also be
+     # present in the origin
+diff --git a/components/cronet/gn2bp/gen_android_bp.py b/components/cronet/gn2bp/gen_android_bp.py
+index 8a26383..90f8c992 100755
+--- a/components/cronet/gn2bp/gen_android_bp.py
++++ b/components/cronet/gn2bp/gen_android_bp.py
+@@ -5,6 +5,7 @@
+ 
+ import argparse
+ import enum  # noqa: F401
++import itertools
+ import json
+ import logging as log
+ import operator  # noqa: F401
+@@ -12,18 +13,20 @@
+ import re
+ import sys
+ import copy
+-from typing import List, Dict, Iterable, Set, Union  # noqa: F401
++from typing import List, Dict, Iterable, Set, Tuple, Union  # noqa: F401
+ from pathlib import Path
+ import hashlib  # noqa: F401
+ import shlex  # noqa: F401
+ import collections  # noqa: F401
+-import gn_utils
+-import targets as gn2bp_targets
+-import soong_ast
+-import common
+-import translation_config
+-import context as translation_context
+-import translators
++
++sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
++import gn_utils  # noqa: E402
++import targets as gn2bp_targets  # noqa: E402
++import soong_ast  # noqa: E402
++import common  # noqa: E402
++import translation_config  # noqa: E402
++import context as translation_context  # noqa: E402
++import translators  # noqa: E402
+ 
+ PARENT_ROOT = os.path.abspath(
+     os.path.join(os.path.dirname(__file__), os.pardir)
+@@ -577,6 +580,359 @@
+     return None
+ 
+ 
++# Directory prefixes referenced in the GN graph or blueprints that should not be
++# imported by Copybara (e.g. host toolchains, SDKs, dependencies replaced by
++# Android system libraries, or internal configs).
++COPYBARA_EXCLUDED_PREFIXES = (
++    "build/linux/",
++    "components/cronet/gn2bp/",
++    "internal/",
++    "third_party/android_build_tools/",
++    "third_party/android_deps/",
++    "third_party/android_sdk/",
++    "third_party/jdk/",
++    "third_party/rust-toolchain/",
++    # Cronet uses Android's libz via builtin_deps.
++    "third_party/zlib/",
++)
++
++# Files and globs required by templates (Android.extras.bp.template,
++# boringssl_Android.bp.template), external/cronet/Android.bp, driver scripts
++# (run_gn2bp.py), or header-only includes without a corresponding GN target.
++COPYBARA_ADDITIONAL_PATHS = {
++    # Used by run_gn2bp.py to determine the Chromium version.
++    "chrome/VERSION",
++    "build/android/java_home.py",
++    "buildtools/third_party/libc++/__assertion_handler",
++    "buildtools/third_party/libc++/__config_site",
++    "components/cronet/android/httpengine_combined_proguard_golden.cfg",
++    "components/cronet/android/test/javatests/AndroidManifest.xml",
++    "components/cronet/android/test/res/**",
++    "components/cronet/android/test/test_server/data/**",
++    "components/cronet/tools/symbols_map_generator/generate_version_script_from_symbols_intersection.py",
++    "components/cronet/tools/utils.py",
++    "net/android/unittest_support/res/**",
++    "net/base/registry_controlled_domains/**",
++    "net/data/**",
++    "net/third_party/quiche/src/quiche/common/platform/api/testdir/**",
++    "third_party/anonymous_tokens/src/anonymous_tokens/testdata/**",
++    "third_party/icu/android/**",
++    "third_party/libc++/src/include/**",
++    "third_party/libc++/src/src/support/runtime/*.ipp",
++    # Referenced by boringssl_Android.bp.template and _gen_boringssl in run_gn2bp.py.
++    "third_party/boringssl/**",
++    # Included by base/rand_util_posix.cc and base/process/process_util_unittest.cc
++    # when building for Linux host without a corresponding GN target.
++    "third_party/lss/linux_syscall_support.h",
++}
++
++
++_CPP_SOURCE_EXTENSIONS = (
++    ".c",
++    ".cc",
++    ".cpp",
++    ".cxx",
++    ".h",
++    ".hh",
++    ".hpp",
++    ".hxx",
++    ".inc",
++    ".inl",
++    ".ipp",
++    ".def",
++    ".S",
++    ".s",
++    ".m",
++    ".mm",
++)
++_CPP_INCLUDE_REGEX = re.compile(
++    r'^\s*#\s*(?:include|import)\s+[<"]([^>"]+)[>"]', re.MULTILINE
++)
++
++
++def extract_copybara_paths(
++    gn: gn_utils.GnParser,
++    top_level_blueprint: Union[soong_ast.Blueprint, None] = None,
++    final_blueprints: Union[Dict[str, soong_ast.Blueprint], None] = None,
++) -> List[str]:
++    """Extracts exact file paths and required globs for Copybara from the GN graph and blueprints."""
++    paths = set(COPYBARA_ADDITIONAL_PATHS)
++    glob_prefixes = tuple(
++        p.removesuffix("**")
++        for p in COPYBARA_ADDITIONAL_PATHS
++        if p.endswith("/**")
++    )
++
++    def _add_path(raw_path: Union[str, None]):
++        if (
++            not raw_path
++            or raw_path == "//cp"
++            or raw_path.startswith((":", "//out/", "out/"))
++        ):
++            return
++        clean_path = os.path.normpath(raw_path.removeprefix("//"))
++        if clean_path in ("", ".") or clean_path.startswith(("/", "../")):
++            return
++        if clean_path.startswith(COPYBARA_EXCLUDED_PREFIXES):
++            return
++        if clean_path == "BUILD.gn" or clean_path.endswith(
++            ("/BUILD.gn", ".gni", ".map.txt")
++        ):
++            return
++        paths.add(clean_path)
++
++    include_dirs = [""]
++    seen_include_dirs = {""}
++
++    def _add_include_dir(raw_dir: Union[str, None]):
++        if not raw_dir or raw_dir.startswith((":", "//out/", "out/")):
++            return
++        clean_dir = os.path.normpath(
++            raw_dir.removeprefix("external/cronet/tot/")
++            .removeprefix("external/cronet/stable/")
++            .removeprefix("//")
++        )
++        if clean_dir == ".":
++            clean_dir = ""
++        if clean_dir.startswith(("/", "../", "external/cronet/")):
++            return
++        if clean_dir.startswith(COPYBARA_EXCLUDED_PREFIXES):
++            return
++        if clean_dir not in seen_include_dirs and os.path.isdir(
++            os.path.join(REPOSITORY_ROOT, clean_dir)
++        ):
++            seen_include_dirs.add(clean_dir)
++            include_dirs.append(clean_dir)
++
++    build_dirs = set()
++    for target in gn.all_targets.values():
++        if target.build_file_path:
++            build_dirs.add(
++                gn2bp_targets.README_MAPPING.get(
++                    target.build_file_path, target.build_file_path
++                )
++            )
++        _add_path(target.crate_root)
++        _add_path(target.script)
++        for src in itertools.chain(
++            target.public_headers, target.transitive_jni_java_sources
++        ):
++            _add_path(src)
++        for arch in (target.common, *target.arch.values()):
++            for inc_dir in arch.include_dirs:
++                _add_include_dir(inc_dir)
++            for src in itertools.chain(arch.sources, arch.inputs):
++                _add_path(src)
++
++    for src in getattr(gn, "jni_java_sources", ()):
++        _add_path(src)
++
++    if top_level_blueprint is not None:
++        for module in top_level_blueprint.modules.values():
++            for attr in (
++                "crate_root",
++                "wrapper_src",
++                "version_script",
++                "test_config",
++                "jarjar_rules",
++            ):
++                _add_path(getattr(module, attr, None))
++            for prop in (module, *module.target.values()):
++                for attr in (
++                    "include_dirs",
++                    "local_include_dirs",
++                    "export_include_dirs",
++                ):
++                    for val in getattr(prop, attr, None) or ():
++                        _add_include_dir(val)
++                for attr in (
++                    "srcs",
++                    "tool_files",
++                    "jars",
++                    "extra_include_dir_deps",
++                    "init_rc",
++                    "linker_scripts",
++                ):
++                    for val in getattr(prop, attr, None) or ():
++                        _add_path(val)
++
++    cpp_queue = [p for p in paths if p.endswith(_CPP_SOURCE_EXTENSIONS)]
++    visited_cpp = set(cpp_queue)
++    inc_cache: Dict[str, Union[str, None]] = {}
++    file_cache: Dict[str, bool] = {}
++
++    def _is_repo_file(rel_path: str) -> bool:
++        res = file_cache.get(rel_path)
++        if res is None:
++            res = os.path.isfile(os.path.join(REPOSITORY_ROOT, rel_path))
++            file_cache[rel_path] = res
++        return res
++
++    def _is_valid_include_candidate(cand: str) -> bool:
++        return (
++            cand not in ("", ".")
++            and not cand.startswith(("/", "../"))
++            and not cand.startswith(COPYBARA_EXCLUDED_PREFIXES)
++            and not cand.startswith(glob_prefixes)
++            and _is_repo_file(cand)
++        )
++
++    def _resolve_include_from_dirs(inc: str) -> Union[str, None]:
++        if inc in inc_cache:
++            return inc_cache[inc]
++        for inc_dir in include_dirs:
++            cand = (
++                os.path.normpath(os.path.join(inc_dir, inc))
++                if inc_dir
++                else os.path.normpath(inc)
++            )
++            if _is_valid_include_candidate(cand):
++                inc_cache[inc] = cand
++                return cand
++        inc_cache[inc] = None
++        return None
++
++    while cpp_queue:
++        curr = cpp_queue.pop()
++        if not _is_repo_file(curr):
++            continue
++        try:
++            with open(
++                os.path.join(REPOSITORY_ROOT, curr), "r", errors="ignore"
++            ) as f:
++                content = f.read()
++        except OSError:
++            continue
++        curr_dir = os.path.dirname(curr)
++        for match in _CPP_INCLUDE_REGEX.finditer(content):
++            inc = match.group(1)
++            rel_cand = (
++                os.path.normpath(os.path.join(curr_dir, inc))
++                if curr_dir
++                else os.path.normpath(inc)
++            )
++            if _is_valid_include_candidate(rel_cand):
++                found = rel_cand
++            else:
++                found = _resolve_include_from_dirs(inc)
++            if found and found not in visited_cpp:
++                visited_cpp.add(found)
++                _add_path(found)
++                cpp_queue.append(found)
++
++    for inc_dir in include_dirs:
++        if (
++            inc_dir
++            and not inc_dir.startswith(glob_prefixes)
++            and not any(p.startswith(f"{inc_dir}/") for p in paths)
++        ):
++            paths.add(f"{inc_dir}/**")
++
++    if final_blueprints is not None:
++        for bp_path, blueprint in final_blueprints.items():
++            if bp_path:
++                _add_path(f"{bp_path}/Android.bp")
++            if blueprint.get_readme_location():
++                build_dirs.add(blueprint.get_readme_location())
++
++    readme_candidates = {
++        os.path.join(d, "README.chromium") for d in build_dirs if d
++    }
++    for inc_readme in license_constants.INCLUDED_README:
++        if any(inc_readme.startswith(f"{d}/") for d in build_dirs):
++            readme_candidates.add(inc_readme)
++
++    for readme_rel in readme_candidates:
++        if (
++            readme_rel in license_constants.IGNORED_README
++            or readme_rel.startswith(COPYBARA_EXCLUDED_PREFIXES)
++        ):
++            continue
++        readme_abs = os.path.join(REPOSITORY_ROOT, readme_rel)
++        if not os.path.exists(readme_abs):
++            continue
++        _add_path(readme_rel)
++        readme_dir_rel = os.path.dirname(readme_rel)
++        metadata = license_utils.parse_chromium_readme_file(
++            readme_abs,
++            license_constants.POST_PROCESS_OPERATION.get(
++                readme_rel, lambda _metadata: _metadata
++            ),
++        )
++        license_file_path = metadata.get_license_file_path()
++        if (
++            readme_dir_rel.startswith("third_party/rust/")
++            and license_file_path
++            and license_file_path.startswith("//")
++        ):
++            rel_license_dir = license_file_path[
++                2 : license_file_path.rfind("/")
++            ]
++        else:
++            rel_license_dir = readme_dir_rel
++        _add_path(f"{rel_license_dir}/LICENSE")
++        _add_path(f"{rel_license_dir}/METADATA")
++        for license_name in metadata.get_licenses():
++            _add_path(
++                f"{rel_license_dir}/MODULE_LICENSE_{license_utils.get_license_file_format(license_name)}"
++            )
++        if license_file_path:
++            resolved_abs = os.path.join(
++                REPOSITORY_ROOT,
++                license_utils.resolve_license_path(
++                    os.path.dirname(readme_abs), license_file_path
++                ),
++            )
++            _add_path(os.path.relpath(resolved_abs, REPOSITORY_ROOT))
++
++    return sorted(paths)
++
++
++def write_copybara_paths_file(
++    output_dir: str,
++    generated_paths: Iterable[str],
++):
++    """Writes a Starlark file listing generated origin paths for Copybara."""
++    header = f"""# Copyright (C) 2026 The Chromium Authors
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++#
++# This file is automatically generated by {Path(__file__).name}. Do not edit.
++"""
++    files = [
++        path
++        for path in generated_paths
++        if not any(c in path for c in ("*", "?", "[", "{"))
++    ]
++    globs = [
++        path
++        for path in generated_paths
++        if any(c in path for c in ("*", "?", "[", "{"))
++    ]
++    formatted_files = "\n".join(f'    "{path}",' for path in files)
++    formatted_globs = "\n".join(f'    "{path}",' for path in globs)
++    content = (
++        f"{header}\n"
++        f"GENERATED_ORIGIN_FILES = [\n{formatted_files}\n]\n\n"
++        f"GENERATED_ORIGIN_GLOBS = [\n{formatted_globs}\n]\n"
++    )
++    output_file = Path(
++        os.path.join(output_dir, "copybara_generated_paths.bara.sky")
++    )
++    output_file.parent.mkdir(parents=True, exist_ok=True)
++    output_file.write_text(content)
++
++
+ def _locate_android_bp_destination(module: soong_ast.Module) -> str:
+     """Returns the appropriate location of the generated Android.bp for the
+     specified module. Sometimes it is favourable to relocate the Android.bp to
+@@ -789,6 +1145,11 @@
+             )
+         )
+ 
++    generated_paths = extract_copybara_paths(
++        gn, top_level_blueprint, final_blueprints
++    )
++    write_copybara_paths_file(args.output_dir, generated_paths)
++
+     return 0
+ 
+ 
+diff --git a/components/variations/service/variations_field_trial_creator.cc b/components/variations/service/variations_field_trial_creator.cc
+index a7b8b68..fff8417 100644
+--- a/components/variations/service/variations_field_trial_creator.cc
++++ b/components/variations/service/variations_field_trial_creator.cc
+@@ -8,6 +8,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <optional>
+ #include <string>
+ #include <string_view>
+ #include <utility>
+@@ -255,7 +256,7 @@
+     metrics::MetricsStateManager* metrics_state_manager,
+     PlatformFieldTrials* platform_field_trials,
+     SafeSeedManager* safe_seed_manager,
+-    bool add_entropy_source_to_variations_ids,
++    std::optional<int> low_entropy_source_value,
+     const EntropyProviders& entropy_providers) {
+   DCHECK(feature_list);
+   DCHECK(metrics_state_manager);
+@@ -367,12 +368,11 @@
+     variations_source_.type = VariationsSourceType::kVariationsServer;
+   }
+ 
+-  if (add_entropy_source_to_variations_ids &&
++  if (low_entropy_source_value.has_value() &&
+       !create_trials_result.AppliedSeedHasActiveLimitedLayer()) {
+     // TODO(crbug.com/424154785): Consider no longer transmitting LES values
+     // alongside VariationsIDs.
+-    http_header_provider->SetLowEntropySourceValue(
+-        metrics_state_manager->GetLowEntropySource());
++    http_header_provider->SetLowEntropySourceValue(low_entropy_source_value);
+   }
+ 
+   platform_field_trials->SetUpClientSideFieldTrials(
+diff --git a/components/variations/service/variations_field_trial_creator.h b/components/variations/service/variations_field_trial_creator.h
+index 483ef94..d7677f3a 100644
+--- a/components/variations/service/variations_field_trial_creator.h
++++ b/components/variations/service/variations_field_trial_creator.h
+@@ -183,8 +183,8 @@
+   // |safe_seed_manager| should be notified of the combined server and client
+   // state that was activated to create the field trials (only when the return
+   // value is true). Must not be null.
+-  // |add_entropy_source_to_variations_ids| controls if an offset variations ID
+-  // for the low entropy source is added to variations headers.
++  // |low_entropy_source_value| controls the offset variations ID for the low
++  // entropy source added to variations headers when present.
+   // |entropy_providers| Used to provide entropy to field trials.
+   //
+   // NOTE: The ordering of the FeatureList method calls is such that the
+@@ -192,7 +192,7 @@
+   // take precedence over |extra_overrides|, which takes precedence over the
+   // field trials.
+   //
+-  // TODO(crbug.com/424154785): Remove add_entropy_source_to_variations_ids.
++  // TODO(crbug.com/424154785): Remove low_entropy_source_value.
+   bool SetUpFieldTrials(
+       const std::vector<std::string>& variation_ids,
+       const std::vector<base::FeatureList::FeatureOverrideInfo>&
+@@ -201,7 +201,7 @@
+       metrics::MetricsStateManager* metrics_state_manager,
+       PlatformFieldTrials* platform_field_trials,
+       SafeSeedManager* safe_seed_manager,
+-      bool add_entropy_source_to_variations_ids,
++      std::optional<int> low_entropy_source_value,
+       const EntropyProviders& entropy_providers);
+ 
+   // Returns all of the client state used for filtering studies.
+diff --git a/components/variations/service/variations_service.cc b/components/variations/service/variations_service.cc
+index a54b220..51796bd 100644
+--- a/components/variations/service/variations_service.cc
++++ b/components/variations/service/variations_service.cc
+@@ -1770,7 +1770,7 @@
+   const bool result = field_trial_creator_.SetUpFieldTrials(
+       variation_ids, extra_overrides, std::move(feature_list), state_manager_,
+       platform_field_trials, &safe_seed_manager_,
+-      /*add_entropy_source_to_variations_ids=*/false, *entropy_providers_);
++      /*low_entropy_source_value=*/std::nullopt, *entropy_providers_);
+   InitCrashKeys();
+   return result;
+ }
+diff --git a/content/browser/webid/identity_registry_delegate.h b/content/browser/webid/identity_registry_delegate.h
+index 502fa64..48e867a 100644
+--- a/content/browser/webid/identity_registry_delegate.h
++++ b/content/browser/webid/identity_registry_delegate.h
+@@ -34,6 +34,9 @@
+   // associated WebContents).
+   // If `account_id` is nullopt, uses the account that was selected in the
+   // account chooser.
++  // Returns false if the token was not accepted, e.g. because the request is
++  // not waiting for one or because closing the modal dialog destroyed `this`.
++  // The IdP's `resolve()` promise is then rejected with a `NotAllowedError`.
+   virtual bool OnResolve(GURL idp_config_url,
+                          const std::optional<std::string>& account_id,
+                          blink::mojom::ResolveTokenParamsPtr params) = 0;
+diff --git a/content/browser/webid/request_handler.cc b/content/browser/webid/request_handler.cc
+index c5d0636..7547b92 100644
+--- a/content/browser/webid/request_handler.cc
++++ b/content/browser/webid/request_handler.cc
+@@ -2066,7 +2066,12 @@
+ 
+ void RequestHandler::OnClose() {
+   CHECK(request_service_->GetDialogController());
+-  request_service_->GetDialogController()->CloseModalDialog();
++  if (!ShowDialog([&]() {
++        request_service_->GetDialogController()->CloseModalDialog();
++        return true;
++      })) {
++    return;
++  }
+ 
+   // If we have not gotten a signin status change, abort the flow.
+   // The same goes if we did get a status change but the accounts fetch
+@@ -2109,7 +2114,12 @@
+     return false;
+   }
+ 
+-  controller->CloseModalDialog();
++  if (!ShowDialog([&]() {
++        controller->CloseModalDialog();
++        return true;
++      })) {
++    return false;
++  }
+ 
+   MarkUserAsSignedIn(idp_config_url, account_id.value_or(account_id_));
+ 
+@@ -2271,7 +2281,12 @@
+ }
+ 
+ void RequestHandler::OnNativeAppLoginFinished(const GURL& idp_config_url) {
+-  GetDialogController()->CloseModalDialog();
++  if (!ShowDialog([&]() {
++        GetDialogController()->CloseModalDialog();
++        return true;
++      })) {
++    return;
++  }
+   permission_delegate()->RemoveIdpSigninStatusObserver(this);
+   permission_delegate()->SetIdpSigninStatus(
+       url::Origin::Create(idp_config_url), /*is_signed_in=*/true, std::nullopt);
+diff --git a/content/browser/webid/request_handler.h b/content/browser/webid/request_handler.h
+index 61e4fb3..e3620c9 100644
+--- a/content/browser/webid/request_handler.h
++++ b/content/browser/webid/request_handler.h
+@@ -443,11 +443,14 @@
+ 
+   blink::mojom::RpMode GetRpMode() const { return req_->rp_mode(); }
+ 
+-  // Shows a FedCM UI and returns true if it succeeded and the RequestHandler
+-  // was not destroyed. Showing a FedCM UI may cause the tab to drop fullscreen
+-  // or lose focus, during which the frame may be detached and this
+-  // RequestHandler destroyed.
+-  bool ShowDialog(base::FunctionRef<bool()> show_dialog_callback);
++  // Runs `show_dialog_callback`, a call to the dialog controller. Returns true
++  // if it returned true, the `RequestHandler` was not destroyed, and its
++  // request did not complete. Dialog calls may destroy this `RequestHandler`:
++  // showing a FedCM UI may cause the tab to drop fullscreen or lose focus,
++  // during which the frame may be detached, and closing the pop-up may
++  // activate another tab, which can close a window that hosts the RP's frame.
++  // If this returns false, the caller must return early.
++  [[nodiscard]] bool ShowDialog(base::FunctionRef<bool()> show_dialog_callback);
+ 
+   // If the client metadata has not been received yet the UI may not be able to
+   // show a correct title, so we need to indicate that in the RelyingPartyData.
+diff --git a/content/renderer/media/media_permission_dispatcher.cc b/content/renderer/media/media_permission_dispatcher.cc
+index 46933bb..8dfba61 100644
+--- a/content/renderer/media/media_permission_dispatcher.cc
++++ b/content/renderer/media/media_permission_dispatcher.cc
+@@ -126,7 +126,10 @@
+ 
+   uint32_t request_id = next_request_id_++;
+   DCHECK(!requests_.contains(request_id));
+-  requests_[request_id] = std::move(permission_status_cb);
++  // Ensure callbacks never run synchronously on a caller stack, because this
++  // can be re-entrant with destruction.
++  requests_[request_id] =
++      base::BindPostTask(task_runner_, std::move(permission_status_cb));
+ 
+   return request_id;
+ }
+diff --git a/content/test/BUILD.gn b/content/test/BUILD.gn
+index 4393239..602ba60 100644
+--- a/content/test/BUILD.gn
++++ b/content/test/BUILD.gn
+@@ -1818,6 +1818,7 @@
+     "../renderer/accessibility/render_accessibility_impl_browsertest.cc",
+     "../renderer/blink_platform_audio_hardware_browsertest.cc",
+     "../renderer/gin_browsertest.cc",
++    "../renderer/media/media_permission_dispatcher_browsertest.cc",
+     "../renderer/media/renderer_web_media_player_delegate_browsertest.cc",
+     "../renderer/media/too_many_web_media_players_intervention_browsertest.cc",
+     "../renderer/render_frame_impl_browsertest.cc",
 diff --git a/extensions/browser/script_executor.cc b/extensions/browser/script_executor.cc
 index 8f88930..fbaee3a 100644
 --- a/extensions/browser/script_executor.cc
@@ -637,6 +1726,90 @@ index cd7af6c..426178ef 100644
    static void WillExecuteCode(base::PassKey<ExtensionActionRunner> pass_key,
                                mojom::InjectionType script_type,
                                content::RenderFrameHost* frame,
+diff --git a/gpu/command_buffer/service/raster_decoder.cc b/gpu/command_buffer/service/raster_decoder.cc
+index c1ab819..5d757e86 100644
+--- a/gpu/command_buffer/service/raster_decoder.cc
++++ b/gpu/command_buffer/service/raster_decoder.cc
+@@ -22,11 +22,13 @@
+ #include "base/containers/flat_map.h"
+ #include "base/containers/span.h"
+ #include "base/debug/crash_logging.h"
++#include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "base/logging.h"
+ #include "base/memory/aligned_memory.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/ref_counted.h"
++#include "base/memory/safety_checks.h"
+ #include "base/memory/weak_ptr.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/notimplemented.h"
+@@ -2840,6 +2842,13 @@
+     shared_context_state_->progress_reporter()->ReportProgress();
+ }
+ 
++namespace {
++
++BASE_FEATURE(kExcludeOopRasterizationFromSafetyChecks,
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
++}  // namespace
++
+ void RasterDecoderImpl::DoRasterCHROMIUM(GLuint raster_shm_id,
+                                          GLuint raster_shm_offset,
+                                          GLuint raster_shm_size,
+@@ -2912,6 +2921,8 @@
+                            new_locked_handles.end());
+   }
+ 
++  const bool exclude_from_safety_checks =
++      base::FeatureList::IsEnabled(kExcludeOopRasterizationFromSafetyChecks);
+   while (!paint_buffer.empty()) {
+     size_t skip = 0;
+     cc::PaintOp* deserialized_op =
+@@ -2922,8 +2933,14 @@
+       return;
+     }
+ 
+-    deserialized_op->Raster(raster_canvas_, playback_params);
+-    deserialized_op->DestroyThis();
++    {
++      std::optional<base::ScopedSafetyChecksExclusion> excluded;
++      if (exclude_from_safety_checks) {
++        excluded.emplace();
++      }
++      deserialized_op->Raster(raster_canvas_, playback_params);
++      deserialized_op->DestroyThis();
++    }
+ 
+     paint_buffer = paint_buffer.subspan(skip);
+   }
+@@ -2940,6 +2957,11 @@
+   raster_canvas_ = nullptr;
+ 
+   {
++    std::optional<base::ScopedSafetyChecksExclusion> excluded;
++    if (base::FeatureList::IsEnabled(
++            kExcludeOopRasterizationFromSafetyChecks)) {
++      excluded.emplace();
++    }
+     TRACE_EVENT0("gpu", "RasterDecoderImpl::DoEndRasterCHROMIUM::Flush");
+     // This is a slow operation since skia will execute the GPU work for the
+     // complete tile. Make sure the progress reporter is notified to avoid
+@@ -2967,10 +2989,10 @@
+     } else {
+       DCHECK(end_semaphores_.empty());
+     }
+-  }
+ 
+-  shared_context_state_->UpdateSkiaOwnedMemorySize();
+-  sk_surface_ = nullptr;
++    shared_context_state_->UpdateSkiaOwnedMemorySize();
++    sk_surface_ = nullptr;
++  }
+   scoped_shared_image_write_.reset();
+   shared_image_.reset();
+   paint_op_shared_image_provider_.reset();
 diff --git a/gpu/command_buffer/service/shared_image/shared_image_backing.h b/gpu/command_buffer/service/shared_image/shared_image_backing.h
 index 2c95bba5..9722a137 100644
 --- a/gpu/command_buffer/service/shared_image/shared_image_backing.h
@@ -790,6 +1963,27 @@ index d12a75b2..02e882881 100644
  }
  
  }  // namespace gpu
+diff --git a/headless/lib/browser/headless_field_trials.cc b/headless/lib/browser/headless_field_trials.cc
+index 09458e6..dadc7d5f 100644
+--- a/headless/lib/browser/headless_field_trials.cc
++++ b/headless/lib/browser/headless_field_trials.cc
+@@ -6,6 +6,7 @@
+ 
+ #include <functional>
+ #include <memory>
++#include <optional>
+ #include <vector>
+ 
+ #include "base/command_line.h"
+@@ -126,7 +127,7 @@
+   field_trial_creator.SetUpFieldTrials(
+       variation_ids, feature_overrides, std::move(feature_list),
+       metrics_state_manager.get(), &platform_field_trials, &safe_seed_manager,
+-      /*add_entropy_source_to_variations_ids=*/false,
++      /*low_entropy_source_value=*/std::nullopt,
+       *metrics_state_manager->CreateEntropyProviders(
+           /*enable_limited_entropy_mode=*/false));
+ }
 diff --git a/net/device_bound_sessions/session_service_impl.cc b/net/device_bound_sessions/session_service_impl.cc
 index 11b0f17..1a52087 100644
 --- a/net/device_bound_sessions/session_service_impl.cc
@@ -1502,6 +2696,32 @@ index 6cd46c4..c72c9a71 100644
   public:
    friend class ThrottlingP2PNetworkInterceptor;
  
+diff --git a/testing/variations/fieldtrial_testing_config.json b/testing/variations/fieldtrial_testing_config.json
+index 114d002..d1475fe 100644
+--- a/testing/variations/fieldtrial_testing_config.json
++++ b/testing/variations/fieldtrial_testing_config.json
+@@ -20300,21 +20300,6 @@
+             ]
+         }
+     ],
+-    "WebViewUseWVLESForLayeredStudy": [
+-        {
+-            "platforms": [
+-                "android_webview"
+-            ],
+-            "experiments": [
+-                {
+-                    "name": "Enabled",
+-                    "enable_features": [
+-                        "WebViewUseWVLESForLayeredStudy"
+-                    ]
+-                }
+-            ]
+-        }
+-    ],
+     "WebViewVizDirectCompositorThreadIpcFrameSinkManager": [
+         {
+             "platforms": [
 diff --git a/third_party/blink/renderer/core/animation/animation.cc b/third_party/blink/renderer/core/animation/animation.cc
 index b1785d1f..d037df5 100644
 --- a/third_party/blink/renderer/core/animation/animation.cc
@@ -1636,206 +2856,274 @@ index dbde977..73d5e86 100644
    Document& document = element->GetDocument();
    CSSToLengthConversionData::Flags ignored_flags = 0;
  
-diff --git a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
-index c17b13b..b7a127b 100644
---- a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
-+++ b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
-@@ -1488,9 +1488,20 @@
- angle::Result FramebufferGL::onAttachmentLayerCountChange(gl::FramebufferAttachment *attachment)
- {
-     ASSERT(!isDefault() && attachment && attachment->isAttached() &&
--           attachment->type() == GL_TEXTURE && mFunctions->framebufferTextureLayer);
-+           attachment->type() == GL_TEXTURE);
-     mStateManager->bindFramebuffer(GL_FRAMEBUFFER, mFramebufferID);
--    mFunctions->framebufferTextureLayer(GL_FRAMEBUFFER, attachment->getBinding(), 0, 0, 0);
-+    // Detaching with a texture of 0 ignores the remaining parameters.  glFramebufferTextureLayer
-+    // is not available on ES 2.0 drivers, while cube map textures are, so fall back to
-+    // glFramebufferTexture2D in that case.
-+    if (mFunctions->framebufferTextureLayer)
-+    {
-+        mFunctions->framebufferTextureLayer(GL_FRAMEBUFFER, attachment->getBinding(), 0, 0, 0);
+diff --git a/third_party/blink/renderer/core/dom/document.cc b/third_party/blink/renderer/core/dom/document.cc
+index 26b3866..ab81307 100644
+--- a/third_party/blink/renderer/core/dom/document.cc
++++ b/third_party/blink/renderer/core/dom/document.cc
+@@ -3776,6 +3776,9 @@
+     GetStyleEngine().UpdateViewportSize();
+     UpdateStyleAndLayout(DocumentUpdateReason::kPrinting);
+ 
++    if (RuntimeEnabledFeatures::HTMLPlugInDeferStyleRecalcImageLoadEnabled()) {
++      return fetcher_->BlockingRequestCount() > 0 || IsDelayingLoadEvent();
 +    }
-+    else
+     return fetcher_->BlockingRequestCount() > 0;
+   }
+ 
+diff --git a/third_party/blink/renderer/core/dom/element.cc b/third_party/blink/renderer/core/dom/element.cc
+index 19f2e8bf..75a5206a9 100644
+--- a/third_party/blink/renderer/core/dom/element.cc
++++ b/third_party/blink/renderer/core/dom/element.cc
+@@ -8511,9 +8511,12 @@
+   // where removing all attributes send us into O(n²)).
+ }
+ 
+-void Element::AppendAttributeInternal(const QualifiedName& name,
+-                                      const AtomicString& value,
++void Element::AppendAttributeInternal(QualifiedName name,
++                                      AtomicString value,
+                                       AttributeModificationReason reason) {
++  // `name` and `value` are passed by value because they may be references
++  // into `ElementData::Attributes()`, which can be reallocated by
++  // `WillModifyAttribute()`, `Append()`, or `DidAddAttribute()`.
+   if (reason !=
+       AttributeModificationReason::kBySynchronizationOfLazyAttribute) {
+     WillModifyAttribute(name, g_null_atom, value);
+@@ -14127,10 +14130,10 @@
+   QualifiedName existing_attribute_name = existing_attribute.GetName();
+ 
+   // `new_value` may be a reference into `ElementData::Attributes()`, which can
+-  // be reallocated if `WillModifyAttribute()` pauses in the debugger and script
+-  // mutates attributes. Copy it here (rather than taking `new_value` by value
+-  // in `SetAttributeInternal`, which would add refcount churn to the
+-  // `AppendAttributeInternal` fast path).
++  // be reallocated if `WillModifyAttribute()` runs script (e.g. by pausing in
++  // the debugger) and mutates attributes. Copy it in the branches that invoke
++  // `WillModifyAttribute()` (and in `AppendAttributeInternal()`) rather than
++  // taking `new_value` by value in `SetAttributeInternal()`.
+   if (new_value == existing_attribute.Value()) {
+     if (reason !=
+         AttributeModificationReason::kBySynchronizationOfLazyAttribute) {
+diff --git a/third_party/blink/renderer/core/dom/element.h b/third_party/blink/renderer/core/dom/element.h
+index 9aeaebd..1ae47b36 100644
+--- a/third_party/blink/renderer/core/dom/element.h
++++ b/third_party/blink/renderer/core/dom/element.h
+@@ -2660,8 +2660,8 @@
+                             const QualifiedName&,
+                             const AtomicString& value,
+                             AttributeModificationReason);
+-  void AppendAttributeInternal(const QualifiedName&,
+-                               const AtomicString& value,
++  void AppendAttributeInternal(QualifiedName,
++                               AtomicString value,
+                                AttributeModificationReason);
+   void RemoveAttributeInternal(wtf_size_t index, AttributeModificationReason);
+   AtomicString TrustedTypesCheckForAttribute(const QualifiedName&,
+diff --git a/third_party/blink/renderer/core/html/html_plugin_element.cc b/third_party/blink/renderer/core/html/html_plugin_element.cc
+index e0ee60c..d5511728 100644
+--- a/third_party/blink/renderer/core/html/html_plugin_element.cc
++++ b/third_party/blink/renderer/core/html/html_plugin_element.cc
+@@ -956,8 +956,11 @@
+     if (!image_loader_) {
+       image_loader_ = MakeGarbageCollected<HTMLImageLoader>(this);
+     }
+-    image_loader_->UpdateFromElement(ImageLoader::kUpdateNormal,
+-                                     /* force_blocking */ true);
++    image_loader_->UpdateFromElement(
++        RuntimeEnabledFeatures::HTMLPlugInDeferStyleRecalcImageLoadEnabled()
++            ? ImageLoader::kUpdateFromTask
++            : ImageLoader::kUpdateNormal,
++        /* force_blocking */ true);
+   }
+   return style;
+ }
+diff --git a/third_party/blink/renderer/core/html/media/media_remoting_interstitial.cc b/third_party/blink/renderer/core/html/media/media_remoting_interstitial.cc
+index 8184239..2d26c875 100644
+--- a/third_party/blink/renderer/core/html/media/media_remoting_interstitial.cc
++++ b/third_party/blink/renderer/core/html/media/media_remoting_interstitial.cc
+@@ -38,9 +38,12 @@
+   background_image_ = MakeGarbageCollected<HTMLImageElement>(GetDocument());
+   background_image_->SetShadowPseudoId(
+       AtomicString("-internal-media-interstitial-background-image"));
+-  background_image_->setAttribute(
+-      html_names::kSrcAttr,
+-      videoElement.FastGetAttribute(html_names::kPosterAttr));
++  // construct a new AtomicString (reference-counting its internals) rather
++  // than pass a reference to the element's attribute storage that might not
++  // stay valid.
++  AtomicString poster_image_url =
++      videoElement.FastGetAttribute(html_names::kPosterAttr);
++  background_image_->setAttribute(html_names::kSrcAttr, poster_image_url);
+   AppendChild(background_image_);
+ 
+   cast_icon_ = MakeGarbageCollected<HTMLDivElement>(GetDocument());
+@@ -156,9 +159,12 @@
+ }
+ 
+ void MediaRemotingInterstitial::OnPosterImageChanged() {
+-  background_image_->setAttribute(
+-      html_names::kSrcAttr,
+-      GetVideoElement().FastGetAttribute(html_names::kPosterAttr));
++  // construct a new AtomicString (reference-counting its internals) rather
++  // than pass a reference to the element's attribute storage that might not
++  // stay valid.
++  AtomicString poster_image_url =
++      GetVideoElement().FastGetAttribute(html_names::kPosterAttr);
++  background_image_->setAttribute(html_names::kSrcAttr, poster_image_url);
+ }
+ 
+ void MediaRemotingInterstitial::Trace(Visitor* visitor) const {
+diff --git a/third_party/blink/renderer/core/html/media/picture_in_picture_interstitial.cc b/third_party/blink/renderer/core/html/media/picture_in_picture_interstitial.cc
+index f1966265..f872d622 100644
+--- a/third_party/blink/renderer/core/html/media/picture_in_picture_interstitial.cc
++++ b/third_party/blink/renderer/core/html/media/picture_in_picture_interstitial.cc
+@@ -73,9 +73,12 @@
+   background_image_ = MakeGarbageCollected<HTMLImageElement>(GetDocument());
+   background_image_->SetShadowPseudoId(
+       AtomicString("-internal-media-interstitial-background-image"));
+-  background_image_->setAttribute(
+-      html_names::kSrcAttr,
+-      videoElement.FastGetAttribute(html_names::kPosterAttr));
++  // construct a new AtomicString (reference-counting its internals) rather
++  // than pass a reference to the element's attribute storage that might not
++  // stay valid.
++  AtomicString poster_image_url =
++      videoElement.FastGetAttribute(html_names::kPosterAttr);
++  background_image_->setAttribute(html_names::kSrcAttr, poster_image_url);
+   ParserAppendChild(background_image_);
+ 
+   message_element_ = MakeGarbageCollected<HTMLDivElement>(GetDocument());
+@@ -170,9 +173,12 @@
+ }
+ 
+ void PictureInPictureInterstitial::OnPosterImageChanged() {
+-  background_image_->setAttribute(
+-      html_names::kSrcAttr,
+-      GetVideoElement().FastGetAttribute(html_names::kPosterAttr));
++  // construct a new AtomicString (reference-counting its internals) rather
++  // than pass a reference to the element's attribute storage that might not
++  // stay valid.
++  AtomicString poster_image_url =
++      GetVideoElement().FastGetAttribute(html_names::kPosterAttr);
++  background_image_->setAttribute(html_names::kSrcAttr, poster_image_url);
+ }
+ 
+ void PictureInPictureInterstitial::Trace(Visitor* visitor) const {
+diff --git a/third_party/blink/renderer/core/loader/image_loader.cc b/third_party/blink/renderer/core/loader/image_loader.cc
+index 88fdb728..e578aa4 100644
+--- a/third_party/blink/renderer/core/loader/image_loader.cc
++++ b/third_party/blink/renderer/core/loader/image_loader.cc
+@@ -391,8 +391,14 @@
+     UpdateFromElementBehavior update_behavior) {
+   auto task = std::make_unique<Task>(this, update_behavior);
+   pending_task_ = task->GetWeakPtr();
+-  element_->GetDocument().GetAgent().event_loop()->EnqueueMicrotask(
+-      BindOnce(&Task::Run, std::move(task)));
++  if (update_behavior == kUpdateFromTask) {
++    element_->GetDocument()
++        .GetTaskRunner(TaskType::kDOMManipulation)
++        ->PostTask(FROM_HERE, BindOnce(&Task::Run, std::move(task)));
++  } else {
++    element_->GetDocument().GetAgent().event_loop()->EnqueueMicrotask(
++        BindOnce(&Task::Run, std::move(task)));
++  }
+   delay_until_do_update_from_element_ =
+       std::make_unique<IncrementLoadEventDelayCount>(element_->GetDocument());
+ }
+@@ -660,7 +666,8 @@
+ 
+   const KURL image_source_kurl = ImageSourceToKURL(image_source_url);
+   if (ShouldLoadImmediately(image_source_kurl) &&
+-      update_behavior != kUpdateFromMicrotask) {
++      update_behavior != kUpdateFromMicrotask &&
++      update_behavior != kUpdateFromTask) {
+     DoUpdateFromElement(element_->GetExecutionContext()->GetCurrentWorld(),
+                         update_behavior, &image_source_kurl, UpdateType::kSync,
+                         force_blocking);
+diff --git a/third_party/blink/renderer/core/loader/image_loader.h b/third_party/blink/renderer/core/loader/image_loader.h
+index 41365db..9bf4a5c 100644
+--- a/third_party/blink/renderer/core/loader/image_loader.h
++++ b/third_party/blink/renderer/core/loader/image_loader.h
+@@ -64,6 +64,10 @@
+     // mechanism. We can't update synchronously, because doing so may invalidate
+     // style, which is forbidden from lazy load callbacks.
+     kUpdateFromMicrotask,
++    // This is the behavior when the update is triggered during style recalc
++    // (HTMLPlugInElement::CustomStyleForLayoutObject). Queue a task rather than
++    // updating synchronously during style recalc.
++    kUpdateFromTask,
+     // This should be the update behavior when the resource was changed (via
+     // 'src', 'srcset' or 'sizes'). Starts a new load even if a previous load of
+     // the same resource have failed, to match Firefox's behavior.
+diff --git a/third_party/blink/renderer/core/svg/svg_element.cc b/third_party/blink/renderer/core/svg/svg_element.cc
+index 6013ca8c..f986d1d 100644
+--- a/third_party/blink/renderer/core/svg/svg_element.cc
++++ b/third_party/blink/renderer/core/svg/svg_element.cc
+@@ -975,8 +975,11 @@
+     bool only_changed_independent_properties) {
+   Element::InvalidateStyleAttribute(only_changed_independent_properties);
+   if (!InstancesForElement().empty()) {
+-    SynchronizeAttributeInShadowInstances(html_names::kStyleAttr,
+-                                          getAttribute(html_names::kStyleAttr));
++    // construct a new AtomicString (reference-counting its internals) rather
++    // than pass a reference to the element's attribute storage that might not
++    // live long enough.
++    AtomicString style_value = getAttribute(html_names::kStyleAttr);
++    SynchronizeAttributeInShadowInstances(html_names::kStyleAttr, style_value);
+   }
+ }
+ 
+@@ -1218,7 +1221,12 @@
+ 
+ void SVGElement::SynchronizeAttributeInShadowInstances(
+     const QualifiedName& name,
+-    const AtomicString& value) {
++    AtomicString value) {
++  // `value` is passed by value because it may be a reference to an attribute
++  // in this element's attribute vector (e.g. from InvalidateStyleAttribute()).
++  // Setting attributes on shadow instances can trigger script or mutations
++  // that reallocate this element's attributes. Hold our own reference for the
++  // duration of the loop.
+   if (RuntimeEnabledFeatures::SvgInstanceSyncOptimizationEnabled() &&
+       !MayHaveInstances()) {
+     return;
+diff --git a/third_party/blink/renderer/core/svg/svg_element.h b/third_party/blink/renderer/core/svg/svg_element.h
+index b9b5f74f..64416210 100644
+--- a/third_party/blink/renderer/core/svg/svg_element.h
++++ b/third_party/blink/renderer/core/svg/svg_element.h
+@@ -283,7 +283,7 @@
+   SMILTimeContainer* GetTimeContainer() const;
+ 
+   void SynchronizeAttributeInShadowInstances(const QualifiedName& name,
+-                                             const AtomicString& value);
++                                             AtomicString value);
+ 
+   SVGAnimatedString& EnsureClassName() const;
+ 
+diff --git a/third_party/blink/renderer/platform/runtime_enabled_features.json5 b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+index 5730001..20e233d 100644
+--- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
++++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+@@ -3840,6 +3840,14 @@
+       status: "test",
+     },
+     {
++      // Defers image loads triggered from
++      // HTMLPlugInElement::CustomStyleForLayoutObject to a DOM manipulation
++      // task instead of loading synchronously during style recalc.
++      // https://crbug.com/575053155
++      name: "HTMLPlugInDeferStyleRecalcImageLoad",
++      status: "stable",
++    },
 +    {
-+        mFunctions->framebufferTexture2D(GL_FRAMEBUFFER, attachment->getBinding(), GL_TEXTURE_2D, 0,
-+                                         0);
-+    }
-     return angle::Result::Continue;
- }
- 
-diff --git a/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.cpp
-index 9cde243..3bfe246 100644
---- a/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.cpp
-+++ b/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.cpp
-@@ -23,6 +23,7 @@
- #include "libANGLE/renderer/gl/RendererGL.h"
- #include "libANGLE/renderer/gl/ShaderGL.h"
- #include "libANGLE/renderer/gl/StateManagerGL.h"
-+#include "libANGLE/renderer/gl/renderergl_utils.h"
- #include "libANGLE/trace.h"
- #include "platform/PlatformMethods.h"
- #include "platform/autogen/FeaturesGL_autogen.h"
-@@ -109,12 +110,14 @@
-                bool hasNativeParallelCompile,
-                const FunctionsGL *functions,
-                const gl::Extensions &extensions,
-+               StateManagerGL *linkStateManager,
-                GLuint programID,
-                bool passthroughShaders)
-         : mProgram(program),
-           mHasNativeParallelCompile(hasNativeParallelCompile),
-           mFunctions(functions),
-           mExtensions(extensions),
-+          mLinkStateManager(linkStateManager),
-           mProgramID(programID),
-           mPassthroughShaders(passthroughShaders)
-     {}
-@@ -140,8 +143,9 @@
-         // If there is no native parallel compile, do the post-link right away.
-         if (mResult == angle::Result::Continue && !mHasNativeParallelCompile)
-         {
--            mResult = mProgram->postLinkJobImpl(resources);
-+            mResult = mProgram->postLinkJobImpl(resources, mLinkStateManager);
-         }
-+        mLinkStateManager = nullptr;
- 
-         // See comment on mResources
-         mResources = &resources;
-@@ -154,7 +158,8 @@
- 
-         if (mResult == angle::Result::Continue && mHasNativeParallelCompile)
-         {
--            mResult = mProgram->postLinkJobImpl(*mResources);
-+            StateManagerGL *stateManager = GetStateManagerGL(context);
-+            mResult                      = mProgram->postLinkJobImpl(*mResources, stateManager);
-         }
- 
-         return mResult;
-@@ -175,6 +180,7 @@
-     const bool mHasNativeParallelCompile;
-     const FunctionsGL *mFunctions;
-     const gl::Extensions &mExtensions;
-+    StateManagerGL *mLinkStateManager;
-     const GLuint mProgramID;
-     const bool mPassthroughShaders;
- 
-@@ -207,7 +213,7 @@
- 
- void ProgramGL::destroy(const gl::Context *context)
- {
--    mFunctions->deleteProgram(mProgramID);
-+    GetStateManagerGL(context)->deleteProgram(mProgramID);
-     mProgramID = 0;
- }
- 
-@@ -421,9 +427,10 @@
- {
-     ANGLE_TRACE_EVENT0("gpu.angle", "ProgramGL::link");
- 
--    *linkTaskOut = std::make_shared<LinkTaskGL>(this, mRenderer->hasNativeParallelCompile(),
--                                                mFunctions, context->getExtensions(), mProgramID,
--                                                context->getState().usesPassthroughShaders());
-+    StateManagerGL *stateManager = GetStateManagerGL(context);
-+    *linkTaskOut                 = std::make_shared<LinkTaskGL>(
-+        this, mRenderer->hasNativeParallelCompile(), mFunctions, context->getExtensions(),
-+        stateManager, mProgramID, context->getState().usesPassthroughShaders());
- 
-     return angle::Result::Continue;
- }
-@@ -567,7 +574,8 @@
-     return angle::Result::Continue;
- }
- 
--angle::Result ProgramGL::postLinkJobImpl(const gl::ProgramLinkedResources &resources)
-+angle::Result ProgramGL::postLinkJobImpl(const gl::ProgramLinkedResources &resources,
-+                                         StateManagerGL *stateManager)
- {
-     ANGLE_TRACE_EVENT0("gpu.angle", "ProgramGL::postLinkJobImpl");
- 
-@@ -592,9 +600,13 @@
-         return angle::Result::Stop;
-     }
- 
-+    // glUseProgram applies to the native context that is current, i.e. the one linking or
-+    // resolving this program, which may differ from the context that created it (mStateManager).
-+    // Use the current context's state manager so that its shadow state and active transform
-+    // feedback are the ones updated.
-     if (mFeatures.alwaysCallUseProgramAfterLink.enabled)
-     {
--        mStateManager->forceUseProgram(mProgramID);
-+        stateManager->forceUseProgram(mProgramID);
-     }
- 
-     linkResources(resources);
-diff --git a/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.h b/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.h
-index a788d47..0294e85 100644
---- a/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.h
-+++ b/third_party/angle/src/libANGLE/renderer/gl/ProgramGL.h
-@@ -80,7 +80,8 @@
- 
-     angle::Result passthroughLinkJobImpl(const gl::Extensions &extensions);
-     angle::Result linkJobImpl(const gl::Extensions &extensions);
--    angle::Result postLinkJobImpl(const gl::ProgramLinkedResources &resources);
-+    angle::Result postLinkJobImpl(const gl::ProgramLinkedResources &resources,
-+                                  StateManagerGL *stateManager);
- 
-     void attachShaders();
-     void applyTransformFeedbackState();
-diff --git a/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp
-index 51eb6bf..0da0715 100644
---- a/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp
-+++ b/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp
-@@ -1876,6 +1876,12 @@
- 
- void StateManagerGL::forceUseProgram(GLuint program)
- {
-+    // glUseProgram generates GL_INVALID_OPERATION while the current transform feedback is active
-+    // and not paused, which would leave mState.program out of sync with the native state.  Pause
-+    // it first; syncTransformFeedbackState() resumes it on the next draw if it is still unpaused
-+    // in the frontend.
-+    pauseTransformFeedback();
-+
-     mState.program = program;
-     mFunctions->useProgram(program);
-     mLocalDirtyBits.set(gl::state::DIRTY_BIT_PROGRAM_BINDING);
-@@ -2384,9 +2390,8 @@
- 
- void StateManagerGL::pauseTransformFeedback()
- {
--    if (mCurrentTransformFeedback != nullptr)
-+    if (mCurrentTransformFeedback != nullptr && mCurrentTransformFeedback->syncPausedState(true))
-     {
--        mCurrentTransformFeedback->syncPausedState(true);
-         onTransformFeedbackStateChange();
-     }
- }
+       // When enabled, specifies visual affordances for printing such as headers,
+       // footers and page numbers, to be PDF annotations.
+       // See section 14.8.2.2.1 here for info:
 diff --git a/third_party/angle/src/libANGLE/renderer/gl/TextureGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/TextureGL.cpp
-index 47e8edf..013aeb8 100644
+index 47e8edf..6c4e6a8 100644
 --- a/third_party/angle/src/libANGLE/renderer/gl/TextureGL.cpp
 +++ b/third_party/angle/src/libANGLE/renderer/gl/TextureGL.cpp
-@@ -2605,15 +2605,12 @@
-     if (features.reattachTextureToFboAfterLayerIncrease.enabled &&
-         gl::IsLayeredTextureType(getType()))
-     {
--        for (size_t level = 0; level < levels; level++)
--        {
--            const gl::ImageDesc &desc = mState.getImageDesc(gl::TextureTarget::_2DArray, level);
--            if (size.depth > desc.size.depth)
--            {
--                onStateChange(angle::SubjectMessage::TextureLayerCountIncreased);
--                break;
--            }
--        }
-+        // gl::Texture::setStorage() replaces the image descs with the new storage sizes before
-+        // calling into the backend, so the previous image layout cannot be compared against
-+        // here.  Conservatively assume that the number of images grows.  This is cheap: it only
-+        // reaches framebuffers that have this texture attached, and TexStorage can be called at
-+        // most once per texture since it makes the texture immutable.
-+        onStateChange(angle::SubjectMessage::TextureLayerCountIncreased);
-     }
- 
-     const gl::InternalFormat &originalInternalFormatInfo =
-@@ -4477,7 +4474,12 @@
+@@ -4477,7 +4477,12 @@
      StateManagerGL *stateManager      = GetStateManagerGL(context);
  
      const gl::ImageDesc &currentDesc = mState.getImageDesc(target, level);
@@ -1849,7 +3137,7 @@ index 47e8edf..013aeb8 100644
      {
          return angle::Result::Continue;
      }
-@@ -4510,6 +4512,10 @@
+@@ -4510,6 +4515,10 @@
          const gl::ImageDesc &desc = mState.getImageDesc(target, l);
          if (desc.size.empty())
          {
@@ -1860,7 +3148,7 @@ index 47e8edf..013aeb8 100644
              continue;
          }
  
-@@ -4542,7 +4548,15 @@
+@@ -4542,7 +4551,15 @@
  
      stateManager->deleteTexture(oldTextureID);
  
@@ -1876,94 +3164,6 @@ index 47e8edf..013aeb8 100644
      onStateChange(angle::SubjectMessage::SubjectChanged);
  
      return angle::Result::Continue;
-diff --git a/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.cpp
-index 77b028b..2637abc 100644
---- a/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.cpp
-+++ b/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.cpp
-@@ -129,38 +129,40 @@
- {
-     if (mIsActive != active)
-     {
--        mIsActive = active;
--        mIsPaused = false;
--
-         mStateManager->bindTransformFeedback(GL_TRANSFORM_FEEDBACK, mTransformFeedbackID);
--        if (mIsActive)
-+
-+        // Bind the program associated with this transform feedback for both BeginTransformFeedback
-+        // and EndTransformFeedback (implementations disagree about what should happen if a
-+        // different program is bound when calling EndTransformFeedback).  The previously bound
-+        // program is not restored, as it may have been deleted since; useProgram() marks the
-+        // program binding dirty so the current program is re-applied on the next draw.
-+        mStateManager->useProgram(mActiveProgram);
-+
-+        if (active)
-         {
-+            ASSERT(!mIsPaused);
-             ASSERT(primitiveMode != gl::PrimitiveMode::InvalidEnum);
--            mStateManager->useProgram(mActiveProgram);
-             mFunctions->beginTransformFeedback(gl::ToGLenum(primitiveMode));
-         }
-         else
-         {
--            // Implementations disagree about what should happen if a different program is bound
--            // when calling EndTransformFeedback. We avoid the ambiguity by always re-binding the
--            // program associated with this transform feedback.
--            GLuint previousProgram = mStateManager->getProgramID();
--            mStateManager->useProgram(mActiveProgram);
-             mFunctions->endTransformFeedback();
--            // Restore the current program if we changed it.
--            mStateManager->useProgram(previousProgram);
-         }
-+
-+        // mIsActive and mIsPaused are only updated after the native calls: useProgram() may call
-+        // back into StateManagerGL::pauseTransformFeedback(), which must observe the state of the
-+        // native transform feedback from before this transition.
-+        mIsActive = active;
-+        mIsPaused = false;
-     }
- }
- 
--void TransformFeedbackGL::syncPausedState(bool paused) const
-+bool TransformFeedbackGL::syncPausedState(bool paused) const
- {
-     if (mIsActive && mIsPaused != paused)
-     {
--        mIsPaused = paused;
--
-         mStateManager->bindTransformFeedback(GL_TRANSFORM_FEEDBACK, mTransformFeedbackID);
--        if (mIsPaused)
-+        if (paused)
-         {
-             // If we're transitioning from active to paused, the currently bound program must be the
-             // one associated with this transform feedback.
-@@ -174,6 +176,12 @@
-             mStateManager->useProgram(mActiveProgram);
-             mFunctions->resumeTransformFeedback();
-         }
-+
-+        // As in syncActiveState(), mIsPaused is only updated after the native call because
-+        // useProgram() may call back into StateManagerGL::pauseTransformFeedback().
-+        mIsPaused = paused;
-+        return true;
-     }
-+    return false;
- }
- }  // namespace rx
-diff --git a/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.h b/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.h
-index f723662..95364ae 100644
---- a/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.h
-+++ b/third_party/angle/src/libANGLE/renderer/gl/TransformFeedbackGL.h
-@@ -39,7 +39,8 @@
-     void syncActiveState(const gl::Context *context,
-                          bool active,
-                          gl::PrimitiveMode primitiveMode) const;
--    void syncPausedState(bool paused) const;
-+    // Returns true if the native paused state changed.
-+    bool syncPausedState(bool paused) const;
- 
-   private:
-     const FunctionsGL *mFunctions;
 diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/FramebufferVk.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/FramebufferVk.cpp
 index 6af6a6d..0fa8ce3 100644
 --- a/third_party/angle/src/libANGLE/renderer/vulkan/FramebufferVk.cpp
@@ -2576,33 +3776,52 @@ index 6063321..272079b 100644
  };
  
  class BufferViewHelper final : public Resource
-diff --git a/third_party/angle/src/tests/BUILD.gn b/third_party/angle/src/tests/BUILD.gn
-index 134e68e..c7d1d81 100644
---- a/third_party/angle/src/tests/BUILD.gn
-+++ b/third_party/angle/src/tests/BUILD.gn
-@@ -552,6 +552,10 @@
-       sources += angle_white_box_tests_win_sources
+diff --git a/third_party/dawn/src/dawn/native/opengl/PhysicalDeviceGL.cpp b/third_party/dawn/src/dawn/native/opengl/PhysicalDeviceGL.cpp
+index b6e9190..faded7a 100644
+--- a/third_party/dawn/src/dawn/native/opengl/PhysicalDeviceGL.cpp
++++ b/third_party/dawn/src/dawn/native/opengl/PhysicalDeviceGL.cpp
+@@ -536,6 +536,12 @@
+     deviceToggles->Default(Toggle::GLHoistConstantArrayInitializers,
+                            mVendorId == gpu_info::kVendorID_ImgTec);
+ 
++    // (crbug.com/379551588): The ARM Mali shader compiler has memory safety issues when
++    // compiling pack4x8snorm/pack4x8unorm/unpack4x8snorm/unpack4x8unorm. The Vulkan backend
++    // polyfills them on every ARM proprietary driver; do the same for the GL(ES) backend, which
++    // is the default WebGPU compat adapter on Android 10/11 Mali devices.
++    deviceToggles->Default(Toggle::PolyfillPackUnpack4x8Norm, gpu_info::IsARM(mVendorId));
++
+     // Enable the integer range analysis for shader robustness by default if the corresponding
+     // platform feature is enabled.
+     deviceToggles->Default(
+diff --git a/third_party/dawn/src/dawn/native/opengl/QueueGL.cpp b/third_party/dawn/src/dawn/native/opengl/QueueGL.cpp
+index 6e29851..5094a7e 100644
+--- a/third_party/dawn/src/dawn/native/opengl/QueueGL.cpp
++++ b/third_party/dawn/src/dawn/native/opengl/QueueGL.cpp
+@@ -168,6 +168,11 @@
+         return {};
      }
  
-+    if (angle_enable_gl) {
-+      sources += angle_white_box_tests_gl_sources
-+    }
++    // Synchronize with any shared texture memory fences and track the usage of the texture, like
++    // all other uses of textures do (see CommandBufferGL.cpp). The fence waits are enqueued so they
++    // are executed before the write below.
++    DAWN_TRY(ToBackend(destination.texture)->SynchronizeTextureBeforeUse());
 +
-     configs += [ "${angle_root}:libANGLE_config" ]
+     SubresourceRange range = GetSubresourcesAffectedByCopy(textureCopy, writeSizePixel);
+     bool ensureInitialized = false;
+     if (IsCompleteSubresourceCopiedTo(destination.texture, writeSizePixel, destination.mipLevel,
+diff --git a/third_party/dawn/src/dawn/native/opengl/ShaderModuleGL.cpp b/third_party/dawn/src/dawn/native/opengl/ShaderModuleGL.cpp
+index c088fe2..126815a 100644
+--- a/third_party/dawn/src/dawn/native/opengl/ShaderModuleGL.cpp
++++ b/third_party/dawn/src/dawn/native/opengl/ShaderModuleGL.cpp
+@@ -419,6 +419,8 @@
  
-     deps = [
-diff --git a/third_party/angle/src/tests/angle_white_box_tests.gni b/third_party/angle/src/tests/angle_white_box_tests.gni
-index e00afa9..b4a2f98 100644
---- a/third_party/angle/src/tests/angle_white_box_tests.gni
-+++ b/third_party/angle/src/tests/angle_white_box_tests.gni
-@@ -16,6 +16,7 @@
-   "gl_tests/D3D11InputLayoutCacheTest.cpp",
-   "gl_tests/D3DTextureTest.cpp",
- ]
-+angle_white_box_tests_gl_sources = [ "gl_tests/GLReattachTextureToFboTest.cpp" ]
- angle_white_box_tests_vulkan_sources = [
-   "gl_tests/VulkanDescriptorSetTest.cpp",
-   "gl_tests/VulkanFormatTablesTest.cpp",
+     req.tintOptions.workarounds.hoist_constant_array_initializers =
+         GetDevice()->IsToggleEnabled(Toggle::GLHoistConstantArrayInitializers);
++    req.tintOptions.workarounds.polyfill_pack_unpack_4x8_norm =
++        GetDevice()->IsToggleEnabled(Toggle::PolyfillPackUnpack4x8Norm);
+ 
+     // If the size or alignment of the vertex and fragment stage immediate variables differ (e.g.,
+     // the vertex shader immediates contain a vec4 and the fragment shader do not), the generated
 diff --git a/third_party/dawn/src/dawn/wire/server/ServerBuffer.cpp b/third_party/dawn/src/dawn/wire/server/ServerBuffer.cpp
 index 45d362e..206bbaa 100644
 --- a/third_party/dawn/src/dawn/wire/server/ServerBuffer.cpp
@@ -2638,6 +3857,134 @@ index 45d362e..206bbaa 100644
                          }});
              });
              break;
+diff --git a/third_party/dawn/src/tint/lang/glsl/writer/common/options.h b/third_party/dawn/src/tint/lang/glsl/writer/common/options.h
+index 6f4da5c..3e41bba 100644
+--- a/third_party/dawn/src/tint/lang/glsl/writer/common/options.h
++++ b/third_party/dawn/src/tint/lang/glsl/writer/common/options.h
+@@ -149,8 +149,12 @@
+         /// Set to `true` to hoist constant array initializers inside structures.
+         bool hoist_constant_array_initializers = false;
+ 
++        /// Set to `true` to always use the polyfill version of `pack4x8snorm`, `pack4x8unorm`,
++        /// `unpack4x8snorm` and `unpack4x8unorm` (crbug.com/379551588).
++        bool polyfill_pack_unpack_4x8_norm = false;
++
+         /// Reflect the fields of this class so that it can be used by tint::ForeachField()
+-        TINT_REFLECT(Workarounds, hoist_constant_array_initializers);
++        TINT_REFLECT(Workarounds, hoist_constant_array_initializers, polyfill_pack_unpack_4x8_norm);
+         TINT_REFLECT_HASH_CODE(Workarounds);
+ 
+         bool operator==(const Workarounds&) const = default;
+diff --git a/third_party/dawn/src/tint/lang/glsl/writer/raise/raise.cc b/third_party/dawn/src/tint/lang/glsl/writer/raise/raise.cc
+index 0825965..2105260 100644
+--- a/third_party/dawn/src/tint/lang/glsl/writer/raise/raise.cc
++++ b/third_party/dawn/src/tint/lang/glsl/writer/raise/raise.cc
+@@ -156,6 +156,9 @@
+         core_polyfills.pack_unpack_4x8 = true;
+         core_polyfills.pack_4xu8_clamp = true;
+         core_polyfills.abs_signed_int = true;
++        // crbug.com/379551588: never hand the native pack/unpack 4x8 norm builtins to drivers
++        // that miscompile them (ARM Mali). Mirrors the SPIR-V writer workaround.
++        core_polyfills.pack_unpack_4x8_norm = options.workarounds.polyfill_pack_unpack_4x8_norm;
+         TINT_CHECK_RESULT(core::ir::transform::BuiltinPolyfill(module, core_polyfills));
+     }
+ 
+diff --git a/third_party/dawn/src/tint/lang/glsl/writer/writer_fuzz.cc b/third_party/dawn/src/tint/lang/glsl/writer/writer_fuzz.cc
+index 8a63bbf..1504847 100644
+--- a/third_party/dawn/src/tint/lang/glsl/writer/writer_fuzz.cc
++++ b/third_party/dawn/src/tint/lang/glsl/writer/writer_fuzz.cc
+@@ -53,6 +53,7 @@
+     SubstituteOverridesConfig substitute_overrides_config;
+     bool has_gl_ext_conservative_depth;
+     bool hoist_constant_array_initializers;
++    bool polyfill_pack_unpack_4x8_norm;
+ 
+     /// Reflect the fields of this class so that it can be used by tint::ForeachField()
+     TINT_REFLECT(FuzzedOptions,
+@@ -65,7 +66,8 @@
+                  bgra_swizzle_locations,
+                  substitute_overrides_config,
+                  has_gl_ext_conservative_depth,
+-                 hoist_constant_array_initializers);
++                 hoist_constant_array_initializers,
++                 polyfill_pack_unpack_4x8_norm);
+     TINT_REFLECT_HASH_CODE(FuzzedOptions);
+ };
+ 
+@@ -111,6 +113,8 @@
+     options.has_gl_ext_conservative_depth = fuzzed_options.has_gl_ext_conservative_depth;
+     options.workarounds.hoist_constant_array_initializers =
+         fuzzed_options.hoist_constant_array_initializers;
++    options.workarounds.polyfill_pack_unpack_4x8_norm =
++        fuzzed_options.polyfill_pack_unpack_4x8_norm;
+ 
+     options.version = Version(Version::Standard::kES, 3, 1);
+ 
+diff --git a/third_party/dawn/src/tint/lang/wgsl/resolver/resolver.cc b/third_party/dawn/src/tint/lang/wgsl/resolver/resolver.cc
+index 0691676..d995288 100644
+--- a/third_party/dawn/src/tint/lang/wgsl/resolver/resolver.cc
++++ b/third_party/dawn/src/tint/lang/wgsl/resolver/resolver.cc
+@@ -1478,7 +1478,7 @@
+     }
+ 
+     if (const auto* param = call->RootIdentifier()->As<sem::Parameter>()) {
+-        auto where = buffer_view_sizes_.GetOrAddEntry(param, [min_type_size, total_size, call]() {
++        auto& where = buffer_view_sizes_.GetOrAddEntry(param, [min_type_size, total_size, call]() {
+             BufferViewInfo info;
+             info.min_type_size = min_type_size;
+             info.total_size = total_size;
+@@ -1583,7 +1583,8 @@
+     mat_required_size += FindSubgroupMatrixStructOffset(pointer);
+ 
+     if (const auto* param = root->As<sem::Parameter>()) {
+-        auto where = subgroup_matrix_sizes_.GetOrAddEntry(param, [&] { return mat_required_size; });
++        auto& where =
++            subgroup_matrix_sizes_.GetOrAddEntry(param, [&] { return mat_required_size; });
+         where.value = std::max(where.value, mat_required_size);
+     }
+ 
+@@ -1626,7 +1627,7 @@
+                 }
+             },
+             [&](const sem::Parameter* param) {
+-                auto param_where = subgroup_matrix_sizes_.GetOrAddEntry(
++                auto& param_where = subgroup_matrix_sizes_.GetOrAddEntry(
+                     param, [mat_required_size]() { return mat_required_size; });
+                 param_where.value = std::max(param_where.value, mat_required_size);
+             });
+@@ -1687,7 +1688,7 @@
+                         return false;
+                     }
+                 }
+-                auto param_where =
++                auto& param_where =
+                     buffer_view_sizes_.GetOrAddEntry(param, [where]() { return *where; });
+                 param_where.value = {
+                     std::max(param_where.value.min_type_size, where->min_type_size),
+diff --git a/third_party/pdfium/fxjs/cjs_event_context.h b/third_party/pdfium/fxjs/cjs_event_context.h
+index 3b43ad8..f78b3ed 100644
+--- a/third_party/pdfium/fxjs/cjs_event_context.h
++++ b/third_party/pdfium/fxjs/cjs_event_context.h
+@@ -109,6 +109,7 @@
+   CPDFSDK_FormFillEnvironment* GetFormFillEnv() const {
+     return form_fill_env_.Get();
+   }
++  CJS_Runtime* GetRuntime() const { return runtime_.get(); }
+   CJS_Field* SourceField();
+   CJS_Field* TargetField();
+ 
+diff --git a/third_party/pdfium/fxjs/cjs_publicmethods.cpp b/third_party/pdfium/fxjs/cjs_publicmethods.cpp
+index 92ee10d..bcd974a 100644
+--- a/third_party/pdfium/fxjs/cjs_publicmethods.cpp
++++ b/third_party/pdfium/fxjs/cjs_publicmethods.cpp
+@@ -96,6 +96,7 @@
+                      const WideString& wsMsg) {
+   CPDFSDK_FormFillEnvironment* pFormFillEnv = context->GetFormFillEnv();
+   if (pFormFillEnv) {
++    CJS_Runtime::BlockingScope scope(context->GetRuntime());
+     pFormFillEnv->JS_appAlert(wsMsg, wsCaller, JSPLATFORM_ALERT_BUTTON_OK,
+                               JSPLATFORM_ALERT_ICON_STATUS);
+   }
 diff --git a/third_party/skia/src/core/SkKnownRuntimeEffects.cpp b/third_party/skia/src/core/SkKnownRuntimeEffects.cpp
 index 8d5ca9b..9003b19 100644
 --- a/third_party/skia/src/core/SkKnownRuntimeEffects.cpp
@@ -2651,6 +3998,118 @@ index 8d5ca9b..9003b19 100644
          "uniform half4 xSelect;" // Only one of RGBA will be 1, the rest are 0
          "uniform half4 ySelect;"
  
+diff --git a/third_party/skia/src/core/SkScalerContext.cpp b/third_party/skia/src/core/SkScalerContext.cpp
+index b90c70c..7900142 100644
+--- a/third_party/skia/src/core/SkScalerContext.cpp
++++ b/third_party/skia/src/core/SkScalerContext.cpp
+@@ -696,6 +696,9 @@
+     }
+ }
+ 
++// Rasterizes or path-renders origGlyph into its pre-allocated origGlyph.fImage buffer, applying
++// fMaskFilter if set by regenerating the unfiltered glyph, filtering it, and clipping or zeroing
++// origGlyph.fImage when consecutive loads diverge
+ void SkScalerContext::getImage(const SkGlyph& origGlyph) {
+     SkASSERT(origGlyph.fAdvancesBoundsFormatAndInitialPathDone);
+ 
+@@ -731,25 +734,16 @@
+         unfilteredGlyph = &tmpGlyph;
+     }
+ 
++    // Inspect unfilteredGlyph's reloaded path and format rather than origGlyph's initial load,
++    // since consecutive makeGlyph() loads may diverge in path availability, bounds, or format
+     if (!fGenerateImageFromPath) {
+         generateImage(*unfilteredGlyph, unfilteredGlyph->fImage);
+     } else {
+-        SkASSERT(origGlyph.setPathHasBeenCalled());
+-        const SkPath* devPath = origGlyph.path();
+-
+-        if (!devPath) {
++        SkASSERT(unfilteredGlyph->setPathHasBeenCalled());
++        if (!unfilteredGlyph->path()) {
+             generateImage(*unfilteredGlyph, unfilteredGlyph->fImage);
+         } else {
+-            SkMaskBuilder mask(static_cast<uint8_t*>(unfilteredGlyph->fImage),
+-                               unfilteredGlyph->iRect(), unfilteredGlyph->rowBytes(),
+-                               unfilteredGlyph->maskFormat());
+-            SkASSERT(SkMask::kARGB32_Format != origGlyph.fMaskFormat);
+-            SkASSERT(SkMask::kARGB32_Format != mask.fFormat);
+-            const bool doBGR = SkToBool(fRec.fFlags & SkScalerContext::kLCD_BGROrder_Flag);
+-            const bool doVert = SkToBool(fRec.fFlags & SkScalerContext::kLCD_Vertical_Flag);
+-            const bool a8LCD = SkToBool(fRec.fFlags & SkScalerContext::kGenA8FromLCD_Flag);
+-            const bool hairline = origGlyph.pathIsHairline();
+-            GenerateImageFromPath(mask, *devPath, fPreBlend, doBGR, doVert, a8LCD, hairline);
++            this->generateImageFromPath(*unfilteredGlyph, unfilteredGlyph->fImage);
+         }
+     }
+ 
+@@ -783,19 +777,28 @@
+             memcpy(srcMask.image(), unfilteredGlyph->fImage, imageSize);
+         }
+ 
+-        SkASSERT_RELEASE(srcMask.fFormat == origGlyph.fMaskFormat);
+         SkMaskBuilder dstMask = SkMaskBuilder(static_cast<uint8_t*>(origGlyph.fImage),
+                                               origGlyph.iRect(), origGlyph.rowBytes(),
+                                               origGlyph.maskFormat());
+         SkIRect origBounds = dstMask.fBounds;
+ 
+-        // If the unfiltered and the filtered bounds diverged so far that they do not
+-        // overlap, there is nothing valid to copy; leave origGlyph's image cleared
+-        if (!SkIRect::Intersects(srcMask.fBounds, dstMask.fBounds)) {
++        // The clipping and row-copy below assumes matching 1-byte-per-pixel masks (kA8, k3D,
++        // or kSDF); if consecutive loads diverged in format, are not 1-byte-per-pixel, or do
++        // not overlap, clear origGlyph's image and bail out
++        const bool isBytePerPixelFormat = srcMask.fFormat == SkMask::kA8_Format ||
++                                          srcMask.fFormat == SkMask::k3D_Format ||
++                                          srcMask.fFormat == SkMask::kSDF_Format;
++        if (srcMask.fFormat != origGlyph.fMaskFormat || !isBytePerPixelFormat ||
++            !SkIRect::Intersects(srcMask.fBounds, dstMask.fBounds)) {
+             sk_bzero(origGlyph.fImage, origGlyph.imageSize());
+             return;
+         }
+ 
++        // Capture full single-plane byte strides before fBounds is clipped to the intersection
++        const size_t srcPlaneBytes = srcMask.computeImageSize();
++        const size_t dstPlaneBytes = dstMask.computeImageSize();
++        SkASSERT(srcPlaneBytes > 0 && dstPlaneBytes > 0);
++
+         // Find the intersection of src and dst while updating the fImages.
+         if (srcMask.fBounds.fTop < dstMask.fBounds.fTop) {
+             int32_t topDiff = dstMask.fBounds.fTop - srcMask.fBounds.fTop;
+@@ -842,20 +845,22 @@
+         const uint8_t* src = srcMask.fImage;
+         uint8_t* dst = dstMask.image();
+ 
+-        if (SkMask::k3D_Format == srcMask.fFormat) {
+-            // we have to copy 3 times as much
+-            height *= 3;
+-        }
+-
+-        // If not filling the full original glyph, clear it out first.
++        // Clear all planes (including k3D_Format's multiply and add planes) when clipping
+         if (dstMask.fBounds != origBounds) {
+-            sk_bzero(origGlyph.fImage, origGlyph.fHeight * origGlyph.rowBytes());
++            sk_bzero(origGlyph.fImage, origGlyph.imageSize());
+         }
+ 
+-        while (--height >= 0) {
+-            memcpy(dst, src, width);
+-            src += srcRB;
+-            dst += dstRB;
++        // k3D_Format stores 3 full planes of computeImageSize() bytes each, so step each plane
++        // from its unclipped plane base rather than multiplying the clipped row count by 3
++        const int planes = (SkMask::k3D_Format == srcMask.fFormat) ? 3 : 1;
++        for (int plane = 0; plane < planes; ++plane) {
++            const uint8_t* planeSrc = src + plane * srcPlaneBytes;
++            uint8_t* planeDst = dst + plane * dstPlaneBytes;
++            for (int y = 0; y < height; ++y) {
++                memcpy(planeDst, planeSrc, width);
++                planeSrc += srcRB;
++                planeDst += dstRB;
++            }
+         }
+     }
+ }
 diff --git a/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.cpp b/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.cpp
 index cb588e0..b6635cc 100644
 --- a/third_party/skia/src/gpu/ganesh/vk/GrVkCommandBuffer.cpp
@@ -2880,7 +4339,7 @@ index 1853251..a7ed18e 100644
    V8_WARN_UNUSED_RESULT MaybeLocal<Object> NewInstanceWithSideEffectType(
        Local<Context> context, int argc, Local<Value> argv[],
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index 32a6b4c..33901cb 100644
+index 32a6b4c..f49ea92 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -2888,7 +4347,7 @@ index 32a6b4c..33901cb 100644
  #define V8_MINOR_VERSION 8
  #define V8_BUILD_NUMBER 62
 -#define V8_PATCH_LEVEL 31
-+#define V8_PATCH_LEVEL 35
++#define V8_PATCH_LEVEL 38
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
@@ -3419,6 +4878,724 @@ index f623a4a..9367892 100644
  
    // Call a function, just like Call(), but handle don't report exceptions
    // externally.
+diff --git a/v8/src/heap/array-buffer-sweeper.cc b/v8/src/heap/array-buffer-sweeper.cc
+index 67c3b1c..e94daaf 100644
+--- a/v8/src/heap/array-buffer-sweeper.cc
++++ b/v8/src/heap/array-buffer-sweeper.cc
+@@ -374,6 +374,7 @@
+ 
+ void ArrayBufferSweeper::Resize(ArrayBufferExtension* extension,
+                                 int64_t delta) {
++  SYNCHRONIZATION_POINT_TEST_ONLY("ArrayBufferSweeper::Resize");
+   FinishIfDone();
+ 
+   const ArrayBufferExtension::AccountingState previous_value =
+@@ -565,6 +566,7 @@
+   state_.young_bytes_accounted_ += (freed_bytes + accounted_bytes);
+ 
+   young_.head_ = current;
++  SYNCHRONIZATION_POINT_TEST_ONLY("SweepArrayBufferYoungFinished");
+   return !current;
+ }
+ 
+diff --git a/v8/src/heap/evacuation-verifier.cc b/v8/src/heap/evacuation-verifier.cc
+index 2fddf0b..a1ebc6f 100644
+--- a/v8/src/heap/evacuation-verifier.cc
++++ b/v8/src/heap/evacuation-verifier.cc
+@@ -101,7 +101,7 @@
+ 
+ void EvacuationVerifier::VerifyEvacuation(PagedSpaceBase* space) {
+   for (NormalPage* p : *space) {
+-    if (p->Chunk()->IsEvacuationCandidate()) continue;
++    if (p->is_evacuation_candidate()) continue;
+     VerifyEvacuationOnPage(p->area_start(), p->area_end());
+   }
+ }
+diff --git a/v8/src/heap/heap-layout-inl.h b/v8/src/heap/heap-layout-inl.h
+index 8916601..319870b 100644
+--- a/v8/src/heap/heap-layout-inl.h
++++ b/v8/src/heap/heap-layout-inl.h
+@@ -9,6 +9,7 @@
+ // Include the non-inl header before the rest of the headers.
+ 
+ #include "src/flags/flags.h"
++#include "src/heap/base-page-inl.h"
+ #include "src/heap/memory-chunk-inl.h"
+ #include "src/objects/casting.h"
+ #include "src/objects/objects.h"
+@@ -110,6 +111,23 @@
+   return MemoryChunk::FromHeapObject(object)->Metadata()->is_black_allocated();
+ }
+ 
++// static
++bool TrustedHeapLayout::InYoungGeneration(Tagged<HeapObject> object) {
++#ifdef V8_ENABLE_SANDBOX
++  if constexpr (v8_flags.single_generation.value()) {
++    return false;
++  }
++  if constexpr (v8_flags.sticky_mark_bits.value()) {
++    return InYoungGenerationForStickyMarkbits(object);
++  }
++  const AllocationSpace owner_identity =
++      BasePage::FromHeapObject(object)->owner_identity();
++  return owner_identity == NEW_SPACE || owner_identity == NEW_LO_SPACE;
++#else
++  return HeapLayout::InYoungGeneration(object);
++#endif  // V8_ENABLE_SANDBOX
++}
++
+ }  // namespace v8::internal
+ 
+ #endif  // V8_HEAP_HEAP_LAYOUT_INL_H_
+diff --git a/v8/src/heap/heap-layout.cc b/v8/src/heap/heap-layout.cc
+index eb6e656..4bc7142 100644
+--- a/v8/src/heap/heap-layout.cc
++++ b/v8/src/heap/heap-layout.cc
+@@ -23,6 +23,18 @@
+ }
+ 
+ // static
++bool TrustedHeapLayout::InYoungGenerationForStickyMarkbits(
++    Tagged<HeapObject> object) {
++  CHECK(v8_flags.sticky_mark_bits.value());
++  Isolate* isolate = Isolate::Current();
++  MutablePage* page = MutablePage::FromHeapObject(isolate, object);
++  return !page->IsOnlyOldOrMajorMarkingOn() &&
++         !MarkingBitmap::MarkBitFromAddress(isolate, page->marking_bitmap(),
++                                            object.address())
++              .template Get<AccessMode::ATOMIC>();
++}
++
++// static
+ void HeapLayout::CheckYoungGenerationConsistency(const MemoryChunk* chunk) {
+   // Young generation objects should only be found in to space when the GC is
+   // not currently running.
+diff --git a/v8/src/heap/heap-layout.h b/v8/src/heap/heap-layout.h
+index 94f67ed..f9e6214 100644
+--- a/v8/src/heap/heap-layout.h
++++ b/v8/src/heap/heap-layout.h
+@@ -80,6 +80,13 @@
+   // Returns whether `object` is allocated on a black page (during
+   // incremental/concurrent marking).
+   static V8_INLINE bool InBlackAllocatedPage(Tagged<HeapObject> object);
++
++  // Returns whether `object` is in the young generation.
++  static V8_INLINE bool InYoungGeneration(Tagged<HeapObject> object);
++
++ private:
++  V8_EXPORT_PRIVATE static bool InYoungGenerationForStickyMarkbits(
++      Tagged<HeapObject> object);
+ };
+ 
+ }  // namespace v8::internal
+diff --git a/v8/src/heap/heap.cc b/v8/src/heap/heap.cc
+index 43d158a..541c431 100644
+--- a/v8/src/heap/heap.cc
++++ b/v8/src/heap/heap.cc
+@@ -4385,8 +4385,9 @@
+   }
+   // `heap()` below is not necessarily `this` as the object may be on a shared
+   // page.
+-  Heap* obj_heap = chunk->Metadata(isolate())->heap();
+-  Heap* expected_heap = chunk->InWritableSharedSpace()
++  BasePage* metadata = chunk->Metadata(isolate());
++  Heap* obj_heap = metadata->heap();
++  Heap* expected_heap = metadata->is_writable_shared()
+                             ? isolate()->shared_space_isolate()->heap()
+                             : this;
+   return obj_heap == expected_heap;
+diff --git a/v8/src/heap/mark-compact-inl.h b/v8/src/heap/mark-compact-inl.h
+index 6761af0..038f1f8 100644
+--- a/v8/src/heap/mark-compact-inl.h
++++ b/v8/src/heap/mark-compact-inl.h
+@@ -41,10 +41,11 @@
+     DCHECK_EQ(root, Root::kStackRoots);
+     MemoryChunk* chunk = MemoryChunk::FromHeapObject(obj);
+     auto* page = SbxCast<MutablePage>(chunk->Metadata());
+-    if (chunk->IsEvacuationCandidate()) {
++    if (page->is_evacuation_candidate()) {
+       DCHECK(!chunk->InYoungGeneration());
+       ReportAbortedEvacuationCandidateDueToFlags(SbxCast<NormalPage>(page));
+-    } else if (chunk->InYoungGeneration() && !chunk->IsLargePage()) {
++    } else if (page->owner_identity() == NEW_SPACE) {
++      DCHECK(!page->is_large());
+       DCHECK(chunk->IsToPage());
+       if (!page->is_quarantined()) {
+         page->set_is_quarantined(true);
+diff --git a/v8/src/heap/mark-compact.cc b/v8/src/heap/mark-compact.cc
+index 1cc7bad..8af32cf 100644
+--- a/v8/src/heap/mark-compact.cc
++++ b/v8/src/heap/mark-compact.cc
+@@ -683,7 +683,6 @@
+ 
+   DCHECK(!sweeper_->sweeping_in_progress());
+   for (NormalPage* p : *space) {
+-    MemoryChunk* chunk = p->Chunk();
+     if (p->never_evacuate() || !p->CanAllocateOnChunk()) {
+       continue;
+     }
+@@ -696,7 +695,7 @@
+     // started. This means that sweeping has finished. Furthermore, at the end
+     // of a GC all evacuation candidates are cleared and their slot buffers are
+     // released.
+-    CHECK(!chunk->IsEvacuationCandidate());
++    CHECK(!p->is_evacuation_candidate());
+     CHECK_NULL(p->slot_set<OLD_TO_OLD>());
+     CHECK_NULL(p->typed_slot_set<OLD_TO_OLD>());
+     CHECK(p->SweepingDone());
+@@ -4716,9 +4715,10 @@
+     if (metadata->will_be_promoted()) {
+       return kPageNewToOld;
+     }
+-    if (metadata->Chunk()->InYoungGeneration()) {
++    if (metadata->owner_identity() == NEW_SPACE) {
+       return kObjectsNewToOld;
+     }
++    DCHECK(metadata->is_evacuation_candidate());
+     return kObjectsOldToOld;
+   }
+ 
+@@ -5105,10 +5105,10 @@
+       // need to be pinned.
+       return;
+     }
+-    if (!should_pin_in_shared_space_ && chunk->InWritableSharedSpace()) {
++    if (!should_pin_in_shared_space_ && page->is_writable_shared()) {
+       return;
+     }
+-    if (chunk->InYoungGeneration()) {
++    if (page->owner_identity() == NEW_SPACE) {
+       // Young gen pages are not considered evacuation candidates. Pinning is
+       // done by marking them as quarantined and promoting the page as is.
+       DCHECK(v8_flags.minor_ms ? chunk->IsToPage() : chunk->IsFromPage());
+@@ -5425,7 +5425,7 @@
+         marking_state_(heap_->non_atomic_marking_state()),
+         page_(page),
+         record_old_to_shared_slots_(heap->isolate()->has_shared_space() &&
+-                                    !page->Chunk()->InWritableSharedSpace()) {}
++                                    !page->is_writable_shared()) {}
+   ~RememberedSetUpdatingItem() override = default;
+ 
+   void Process() override {
+@@ -5760,8 +5760,7 @@
+   for (MutablePage* page : *space) {
+     // No need to update pointers on evacuation candidates. Evacuated pages will
+     // be released after this phase.
+-    if (page->Chunk()->IsEvacuationCandidate() &&
+-        !page->evacuation_was_aborted()) {
++    if (page->is_evacuation_candidate() && !page->evacuation_was_aborted()) {
+       continue;
+     }
+     if (page->ContainsAnySlots()) {
+@@ -5885,7 +5884,6 @@
+ 
+   while (chunk_iterator.HasNext()) {
+     MutablePage* page = chunk_iterator.Next();
+-    MemoryChunk* chunk = page->Chunk();
+ 
+     const auto slot_count = RememberedSet<OLD_TO_SHARED>::Iterate(
+         page,
+@@ -5894,7 +5892,8 @@
+         },
+         SlotSet::FREE_EMPTY_BUCKETS);
+ 
+-    if (slot_count == 0 || chunk->InYoungGeneration()) {
++    const AllocationSpace owner = page->owner_identity();
++    if (slot_count == 0 || owner == NEW_SPACE || owner == NEW_LO_SPACE) {
+       page->ReleaseSlotSet(OLD_TO_SHARED);
+     }
+ 
+@@ -5932,7 +5931,9 @@
+                 return UpdateStrongOldToSharedSlot(cage_base, slot);
+               });
+         });
+-    if (typed_slot_count == 0 || chunk->InYoungGeneration()) {
++    DCHECK_NE(owner, NEW_SPACE);
++    DCHECK_NE(owner, NEW_LO_SPACE);
++    if (typed_slot_count == 0) {
+       page->ReleaseTypedSlotSet(OLD_TO_SHARED);
+     }
+   }
+@@ -6180,7 +6181,7 @@
+     NormalPage* p = *(it++);
+     DCHECK(p->SweepingDone());
+ 
+-    if (p->Chunk()->IsEvacuationCandidate()) {
++    if (p->is_evacuation_candidate()) {
+       DCHECK(!p->is_black_allocated());
+       DCHECK_NE(NEW_SPACE, space->identity());
+       // Will be processed in Evacuate.
+@@ -6351,10 +6352,11 @@
+   if (istream_or_smi_zero != Smi::zero()) {
+     Tagged<InstructionStream> istream =
+         TrustedCast<InstructionStream>(istream_or_smi_zero);
+-    MemoryChunk* chunk = MemoryChunk::FromHeapObject(istream);
+-    if (chunk->IsEvacuationCandidate()) {
+-      NormalPage* page = SbxCast<NormalPage>(chunk->Metadata());
+-      collector_->ReportAbortedEvacuationCandidateDueToRunningCode(page);
++    BasePage* page =
++        BasePage::FromHeapObject(collector_->heap()->isolate(), istream);
++    if (page->is_evacuation_candidate()) {
++      collector_->ReportAbortedEvacuationCandidateDueToRunningCode(
++          SbxCast<NormalPage>(page));
+     }
+ 
+     VisitRootPointer(Root::kStackRoots, nullptr, istream_or_smi_zero_slot);
+diff --git a/v8/src/heap/marking-barrier.cc b/v8/src/heap/marking-barrier.cc
+index 43b856b..abae6ea 100644
+--- a/v8/src/heap/marking-barrier.cc
++++ b/v8/src/heap/marking-barrier.cc
+@@ -175,7 +175,7 @@
+                        std::is_same_v<Space, TrustedLargeObjectSpace> ||
+                        std::is_same_v<Space, CodeLargeObjectSpace>) {
+     for (auto* p : *space) {
+-      DCHECK(p->Chunk()->IsLargePage());
++      DCHECK(p->is_large());
+       p->SetOldGenerationPageFlags(marking_mode);
+     }
+   } else if constexpr (std::is_same_v<Space, NewSpace>) {
+@@ -185,7 +185,7 @@
+   } else {
+     static_assert(std::is_same_v<Space, NewLargeObjectSpace>);
+     for (auto* p : *space) {
+-      DCHECK(p->Chunk()->IsLargePage());
++      DCHECK(p->is_large());
+       p->SetYoungGenerationPageFlags(marking_mode);
+     }
+   }
+diff --git a/v8/src/heap/memory-allocator.cc b/v8/src/heap/memory-allocator.cc
+index 8aa8530..e6afb23 100644
+--- a/v8/src/heap/memory-allocator.cc
++++ b/v8/src/heap/memory-allocator.cc
+@@ -343,14 +343,13 @@
+ }
+ 
+ void MemoryAllocator::PreFreeMemory(MutablePage* chunk_metadata) {
+-  MemoryChunk* chunk = chunk_metadata->Chunk();
+   DCHECK(!chunk_metadata->is_pre_freed());
+   LOG(isolate_, DeleteEvent("MemoryChunk", chunk_metadata));
+   RecordMemoryChunkDestroyed(chunk_metadata);
+   UnregisterMutableMemoryChunk(chunk_metadata);
+   isolate_->heap()->RememberUnmappedPage(
+       reinterpret_cast<Address>(chunk_metadata),
+-      chunk->IsEvacuationCandidate());
++      chunk_metadata->is_evacuation_candidate());
+   chunk_metadata->ReleaseAllAllocatedMemory();
+   chunk_metadata->set_is_pre_freed();
+ }
+@@ -358,7 +357,7 @@
+ void MemoryAllocator::PerformFreeMemory(MutablePage* chunk_metadata) {
+   DCHECK(chunk_metadata->is_unregistered());
+   DCHECK(chunk_metadata->is_pre_freed());
+-  DCHECK(!chunk_metadata->Chunk()->InReadOnlySpace());
++  DCHECK(!chunk_metadata->IsReadOnlyPage());
+ 
+   DeleteMemoryChunk(chunk_metadata);
+ }
+diff --git a/v8/src/heap/memory-pool.cc b/v8/src/heap/memory-pool.cc
+index ac7d5f9..0190c0f 100644
+--- a/v8/src/heap/memory-pool.cc
++++ b/v8/src/heap/memory-pool.cc
+@@ -42,7 +42,7 @@
+   DCHECK_EQ(chunk_reservation.address(), metadata->ChunkAddress());
+ 
+   MemoryChunk* chunk = metadata->Chunk();
+-  DCHECK(!chunk->InReadOnlySpace());
++  DCHECK(!metadata->IsReadOnlyPage());
+ 
+   // Destroy the chunk and the metadata object but do not release the underlying
+   // memory as that is going to be pooled.
+diff --git a/v8/src/heap/mutable-page.h b/v8/src/heap/mutable-page.h
+index b528085..080c5f8 100644
+--- a/v8/src/heap/mutable-page.h
++++ b/v8/src/heap/mutable-page.h
+@@ -81,6 +81,15 @@
+   void SetYoungGenerationPageFlags(MarkingMode marking_mode);
+   V8_INLINE void SetMajorGCInProgress();
+   V8_INLINE void ResetMajorGCInProgress();
++  bool IsOnlyOldOrMajorMarkingOn() const {
++#if V8_ENABLE_STICKY_MARK_BITS_BOOL
++    DCHECK(v8_flags.sticky_mark_bits);
++    return trusted_main_thread_flags_ &
++           MemoryChunk::kIsOnlyOldOrMajorGCInProgressMask;
++#else
++    UNREACHABLE();
++#endif
++  }
+   V8_INLINE void ClearFlagsNonExecutable(MemoryChunk::MainThreadFlags flags);
+   V8_INLINE void SetFlagsNonExecutable(
+       MemoryChunk::MainThreadFlags flags,
+diff --git a/v8/src/heap/scavenger.cc b/v8/src/heap/scavenger.cc
+index 63169aa..bd50e07 100644
+--- a/v8/src/heap/scavenger.cc
++++ b/v8/src/heap/scavenger.cc
+@@ -1356,12 +1356,12 @@
+     NormalPage* page =
+         static_cast<NormalPage*>(chunk->Metadata(heap_->isolate()));
+     DCHECK(!chunk->IsFromPage());
+-    if (chunk->IsToPage()) {
++    if (page->owner_identity() == NEW_SPACE) {
++      DCHECK(chunk->IsToPage());
+       SweepPage(CreateFillerFreeSpaceHandler, chunk, page,
+                 next_page_iterator_->second);
+     } else {
+-      DCHECK_EQ(chunk->Metadata(heap_->isolate())->owner()->identity(),
+-                OLD_SPACE);
++      DCHECK_EQ(page->owner_identity(), OLD_SPACE);
+       base::MutexGuard guard(page->mutex());
+       // If for some reason the page is swept twice, this DCHECK will fail.
+       DCHECK_EQ(page->area_size(), page->allocated_bytes());
+diff --git a/v8/src/heap/sweeper.cc b/v8/src/heap/sweeper.cc
+index 1fee90f..a1b29ed 100644
+--- a/v8/src/heap/sweeper.cc
++++ b/v8/src/heap/sweeper.cc
+@@ -678,7 +678,7 @@
+       page->ReleaseSlotSet(SURVIVOR_TO_EXTERNAL_POINTER);
+     } else {
+       DCHECK_EQ(OLD_SPACE, page->owner_identity());
+-      DCHECK(!page->Chunk()->IsEvacuationCandidate());
++      DCHECK(!page->is_evacuation_candidate());
+       const ZappingMode zapping_mode = ShouldZapDeadObjectsOnPage();
+       Address dead_start = page->area_start();
+       for (auto [object, size] :
+@@ -1187,7 +1187,7 @@
+          space->identity() == TRUSTED_SPACE ||
+          space->identity() == SHARED_TRUSTED_SPACE ||
+          (space->identity() == NEW_SPACE && v8_flags.minor_ms));
+-  DCHECK(!p->Chunk()->IsEvacuationCandidate());
++  DCHECK(!p->is_evacuation_candidate());
+   DCHECK(!p->SweepingDone());
+   DCHECK(!p->is_black_allocated());
+   DCHECK_IMPLIES(space->identity() == NEW_SPACE,
+diff --git a/v8/src/objects/js-array-buffer.cc b/v8/src/objects/js-array-buffer.cc
+index 394947a..e7f652b 100644
+--- a/v8/src/objects/js-array-buffer.cc
++++ b/v8/src/objects/js-array-buffer.cc
+@@ -5,6 +5,7 @@
+ #include "src/objects/js-array-buffer.h"
+ 
+ #include "src/api/api-inl.h"
++#include "src/common/synchronization-point-support.h"
+ #include "src/execution/protectors-inl.h"
+ #include "src/logging/counters.h"
+ #include "src/objects/cpp-heap-object-wrapper-inl.h"
+@@ -340,11 +341,13 @@
+   // inaccurate. However, a full GC will sweep both lists and promote all to
+   // old, so it doesn't matter which list initially holds the extension in this
+   // case.
+-  const auto age = HeapLayout::InYoungGeneration(Tagged<JSArrayBuffer>(this))
+-                       ? ArrayBufferExtension::Age::kYoung
+-                       : ArrayBufferExtension::Age::kOld;
++  const auto age =
++      TrustedHeapLayout::InYoungGeneration(Tagged<JSArrayBuffer>(this))
++          ? ArrayBufferExtension::Age::kYoung
++          : ArrayBufferExtension::Age::kOld;
+   ArrayBufferExtension* extension = new ArrayBufferExtension(
+       std::move(backing_store), age, is_shared(), is_resizable_by_js());
++  SYNCHRONIZATION_POINT_TEST_ONLY("JSArrayBuffer::CreateExtension");
+   set_extension(extension);
+   isolate->heap()->AppendArrayBufferExtension(extension);
+   return extension;
+diff --git a/v8/src/objects/js-objects.cc b/v8/src/objects/js-objects.cc
+index 297b905..79688ea 100644
+--- a/v8/src/objects/js-objects.cc
++++ b/v8/src/objects/js-objects.cc
+@@ -197,7 +197,7 @@
+         // Special handling for AccessorInfo, which behaves like a data
+         // property.
+         if (allow_allocation && IsAccessorInfo(*accessors)) {
+-          auto info = Cast<AccessorInfo>(*accessors);
++          auto info = Cast<AccessorInfo>(accessors);
+           if (info->getter_side_effect_type() ==
+               SideEffectType::kHasNoSideEffect) {
+             v8::TryCatch try_catch(
+@@ -205,7 +205,7 @@
+             try_catch.SetVerbose(false);
+             try_catch.SetCaptureMessage(false);
+             Handle<Object> result;
+-            if (Object::GetPropertyWithAccessor(it).ToHandle(&result)) {
++            if (Object::GetPropertyWithAccessor(it, info).ToHandle(&result)) {
+               return result;
+             }
+           }
+@@ -256,16 +256,19 @@
+         // AccessorPairs are never called, not even API functions declared
+         // side-effect free, as script can install them on arbitrary objects.
+         DirectHandle<Object> accessors = it->GetAccessors();
+-        if (!IsAccessorInfo(*accessors) ||
+-            Cast<AccessorInfo>(*accessors)->getter_side_effect_type() !=
+-                SideEffectType::kHasNoSideEffect) {
++        if (!IsAccessorInfo(*accessors)) return {};
++        DirectHandle<AccessorInfo> info = Cast<AccessorInfo>(accessors);
++        if (info->getter_side_effect_type() !=
++            SideEffectType::kHasNoSideEffect) {
+           return {};
+         }
+         v8::TryCatch try_catch(reinterpret_cast<v8::Isolate*>(it->isolate()));
+         try_catch.SetVerbose(false);
+         try_catch.SetCaptureMessage(false);
+         Handle<Object> result;
+-        if (!Object::GetPropertyWithAccessor(it).ToHandle(&result)) return {};
++        if (!Object::GetPropertyWithAccessor(it, info).ToHandle(&result)) {
++          return {};
++        }
+         return result;
+       }
+       case LookupIterator::DATA:
+@@ -2075,13 +2078,19 @@
+   // 3. Let D be a newly created Property Descriptor with no fields.
+   DCHECK(desc->is_empty());
+   // 4. Let X be O's own property whose key is P.
++  DirectHandle<Object> accessors;
++  if (it->state() == LookupIterator::ACCESSOR) {
++    accessors = it->GetAccessors();
++  }
+   // 5. If X is a data property, then
+-  bool is_accessor_pair = it->state() == LookupIterator::ACCESSOR &&
+-                          IsAccessorPair(*it->GetAccessors());
+-  if (!is_accessor_pair) {
++  if (accessors.is_null() || !IsAccessorPair(*accessors)) {
+     // 5a. Set D.[[Value]] to the value of X's [[Value]] attribute.
++    MaybeHandle<JSAny> maybe_value =
++        accessors.is_null() ? Cast<JSAny>(Object::GetProperty(it))
++                            : Object::GetPropertyWithAccessor(
++                                  it, Cast<AccessorInfo>(accessors));
+     DirectHandle<JSAny> value;
+-    if (!Cast<JSAny>(Object::GetProperty(it)).ToHandle(&value)) {
++    if (!maybe_value.ToHandle(&value)) {
+       DCHECK(isolate->has_exception());
+       return Nothing<bool>();
+     }
+@@ -2090,15 +2099,15 @@
+     desc->set_writable((attrs & READ_ONLY) == 0);
+   } else {
+     // 6. Else X is an accessor property, so
+-    auto accessors = Cast<AccessorPair>(it->GetAccessors());
++    auto accessor_pair = Cast<AccessorPair>(accessors);
+     DirectHandle<NativeContext> holder_realm(
+         it->GetHolder<JSReceiver>()->GetCreationContext().value(), isolate);
+     // 6a. Set D.[[Get]] to the value of X's [[Get]] attribute.
+-    desc->set_get(AccessorPair::GetComponent(isolate, holder_realm, accessors,
+-                                             ACCESSOR_GETTER));
++    desc->set_get(AccessorPair::GetComponent(isolate, holder_realm,
++                                             accessor_pair, ACCESSOR_GETTER));
+     // 6b. Set D.[[Set]] to the value of X's [[Set]] attribute.
+-    desc->set_set(AccessorPair::GetComponent(isolate, holder_realm, accessors,
+-                                             ACCESSOR_SETTER));
++    desc->set_set(AccessorPair::GetComponent(isolate, holder_realm,
++                                             accessor_pair, ACCESSOR_SETTER));
+   }
+ 
+   // 7. Set D.[[Enumerable]] to the value of X's [[Enumerable]] attribute.
+@@ -3964,7 +3973,8 @@
+                                                    accessors, attributes));
+           }
+ 
+-          return Object::SetPropertyWithAccessor(it, value, should_throw);
++          return Object::SetPropertyWithAccessor(
++              it, Cast<AccessorInfo>(accessors), value, should_throw);
+         }
+ 
+         it->ReconfigureDataProperty(value, attributes);
+diff --git a/v8/src/objects/lookup.cc b/v8/src/objects/lookup.cc
+index 67d6407..402b02a 100644
+--- a/v8/src/objects/lookup.cc
++++ b/v8/src/objects/lookup.cc
+@@ -896,8 +896,7 @@
+   }
+ 
+   DirectHandle<AccessorPair> pair;
+-  if (state() == ACCESSOR && IsAccessorPair(*GetAccessors())) {
+-    pair = Cast<AccessorPair>(GetAccessors());
++  if (state() == ACCESSOR && TryCast<AccessorPair>(GetAccessors(), &pair)) {
+     // If the component and attributes are identical, nothing has to be done.
+     if (pair->Equals(*getter, *setter)) {
+       if (property_details().attributes() == attributes) {
+@@ -1549,7 +1548,7 @@
+   }
+ 
+   DCHECK_EQ(state(), LookupIterator::ACCESSOR);
+-  DCHECK(IsAccessorPair(*GetAccessors()));
++  DCHECK(IsAccessorPair(*accessor_pair));
+ 
+   Tagged<Object> getter = accessor_pair->getter();
+   std::optional<Tagged<Name>> maybe_name =
+diff --git a/v8/src/objects/objects.cc b/v8/src/objects/objects.cc
+index 20327c5..495d776 100644
+--- a/v8/src/objects/objects.cc
++++ b/v8/src/objects/objects.cc
+@@ -1607,6 +1607,26 @@
+   return handler_proto;
+ }
+ 
++MaybeHandle<JSAny> Object::GetPropertyWithAccessor(
++    LookupIterator* it, DirectHandle<AccessorInfo> info) {
++  Isolate* isolate = it->isolate();
++  DirectHandle<Name> name = it->GetName();
++
++  if (!info->has_getter(isolate)) {
++    return isolate->factory()->undefined_value();
++  }
++
++  PropertyCallbackArguments args(isolate, it->GetHolderForApi());
++  DirectHandle<JSAny> result = args.CallAccessorGetter(isolate, info, name);
++  RETURN_EXCEPTION_IF_EXCEPTION(isolate);
++  Handle<JSAny> reboxed_result(*result, isolate);
++  if (info->replace_on_access()) {
++    RETURN_ON_EXCEPTION(isolate, Accessors::ReplaceAccessorWithDataProperty(
++                                     isolate, args.holder(), name, result));
++  }
++  return reboxed_result;
++}
++
+ MaybeHandle<JSAny> Object::GetPropertyWithAccessor(LookupIterator* it) {
+   Isolate* isolate = it->isolate();
+   DirectHandle<Object> structure = it->GetAccessors();
+@@ -1617,22 +1637,7 @@
+ 
+   // API style callbacks.
+   if (IsAccessorInfo(*structure)) {
+-    DirectHandle<Name> name = it->GetName();
+-    auto info = Cast<AccessorInfo>(structure);
+-
+-    if (!info->has_getter(isolate)) {
+-      return isolate->factory()->undefined_value();
+-    }
+-
+-    PropertyCallbackArguments args(isolate, it->GetHolderForApi());
+-    DirectHandle<JSAny> result = args.CallAccessorGetter(isolate, info, name);
+-    RETURN_EXCEPTION_IF_EXCEPTION(isolate);
+-    Handle<JSAny> reboxed_result(*result, isolate);
+-    if (info->replace_on_access()) {
+-      RETURN_ON_EXCEPTION(isolate, Accessors::ReplaceAccessorWithDataProperty(
+-                                       isolate, args.holder(), name, result));
+-    }
+-    return reboxed_result;
++    return GetPropertyWithAccessor(it, Cast<AccessorInfo>(structure));
+   }
+ 
+   auto accessor_pair = Cast<AccessorPair>(structure);
+@@ -1668,10 +1673,37 @@
+ }
+ 
+ Maybe<bool> Object::SetPropertyWithAccessor(LookupIterator* it,
++                                            DirectHandle<AccessorInfo> info,
+                                             DirectHandle<Object> value,
+                                             Maybe<ShouldThrow> should_throw) {
+   Isolate* isolate = it->isolate();
+-  DirectHandle<Object> structure = it->GetAccessors();
++  DirectHandle<Name> name = it->GetName();
++
++  if (!info->has_setter(isolate)) {
++    // TODO(verwaest): We should not get here anymore once all AccessorInfos
++    // are marked as special_data_property. They cannot both be writable and
++    // not have a setter.
++    return Just(true);
++  }
++
++  PropertyCallbackArguments args(isolate, it->GetHolderForApi(), should_throw);
++  bool result = args.CallAccessorSetter(isolate, info, name, value);
++  RETURN_VALUE_IF_EXCEPTION(isolate, Nothing<bool>());
++  if (!result) {
++    // Make sure TypeError is thrown if necessary in case the callback
++    // failed to set the property.
++    RETURN_FAILURE(isolate, GetShouldThrow(isolate, should_throw),
++                   NewTypeError(MessageTemplate::kStrictCannotSetProperty,
++                                it->GetName(), args.holder()));
++  }
++  return Just(result);
++}
++
++Maybe<bool> Object::SetPropertyWithAccessor(LookupIterator* it,
++                                            DirectHandle<Object> structure,
++                                            DirectHandle<Object> value,
++                                            Maybe<ShouldThrow> should_throw) {
++  Isolate* isolate = it->isolate();
+ 
+   // We should never get here to initialize a const with the hole value since a
+   // const declaration would conflict with the setter.
+@@ -1679,28 +1711,8 @@
+ 
+   // API style callbacks.
+   if (IsAccessorInfo(*structure)) {
+-    DirectHandle<Name> name = it->GetName();
+-    auto info = Cast<AccessorInfo>(structure);
+-
+-    if (!info->has_setter(isolate)) {
+-      // TODO(verwaest): We should not get here anymore once all AccessorInfos
+-      // are marked as special_data_property. They cannot both be writable and
+-      // not have a setter.
+-      return Just(true);
+-    }
+-
+-    PropertyCallbackArguments args(isolate, it->GetHolderForApi(),
++    return SetPropertyWithAccessor(it, Cast<AccessorInfo>(structure), value,
+                                    should_throw);
+-    bool result = args.CallAccessorSetter(isolate, info, name, value);
+-    RETURN_VALUE_IF_EXCEPTION(isolate, Nothing<bool>());
+-    if (!result) {
+-      // Make sure TypeError is thrown if necessary in case the callback
+-      // failed to set the property.
+-      RETURN_FAILURE(isolate, GetShouldThrow(isolate, should_throw),
+-                     NewTypeError(MessageTemplate::kStrictCannotSetProperty,
+-                                  it->GetName(), args.holder()));
+-    }
+-    return Just(result);
+   }
+ 
+   // Regular accessor.
+@@ -2506,7 +2518,7 @@
+           *found = false;
+           return Nothing<bool>();
+         }
+-        return SetPropertyWithAccessor(it, value, should_throw);
++        return SetPropertyWithAccessor(it, accessors, value, should_throw);
+       }
+       case LookupIterator::TYPED_ARRAY_INDEX_NOT_FOUND: {
+         // IntegerIndexedElementSet converts value to a Number/BigInt prior to
+@@ -2646,15 +2658,17 @@
+         }
+         continue;
+ 
+-      case LookupIterator::ACCESSOR:
+-        if (IsAccessorInfo(*own_lookup.GetAccessors())) {
++      case LookupIterator::ACCESSOR: {
++        DirectHandle<Object> accessors = own_lookup.GetAccessors();
++        if (IsAccessorInfo(*accessors)) {
+           if (own_lookup.IsReadOnly()) {
+             return WriteToReadOnlyProperty(&own_lookup, value, should_throw);
+           }
+-          return Object::SetPropertyWithAccessor(&own_lookup, value,
+-                                                 should_throw);
++          return Object::SetPropertyWithAccessor(
++              &own_lookup, Cast<AccessorInfo>(accessors), value, should_throw);
+         }
+         [[fallthrough]];
++      }
+       case LookupIterator::TYPED_ARRAY_INDEX_NOT_FOUND:
+         return RedefineIncompatibleProperty(isolate, it->GetName(), value,
+                                             should_throw);
+diff --git a/v8/src/objects/objects.h b/v8/src/objects/objects.h
+index a6073e5..e87efdd 100644
+--- a/v8/src/objects/objects.h
++++ b/v8/src/objects/objects.h
+@@ -424,9 +424,14 @@
+ 
+   V8_WARN_UNUSED_RESULT static MaybeHandle<JSAny> GetPropertyWithAccessor(
+       LookupIterator* it);
++  V8_WARN_UNUSED_RESULT static MaybeHandle<JSAny> GetPropertyWithAccessor(
++      LookupIterator* it, DirectHandle<AccessorInfo> info);
+   V8_WARN_UNUSED_RESULT static Maybe<bool> SetPropertyWithAccessor(
+-      LookupIterator* it, DirectHandle<Object> value,
+-      Maybe<ShouldThrow> should_throw);
++      LookupIterator* it, DirectHandle<Object> structure,
++      DirectHandle<Object> value, Maybe<ShouldThrow> should_throw);
++  V8_WARN_UNUSED_RESULT static Maybe<bool> SetPropertyWithAccessor(
++      LookupIterator* it, DirectHandle<AccessorInfo> info,
++      DirectHandle<Object> value, Maybe<ShouldThrow> should_throw);
+ 
+   V8_WARN_UNUSED_RESULT static MaybeHandle<JSAny> GetPropertyWithDefinedGetter(
+       DirectHandle<JSAny> receiver, DirectHandle<JSReceiver> getter);
 diff --git a/v8/src/objects/value-serializer.cc b/v8/src/objects/value-serializer.cc
 index 28316b0..b01fee2 100644
 --- a/v8/src/objects/value-serializer.cc
@@ -3532,6 +5709,19 @@ index 28316b0..b01fee2 100644
      length++;
    }
  
+diff --git a/v8/src/sandbox/isolate-inl.h b/v8/src/sandbox/isolate-inl.h
+index 32a9cfed..2986943 100644
+--- a/v8/src/sandbox/isolate-inl.h
++++ b/v8/src/sandbox/isolate-inl.h
+@@ -104,7 +104,7 @@
+     return isolate_->heap()->read_only_external_pointer_space();
+   }
+ 
+-  if (HeapLayout::InYoungGeneration(HeapObject::FromAddress(host))) {
++  if (TrustedHeapLayout::InYoungGeneration(HeapObject::FromAddress(host))) {
+     return isolate_->heap()->young_external_pointer_space();
+   }
+ 
 diff --git a/v8/src/sandbox/testing.cc b/v8/src/sandbox/testing.cc
 index 67a065d..9954139 100644
 --- a/v8/src/sandbox/testing.cc
@@ -3583,7 +5773,7 @@ diff --git a/build/util/LASTCHANGE b/build/util/LASTCHANGE
 +++ b/build/util/LASTCHANGE
 @@ -1,2 +1,2 @@
 -LASTCHANGE=b8c2be851f62f6a394ec57955d7f31335d7cb6d4-refs/branch-heads/8127@{#1692}
-+LASTCHANGE=3479de84eee002e487bd69155ff66f28042e3de6-refs/branch-heads/8127@{#1720}
++LASTCHANGE=543e9a921cde734aef341fe72aa5179ecac03c0f-refs/branch-heads/8127@{#1756}
  LASTCHANGE_YEAR=2026
 diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 --- a/build/util/LASTCHANGE.committime
@@ -3591,7 +5781,7 @@ diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 @@ -1 +1 @@
 -1794431194
 \ No newline at end of file
-+1794528195
++1794614912
 \ No newline at end of file
 diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
 --- a/gpu/config/gpu_lists_version.h
@@ -3601,7 +5791,7 @@ diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
  #define GPU_CONFIG_GPU_LISTS_VERSION_H_
  
 -#define GPU_LISTS_VERSION "b8c2be851f62f6a394ec57955d7f31335d7cb6d4"
-+#define GPU_LISTS_VERSION "3479de84eee002e487bd69155ff66f28042e3de6"
++#define GPU_LISTS_VERSION "543e9a921cde734aef341fe72aa5179ecac03c0f"
  
  #endif  // GPU_CONFIG_GPU_LISTS_VERSION_H_
 diff --git a/skia/ext/skia_commit_hash.h b/skia/ext/skia_commit_hash.h
@@ -3612,7 +5802,7 @@ diff --git a/skia/ext/skia_commit_hash.h b/skia/ext/skia_commit_hash.h
  #define SKIA_EXT_SKIA_COMMIT_HASH_H_
  
 -#define SKIA_COMMIT_HASH "3279352fdf1fbbd01a6dd024a52d3f178a6d5f07"
-+#define SKIA_COMMIT_HASH "2d58f195f426c41bd856208ddb85ea8f93c88295"
++#define SKIA_COMMIT_HASH "707e33875fb45f2997a4d781128bec122fb777b4"
  
  #endif  // SKIA_EXT_SKIA_COMMIT_HASH_H_
 diff --git a/gpu/webgpu/DAWN_VERSION b/gpu/webgpu/DAWN_VERSION
@@ -3621,7 +5811,7 @@ diff --git a/gpu/webgpu/DAWN_VERSION b/gpu/webgpu/DAWN_VERSION
 @@ -1 +1 @@
 -6e24542436a3ef58d4a1110f01712da9afbff3e3
 \ No newline at end of file
-+c6c757b3f4548c6532a9f9a608d4f7322180eb53
++04a00943345765ffa2f602573ded8ad830221514
 \ No newline at end of file
 diff --git a/gpu/webgpu/dawn_commit_hash.h b/gpu/webgpu/dawn_commit_hash.h
 --- a/gpu/webgpu/dawn_commit_hash.h
@@ -3631,6 +5821,6 @@ diff --git a/gpu/webgpu/dawn_commit_hash.h b/gpu/webgpu/dawn_commit_hash.h
  #define GPU_WEBGPU_DAWN_COMMIT_HASH_H_
  
 -#define DAWN_COMMIT_HASH "6e24542436a3ef58d4a1110f01712da9afbff3e3"
-+#define DAWN_COMMIT_HASH "c6c757b3f4548c6532a9f9a608d4f7322180eb53"
++#define DAWN_COMMIT_HASH "04a00943345765ffa2f602573ded8ad830221514"
  
  #endif  // GPU_WEBGPU_DAWN_COMMIT_HASH_H_
