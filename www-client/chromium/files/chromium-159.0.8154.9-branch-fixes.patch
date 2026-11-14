@@ -1,0 +1,258 @@
+Chromium 159.0.8154.9 + the later changes of its release branch, up to
+48808185131995367272a1c74a95075d3169709d (refs/branch-heads/8154@{#361}), for the
+159.0.8154.9 tree that chromium-159.0.8154.6-to-159.0.8154.9.patch makes.
+
+Generated from the upstream diff chromium/src refs/tags/159.0.8154.9..48808185131995367272a1c74a95075d3169709d,
+as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
+.9 tree's files; no dependency's DEPS revision changed): left out are files
+not in the release tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests
+and docs, translations, PGO/orderfile pointers. chrome/VERSION, the DEPS files
+and the stamp files stay at 159.0.8154.9.
+
+Commits contributing to it (oldest first):
+  1610d08f5a1e [M159] Convert CHECK to DCHECK in ServiceWatcherImpl::OnRecordUpdate
+  9153ed6036da [M159] [omnibox] Expect URLs in the full WebUI omnibox's input, like Views
+
+Checked: applies to the 159.0.8154.9 tree; every patched file is
+byte-identical to its version at the last commit above.
+
+diff --git a/chrome/browser/local_discovery/service_discovery_client_impl.cc b/chrome/browser/local_discovery/service_discovery_client_impl.cc
+index 80c5d90..2f20f48 100644
+--- a/chrome/browser/local_discovery/service_discovery_client_impl.cc
++++ b/chrome/browser/local_discovery/service_discovery_client_impl.cc
+@@ -128,7 +128,9 @@
+     const net::RecordParsed* record) {
+   CHECK(started_, base::NotFatalUntil::M161);
+   if (record->type() == net::dns_protocol::kTypePTR) {
+-    CHECK(record->name() == GetServiceType(), base::NotFatalUntil::M161);
++    // TODO(crbug.com/584611417): CHECK-exclusion: Convert to a CHECK once we
++    // are confident it won't be triggered.
++    DCHECK(record->name() == GetServiceType());
+     const net::PtrRecordRdata* rdata = record->rdata<net::PtrRecordRdata>();
+ 
+     switch (update) {
+diff --git a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.html.ts b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.html.ts
+index a2826f9a..937a046 100644
+--- a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.html.ts
++++ b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.html.ts
+@@ -19,7 +19,8 @@
+       page-url="${this.computeCurrentPageUrl_()}"
+       .inputKeywordModel="${this.inputKeywordModel}"
+       ?input-has-matches="${this.hasMatches()}"
+-      @focusin="${this.onInputFocusin_}" @mousedown="${this.onInputMousedown_}"
++      .textInputType="${this.textInputType_}" @focusin="${this.onInputFocusin_}"
++      @mousedown="${this.onInputMousedown_}"
+       @searchbox-input-text-updated="${this.onSearchboxInputTextUpdated_}"
+       @paste="${this.onInputPaste_}" @copy="${this.onInputCopy_}"
+       @cut="${this.onInputCut_}">
+diff --git a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
+index 20f415f3..1be84b9 100644
+--- a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
++++ b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
+@@ -225,6 +225,9 @@
+       isLensSearchEligible_: {
+         type: Boolean,
+       },
++      textInputType_: {
++        type: String,
++      },
+     };
+   }
+ 
+@@ -322,6 +325,8 @@
+   private accessor fullUrl_: string = '';
+   private accessor permanentDisplayText_: string = '';
+   protected accessor aimButtonIconOnly_: boolean = false;
++  // Set by the browser, like the Views omnibox's text input type.
++  protected accessor textInputType_: 'url'|'search' = 'search';
+   // True during an active IME (Input Method Editor) text composition session.
+   // Used to suppress intermediate selection updates until composition finishes,
+   // and to end the composition before showing another tab's text.
+@@ -1483,6 +1488,7 @@
+     this.tabId_ = state.tabId;
+     this.fullUrl_ = state.fullUrl;
+     this.permanentDisplayText_ = state.permanentDisplayText;
++    this.textInputType_ = state.prefersUrlInput ? 'url' : 'search';
+     this.isComposing_ = false;
+     const keywordChanged =
+         this.inputKeywordModel?.keyword !== state.keywordModel?.keyword ||
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_view_views.cc b/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
+index f60566c..bc9c020 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
+@@ -829,18 +829,26 @@
+ 
+ ui::TextInputType OmniboxViewViews::GetPreferredTextInputType() const {
+ #if BUILDFLAG(IS_WIN)
++  if (location_bar_view_) {
++    return GetPreferredTextInputType(
++        location_bar_view_->GetWidget()->GetInputMethod());
++  }
++#endif  // BUILDFLAG(IS_WIN)
++  return GetPreferredTextInputType(/*input_method=*/nullptr);
++}
++
++// static
++ui::TextInputType OmniboxViewViews::GetPreferredTextInputType(
++    const ui::InputMethod* input_method) {
++#if BUILDFLAG(IS_WIN)
+   // We'd like to set the text input type to TEXT_INPUT_TYPE_URL, because this
+   // triggers URL-specific layout in software keyboards, e.g. adding top-level
+   // "/" and ".com" keys for English.  However, this also causes IMEs to default
+   // to Latin character mode, which makes entering search queries difficult for
+   // IME users. Therefore, we try to guess whether an IME will be used based on
+   // the input language, and set the input type accordingly.
+-  if (location_bar_view_) {
+-    ui::InputMethod* input_method =
+-        location_bar_view_->GetWidget()->GetInputMethod();
+-    if (input_method && input_method->IsInputLocaleCJK()) {
+-      return ui::TEXT_INPUT_TYPE_SEARCH;
+-    }
++  if (input_method && input_method->IsInputLocaleCJK()) {
++    return ui::TEXT_INPUT_TYPE_SEARCH;
+   }
+ #endif  // BUILDFLAG(IS_WIN)
+   return ui::TEXT_INPUT_TYPE_URL;
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_view_views.h b/chrome/browser/ui/views/omnibox/omnibox_view_views.h
+index a93a7f88..7274eb61 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_view_views.h
++++ b/chrome/browser/ui/views/omnibox/omnibox_view_views.h
+@@ -54,6 +54,7 @@
+ }  // namespace gfx
+ 
+ namespace ui {
++class InputMethod;
+ class OSExchangeData;
+ }  // namespace ui
+ 
+@@ -116,6 +117,11 @@
+   // Initialize, create the underlying views, etc.
+   void Init();
+ 
++  // Returns URL, or search on Windows for CJK input languages. `input_method`
++  // can be null.
++  static ui::TextInputType GetPreferredTextInputType(
++      const ui::InputMethod* input_method);
++
+   // Exposes the RenderText for tests.
+ #if defined(UNIT_TEST)
+   gfx::RenderText* GetRenderText() { return views::Textfield::GetRenderText(); }
+diff --git a/chrome/browser/ui/webui/omnibox_popup/BUILD.gn b/chrome/browser/ui/webui/omnibox_popup/BUILD.gn
+index 7f4c67c9..33256ed 100644
+--- a/chrome/browser/ui/webui/omnibox_popup/BUILD.gn
++++ b/chrome/browser/ui/webui/omnibox_popup/BUILD.gn
+@@ -62,8 +62,10 @@
+       "//components/user_education/webui",
+       "//content/public/browser",
+       "//ui/base",
++      "//ui/base/ime:text_input_types",
+       "//ui/gfx/geometry",
+       "//ui/native_theme",
++      "//ui/views",
+       "//ui/webui/resources/cr_components/composebox:mojo_bindings",
+       "//ui/webui/resources/cr_components/help_bubble:mojo_bindings",
+       "//ui/webui/tracked_element",
+diff --git a/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom b/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom
+index b58a0d2..3e5fbe2 100644
+--- a/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom
++++ b/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom
+@@ -59,6 +59,9 @@
+   // searchbox icon when autocomplete results are cleared (e.g. on tab switch).
+   // Only populated on tab switch when there is input in progress.
+   searchbox.mojom.AutocompleteMatch? current_match;
++  // Whether the input expects URLs rather than search queries. See
++  // `OmniboxViewViews::GetPreferredTextInputType()`.
++  bool prefers_url_input;
+ };
+ 
+ // Browser-side handler for the Omnibox Popup.
+diff --git a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc b/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc
+index e0e5064..acb3c6c 100644
+--- a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc
++++ b/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc
+@@ -39,10 +39,12 @@
+ #include "components/tabs/public/tab_interface.h"
+ #include "content/public/browser/browser_context.h"
+ #include "ui/base/clipboard/scoped_clipboard_writer.h"
++#include "ui/base/ime/text_input_type.h"
+ #include "ui/base/models/menu_model.h"
+ #include "ui/base/ui_base_features.h"
+ #include "ui/color/color_provider.h"
+ #include "ui/gfx/color_utils.h"
++#include "ui/views/widget/widget.h"
+ 
+ OmniboxPopupHandler::OmniboxPopupHandler(
+     mojo::PendingReceiver<omnibox_popup::mojom::PageHandler> receiver,
+@@ -283,6 +285,14 @@
+         current_match.GetVectorIcon(is_bookmarked, associated_keyword_turl));
+     state->current_match = std::move(mojom_match);
+   }
++  // The input language is the same for all widgets.
++  views::Widget* widget = web_contents_
++                              ? views::Widget::GetTopLevelWidgetForNativeView(
++                                    web_contents_->GetNativeView())
++                              : nullptr;
++  state->prefers_url_input = OmniboxViewViews::GetPreferredTextInputType(
++                                 widget ? widget->GetInputMethod() : nullptr) ==
++                             ui::TEXT_INPUT_TYPE_URL;
+   // Extract active tab ID if in a Chrome browser window context.
+   if (controller_ && controller_->client()->IsChromeOmniboxClient()) {
+     auto* chrome_client =
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_input.html.ts b/ui/webui/resources/cr_components/searchbox/searchbox_input.html.ts
+index c7b803ac..84bc08b 100644
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_input.html.ts
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_input.html.ts
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-import {html} from '//resources/lit/v3_0/lit.rollup.js';
++import {html, nothing} from '//resources/lit/v3_0/lit.rollup.js';
+ 
+ import type {SearchboxInputElement} from './searchbox_input.js';
+ 
+@@ -41,6 +41,7 @@
+       ${this.multiLineEnabled ? html`
+         <textarea id="input" autocomplete="off"
+             part="searchbox-input"
++            inputmode="${this.textInputType || nothing}"
+             spellcheck="false" role="combobox"
+             aria-expanded="${this.dropdownIsVisible}"
+             aria-controls="selectionListbox"
+@@ -58,7 +59,9 @@
+             @paste="${this.onInputPaste_}"
+             @scroll="${this.onInputScroll_}"></textarea>
+       ` : html`
+-        <input id="input" class="truncate" type="search" autocomplete="off"
++        <input id="input" class="truncate"
++            type="${this.textInputType ? 'text' : 'search'}"
++            inputmode="${this.textInputType || nothing}" autocomplete="off"
+             part="searchbox-input"
+             spellcheck="false" role="combobox"
+             aria-expanded="${this.dropdownIsVisible}"
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_input.ts b/ui/webui/resources/cr_components/searchbox/searchbox_input.ts
+index 85b18c07..db6edbfb 100644
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_input.ts
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_input.ts
+@@ -101,6 +101,13 @@
+       allowFilePaste: {type: Boolean},
+       urlEmphasisEnabled: {type: Boolean, reflect: true},
+       urlEmphasis: {type: Object},
++      /**
++       * The kind of text the input expects, for IMEs and software keyboards.
++       * If set, it's the `inputmode` of a `type="text"` input: Windows treats
++       * `type="search"` as a search field, and `type="url"` strips whitespace.
++       * Otherwise, the input is a search field.
++       */
++      textInputType: {type: String},
+     };
+   }
+ 
+@@ -120,6 +127,7 @@
+   accessor allowFilePaste: boolean = false;
+   accessor urlEmphasisEnabled: boolean = false;
+   accessor urlEmphasis: UrlEmphasis|null = null;
++  accessor textInputType: ''|'url'|'search' = '';
+ 
+   private lastInput_: Input = {text: '', inline: ''};
+   // See `InputUpdate.additionalText`. Rendered by the #mirror.
