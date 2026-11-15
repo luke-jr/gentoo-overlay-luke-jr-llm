@@ -1,8 +1,8 @@
 Chromium 158.0.8127.63 + the later changes of its release branch, up to
-fb2ddb35e20d49ad139b9817e91dd4192931e2bf (refs/branch-heads/8127@{#1776}), for the
+ec6a71ead56cbb5905f866a4aa7f331ce31f7860 (refs/branch-heads/8127@{#1778}), for the
 158.0.8127.63 tree that chromium-158.0.8127.37-to-158.0.8127.63.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.63..fb2ddb35e20d49ad139b9817e91dd4192931e2bf
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.63..ec6a71ead56cbb5905f866a4aa7f331ce31f7860
 (no dependency's DEPS revision changed), as served by Gitiles, with
 scripts/chromium-delta --branch-fixes (against the .63 tree's files, renames
 included): left out are files not in the release tarball,
@@ -14,6 +14,7 @@ Commits contributing to it (oldest first):
   fdc6e3d4266d [M158] Bound mDNS response parsing by received datagram length
   09a2b66e8ff6 Updating XTBs based on .GRDs from branch 8127
   fb2ddb35e20d [M158] Avoid use-after-free in WidgetInputHandlerImpl::DispatchEvent
+  ec6a71ead56c [M158] [WebAudio] Validate renderSizeHint without sampleRate
 
 Checked: applies to the 158.0.8127.63 tree; every patched file is
 byte-identical to its version at the commit above.
@@ -122,6 +123,313 @@ index 327e0bb1..ad5867f 100644
  
      switch (parsed_record->type()) {
        case net::ARecordRdata::kType:
+diff --git a/third_party/blink/renderer/modules/webaudio/audio_context.cc b/third_party/blink/renderer/modules/webaudio/audio_context.cc
+index 1b7598ba..e28bb98f 100644
+--- a/third_party/blink/renderer/modules/webaudio/audio_context.cc
++++ b/third_party/blink/renderer/modules/webaudio/audio_context.cc
+@@ -519,46 +519,52 @@
+     return nullptr;
+   }
+ 
+-  // Pre-validation for renderSizeHint if sampleRate is provided. This prevents
+-  // allocating excessive memory for clearly invalid renderSizeHint values
+-  // before the AudioContext is fully constructed.
+-  bool render_quantum_frames_validated = false;
+-  if (sample_rate.has_value() && render_quantum_frames.has_value()) {
++  // Validate renderSizeHint before constructing the context, because the
++  // render quantum size drives the size of the buffers allocated during
++  // construction. When sampleRate is not provided the context sample rate is
++  // not known until the audio device has been created, so validate against the
++  // maximum supported sample rate here; the actual bound is checked below.
++  if (render_quantum_frames.has_value()) {
++    const float validation_sample_rate =
++        sample_rate.value_or(audio_utilities::MaxAudioBufferSampleRate());
+     if (!audio_utilities::IsValidRenderQuantumSize(
+-            render_quantum_frames.value(), sample_rate.value())) {
++            render_quantum_frames.value(), validation_sample_rate)) {
+       exception_state.ThrowDOMException(
+           DOMExceptionCode::kNotSupportedError,
+           ExceptionMessages::IndexOutsideRange(
+               "renderSizeHint", render_quantum_frames.value(),
+               audio_utilities::MinRenderQuantumSize(),
+               ExceptionMessages::kInclusiveBound,
+-              audio_utilities::MaxRenderQuantumSize(sample_rate.value()),
++              audio_utilities::MaxRenderQuantumSize(validation_sample_rate),
+               ExceptionMessages::kInclusiveBound));
+       return nullptr;
+     }
+-    render_quantum_frames_validated = true;
+   }
+ 
+   SCOPED_UMA_HISTOGRAM_TIMER("WebAudio.AudioContext.CreateTime");
+   AudioContext* audio_context = MakeGarbageCollected<AudioContext>(
+       window, latency_hint, sample_rate, sink_descriptor,
+       update_echo_cancellation_on_first_start, render_quantum_frames);
++  // Must be called exactly once after construction, even if the context is
++  // rejected below.
++  audio_context->UpdateStateIfNeeded();
+ 
++  // A context rejected after construction must be uninitialized. Otherwise it
++  // stays alive with pending activity until the execution context is destroyed.
+   if (audio_context->HasAllocationFailed()) {
++    audio_context->UninitializeRejectedContext();
+     exception_state.ThrowDOMException(
+         DOMExceptionCode::kNotSupportedError,
+         "The context could not be created due to memory limitation.");
+     return nullptr;
+   }
+ 
+-  ++hardware_context_count;
+-  audio_context->UpdateStateIfNeeded();
+-
+-  // If the render quantum size was not able to be validated before due to the
+-  // sample rate or hardware buffer size not being known, validate it here.
+-  if (!render_quantum_frames_validated &&
+-      !audio_utilities::IsValidRenderQuantumSize(
++  // Now that the context sample rate is known, validate the render quantum
++  // size against it. This cannot fail when sampleRate was provided, because
++  // the exact bound was already checked above.
++  if (!audio_utilities::IsValidRenderQuantumSize(
+           audio_context->renderQuantumSize(), audio_context->sampleRate())) {
++    audio_context->UninitializeRejectedContext();
+     exception_state.ThrowDOMException(
+         DOMExceptionCode::kNotSupportedError,
+         ExceptionMessages::IndexOutsideRange(
+@@ -629,6 +635,7 @@
+       use_audibility_hysteresis_(base::FeatureList::IsEnabled(
+           blink::features::kWebAudioAudibilityHysteresis)),
+       stats_update_restrictor_(std::make_unique<StatsUpdateRestrictor>()) {
++  ++hardware_context_count;
+   RecordAudioContextOperation(AudioContextOperation::kCreate);
+   SendLogMessage(__func__, GetAudioContextLogString(latency_hint, sample_rate));
+ 
+@@ -679,12 +686,14 @@
+   // AudioContext caused by the rendering quantum size or the hardware buffer
+   // size, whichever is greater.
+   //
+-  size_t base_latency_frames =
+-      std::max(static_cast<size_t>(destinationNode()
+-                                       ->GetAudioDestinationHandler()
+-                                       .GetFramesPerBuffer()),
+-               static_cast<size_t>(renderQuantumSize()));
+-  base_latency_ = base_latency_frames / static_cast<double>(sampleRate());
++  size_t base_latency_frames = std::max(
++      static_cast<size_t>(
++          destinationNode()->GetAudioDestinationHandler().GetFramesPerBuffer()),
++      static_cast<size_t>(renderQuantumSize()));
++  const double context_sample_rate = sampleRate();
++  base_latency_ = context_sample_rate > 0.0
++                      ? base_latency_frames / context_sample_rate
++                      : 0.0;
+   SendLogMessage(__func__,
+                  Format("=> (base latency={:.3f} seconds))", base_latency_));
+ 
+@@ -720,6 +729,14 @@
+ 
+ void AudioContext::Uninitialize() {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(main_thread_sequence_checker_);
++  // This runs for a context rejected by Create(), via
++  // UninitializeRejectedContext(), and again from ContextDestroyed() if the
++  // context has not been collected by then. Check `is_cleared_` directly rather
++  // than the override, which also reports true for a context that was only
++  // close()d.
++  if (BaseAudioContext::IsContextCleared()) {
++    return;
++  }
+   DCHECK_NE(hardware_context_count, 0u);
+   SendLogMessage(__func__, "");
+   --hardware_context_count;
+@@ -730,6 +747,16 @@
+   DCHECK_EQ(pending_resume_resolvers_.size(), 0u);
+ }
+ 
++void AudioContext::UninitializeRejectedContext() {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(main_thread_sequence_checker_);
++  // The constructor provisionally sets `autoplay_status_` to kFailed, which
++  // MaybeAllowAutoplayWithUnlockType() would have upgraded had the context been
++  // accepted. Drop it so that Uninitialize() does not record it.
++  DCHECK(!autoplay_unlock_type_.has_value());
++  autoplay_status_.reset();
++  Uninitialize();
++}
++
+ AudioContext::~AudioContext() {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(main_thread_sequence_checker_);
+ 
+diff --git a/third_party/blink/renderer/modules/webaudio/audio_context.h b/third_party/blink/renderer/modules/webaudio/audio_context.h
+index 5548c84..04d0edd 100644
+--- a/third_party/blink/renderer/modules/webaudio/audio_context.h
++++ b/third_party/blink/renderer/modules/webaudio/audio_context.h
+@@ -343,6 +343,10 @@
+   void Uninitialize() override;
+   void DetachPendingResolvers() override;
+ 
++  // Uninitializes a context that Create() rejects after construction. Script
++  // never observes such a context, so it must not report autoplay metrics.
++  void UninitializeRejectedContext();
++
+   // Returns the AutoplayPolicy currently applying to this instance.
+   AutoplayPolicy::Type GetAutoplayPolicy() const;
+ 
+diff --git a/third_party/blink/renderer/modules/webaudio/audio_listener.cc b/third_party/blink/renderer/modules/webaudio/audio_listener.cc
+index e427acd5..901839a 100644
+--- a/third_party/blink/renderer/modules/webaudio/audio_listener.cc
++++ b/third_party/blink/renderer/modules/webaudio/audio_listener.cc
+@@ -122,6 +122,9 @@
+       forward_x_->Handler(), forward_y_->Handler(), forward_z_->Handler(),
+       up_x_->Handler(), up_y_->Handler(), up_z_->Handler(),
+       deferred_task_handler_->RenderQuantumFrames()));
++  if (Handler().HasAllocationFailed()) {
++    context.SetAllocationFailed();
++  }
+ }
+ 
+ AudioListener::~AudioListener() {
+diff --git a/third_party/blink/renderer/modules/webaudio/audio_listener_handler.cc b/third_party/blink/renderer/modules/webaudio/audio_listener_handler.cc
+index 59412e4..fa6a34d 100644
+--- a/third_party/blink/renderer/modules/webaudio/audio_listener_handler.cc
++++ b/third_party/blink/renderer/modules/webaudio/audio_listener_handler.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "third_party/blink/renderer/modules/webaudio/audio_listener_handler.h"
+ 
++#include <array>
++
+ #include "third_party/blink/renderer/modules/webaudio/panner_handler.h"
+ #include "third_party/blink/renderer/platform/audio/hrtf_database_loader.h"
+ 
+@@ -45,16 +47,25 @@
+       forward_z_handler_(&forward_z_handler),
+       up_x_handler_(&up_x_handler),
+       up_y_handler_(&up_y_handler),
+-      up_z_handler_(&up_z_handler),
+-      position_x_values_(render_quantum_frames),
+-      position_y_values_(render_quantum_frames),
+-      position_z_values_(render_quantum_frames),
+-      forward_x_values_(render_quantum_frames),
+-      forward_y_values_(render_quantum_frames),
+-      forward_z_values_(render_quantum_frames),
+-      up_x_values_(render_quantum_frames),
+-      up_y_values_(render_quantum_frames),
+-      up_z_values_(render_quantum_frames) {
++      up_z_handler_(&up_z_handler) {
++  // The render quantum size comes from the user-provided renderSizeHint, so
++  // an allocation failure here must not crash. On failure, release any arrays
++  // that were already allocated and report the failure to the owner, which
++  // propagates it to the context so that the context creation is rejected.
++  const std::array<AudioFloatArray*, 9> value_arrays = {
++      &position_x_values_, &position_y_values_, &position_z_values_,
++      &forward_x_values_,  &forward_y_values_,  &forward_z_values_,
++      &up_x_values_,       &up_y_values_,       &up_z_values_};
++  for (AudioFloatArray* values : value_arrays) {
++    if (!values->TryAllocate(render_quantum_frames)) {
++      has_allocation_failed_ = true;
++      for (AudioFloatArray* allocated_values : value_arrays) {
++        *allocated_values = {};
++      }
++      break;
++    }
++  }
++
+   // Initialize the cached values with the current values.  Thus, we don't need
+   // to notify any panners because we haved moved.
+   last_position_ = GetPosition();
+diff --git a/third_party/blink/renderer/modules/webaudio/audio_listener_handler.h b/third_party/blink/renderer/modules/webaudio/audio_listener_handler.h
+index 7511c1a2..2a390e16 100644
+--- a/third_party/blink/renderer/modules/webaudio/audio_listener_handler.h
++++ b/third_party/blink/renderer/modules/webaudio/audio_listener_handler.h
+@@ -5,6 +5,7 @@
+ #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_WEBAUDIO_AUDIO_LISTENER_HANDLER_H_
+ #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBAUDIO_AUDIO_LISTENER_HANDLER_H_
+ 
++#include "third_party/blink/renderer/modules/modules_export.h"
+ #include "third_party/blink/renderer/modules/webaudio/audio_param.h"
+ #include "ui/gfx/geometry/point3_f.h"
+ #include "ui/gfx/geometry/vector3d_f.h"
+@@ -14,7 +15,7 @@
+ class HRTFDatabaseLoader;
+ class PannerHandler;
+ 
+-class AudioListenerHandler final
++class MODULES_EXPORT AudioListenerHandler final
+     : public ThreadSafeRefCounted<AudioListenerHandler> {
+  public:
+   static scoped_refptr<AudioListenerHandler> Create(
+@@ -31,6 +32,8 @@
+ 
+   ~AudioListenerHandler();
+ 
++  bool HasAllocationFailed() const { return has_allocation_failed_; }
++
+   const gfx::Point3F GetPosition() const {
+     return gfx::Point3F(position_x_handler_->Value(),
+                         position_y_handler_->Value(),
+@@ -144,6 +147,8 @@
+ 
+   // HRTF database loader used by PannerHandlers in the same context.
+   scoped_refptr<HRTFDatabaseLoader> hrtf_database_loader_;
++
++  bool has_allocation_failed_ = false;
+ };
+ 
+ }  // namespace blink
+diff --git a/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc b/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc
+index baf8b32..3200c452 100644
+--- a/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc
++++ b/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc
+@@ -129,6 +129,7 @@
+       MakeGarbageCollected<OfflineAudioContext>(
+           window, number_of_channels, number_of_frames, sample_rate,
+           exception_state, render_quantum_frames);
++  audio_context->UpdateStateIfNeeded();
+ 
+   if (audio_context->HasAllocationFailed()) {
+     exception_state.ThrowDOMException(
+@@ -137,8 +138,6 @@
+     return nullptr;
+   }
+ 
+-  audio_context->UpdateStateIfNeeded();
+-
+ #if DEBUG_AUDIONODE_REFERENCES
+   fprintf(stderr, "[%16p]: OfflineAudioContext::OfflineAudioContext()\n",
+           audio_context);
+diff --git a/third_party/blink/renderer/modules/webaudio/realtime_audio_destination_handler.cc b/third_party/blink/renderer/modules/webaudio/realtime_audio_destination_handler.cc
+index d5b2cf6..fa48f2d0 100644
+--- a/third_party/blink/renderer/modules/webaudio/realtime_audio_destination_handler.cc
++++ b/third_party/blink/renderer/modules/webaudio/realtime_audio_destination_handler.cc
+@@ -211,7 +211,9 @@
+ }
+ 
+ uint32_t RealtimeAudioDestinationHandler::MaxChannelCount() const {
+-  return platform_destination_->MaxChannelCount();
++  // `platform_destination_` is null when its creation failed. The context is
++  // then rejected, but the inspector can still query it during teardown.
++  return platform_destination_ ? platform_destination_->MaxChannelCount() : 0;
+ }
+ 
+ double RealtimeAudioDestinationHandler::SampleRate() const {
+@@ -358,7 +360,8 @@
+   DCHECK(IsMainThread());
+   DCHECK(IsInitialized());
+ 
+-  return platform_destination_->CallbackBufferSize();
++  return platform_destination_ ? platform_destination_->CallbackBufferSize()
++                               : 0;
+ }
+ 
+ int RealtimeAudioDestinationHandler::GetFramesPerBuffer() const {
+@@ -373,7 +376,9 @@
+   DCHECK(IsMainThread());
+   DCHECK(IsInitialized());
+ 
+-  return platform_destination_->GetPlatformBufferDuration();
++  return platform_destination_
++             ? platform_destination_->GetPlatformBufferDuration()
++             : base::TimeDelta();
+ }
+ 
+ void RealtimeAudioDestinationHandler::CreatePlatformDestination() {
 diff --git a/third_party/blink/renderer/platform/widget/input/widget_input_handler_impl.cc b/third_party/blink/renderer/platform/widget/input/widget_input_handler_impl.cc
 index 4286bb00..629a70f 100644
 --- a/third_party/blink/renderer/platform/widget/input/widget_input_handler_impl.cc
