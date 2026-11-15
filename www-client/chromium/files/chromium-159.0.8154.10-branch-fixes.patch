@@ -1,20 +1,842 @@
 Chromium 159.0.8154.10 + the later changes of its release branch, up to
-5d9a2f639ea0cbe925be625ce45b3bdf7348deab (refs/branch-heads/8154@{#450}), for the
+6c06bf2cb7540ac9230b07a557eb3c48203dfaf2 (refs/branch-heads/8154@{#481}), for the
 159.0.8154.10 tree that chromium-159.0.8154.6-to-159.0.8154.10.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/159.0.8154.10..5d9a2f639ea0cbe925be625ce45b3bdf7348deab,
+Generated from the upstream diff chromium/src refs/tags/159.0.8154.10..6c06bf2cb7540ac9230b07a557eb3c48203dfaf2,
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
-.10 tree's files; no dependency's DEPS revision changed): left out are files
-not in the release tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests
-and docs, translations, PGO/orderfile pointers. chrome/VERSION, the DEPS files
-and the stamp files stay at 159.0.8154.10.
+.10 tree's files; no dependency in the tarball changed its DEPS revision, only
+the internal clank and ios_internal did): left out are files not in the release
+tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
+translations other than en-GB, PGO/orderfile pointers, submodule pointer
+updates. chrome/VERSION, the DEPS files and the stamp files stay at
+159.0.8154.10.
 
 Commits contributing to it (oldest first):
   5d9a2f639ea0 [M159] Bound mDNS response parsing by received datagram length
+  6cf9ba1cc8f7 [M159] Acquire exclusive lock during CriticalActionDatabase::Init
+  910694a1259a Updating XTBs based on .GRDs from branch 8154
+  f27530c0816e [CT] Automatic update from google3
+  2c682ef2697b [M159] [context-input] Move `MarkFileSuperceded` to the context controller
+  6c06bf2cb754 [M159] [ContextualSearch] Guard against UAF in StartTabContextUploadFlow
 
 Checked: applies to the 159.0.8154.10 tree; every patched file is
 byte-identical to its version at the last commit above.
 
+diff --git a/chrome/app/resources/generated_resources_en-GB.xtb b/chrome/app/resources/generated_resources_en-GB.xtb
+index ce18e395..48523d3 100644
+--- a/chrome/app/resources/generated_resources_en-GB.xtb
++++ b/chrome/app/resources/generated_resources_en-GB.xtb
+@@ -331,6 +331,7 @@
+ <translation id="1256143630373008432">Self test failed</translation>
+ <translation id="1257336506558170607">Export selected certificate</translation>
+ <translation id="1258491128795710625">What’s new</translation>
++<translation id="1259453023447377372">Saved tab group</translation>
+ <translation id="1260451001046713751">Always allow pop-ups and redirects from <ph name="HOST" /></translation>
+ <translation id="1262395978737369974">Always allowed to use JavaScript optimisation</translation>
+ <translation id="1262564987698748643">Sites can ask to override your keyboard input</translation>
+@@ -1858,6 +1859,7 @@
+ <translation id="2610780100389066815">Microsoft Trust List Signing</translation>
+ <translation id="261114180663074524">Sign in to your Microsoft account and then try again</translation>
+ <translation id="2611885296070244383">Mic (internal)</translation>
++<translation id="2612346259364350954">Use page content to explain highlighted text</translation>
+ <translation id="2612676031748830579">Card number</translation>
+ <translation id="261305050785128654">Let websites know the languages that you speak. They'll show content in those languages, when possible.</translation>
+ <translation id="2613210758071148851">Don't allow any extensions on <ph name="RESTRICTED_SITE" /></translation>
+@@ -2160,6 +2162,7 @@
+ <translation id="284884486564166077">Search any image with Lens</translation>
+ <translation id="2849035674501872372">Look up</translation>
+ <translation id="284970761985428403"><ph name="ASCII_NAME" /> (<ph name="UNICODE_NAME" />)</translation>
++<translation id="2849926636739429924">More options for <ph name="TAB_GROUP_NAME" /></translation>
+ <translation id="285033512555869047">Closed</translation>
+ <translation id="2851291081585704741">You're offline</translation>
+ <translation id="285237063405807022">(loading)</translation>
+@@ -2231,6 +2234,7 @@
+     Server message: <ph name="SERVER_MSG" /></translation>
+ <translation id="2908122561561557160">Open Word, Excel, and PowerPoint files</translation>
+ <translation id="2908162660801918428">Add Media Gallery by Directory</translation>
++<translation id="2909334296570021569">Open tab group</translation>
+ <translation id="2909487040556589351">Get Chrome on your mobile device</translation>
+ <translation id="2910318910161511225">Connect to a network and try again</translation>
+ <translation id="2910678330803525229">Now you can start browsing</translation>
+@@ -2397,6 +2401,7 @@
+ <translation id="3042097545107738107">Change the optimised charging strategy.</translation>
+ <translation id="3043016484125065343">Sign in to see your bookmarks</translation>
+ <translation id="3043581297103810752">From <ph name="ORIGIN" /></translation>
++<translation id="3043977478651331629">Options for <ph name="SECTION_NAME" /></translation>
+ <translation id="3044066905368192931">Enhance with AI</translation>
+ <translation id="3045447014237878114">This site downloaded multiple files automatically</translation>
+ <translation id="304644035656848980">Preview of your microphone</translation>
+@@ -3250,6 +3255,7 @@
+ <translation id="3748424433435232460">A password for this account is already saved on this device</translation>
+ <translation id="3748466028423001972">Swap with bottom view</translation>
+ <translation id="3748706263662799310">Report a bug</translation>
++<translation id="3750406842345107892">The content and URL of the page that you're on, and the highlighted text, are sent to Google to generate an explanation</translation>
+ <translation id="3752115502500640407">Share a copy of your password for <ph name="WEBSITE" /></translation>
+ <translation id="3753412199586870466">Open side panel</translation>
+ <translation id="3753585830134123417">Resized windows to the left</translation>
+@@ -4146,6 +4152,7 @@
+ <translation id="4550926046134589611">Some supported links will still open in <ph name="APP_NAME" />.</translation>
+ <translation id="4551379727767354516">Your recent AI themes</translation>
+ <translation id="4551763574344810652">Press <ph name="MODIFIER_KEY_DESCRIPTION" /> to undo</translation>
++<translation id="4552721860956824254">Audio muted</translation>
+ <translation id="4553526521109675518">You need to restart your Chromebook to change the device language. <ph name="BEGIN_LINK_LEARN_MORE" />Learn more<ph name="END_LINK_LEARN_MORE" /></translation>
+ <translation id="4553807334824079753">A new version of this app is required</translation>
+ <translation id="4555769855065597957">Shadow</translation>
+@@ -5094,6 +5101,7 @@
+ <translation id="5379140238605961210">Continue blocking microphone access</translation>
+ <translation id="5382591305415226340">Manage supported links</translation>
+ <translation id="5384401776498845256">Who can share with you</translation>
++<translation id="5386856927586721327">Ask about your screen with <ph name="LENS_ICON" />Google Lens</translation>
+ <translation id="5387116558048951800">Edit <ph name="CREDENTIAL_TYPE" /></translation>
+ <translation id="538822246583124912">Enterprise policy changed. Experiments button added to toolbar. Click the button to open a dialogue to enable experiments.</translation>
+ <translation id="5388436023007579456">Apps and websites with the camera permission, as well as system services, can use your camera. To use the camera, you may need to restart the app or refresh the page.</translation>
+@@ -7399,6 +7407,7 @@
+ <translation id="7396845648024431313"><ph name="APP_NAME" /> will launch at system startup and continue to run in the background, even once you've closed all other <ph name="PRODUCT_NAME" /> windows.</translation>
+ <translation id="7399045143794278225">Customise sync</translation>
+ <translation id="7399616692258236448">Location requests are automatically blocked for all sites except ones that you allow</translation>
++<translation id="7399746352569282594">Close split view: <ph name="FIRST_TAB_TITLE" />, <ph name="SECOND_TAB_TITLE" /></translation>
+ <translation id="7399802613464275309">Safety check</translation>
+ <translation id="7400059772197434086">is blocked from using your information on</translation>
+ <translation id="7400418766976504921">URL</translation>
+@@ -8039,6 +8048,7 @@
+ <translation id="7953955868932471628">Manage shortcuts</translation>
+ <translation id="7955105108888461311">Ask in person</translation>
+ <translation id="7955177647836564772">If Smart Lock is turned on and your phone is unlocked, you don't need to enter a password or PIN</translation>
++<translation id="7955672267519272700">Close <ph name="TAB_TITLE" /></translation>
+ <translation id="7956373551960864128">Your saved printers</translation>
+ <translation id="7956918070009672177">There are no <ph name="LANGUAGE" /> voices on your device. Connect to the Internet and try again.</translation>
+ <translation id="7957074856830851026">See device information, such as its serial number or asset ID</translation>
+diff --git a/components/certificate_transparency/data/log_list.json b/components/certificate_transparency/data/log_list.json
+index 00700b0..96df0f3e 100644
+--- a/components/certificate_transparency/data/log_list.json
++++ b/components/certificate_transparency/data/log_list.json
+@@ -1,6 +1,6 @@
+ {
+-  "version": "96.8",
+-  "log_list_timestamp": "2026-11-12T13:37:31Z",
++  "version": "97.2",
++  "log_list_timestamp": "2026-11-15T13:39:53Z",
+   "operators": [
+     {
+       "name": "Google",
+@@ -15,8 +15,12 @@
+           "url": "https://ct.googleapis.com/logs/us1/argon2026h2/",
+           "mmd": 86400,
+           "state": {
+-            "usable": {
+-              "timestamp": "2024-09-30T22:19:27Z"
++            "readonly": {
++              "timestamp": "2026-11-13T17:30:00Z",
++              "final_tree_head": {
++                "sha256_root_hash": "y/1N4/rB/Ziykeo4ouNW+YI1fByDVKL8XmJXZNTerzU=",
++                "tree_size": 3501950757
++              }
+             }
+           },
+           "temporal_interval": {
+@@ -31,8 +35,12 @@
+           "url": "https://ct.googleapis.com/logs/us1/argon2027h1/",
+           "mmd": 86400,
+           "state": {
+-            "usable": {
+-              "timestamp": "2025-12-28T00:30:00Z"
++            "readonly": {
++              "timestamp": "2026-11-13T17:30:00Z",
++              "final_tree_head": {
++                "sha256_root_hash": "X5UqMJVBWmftbNrjJR5B8fTQdsVUUWra4fepY7mufWQ=",
++                "tree_size": 1003958630
++              }
+             }
+           },
+           "temporal_interval": {
+@@ -47,8 +55,12 @@
+           "url": "https://ct.googleapis.com/logs/eu1/xenon2026h2/",
+           "mmd": 86400,
+           "state": {
+-            "usable": {
+-              "timestamp": "2024-09-30T22:19:27Z"
++            "readonly": {
++              "timestamp": "2026-11-13T17:30:00Z",
++              "final_tree_head": {
++                "sha256_root_hash": "zWDZb2hACBCOUQKsQ9lmrhA1/71XWyFWNR4F2bH+s9A=",
++                "tree_size": 3037394949
++              }
+             }
+           },
+           "temporal_interval": {
+@@ -63,8 +75,12 @@
+           "url": "https://ct.googleapis.com/logs/eu1/xenon2027h1/",
+           "mmd": 86400,
+           "state": {
+-            "usable": {
+-              "timestamp": "2025-12-28T00:30:00Z"
++            "readonly": {
++              "timestamp": "2026-11-13T17:30:00Z",
++              "final_tree_head": {
++                "sha256_root_hash": "mHWBORYgVpDCPUoNzH+wXh+YW8hgN5DnENseKxJdL9o=",
++                "tree_size": 844984485
++              }
+             }
+           },
+           "temporal_interval": {
+diff --git a/components/contextual_search/contextual_search_context_controller.h b/components/contextual_search/contextual_search_context_controller.h
+index 70d98de..990f1549 100644
+--- a/components/contextual_search/contextual_search_context_controller.h
++++ b/components/contextual_search/contextual_search_context_controller.h
+@@ -245,6 +245,11 @@
+   virtual const FileInfo* GetFileInfo(
+       const base::UnguessableToken& file_token) = 0;
+ 
++  // Marks the file associated with `file_token` as superceded and returns a
++  // pointer to its FileInfo, or nullptr if not found.
++  virtual const FileInfo* MarkFileSuperceded(
++      const base::UnguessableToken& file_token) = 0;
++
+   // Return the file infos for all files in the request.
+   virtual std::vector<raw_ptr<const FileInfo>> GetFileInfoList() = 0;
+ 
+diff --git a/components/contextual_search/contextual_search_session_handle.cc b/components/contextual_search/contextual_search_session_handle.cc
+index 884fd4d..8e4b104 100644
+--- a/components/contextual_search/contextual_search_session_handle.cc
++++ b/components/contextual_search/contextual_search_session_handle.cc
+@@ -14,6 +14,7 @@
+ 
+ #include "base/containers/flat_set.h"
+ #include "base/memory/ptr_util.h"
++#include "base/memory/weak_ptr.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/no_destructor.h"
+ #include "base/strings/string_util.h"
+@@ -118,25 +119,6 @@
+   return file_infos;
+ }
+ 
+-// Marks the file associated with `token` as superceded and returns a mutable
+-// pointer to its FileInfo. Returns nullptr if `controller` is null or if no
+-// file is associated with `token`.
+-// TODO(crbug.com/564475334): See if this can be moved to
+-// `ContextualSearchContextController`.
+-FileInfo* MarkFileSuperceded(ContextualSearchContextController* controller,
+-                             const base::UnguessableToken& token) {
+-  if (!controller) {
+-    return nullptr;
+-  }
+-  const auto* file_info = controller->GetFileInfo(token);
+-  if (!file_info) {
+-    return nullptr;
+-  }
+-  auto* mutable_file_info = const_cast<FileInfo*>(file_info);
+-  mutable_file_info->is_superceded = true;
+-  return mutable_file_info;
+-}
+-
+ // Appends `request_id` to `request_ids` unless an equal request ID is already
+ // present. Returns true if `request_id` was appended.
+ bool AppendUniqueRequestId(std::vector<lens::LensOverlayRequestId>& request_ids,
+@@ -485,8 +467,15 @@
+       tab.uploaded = !contextual_input_data->is_implicit_upload;
+       attached_tab = std::move(tab);
+     }
++    // `StartFileUploadFlow()` can synchronously fail a pending search URL
++    // request and run a callback that destroys `this` (see
++    // crbug.com/584243604).
++    base::WeakPtr<ContextualSearchSessionHandle> weak_this = AsWeakPtr();
+     controller->StartFileUploadFlow(
+         file_token, std::move(contextual_input_data), image_options);
++    if (!weak_this) {
++      return;
++    }
+     if (attached_tab.has_value()) {
+       // Updates in place if the tab is already attached (e.g. it was
+       // attached before upload, or is being re-uploaded with a new token).
+@@ -822,7 +811,10 @@
+       smart_tab_sharing_toggled_since_last_turn_ = true;
+ 
+       auto add_removed_context = [&](const base::UnguessableToken& token) {
+-        if (auto* file_info = MarkFileSuperceded(context_controller, token)) {
++        if (const auto* file_info =
++                context_controller
++                    ? context_controller->MarkFileSuperceded(token)
++                    : nullptr) {
+           if (file_info->request_id.has_value()) {
+             sts_toggled_removed_contexts_.push_back(
+                 file_info->request_id.value());
+@@ -843,8 +835,10 @@
+           continue;
+         }
+         sts_toggled_removed_contexts_.push_back(tab.request_id.value());
+-        if (auto* file_info =
+-                MarkFileSuperceded(context_controller, tab.context_token)) {
++        if (const auto* file_info =
++                context_controller
++                    ? context_controller->MarkFileSuperceded(tab.context_token)
++                    : nullptr) {
+           if (file_info->tab_session_id.has_value()) {
+             tab_context_.deselected[file_info->tab_session_id.value()] =
+                 std::make_pair(file_info->tab_url.value_or(GURL()),
+@@ -894,8 +888,10 @@
+             if (is_smart_or_implicit_tab(token)) {
+               return false;
+             }
+-            if (auto* file_info =
+-                    MarkFileSuperceded(context_controller, token)) {
++            if (const auto* file_info =
++                    context_controller
++                        ? context_controller->MarkFileSuperceded(token)
++                        : nullptr) {
+               if (file_info->request_id.has_value()) {
+                 sts_toggled_removed_contexts_.push_back(
+                     file_info->request_id.value());
+@@ -915,8 +911,10 @@
+               return false;
+             }
+             sts_toggled_removed_contexts_.push_back(tab.request_id.value());
+-            if (auto* file_info =
+-                    MarkFileSuperceded(context_controller, tab.context_token)) {
++            if (const auto* file_info =
++                    context_controller ? context_controller->MarkFileSuperceded(
++                                             tab.context_token)
++                                       : nullptr) {
+               if (file_info->tab_session_id.has_value()) {
+                 tab_context_.deselected[file_info->tab_session_id.value()] =
+                     std::make_pair(file_info->tab_url.value_or(GURL()),
+@@ -1074,7 +1072,7 @@
+                                       attached_it->title)) {
+           should_remove_from_server = true;
+         } else if (attached_it->context_token != persisted_token) {
+-          MarkFileSuperceded(context_controller, persisted_token);
++          context_controller->MarkFileSuperceded(persisted_token);
+         }
+       }
+     }
+@@ -1089,7 +1087,7 @@
+       added_removed_context =
+           AppendUniqueRequestId(removed_contexts, tab.request_id.value());
+     }
+-    MarkFileSuperceded(context_controller, persisted_token);
++    context_controller->MarkFileSuperceded(persisted_token);
+ 
+     // Check if there is a valid active (potentially new) token for this tab.
+     // If so, the tab navigated to a new URL that has a valid replacement token,
+diff --git a/components/contextual_search/internal/composebox_query_controller.cc b/components/contextual_search/internal/composebox_query_controller.cc
+index b2c8fbfa..98feb70b 100644
+--- a/components/contextual_search/internal/composebox_query_controller.cc
++++ b/components/contextual_search/internal/composebox_query_controller.cc
+@@ -3103,6 +3103,17 @@
+   return GetMutableFileInfo(file_token);
+ }
+ 
++const contextual_search::FileInfo*
++ComposeboxQueryController::MarkFileSuperceded(
++    const base::UnguessableToken& file_token) {
++  auto* file_info = GetMutableFileInfo(file_token);
++  if (!file_info) {
++    return nullptr;
++  }
++  file_info->is_superceded = true;
++  return file_info;
++}
++
+ std::vector<raw_ptr<const contextual_search::FileInfo>>
+ ComposeboxQueryController::GetFileInfoList() {
+   std::vector<raw_ptr<const contextual_search::FileInfo>> file_infos;
+diff --git a/components/contextual_search/internal/composebox_query_controller.h b/components/contextual_search/internal/composebox_query_controller.h
+index 594b242..a578567 100644
+--- a/components/contextual_search/internal/composebox_query_controller.h
++++ b/components/contextual_search/internal/composebox_query_controller.h
+@@ -153,6 +153,8 @@
+       override;
+   const contextual_search::FileInfo* GetFileInfo(
+       const base::UnguessableToken& file_token) override;
++  const contextual_search::FileInfo* MarkFileSuperceded(
++      const base::UnguessableToken& file_token) override;
+   std::vector<raw_ptr<const contextual_search::FileInfo>> GetFileInfoList()
+       override;
+   void SetAuthUserIndex(size_t auth_user_index) override;
+diff --git a/components/contextual_search/mock_contextual_search_context_controller.cc b/components/contextual_search/mock_contextual_search_context_controller.cc
+index 8f3e762..836c93dd 100644
+--- a/components/contextual_search/mock_contextual_search_context_controller.cc
++++ b/components/contextual_search/mock_contextual_search_context_controller.cc
+@@ -6,8 +6,17 @@
+ 
+ namespace contextual_search {
+ 
+-MockContextualSearchContextController::MockContextualSearchContextController() =
+-    default;
++MockContextualSearchContextController::MockContextualSearchContextController() {
++  ON_CALL(*this, MarkFileSuperceded)
++      .WillByDefault(
++          [this](const base::UnguessableToken& file_token) -> const FileInfo* {
++            auto* file_info = const_cast<FileInfo*>(GetFileInfo(file_token));
++            if (file_info) {
++              file_info->is_superceded = true;
++            }
++            return file_info;
++          });
++}
+ MockContextualSearchContextController::
+     ~MockContextualSearchContextController() = default;
+ 
+diff --git a/components/contextual_search/mock_contextual_search_context_controller.h b/components/contextual_search/mock_contextual_search_context_controller.h
+index 1705bc4..a4698f75 100644
+--- a/components/contextual_search/mock_contextual_search_context_controller.h
++++ b/components/contextual_search/mock_contextual_search_context_controller.h
+@@ -67,6 +67,10 @@
+               GetFileInfo,
+               (const base::UnguessableToken& file_token),
+               (override));
++  MOCK_METHOD(const FileInfo*,
++              MarkFileSuperceded,
++              (const base::UnguessableToken& file_token),
++              (override));
+   MOCK_METHOD(std::vector<raw_ptr<const FileInfo>>,
+               GetFileInfoList,
+               (),
+diff --git a/components/critical_actions/core/browser/critical_action_backend.cc b/components/critical_actions/core/browser/critical_action_backend.cc
+index 00aadd40..b3c45d2 100644
+--- a/components/critical_actions/core/browser/critical_action_backend.cc
++++ b/components/critical_actions/core/browser/critical_action_backend.cc
+@@ -5,19 +5,30 @@
+ #include "components/critical_actions/core/browser/critical_action_backend.h"
+ 
+ #include <cstdint>
++#include <memory>
+ #include <utility>
+ #include <vector>
+ 
+ #include "base/check.h"
+ #include "base/files/file_path.h"
++#include "base/functional/bind.h"
+ #include "base/logging.h"
+ #include "base/time/time.h"
+ #include "components/critical_actions/core/browser/critical_action_database.h"
+ 
+ namespace critical_actions {
+ 
++namespace {
++
++constexpr base::TimeDelta kInitialInitRetryDelay = base::Seconds(1);
++constexpr int kMaxInitRetries = 5;
++static_assert(kMaxInitRetries < 30, "1 << init_retry_count_ must not overflow");
++
++}  // namespace
++
+ CriticalActionBackend::CriticalActionBackend(const base::FilePath& db_path)
+-    : db_path_(db_path) {
++    : db_path_(db_path),
++      busy_timeout_(CriticalActionDatabase::kDefaultBusyTimeout) {
+   // Detach from the construction sequence since the backend is designed to run
+   // on a separate background task runner sequence.
+   DETACH_FROM_SEQUENCE(sequence_checker_);
+@@ -30,12 +41,75 @@
+ void CriticalActionBackend::Init() {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   DCHECK(!db_);
++  DCHECK(!init_retry_timer_.IsRunning());
++  TryInit(/*advance_backoff=*/true);
++}
++
++void CriticalActionBackend::SetBusyTimeoutForTesting(
++    base::TimeDelta busy_timeout) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  busy_timeout_ = busy_timeout;
++}
++
++void CriticalActionBackend::TryInit(bool advance_backoff) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  DCHECK(!db_);
+   auto db = std::make_unique<CriticalActionDatabase>(db_path_);
+-  if (!db->Init()) {
+-    LOG(ERROR) << "Failed to initialize CriticalActionDatabase";
+-    return;
++  switch (db->Init(busy_timeout_)) {
++    case CriticalActionDatabase::InitStatus::kOk:
++      init_retry_timer_.Stop();
++      db_ = std::move(db);
++      init_retry_count_ = 0;
++      early_retry_used_ = false;
++      return;
++    case CriticalActionDatabase::InitStatus::kBusyTimeout:
++      if (!advance_backoff) {
++        return;
++      }
++      if (init_retry_count_ < kMaxInitRetries) {
++        const base::TimeDelta delay =
++            kInitialInitRetryDelay * (1 << init_retry_count_);
++        ++init_retry_count_;
++        early_retry_used_ = false;
++        last_busy_failure_ticks_ = base::TimeTicks::Now();
++        init_retry_timer_.Start(FROM_HERE, delay,
++                                base::BindOnce(&CriticalActionBackend::TryInit,
++                                               base::Unretained(this),
++                                               /*advance_backoff=*/true));
++        return;
++      }
++      LOG(ERROR) << "Failed to initialize CriticalActionDatabase after "
++                 << init_retry_count_ << " busy retries";
++      return;
++    case CriticalActionDatabase::InitStatus::kError:
++      init_retry_timer_.Stop();
++      LOG(ERROR) << "Failed to initialize CriticalActionDatabase";
++      return;
+   }
+-  db_ = std::move(db);
++}
++
++bool CriticalActionBackend::EnsureInitialized() {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (db_) {
++    return true;
++  }
++  if (!init_retry_timer_.IsRunning()) {
++    return false;
++  }
++  const base::TimeTicks now = base::TimeTicks::Now();
++  if (now >= init_retry_timer_.desired_run_time()) {
++    init_retry_timer_.Stop();
++    TryInit(/*advance_backoff=*/true);
++    return db_ != nullptr;
++  }
++  if (early_retry_used_ ||
++      now - last_busy_failure_ticks_ < kInitialInitRetryDelay) {
++    return false;
++  }
++  early_retry_used_ = true;
++  last_busy_failure_ticks_ = now;
++  TryInit(/*advance_backoff=*/false);
++  return db_ != nullptr;
+ }
+ 
+ void CriticalActionBackend::AddCriticalAction(
+@@ -44,7 +118,7 @@
+   VLOG(1) << "CriticalActionBackend::AddCriticalAction: id="
+           << entry.critical_action_id
+           << ", type=" << static_cast<int>(entry.action_type);
+-  if (!db_) {
++  if (!EnsureInitialized()) {
+     return;
+   }
+   if (!db_->AddCriticalAction(entry)) {
+@@ -60,7 +134,7 @@
+   VLOG(1) << "CriticalActionBackend::SetCriticalActionsConversationId: "
+              "critical_action_ids="
+           << critical_action_ids.size() << ", conv_id=" << conversation_id;
+-  if (!db_) {
++  if (!EnsureInitialized()) {
+     return;
+   }
+   if (!db_->SetCriticalActionsConversationId(critical_action_ids,
+@@ -74,7 +148,7 @@
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   VLOG(1) << "CriticalActionBackend::GetCriticalAction: id="
+           << critical_action_id;
+-  if (!db_) {
++  if (!EnsureInitialized()) {
+     return std::nullopt;
+   }
+   return db_->GetCriticalAction(critical_action_id);
+@@ -84,7 +158,7 @@
+     const CriticalActionQueryOptions& options) {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   VLOG(1) << "CriticalActionBackend::GetCriticalActions";
+-  if (!db_) {
++  if (!EnsureInitialized()) {
+     return {};
+   }
+   return db_->GetCriticalActions(options);
+@@ -95,7 +169,7 @@
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   VLOG(1) << "CriticalActionBackend::DeleteCriticalAction: id="
+           << critical_action_id;
+-  if (!db_) {
++  if (!EnsureInitialized()) {
+     return;
+   }
+   if (!db_->DeleteCriticalAction(critical_action_id)) {
+@@ -110,7 +184,7 @@
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   VLOG(1) << "CriticalActionBackend::DeleteCriticalActionsInTimeRange: "
+           << "start_time=" << start_time << ", end_time=" << end_time;
+-  if (!db_) {
++  if (!EnsureInitialized()) {
+     return;
+   }
+   if (!db_->DeleteCriticalActionsInTimeRange(start_time, end_time)) {
+@@ -124,7 +198,7 @@
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   VLOG(1) << "CriticalActionBackend::DeleteCriticalActionsByVisitIds: "
+           << "count=" << visit_ids.size();
+-  if (!db_) {
++  if (!EnsureInitialized()) {
+     return;
+   }
+   if (!db_->DeleteCriticalActionsByVisitIds(visit_ids)) {
+diff --git a/components/critical_actions/core/browser/critical_action_backend.h b/components/critical_actions/core/browser/critical_action_backend.h
+index 7f0012e..d17d48b9 100644
+--- a/components/critical_actions/core/browser/critical_action_backend.h
++++ b/components/critical_actions/core/browser/critical_action_backend.h
+@@ -16,6 +16,7 @@
+ #include "base/sequence_checker.h"
+ #include "base/thread_annotations.h"
+ #include "base/time/time.h"
++#include "base/timer/timer.h"
+ #include "components/critical_actions/core/browser/critical_action_types.h"
+ 
+ namespace critical_actions {
+@@ -68,10 +69,22 @@
+   // Deletes all critical action records associated with the given visit IDs.
+   void DeleteCriticalActionsByVisitIds(const std::vector<int64_t>& visit_ids);
+ 
++  // Overrides the per-attempt busy lock wait timeout used by Init() in tests.
++  void SetBusyTimeoutForTesting(base::TimeDelta busy_timeout);
++
+  private:
++  void TryInit(bool advance_backoff);
++  bool EnsureInitialized();
++
+   const base::FilePath db_path_;
++  base::TimeDelta busy_timeout_ GUARDED_BY_CONTEXT(sequence_checker_);
+   std::unique_ptr<CriticalActionDatabase> db_
+       GUARDED_BY_CONTEXT(sequence_checker_);
++  int init_retry_count_ GUARDED_BY_CONTEXT(sequence_checker_) = 0;
++  bool early_retry_used_ GUARDED_BY_CONTEXT(sequence_checker_) = false;
++  base::TimeTicks last_busy_failure_ticks_
++      GUARDED_BY_CONTEXT(sequence_checker_);
++  base::OneShotTimer init_retry_timer_ GUARDED_BY_CONTEXT(sequence_checker_);
+ 
+   SEQUENCE_CHECKER(sequence_checker_);
+ };
+diff --git a/components/critical_actions/core/browser/critical_action_database.cc b/components/critical_actions/core/browser/critical_action_database.cc
+index 76097fa..52afe71f 100644
+--- a/components/critical_actions/core/browser/critical_action_database.cc
++++ b/components/critical_actions/core/browser/critical_action_database.cc
+@@ -7,6 +7,7 @@
+ #include <algorithm>
+ #include <cstdint>
+ #include <functional>
++#include <optional>
+ #include <string_view>
+ #include <utility>
+ #include <vector>
+@@ -19,12 +20,16 @@
+ #include "base/strings/cstring_view.h"
+ #include "base/strings/strcat.h"
+ #include "base/strings/string_util.h"
++#include "base/threading/platform_thread.h"
+ #include "base/time/time.h"
++#include "base/time/time_override.h"
+ #include "sql/error_delegate_util.h"
+ #include "sql/sqlite_result_code.h"
++#include "sql/sqlite_result_code_values.h"
+ #include "sql/statement.h"
+ #include "sql/table_management_helpers.h"
+ #include "sql/transaction.h"
++#include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
+ 
+ namespace critical_actions {
+ 
+@@ -161,42 +166,95 @@
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+ }
+ 
+-bool CriticalActionDatabase::Init() {
++CriticalActionDatabase::InitStatus CriticalActionDatabase::Init(
++    base::TimeDelta busy_timeout) {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+ 
++  absl::Cleanup close_on_error = [this] { Close(); };
++
++  // `db_.Open()` only acquires a SHARED lock (`locking_mode=EXCLUSIVE` retains
++  // locks until close). Upgrade to an EXCLUSIVE lock immediately (retrying on
++  // transient `SQLITE_BUSY`) so concurrent connections cannot deadlock writes.
++  {
++    static constexpr base::TimeDelta kInitialRetryDelay = base::Milliseconds(5);
++    static constexpr base::TimeDelta kMaxRetryDelay = base::Milliseconds(50);
++    // Use real wall-clock ticks as PlatformThread::Sleep ignores mock time.
++    const base::TimeTicks deadline =
++        base::subtle::TimeTicksNowIgnoringOverride() + busy_timeout;
++    base::TimeDelta retry_delay = kInitialRetryDelay;
++
++    std::optional<int> last_busy_error;
++    while (true) {
++      last_busy_error.reset();
++      db_.reset_error_callback();
++      db_.set_error_callback(base::BindRepeating(
++          [](CriticalActionDatabase* self, std::optional<int>* busy_error,
++             int extended_error, sql::Statement* statement) {
++            if (sql::ToSqliteLoggedResultCode(extended_error) ==
++                sql::SqliteLoggedResultCode::kBusy) {
++              // TODO(b/585093572): Record dedicated Init outcome and retry
++              // histograms to confirm lock contention recovery in the field.
++              *busy_error = extended_error;
++              return;
++            }
++            self->DatabaseErrorCallback(extended_error, statement);
++          },
++          base::Unretained(this), base::Unretained(&last_busy_error)));
++
++      if (db_.Open(db_path_) && db_.Execute("BEGIN EXCLUSIVE") &&
++          db_.Execute("COMMIT")) {
++        break;
++      }
++      Close();
++      if (!last_busy_error.has_value()) {
++        LOG(ERROR) << "Failed to open CriticalAction database: "
++                   << db_path_.value();
++        return InitStatus::kError;
++      }
++      const base::TimeDelta remaining =
++          deadline - base::subtle::TimeTicksNowIgnoringOverride();
++      if (!remaining.is_positive()) {
++        DatabaseErrorCallback(*last_busy_error, /*statement=*/nullptr);
++        LOG(ERROR) << "Timed out waiting for lock on CriticalAction database: "
++                   << db_path_.value();
++        return InitStatus::kBusyTimeout;
++      }
++      if (busy_retry_callback_for_testing_) {
++        busy_retry_callback_for_testing_.Run();
++      }
++      base::PlatformThread::Sleep(std::min(retry_delay, remaining));
++      retry_delay = std::min(retry_delay * 2, kMaxRetryDelay);
++    }
++    db_.reset_error_callback();
++  }
++
+   db_.set_error_callback(base::BindRepeating(
+       &CriticalActionDatabase::DatabaseErrorCallback, base::Unretained(this)));
+ 
+-  if (!db_.Open(db_path_)) {
+-    LOG(ERROR) << "Failed to open CriticalAction database: "
+-               << db_path_.value();
+-    return false;
+-  }
+-
+   sql::Transaction transaction(&db_);
+   if (!transaction.Begin()) {
+-    return false;
++    return InitStatus::kError;
+   }
+ 
+   if (!meta_table_.Init(&db_, kCurrentVersion, kCompatibleVersion)) {
+-    return false;
++    return InitStatus::kError;
+   }
+ 
+   if (meta_table_.GetCompatibleVersionNumber() > kCurrentVersion) {
+     LOG(ERROR) << "CriticalAction database is too new.";
+-    return false;
++    return InitStatus::kError;
+   }
+ 
+   if (!MigrateToCurrentVersion()) {
+-    return false;
++    return InitStatus::kError;
+   }
+ 
+   if (!InitSchema()) {
+-    return false;
++    return InitStatus::kError;
+   }
+ 
+   if (!transaction.Commit()) {
+-    return false;
++    return InitStatus::kError;
+   }
+ 
+   if (std::exchange(needs_vacuum_, false)) {
+@@ -205,7 +263,8 @@
+                               db_.Vacuum());
+   }
+ 
+-  return true;
++  std::move(close_on_error).Cancel();
++  return InitStatus::kOk;
+ }
+ 
+ bool CriticalActionDatabase::InitSchema() {
+@@ -814,6 +873,7 @@
+ 
+ void CriticalActionDatabase::Close() {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  db_.reset_error_callback();
+   db_.Close();
+ }
+ 
+@@ -823,7 +883,9 @@
+   sql::UmaHistogramSqliteResult("CriticalActions.Database.SqliteError",
+                                 extended_error);
+   if (sql::IsErrorCatastrophic(extended_error)) {
+-    db_.RazeAndPoison();
++    if (db_.is_open()) {
++      db_.RazeAndPoison();
++    }
+   } else if (!sql::Database::IsExpectedSqliteError(extended_error)) {
+     LOG(ERROR) << "CriticalAction Database error: " << extended_error;
+   }
+diff --git a/components/critical_actions/core/browser/critical_action_database.h b/components/critical_actions/core/browser/critical_action_database.h
+index e2cd500..2bc11bc7 100644
+--- a/components/critical_actions/core/browser/critical_action_database.h
++++ b/components/critical_actions/core/browser/critical_action_database.h
+@@ -9,10 +9,12 @@
+ #include <optional>
+ #include <string>
+ #include <string_view>
++#include <utility>
+ #include <vector>
+ 
+ #include "base/containers/span.h"
+ #include "base/files/file_path.h"
++#include "base/functional/callback.h"
+ #include "base/sequence_checker.h"
+ #include "base/thread_annotations.h"
+ #include "base/time/time.h"
+@@ -27,6 +29,14 @@
+ // backend thread.
+ class CriticalActionDatabase {
+  public:
++  enum class InitStatus {
++    kOk,
++    kBusyTimeout,
++    kError,
++  };
++
++  static constexpr base::TimeDelta kDefaultBusyTimeout = base::Seconds(1);
++
+   explicit CriticalActionDatabase(const base::FilePath& db_path);
+   CriticalActionDatabase(const CriticalActionDatabase&) = delete;
+   CriticalActionDatabase& operator=(const CriticalActionDatabase&) = delete;
+@@ -34,8 +44,7 @@
+ 
+   // Opens/initializes the database. Main entry point on the backend thread.
+   // Performs the table and index initialization inside a transaction.
+-  // Returns true on success.
+-  bool Init();
++  InitStatus Init(base::TimeDelta busy_timeout = kDefaultBusyTimeout);
+ 
+   // Adds a new critical action record to the database.
+   // Returns true if successfully added, or false if an entry with the same ID
+@@ -84,6 +93,12 @@
+   // Exposes underlying database for testing or verification.
+   sql::Database& GetDBForTesting() { return db_; }
+ 
++  // Registers a callback invoked before each SQLITE_BUSY retry sleep in Init().
++  void SetBusyRetryCallbackForTesting(base::RepeatingClosure callback) {
++    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++    busy_retry_callback_for_testing_ = std::move(callback);
++  }
++
+   // Generates a comma-separated list of placeholder question marks for SQL
+   // parameterized queries, e.g. "?, ?, ?". Returns an empty string if `count`
+   // is 0.
+@@ -154,6 +169,8 @@
+   sql::Database db_ GUARDED_BY_CONTEXT(sequence_checker_);
+   sql::MetaTable meta_table_ GUARDED_BY_CONTEXT(sequence_checker_);
+   bool needs_vacuum_ GUARDED_BY_CONTEXT(sequence_checker_) = false;
++  base::RepeatingClosure busy_retry_callback_for_testing_
++      GUARDED_BY_CONTEXT(sequence_checker_);
+ 
+   SEQUENCE_CHECKER(sequence_checker_);
+ };
 diff --git a/services/network/mdns_responder.cc b/services/network/mdns_responder.cc
 index 327e0bb1..ad5867f 100644
 --- a/services/network/mdns_responder.cc
