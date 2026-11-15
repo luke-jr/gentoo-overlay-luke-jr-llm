@@ -1,0 +1,73 @@
+Chromium 159.0.8154.10 + the later changes of its release branch, up to
+5d9a2f639ea0cbe925be625ce45b3bdf7348deab (refs/branch-heads/8154@{#450}), for the
+159.0.8154.10 tree that chromium-159.0.8154.6-to-159.0.8154.10.patch makes.
+
+Generated from the upstream diff chromium/src refs/tags/159.0.8154.10..5d9a2f639ea0cbe925be625ce45b3bdf7348deab,
+as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
+.10 tree's files; no dependency's DEPS revision changed): left out are files
+not in the release tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests
+and docs, translations, PGO/orderfile pointers. chrome/VERSION, the DEPS files
+and the stamp files stay at 159.0.8154.10.
+
+Commits contributing to it (oldest first):
+  5d9a2f639ea0 [M159] Bound mDNS response parsing by received datagram length
+
+Checked: applies to the 159.0.8154.10 tree; every patched file is
+byte-identical to its version at the last commit above.
+
+diff --git a/services/network/mdns_responder.cc b/services/network/mdns_responder.cc
+index 327e0bb1..ad5867f 100644
+--- a/services/network/mdns_responder.cc
++++ b/services/network/mdns_responder.cc
+@@ -6,6 +6,7 @@
+ 
+ #include <algorithm>
+ #include <cmath>
++#include <cstddef>
+ #include <numeric>
+ #include <optional>
+ #include <queue>
+@@ -1105,17 +1106,19 @@
+   if (result < 0)
+     return responder_manager_->IsFatalError(result) ? result : net::OK;
+ 
++  const size_t bytes_read = base::checked_cast<size_t>(result);
+   net::DnsQuery query(io_buffer_.get());
+-  bool parsed_as_query = query.Parse(result);
++  bool parsed_as_query = query.Parse(bytes_read);
+   if (parsed_as_query) {
+     responder_manager_->OnMdnsQueryReceived(query, id_);
+     return result;
+   }
+ 
+-  net::DnsResponse response(io_buffer_.get(), io_buffer_->size());
+-  if (!response.InitParseWithoutQuery(io_buffer_->size()) ||
+-      response.answer_count() == 0)
++  net::DnsResponse response(io_buffer_.get(), bytes_read);
++  if (!response.InitParseWithoutQuery(bytes_read) ||
++      response.answer_count() == 0) {
+     return result;
++  }
+ 
+   // There could be multiple records for the same name in the response.
+   std::map<std::string, std::set<net::IPAddress>> external_address_maps;
+@@ -1123,10 +1126,18 @@
+   auto parser = response.Parser();
+   DCHECK_GT(response.answer_count(), 0u);
+   for (size_t i = 0; i < response.answer_count(); ++i) {
++    const size_t offset = parser.GetOffset();
+     auto parsed_record =
+         net::RecordParsed::CreateFrom(&parser, base::Time::Now());
+-    if (!parsed_record || !parsed_record->ttl())
++    if (!parsed_record) {
++      if (offset == parser.GetOffset()) {
++        break;
++      }
+       continue;
++    }
++    if (!parsed_record->ttl()) {
++      continue;
++    }
+ 
+     switch (parsed_record->type()) {
+       case net::ARecordRdata::kType:

@@ -1,25 +1,28 @@
-Chromium 159.0.8154.6 -> 159.0.8154.9, for the 159.0.8154.6 tarball.
+Chromium 159.0.8154.6 -> 159.0.8154.10, for the 159.0.8154.6 tarball.
 
-159.0.8154.9 is a tag on the 159 branch (refs/branch-heads/8154@{#349}) that
-has no source tarball (as of 2026-11-14). It adds 259 branch commits to
-159.0.8154.6 (#90), 132 of them not PGO/orderfile rolls, translation updates
+159.0.8154.10 is a tag on the 159 branch (refs/branch-heads/8154@{#424}) that
+has no source tarball (as of 2026-11-15). It adds 334 branch commits to
+159.0.8154.6 (#90), 139 of them not PGO/orderfile rolls, translation updates
 or VERSION increments: security fixes (PDFium page unload re-entrancy, a
 use-after-free in WidgetInputHandlerImpl::DispatchEvent, Oilpan notification
 in HeapVector bulk operations, the Bluetooth chooser's event handler lifetime,
 Contextual Tasks' async tasks, ChromePluginServiceFilter's RenderProcessHost
 destruction, the file system's directory database per default bucket, HTTP
 cache sparse entry validation, a use-after-free in MediaPermissionDispatcher,
-AtomicStrings copied rather than referenced from attribute storage; in the
-"Roll commits from side projects": V8's regalloc spill slots, RegionAllocator
-size checks and three sandbox fixes (trusted page metadata flags,
-TrustedHeapLayout::InYoungGeneration, LookupIterator accessors), Skia's
-vkWaitForFences check and mask-filtered getImage hardening, Dawn's wire null
-memoryHandle guard, minBindingSize propagation and GLSL snorm workaround, and
-nine ANGLE GL/Vulkan/SPIR-V fixes), Contextual Tasks, omnibox, OTP, Lens and
-New Tab Page changes, the New Tab Page component extension's removal.
+AtomicStrings copied rather than referenced from attribute storage, WebGL's
+DrawingBuffer disposed in a pre-finalizer, remoting's StreamPacketSocket
+error and close handling; in the "Roll commits from side projects": V8's
+regalloc spill slots, RegionAllocator size checks and three sandbox fixes
+(trusted page metadata flags, TrustedHeapLayout::InYoungGeneration,
+LookupIterator accessors), Skia's vkWaitForFences check and mask-filtered
+getImage hardening, Dawn's wire null memoryHandle guard, minBindingSize
+propagation and GLSL snorm workaround, and nine ANGLE GL/Vulkan/SPIR-V fixes),
+Contextual Tasks, omnibox, OTP, Lens and New Tab Page changes, the New Tab
+Page component extension's removal, a CHECK turned into a DCHECK in local
+service discovery (ServiceWatcherImpl::OnRecordUpdate).
 
 Generated from the upstream diffs between the tags: chromium/src
-refs/tags/159.0.8154.6..159.0.8154.9 and the dependencies whose DEPS revision
+refs/tags/159.0.8154.6..159.0.8154.10 and the dependencies whose DEPS revision
 changed (V8, Skia, Dawn, ANGLE), as served by Gitiles, with
 scripts/chromium-delta.
 
@@ -31,11 +34,11 @@ pointer updates, DEPS.
 Added: the tarball's stamp files for the new commit (stamps.py:
 build/util/LASTCHANGE{,.committime}, gpu/config/gpu_lists_version.h,
 skia/ext/skia_commit_hash.h, gpu/webgpu/DAWN_VERSION and
-gpu/webgpu/dawn_commit_hash.h; commit e7e0307092d584bafed95fc407c93ce0d916920a,
-refs/branch-heads/8154@{#349}). build/util/MINIBRANCH doesn't change.
+gpu/webgpu/dawn_commit_hash.h; commit 7fa59f2dfbb1d04c88b5e9cb98cdde7501f654d7,
+refs/branch-heads/8154@{#424}). build/util/MINIBRANCH doesn't change.
 
 Checked: applies to the 159.0.8154.6 tarball; chrome/VERSION becomes
-159.0.8154.9; every patched source file is byte-identical to its version
+159.0.8154.10; every patched source file is byte-identical to its version
 at the tag (or its dependency's DEPS revision); it adds 8 files, renames 1
 and deletes 7 (chrome/browser/resources/new_tab_page_extension/); the
 159.0.8154.6 tarball's non-git files are all classified (tarball-generated.py
@@ -44,7 +47,7 @@ with generated.conf).
 Apply with git apply.
 
 diff --git a/chrome/VERSION b/chrome/VERSION
-index 338c72a..44b202d 100644
+index 338c72a..71d665c 100644
 --- a/chrome/VERSION
 +++ b/chrome/VERSION
 @@ -1,4 +1,4 @@
@@ -52,7 +55,7 @@ index 338c72a..44b202d 100644
  MINOR=0
  BUILD=8154
 -PATCH=6
-+PATCH=9
++PATCH=10
 diff --git a/chrome/app/resources/chromium_strings_en-GB.xtb b/chrome/app/resources/chromium_strings_en-GB.xtb
 index be074ec..54939a02 100644
 --- a/chrome/app/resources/chromium_strings_en-GB.xtb
@@ -9391,6 +9394,21 @@ index 604d05dd..e4d7eaf 100644
    // Test support.
  #if !BUILDFLAG(IS_ANDROID)
    views::View* GetActiveEmbedderGlicViewForTesting();
+diff --git a/chrome/browser/local_discovery/service_discovery_client_impl.cc b/chrome/browser/local_discovery/service_discovery_client_impl.cc
+index 80c5d90..2f20f48 100644
+--- a/chrome/browser/local_discovery/service_discovery_client_impl.cc
++++ b/chrome/browser/local_discovery/service_discovery_client_impl.cc
+@@ -128,7 +128,9 @@
+     const net::RecordParsed* record) {
+   CHECK(started_, base::NotFatalUntil::M161);
+   if (record->type() == net::dns_protocol::kTypePTR) {
+-    CHECK(record->name() == GetServiceType(), base::NotFatalUntil::M161);
++    // TODO(crbug.com/584611417): CHECK-exclusion: Convert to a CHECK once we
++    // are confident it won't be triggered.
++    DCHECK(record->name() == GetServiceType());
+     const net::PtrRecordRdata* rdata = record->rdata<net::PtrRecordRdata>();
+ 
+     switch (update) {
 diff --git a/chrome/browser/media/webrtc/webrtc_log_uploader.cc b/chrome/browser/media/webrtc/webrtc_log_uploader.cc
 index bd1dfd2..6a0a901 100644
 --- a/chrome/browser/media/webrtc/webrtc_log_uploader.cc
@@ -17327,10 +17345,10 @@ index 17689db..45dbfd9 100644
 -  // clang-format on
  }
 diff --git a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.html.ts b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.html.ts
-index 278a2c29..a2826f9a 100644
+index 278a2c29..937a046 100644
 --- a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.html.ts
 +++ b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.html.ts
-@@ -7,109 +7,88 @@
+@@ -7,109 +7,89 @@
  import type {OmniboxPopupSearchboxElement} from './omnibox_popup_searchbox.js';
  
  export function getHtml(this: OmniboxPopupSearchboxElement) {
@@ -17446,7 +17464,8 @@ index 278a2c29..a2826f9a 100644
 +      page-url="${this.computeCurrentPageUrl_()}"
 +      .inputKeywordModel="${this.inputKeywordModel}"
 +      ?input-has-matches="${this.hasMatches()}"
-+      @focusin="${this.onInputFocusin_}" @mousedown="${this.onInputMousedown_}"
++      .textInputType="${this.textInputType_}" @focusin="${this.onInputFocusin_}"
++      @mousedown="${this.onInputMousedown_}"
 +      @searchbox-input-text-updated="${this.onSearchboxInputTextUpdated_}"
 +      @paste="${this.onInputPaste_}" @copy="${this.onInputCopy_}"
 +      @cut="${this.onInputCut_}">
@@ -17522,6 +17541,37 @@ index 278a2c29..a2826f9a 100644
 +  </div>
 +</div>`;
  }
+diff --git a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
+index 20f415f3..1be84b9 100644
+--- a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
++++ b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
+@@ -225,6 +225,9 @@
+       isLensSearchEligible_: {
+         type: Boolean,
+       },
++      textInputType_: {
++        type: String,
++      },
+     };
+   }
+ 
+@@ -322,6 +325,8 @@
+   private accessor fullUrl_: string = '';
+   private accessor permanentDisplayText_: string = '';
+   protected accessor aimButtonIconOnly_: boolean = false;
++  // Set by the browser, like the Views omnibox's text input type.
++  protected accessor textInputType_: 'url'|'search' = 'search';
+   // True during an active IME (Input Method Editor) text composition session.
+   // Used to suppress intermediate selection updates until composition finishes,
+   // and to end the composition before showing another tab's text.
+@@ -1483,6 +1488,7 @@
+     this.tabId_ = state.tabId;
+     this.fullUrl_ = state.fullUrl;
+     this.permanentDisplayText_ = state.permanentDisplayText;
++    this.textInputType_ = state.prefersUrlInput ? 'url' : 'search';
+     this.isComposing_ = false;
+     const keywordChanged =
+         this.inputKeywordModel?.keyword !== state.keywordModel?.keyword ||
 diff --git a/chrome/browser/resources/omnibox_popup/shared/omnibox_popup_contextual_entrypoint.html.ts b/chrome/browser/resources/omnibox_popup/shared/omnibox_popup_contextual_entrypoint.html.ts
 index 85b2833..df67baf 100644
 --- a/chrome/browser/resources/omnibox_popup/shared/omnibox_popup_contextual_entrypoint.html.ts
@@ -19961,6 +20011,67 @@ index 58d89896..8dc5992 100644
  
    // Whether the "first shown" metrics have been logged at least once.
    bool logged_first_shown_metric_ = false;
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_view_views.cc b/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
+index f60566c..bc9c020 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
+@@ -829,18 +829,26 @@
+ 
+ ui::TextInputType OmniboxViewViews::GetPreferredTextInputType() const {
+ #if BUILDFLAG(IS_WIN)
++  if (location_bar_view_) {
++    return GetPreferredTextInputType(
++        location_bar_view_->GetWidget()->GetInputMethod());
++  }
++#endif  // BUILDFLAG(IS_WIN)
++  return GetPreferredTextInputType(/*input_method=*/nullptr);
++}
++
++// static
++ui::TextInputType OmniboxViewViews::GetPreferredTextInputType(
++    const ui::InputMethod* input_method) {
++#if BUILDFLAG(IS_WIN)
+   // We'd like to set the text input type to TEXT_INPUT_TYPE_URL, because this
+   // triggers URL-specific layout in software keyboards, e.g. adding top-level
+   // "/" and ".com" keys for English.  However, this also causes IMEs to default
+   // to Latin character mode, which makes entering search queries difficult for
+   // IME users. Therefore, we try to guess whether an IME will be used based on
+   // the input language, and set the input type accordingly.
+-  if (location_bar_view_) {
+-    ui::InputMethod* input_method =
+-        location_bar_view_->GetWidget()->GetInputMethod();
+-    if (input_method && input_method->IsInputLocaleCJK()) {
+-      return ui::TEXT_INPUT_TYPE_SEARCH;
+-    }
++  if (input_method && input_method->IsInputLocaleCJK()) {
++    return ui::TEXT_INPUT_TYPE_SEARCH;
+   }
+ #endif  // BUILDFLAG(IS_WIN)
+   return ui::TEXT_INPUT_TYPE_URL;
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_view_views.h b/chrome/browser/ui/views/omnibox/omnibox_view_views.h
+index a93a7f88..7274eb61 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_view_views.h
++++ b/chrome/browser/ui/views/omnibox/omnibox_view_views.h
+@@ -54,6 +54,7 @@
+ }  // namespace gfx
+ 
+ namespace ui {
++class InputMethod;
+ class OSExchangeData;
+ }  // namespace ui
+ 
+@@ -116,6 +117,11 @@
+   // Initialize, create the underlying views, etc.
+   void Init();
+ 
++  // Returns URL, or search on Windows for CJK input languages. `input_method`
++  // can be null.
++  static ui::TextInputType GetPreferredTextInputType(
++      const ui::InputMethod* input_method);
++
+   // Exposes the RenderText for tests.
+ #if defined(UNIT_TEST)
+   gfx::RenderText* GetRenderText() { return views::Textfield::GetRenderText(); }
 diff --git a/chrome/browser/ui/views/tabs/common/dragged_tabs_container.cc b/chrome/browser/ui/views/tabs/common/dragged_tabs_container.cc
 index 4f9d435..6470404 100644
 --- a/chrome/browser/ui/views/tabs/common/dragged_tabs_container.cc
@@ -21726,6 +21837,67 @@ index 5ddfdf96..765ce45 100644
  
    std::vector<PendingUploadStatus> pending_upload_statuses_;
    std::vector<base::UnguessableToken> pending_screenshot_tokens_;
+diff --git a/chrome/browser/ui/webui/omnibox_popup/BUILD.gn b/chrome/browser/ui/webui/omnibox_popup/BUILD.gn
+index 7f4c67c9..33256ed 100644
+--- a/chrome/browser/ui/webui/omnibox_popup/BUILD.gn
++++ b/chrome/browser/ui/webui/omnibox_popup/BUILD.gn
+@@ -62,8 +62,10 @@
+       "//components/user_education/webui",
+       "//content/public/browser",
+       "//ui/base",
++      "//ui/base/ime:text_input_types",
+       "//ui/gfx/geometry",
+       "//ui/native_theme",
++      "//ui/views",
+       "//ui/webui/resources/cr_components/composebox:mojo_bindings",
+       "//ui/webui/resources/cr_components/help_bubble:mojo_bindings",
+       "//ui/webui/tracked_element",
+diff --git a/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom b/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom
+index b58a0d2..3e5fbe2 100644
+--- a/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom
++++ b/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom
+@@ -59,6 +59,9 @@
+   // searchbox icon when autocomplete results are cleared (e.g. on tab switch).
+   // Only populated on tab switch when there is input in progress.
+   searchbox.mojom.AutocompleteMatch? current_match;
++  // Whether the input expects URLs rather than search queries. See
++  // `OmniboxViewViews::GetPreferredTextInputType()`.
++  bool prefers_url_input;
+ };
+ 
+ // Browser-side handler for the Omnibox Popup.
+diff --git a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc b/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc
+index e0e5064..acb3c6c 100644
+--- a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc
++++ b/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc
+@@ -39,10 +39,12 @@
+ #include "components/tabs/public/tab_interface.h"
+ #include "content/public/browser/browser_context.h"
+ #include "ui/base/clipboard/scoped_clipboard_writer.h"
++#include "ui/base/ime/text_input_type.h"
+ #include "ui/base/models/menu_model.h"
+ #include "ui/base/ui_base_features.h"
+ #include "ui/color/color_provider.h"
+ #include "ui/gfx/color_utils.h"
++#include "ui/views/widget/widget.h"
+ 
+ OmniboxPopupHandler::OmniboxPopupHandler(
+     mojo::PendingReceiver<omnibox_popup::mojom::PageHandler> receiver,
+@@ -283,6 +285,14 @@
+         current_match.GetVectorIcon(is_bookmarked, associated_keyword_turl));
+     state->current_match = std::move(mojom_match);
+   }
++  // The input language is the same for all widgets.
++  views::Widget* widget = web_contents_
++                              ? views::Widget::GetTopLevelWidgetForNativeView(
++                                    web_contents_->GetNativeView())
++                              : nullptr;
++  state->prefers_url_input = OmniboxViewViews::GetPreferredTextInputType(
++                                 widget ? widget->GetInputMethod() : nullptr) ==
++                             ui::TEXT_INPUT_TYPE_URL;
+   // Extract active tab ID if in a Chrome browser window context.
+   if (controller_ && controller_->client()->IsChromeOmniboxClient()) {
+     auto* chrome_client =
 diff --git a/chrome/browser/ui/webui/searchbox/BUILD.gn b/chrome/browser/ui/webui/searchbox/BUILD.gn
 index 9b3b9da..5ab1d23 100644
 --- a/chrome/browser/ui/webui/searchbox/BUILD.gn
@@ -24006,6 +24178,420 @@ index 222db32c..843a159 100644
  
  #if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
    // Indicates whether Searchify added text to this page or not. Note that if
+diff --git a/remoting/protocol/stream_packet_socket.cc b/remoting/protocol/stream_packet_socket.cc
+index 9c22f34..1296da2 100644
+--- a/remoting/protocol/stream_packet_socket.cc
++++ b/remoting/protocol/stream_packet_socket.cc
+@@ -4,9 +4,14 @@
+ 
+ #include "remoting/protocol/stream_packet_socket.h"
+ 
++#include "base/check_op.h"
+ #include "base/containers/span.h"
++#include "base/functional/bind.h"
+ #include "base/functional/callback.h"
++#include "base/location.h"
++#include "base/logging.h"
+ #include "base/notimplemented.h"
++#include "base/task/sequenced_task_runner.h"
+ #include "components/webrtc/net_address_utils.h"
+ #include "net/base/address_list.h"
+ #include "net/base/io_buffer.h"
+@@ -96,10 +101,13 @@
+ 
+ StreamPacketSocket::StreamPacketSocket() = default;
+ 
+-StreamPacketSocket::~StreamPacketSocket() = default;
++StreamPacketSocket::~StreamPacketSocket() {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++}
+ 
+ bool StreamPacketSocket::Init(std::unique_ptr<net::StreamSocket> socket,
+                               StreamPacketProcessor* packet_processor) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   DCHECK(socket);
+   DCHECK(packet_processor);
+   socket_ = std::move(socket);
+@@ -117,6 +125,7 @@
+     const webrtc::SocketAddress& local_address,
+     const webrtc::SocketAddress& remote_address,
+     const webrtc::PacketSocketTcpOptions& tcp_options) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   int tls_opts =
+       tcp_options.opts & (webrtc::PacketSocketFactory::OPT_TLS |
+                           webrtc::PacketSocketFactory::OPT_TLS_FAKE |
+@@ -175,16 +184,19 @@
+ }
+ 
+ webrtc::SocketAddress StreamPacketSocket::GetLocalAddress() const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   return GetAddress(&net::StreamSocket::GetLocalAddress, socket_.get());
+ }
+ 
+ webrtc::SocketAddress StreamPacketSocket::GetRemoteAddress() const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   return GetAddress(&net::StreamSocket::GetPeerAddress, socket_.get());
+ }
+ 
+ int StreamPacketSocket::Send(const void* data,
+                              size_t data_size,
+                              const webrtc::AsyncSocketPacketOptions& options) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   if (state_ != STATE_CONNECTED) {
+     SetError(ENOTCONN);
+     return -1;
+@@ -197,14 +209,20 @@
+ 
+   auto packet = packet_processor_->Pack(
+       UNSAFE_TODO(base::span(static_cast<const uint8_t*>(data), data_size)));
+-  if (!packet) {
++  // Reject empty packets since StreamSocket::Write() requires a positive length
++  // and BytesRemaining() > 0 is used below to detect unsent data.
++  if (!packet || packet->size() == 0) {
+     SetError(EINVAL);
+     return -1;
+   }
+-  send_queue_.emplace_back(
+-      base::MakeRefCounted<net::DrainableIOBuffer>(packet, packet->size()),
+-      options);
++  auto buffer =
++      base::MakeRefCounted<net::DrainableIOBuffer>(packet, packet->size());
++  send_queue_.emplace_back(buffer, options);
+   DoWrite();
++  if (buffer->BytesRemaining() > 0 && state_ != STATE_CONNECTED) {
++    DCHECK_NE(error_, 0);
++    return -1;
++  }
+   return data_size;
+ }
+ 
+@@ -213,6 +231,7 @@
+     size_t data_size,
+     const webrtc::SocketAddress& address,
+     const webrtc::AsyncSocketPacketOptions& options) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   if (state_ != STATE_CONNECTED || address != GetRemoteAddress()) {
+     LOG(ERROR) << "The socket is not connected to the remote address.";
+     SetError(ENOTCONN);
+@@ -223,6 +242,8 @@
+ }
+ 
+ int StreamPacketSocket::Close() {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  close_weak_factory_.InvalidateWeakPtrs();
+   socket_.reset();
+   state_ = STATE_CLOSED;
+   send_queue_.clear();
+@@ -232,16 +253,19 @@
+ }
+ 
+ webrtc::AsyncPacketSocket::State StreamPacketSocket::GetState() const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   return state_;
+ }
+ 
+ int StreamPacketSocket::GetOption(webrtc::Socket::Option option, int* value) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   // This method is never called by libjingle.
+   NOTIMPLEMENTED();
+   return -1;
+ }
+ 
+ int StreamPacketSocket::SetOption(webrtc::Socket::Option option, int value) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   if (!socket_) {
+     return -1;
+   }
+@@ -285,48 +309,76 @@
+ }
+ 
+ int StreamPacketSocket::GetError() const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   return error_;
+ }
+ 
+ void StreamPacketSocket::SetError(int error) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   error_ = error;
+ }
+ 
+ void StreamPacketSocket::OnConnectCompleted(int result) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   if (result != net::OK) {
+     CloseWithNetError(result);
+     return;
+   }
+   state_ = STATE_CONNECTED;
++  base::WeakPtr<StreamPacketSocket> self = weak_factory_.GetWeakPtr();
+   NotifyConnect(this);
++  if (!self || state_ != STATE_CONNECTED) {
++    return;
++  }
+   DoRead();
+ }
+ 
+ void StreamPacketSocket::DoWrite() {
+-  if (!socket_ || send_pending_ || send_queue_.empty()) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (in_do_write_) {
+     return;
+   }
+ 
+-  while (!send_queue_.empty()) {
+-    PendingPacket& packet = send_queue_.front();
+-    int result = socket_->Write(
+-        packet.data.get(), packet.data->BytesRemaining(),
+-        base::BindOnce(&StreamPacketSocket::OnAsyncWriteCompleted,
+-                       base::Unretained(this)),
+-        kTrafficAnnotation);
+-    if (result == net::ERR_IO_PENDING) {
+-      send_pending_ = true;
+-      return;
++  // Manage `in_do_write_` manually instead of using `base::AutoReset` because
++  // an observer callback may destroy `this`, and `AutoReset` would write to
++  // destroyed memory on unwind.
++  in_do_write_ = true;
++  base::WeakPtr<StreamPacketSocket> self = weak_factory_.GetWeakPtr();
++  // `NotifyReadyToSend()` may re-entrantly enqueue more packets via `Send()`.
++  // Keep draining until listeners stop enqueueing, a write goes pending, or the
++  // socket closes.
++  do {
++    while (socket_ && !send_pending_ && !send_queue_.empty()) {
++      PendingPacket& packet = send_queue_.front();
++      int result = socket_->Write(
++          packet.data.get(), packet.data->BytesRemaining(),
++          base::BindOnce(&StreamPacketSocket::OnAsyncWriteCompleted,
++                         base::Unretained(this)),
++          kTrafficAnnotation);
++      if (result == net::ERR_IO_PENDING) {
++        send_pending_ = true;
++        break;
++      }
++      if (!HandleWriteResult(result)) {
++        break;
++      }
+     }
+-    if (!HandleWriteResult(result)) {
+-      return;
+-    }
+-  }
+ 
+-  NotifyReadyToSend(this);
++    if (!self) {
++      return;
++    }
++    if (socket_ && !send_pending_ && send_queue_.empty()) {
++      NotifyReadyToSend(this);
++      if (!self) {
++        return;
++      }
++    }
++  } while (socket_ && !send_pending_ && !send_queue_.empty());
++  in_do_write_ = false;
+ }
+ 
+ bool StreamPacketSocket::HandleWriteResult(int result) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   DCHECK_NE(net::ERR_IO_PENDING, result);
+   send_pending_ = false;
+   if (result < 0) {
+@@ -343,23 +395,39 @@
+     const webrtc::SentPacketInfo sent_packet(packet.options.packet_id,
+                                              webrtc::TimeMillis());
+     send_queue_.pop_front();
++    base::WeakPtr<StreamPacketSocket> self = weak_factory_.GetWeakPtr();
+     NotifySentPacket(this, sent_packet);
++    if (!self || state_ != STATE_CONNECTED) {
++      return false;
++    }
+   }
+   return true;
+ }
+ 
+ void StreamPacketSocket::OnAsyncWriteCompleted(int result) {
+-  if (HandleWriteResult(result)) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  DCHECK(!in_do_write_);
++  // Managed manually instead of via `base::AutoReset` in case `this` is
++  // destroyed during `HandleWriteResult()` observer notifications.
++  in_do_write_ = true;
++  base::WeakPtr<StreamPacketSocket> self = weak_factory_.GetWeakPtr();
++  bool ok = HandleWriteResult(result);
++  if (!self) {
++    return;
++  }
++  in_do_write_ = false;
++  if (ok) {
+     DoWrite();
+   }
+ }
+ 
+ void StreamPacketSocket::DoRead() {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   if (!socket_) {
+     LOG(ERROR) << "Can't read more data since the socket no longer exists.";
+     return;
+   }
+-  while (true) {
++  while (socket_) {
+     if (!read_buffer_.get()) {
+       read_buffer_ = base::MakeRefCounted<net::GrowableIOBuffer>();
+       read_buffer_->SetCapacity(kReadBufferSize);
+@@ -382,6 +450,7 @@
+ }
+ 
+ bool StreamPacketSocket::HandleReadResult(int result) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   if (result < 0) {
+     CloseWithNetError(result);
+     return false;
+@@ -391,8 +460,10 @@
+     return false;
+   }
+ 
+-  read_buffer_->set_offset(read_buffer_->offset() + result);
+-  base::span<uint8_t> span = read_buffer_->span_before_offset();
++  base::WeakPtr<StreamPacketSocket> self = weak_factory_.GetWeakPtr();
++  scoped_refptr<net::GrowableIOBuffer> read_buffer = read_buffer_;
++  read_buffer->set_offset(read_buffer->offset() + result);
++  base::span<uint8_t> span = read_buffer->span_before_offset();
+   while (!span.empty()) {
+     size_t bytes_consumed = 0;
+     auto packet = packet_processor_->Unpack(span, &bytes_consumed);
+@@ -400,6 +471,9 @@
+       NotifyPacketReceived(webrtc::ReceivedIpPacket(
+           packet->span(), GetRemoteAddress(),
+           webrtc::Timestamp::Micros(webrtc::TimeMicros())));
++      if (!self || state_ != STATE_CONNECTED) {
++        return false;
++      }
+     }
+     if (!bytes_consumed) {
+       break;
+@@ -408,24 +482,28 @@
+   }
+   // We've consumed all complete packets from the buffer; now move any remaining
+   // bytes to the head of the buffer and set offset to reflect this.
+-  if (!span.empty()) {
+-    read_buffer_->everything().copy_prefix_from(span);
+-    read_buffer_->set_offset(span.size());
+-  }
++  read_buffer->everything().copy_prefix_from(span);
++  read_buffer->set_offset(span.size());
+ 
+   return true;
+ }
+ 
+ void StreamPacketSocket::OnAsyncReadCompleted(int result) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   if (HandleReadResult(result)) {
+     DoRead();
+   }
+ }
+ 
+ void StreamPacketSocket::CloseWithNetError(int net_error) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   DCHECK_GT(0, net_error);
+   DCHECK_NE(net::ERR_IO_PENDING, net_error);
++  if (state_ == STATE_CLOSED) {
++    return;
++  }
+   LOG(ERROR) << "Stream socket received net error: " << net_error;
++
+   switch (net_error) {
+     case net::ERR_SOCKET_NOT_CONNECTED:
+       error_ = ENOTCONN;
+@@ -437,9 +515,19 @@
+     default:
+       error_ = EINVAL;
+   }
+-
+   Close();
+-  NotifyClosed(error_);
++
++  // Notify listeners asynchronously so active Send() or read callbacks unwind
++  // first.
++  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++      FROM_HERE, base::BindOnce(&StreamPacketSocket::RunNotifyClosed,
++                                close_weak_factory_.GetWeakPtr(), error_));
++}
++
++void StreamPacketSocket::RunNotifyClosed(int error) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  DCHECK_EQ(state_, STATE_CLOSED);
++  NotifyClosed(error);
+ }
+ 
+ }  // namespace remoting::protocol
+diff --git a/remoting/protocol/stream_packet_socket.h b/remoting/protocol/stream_packet_socket.h
+index bca202b..56aaaf1 100644
+--- a/remoting/protocol/stream_packet_socket.h
++++ b/remoting/protocol/stream_packet_socket.h
+@@ -10,6 +10,8 @@
+ #include "base/containers/circular_deque.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/scoped_refptr.h"
++#include "base/memory/weak_ptr.h"
++#include "base/sequence_checker.h"
+ #include "third_party/webrtc/api/packet_socket_factory.h"
+ #include "third_party/webrtc/rtc_base/async_packet_socket.h"
+ 
+@@ -27,7 +29,6 @@
+ 
+ // An AsyncPacketSocket implementation that runs on top of a StreamSocket. It is
+ // usually used for TCP connections.
+-// TODO(yuweih): Write unittest
+ class StreamPacketSocket final : public webrtc::AsyncPacketSocket {
+  public:
+   StreamPacketSocket();
+@@ -86,12 +87,15 @@
+   bool HandleReadResult(int result);
+   void OnAsyncReadCompleted(int result);
+ 
+-  // Translates net_error to errno and set it on error_, then closes the socket
+-  // and reports the error.
++  // Translates net_error to errno and sets it on error_, then closes the socket
++  // and posts an asynchronous close notification.
+   // If you only need to set the error code (in errno), call SetError instead.
+   void CloseWithNetError(int net_error);
+ 
+-  std::unique_ptr<net::StreamSocket> socket_;
++  // Invoked via a posted task from CloseWithNetError() to notify listeners
++  // after the current call stack unwinds. Cancelled by Close() or destruction.
++  void RunNotifyClosed(int error);
++
+   raw_ptr<StreamPacketProcessor> packet_processor_;
+ 
+   // Note that a packet can be partially sent, where the number of bytes sent
+@@ -99,6 +103,7 @@
+   base::circular_deque<PendingPacket> send_queue_;
+ 
+   bool send_pending_ = false;
++  bool in_do_write_ = false;
+ 
+   // The offset denotes the position for new data to arrive, whereas data
+   // between [0, offset) are arrived but not processed.
+@@ -112,6 +117,20 @@
+   // they generally return -1 and expect the caller to call GetError() to know
+   // the reason.
+   int error_ = 0;
++
++  // Must be declared after all members referenced by pending I/O callbacks
++  // (bound with base::Unretained(this)) so it is destroyed first, cancelling
++  // those callbacks before the state and buffers they use are released.
++  std::unique_ptr<net::StreamSocket> socket_;
++
++  SEQUENCE_CHECKER(sequence_checker_);
++
++  // Invalidated in Close() to cancel pending RunNotifyClosed() tasks while
++  // keeping `weak_factory_` valid across Close() so DoWrite() and
++  // OnAsyncWriteCompleted() still reset `in_do_write_` unless `this` was
++  // destroyed.
++  base::WeakPtrFactory<StreamPacketSocket> close_weak_factory_{this};
++  base::WeakPtrFactory<StreamPacketSocket> weak_factory_{this};
+ };
+ 
+ }  // namespace remoting::protocol
 diff --git a/storage/browser/file_system/obfuscated_file_util.cc b/storage/browser/file_system/obfuscated_file_util.cc
 index 29b7a23..1bc9829e 100644
 --- a/storage/browser/file_system/obfuscated_file_util.cc
@@ -24219,6 +24805,436 @@ index 61f9b57..7ac81e85 100644
  
    SVGAnimatedString& EnsureClassName() const;
  
+diff --git a/third_party/blink/renderer/modules/webgl/BUILD.gn b/third_party/blink/renderer/modules/webgl/BUILD.gn
+index e238fd2..7c80852 100644
+--- a/third_party/blink/renderer/modules/webgl/BUILD.gn
++++ b/third_party/blink/renderer/modules/webgl/BUILD.gn
+@@ -219,7 +219,10 @@
+   ]
+ 
+   deps = [
++    "//base",
+     "//base/test:test_support",
++    "//cc",
++    "//components/viz/common",
+     "//components/viz/test:test_support",
+     "//gpu/config",
+     "//testing/gmock",
+@@ -230,6 +233,8 @@
+     "//third_party/blink/renderer/core:testing",
+     "//third_party/blink/renderer/core:unit_test_support",
+     "//third_party/blink/renderer/modules",
++    "//third_party/blink/renderer/platform",
+     "//third_party/blink/renderer/platform:test_support",
++    "//v8",
+   ]
+ }
+diff --git a/third_party/blink/renderer/modules/webgl/DEPS b/third_party/blink/renderer/modules/webgl/DEPS
+index dfac397..b2b6e574 100644
+--- a/third_party/blink/renderer/modules/webgl/DEPS
++++ b/third_party/blink/renderer/modules/webgl/DEPS
+@@ -39,6 +39,9 @@
+ 
+ specific_include_rules = {
+     ".*_test\\.cc": [
++        "+cc/layers/layer.h",
++        "+components/viz/common/resources/release_callback.h",
++        "+components/viz/common/resources/transferable_resource.h",
+         "+components/viz/test/test_context_provider.h",
+         "+gpu/config/gpu_finch_features.h",
+     ],
+diff --git a/third_party/blink/renderer/modules/webgl/webgl_object.h b/third_party/blink/renderer/modules/webgl/webgl_object.h
+index 2f2eae1b..28e5bfcd 100644
+--- a/third_party/blink/renderer/modules/webgl/webgl_object.h
++++ b/third_party/blink/renderer/modules/webgl/webgl_object.h
+@@ -54,10 +54,12 @@
+ class WebGLObject : public ScriptWrappable {
+   DEFINE_WRAPPERTYPEINFO();
+ 
+-  // WebGLObjects are pre-finalized, and the WebGLRenderingContextBase
+-  // is specifically not. This is done in order to allow WebGLObjects to
+-  // refer back to their owning context in their destructor to delete their
+-  // resources if they are GC'd before the context is.
++  // WebGLObjects are pre-finalized so they can refer back to their owning
++  // context to delete their GL resources if they are GC'd before the context
++  // is. When both die in the same GC cycle, WebGLObjects created after the
++  // context have their pre-finalizers invoked first (LIFO), and DeleteObject()
++  // also checks GetContextGeneration() in case the context was already lost or
++  // disposed.
+   USING_PRE_FINALIZER(WebGLObject, Dispose);
+ 
+  public:
+diff --git a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+index 02cd342..44aa4175 100644
+--- a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
++++ b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+@@ -370,7 +370,7 @@
+ 
+ using WebGLRenderingContextBaseSet =
+     HeapHashSet<WeakMember<WebGLRenderingContextBase>>;
+-WebGLRenderingContextBaseSet& ActiveContexts() {
++WebGLRenderingContextBaseSet* TryActiveContexts(bool create_if_absent = false) {
+   using WebGLRenderingContextBaseSetHolder =
+       DisallowNewWrapper<WebGLRenderingContextBaseSet>;
+   DEFINE_THREAD_SAFE_STATIC_LOCAL(
+@@ -379,16 +379,24 @@
+   Persistent<WebGLRenderingContextBaseSetHolder>& active_contexts_persistent =
+       *active_contexts;
+   if (!active_contexts_persistent) {
++    if (!create_if_absent) {
++      return nullptr;
++    }
+     active_contexts_persistent =
+         MakeGarbageCollected<WebGLRenderingContextBaseSetHolder>();
+     LEAK_SANITIZER_IGNORE_OBJECT(&active_contexts_persistent);
+   }
+-  return active_contexts_persistent->Value();
++  return &active_contexts_persistent->Value();
++}
++
++WebGLRenderingContextBaseSet& ActiveContexts() {
++  return *TryActiveContexts(/*create_if_absent=*/true);
+ }
+ 
+ using WebGLRenderingContextBaseMap =
+     HeapHashMap<WeakMember<WebGLRenderingContextBase>, int>;
+-WebGLRenderingContextBaseMap& ForciblyEvictedContexts() {
++WebGLRenderingContextBaseMap* TryForciblyEvictedContexts(
++    bool create_if_absent = false) {
+   using WebGLRenderingContextBaseMapHolder =
+       DisallowNewWrapper<WebGLRenderingContextBaseMap>;
+   DEFINE_THREAD_SAFE_STATIC_LOCAL(
+@@ -396,11 +404,18 @@
+       ());
+   Persistent<WebGLRenderingContextBaseMapHolder>& holder_persistent = *holder;
+   if (!holder_persistent) {
++    if (!create_if_absent) {
++      return nullptr;
++    }
+     holder_persistent =
+         MakeGarbageCollected<WebGLRenderingContextBaseMapHolder>();
+     LEAK_SANITIZER_IGNORE_OBJECT(&holder_persistent);
+   }
+-  return holder_persistent->Value();
++  return &holder_persistent->Value();
++}
++
++WebGLRenderingContextBaseMap& ForciblyEvictedContexts() {
++  return *TryForciblyEvictedContexts(/*create_if_absent=*/true);
+ }
+ 
+ }  // namespace
+@@ -498,12 +513,14 @@
+ }
+ 
+ WebGLRenderingContextBase* WebGLRenderingContextBase::OldestContext() {
+-  if (ActiveContexts().empty())
++  auto* active_contexts = TryActiveContexts();
++  if (!active_contexts || active_contexts->empty()) {
+     return nullptr;
++  }
+ 
+-  WebGLRenderingContextBase* candidate = *(ActiveContexts().begin());
++  WebGLRenderingContextBase* candidate = *(active_contexts->begin());
+   DCHECK(!candidate->isContextLost());
+-  for (WebGLRenderingContextBase* context : ActiveContexts()) {
++  for (WebGLRenderingContextBase* context : *active_contexts) {
+     DCHECK(!context->isContextLost());
+     if (context->ContextGL()->GetLastFlushIdCHROMIUM() <
+         candidate->ContextGL()->GetLastFlushIdCHROMIUM()) {
+@@ -515,15 +532,17 @@
+ }
+ 
+ WebGLRenderingContextBase* WebGLRenderingContextBase::OldestEvictedContext() {
+-  if (ForciblyEvictedContexts().empty())
++  auto* evicted_contexts = TryForciblyEvictedContexts();
++  if (!evicted_contexts || evicted_contexts->empty()) {
+     return nullptr;
++  }
+ 
+   WebGLRenderingContextBase* candidate = nullptr;
+   int generation = -1;
+-  for (WebGLRenderingContextBase* context : ForciblyEvictedContexts().Keys()) {
+-    if (!candidate || ForciblyEvictedContexts().at(context) < generation) {
+-      candidate = context;
+-      generation = ForciblyEvictedContexts().at(context);
++  for (const auto& entry : *evicted_contexts) {
++    if (!candidate || entry.value < generation) {
++      candidate = entry.key.Get();
++      generation = entry.value;
+     }
+   }
+ 
+@@ -543,12 +562,15 @@
+   }
+ 
+   DCHECK(!context->isContextLost());
++  context->was_activated_ = true;
+   ActiveContexts().insert(context);
+ }
+ 
+ void WebGLRenderingContextBase::DeactivateContext(
+     WebGLRenderingContextBase* context) {
+-  ActiveContexts().erase(context);
++  if (auto* active_contexts = TryActiveContexts()) {
++    active_contexts->erase(context);
++  }
+ }
+ 
+ void WebGLRenderingContextBase::AddToEvictedList(
+@@ -559,23 +581,31 @@
+ 
+ void WebGLRenderingContextBase::RemoveFromEvictedList(
+     WebGLRenderingContextBase* context) {
+-  ForciblyEvictedContexts().erase(context);
++  if (auto* evicted_contexts = TryForciblyEvictedContexts()) {
++    evicted_contexts->erase(context);
++  }
+ }
+ 
+ void WebGLRenderingContextBase::RestoreEvictedContext(
+     WebGLRenderingContextBase* context) {
++  auto* evicted_contexts = TryForciblyEvictedContexts();
++  auto* active_contexts = TryActiveContexts();
+   // These two sets keep weak references to their contexts;
+-  // verify that the GC already removed the |context| entries.
+-  DCHECK(!ForciblyEvictedContexts().Contains(context));
+-  DCHECK(!ActiveContexts().Contains(context));
++  // verify that GC or Dispose() already removed the |context| entries.
++  DCHECK(!evicted_contexts || !evicted_contexts->Contains(context));
++  DCHECK(!active_contexts || !active_contexts->Contains(context));
++  if (!evicted_contexts || evicted_contexts->empty()) {
++    return;
++  }
+ 
+   unsigned max_gl_contexts = CurrentMaxGLContexts();
+   // Try to re-enable the oldest inactive contexts.
+-  while (ActiveContexts().size() < max_gl_contexts &&
+-         ForciblyEvictedContexts().size()) {
++  while (((active_contexts ? active_contexts->size() : 0u) < max_gl_contexts) &&
++         !evicted_contexts->empty()) {
+     WebGLRenderingContextBase* evicted_context = OldestEvictedContext();
+-    if (!evicted_context->restore_allowed_) {
+-      ForciblyEvictedContexts().erase(evicted_context);
++    if (!evicted_context->isContextLost() ||
++        !evicted_context->restore_allowed_ || !evicted_context->Host()) {
++      evicted_contexts->erase(evicted_context);
+       continue;
+     }
+ 
+@@ -585,7 +615,7 @@
+ 
+     // If there's room in the pixel budget for this context, restore it.
+     if (!desired_size.IsEmpty()) {
+-      ForciblyEvictedContexts().erase(evicted_context);
++      evicted_contexts->erase(evicted_context);
+       evicted_context->ForceRestoreContext();
+     }
+     break;
+@@ -1693,31 +1723,13 @@
+ }
+ 
+ WebGLRenderingContextBase::~WebGLRenderingContextBase() {
+-  // It's forbidden to refer to other GC'd objects in a GC'd object's
+-  // destructor. It's useful for DrawingBuffer to guarantee that it
+-  // calls its DrawingBufferClient during its own destruction, but if
+-  // the WebGL context is also being destroyed, then it's essential
+-  // that the DrawingBufferClient methods not try to touch other
+-  // objects like WebGLTextures that were previously hooked into the
+-  // context state.
++  // Dispose() normally tears down the underlying context and triggers evicted
++  // context restoration during Oilpan pre-finalization before sweeping begins
++  // (touching other GC'd objects in a destructor is forbidden). Keep an
++  // idempotent off-heap fallback here in case an object is destroyed without
++  // Dispose().
+   destruction_in_progress_ = true;
+-
+-  // Now that the context and context group no longer hold on to the
+-  // objects they create, and now that the objects are eagerly finalized
+-  // rather than the context, there is very little useful work that this
+-  // destructor can do, since it's not allowed to touch other on-heap
+-  // objects. All it can do is destroy its underlying context, which, if
+-  // there are no other contexts in the same share group, will cause all of
+-  // the underlying graphics resources to be deleted. (Currently, it's
+-  // always the case that there are no other contexts in the same share
+-  // group -- resource sharing between WebGL contexts is not yet
+-  // implemented, and due to its complex semantics, it's doubtful that it
+-  // ever will be.)
+   DestroyContext();
+-
+-  // Now that this context is destroyed, see if there's a
+-  // previously-evicted one that should be restored.
+-  RestoreEvictedContext(this);
+ }
+ 
+ HTMLCanvasElement* WebGLRenderingContextBase::canvas() const {
+@@ -1839,6 +1851,32 @@
+ 
+ void WebGLRenderingContextBase::Dispose() {
+   TRACE_EVENT("gpu", __PRETTY_FUNCTION__);
++  if (!destruction_in_progress_) {
++    // Tear down the DrawingBuffer and detach its cc::TextureLayer during Oilpan
++    // pre-finalization before sweeping begins, while avoiding access to dead
++    // on-heap WebGL child objects.
++    destruction_in_progress_ = true;
++    if (!isContextLost()) {
++      context_lost_mode_ = kCanvasDisposed;
++    }
++    restore_allowed_ = false;
++    auto_recovery_method_ = kManual;
++    dispatch_context_lost_event_timer_.Stop();
++    restore_timer_.Stop();
++    DeactivateContext(this);
++    RemoveFromEvictedList(this);
++    DestroyContext();
++    // Only restore an evicted context if this context was previously activated
++    // by ActivateContext(). If CreateDrawingBuffer() fails in the constructor,
++    // WebGLContextFactory::CreateInternal() immediately calls Dispose() before
++    // InitializeNewContext() and ActivateContext() are reached; such a context
++    // never occupied a slot in ActiveContexts() and should not trigger
++    // restoration of a previously evicted context.
++    if (was_activated_) {
++      RestoreEvictedContext(this);
++    }
++  }
++
+   base::trace_event::MemoryDumpManager::GetInstance()->UnregisterDumpProvider(
+       this);
+   resource_provider_.reset();
+@@ -7860,7 +7898,9 @@
+ }
+ 
+ cc::Layer* WebGLRenderingContextBase::CcLayer() const {
+-  return isContextLost() ? nullptr : GetDrawingBuffer()->CcLayer();
++  return (isContextLost() || !GetDrawingBuffer())
++             ? nullptr
++             : GetDrawingBuffer()->CcLayer();
+ }
+ 
+ void WebGLRenderingContextBase::SetHdrMetadata(
+diff --git a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h
+index e4b8904..bcd1dae 100644
+--- a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h
++++ b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h
+@@ -859,6 +859,10 @@
+   HeapTaskRunnerTimer<WebGLRenderingContextBase> restore_timer_;
+ 
+   bool destruction_in_progress_ = false;
++  // Tracks whether ActivateContext() was ever called for this context, so
++  // Dispose() does not restore an evicted context when disposing an
++  // uninitialized context whose initial CreateDrawingBuffer() failed.
++  bool was_activated_ = false;
+   bool marked_canvas_dirty_;
+   // For performance reasons we must separately track whether we've
+   // copied WebGL's drawing buffer to the canvas's backing store, for
+diff --git a/third_party/blink/renderer/platform/graphics/gpu/drawing_buffer.cc b/third_party/blink/renderer/platform/graphics/gpu/drawing_buffer.cc
+index 90cc9bdc..a1140ff 100644
+--- a/third_party/blink/renderer/platform/graphics/gpu/drawing_buffer.cc
++++ b/third_party/blink/renderer/platform/graphics/gpu/drawing_buffer.cc
+@@ -49,6 +49,7 @@
+ #include "base/trace_event/process_memory_dump.h"
+ #include "build/build_config.h"
+ #include "cc/layers/texture_layer.h"
++#include "cc/trees/layer_tree_host.h"
+ #include "components/viz/common/resources/shared_image_format.h"
+ #include "components/viz/common/resources/shared_image_format_utils.h"
+ #include "components/viz/common/resources/transferable_resource.h"
+@@ -417,8 +418,9 @@
+ }
+ 
+ bool DrawingBuffer::RequiresAlphaChannelToBePreserved() {
+-  return client_->DrawingBufferClientIsBoundForDraw() &&
+-         DefaultBufferRequiresAlphaChannelToBePreserved();
++  return client_ && !destruction_in_progress_ &&
++         DefaultBufferRequiresAlphaChannelToBePreserved() &&
++         client_->DrawingBufferClientIsBoundForDraw();
+ }
+ 
+ bool DrawingBuffer::DefaultBufferRequiresAlphaChannelToBePreserved() {
+@@ -1394,6 +1396,9 @@
+ }
+ 
+ cc::Layer* DrawingBuffer::CcLayer() {
++  if (destruction_in_progress_) {
++    return nullptr;
++  }
+   if (!layer_) {
+     layer_ = cc::TextureLayer::Create(this);
+     if (client_) {
+@@ -1411,8 +1416,14 @@
+ }
+ 
+ void DrawingBuffer::ClearCcLayer() {
+-  if (layer_)
+-    layer_->ClearTexture();
++  if (layer_) {
++    if (auto* host = layer_->layer_tree_host();
++        host && host->in_will_commit()) {
++      host->ScheduleLayerForPostCommitDisposal(layer_);
++    }
++    layer_->ClearClient();
++    layer_ = nullptr;
++  }
+ 
+   gl_->Flush();
+ }
+@@ -1420,6 +1431,7 @@
+ void DrawingBuffer::BeginDestruction() {
+   DCHECK(!destruction_in_progress_);
+   destruction_in_progress_ = true;
++  client_ = nullptr;
+ 
+   ClearCcLayer();
+   if (color_buffer_pool_) {
+@@ -1456,8 +1468,6 @@
+   depth_stencil_buffer_ = 0;
+   multisample_fbo_ = 0;
+   fbo_ = 0;
+-
+-  client_ = nullptr;
+ }
+ 
+ bool DrawingBuffer::ReallocateDefaultFramebuffer(const gfx::Size& size,
+@@ -1909,13 +1919,16 @@
+ void DrawingBuffer::RestoreFramebufferBindings() {
+   // Can be called with ScopedDrawingBufferBinder on the stack after
+   // context loss. Null checking client_ is insufficient.
+-  if (destruction_in_progress_) {
++  if (!client_ || destruction_in_progress_) {
+     return;
+   }
+   client_->DrawingBufferClientRestoreFramebufferBinding();
+ }
+ 
+ void DrawingBuffer::RestoreAllState() {
++  if (!client_ || destruction_in_progress_) {
++    return;
++  }
+   client_->DrawingBufferClientRestoreScissorTest();
+   client_->DrawingBufferClientRestoreMaskAndClearValues();
+   client_->DrawingBufferClientRestorePixelPackParameters();
+@@ -2425,7 +2438,7 @@
+   drawing_buffer_->state_restorer_ = this;
+ 
+   Client* client = drawing_buffer_->client_;
+-  if (!client) {
++  if (!client || drawing_buffer_->destruction_in_progress_) {
+     return;
+   }
+   client->DrawingBufferClientInterruptPixelLocalStorage();
+diff --git a/third_party/blink/renderer/platform/graphics/gpu/drawing_buffer.h b/third_party/blink/renderer/platform/graphics/gpu/drawing_buffer.h
+index 7e73a96..5fe92de 100644
+--- a/third_party/blink/renderer/platform/graphics/gpu/drawing_buffer.h
++++ b/third_party/blink/renderer/platform/graphics/gpu/drawing_buffer.h
+@@ -245,6 +245,8 @@
+   // operations.
+   void SetDrawBuffer(GLenum draw_buffer);
+ 
++  // Returns the compositing layer for this buffer, or nullptr once
++  // BeginDestruction() has started.
+   cc::Layer* CcLayer();
+ 
+   gpu::gles2::GLES2Interface* ContextGL();
 diff --git a/third_party/blink/renderer/platform/widget/input/widget_input_handler_impl.cc b/third_party/blink/renderer/platform/widget/input/widget_input_handler_impl.cc
 index 3c0ecb1..1323c25 100644
 --- a/third_party/blink/renderer/platform/widget/input/widget_input_handler_impl.cc
@@ -25668,6 +26684,64 @@ index 0000000..a72709e
 @@ -0,0 +1 @@
 +<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path d="M3.57 13.73a1.25 1.25 0 0 1-.92-.38 1.25 1.25 0 0 1-.38-.92V3.57c0-.36.13-.67.38-.92a1.25 1.25 0 0 1 .92-.38h8.87c.36 0 .67.13.92.38s.38.56.38.92v8.87c0 .36-.13.67-.38.92a1.25 1.25 0 0 1-.92.38Zm6.87-1.38h1.92v-8.7h-1.92Zm-1.39 0v-8.7h-5.4v8.7Z"/></svg>
 \ No newline at end of file
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_input.html.ts b/ui/webui/resources/cr_components/searchbox/searchbox_input.html.ts
+index c7b803ac..84bc08b 100644
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_input.html.ts
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_input.html.ts
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-import {html} from '//resources/lit/v3_0/lit.rollup.js';
++import {html, nothing} from '//resources/lit/v3_0/lit.rollup.js';
+ 
+ import type {SearchboxInputElement} from './searchbox_input.js';
+ 
+@@ -41,6 +41,7 @@
+       ${this.multiLineEnabled ? html`
+         <textarea id="input" autocomplete="off"
+             part="searchbox-input"
++            inputmode="${this.textInputType || nothing}"
+             spellcheck="false" role="combobox"
+             aria-expanded="${this.dropdownIsVisible}"
+             aria-controls="selectionListbox"
+@@ -58,7 +59,9 @@
+             @paste="${this.onInputPaste_}"
+             @scroll="${this.onInputScroll_}"></textarea>
+       ` : html`
+-        <input id="input" class="truncate" type="search" autocomplete="off"
++        <input id="input" class="truncate"
++            type="${this.textInputType ? 'text' : 'search'}"
++            inputmode="${this.textInputType || nothing}" autocomplete="off"
+             part="searchbox-input"
+             spellcheck="false" role="combobox"
+             aria-expanded="${this.dropdownIsVisible}"
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_input.ts b/ui/webui/resources/cr_components/searchbox/searchbox_input.ts
+index 85b18c07..db6edbfb 100644
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_input.ts
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_input.ts
+@@ -101,6 +101,13 @@
+       allowFilePaste: {type: Boolean},
+       urlEmphasisEnabled: {type: Boolean, reflect: true},
+       urlEmphasis: {type: Object},
++      /**
++       * The kind of text the input expects, for IMEs and software keyboards.
++       * If set, it's the `inputmode` of a `type="text"` input: Windows treats
++       * `type="search"` as a search field, and `type="url"` strips whitespace.
++       * Otherwise, the input is a search field.
++       */
++      textInputType: {type: String},
+     };
+   }
+ 
+@@ -120,6 +127,7 @@
+   accessor allowFilePaste: boolean = false;
+   accessor urlEmphasisEnabled: boolean = false;
+   accessor urlEmphasis: UrlEmphasis|null = null;
++  accessor textInputType: ''|'url'|'search' = '';
+ 
+   private lastInput_: Input = {text: '', inline: ''};
+   // See `InputUpdate.additionalText`. Rendered by the #mirror.
 diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
 index ffb7f79..fad7bcdf 100644
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_match.css
@@ -28431,7 +29505,7 @@ diff --git a/build/util/LASTCHANGE b/build/util/LASTCHANGE
 +++ b/build/util/LASTCHANGE
 @@ -1,2 +1,2 @@
 -LASTCHANGE=98a2592026af8d673b9fa83b626ac68bdf4ae78a-refs/branch-heads/8154@{#90}
-+LASTCHANGE=e7e0307092d584bafed95fc407c93ce0d916920a-refs/branch-heads/8154@{#349}
++LASTCHANGE=7fa59f2dfbb1d04c88b5e9cb98cdde7501f654d7-refs/branch-heads/8154@{#424}
  LASTCHANGE_YEAR=2026
 diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 --- a/build/util/LASTCHANGE.committime
@@ -28439,7 +29513,7 @@ diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 @@ -1 +1 @@
 -1794431514
 \ No newline at end of file
-+1794620144
++1794705101
 \ No newline at end of file
 diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
 --- a/gpu/config/gpu_lists_version.h
@@ -28449,7 +29523,7 @@ diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
  #define GPU_CONFIG_GPU_LISTS_VERSION_H_
  
 -#define GPU_LISTS_VERSION "98a2592026af8d673b9fa83b626ac68bdf4ae78a"
-+#define GPU_LISTS_VERSION "e7e0307092d584bafed95fc407c93ce0d916920a"
++#define GPU_LISTS_VERSION "7fa59f2dfbb1d04c88b5e9cb98cdde7501f654d7"
  
  #endif  // GPU_CONFIG_GPU_LISTS_VERSION_H_
 diff --git a/skia/ext/skia_commit_hash.h b/skia/ext/skia_commit_hash.h
