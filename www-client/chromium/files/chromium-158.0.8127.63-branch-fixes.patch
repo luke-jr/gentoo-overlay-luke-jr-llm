@@ -1,21 +1,71 @@
 Chromium 158.0.8127.63 + the later changes of its release branch, up to
-fdc6e3d4266d83070a48c3aafd41c6a3421c83f1 (refs/branch-heads/8127@{#1772}), for the
+fb2ddb35e20d49ad139b9817e91dd4192931e2bf (refs/branch-heads/8127@{#1776}), for the
 158.0.8127.63 tree that chromium-158.0.8127.37-to-158.0.8127.63.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.63..fdc6e3d4266d83070a48c3aafd41c6a3421c83f1
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.63..fb2ddb35e20d49ad139b9817e91dd4192931e2bf
 (no dependency's DEPS revision changed), as served by Gitiles, with
 scripts/chromium-delta --branch-fixes (against the .63 tree's files, renames
 included): left out are files not in the release tarball,
-iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs, translations,
-PGO/orderfile/AFDO pointers, submodule pointer updates. chrome/VERSION, the DEPS
+iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs, translations
+other than en-GB, PGO/orderfile/AFDO pointers, submodule pointer updates. chrome/VERSION, the DEPS
 files and the stamp files stay at 158.0.8127.63.
 
 Commits contributing to it (oldest first):
   fdc6e3d4266d [M158] Bound mDNS response parsing by received datagram length
+  09a2b66e8ff6 Updating XTBs based on .GRDs from branch 8127
+  fb2ddb35e20d [M158] Avoid use-after-free in WidgetInputHandlerImpl::DispatchEvent
 
 Checked: applies to the 158.0.8127.63 tree; every patched file is
 byte-identical to its version at the commit above.
 
+diff --git a/chrome/app/resources/generated_resources_en-GB.xtb b/chrome/app/resources/generated_resources_en-GB.xtb
+index f778983..f20fee1c 100644
+--- a/chrome/app/resources/generated_resources_en-GB.xtb
++++ b/chrome/app/resources/generated_resources_en-GB.xtb
+@@ -535,7 +535,6 @@
+ <translation id="1401216725754314428">Learn more about related sites in a new tab</translation>
+ <translation id="1402426911829176748">Connecting to your device</translation>
+ <translation id="1405779994569073824">Crashed.</translation>
+-<translation id="1406812885827747674">Allow this time</translation>
+ <translation id="1407069428457324124">Dark theme</translation>
+ <translation id="1407135791313364759">Open all</translation>
+ <translation id="140723521119632973">Mobile activation</translation>
+@@ -5344,7 +5343,6 @@
+ <translation id="5031769842769721381">{SELECTED_ITEMS,plural, =0{Addresses}=1{Address ({SELECTED_ITEMS})}other{Addresses ({SELECTED_ITEMS})}}</translation>
+ <translation id="5032430150487044192">Can't create QR code</translation>
+ <translation id="5033137252639132982">Not allowed to use motion sensors</translation>
+-<translation id="5034158480345261097"><ph name="ACTOR_NAME" /> can use Google Password Manager to sign in for you. <ph name="BEGIN_LINK" />Learn how <ph name="ACTOR_NAME" /> handles your data<ph name="END_LINK" /></translation>
+ <translation id="5035846135112863536">Choose 'More details' below to get more information from <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" />.</translation>
+ <translation id="5037676449506322593">Select all</translation>
+ <translation id="5038621320029329200">Trusted certificates</translation>
+@@ -8530,7 +8528,6 @@
+ <translation id="7495149565104413027">Android app</translation>
+ <translation id="7497322070873193353">Google AI</translation>
+ <translation id="7497981768003291373">You have no recently captured WebRTC text logs.</translation>
+-<translation id="7499684925421947861">Allow <ph name="ACTOR_NAME" /> to sign in to <ph name="DOMAIN" /> for you?</translation>
+ <translation id="7501957181231305652">or</translation>
+ <translation id="7502220299952823578">Add to the ‘always keep these sites active’ list</translation>
+ <translation id="7502528909759062987">Pause casting tab to <ph name="DEVICE_NAME" /></translation>
+diff --git a/components/strings/components_strings_en-GB.xtb b/components/strings/components_strings_en-GB.xtb
+index d7e5647f..4e2e37f 100644
+--- a/components/strings/components_strings_en-GB.xtb
++++ b/components/strings/components_strings_en-GB.xtb
+@@ -2433,6 +2433,7 @@
+ <translation id="5026121202864677765">Write my cover letter</translation>
+ <translation id="5030338702439866405">Issued By</translation>
+ <translation id="503069730517007720">A root certificate for '<ph name="SOFTWARE_NAME" />' is required but isn’t installed. Your IT administrator should look at configuration instructions for '<ph name="SOFTWARE_NAME" />' to fix this problem. <ph name="FURTHER_EXPLANATION" /></translation>
++<translation id="5034158480345261097"><ph name="ACTOR_NAME" /> can use Google Password Manager to sign in for you. <ph name="BEGIN_LINK" />Learn how <ph name="ACTOR_NAME" /> handles your data<ph name="END_LINK" /></translation>
+ <translation id="5034488401832901795">Save KTN securely in Google Wallet</translation>
+ <translation id="503498442187459473"><ph name="HOST" /> wants to use your camera and microphone</translation>
+ <translation id="503574301575803523">SRA3</translation>
+@@ -3905,6 +3906,7 @@
+ <translation id="7490622939531327327">Smarter form understanding</translation>
+ <translation id="7495528107193238112">This content is blocked. Contact the site owner to fix the issue.</translation>
+ <translation id="7499188644237027195">When you make purchases in Chrome, see eWallet and Pix as options</translation>
++<translation id="7499684925421947861">Allow <ph name="ACTOR_NAME" /> to sign in to <ph name="DOMAIN" /> for you?</translation>
+ <translation id="7500917112031739411">Show by group</translation>
+ <translation id="7501663406926337752">The site ahead is flagged by your organisation</translation>
+ <translation id="7502044688973049724">manage your info</translation>
 diff --git a/services/network/mdns_responder.cc b/services/network/mdns_responder.cc
 index 327e0bb1..ad5867f 100644
 --- a/services/network/mdns_responder.cc
@@ -72,3 +122,28 @@ index 327e0bb1..ad5867f 100644
  
      switch (parsed_record->type()) {
        case net::ARecordRdata::kType:
+diff --git a/third_party/blink/renderer/platform/widget/input/widget_input_handler_impl.cc b/third_party/blink/renderer/platform/widget/input/widget_input_handler_impl.cc
+index 4286bb00..629a70f 100644
+--- a/third_party/blink/renderer/platform/widget/input/widget_input_handler_impl.cc
++++ b/third_party/blink/renderer/platform/widget/input/widget_input_handler_impl.cc
+@@ -202,11 +202,17 @@
+         original_event_for_gesture,
+     DispatchEventCallback callback) {
+   TRACE_EVENT("input,input.scrolling", "WidgetInputHandlerImpl::DispatchEvent");
++  scoped_refptr<WidgetInputHandlerManager> manager = input_handler_manager_;
+   if (original_event_for_gesture.has_value()) {
+-    input_handler_manager_->DispatchEvent(
+-        std::move(original_event_for_gesture.value()), DispatchEventCallback());
++    base::WeakPtr<WidgetInputHandlerImpl> weak_this =
++        weak_ptr_factory_.GetWeakPtr();
++    manager->DispatchEvent(std::move(original_event_for_gesture.value()),
++                           DispatchEventCallback());
++    if (!weak_this) {
++      return;
++    }
+   }
+-  input_handler_manager_->DispatchEvent(std::move(event), std::move(callback));
++  manager->DispatchEvent(std::move(event), std::move(callback));
+ }
+ 
+ void WidgetInputHandlerImpl::DispatchNonBlockingEvent(
