@@ -1,15 +1,15 @@
 Chromium 159.0.8154.10 + the later changes of its release branch, up to
-c1b0e0032eaedd77fa8db9983022d2e162dcb21f (refs/branch-heads/8154@{#500}), for the
+820f8b2f146260ba009818abe8f4956f8c3616dc (refs/branch-heads/8154@{#511}), for the
 159.0.8154.10 tree that chromium-159.0.8154.6-to-159.0.8154.10.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/159.0.8154.10..c1b0e0032eaedd77fa8db9983022d2e162dcb21f,
+Generated from the upstream diff chromium/src refs/tags/159.0.8154.10..820f8b2f146260ba009818abe8f4956f8c3616dc,
+and the dependency whose DEPS revision changed:
+chromium/deps/icu b09986242cfb165b9111ade98be6b042ef973b86..d3c612f4414600bd06a68db89944df130b5bc248 (under third_party/icu/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
-.10 tree's files; no dependency in the tarball changed its DEPS revision, only
-the internal clank and ios_internal did): left out are files not in the release
-tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
-translations other than en-GB, PGO/orderfile pointers, submodule pointer
-updates. chrome/VERSION, the DEPS files and the stamp files stay at
-159.0.8154.10.
+.10 tree's files): left out are files not in the release tarball,
+iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs, translations other
+than en-GB, PGO/orderfile pointers, submodule pointer updates. chrome/VERSION,
+the DEPS files and the stamp files stay at 159.0.8154.10.
 
 Commits contributing to it (oldest first):
   5d9a2f639ea0 [M159] Bound mDNS response parsing by received datagram length
@@ -25,9 +25,17 @@ Commits contributing to it (oldest first):
   0e6781a41e48 [M159] Reland "[LHS] Fix rail tooltips reappearing when closing expanded LHS"
   8adf71fd1a82 [M159] [contextual-tasks] Migrate Lens overlay tests to unified side panel
   c1b0e0032eae [M159] [WebAudio] Validate renderSizeHint without sampleRate
+  0b21bb316774 [M159] Show document chip for images without visual source
+  567966da2187 [M159] [Composebox] Skip backend resets on submit close
+  ee9fe9d17945 [M159] [contextual-tasks] Add interactive UI tests for the ABA search journey
+  c5893c371221 [M159] [contextual-tasks] Record search journey end reasons and cue outcomes
+  4d370bc45b7f [M159] [contextual-tasks] Use raw Super G icon in WebUI toolbar
+  976b8d5df3a1 [M159] [OmniboxEverywhere] Only expand when text input is focused
+  820f8b2f1462 [M159] Roll src/third_party/icu/ b09986242..d3c612f (1 commit)
+    icu d3c612f44146 [icu] Check memory allocation failures in DecNum and Scale
 
 Checked: applies to the 159.0.8154.10 tree; every patched file is
-byte-identical to its version at the last commit above.
+byte-identical to its version at the commits above.
 
 diff --git a/chrome/app/resources/generated_resources_en-GB.xtb b/chrome/app/resources/generated_resources_en-GB.xtb
 index ce18e395..48523d3 100644
@@ -113,6 +121,498 @@ index ce18e395..48523d3 100644
  <translation id="7956373551960864128">Your saved printers</translation>
  <translation id="7956918070009672177">There are no <ph name="LANGUAGE" /> voices on your device. Connect to the Internet and try again.</translation>
  <translation id="7957074856830851026">See device information, such as its serial number or asset ID</translation>
+diff --git a/chrome/browser/contextual_tasks/BUILD.gn b/chrome/browser/contextual_tasks/BUILD.gn
+index e3e4744..c042c2f 100644
+--- a/chrome/browser/contextual_tasks/BUILD.gn
++++ b/chrome/browser/contextual_tasks/BUILD.gn
+@@ -197,6 +197,7 @@
+     "//chrome/browser/sync",
+     "//chrome/browser/tab_list",
+     "//chrome/browser/themes",
++    "//chrome/browser/ui:ui_features",
+     "//chrome/browser/ui/browser_window",
+     "//chrome/browser/ui/contextual_search",
+     "//chrome/browser/ui/omnibox",
+@@ -1047,11 +1048,13 @@
+       "contextual_tasks_interactive_uitest.cc",
+       "contextual_tasks_side_panel_coordinator_interactive_uitest.cc",
+       "contextual_tasks_ui_service_interactive_uitest.cc",
++      "search_journey_interactive_uitest.cc",
+     ]
+     deps += [
+       ":interactive_ui_test_support",
+       ":ui",
+       ":user_data",
++      "//chrome/browser/contextual_cueing",
+       "//chrome/browser/extensions",
+       "//chrome/browser/infobars",
+       "//chrome/browser/ui/omnibox",
+@@ -1072,6 +1075,7 @@
+       "//chrome/browser/ui/views/contextual_tasks:onboarding_bubble",
+       "//chrome/browser/ui/views/frame:browser_view_header",
+       "//chrome/browser/ui/views/infobars",
++      "//chrome/browser/ui/views/page_action",
+       "//chrome/browser/ui/views/page_info",
+       "//chrome/browser/ui/views/site_data",
+       "//chrome/browser/ui/views/toolbar",
+@@ -1084,11 +1088,14 @@
+       "//components/infobars/content",
+       "//components/infobars/core",
+       "//components/lens:enterprise_policy",
++      "//components/search_engines",
++      "//components/sessions",
+       "//components/strings:components_strings",
+       "//extensions/common",
+       "//third_party/lens_server_proto:lens_overlay_proto",
+       "//ui/base/interaction:test_support",
+       "//ui/views",
++      "//ui/views/controls/webview",
+     ]
+   }
+ 
+diff --git a/chrome/browser/contextual_tasks/aba_search_journey_cue_target.cc b/chrome/browser/contextual_tasks/aba_search_journey_cue_target.cc
+index ab2c92a..de13d30 100644
+--- a/chrome/browser/contextual_tasks/aba_search_journey_cue_target.cc
++++ b/chrome/browser/contextual_tasks/aba_search_journey_cue_target.cc
+@@ -96,6 +96,13 @@
+   OnCueShown(/*is_anchored_message=*/false);
+ }
+ 
++void AbaSearchJourneyCueTarget::OnChipClicked() {
++  if (SearchJourneyTabFeature* feature =
++          SearchJourneyTabFeature::From(&tab_.get())) {
++    feature->OnCueChipClicked();
++  }
++}
++
+ void AbaSearchJourneyCueTarget::OnAnchoredMessageShown(
+     page_actions::PageActionPriorityCategory priority) {
+   OnCueShown(/*is_anchored_message=*/true);
+diff --git a/chrome/browser/contextual_tasks/aba_search_journey_cue_target.h b/chrome/browser/contextual_tasks/aba_search_journey_cue_target.h
+index c2fea05b..08bc74e 100644
+--- a/chrome/browser/contextual_tasks/aba_search_journey_cue_target.h
++++ b/chrome/browser/contextual_tasks/aba_search_journey_cue_target.h
+@@ -51,6 +51,7 @@
+       const page_content_annotations::PageContentAnnotationsResult& result,
+       content::WebContents* active_web_contents) const override;
+   void OnChipShown() override;
++  void OnChipClicked() override;
+   void OnAnchoredMessageShown(
+       page_actions::PageActionPriorityCategory priority) override;
+   void OnAnchoredMessageClicked(contextual_cueing::CueActionData data) override;
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_utils.cc b/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
+index 6039d86..561214fc 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
+@@ -37,6 +37,7 @@
+ #include "content/public/browser/navigation_handle.h"
+ #include "net/http/http_response_headers.h"
+ #if !BUILDFLAG(IS_ANDROID)
++#include "build/branding_buildflags.h"
+ #include "chrome/browser/contextual_tasks/active_task_context_provider.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h"
+ #include "chrome/browser/themes/theme_service.h"
+@@ -45,8 +46,10 @@
+ #include "chrome/browser/ui/browser_actions.h"
+ #include "chrome/browser/ui/contextual_search/tab_contextualization_controller.h"
+ #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.h"
++#include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.h"
+ #include "chrome/grit/branded_strings.h"
++#include "chrome/grit/theme_resources.h"
+ #include "components/contextual_tasks/public/features.h"
+ #include "components/lens/contextual_input.h"
+ #include "components/lens/lens_overlay_mime_type.h"
+@@ -56,6 +59,10 @@
+ #include "components/sessions/core/session_id.h"
+ #include "components/strings/grit/components_strings.h"
+ #include "ui/actions/actions.h"
++#include "ui/base/models/image_model.h"
++#include "ui/base/resource/resource_bundle.h"
++#include "ui/gfx/image/image.h"
++#include "ui/gfx/image/image_skia.h"
+ #endif
+ #include "chrome/common/webui_url_constants.h"
+ #include "components/contextual_search/contextual_search_metrics_recorder.h"
+@@ -739,6 +746,26 @@
+     return;
+   }
+ 
++#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
++  if (features::IsWebUIPinnedToolbarActionsEnabled() &&
++      ShouldUseSuperGIconForPinButtons()) {
++    // WebUI pinned toolbar actions resolves known resource images by comparing
++    // the ImageSkia backing object against ResourceBundle, and applies the icon
++    // size delta in CSS. Replace the resized ImageSkia with the raw resource
++    // image if it is not already set so WebUI's known-resource check succeeds.
++    const gfx::ImageSkia* const raw_super_g =
++        ui::ResourceBundle::GetSharedInstance().GetImageSkiaNamed(
++            IDR_GOOGLE_G_GRADIENT_20);
++    if (raw_super_g && (!action_item->GetImage().IsImage() ||
++                        !action_item->GetImage()
++                             .GetImage()
++                             .AsImageSkia()
++                             .BackedBySameObjectAs(*raw_super_g))) {
++      action_item->SetImage(ui::ImageModel::FromImageSkia(*raw_super_g));
++    }
++  }
++#endif
++
+   const bool is_pinning_eligible =
+       contextual_tasks::EntryPointEligibilityManager::IsPinningEligible(
+           browser_window->GetProfile());
+diff --git a/chrome/browser/contextual_tasks/search_journey_tab_feature.cc b/chrome/browser/contextual_tasks/search_journey_tab_feature.cc
+index b4d8473f..05b5977 100644
+--- a/chrome/browser/contextual_tasks/search_journey_tab_feature.cc
++++ b/chrome/browser/contextual_tasks/search_journey_tab_feature.cc
+@@ -162,6 +162,13 @@
+   }
+ }
+ 
++void SearchJourneyTabFeature::OnCueChipClicked() {
++  if (tracker_ && web_contents()) {
++    tracker_->OnJourneyCueChipClicked(
++        sessions::SessionTabHelper::IdForTab(web_contents()));
++  }
++}
++
+ void SearchJourneyTabFeature::OnTextCopiedToClipboard(
+     content::RenderFrameHost* render_frame_host,
+     const std::u16string& copied_text) {
+diff --git a/chrome/browser/contextual_tasks/search_journey_tab_feature.h b/chrome/browser/contextual_tasks/search_journey_tab_feature.h
+index b462b9c..711c81c 100644
+--- a/chrome/browser/contextual_tasks/search_journey_tab_feature.h
++++ b/chrome/browser/contextual_tasks/search_journey_tab_feature.h
+@@ -62,6 +62,10 @@
+   // anchored message, or false if it was shown as the collapsed chip.
+   void OnCueShown(bool is_anchored_message);
+ 
++  // Records that the user clicked the collapsed chip of the contextual cue for
++  // this tab's journey.
++  void OnCueChipClicked();
++
+   // content::WebContentsObserver:
+   void OnTextCopiedToClipboard(content::RenderFrameHost* render_frame_host,
+                                const std::u16string& copied_text) override;
+diff --git a/chrome/browser/contextual_tasks/search_journey_tracker.cc b/chrome/browser/contextual_tasks/search_journey_tracker.cc
+index 283ef32b..a5f8a10 100644
+--- a/chrome/browser/contextual_tasks/search_journey_tracker.cc
++++ b/chrome/browser/contextual_tasks/search_journey_tracker.cc
+@@ -6,6 +6,7 @@
+ 
+ #include <algorithm>
+ #include <string>
++#include <string_view>
+ #include <utility>
+ 
+ #include "base/containers/adapters.h"
+@@ -15,6 +16,7 @@
+ #include "base/metrics/histogram_functions.h"
+ #include "base/metrics/user_metrics.h"
+ #include "base/metrics/user_metrics_action.h"
++#include "base/notreached.h"
+ #include "base/numerics/safe_conversions.h"
+ #include "base/rand_util.h"
+ #include "base/strings/strcat.h"
+@@ -70,6 +72,73 @@
+   }
+ }
+ 
++// Returns the `ContextualTasks.SearchJourney.CueOutcome{JourneyType}` suffix
++// for journeys labeled with `hint`.
++std::string_view GetQueryHintJourneyType(AimPromoQueryHint hint) {
++  switch (hint) {
++    case AimPromoQueryHint::kNone:
++      return ".NoQueryHint";
++    case AimPromoQueryHint::kEduHomework:
++      return ".EduHomework";
++    case AimPromoQueryHint::kEduConceptual:
++      return ".EduConceptual";
++    case AimPromoQueryHint::kHowToWebApp:
++      return ".HowToWebApp";
++  }
++  NOTREACHED();
++}
++
++SearchJourneyCueOutcome GetCueOutcome(const JourneyState& journey,
++                                      SearchJourneyEndReason reason) {
++  if (!journey.cue_shown) {
++    return SearchJourneyCueOutcome::kNoCue;
++  }
++  const bool clicked = reason == SearchJourneyEndReason::kRestored;
++  if (!journey.cue_shown_as_anchored_message) {
++    return clicked ? SearchJourneyCueOutcome::kChipClicked
++                   : SearchJourneyCueOutcome::kChipIgnored;
++  }
++  if (!clicked) {
++    return SearchJourneyCueOutcome::kAnchoredMessageIgnored;
++  }
++  return journey.cue_chip_clicked
++             ? SearchJourneyCueOutcome::kAnchoredMessageCollapsedThenClicked
++             : SearchJourneyCueOutcome::kAnchoredMessageClicked;
++}
++
++// Records why `journey` ended and, if its cue was eligible, what happened to
++// the cue, sliced by each journey type that applies.
++void RecordJourneyEnd(const JourneyState& journey,
++                      SearchJourneyEndReason reason) {
++  base::UmaHistogramEnumeration("ContextualTasks.SearchJourney.EndReason",
++                                reason);
++  if (!journey.eligible_recorded) {
++    return;
++  }
++  static constexpr char kCueOutcome[] =
++      "ContextualTasks.SearchJourney.CueOutcome";
++  const SearchJourneyCueOutcome outcome = GetCueOutcome(journey, reason);
++  base::UmaHistogramEnumeration(kCueOutcome, outcome);
++  if (journey.matched_copy) {
++    base::UmaHistogramEnumeration(base::StrCat({kCueOutcome, ".CopyMatch"}),
++                                  outcome);
++  }
++  if (journey.is_context_menu_search) {
++    base::UmaHistogramEnumeration(
++        base::StrCat({kCueOutcome, ".ContextMenuSearch"}), outcome);
++  }
++  if (journey.query_hints.empty()) {
++    base::UmaHistogramEnumeration(
++        base::StrCat(
++            {kCueOutcome, GetQueryHintJourneyType(AimPromoQueryHint::kNone)}),
++        outcome);
++  }
++  for (AimPromoQueryHint hint : journey.query_hints) {
++    base::UmaHistogramEnumeration(
++        base::StrCat({kCueOutcome, GetQueryHintJourneyType(hint)}), outcome);
++  }
++}
++
+ }  // namespace
+ 
+ AimPromoParams::AimPromoParams() = default;
+@@ -185,13 +254,17 @@
+     if (source_tab_id == tab_id) {
+       // Only a return to the page the user left counts.
+       returned = journey.source_nav_entry_id == nav_entry_id;
++      if (!returned) {
++        RecordJourneyEnd(journey, SearchJourneyEndReason::kSourceTabNavigated);
++      }
+       return !returned;
+     }
+-    if (journey.search_tab_id == tab_id) {
++    if (journey.search_tab_id == tab_id || allow_intermediate_tabs) {
+       return false;
+     }
+     // Any other tab is an intermediate tab, as in A -> B -> C -> A.
+-    return !allow_intermediate_tabs;
++    RecordJourneyEnd(journey, SearchJourneyEndReason::kIntermediateTab);
++    return true;
+   });
+   if (returned) {
+     base::RecordAction(base::UserMetricsAction(
+@@ -256,7 +329,11 @@
+ 
+   // A new search in Tab B replaces the journey tied to its previous search.
+   std::erase_if(active_journeys_, [search_tab_id](const auto& pair) {
+-    return pair.second.search_tab_id == search_tab_id;
++    if (pair.second.search_tab_id != search_tab_id) {
++      return false;
++    }
++    RecordJourneyEnd(pair.second, SearchJourneyEndReason::kReplacedByNewSearch);
++    return true;
+   });
+ 
+   // Only a search in the tab the user is looking at, after they left a
+@@ -278,6 +355,11 @@
+     journey.matched_copy = true;
+     journey.is_context_menu_search = matching_copy->is_context_menu_search;
+   }
++  // A new journey for Tab A replaces its earlier one, as in A -> B -> A -> C.
++  if (auto it = active_journeys_.find(source_tab_->tab_id);
++      it != active_journeys_.end()) {
++    RecordJourneyEnd(it->second, SearchJourneyEndReason::kReplacedByNewSearch);
++  }
+   active_journeys_.insert_or_assign(source_tab_->tab_id, std::move(journey));
+   base::RecordAction(
+       base::UserMetricsAction("ContextualTasks.SearchJourney.Armed"));
+@@ -342,6 +424,7 @@
+   }
+   base::RecordAction(
+       base::UserMetricsAction("ContextualTasks.SearchJourney.Restored"));
++  RecordJourneyEnd(it->second, SearchJourneyEndReason::kRestored);
+   active_journeys_.erase(it);
+ }
+ 
+@@ -360,6 +443,7 @@
+   auto it = active_journeys_.find(source_tab_id);
+   if (it != active_journeys_.end() && !it->second.cue_shown) {
+     it->second.cue_shown = true;
++    it->second.cue_shown_as_anchored_message = is_anchored_message;
+     base::RecordAction(
+         base::UserMetricsAction("ContextualTasks.SearchJourney.Cue.Shown"));
+     base::RecordAction(
+@@ -372,11 +456,26 @@
+   }
+ }
+ 
++void SearchJourneyTracker::OnJourneyCueChipClicked(SessionID source_tab_id) {
++  auto it = active_journeys_.find(source_tab_id);
++  if (it == active_journeys_.end() || !it->second.cue_shown) {
++    return;
++  }
++  it->second.cue_chip_clicked = true;
++  base::RecordAction(
++      base::UserMetricsAction("ContextualTasks.SearchJourney.Cue.ChipClicked"));
++}
++
+ void SearchJourneyTracker::OnTabDestroyed(SessionID tab_id) {
++  // Journeys past their TTL are recorded as expired rather than closed.
++  EvictExpiredRecords();
+   std::erase_if(ring_buffer_, [tab_id](const CopyRecord& record) {
+     return record.source_tab_id == tab_id;
+   });
+-  active_journeys_.erase(tab_id);
++  if (auto it = active_journeys_.find(tab_id); it != active_journeys_.end()) {
++    RecordJourneyEnd(it->second, SearchJourneyEndReason::kSourceTabClosed);
++    active_journeys_.erase(it);
++  }
+   for (auto& [source_tab_id, journey] : active_journeys_) {
+     if (journey.search_tab_id == tab_id) {
+       journey.search_tab_closed = true;
+@@ -391,6 +490,11 @@
+ }
+ 
+ void SearchJourneyTracker::ClearState() {
++  // Journeys past their TTL are recorded as expired rather than cleared.
++  EvictExpiredRecords();
++  for (const auto& [source_tab_id, journey] : active_journeys_) {
++    RecordJourneyEnd(journey, SearchJourneyEndReason::kStateCleared);
++  }
+   ring_buffer_.clear();
+   source_tab_.reset();
+   active_journeys_.clear();
+@@ -406,7 +510,11 @@
+     source_tab_.reset();
+   }
+   std::erase_if(active_journeys_, [now, ttl](const auto& pair) {
+-    return now - pair.second.search_committed_time > ttl;
++    if (now - pair.second.search_committed_time <= ttl) {
++      return false;
++    }
++    RecordJourneyEnd(pair.second, SearchJourneyEndReason::kExpired);
++    return true;
+   });
+ }
+ 
+diff --git a/chrome/browser/contextual_tasks/search_journey_tracker.h b/chrome/browser/contextual_tasks/search_journey_tracker.h
+index 8b9d90a..4da254b0 100644
+--- a/chrome/browser/contextual_tasks/search_journey_tracker.h
++++ b/chrome/browser/contextual_tasks/search_journey_tracker.h
+@@ -58,6 +58,55 @@
+                                          AimPromoQueryHint::kEduHomework,
+                                          AimPromoQueryHint::kMaxValue>;
+ 
++// Why an armed ABA journey ended. These values are persisted to logs. Entries
++// should not be renumbered and numeric values should never be reused. Recorded
++// in `ContextualTasks.SearchJourney.EndReason`.
++// LINT.IfChange(SearchJourneyEndReason)
++enum class SearchJourneyEndReason {
++  // The journey's AI Overview was restored in the side panel.
++  kRestored = 0,
++  // The journey's TTL elapsed.
++  kExpired = 1,
++  // The user returned to Tab A, but it was on a different page.
++  kSourceTabNavigated = 2,
++  // Tab A was closed or discarded, including when its window closed.
++  kSourceTabClosed = 3,
++  // Tab B committed a different search, or a new journey started for Tab A.
++  kReplacedByNewSearch = 4,
++  // The user activated a tab other than Tab A or Tab B.
++  kIntermediateTab = 5,
++  // All journeys were cleared, usually because the default search provider
++  // changed. Rarely, the profile shut down before its tabs closed.
++  kStateCleared = 6,
++  kMaxValue = kStateCleared,
++};
++// LINT.ThenChange(//tools/metrics/histograms/metadata/contextual_tasks/enums.xml:SearchJourneyEndReason)
++
++// What happened to an eligible ABA journey's contextual cue by the time the
++// journey ended. These values are persisted to logs. Entries should not be
++// renumbered and numeric values should never be reused. Recorded in
++// `ContextualTasks.SearchJourney.CueOutcome{JourneyType}`.
++// LINT.IfChange(SearchJourneyCueOutcome)
++enum class SearchJourneyCueOutcome {
++  // The cue never showed.
++  kNoCue = 0,
++  // The cue showed as the expanded anchored message, and the user clicked it.
++  kAnchoredMessageClicked = 1,
++  // The cue showed as the expanded anchored message and collapsed, and the
++  // user later clicked the chip and then the re-shown anchored message.
++  kAnchoredMessageCollapsedThenClicked = 2,
++  // The cue showed as the expanded anchored message, but the journey ended
++  // without a click.
++  kAnchoredMessageIgnored = 3,
++  // The cue showed as the collapsed chip, and the user clicked it.
++  kChipClicked = 4,
++  // The cue showed as the collapsed chip, but the journey ended without a
++  // click.
++  kChipIgnored = 5,
++  kMaxValue = kChipIgnored,
++};
++// LINT.ThenChange(//tools/metrics/histograms/metadata/contextual_tasks/enums.xml:SearchJourneyCueOutcome)
++
+ // Parameters that a Google search results page registers so Chrome can later
+ // restore its AI Overview as the first turn of an AI Mode thread. Empty
+ // strings are omitted from the restore URL.
+@@ -114,6 +163,11 @@
+   bool eligible_recorded = false;
+   // Whether the journey's contextual cue has shown. It only shows once.
+   bool cue_shown = false;
++  // Whether the cue first showed as the expanded anchored message, rather than
++  // the collapsed chip.
++  bool cue_shown_as_anchored_message = false;
++  // Whether the user has clicked the cue's collapsed chip.
++  bool cue_chip_clicked = false;
+ };
+ 
+ // Profile-keyed service that tracks ABA search journeys: the user leaves an
+@@ -233,6 +287,11 @@
+   // anchored message, or false if it was shown as the collapsed chip.
+   void OnJourneyCueShown(SessionID source_tab_id, bool is_anchored_message);
+ 
++  // Records that the user clicked the collapsed chip of the contextual cue for
++  // the journey whose Tab A is `source_tab_id`. Clicking the chip re-shows the
++  // anchored message; the journey is restored only if the user then clicks it.
++  void OnJourneyCueChipClicked(SessionID source_tab_id);
++
+   // Clears copy records for `tab_id` and any journey whose Tab A is `tab_id`.
+   // Journeys whose Tab B is `tab_id` are kept and marked as closed.
+   void OnTabDestroyed(SessionID tab_id);
+diff --git a/chrome/browser/resources/new_tab_page/app.ts b/chrome/browser/resources/new_tab_page/app.ts
+index 3653e1d..0e2aa3e 100644
+--- a/chrome/browser/resources/new_tab_page/app.ts
++++ b/chrome/browser/resources/new_tab_page/app.ts
+@@ -1124,13 +1124,7 @@
+       const composebox =
+           this.shadowRoot.querySelector<NtpComposeboxElement>('#composebox');
+       assert(composebox);
+-      const closeComposebox = new CustomEvent('closeComposebox', {
+-        detail: {composeboxText: composebox.input},
+-        bubbles: true,
+-        cancelable: true,
+-      });
+-
+-      this.onCloseComposebox_(closeComposebox);
++      composebox.closeComposebox();
+     }
+   }
+ 
+@@ -1159,7 +1153,6 @@
+         this.shadowRoot.querySelector<NtpComposeboxElement>('#composebox');
+     assert(composebox);
+     composebox.input = '';
+-    composebox.resetModes();
+     if (this.ntpRealboxNextEnabled_) {
+       composebox.closeDropdown();
+     }
 diff --git a/chrome/browser/resources/new_tab_page/ntp_composebox.css b/chrome/browser/resources/new_tab_page/ntp_composebox.css
 index 23fa033a..e6aef74 100644
 --- a/chrome/browser/resources/new_tab_page/ntp_composebox.css
@@ -178,6 +678,227 @@ index c0f9ecb..afa981b 100644
    <!--_html_template_end_-->`;
    // clang-format on
  }
+diff --git a/chrome/browser/resources/omnibox_everywhere/app.ts b/chrome/browser/resources/omnibox_everywhere/app.ts
+index bc45b6b1..6d301bc 100644
+--- a/chrome/browser/resources/omnibox_everywhere/app.ts
++++ b/chrome/browser/resources/omnibox_everywhere/app.ts
+@@ -135,12 +135,14 @@
+         reflect: true,
+         attribute: 'is-active',
+       },
++      isExpanded_: {type: Boolean},
+       isPendingContextUpload_: {type: Boolean},
+     };
+   }
+ 
+   protected accessor isHotkeyDropdownOpen_: boolean = false;
+   protected accessor isActive_: boolean = true;
++  private accessor isExpanded_: boolean = true;
+   protected accessor isComposeboxMode_: boolean = false;
+   protected accessor isPendingContextUpload_: boolean = false;
+   protected accessor searchboxLayoutMode_: string =
+@@ -204,6 +206,9 @@
+     this.eventTracker_.add(window, 'focus', this.onWindowFocus_.bind(this));
+     this.eventTracker_.add(window, 'blur', this.onWindowBlur_.bind(this));
+     this.eventTracker_.add(window, 'click', this.onAppClick_.bind(this));
++    this.eventTracker_.add(this, 'text-input-focused', () => {
++      this.isExpanded_ = true;
++    });
+     this.eventTracker_.add(
+         document, 'visibilitychange', this.onVisibilitychange_.bind(this));
+     this.eventTracker_.add(
+@@ -222,10 +227,11 @@
+   override willUpdate(changedProperties: PropertyValues<this>) {
+     super.willUpdate(changedProperties);
+     if (this.dynamicSizing_) {
+-      // In persistent mode, rest in the small 480px state (4 MVT tiles) when
+-      // inactive, and expand both the searchbox and MVT row (5 tiles) when
+-      // focused.
+-      this.smallLoomnibox_ = this.isPersistentMode_ && !this.isActive_;
++      // In persistent mode, rest in the small 480px state (4 MVT tiles) until
++      // the text input is focused; then stay expanded (5 tiles) until the
++      // browser demotes the widget (`onDemoted_`). Transient window blurs
++      // (e.g. native menus) intentionally do not shrink it.
++      this.smallLoomnibox_ = this.isResting_();
+     }
+   }
+ 
+@@ -270,6 +276,11 @@
+     const onContextMenuClosed = () => {
+       this.composebox?.onContextMenuClosed();
+       this.searchbox?.onContextMenuClosed();
++      // The composebox restores input focus after its context menu closes,
++      // except at the 480px resting size, where focusing would expand it.
++      if (this.isComposeboxMode_ && !this.isResting_()) {
++        this.focusActiveInput_();
++      }
+     };
+ 
+     const onScreenshotCaptureCancelled = async () => {
+@@ -326,6 +337,15 @@
+             () => this.searchbox?.onOverflowMenuClosed()),
+         omniboxEverywhereCallbackRouter.onScreenshotCaptureCancelled
+             .addListener(onScreenshotCaptureCancelled),
++        omniboxEverywhereCallbackRouter.focusInput.addListener(() => {
++          // Expand even if the input can't take focus (e.g. under the FRE
++          // intro modal).
++          this.isExpanded_ = true;
++          this.focusActiveInput_();
++        }),
++        omniboxEverywhereCallbackRouter.onDemoted.addListener(() => {
++          this.onDemoted_();
++        }),
+     );
+   }
+ 
+@@ -382,6 +402,11 @@
+         this.composebox.getSearchboxHandler().setActiveModelMode(
+             state.model, false);
+       }
++      // Focus the input after a + menu action (e.g. picking a model), as
++      // entering composebox mode does below.
++      if (!isPendingContextUpload) {
++        this.composebox.focusInput();
++      }
+       return;
+     }
+     // Migrate any typed text from the Omnibox search input into the Composebox
+@@ -580,7 +605,9 @@
+     this.contextUploadOriginWasSearchbox_ = false;
+     this.setIsComposebox_(false);
+     await this.updateComplete;
+-    this.focusActiveInput_();
++    if (!this.isResting_()) {
++      this.focusActiveInput_();
++    }
+   }
+ 
+   private onKeyDown_(e: KeyboardEvent) {
+@@ -622,7 +649,16 @@
+     this.isPendingContextUpload_ = false;
+     this.contextUploadOriginWasSearchbox_ = false;
+     await this.updateComplete;
+-    this.focusActiveInput_();
++    if (!this.isResting_()) {
++      this.focusActiveInput_();
++    }
++  }
++
++  // Whether the window is in its 480px resting state (persistent dynamic sizing
++  // mode, not yet expanded by the text input). Focusing the input expands it,
++  // so automatic refocusing is skipped while resting.
++  private isResting_(): boolean {
++    return this.dynamicSizing_ && this.isPersistentMode_ && !this.isExpanded_;
+   }
+ 
+   private shouldAutoFocusInput_(): boolean {
+@@ -645,12 +681,31 @@
+     } else {
+       this.searchbox?.focusInput();
+     }
++    this.isExpanded_ = true;
++  }
++
++  private onDemoted_() {
++    this.isExpanded_ = false;
++    // Clear active element focus on demotion so Blink's `FocusController`
++    // does not auto-restore `<input>` focus when `web_contents()->Focus()`
++    // runs on `WM_ACTIVATE(WA_CLICKACTIVE)` before `WM_LBUTTONDOWN`.
++    const activeEl = getDeepActiveElement();
++    if (activeEl instanceof HTMLElement && activeEl !== document.body) {
++      activeEl.blur();
++    }
++    this.clearActivationTimeout_();
+   }
+ 
+   private onWindowFocus_() {
+     this.isActive_ = true;
+-    this.focusActiveInput_();
+     this.maybeRecordFreImpression_();
++    // In persistent dynamic sizing mode, only the text input expands the
++    // window. Activation (e.g. a click on a button, a drag, or closing a menu)
++    // only restores input focus if the window is already expanded.
++    if (this.isResting_()) {
++      return;
++    }
++    this.focusActiveInput_();
+     this.wasJustActivated_ = true;
+     if (this.activationTimeoutId_ !== null) {
+       clearTimeout(this.activationTimeoutId_);
+@@ -698,13 +753,17 @@
+     }
+ 
+     await this.updateComplete;
+-    this.focusActiveInput_();
+     this.maybeRecordFreImpression_();
++    if (this.isResting_()) {
++      return;
++    }
++    this.focusActiveInput_();
+   }
+ 
+   // TODO(b/540973063): Extract common voice search lifecycle handling into
+   // SearchboxMixin.
+   protected async onOpenVoiceSearch_() {
++    this.isExpanded_ = true;
+     this.showVoiceSearchOverlay_ = true;
+     this.voiceSearchListening_ = true;
+     this.voiceSearchReceivedSpeech_ = false;
+diff --git a/chrome/browser/resources/omnibox_everywhere/composebox.ts b/chrome/browser/resources/omnibox_everywhere/composebox.ts
+index 857fbdf..84782323 100644
+--- a/chrome/browser/resources/omnibox_everywhere/composebox.ts
++++ b/chrome/browser/resources/omnibox_everywhere/composebox.ts
+@@ -117,6 +117,13 @@
+         new Event('open-voice-search', {bubbles: true, composed: true}));
+   }
+ 
++  // Report text input focus to the app. A `focusin` moving between two
++  // controls inside this shadow tree is not dispatched past it.
++  override onInputFocusin() {
++    super.onInputFocusin();
++    this.fire('text-input-focused');
++  }
++
+   private wasScreenshotMenuOpenOnPointerDown_: boolean = false;
+ 
+   protected onLensSearchPointerdown_(e: PointerEvent) {
+@@ -334,9 +341,15 @@
+     this.showDropdown = this.computeShowDropdown();
+   }
+ 
++  // Mirrors ComposeboxMixin.onContextMenuClosed() minus focusInput(); keep in
++  // sync. Focusing the input expands the window, so closing the menu at the
++  // 480px resting size (or when it's canceled by demotion) would expand it. The
++  // app restores focus when the window isn't resting.
+   override async onContextMenuClosed(): Promise<void> {
+     this.isContextMenuOpen = false;
+-    await super.onContextMenuClosed();
++    this.contextMenuOpened = false;
++    this.shareTabsFlyoutOpen = false;
++    await this.updateComplete;
+     this.showDropdown = this.computeShowDropdown();
+   }
+ 
+diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.ts b/chrome/browser/resources/omnibox_everywhere/omnibox.ts
+index 61ef463f..882d39e 100644
+--- a/chrome/browser/resources/omnibox_everywhere/omnibox.ts
++++ b/chrome/browser/resources/omnibox_everywhere/omnibox.ts
+@@ -450,8 +450,14 @@
+   // Event handlers
+   //========================================================================
+ 
+-  protected onInputFocusin_() {
++  protected onInputFocusin_(e: FocusEvent) {
+     this.pageHandler_.onFocusChanged(true);
++    // Report text input focus (not the slotted compose button) to the app.
++    // A `focusin` moving between two controls inside this shadow tree is not
++    // dispatched past it, so the app cannot observe it directly.
++    if (e.composedPath().includes(this.$.input.inputElement)) {
++      this.fire('text-input-focused');
++    }
+   }
+ 
+   override stepCyclesSelection(
 diff --git a/chrome/browser/ui/lens/lens_overlay_interactive_test_base.cc b/chrome/browser/ui/lens/lens_overlay_interactive_test_base.cc
 index 81ebab8..82c72ef 100644
 --- a/chrome/browser/ui/lens/lens_overlay_interactive_test_base.cc
@@ -303,6 +1024,50 @@ index 25fc6f4..957353e5 100644
  
    ON_CALL(*mock_handle_, CreateContextToken())
        .WillByDefault(::testing::Return(base::UnguessableToken::Create()));
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc
+index e4efde4..278d74b 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc
+@@ -704,6 +704,9 @@
+   if (web_contents()) {
+     web_contents()->Focus();
+   }
++  if (auto* ui = GetOmniboxEverywhereUI()) {
++    ui->FocusInput();
++  }
+ 
+   MaybeShowLensPromo();
+ }
+@@ -844,6 +847,9 @@
+     return;
+   }
+   is_demoted_ = true;
++  if (auto* ui = GetOmniboxEverywhereUI()) {
++    ui->OnDemoted();
++  }
+   EndLensPromo();
+   widget_->SetZOrderLevel(ui::ZOrderLevel::kNormal);
+   // Deactivate only if the widget is currently active to avoid deactivating
+@@ -873,6 +879,9 @@
+   }
+   CancelTransientUiState();
+   if (!std::exchange(is_demoted_, true)) {
++    if (auto* ui = GetOmniboxEverywhereUI()) {
++      ui->OnDemoted();
++    }
+     EndLensPromo();
+   }
+   widget_->Minimize();
+@@ -1028,6 +1037,9 @@
+   }
+   CancelTransientUiState();
+   if (!std::exchange(is_demoted_, true)) {
++    if (auto* ui = GetOmniboxEverywhereUI()) {
++      ui->OnDemoted();
++    }
+     EndLensPromo();
+   }
+   if (prefs::IsEphemeralModelEnabled() && !HasOpenModalDialog()) {
 diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
 index d5086c04..07e4e77 100644
 --- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
@@ -1150,6 +1915,93 @@ index f489d79..123c181 100644
  
    // Caches the last text string sent to the WebUI to avoid redundant IPCs.
    // Null after a state reset (e.g., tab switch).
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/mojom/omnibox_everywhere.mojom b/chrome/browser/ui/webui/omnibox_everywhere/mojom/omnibox_everywhere.mojom
+index 39bb3ad..3fc4ec9 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/mojom/omnibox_everywhere.mojom
++++ b/chrome/browser/ui/webui/omnibox_everywhere/mojom/omnibox_everywhere.mojom
+@@ -82,4 +82,13 @@
+   // Notifies the WebUI that a pending screenshot capture (e.g. region or
+   // window selection) was cancelled by the user or failed.
+   OnScreenshotCaptureCancelled();
++
++  // Notifies the WebUI to focus the active text input whenever the browser
++  // programmatically activates the widget (e.g. hotkey, tray, shortcut, or
++  // restoring focus after a picker closes).
++  FocusInput();
++
++  // Notifies the WebUI that the widget was demoted (sent to the background in
++  // persistent mode) or minimized.
++  OnDemoted();
+ };
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.cc b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.cc
+index a79ce4b..be951f7 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.cc
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.cc
+@@ -68,3 +68,15 @@
+     page_->OnScreenshotCaptureCancelled();
+   }
+ }
++
++void OmniboxEverywherePageHandler::FocusInput() {
++  if (page_) {
++    page_->FocusInput();
++  }
++}
++
++void OmniboxEverywherePageHandler::OnDemoted() {
++  if (page_) {
++    page_->OnDemoted();
++  }
++}
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.h b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.h
+index a47385b..b5600ac7 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.h
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.h
+@@ -45,6 +45,8 @@
+   void OpenComposebox(
+       omnibox_everywhere::mojom::ComposeboxInitialStatePtr initial_state);
+   void OnScreenshotCaptureCancelled();
++  void FocusInput();
++  void OnDemoted();
+ 
+  private:
+   mojo::Receiver<omnibox_everywhere::mojom::PageHandler> receiver_;
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc
+index 22f7ef48..330a9221 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc
+@@ -1163,6 +1163,18 @@
+   omnibox_everywhere::OmniboxEverywhereHotkeyBubbleView::CloseIfOpen();
+ }
+ 
++void OmniboxEverywhereUI::FocusInput() {
++  if (page_handler_) {
++    page_handler_->FocusInput();
++  }
++}
++
++void OmniboxEverywhereUI::OnDemoted() {
++  if (page_handler_) {
++    page_handler_->OnDemoted();
++  }
++}
++
+ void OmniboxEverywhereUI::OnFileChooserOpened() {
+   if (auto* service =
+           OmniboxEverywhereServiceFactory::GetForProfile(profile_)) {
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.h b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.h
+index 765ce45..916c7ff 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.h
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.h
+@@ -254,6 +254,8 @@
+   contextual_search::ContextualSearchSessionHandle*
+   GetOrCreateContextualSessionHandle();
+   void ClearContextualSessionHandle();
++  void FocusInput();
++  void OnDemoted();
+ 
+  private:
+   void OnComposeboxHandlerDisconnected();
 diff --git a/chrome/browser/ui/webui/searchbox/BUILD.gn b/chrome/browser/ui/webui/searchbox/BUILD.gn
 index 5ab1d23..fe9d0a5a 100644
 --- a/chrome/browser/ui/webui/searchbox/BUILD.gn
@@ -2292,6 +3144,142 @@ index d5b2cf6..fa48f2d0 100644
  }
  
  void RealtimeAudioDestinationHandler::CreatePlatformDestination() {
+diff --git a/tools/metrics/actions/actions.xml b/tools/metrics/actions/actions.xml
+index 822c98e..91e0398 100644
+--- a/tools/metrics/actions/actions.xml
++++ b/tools/metrics/actions/actions.xml
+@@ -10519,6 +10519,15 @@
+   </description>
+ </action>
+ 
++<action name="ContextualTasks.SearchJourney.Cue.ChipClicked">
++  <owner>juanmojica@google.com</owner>
++  <owner>chrome-contextual-tasks-eng@google.com</owner>
++  <description>
++    Recorded when the user clicks the collapsed chip of the ABA search journey
++    contextual cue on the source tab, which re-shows its anchored message.
++  </description>
++</action>
++
+ <action name="ContextualTasks.SearchJourney.Cue.Clicked">
+   <owner>juanmojica@google.com</owner>
+   <owner>chrome-contextual-tasks-eng@google.com</owner>
+diff --git a/tools/metrics/histograms/metadata/contextual_tasks/histograms.xml b/tools/metrics/histograms/metadata/contextual_tasks/histograms.xml
+index aaed0b2..c6e4e1f 100644
+--- a/tools/metrics/histograms/metadata/contextual_tasks/histograms.xml
++++ b/tools/metrics/histograms/metadata/contextual_tasks/histograms.xml
+@@ -31,6 +31,23 @@
+   <variant name="Shown" summary="shown on the source tab"/>
+ </variants>
+ 
++<variants name="AbaSearchJourneyType">
++  <variant name="ContextMenuSearch"
++      summary="journeys whose query matched text selected for a context-menu
++               search on the source tab"/>
++  <variant name="CopyMatch"
++      summary="journeys whose query matched text copied or selected for a
++               context-menu search on the source tab"/>
++  <variant name="EduConceptual"
++      summary="journeys labeled EduConceptual by the search results page"/>
++  <variant name="EduHomework"
++      summary="journeys labeled EduHomework by the search results page"/>
++  <variant name="HowToWebApp"
++      summary="journeys labeled HowToWebApp by the search results page"/>
++  <variant name="NoQueryHint"
++      summary="journeys without a label from the search results page"/>
++</variants>
++
+ <histogram name="ContextualTasks.ActiveTab.UserAction.LinkClicked"
+     enum="Boolean" expires_after="2027-03-07">
+   <owner>sophiechang@chromium.org</owner>
+@@ -1024,6 +1041,49 @@
+   <token key="Interaction" variants="AbaSearchJourneyCueInteraction"/>
+ </histogram>
+ 
++<histogram name="ContextualTasks.SearchJourney.CueOutcome"
++    enum="SearchJourneyCueOutcome" expires_after="2027-06-18">
++  <owner>juanmojica@google.com</owner>
++  <owner>chrome-contextual-tasks-eng@google.com</owner>
++  <summary>
++    Recorded once when an ABA search journey ends, if the journey's contextual
++    cue was eligible to show on the first qualifying return to the source tab.
++    Records whether the cue showed, whether it first showed as the expanded
++    anchored message or the collapsed chip, and whether the user clicked it to
++    restore the journey in the side panel.
++  </summary>
++</histogram>
++
++<histogram name="ContextualTasks.SearchJourney.CueOutcome.{JourneyType}"
++    enum="SearchJourneyCueOutcome" expires_after="2027-06-18">
++  <owner>juanmojica@google.com</owner>
++  <owner>chrome-contextual-tasks-eng@google.com</owner>
++  <summary>
++    Recorded once when an ABA search journey ends, for {JourneyType}, if the
++    journey's contextual cue was eligible to show on the first qualifying return
++    to the source tab. Records whether the cue showed, whether it first showed
++    as the expanded anchored message or the collapsed chip, and whether the user
++    clicked it to restore the journey in the side panel. A journey labeled with
++    several hints is recorded once for each.
++  </summary>
++  <token key="JourneyType" variants="AbaSearchJourneyType"/>
++</histogram>
++
++<histogram name="ContextualTasks.SearchJourney.EndReason"
++    enum="SearchJourneyEndReason" expires_after="2027-06-18">
++  <owner>juanmojica@google.com</owner>
++  <owner>chrome-contextual-tasks-eng@google.com</owner>
++  <summary>
++    Recorded once when an armed ABA search journey ends. Records why it ended:
++    it was restored in the side panel; it expired; the user returned to the
++    source tab on a different page; the source tab was closed or discarded
++    (including when its window closed); the search tab committed a different
++    search, or a new journey started for the source tab; the user switched to
++    another tab; or all journeys were cleared, usually because the default
++    search provider changed.
++  </summary>
++</histogram>
++
+ <histogram name="ContextualTasks.Session.Completed" enum="Boolean"
+     expires_after="2027-03-07">
+   <owner>sophiechang@chromium.org</owner>
+diff --git a/ui/webui/resources/cr_components/composebox/composebox_mixin.ts b/ui/webui/resources/cr_components/composebox/composebox_mixin.ts
+index 4d355c9..a6477af 100644
+--- a/ui/webui/resources/cr_components/composebox/composebox_mixin.ts
++++ b/ui/webui/resources/cr_components/composebox/composebox_mixin.ts
+@@ -2470,12 +2470,14 @@
+          */
+         closeComposebox(afterSubmit: boolean = false) {
+           this.resetDelayedTabContextRequests_();
+-          this.resetModes();
+-          this.getSearchboxHandler().clearFiles(
+-              /*shouldBlockAutoSuggestedTabs=*/ false);
+-          // With dynamic AIM fulfillment, clearing the model (after the files)
+-          // leaves AI Mode.
+-          this.resetToolsAndModels();
++          if (!afterSubmit) {
++            this.resetModes();
++            this.getSearchboxHandler().clearFiles(
++                /*shouldBlockAutoSuggestedTabs=*/ false);
++            // With dynamic AIM fulfillment, clearing the model (after the
++            // files) leaves AI Mode.
++            this.resetToolsAndModels();
++          }
+           this.suggestInventory = null;
+           // <if expr="not is_android">
+           if (this.smartTabSharingVisible && !afterSubmit && !this.submitting) {
+diff --git a/ui/webui/resources/cr_components/composebox/file_thumbnail.ts b/ui/webui/resources/cr_components/composebox/file_thumbnail.ts
+index 0db02d7..92f8d38 100644
+--- a/ui/webui/resources/cr_components/composebox/file_thumbnail.ts
++++ b/ui/webui/resources/cr_components/composebox/file_thumbnail.ts
+@@ -120,7 +120,7 @@
+     if (this.file && isHeifImage(this.file)) {
+       return Boolean(this.file.thumbnailUrl);
+     }
+-    return this.isImage_() ||
++    return Boolean(this.isImage_() && this.file?.objectUrl) ||
+         Boolean(this.file?.dataUrl || this.file?.thumbnailUrl) ||
+         Boolean(this.isSupportedVideo_() && this.file?.objectUrl);
+   }
 diff --git a/ui/webui/resources/cr_components/composebox/threads_rail.css b/ui/webui/resources/cr_components/composebox/threads_rail.css
 index b9f1450..1b77e8b 100644
 --- a/ui/webui/resources/cr_components/composebox/threads_rail.css
@@ -2455,3 +3443,924 @@ index 5aafeee..b8264ef 100644
        const modifier =
            isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
        if (modifier && e.key === 'z') {
+diff --git a/third_party/icu/README.chromium b/third_party/icu/README.chromium
+index 07b19c6..de671ad 100644
+--- a/third_party/icu/README.chromium
++++ b/third_party/icu/README.chromium
+@@ -309,3 +309,9 @@
+   - https://github.com/unicode-org/icu/pull/4214
+   - https://github.com/unicode-org/icu/pull/4296
+   - https://crbug.com/574025697
++
++20. Check memory allocation failures in DecNum, Scale, and MaybeStackArray.
++  - patches/decnum_alloc_failure.patch
++  - https://unicode-org.atlassian.net/browse/ICU-23604
++  - https://github.com/unicode-org/icu/pull/4345
++  - https://crbug.com/573288374
+diff --git a/third_party/icu/patches/decnum_alloc_failure.patch b/third_party/icu/patches/decnum_alloc_failure.patch
+new file mode 100644
+index 0000000..969948d
+--- /dev/null
++++ b/third_party/icu/patches/decnum_alloc_failure.patch
+@@ -0,0 +1,606 @@
++diff --git a/source/common/cmemory.h b/source/common/cmemory.h
++index e31c54aac..6b4d6fcf2 100644
++--- a/source/common/cmemory.h
+++++ b/source/common/cmemory.h
++@@ -345,7 +345,7 @@ public:
++      * Intended for use when an approximate capacity is known at compile time but the true
++      * capacity is not known until runtime.
++      */
++-    MaybeStackArray(int32_t newCapacity, UErrorCode status) : MaybeStackArray() {
+++    MaybeStackArray(int32_t newCapacity, UErrorCode &status) : MaybeStackArray() {
++         if (U_FAILURE(status)) {
++             return;
++         }
++diff --git a/source/i18n/number_decnum.h b/source/i18n/number_decnum.h
++index db0e69f68..b1d5930ad 100644
++--- a/source/i18n/number_decnum.h
+++++ b/source/i18n/number_decnum.h
++@@ -24,38 +24,39 @@ class U_I18N_API_CLASS DecNum : public UMemory {
++     U_I18N_API DecNum();  // leaves object in valid but undefined state
++ 
++     // Copy-like constructor; use the default move operators.
++-    DecNum(const DecNum& other, UErrorCode& status);
+++    U_I18N_API DecNum(const DecNum &other, UErrorCode &status);
++ 
++     /** Sets the decNumber to the StringPiece. */
++-    void setTo(StringPiece str, UErrorCode& status);
+++    U_I18N_API void setTo(StringPiece str, UErrorCode &status);
++ 
++     /** Sets the decNumber to the NUL-terminated char string. */
++-    void setTo(const char* str, UErrorCode& status);
+++    U_I18N_API void setTo(const char *str, UErrorCode &status);
++ 
++     /** Uses double_conversion to set this decNumber to the given double. */
++-    void setTo(double d, UErrorCode& status);
+++    U_I18N_API void setTo(double d, UErrorCode &status);
++ 
++     /** Sets the decNumber to the BCD representation. */
++-    void setTo(const uint8_t* bcd, int32_t length, int32_t scale, bool isNegative, UErrorCode& status);
+++    U_I18N_API void setTo(const uint8_t *bcd, int32_t length, int32_t scale, bool isNegative,
+++                          UErrorCode &status);
++ 
++-    void normalize();
+++    U_I18N_API void normalize();
++ 
++-    void multiplyBy(const DecNum& rhs, UErrorCode& status);
+++    U_I18N_API void multiplyBy(const DecNum &rhs, UErrorCode &status);
++ 
++-    void divideBy(const DecNum& rhs, UErrorCode& status);
+++    U_I18N_API void divideBy(const DecNum &rhs, UErrorCode &status);
++ 
++-    bool isNegative() const;
+++    U_I18N_API bool isNegative() const;
++ 
++-    bool isZero() const;
+++    U_I18N_API bool isZero() const;
++ 
++     /** Is infinity or NaN */
++-    bool isSpecial() const;
+++    U_I18N_API bool isSpecial() const;
++ 
++-    bool isInfinity() const;
+++    U_I18N_API bool isInfinity() const;
++ 
++-    bool isNaN() const;
+++    U_I18N_API bool isNaN() const;
++ 
++-    void toString(ByteSink& output, UErrorCode& status) const;
+++    U_I18N_API void toString(ByteSink &output, UErrorCode &status) const;
++ 
++     inline CharString toCharString(UErrorCode& status) const {
++       CharString cstr;
++diff --git a/source/i18n/number_multiplier.cpp b/source/i18n/number_multiplier.cpp
++index e6bc2a1e3..c00df9b52 100644
++--- a/source/i18n/number_multiplier.cpp
+++++ b/source/i18n/number_multiplier.cpp
++@@ -9,12 +9,13 @@
++ // Helpful in toString methods and elsewhere.
++ #define UNISTR_FROM_STRING_EXPLICIT
++ 
+++#include "decNumber.h"
++ #include "number_decnum.h"
++-#include "number_types.h"
+++#include "number_microprops.h"
++ #include "number_multiplier.h"
++-#include "numparse_validators.h"
+++#include "number_types.h"
++ #include "number_utils.h"
++-#include "decNumber.h"
+++#include "numparse_validators.h"
++ 
++ using namespace icu;
++ using namespace icu::number;
++@@ -41,20 +42,30 @@ Scale::Scale(const Scale& other)
++         : fMagnitude(other.fMagnitude), fArbitrary(nullptr), fError(other.fError) {
++     if (other.fArbitrary != nullptr) {
++         UErrorCode localStatus = U_ZERO_ERROR;
++-        fArbitrary = new DecNum(*other.fArbitrary, localStatus);
+++        LocalPointer<DecNum> decnum(new DecNum(*other.fArbitrary, localStatus), localStatus);
+++        if (U_FAILURE(localStatus)) {
+++            fError = localStatus;
+++            return;
+++        }
+++        fArbitrary = decnum.orphan();
++     }
++ }
++ 
++ Scale& Scale::operator=(const Scale& other) {
++     if (this == &other) { return *this; }  // self-assignment: no-op
++     fMagnitude = other.fMagnitude;
+++    delete fArbitrary;
+++    fArbitrary = nullptr;
+++    fError = other.fError;
++     if (other.fArbitrary != nullptr) {
++         UErrorCode localStatus = U_ZERO_ERROR;
++-        fArbitrary = new DecNum(*other.fArbitrary, localStatus);
++-    } else {
++-        fArbitrary = nullptr;
+++        LocalPointer<DecNum> decnum(new DecNum(*other.fArbitrary, localStatus), localStatus);
+++        if (U_FAILURE(localStatus)) {
+++            fError = localStatus;
+++            return *this;
+++        }
+++        fArbitrary = decnum.orphan();
++     }
++-    fError = other.fError;
++     return *this;
++ }
++ 
++@@ -152,6 +163,10 @@ MultiplierFormatHandler::setAndChain(const Scale& multiplier, const MicroPropsGe
++ void MultiplierFormatHandler::processQuantity(DecimalQuantity& quantity, MicroProps& micros,
++                                               UErrorCode& status) const {
++     fParent->processQuantity(quantity, micros, status);
+++    if (U_FAILURE(status) || fMultiplier.copyErrorTo(status) ||
+++        micros.helpers.multiplier.fMultiplier.copyErrorTo(status)) {
+++        return;
+++    }
++     fMultiplier.applyTo(quantity);
++ }
++ 
++diff --git a/source/i18n/number_utils.cpp b/source/i18n/number_utils.cpp
++index ad7053214..2e239a62f 100644
++--- a/source/i18n/number_utils.cpp
+++++ b/source/i18n/number_utils.cpp
++@@ -96,15 +96,24 @@ DecNum::DecNum() {
++     uprv_decContextDefault(&fContext, DEC_INIT_BASE);
++     uprv_decContextSetRounding(&fContext, DEC_ROUND_HALF_EVEN);
++     fContext.traps = 0; // no traps, thank you (what does this even mean?)
+++    fContext.digits = kDefaultDigits;
+++    uprv_decNumberZero(fData.getAlias());
++ }
++ 
++ DecNum::DecNum(const DecNum& other, UErrorCode& status)
++         : fContext(other.fContext) {
+++    if (U_FAILURE(status)) {
+++        fContext.digits = kDefaultDigits;
+++        uprv_decNumberZero(fData.getAlias());
+++        return;
+++    }
++     // Allocate memory for the new DecNum.
++-    U_ASSERT(fContext.digits == other.fData.getCapacity());
+++    U_ASSERT(fContext.digits <= other.fData.getCapacity());
++     if (fContext.digits > kDefaultDigits) {
++         void* p = fData.resize(fContext.digits, 0);
++         if (p == nullptr) {
+++            fContext.digits = kDefaultDigits;
+++            uprv_decNumberZero(fData.getAlias());
++             status = U_MEMORY_ALLOCATION_ERROR;
++             return;
++         }
++@@ -112,23 +121,35 @@ DecNum::DecNum(const DecNum& other, UErrorCode& status)
++ 
++     // Copy the data from the old DecNum to the new one.
++     uprv_memcpy(fData.getAlias(), other.fData.getAlias(), sizeof(decNumber));
++-    uprv_memcpy(fData.getArrayStart(),
++-            other.fData.getArrayStart(),
++-            other.fData.getArrayLimit() - other.fData.getArrayStart());
+++    uprv_memcpy(fData.getArrayStart(), other.fData.getArrayStart(), fData.getCapacity());
++ }
++ 
++ void DecNum::setTo(StringPiece str, UErrorCode& status) {
+++    if (U_FAILURE(status)) {
+++        return;
+++    }
++     // We need NUL-terminated for decNumber; CharString guarantees this, but not StringPiece.
++     CharString cstr(str, status);
++     if (U_FAILURE(status)) { return; }
++-    _setTo(cstr.data(), str.length(), status);
+++    _setTo(cstr.data(), cstr.length(), status);
++ }
++ 
++ void DecNum::setTo(const char* str, UErrorCode& status) {
++-    _setTo(str, static_cast<int32_t>(uprv_strlen(str)), status);
+++    if (U_FAILURE(status)) {
+++        return;
+++    }
+++    size_t length = uprv_strlen(str);
+++    if (length > DEC_MAX_DIGITS) {
+++        status = U_UNSUPPORTED_ERROR;
+++        return;
+++    }
+++    _setTo(str, static_cast<int32_t>(length), status);
++ }
++ 
++ void DecNum::setTo(double d, UErrorCode& status) {
+++    if (U_FAILURE(status)) {
+++        return;
+++    }
++     // Need to check for NaN and Infinity before going into DoubleToStringConverter
++     if (std::isnan(d) != 0 || std::isfinite(d) == 0) {
++         status = U_UNSUPPORTED_ERROR;
++@@ -154,6 +175,9 @@ void DecNum::setTo(double d, UErrorCode& status) {
++ 
++     // Read initial result as a string.
++     _setTo(buffer, length, status);
+++    if (U_FAILURE(status)) {
+++        return;
+++    }
++ 
++     // Set exponent and bitmask. Note that DoubleToStringConverter does not do negatives.
++     fData.getAlias()->exponent += point - length;
++@@ -161,8 +185,18 @@ void DecNum::setTo(double d, UErrorCode& status) {
++ }
++ 
++ void DecNum::_setTo(const char* str, int32_t maxDigits, UErrorCode& status) {
+++    if (U_FAILURE(status)) {
+++        return;
+++    }
+++    if (maxDigits < 0 || maxDigits > DEC_MAX_DIGITS) {
+++        status = U_UNSUPPORTED_ERROR;
+++        return;
+++    }
++     if (maxDigits > kDefaultDigits) {
++-        fData.resize(maxDigits, 0);
+++        if (fData.resize(maxDigits, 0) == nullptr) {
+++            status = U_MEMORY_ALLOCATION_ERROR;
+++            return;
+++        }
++         fContext.digits = maxDigits;
++     } else {
++         fContext.digits = kDefaultDigits;
++@@ -184,13 +218,9 @@ void DecNum::_setTo(const char* str, int32_t maxDigits, UErrorCode& status) {
++ 
++ void
++ DecNum::setTo(const uint8_t* bcd, int32_t length, int32_t scale, bool isNegative, UErrorCode& status) {
++-    if (length > kDefaultDigits) {
++-        fData.resize(length, 0);
++-        fContext.digits = length;
++-    } else {
++-        fContext.digits = kDefaultDigits;
+++    if (U_FAILURE(status)) {
+++        return;
++     }
++-
++     // "digits is of type int32_t, and must have a value in the range 1 through 999,999,999."
++     if (length < 1 || length > 999999999) {
++         // Too large for decNumber
++@@ -208,6 +238,16 @@ DecNum::setTo(const uint8_t* bcd, int32_t length, int32_t scale, bool isNegative
++         return;
++     }
++ 
+++    if (length > kDefaultDigits) {
+++        if (fData.resize(length, 0) == nullptr) {
+++            status = U_MEMORY_ALLOCATION_ERROR;
+++            return;
+++        }
+++        fContext.digits = length;
+++    } else {
+++        fContext.digits = kDefaultDigits;
+++    }
+++
++     fData.getAlias()->digits = length;
++     fData.getAlias()->exponent = scale;
++     fData.getAlias()->bits = static_cast<uint8_t>(isNegative ? DECNEG : 0);
++@@ -223,6 +263,9 @@ void DecNum::normalize() {
++ }
++ 
++ void DecNum::multiplyBy(const DecNum& rhs, UErrorCode& status) {
+++    if (U_FAILURE(status)) {
+++        return;
+++    }
++     uprv_decNumberMultiply(fData, fData, rhs.fData, &fContext);
++     if (fContext.status != 0) {
++         status = U_INTERNAL_PROGRAM_ERROR;
++@@ -230,6 +273,9 @@ void DecNum::multiplyBy(const DecNum& rhs, UErrorCode& status) {
++ }
++ 
++ void DecNum::divideBy(const DecNum& rhs, UErrorCode& status) {
+++    if (U_FAILURE(status)) {
+++        return;
+++    }
++     uprv_decNumberDivide(fData, fData, rhs.fData, &fContext);
++     if ((fContext.status & DEC_Inexact) != 0) {
++         // Ignore.
++diff --git a/source/test/intltest/numbertest.h b/source/test/intltest/numbertest.h
++index 32aca96df..dd13e103a 100644
++--- a/source/test/intltest/numbertest.h
+++++ b/source/test/intltest/numbertest.h
++@@ -214,6 +214,7 @@ class DecimalQuantityTest : public IntlTest {
++     void testScientificAndCompactSuppressedExponent();
++     void testSuppressedExponentUnchangedByInitialScaling();
++     void testDecimalQuantityParseFormatRoundTrip();
+++    void testDecNumAllocationFailure();
++ 
++     void runIndexedTest(int32_t index, UBool exec, const char*& name, char* par = nullptr) override;
++ 
++diff --git a/source/test/intltest/numbertest_decimalquantity.cpp b/source/test/intltest/numbertest_decimalquantity.cpp
++index 80c3eb4da..6db1c6c53 100644
++--- a/source/test/intltest/numbertest_decimalquantity.cpp
+++++ b/source/test/intltest/numbertest_decimalquantity.cpp
++@@ -5,12 +5,15 @@
++ 
++ #if !UCONFIG_NO_FORMATTING
++ 
+++#include "math.h"
++ #include "number_decimalquantity.h"
++ #include "number_decnum.h"
++-#include "math.h"
++-#include <cmath>
++ #include "number_utils.h"
++ #include "numbertest.h"
+++#include "unicode/uclean.h"
+++#include "unicode/unumberformatter.h"
+++#include <cmath>
+++#include <cstdlib>
++ 
++ void DecimalQuantityTest::runIndexedTest(int32_t index, UBool exec, const char *&name, char *) {
++     if (exec) {
++@@ -34,7 +37,8 @@ void DecimalQuantityTest::runIndexedTest(int32_t index, UBool exec, const char *
++         TESTCASE_AUTO(testScientificAndCompactSuppressedExponent);
++         TESTCASE_AUTO(testSuppressedExponentUnchangedByInitialScaling);
++         TESTCASE_AUTO(testDecimalQuantityParseFormatRoundTrip);
++-    TESTCASE_AUTO_END;
+++        TESTCASE_AUTO(testDecNumAllocationFailure);
+++        TESTCASE_AUTO_END;
++ }
++ 
++ void DecimalQuantityTest::assertDoubleEquals(UnicodeString message, double a, double b) {
++@@ -773,4 +777,268 @@ void DecimalQuantityTest::testDecimalQuantityParseFormatRoundTrip() {
++ 
++ }
++ 
+++namespace {
+++
+++struct FailingAllocatorContext {
+++    int32_t allocations_remaining = -1;
+++};
+++
+++void *U_CALLCONV TestMemAlloc(const void *context, size_t size) {
+++    auto *ctx = const_cast<FailingAllocatorContext *>(
+++        static_cast<const FailingAllocatorContext *>(context));
+++    if (ctx != nullptr && ctx->allocations_remaining >= 0) {
+++        if (ctx->allocations_remaining == 0) {
+++            return nullptr;
+++        }
+++        --ctx->allocations_remaining;
+++    }
+++    return std::malloc(size);
+++}
+++
+++void *U_CALLCONV TestMemRealloc(const void *context, void *mem, size_t size) {
+++    auto *ctx = const_cast<FailingAllocatorContext *>(
+++        static_cast<const FailingAllocatorContext *>(context));
+++    if (ctx != nullptr && ctx->allocations_remaining >= 0) {
+++        if (ctx->allocations_remaining == 0) {
+++            return nullptr;
+++        }
+++        --ctx->allocations_remaining;
+++    }
+++    return std::realloc(mem, size);
+++}
+++
+++void U_CALLCONV TestMemFree(const void *, void *mem) { std::free(mem); }
+++
+++class ScopedFailingAllocator {
+++  public:
+++    ScopedFailingAllocator(FailingAllocatorContext *ctx, UErrorCode &status) : ctx_(ctx) {
+++        u_setMemoryFunctions(ctx_, TestMemAlloc, TestMemRealloc, TestMemFree, &status);
+++    }
+++
+++    ~ScopedFailingAllocator() {
+++        ctx_->allocations_remaining = -1;
+++        UErrorCode status = U_ZERO_ERROR;
+++        u_setMemoryFunctions(nullptr, TestMemAlloc, TestMemRealloc, TestMemFree, &status);
+++    }
+++
+++  private:
+++    FailingAllocatorContext *ctx_;
+++};
+++
+++} // namespace
+++
+++void DecimalQuantityTest::testDecNumAllocationFailure() {
+++    IcuTestErrorCode status(*this, "testDecNumAllocationFailure");
+++
+++    // 38 digits (> DECNUM_INITIAL_CAPACITY = 34, fits in CharString's 40-byte stack buffer)
+++    // and 200 digits (allocates both CharString and DecNum on the heap).
+++    const char kDigits38[39] = "77777777777777777777777777777777777777";
+++    const char kLongDigits[201] = "77777777777777777777777777777777777777777777777777"
+++                                  "77777777777777777777777777777777777777777777777777"
+++                                  "77777777777777777777777777777777777777777777777777"
+++                                  "77777777777777777777777777777777777777777777777777";
+++    uint8_t bcd[200];
+++    for (size_t i = 0; i < sizeof(bcd); ++i) {
+++        bcd[i] = 7;
+++    }
+++
+++    // Verify normal >34-digit operations succeed when allocations succeed,
+++    // including StringPiece with -1 NUL-terminated length.
+++    DecNum validDecNum;
+++    validDecNum.setTo({kLongDigits, -1}, status);
+++    if (!assertSuccess("validDecNum.setTo", status)) {
+++        return;
+++    }
+++    CharString validStr = validDecNum.toCharString(status);
+++    assertSuccess("validDecNum.toCharString", status);
+++    assertEquals("validDecNum length", 200, validStr.length());
+++
+++    // Verify copying a DecNum that was previously resized to 200 digits and then reused
+++    // for a <=34-digit number succeeds without overflowing the destination buffer.
+++    {
+++        DecNum reusedDecNum;
+++        reusedDecNum.setTo(kLongDigits, status);
+++        reusedDecNum.setTo("1234567890", status);
+++        DecNum copiedReused(reusedDecNum, status);
+++        assertSuccess("copiedReused DecNum", status);
+++        CharString copiedStr = copiedReused.toCharString(status);
+++        assertSuccess("copiedReused.toCharString", status);
+++        assertEquals("copiedReused value", "1234567890", copiedStr.data());
+++    }
+++
+++    DecimalQuantity validDq;
+++    validDq.setToDecNum(validDecNum, status);
+++    assertSuccess("validDq.setToDecNum", status);
+++
+++    Scale validScale = Scale::byDecimal(kDigits38);
+++
+++    LocalUNumberFormatterPointer uformatter(
+++        unumf_openForSkeletonAndLocale(u"", 0, "en_US", status));
+++    LocalUFormattedNumberPointer uresult(unumf_openResult(status));
+++    if (!assertSuccess("unumf_openForSkeletonAndLocale", status)) {
+++        return;
+++    }
+++    unumf_formatDecimal(uformatter.getAlias(), kLongDigits, -1, uresult.getAlias(), status);
+++    assertSuccess("unumf_formatDecimal warmup", status);
+++
+++    char decBuf[256] = {};
+++    int32_t decLen =
+++        unumf_resultToDecimalNumber(uresult.getAlias(), decBuf, sizeof(decBuf), status);
+++    assertSuccess("unumf_resultToDecimalNumber warmup", status);
+++    assertEquals("unumf_resultToDecimalNumber length", 200, decLen);
+++
+++    const char16_t *kScaleSkeleton = u"scale/77777777777777777777777777777777777777";
+++    LocalUNumberFormatterPointer scaleFormatter(
+++        unumf_openForSkeletonAndLocale(kScaleSkeleton, -1, "en_US", status));
+++    if (!assertSuccess("scaleFormatter open", status)) {
+++        return;
+++    }
+++    // Warm up scaleFormatter past the 3-call compilation threshold so subsequent
+++    // unumf_formatInt calls take the compiled MicroProps copy assignment path.
+++    for (int i = 0; i < 4; ++i) {
+++        unumf_formatInt(scaleFormatter.getAlias(), 1, uresult.getAlias(), status);
+++        if (!assertSuccess("scaleFormatter warmup", status)) {
+++            return;
+++        }
+++    }
+++
+++    FailingAllocatorContext ctx;
+++    UErrorCode memStatus = U_ZERO_ERROR;
+++    ScopedFailingAllocator scopedAlloc(&ctx, memStatus);
+++    if (!assertSuccess("u_setMemoryFunctions", memStatus)) {
+++        return;
+++    }
+++
+++    // 1. DecNum::setTo(const char*, status) when fData.resize fails.
+++    {
+++        ctx.allocations_remaining = 0;
+++        UErrorCode err = U_ZERO_ERROR;
+++        DecNum dn;
+++        dn.setTo(kLongDigits, err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("DecNum::setTo(const char*) allocation failure", U_MEMORY_ALLOCATION_ERROR,
+++                     err);
+++    }
+++
+++    // 2. DecNum::setTo(StringPiece, status) when CharString fails (alloc 0) or
+++    // when CharString succeeds and DecNum::_setTo fData.resize fails (alloc 1).
+++    for (int32_t allowedAllocs : {0, 1}) {
+++        ctx.allocations_remaining = allowedAllocs;
+++        UErrorCode err = U_ZERO_ERROR;
+++        DecNum dn;
+++        dn.setTo(StringPiece(kLongDigits, 200), err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("DecNum::setTo(StringPiece) allocation failure", U_MEMORY_ALLOCATION_ERROR,
+++                     err);
+++    }
+++
+++    // 3. DecNum::setTo(bcd, ...) when fData.resize fails, and when length is out of bounds.
+++    {
+++        ctx.allocations_remaining = 0;
+++        UErrorCode err = U_ZERO_ERROR;
+++        DecNum dn;
+++        dn.setTo(bcd, 200, 0, false, err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("DecNum::setTo(bcd) allocation failure", U_MEMORY_ALLOCATION_ERROR, err);
+++
+++        err = U_ZERO_ERROR;
+++        dn.setTo(bcd, 1000000000, 0, false, err);
+++        assertEquals("DecNum::setTo(bcd) out-of-range length", U_UNSUPPORTED_ERROR, err);
+++    }
+++
+++    // 4. DecNum copy constructor when fData.resize fails.
+++    {
+++        ctx.allocations_remaining = 0;
+++        UErrorCode err = U_ZERO_ERROR;
+++        DecNum copy(validDecNum, err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("DecNum copy constructor allocation failure", U_MEMORY_ALLOCATION_ERROR, err);
+++    }
+++
+++    // 5. DecNum::toCharString when MaybeStackArray resize fails.
+++    {
+++        ctx.allocations_remaining = 0;
+++        UErrorCode err = U_ZERO_ERROR;
+++        CharString out = validDecNum.toCharString(err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("DecNum::toCharString allocation failure", U_MEMORY_ALLOCATION_ERROR, err);
+++    }
+++
+++    // 6. DecimalQuantity::toDecNum when MaybeStackArray(ubcd) or DecNum::setTo fails.
+++    for (int32_t allowedAllocs : {0, 1}) {
+++        ctx.allocations_remaining = allowedAllocs;
+++        UErrorCode err = U_ZERO_ERROR;
+++        DecNum out;
+++        validDq.toDecNum(out, err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("DecimalQuantity::toDecNum allocation failure", U_MEMORY_ALLOCATION_ERROR,
+++                     err);
+++    }
+++
+++    // 7. Scale copy constructor and copy assignment when new DecNum (alloc 0 when
+++    // U_OVERRIDE_CXX_ALLOCATION is enabled) or DecNum fData.resize fails.
+++    constexpr int32_t kMaxScaleCopyAllocs = U_OVERRIDE_CXX_ALLOCATION ? 1 : 0;
+++    for (int32_t allowedAllocs = 0; allowedAllocs <= kMaxScaleCopyAllocs; ++allowedAllocs) {
+++        ctx.allocations_remaining = allowedAllocs;
+++        Scale copiedScale(validScale);
+++        ctx.allocations_remaining = -1;
+++        UErrorCode err = U_ZERO_ERROR;
+++        NumberFormatter::withLocale("en_US").scale(copiedScale).formatInt(1, err);
+++        assertEquals("Scale copy constructor allocation failure", U_MEMORY_ALLOCATION_ERROR, err);
+++
+++        ctx.allocations_remaining = allowedAllocs;
+++        Scale assignedScale = Scale::none();
+++        assignedScale = validScale;
+++        ctx.allocations_remaining = -1;
+++        err = U_ZERO_ERROR;
+++        NumberFormatter::withLocale("en_US").scale(assignedScale).formatInt(1, err);
+++        assertEquals("Scale copy assignment allocation failure", U_MEMORY_ALLOCATION_ERROR, err);
+++    }
+++
+++    // 8. C API unumf_formatDecimal with 38 digits (CharString uses stack buffer,
+++    // DecNum::_setTo fData.resize fails) and 200 digits.
+++    {
+++        ctx.allocations_remaining = 0;
+++        UErrorCode err = U_ZERO_ERROR;
+++        unumf_formatDecimal(uformatter.getAlias(), kDigits38, 38, uresult.getAlias(), &err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("unumf_formatDecimal 38 digits allocation failure", U_MEMORY_ALLOCATION_ERROR,
+++                     err);
+++    }
+++    for (int32_t allowedAllocs : {0, 1}) {
+++        ctx.allocations_remaining = allowedAllocs;
+++        UErrorCode err = U_ZERO_ERROR;
+++        unumf_formatDecimal(uformatter.getAlias(), kLongDigits, 200, uresult.getAlias(), &err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("unumf_formatDecimal 200 digits allocation failure", U_MEMORY_ALLOCATION_ERROR,
+++                     err);
+++    }
+++
+++    // Re-populate uresult with a valid 200-digit quantity for unumf_resultToDecimalNumber.
+++    unumf_formatDecimal(uformatter.getAlias(), kLongDigits, 200, uresult.getAlias(), status);
+++    assertSuccess("unumf_formatDecimal repopulate", status);
+++
+++    // 9. C API unumf_resultToDecimalNumber (MaybeStackArray ubcd, DecNum::setTo,
+++    // and MaybeStackArray buffer in DecNum::toString).
+++    for (int32_t allowedAllocs : {0, 1, 2}) {
+++        ctx.allocations_remaining = allowedAllocs;
+++        UErrorCode err = U_ZERO_ERROR;
+++        unumf_resultToDecimalNumber(uresult.getAlias(), decBuf, sizeof(decBuf), &err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("unumf_resultToDecimalNumber allocation failure", U_MEMORY_ALLOCATION_ERROR,
+++                     err);
+++    }
+++
+++    // 10. C API unumf_formatInt on compiled scaleFormatter (MicroProps copy assignment ->
+++    // Scale::operator= -> MultiplierFormatHandler::processQuantity error propagation).
+++    for (int32_t allowedAllocs = 0; allowedAllocs <= kMaxScaleCopyAllocs; ++allowedAllocs) {
+++        ctx.allocations_remaining = allowedAllocs;
+++        UErrorCode err = U_ZERO_ERROR;
+++        unumf_formatInt(scaleFormatter.getAlias(), 1, uresult.getAlias(), &err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("compiled scaleFormatter unumf_formatInt allocation failure",
+++                     U_MEMORY_ALLOCATION_ERROR, err);
+++    }
+++}
+++
++ #endif /* #if !UCONFIG_NO_FORMATTING */
+diff --git a/third_party/icu/source/common/cmemory.h b/third_party/icu/source/common/cmemory.h
+index e31c54a..6b4d6fc 100644
+--- a/third_party/icu/source/common/cmemory.h
++++ b/third_party/icu/source/common/cmemory.h
+@@ -345,7 +345,7 @@
+      * Intended for use when an approximate capacity is known at compile time but the true
+      * capacity is not known until runtime.
+      */
+-    MaybeStackArray(int32_t newCapacity, UErrorCode status) : MaybeStackArray() {
++    MaybeStackArray(int32_t newCapacity, UErrorCode &status) : MaybeStackArray() {
+         if (U_FAILURE(status)) {
+             return;
+         }
+diff --git a/third_party/icu/source/i18n/number_decnum.h b/third_party/icu/source/i18n/number_decnum.h
+index db0e69f..b1d5930 100644
+--- a/third_party/icu/source/i18n/number_decnum.h
++++ b/third_party/icu/source/i18n/number_decnum.h
+@@ -24,38 +24,39 @@
+     U_I18N_API DecNum();  // leaves object in valid but undefined state
+ 
+     // Copy-like constructor; use the default move operators.
+-    DecNum(const DecNum& other, UErrorCode& status);
++    U_I18N_API DecNum(const DecNum &other, UErrorCode &status);
+ 
+     /** Sets the decNumber to the StringPiece. */
+-    void setTo(StringPiece str, UErrorCode& status);
++    U_I18N_API void setTo(StringPiece str, UErrorCode &status);
+ 
+     /** Sets the decNumber to the NUL-terminated char string. */
+-    void setTo(const char* str, UErrorCode& status);
++    U_I18N_API void setTo(const char *str, UErrorCode &status);
+ 
+     /** Uses double_conversion to set this decNumber to the given double. */
+-    void setTo(double d, UErrorCode& status);
++    U_I18N_API void setTo(double d, UErrorCode &status);
+ 
+     /** Sets the decNumber to the BCD representation. */
+-    void setTo(const uint8_t* bcd, int32_t length, int32_t scale, bool isNegative, UErrorCode& status);
++    U_I18N_API void setTo(const uint8_t *bcd, int32_t length, int32_t scale, bool isNegative,
++                          UErrorCode &status);
+ 
+-    void normalize();
++    U_I18N_API void normalize();
+ 
+-    void multiplyBy(const DecNum& rhs, UErrorCode& status);
++    U_I18N_API void multiplyBy(const DecNum &rhs, UErrorCode &status);
+ 
+-    void divideBy(const DecNum& rhs, UErrorCode& status);
++    U_I18N_API void divideBy(const DecNum &rhs, UErrorCode &status);
+ 
+-    bool isNegative() const;
++    U_I18N_API bool isNegative() const;
+ 
+-    bool isZero() const;
++    U_I18N_API bool isZero() const;
+ 
+     /** Is infinity or NaN */
+-    bool isSpecial() const;
++    U_I18N_API bool isSpecial() const;
+ 
+-    bool isInfinity() const;
++    U_I18N_API bool isInfinity() const;
+ 
+-    bool isNaN() const;
++    U_I18N_API bool isNaN() const;
+ 
+-    void toString(ByteSink& output, UErrorCode& status) const;
++    U_I18N_API void toString(ByteSink &output, UErrorCode &status) const;
+ 
+     inline CharString toCharString(UErrorCode& status) const {
+       CharString cstr;
+diff --git a/third_party/icu/source/i18n/number_multiplier.cpp b/third_party/icu/source/i18n/number_multiplier.cpp
+index e6bc2a1..c00df9b 100644
+--- a/third_party/icu/source/i18n/number_multiplier.cpp
++++ b/third_party/icu/source/i18n/number_multiplier.cpp
+@@ -9,12 +9,13 @@
+ // Helpful in toString methods and elsewhere.
+ #define UNISTR_FROM_STRING_EXPLICIT
+ 
+-#include "number_decnum.h"
+-#include "number_types.h"
+-#include "number_multiplier.h"
+-#include "numparse_validators.h"
+-#include "number_utils.h"
+ #include "decNumber.h"
++#include "number_decnum.h"
++#include "number_microprops.h"
++#include "number_multiplier.h"
++#include "number_types.h"
++#include "number_utils.h"
++#include "numparse_validators.h"
+ 
+ using namespace icu;
+ using namespace icu::number;
+@@ -41,20 +42,30 @@
+         : fMagnitude(other.fMagnitude), fArbitrary(nullptr), fError(other.fError) {
+     if (other.fArbitrary != nullptr) {
+         UErrorCode localStatus = U_ZERO_ERROR;
+-        fArbitrary = new DecNum(*other.fArbitrary, localStatus);
++        LocalPointer<DecNum> decnum(new DecNum(*other.fArbitrary, localStatus), localStatus);
++        if (U_FAILURE(localStatus)) {
++            fError = localStatus;
++            return;
++        }
++        fArbitrary = decnum.orphan();
+     }
+ }
+ 
+ Scale& Scale::operator=(const Scale& other) {
+     if (this == &other) { return *this; }  // self-assignment: no-op
+     fMagnitude = other.fMagnitude;
++    delete fArbitrary;
++    fArbitrary = nullptr;
++    fError = other.fError;
+     if (other.fArbitrary != nullptr) {
+         UErrorCode localStatus = U_ZERO_ERROR;
+-        fArbitrary = new DecNum(*other.fArbitrary, localStatus);
+-    } else {
+-        fArbitrary = nullptr;
++        LocalPointer<DecNum> decnum(new DecNum(*other.fArbitrary, localStatus), localStatus);
++        if (U_FAILURE(localStatus)) {
++            fError = localStatus;
++            return *this;
++        }
++        fArbitrary = decnum.orphan();
+     }
+-    fError = other.fError;
+     return *this;
+ }
+ 
+@@ -152,6 +163,10 @@
+ void MultiplierFormatHandler::processQuantity(DecimalQuantity& quantity, MicroProps& micros,
+                                               UErrorCode& status) const {
+     fParent->processQuantity(quantity, micros, status);
++    if (U_FAILURE(status) || fMultiplier.copyErrorTo(status) ||
++        micros.helpers.multiplier.fMultiplier.copyErrorTo(status)) {
++        return;
++    }
+     fMultiplier.applyTo(quantity);
+ }
+ 
+diff --git a/third_party/icu/source/i18n/number_utils.cpp b/third_party/icu/source/i18n/number_utils.cpp
+index ad70532..2e239a6 100644
+--- a/third_party/icu/source/i18n/number_utils.cpp
++++ b/third_party/icu/source/i18n/number_utils.cpp
+@@ -96,15 +96,24 @@
+     uprv_decContextDefault(&fContext, DEC_INIT_BASE);
+     uprv_decContextSetRounding(&fContext, DEC_ROUND_HALF_EVEN);
+     fContext.traps = 0; // no traps, thank you (what does this even mean?)
++    fContext.digits = kDefaultDigits;
++    uprv_decNumberZero(fData.getAlias());
+ }
+ 
+ DecNum::DecNum(const DecNum& other, UErrorCode& status)
+         : fContext(other.fContext) {
++    if (U_FAILURE(status)) {
++        fContext.digits = kDefaultDigits;
++        uprv_decNumberZero(fData.getAlias());
++        return;
++    }
+     // Allocate memory for the new DecNum.
+-    U_ASSERT(fContext.digits == other.fData.getCapacity());
++    U_ASSERT(fContext.digits <= other.fData.getCapacity());
+     if (fContext.digits > kDefaultDigits) {
+         void* p = fData.resize(fContext.digits, 0);
+         if (p == nullptr) {
++            fContext.digits = kDefaultDigits;
++            uprv_decNumberZero(fData.getAlias());
+             status = U_MEMORY_ALLOCATION_ERROR;
+             return;
+         }
+@@ -112,23 +121,35 @@
+ 
+     // Copy the data from the old DecNum to the new one.
+     uprv_memcpy(fData.getAlias(), other.fData.getAlias(), sizeof(decNumber));
+-    uprv_memcpy(fData.getArrayStart(),
+-            other.fData.getArrayStart(),
+-            other.fData.getArrayLimit() - other.fData.getArrayStart());
++    uprv_memcpy(fData.getArrayStart(), other.fData.getArrayStart(), fData.getCapacity());
+ }
+ 
+ void DecNum::setTo(StringPiece str, UErrorCode& status) {
++    if (U_FAILURE(status)) {
++        return;
++    }
+     // We need NUL-terminated for decNumber; CharString guarantees this, but not StringPiece.
+     CharString cstr(str, status);
+     if (U_FAILURE(status)) { return; }
+-    _setTo(cstr.data(), str.length(), status);
++    _setTo(cstr.data(), cstr.length(), status);
+ }
+ 
+ void DecNum::setTo(const char* str, UErrorCode& status) {
+-    _setTo(str, static_cast<int32_t>(uprv_strlen(str)), status);
++    if (U_FAILURE(status)) {
++        return;
++    }
++    size_t length = uprv_strlen(str);
++    if (length > DEC_MAX_DIGITS) {
++        status = U_UNSUPPORTED_ERROR;
++        return;
++    }
++    _setTo(str, static_cast<int32_t>(length), status);
+ }
+ 
+ void DecNum::setTo(double d, UErrorCode& status) {
++    if (U_FAILURE(status)) {
++        return;
++    }
+     // Need to check for NaN and Infinity before going into DoubleToStringConverter
+     if (std::isnan(d) != 0 || std::isfinite(d) == 0) {
+         status = U_UNSUPPORTED_ERROR;
+@@ -154,6 +175,9 @@
+ 
+     // Read initial result as a string.
+     _setTo(buffer, length, status);
++    if (U_FAILURE(status)) {
++        return;
++    }
+ 
+     // Set exponent and bitmask. Note that DoubleToStringConverter does not do negatives.
+     fData.getAlias()->exponent += point - length;
+@@ -161,8 +185,18 @@
+ }
+ 
+ void DecNum::_setTo(const char* str, int32_t maxDigits, UErrorCode& status) {
++    if (U_FAILURE(status)) {
++        return;
++    }
++    if (maxDigits < 0 || maxDigits > DEC_MAX_DIGITS) {
++        status = U_UNSUPPORTED_ERROR;
++        return;
++    }
+     if (maxDigits > kDefaultDigits) {
+-        fData.resize(maxDigits, 0);
++        if (fData.resize(maxDigits, 0) == nullptr) {
++            status = U_MEMORY_ALLOCATION_ERROR;
++            return;
++        }
+         fContext.digits = maxDigits;
+     } else {
+         fContext.digits = kDefaultDigits;
+@@ -184,13 +218,9 @@
+ 
+ void
+ DecNum::setTo(const uint8_t* bcd, int32_t length, int32_t scale, bool isNegative, UErrorCode& status) {
+-    if (length > kDefaultDigits) {
+-        fData.resize(length, 0);
+-        fContext.digits = length;
+-    } else {
+-        fContext.digits = kDefaultDigits;
++    if (U_FAILURE(status)) {
++        return;
+     }
+-
+     // "digits is of type int32_t, and must have a value in the range 1 through 999,999,999."
+     if (length < 1 || length > 999999999) {
+         // Too large for decNumber
+@@ -208,6 +238,16 @@
+         return;
+     }
+ 
++    if (length > kDefaultDigits) {
++        if (fData.resize(length, 0) == nullptr) {
++            status = U_MEMORY_ALLOCATION_ERROR;
++            return;
++        }
++        fContext.digits = length;
++    } else {
++        fContext.digits = kDefaultDigits;
++    }
++
+     fData.getAlias()->digits = length;
+     fData.getAlias()->exponent = scale;
+     fData.getAlias()->bits = static_cast<uint8_t>(isNegative ? DECNEG : 0);
+@@ -223,6 +263,9 @@
+ }
+ 
+ void DecNum::multiplyBy(const DecNum& rhs, UErrorCode& status) {
++    if (U_FAILURE(status)) {
++        return;
++    }
+     uprv_decNumberMultiply(fData, fData, rhs.fData, &fContext);
+     if (fContext.status != 0) {
+         status = U_INTERNAL_PROGRAM_ERROR;
+@@ -230,6 +273,9 @@
+ }
+ 
+ void DecNum::divideBy(const DecNum& rhs, UErrorCode& status) {
++    if (U_FAILURE(status)) {
++        return;
++    }
+     uprv_decNumberDivide(fData, fData, rhs.fData, &fContext);
+     if ((fContext.status & DEC_Inexact) != 0) {
+         // Ignore.
