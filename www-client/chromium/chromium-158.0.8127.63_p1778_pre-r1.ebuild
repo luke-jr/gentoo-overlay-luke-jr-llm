@@ -175,9 +175,12 @@ LICENSE+=" rar? ( unRAR )"
 SLOT="stable"
 KEYWORDS="~amd64 ~arm64"
 
-# The 158 branch's changes after the 158.0.8127.63 tag (see its header).
+# The 158 branch's changes after the 158.0.8127.63 tag (see its header), and the ICU
+# DecNum/MaybeStackArray fix (crbug 573288374) 158's ICU hasn't got yet (159's has it;
+# see its header).
 CHROMIUM_FIXES=(
 	chromium-158.0.8127.63-branch-fixes.patch
+	chromium-158-icu-decnum-alloc-failure.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
