@@ -1,8 +1,8 @@
 Chromium 159.0.8154.10 + the later changes of its release branch, up to
-6c06bf2cb7540ac9230b07a557eb3c48203dfaf2 (refs/branch-heads/8154@{#481}), for the
+c1b0e0032eaedd77fa8db9983022d2e162dcb21f (refs/branch-heads/8154@{#500}), for the
 159.0.8154.10 tree that chromium-159.0.8154.6-to-159.0.8154.10.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/159.0.8154.10..6c06bf2cb7540ac9230b07a557eb3c48203dfaf2,
+Generated from the upstream diff chromium/src refs/tags/159.0.8154.10..c1b0e0032eaedd77fa8db9983022d2e162dcb21f,
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .10 tree's files; no dependency in the tarball changed its DEPS revision, only
 the internal clank and ios_internal did): left out are files not in the release
@@ -18,6 +18,13 @@ Commits contributing to it (oldest first):
   f27530c0816e [CT] Automatic update from google3
   2c682ef2697b [M159] [context-input] Move `MarkFileSuperceded` to the context controller
   6c06bf2cb754 [M159] [ContextualSearch] Guard against UAF in StartTabContextUploadFlow
+  abac0e7ea6c5 [M159] [omnibox] Keep results under the pointer when a click commits IME text
+  411cef19ccfe [M159] [Composebox]: Render suggestion activity link inside the card
+  e810d36b5216 [M159] [omnibox] Close and restore the Full WebUI popup around modal dialogs.
+  c2946cd64a0e [M159] [Contextual Tasks] Disable two-button pinning under pin button refactor
+  0e6781a41e48 [M159] Reland "[LHS] Fix rail tooltips reappearing when closing expanded LHS"
+  8adf71fd1a82 [M159] [contextual-tasks] Migrate Lens overlay tests to unified side panel
+  c1b0e0032eae [M159] [WebAudio] Validate renderSizeHint without sampleRate
 
 Checked: applies to the 159.0.8154.10 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -106,6 +113,1055 @@ index ce18e395..48523d3 100644
  <translation id="7956373551960864128">Your saved printers</translation>
  <translation id="7956918070009672177">There are no <ph name="LANGUAGE" /> voices on your device. Connect to the Internet and try again.</translation>
  <translation id="7957074856830851026">See device information, such as its serial number or asset ID</translation>
+diff --git a/chrome/browser/resources/new_tab_page/ntp_composebox.css b/chrome/browser/resources/new_tab_page/ntp_composebox.css
+index 23fa033a..e6aef74 100644
+--- a/chrome/browser/resources/new_tab_page/ntp_composebox.css
++++ b/chrome/browser/resources/new_tab_page/ntp_composebox.css
+@@ -57,6 +57,10 @@
+   max-height: var(--cr-searchbox-height);
+ }
+ 
++#suggestionActivity {
++  padding-bottom: 0;
++}
++
+ #inputContainer {
+   box-sizing: border-box;
+   display: flex;
+diff --git a/chrome/browser/resources/new_tab_page/ntp_composebox.html.ts b/chrome/browser/resources/new_tab_page/ntp_composebox.html.ts
+index c0f9ecb..afa981b 100644
+--- a/chrome/browser/resources/new_tab_page/ntp_composebox.html.ts
++++ b/chrome/browser/resources/new_tab_page/ntp_composebox.html.ts
+@@ -67,13 +67,13 @@
+       </ntp-error-scrim>`
+     : ''}
+     <div id="composebox" part="composebox" ?inert="${!!this.errorMessage}"
+-        @keydown="${this.onKeydown}"
+         @dragenter="${this.dragAndDropHandler.handleDragEnter}"
+         @dragover="${this.dragAndDropHandler.handleDragOver}"
+         @dragleave="${this.dragAndDropHandler.handleDragLeave}"
+         @drop="${this.dragAndDropHandler.handleDrop}"
+         @paste="${this.onPaste}">
+-      <div id="inputContainer" part="input-container">
++      <div id="inputContainer" part="input-container"
++          @keydown="${this.onKeydown}">
+         <cr-composebox-input id="composeboxInput"
+             class="${this.hasTabs() ? 'has-tabs' : ''}"
+             exportparts="text-container, icon-container, mirror, input, smart-compose, cancel, action-icon, cancel-icon"
+@@ -181,6 +181,14 @@
+           </cr-composebox-dropdown>
+         </div>
+       </div>
++      ${this.shouldShowSuggestionActivityLink() ? html`
++      <div id="suggestionActivity">
++        <localized-link
++          .localizedString="${this.i18nAdvanced('suggestionActivityLink')}"
++          @link-clicked="${this.onLinkClicked}">
++        </localized-link>
++      </div>
++      ` : ''}
+     </div>
+   ${this.shouldShowVoiceSearch() ? html`
+     <cr-composebox-voice-search id="voiceSearch"
+@@ -199,14 +207,6 @@
+         exportparts="voice-close-button, voice-details-link, voice-stop-button, voice-submit-button">
+     </cr-composebox-voice-search>
+   ` : ''}
+-  ${this.shouldShowSuggestionActivityLink() ? html`
+-    <div id="suggestionActivity">
+-      <localized-link
+-        .localizedString="${this.i18nAdvanced('suggestionActivityLink')}"
+-        @link-clicked="${this.onLinkClicked}">
+-      </localized-link>
+-    </div>
+-  `: ''}
+   <!--_html_template_end_-->`;
+   // clang-format on
+ }
+diff --git a/chrome/browser/ui/lens/lens_overlay_interactive_test_base.cc b/chrome/browser/ui/lens/lens_overlay_interactive_test_base.cc
+index 81ebab8..82c72ef 100644
+--- a/chrome/browser/ui/lens/lens_overlay_interactive_test_base.cc
++++ b/chrome/browser/ui/lens/lens_overlay_interactive_test_base.cc
+@@ -4,9 +4,13 @@
+ 
+ #include "chrome/browser/ui/lens/lens_overlay_interactive_test_base.h"
+ 
++#include <memory>
++
+ #include "base/base64.h"
++#include "base/check_deref.h"
+ #include "base/functional/bind.h"
+ #include "base/test/run_until.h"
++#include "chrome/browser/autocomplete/aim_eligibility_service_factory.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_cookie_synchronizer.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_eligibility_manager.h"
+ #include "chrome/browser/contextual_tasks/mock_contextual_tasks_ui_service_delegate.h"
+@@ -29,12 +33,12 @@
+ #include "chrome/test/base/search_test_utils.h"
+ #include "chrome/test/base/ui_test_utils.h"
+ #include "components/contextual_search/contextual_search_types.h"
+-#include "components/contextual_tasks/public/features.h"
+ #include "components/keyed_service/content/browser_context_dependency_manager.h"
+ #include "components/lens/lens_features.h"
+ #include "components/lens/lens_overlay_permission_utils.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/search_engines/template_url_service.h"
++#include "content/public/browser/browser_context.h"
+ #include "content/public/browser/render_frame_host.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/test/browser_test_utils.h"
+@@ -165,12 +169,22 @@
+                             {lens::features::kLensOverlayContextualSearchbox,
+                              {{"use-pdfs-as-context", "true"},
+                               {"auto-focus-searchbox", "false"}}}},
+-      /*disabled_features=*/{
+-          contextual_tasks::kContextualTasks,
+-          contextual_tasks::kContextualTasksSidePanel,
+-          contextual_tasks::kContextualTasksRearchitecture,
+-          contextual_tasks::kContextualTasksSidePanelRearchitecture,
+-          features::kNonBlockingOsClipboardReads});
++      /*disabled_features=*/{features::kNonBlockingOsClipboardReads});
++}
++
++void LensOverlayInteractiveTestBase::SetUpBrowserContextKeyedServices(
++    content::BrowserContext* context) {
++  InteractiveFeaturePromoTest::SetUpBrowserContextKeyedServices(context);
++
++  AimEligibilityServiceFactory::GetInstance()->SetTestingFactory(
++      context, base::BindRepeating([](content::BrowserContext* context)
++                                       -> std::unique_ptr<KeyedService> {
++        Profile* profile = Profile::FromBrowserContext(context);
++        return std::make_unique<TestingAimEligibilityService>(
++            /*is_aim_eligible=*/true, /*is_cobrowse_eligible=*/true,
++            CHECK_DEREF(profile->GetPrefs()),
++            TemplateURLServiceFactory::GetForProfile(profile));
++      }));
+ }
+ 
+ void LensOverlayInteractiveTestBase::WaitForTemplateURLServiceToLoad() {
+diff --git a/chrome/browser/ui/lens/lens_overlay_interactive_test_base.h b/chrome/browser/ui/lens/lens_overlay_interactive_test_base.h
+index a0d39de..4d3c705 100644
+--- a/chrome/browser/ui/lens/lens_overlay_interactive_test_base.h
++++ b/chrome/browser/ui/lens/lens_overlay_interactive_test_base.h
+@@ -20,6 +20,10 @@
+ class PrefService;
+ class TemplateURLService;
+ 
++namespace content {
++class BrowserContext;
++}  // namespace content
++
+ // A test AimEligibilityService that returns a fixed eligibility value.
+ class TestingAimEligibilityService : public ChromeAimEligibilityService {
+  public:
+@@ -83,6 +87,8 @@
+ 
+   void SetUp() override;
+   virtual void SetUpFeatureList();
++  void SetUpBrowserContextKeyedServices(
++      content::BrowserContext* context) override;
+   void WaitForTemplateURLServiceToLoad();
+   void SetUpOnMainThread() override;
+   void TearDownOnMainThread() override;
+diff --git a/chrome/browser/ui/lens/test_lens_search_controller.cc b/chrome/browser/ui/lens/test_lens_search_controller.cc
+index 25fc6f4..957353e5 100644
+--- a/chrome/browser/ui/lens/test_lens_search_controller.cc
++++ b/chrome/browser/ui/lens/test_lens_search_controller.cc
+@@ -20,6 +20,7 @@
+ #include "components/tabs/public/mock_tab_interface.h"
+ #include "components/variations/variations_client.h"
+ #include "content/public/browser/navigation_controller.h"
++#include "third_party/lens_server_proto/lens_overlay_server.pb.h"
+ 
+ namespace lens {
+ 
+@@ -185,12 +186,26 @@
+   ON_CALL(*mock_handle_, CreateSearchUrl(::testing::_, ::testing::_))
+       .WillByDefault(
+           ::testing::WithArg<1>([](base::OnceCallback<void(GURL)> callback) {
+-            std::move(callback).Run(GURL("http://dummy-search-url.com"));
++            std::move(callback).Run(
++                GURL("https://www.google.com/search?lns_mode=un"));
+           }));
+   ON_CALL(*mock_handle_, GetController())
+       .WillByDefault(::testing::Return(mock_context_controller_.get()));
+ 
+   mock_file_info_ = std::make_unique<contextual_search::FileInfo>();
++  // Populate fake OCR text in the uploaded file's response bodies to match
++  // `TestLensOverlayQueryController`.
++  lens::LensOverlayServerResponse server_response;
++  server_response.mutable_objects_response()->mutable_text()->CopyFrom(
++      CreateTestText({"This", "is", "test", "text."}));
++  server_response.mutable_objects_response()
++      ->mutable_cluster_info()
++      ->set_server_session_id(kTestServerSessionId);
++  server_response.mutable_objects_response()
++      ->mutable_cluster_info()
++      ->set_search_session_id(kTestSearchSessionId);
++  mock_file_info_->response_bodies.push_back(
++      server_response.SerializeAsString());
+ 
+   ON_CALL(*mock_handle_, CreateContextToken())
+       .WillByDefault(::testing::Return(base::UnguessableToken::Create()));
+diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
+index d5086c04..07e4e77 100644
+--- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
++++ b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
+@@ -441,8 +441,8 @@
+ 
+   const bool is_pinned = contextual_tasks::GetEffectivePinState(
+       browser_window_interface_->GetProfile());
+-  if (!base::FeatureList::IsEnabled(
+-          contextual_tasks::kEphemeralPinningVisibleWhenPermanentlyPinned) &&
++  if (!contextual_tasks::
++          IsEphemeralPinningVisibleWhenPermanentlyPinnedEnabled() &&
+       is_pinned) {
+     return false;
+   }
+diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_utils.cc b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_utils.cc
+index 05a8fae..0d3914b 100644
+--- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_utils.cc
++++ b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_utils.cc
+@@ -146,9 +146,9 @@
+   // When `kEphemeralPinningVisibleWhenPermanentlyPinned` is enabled, the
+   // ephemeral button remains visible alongside the pinned button, and presses
+   // on this button should always be logged as EphemeralToolbarButton actions.
+-  const bool is_pinned = !base::FeatureList::IsEnabled(
+-                             kEphemeralPinningVisibleWhenPermanentlyPinned) &&
+-                         GetEffectivePinState(browser->GetProfile());
++  const bool is_pinned =
++      !IsEphemeralPinningVisibleWhenPermanentlyPinnedEnabled() &&
++      GetEffectivePinState(browser->GetProfile());
+ 
+   if (controller->IsPanelOpenForContextualTask()) {
+     base::RecordAction(base::UserMetricsAction(
+diff --git a/chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.cc b/chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.cc
+index 1d2445d..0a7bbfbb 100644
+--- a/chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.cc
++++ b/chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.cc
+@@ -29,7 +29,6 @@
+ #include "chrome/browser/ui/select_file_policy/chrome_select_file_policy.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/views/omnibox/omnibox_popup_aim_presenter.h"
+-#include "chrome/browser/ui/views/omnibox/omnibox_popup_host.h"
+ #include "chrome/browser/ui/views/omnibox/omnibox_popup_presenter_delegate.h"
+ #include "chrome/browser/ui/webui/cr_components/composebox/composebox_handler.h"
+ #include "chrome/browser/ui/webui/new_tab_page/composebox/variations/composebox_fieldtrial.h"
+@@ -53,6 +52,40 @@
+ #include "ui/shell_dialogs/select_file_dialog.h"
+ #include "ui/shell_dialogs/selected_file_info.h"
+ 
++namespace {
++
++// Returns the presenter of the omnibox popup that opened the file dialog, in
++// the browser window that `web_contents` belongs to: the AI Mode popup's if
++// `was_ai_mode_open`, or the omnibox popup's otherwise. Returns null if there
++// is none, such as for Omnibox Everywhere.
++OmniboxPopupPresenterBase* GetOmniboxPopupPresenter(
++    content::WebContents* web_contents,
++    bool was_ai_mode_open) {
++  if (!web_contents ||
++      OmniboxContextMenuController::GetOmniboxEverywhereUI(web_contents)) {
++    return nullptr;
++  }
++  auto* browser_window = webui::GetBrowserWindowInterface(web_contents);
++  if (!browser_window) {
++    return nullptr;
++  }
++  LocationBar* location_bar =
++      BrowserWindow::FromBrowser(browser_window)->GetLocationBar();
++  if (!location_bar) {
++    return nullptr;
++  }
++  if (was_ai_mode_open) {
++    auto* presenter_delegate = location_bar->GetPresenterDelegate();
++    return presenter_delegate
++               ? presenter_delegate->GetOmniboxPopupAimPresenter()
++               : nullptr;
++  }
++  auto* popup_view = location_bar->GetOmniboxPopupView();
++  return popup_view ? popup_view->presenter() : nullptr;
++}
++
++}  // namespace
++
+ OmniboxPopupFileSelector::OmniboxPopupFileSelector(
+     gfx::NativeWindow owning_window)
+     : owning_window_(owning_window) {}
+@@ -81,6 +114,9 @@
+     OmniboxEditModel* edit_model,
+     std::optional<lens::ImageEncodingOptions> image_encoding_options,
+     bool was_ai_mode_open) {
++  // Close any dialog that is still open first, so that the popup that opened it
++  // is told it closed.
++  CancelFileSelection();
+   web_contents_ = web_contents ? web_contents->GetWeakPtr() : nullptr;
+   edit_model_ = edit_model;
+   image_encoding_options_ = image_encoding_options;
+@@ -89,31 +125,12 @@
+   if (file_chooser_opened_callback_) {
+     file_chooser_opened_callback_.Run();
+   }
+-  if (!OmniboxContextMenuController::GetOmniboxEverywhereUI(web_contents)) {
+-    if (auto* browser_window = webui::GetBrowserWindowInterface(web_contents)) {
+-      if (auto* location_bar =
+-              BrowserWindow::FromBrowser(browser_window)->GetLocationBar()) {
+-        if (was_ai_mode_open) {
+-          if (auto* presenter_delegate = location_bar->GetPresenterDelegate()) {
+-            if (auto* presenter =
+-                    presenter_delegate->GetOmniboxPopupAimPresenter()) {
+-              deactivation_blocker_ = presenter->CreateDeactivationBlocker();
+-            }
+-          }
+-        } else {
+-          if (auto* popup_view = location_bar->GetOmniboxPopupView()) {
+-            if (auto* popup_host = popup_view->popup_host()) {
+-              deactivation_blocker_ = popup_host->CreateDeactivationBlocker();
+-            }
+-          }
+-        }
+-      }
++  if (auto* presenter =
++          GetOmniboxPopupPresenter(web_contents, was_ai_mode_open)) {
++    if (!was_ai_mode_open) {
++      presenter->OnFileDialogOpened();
+     }
+-  }
+-
+-  if (file_dialog_) {
+-    file_dialog_->ListenerDestroyed();
+-    file_dialog_.reset();
++    deactivation_blocker_ = presenter->CreateDeactivationBlocker();
+   }
+ 
+   file_dialog_ = ui::SelectFileDialog::Create(
+@@ -154,7 +171,7 @@
+   file_dialog_->ListenerDestroyed();
+   file_dialog_.reset();
+   deactivation_blocker_.reset();
+-  NotifyFileSelectionClosed();
++  NotifyFileSelectionClosed(/*file_selected=*/false);
+ }
+ 
+ namespace {
+@@ -296,7 +313,10 @@
+         base::BindOnce(&OmniboxPopupFileSelector::OnFileDataReady,
+                        weak_factory_.GetWeakPtr()));
+   }
+-  NotifyFileSelectionClosed();
++  // This opens AI Mode however many of the files are valid, to show any
++  // errors. If no file is read, it opens below. Otherwise `OnFileDataReady()`
++  // opens it, even for a file that can't be attached.
++  NotifyFileSelectionClosed(/*file_selected=*/true);
+   deactivation_blocker_.reset();
+   file_dialog_.reset();
+ 
+@@ -306,7 +326,7 @@
+ }
+ 
+ void OmniboxPopupFileSelector::FileSelectionCanceled() {
+-  NotifyFileSelectionClosed();
++  NotifyFileSelectionClosed(/*file_selected=*/false);
+   deactivation_blocker_.reset();
+   file_dialog_.reset();
+   if (was_ai_mode_open_) {
+@@ -408,33 +428,22 @@
+                                                mime_string, result);
+ }
+ 
+-void OmniboxPopupFileSelector::NotifyFileSelectionClosed() {
++void OmniboxPopupFileSelector::NotifyFileSelectionClosed(bool file_selected) {
+   if (file_chooser_closed_callback_) {
+     file_chooser_closed_callback_.Run();
+   }
+-  if (was_ai_mode_open_ && web_contents_ &&
+-      !OmniboxContextMenuController::GetOmniboxEverywhereUI(
+-          web_contents_.get())) {
+-    auto* browser_window =
+-        webui::GetBrowserWindowInterface(web_contents_.get());
+-    if (!browser_window) {
+-      return;
+-    }
+-
+-    auto* location_bar =
+-        BrowserWindow::FromBrowser(browser_window)->GetLocationBar();
+-    if (!location_bar) {
+-      return;
+-    }
+-
+-    auto* presenter_delegate = location_bar->GetPresenterDelegate();
+-    if (!presenter_delegate) {
+-      return;
+-    }
+-
+-    if (auto* presenter = presenter_delegate->GetOmniboxPopupAimPresenter()) {
+-      presenter->OnFileSelectionClosed();
+-    }
++  auto* presenter =
++      GetOmniboxPopupPresenter(web_contents_.get(), was_ai_mode_open_);
++  if (!presenter) {
++    return;
++  }
++  if (was_ai_mode_open_) {
++    presenter->OnFileSelectionClosed();
++  } else {
++    // The full popup's presenter blurs the omnibox while a dialog opened from
++    // the popup is shown, and refocuses it once the dialog closes. See
++    // `OmniboxPopupFullPresenter::OnFileDialogOpened()`.
++    presenter->OnFileDialogClosed(file_selected);
+   }
+ }
+ 
+diff --git a/chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.h b/chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.h
+index da5691d..c94e368 100644
+--- a/chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.h
++++ b/chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.h
+@@ -110,7 +110,8 @@
+   // file dialog.
+   std::unique_ptr<OmniboxPopupDeactivationBlocker> deactivation_blocker_;
+ 
+-  void NotifyFileSelectionClosed();
++  // `file_selected` is whether the user selected files rather than canceling.
++  void NotifyFileSelectionClosed(bool file_selected);
+   void OpenAiMode();
+ 
+   base::WeakPtrFactory<OmniboxPopupFileSelector> weak_factory_{this};
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
+index 9f9f4638..1a51062 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
+@@ -184,7 +184,12 @@
+   refocus_on_activation_ = false;
+   // The popup stops being observed before it's hidden.
+   KeepBrowserPaintingAsActiveAcrossHandoff();
+-  browser_widget_observation_.Reset();
++  // Keep observing the browser window while waiting to refocus the omnibox
++  // after a modal dialog closes, as blurring the omnibox for the dialog hides
++  // the popup. See `RestoreFocusAfterModalDialog()`.
++  if (!focus_state_before_modal_dialog_) {
++    browser_widget_observation_.Reset();
++  }
+   browser_focus_manager_observation_.Reset();
+   // Cancel any pending context menu request, since the base `Hide()` only
+   // clears the content (which also cancels it) when it closes the widget. A
+@@ -438,6 +443,16 @@
+                        weak_factory_.GetWeakPtr()));
+   }
+ 
++  if (active && focus_state_before_modal_dialog_) {
++    // The browser window may have been reactivated after a modal dialog
++    // closed. Check once activation settles. When it restores focus to the
++    // location bar, the omnibox is refocused before this runs.
++    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++        FROM_HERE,
++        base::BindOnce(&OmniboxPopupFullPresenter::RestoreFocusAfterModalDialog,
++                       weak_factory_.GetWeakPtr()));
++  }
++
+   // In immersive fullscreen on macOS, the popup's parent is an overlay, so
+   // activating the popup doesn't lock the browser window.
+   if (active && widget == GetWidget() && !browser_paint_as_active_lock_) {
+@@ -592,6 +607,30 @@
+   RequestFocus();
+ }
+ 
++void OmniboxPopupFullPresenter::OnWidgetDestroying(views::Widget* widget) {
++  if (browser_widget_observation_.IsObservingSource(widget)) {
++    browser_widget_observation_.Reset();
++  }
++}
++
++void OmniboxPopupFullPresenter::OnWidgetWindowModalVisibilityChanged(
++    views::Widget* widget,
++    bool visible) {
++  // A window-modal dialog opened over the browser window or the popup. On
++  // macOS, that includes native file dialogs, which are sheets, so one opened
++  // from the "+" menu is reported both here and through `OnFileDialogOpened()`
++  // and `OnFileDialogClosed()`. While it's open, `OnModalDialogClosed()` waits
++  // for the latter, which tells whether a file was selected.
++  if (widget != GetBrowserWidget() && widget != GetWidget()) {
++    return;
++  }
++  if (visible) {
++    OnModalDialogShown();
++  } else {
++    OnModalDialogClosed();
++  }
++}
++
+ void OmniboxPopupFullPresenter::BlurIfBrowserOrPopupInactive() {
+   if (IsBrowserOrPopupActive()) {
+     return;
+@@ -644,13 +683,34 @@
+ 
+ void OmniboxPopupFullPresenter::BlurForWindowDeactivation() {
+   if (controller()->popup_state_manager()->popup_state() !=
+-          OmniboxPopupState::kFull ||
+-      !controller()->edit_model()->has_focus()) {
++      OmniboxPopupState::kFull) {
++    return;
++  }
++  if (!controller()->edit_model()->has_focus()) {
++    // A draft keeps the popup open while the omnibox isn't focused. If a modal
++    // dialog took activation, close the popup too, as below, and reopen it once
++    // the dialog closes. See `RestoreFocusAfterModalDialog()`.
++    if (focus_state_before_modal_dialog_) {
++      controller()->popup_state_manager()->SetPopupState(
++          OmniboxPopupState::kNone);
++    }
+     return;
+   }
+ 
+   DeactivatePopupAndKillFocus(FocusAfterBlur::kNone);
+ 
++  // A modal dialog, such as a native file dialog, took activation. Close the
++  // popup even if a draft would keep it open, as the classic omnibox's popup
++  // closes, so that it can't be used while the dialog is open: on macOS the
++  // popup is a separate window, which the dialog's sheet doesn't block. The
++  // draft stays in the edit model, and refocusing the omnibox once the dialog
++  // closes reopens the popup with it.
++  if (focus_state_before_modal_dialog_ &&
++      controller()->popup_state_manager()->popup_state() ==
++          OmniboxPopupState::kFull) {
++    controller()->popup_state_manager()->SetPopupState(
++        OmniboxPopupState::kNone);
++  }
+   // Set the browser window's stored focus view, which the `FocusManager`
+   // restores whenever the window is reactivated. Do this after deactivating,
+   // so that nothing run during it (closing the popup, `Hide()`) clears it, and
+@@ -660,6 +720,21 @@
+   if (!focus_manager) {
+     return;
+   }
++  // A modal dialog took activation. Once it closes, reactivating the window
++  // restores the location bar, which hands focus back to the popup with the
++  // selection it had (see `OnModalDialogShown()`).
++  // Unlike below, this is done on all platforms, as the window is reactivated
++  // by the dialog closing rather than by a click into it.
++  // A native file dialog opened from the "+" menu may reactivate the window
++  // before telling its listener whether a file was selected. Selecting a file
++  // opens AI Mode, so don't restore anything then, and let
++  // `OnFileDialogClosed()` decide whether to refocus the omnibox.
++  if (focus_state_before_modal_dialog_) {
++    focus_manager->SetStoredFocusView(
++        file_dialog_open_ ? nullptr
++                          : delegate().GetLocationBarFocusRestoreView());
++    return;
++  }
+ #if BUILDFLAG(IS_MAC)
+   // On macOS, reactivating a window restores its previous focus, so restore
+   // the location bar, which hands focus back to the popup via
+@@ -710,6 +785,195 @@
+   }
+ }
+ 
++void OmniboxPopupFullPresenter::OnFileDialogOpened() {
++  file_dialog_open_ = true;
++  OnModalDialogShown();
++}
++
++void OmniboxPopupFullPresenter::OnFileDialogClosed(bool file_selected) {
++  file_dialog_open_ = false;
++  if (!file_selected) {
++    OnModalDialogClosed();
++    return;
++  }
++  // Selecting files opens AI Mode with them once they're read. Don't refocus
++  // the omnibox in the meantime, as that would reopen this popup first.
++  ClearFocusStateBeforeModalDialog();
++}
++
++void OmniboxPopupFullPresenter::OnModalDialogShown() {
++  // Leave any state recorded for this dialog alone: it may be reported more
++  // than once (see `OnWidgetWindowModalVisibilityChanged()`), after it closed
++  // the popup.
++  if (focus_state_before_modal_dialog_ || !IsShown() ||
++      controller()->popup_state_manager()->popup_state() !=
++          OmniboxPopupState::kFull) {
++    return;
++  }
++  // A draft keeps the popup open while the omnibox isn't focused.
++  if (!controller()->edit_model()->has_focus()) {
++    focus_state_before_modal_dialog_.emplace();
++    BlurIfBrowserOrPopupInactiveSoon();
++    return;
++  }
++  auto* content = GetWebUIContent();
++  auto* popup_handler = content ? content->popup_handler() : nullptr;
++  if (!popup_handler) {
++    return;
++  }
++  // The dialog blurs the omnibox when it takes activation, like any other
++  // window (see `BlurForWindowDeactivation()`). The WebUI input may already
++  // have lost DOM focus, e.g. to the "+" button, but keeps reporting the last
++  // selection the input had. Clicking or arrowing in an elided URL unelides it
++  // without starting an edit, and the selection is then in the full URL.
++  const bool show_full_url =
++      !controller()->edit_model()->user_input_in_progress() &&
++      popup_handler->show_full_url();
++  focus_state_before_modal_dialog_ = FocusStateBeforeModalDialog{
++      .had_focus = true,
++      .text = GetOmniboxText(show_full_url),
++      .selection = popup_handler->latest_selection(),
++      .show_full_url = show_full_url};
++  BlurIfBrowserOrPopupInactiveSoon();
++}
++
++void OmniboxPopupFullPresenter::BlurIfBrowserOrPopupInactiveSoon() {
++  // The dialog normally takes activation from the browser window or the popup,
++  // which then calls `BlurIfBrowserOrPopupInactive()`. If another window, such
++  // as a bubble, already held activation, neither is deactivated, so check once
++  // activation settles. If the dialog never takes activation, e.g. a file
++  // dialog blocked by policy, the browser window stays active and this does
++  // nothing.
++  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++      FROM_HERE,
++      base::BindOnce(&OmniboxPopupFullPresenter::BlurIfBrowserOrPopupInactive,
++                     weak_factory_.GetWeakPtr()));
++}
++
++void OmniboxPopupFullPresenter::OnModalDialogClosed() {
++  // Wait for `OnFileDialogClosed()` to tell whether a file was selected.
++  if (!focus_state_before_modal_dialog_ || file_dialog_open_) {
++    return;
++  }
++  // The dialog didn't blur the omnibox, or it has already been refocused.
++  if (controller()->edit_model()->has_focus()) {
++    ClearFocusStateBeforeModalDialog();
++    return;
++  }
++  // Some platforms reactivate the browser window before notifying that the
++  // dialog closed. Otherwise, the omnibox is refocused once the window is
++  // reactivated.
++  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++      FROM_HERE,
++      base::BindOnce(&OmniboxPopupFullPresenter::RestoreFocusAfterModalDialog,
++                     weak_factory_.GetWeakPtr()));
++}
++
++std::optional<OmniboxPopupFullPresenter::FocusStateToRestore>
++OmniboxPopupFullPresenter::TakeFocusStateToRestoreAfterModalDialog() {
++  // Only a refocus restores the selection. Refocusing an already focused
++  // omnibox, e.g. while the dialog is opening, leaves it to be restored later.
++  if (!focus_state_before_modal_dialog_ ||
++      controller()->edit_model()->has_focus()) {
++    return std::nullopt;
++  }
++  const FocusStateBeforeModalDialog state = *focus_state_before_modal_dialog_;
++  ClearFocusStateBeforeModalDialog();
++  if (!state.had_focus || state.text != GetOmniboxText(state.show_full_url) ||
++      state.selection.GetMax() > state.text.length()) {
++    return std::nullopt;
++  }
++  return FocusStateToRestore{.text = state.text,
++                             .selection = state.selection,
++                             .show_full_url = state.show_full_url};
++}
++
++void OmniboxPopupFullPresenter::OnTabChanged() {
++  if (!focus_state_before_modal_dialog_) {
++    return;
++  }
++  ClearFocusStateBeforeModalDialog();
++  // Unless the new tab's omnibox is focused, don't restore the location bar
++  // when the window is reactivated either. See `BlurForWindowDeactivation()`.
++  if (controller()->edit_model()->has_focus()) {
++    return;
++  }
++  if (auto* focus_manager = GetBrowserFocusManager()) {
++    if (focus_manager->GetStoredFocusView() ==
++        delegate().GetLocationBarFocusRestoreView()) {
++      focus_manager->SetStoredFocusView(nullptr);
++    }
++  }
++}
++
++void OmniboxPopupFullPresenter::RestoreFocusAfterModalDialog() {
++  // While the omnibox is focused, the dialog hasn't blurred it yet, or it has
++  // already been refocused. While a file dialog from the "+" menu is open, wait
++  // for `OnFileDialogClosed()`, which runs this again if no file was selected.
++  if (!focus_state_before_modal_dialog_ ||
++      controller()->edit_model()->has_focus() || file_dialog_open_) {
++    return;
++  }
++  // Something else opened a popup since, such as AI Mode.
++  if (controller()->popup_state_manager()->popup_state() !=
++      OmniboxPopupState::kNone) {
++    ClearFocusStateBeforeModalDialog();
++    return;
++  }
++  if (!location_bar() || !IsBrowserOrPopupActive() ||
++      views::MenuController::GetActiveInstance()) {
++    return;
++  }
++  // The omnibox wasn't focused, but a draft kept the popup open. Reopen it,
++  // still unfocused.
++  if (!focus_state_before_modal_dialog_->had_focus) {
++    ClearFocusStateBeforeModalDialog();
++    if (auto* popup_view = location_bar()->GetOmniboxPopupView()) {
++      popup_view->ReshowPopup();
++    }
++    return;
++  }
++  // Focus the location bar, as `FocusManager` does when it restores focus on
++  // window reactivation. This hands focus to the popup, which takes the
++  // selection to restore.
++  if (auto* focus_manager = GetBrowserFocusManager()) {
++    if (auto* restore_view = delegate().GetLocationBarFocusRestoreView()) {
++      focus_manager->SetFocusedView(restore_view);
++    }
++  }
++  // Refocus the popup directly if focusing the location bar didn't, e.g. if it
++  // already had Views focus.
++  if (focus_state_before_modal_dialog_) {
++    if (auto* popup_view = location_bar()->GetOmniboxPopupView()) {
++      popup_view->OnFocus(/*query_zps=*/false, /*select_all=*/false,
++                          /*show_full_url=*/false);
++    }
++  }
++  ClearFocusStateBeforeModalDialog();
++}
++
++void OmniboxPopupFullPresenter::ClearFocusStateBeforeModalDialog() {
++  focus_state_before_modal_dialog_.reset();
++  // Stop observing the browser window if `Hide()` kept observing it.
++  if (!IsShown()) {
++    browser_widget_observation_.Reset();
++  }
++}
++
++std::u16string OmniboxPopupFullPresenter::GetOmniboxText(bool show_full_url) {
++  OmniboxEditModel* edit_model = controller()->edit_model();
++  if (edit_model->user_input_in_progress()) {
++    return edit_model->user_text();
++  }
++  if (show_full_url) {
++    if (std::u16string full_url = controller()->client()->GetFormattedFullURL();
++        !full_url.empty()) {
++      return full_url;
++    }
++  }
++  return edit_model->GetPermanentDisplayText();
++}
++
+ void OmniboxPopupFullPresenter::FocusPopupContent() {
+   if (auto* content = GetWebUIContent()) {
+     content->RequestFocus();
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h
+index 1b9444b..7f647a0 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h
+@@ -6,6 +6,8 @@
+ #define CHROME_BROWSER_UI_VIEWS_OMNIBOX_OMNIBOX_POPUP_FULL_PRESENTER_H_
+ 
+ #include <memory>
++#include <optional>
++#include <string>
+ 
+ #include "base/callback_list.h"
+ #include "base/cancelable_callback.h"
+@@ -20,6 +22,7 @@
+ #include "ui/events/event_observer.h"
+ #include "ui/gfx/geometry/insets.h"
+ #include "ui/gfx/geometry/point.h"
++#include "ui/gfx/range/range.h"
+ #include "ui/views/event_monitor.h"
+ #include "ui/views/focus/focus_manager.h"
+ #include "ui/views/view_observer.h"
+@@ -87,6 +90,37 @@
+ 
+   bool ShouldReceiveFocus() const override;
+ 
++  // Called when a native file dialog opened from the popup's "+" menu is shown
++  // and closed. See `OnModalDialogShown()`. Selecting files opens AI Mode with
++  // them, so the omnibox isn't refocused then.
++  //
++  // Other modal dialogs are detected through
++  // `OnWidgetWindowModalVisibilityChanged()`. That can't tell whether a file
++  // was selected, though. Also, it reports native file dialogs on macOS, which
++  // are window-modal sheets, but not on other platforms (crbug.com/450705434).
++  // TODO(b/581984657): Handle other native file dialogs on those platforms,
++  // such as the one Ctrl+O opens.
++  void OnFileDialogOpened() override;
++  void OnFileDialogClosed(bool file_selected) override;
++
++  // The text and selection the omnibox had when a modal dialog blurred it, and
++  // whether it showed the full URL rather than the elided one.
++  struct FocusStateToRestore {
++    std::u16string text;
++    gfx::Range selection;
++    bool show_full_url = false;
++  };
++
++  // Called when the omnibox is refocused. Returns the focus state the omnibox
++  // had when a modal dialog blurred it, so that the caller restores it. Only
++  // the first call after the dialog closes returns it. Returns nullopt if there
++  // is none, or if the omnibox text has changed since.
++  std::optional<FocusStateToRestore> TakeFocusStateToRestoreAfterModalDialog();
++
++  // Called when the active tab changes. Forgets any state recorded for a modal
++  // dialog, which belongs to the previous tab's omnibox.
++  void OnTabChanged();
++
+  protected:
+   // OmniboxPopupPresenterBase:
+   // Returns true so that explicit focus requests (`focus_requested_`) are
+@@ -126,6 +160,13 @@
+   // parent is resized from the top edge.
+   void OnWidgetBoundsChanged(views::Widget* widget,
+                              const gfx::Rect& new_bounds) override;
++  // Stops observing the browser widget, which may still be observed while the
++  // popup is hidden. See `Hide()`.
++  void OnWidgetDestroying(views::Widget* widget) override;
++  // Reports window-modal dialogs to `OnModalDialogShown()` and
++  // `OnModalDialogClosed()`.
++  void OnWidgetWindowModalVisibilityChanged(views::Widget* widget,
++                                            bool visible) override;
+   void StopForwardingEvents();
+ 
+   // Tells this window's popup view that the adopted page's handler is ready,
+@@ -166,7 +207,9 @@
+   void BlurIfBrowserOrPopupInactive();
+   // If the omnibox is focused with the full popup open, blurs it after another
+   // window, such as a bubble, took activation, and sets what the browser window
+-  // restores focus to when it's reactivated.
++  // restores focus to when it's reactivated. If a modal dialog took
++  // activation, also closes the popup, even if a draft would keep it open, and
++  // even if the omnibox was already blurred. See `OnModalDialogShown()`.
+   void BlurForWindowDeactivation();
+   // Hands focus to the popup if the omnibox is still focused with the popup
+   // open. Runs after the browser window or popup is activated while
+@@ -190,6 +233,34 @@
+   // beneath.
+   void UpdatePopupOcclusion();
+ 
++  // Called when a modal dialog, e.g. a native file dialog, is shown over the
++  // browser window or the popup, and when it closes. While it's shown, the
++  // omnibox is blurred, like for any other window taking activation, and the
++  // popup is closed even if it shows a draft, so that it can't be used until
++  // the dialog closes, as with the classic omnibox. Once the dialog closes and
++  // the browser window is reactivated, the omnibox is refocused with the text
++  // (including any draft) and selection it had when the dialog was shown. If
++  // the omnibox wasn't focused, but a draft kept the popup open, the popup is
++  // reopened unfocused instead.
++  void OnModalDialogShown();
++  void OnModalDialogClosed();
++
++  // Posts `BlurIfBrowserOrPopupInactive()` after `OnModalDialogShown()`.
++  void BlurIfBrowserOrPopupInactiveSoon();
++
++  // Refocuses the omnibox after a modal dialog closed, if the dialog blurred it
++  // and the browser window is active again. See `OnModalDialogShown()`.
++  void RestoreFocusAfterModalDialog();
++
++  // Clears `focus_state_before_modal_dialog_`. If the popup is hidden, also
++  // stops observing the browser window, which `Hide()` keeps observing while
++  // that state is set.
++  void ClearFocusStateBeforeModalDialog();
++
++  // Returns the text shown in the omnibox: the user's text while editing, and
++  // otherwise the full URL if `show_full_url`, or the permanent display text.
++  std::u16string GetOmniboxText(bool show_full_url);
++
+   // Returns the browser window's widget. In macOS immersive fullscreen this is
+   // not the location bar's widget, which is then a non-activatable overlay.
+   views::Widget* GetBrowserWidget();
+@@ -270,6 +341,26 @@
+   // Whether the "first shown" metrics have been logged at least once.
+   bool logged_first_shown_metric_ = false;
+ 
++  // Set when a modal dialog is shown while the popup is open. If the omnibox
++  // was focused, holds its text and selection, and whether it showed the full
++  // URL. Cleared once the omnibox is refocused, or the popup reopened, after
++  // the dialog closes. Also cleared if the omnibox is still focused when the
++  // dialog closes. That happens if the dialog never took activation. For
++  // example, when policy blocks a file dialog, it reports that it closed
++  // without ever being shown.
++  struct FocusStateBeforeModalDialog {
++    // False if the popup was open with a draft while the omnibox wasn't
++    // focused. The popup is then reopened, unfocused, once the dialog closes.
++    bool had_focus = false;
++    std::u16string text;
++    gfx::Range selection;
++    bool show_full_url = false;
++  };
++  std::optional<FocusStateBeforeModalDialog> focus_state_before_modal_dialog_;
++  // Whether a native file dialog opened from the popup's "+" menu is open. See
++  // `OnFileDialogOpened()`.
++  bool file_dialog_open_ = false;
++
+   base::WeakPtrFactory<OmniboxPopupFullPresenter> weak_factory_{this};
+ };
+ 
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h b/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h
+index 153be1c..f3181ec 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h
+@@ -112,6 +112,13 @@
+   std::unique_ptr<OmniboxPopupDeactivationBlocker> CreateDeactivationBlocker()
+       override;
+   void OnFileSelectionClosed() override;
++  // Called when a native file dialog opened from the popup's "+" menu is shown
++  // and closed, respectively. `file_selected` is whether the user selected
++  // files, which opens AI Mode with them. Unlike deactivation blockers, these
++  // are called regardless of `omnibox::kOmniboxKeepOpenOnFileSelection`.
++  // TODO(b/582886941): Merge deactivation blockers with these.
++  virtual void OnFileDialogOpened() {}
++  virtual void OnFileDialogClosed(bool file_selected) {}
+   void NotifyEscapeKeyPressed() override {}
+   bool has_active_blockers() const { return deactivation_blockers_count_ > 0; }
+ 
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc b/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc
+index f721f52202..fc5cdf5 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc
+@@ -127,18 +127,20 @@
+   SyncNativeStateToWebUIImpl(
+       query_zps ? omnibox_popup::mojom::MatchesUpdate::kQueryZps
+                 : omnibox_popup::mojom::MatchesUpdate::kDefault,
+-      show_full_url);
++      show_full_url, /*focus_state_to_restore=*/std::nullopt);
+ }
+ 
+ void OmniboxPopupViewFullWebUI::SyncNativeStateToWebUIPreservingMatches() {
+   SyncNativeStateToWebUIImpl(
+       omnibox_popup::mojom::MatchesUpdate::kPreserveMatches,
+-      /*show_full_url=*/false);
++      /*show_full_url=*/false, /*focus_state_to_restore=*/std::nullopt);
+ }
+ 
+ void OmniboxPopupViewFullWebUI::SyncNativeStateToWebUIImpl(
+     omnibox_popup::mojom::MatchesUpdate matches_update,
+-    bool show_full_url) {
++    bool show_full_url,
++    std::optional<OmniboxPopupFullPresenter::FocusStateToRestore>
++        focus_state_to_restore) {
+   TRACE_EVENT("omnibox", "OmniboxPopupViewFullWebUI::SyncNativeStateToWebUI",
+               "matches_update", matches_update);
+   auto* edit_model = controller()->edit_model();
+@@ -217,6 +219,16 @@
+     selection = handler_selection;
+   }
+ 
++  // Restore the selection the omnibox had before a modal dialog blurred it, if
++  // the text sent is still the text it had. See `OnFocus()`.
++  if (focus_state_to_restore &&
++      focus_state_to_restore->text ==
++          (should_show_full_url ? full_url : text) &&
++      focus_state_to_restore->selection.GetMax() <=
++          focus_state_to_restore->text.length()) {
++    selection = focus_state_to_restore->selection;
++  }
++
+   bool selection_changed = selection != handler_selection;
+   bool focus_changed = !last_sent_focus_ || focus != *last_sent_focus_;
+ 
+@@ -398,6 +410,10 @@
+   // rather than `OmniboxPopupViewFullWebUI::OnBlur()`, which would otherwise
+   // leave `focused_` stale at `true`.
+   focused_ = should_focus_popup;
++  // Any state recorded for a modal dialog belongs to the previous tab.
++  if (presenter()) {
++    static_cast<OmniboxPopupFullPresenter*>(presenter())->OnTabChanged();
++  }
+ 
+   // Request focus before pushing content state so our `SetInputState` IPC
+   // overrides any OS-default focus selection (such as macOS Select-All).
+@@ -520,6 +536,24 @@
+     last_consumed_native_selection_.reset();
+   }
+ 
++  // A modal dialog closes the popup while it's shown. When the omnibox is
++  // refocused after the dialog closes, restore the selection the omnibox had,
++  // and whether it showed the full URL. The Views omnibox also restores its
++  // selection when its window is reactivated. Take the state before
++  // `OnSetFocus()` below, which focuses the omnibox. Take it even if the focus
++  // requests a different selection, so that it isn't left for a later refocus.
++  std::optional<OmniboxPopupFullPresenter::FocusStateToRestore>
++      focus_state_to_restore;
++  if (changed && presenter()) {
++    std::optional<OmniboxPopupFullPresenter::FocusStateToRestore> restored =
++        static_cast<OmniboxPopupFullPresenter*>(presenter())
++            ->TakeFocusStateToRestoreAfterModalDialog();
++    if (restored && !query_zps && !show_full_url) {
++      show_full_url = restored->show_full_url;
++      focus_state_to_restore = std::move(restored);
++    }
++  }
++
+   controller()->popup_state_manager()->SetPopupState(OmniboxPopupState::kFull);
+   controller()->edit_model()->OnSetFocus(/*control_down=*/false);
+ 
+@@ -529,7 +563,10 @@
+   popup_host()->RequestFocus();
+ 
+   if (changed) {
+-    SyncNativeStateToWebUI(query_zps, show_full_url);
++    SyncNativeStateToWebUIImpl(
++        query_zps ? omnibox_popup::mojom::MatchesUpdate::kQueryZps
++                  : omnibox_popup::mojom::MatchesUpdate::kDefault,
++        show_full_url, std::move(focus_state_to_restore));
+   } else if (auto* popup_handler = GetPopupHandler()) {
+     // If the popup was already open (`!changed`), explicitly send
+     // `SetFocus(true, query_zps, select_all, show_full_url)` via IPC to ensure
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.h b/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.h
+index f489d79..123c181 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.h
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.h
+@@ -10,6 +10,7 @@
+ 
+ #include "base/functional/callback.h"
+ #include "chrome/browser/ui/omnibox/omnibox_popup_view.h"
++#include "chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h"
+ #include "chrome/browser/ui/views/omnibox/omnibox_popup_view_webui.h"
+ #include "chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom-forward.h"
+ #include "content/public/browser/web_contents_observer.h"
+@@ -22,7 +23,6 @@
+ class LocationBar;
+ class OmniboxController;
+ class OmniboxView;
+-class OmniboxPopupFullPresenter;
+ class OmniboxPopupPresenterDelegate;
+ class OmniboxPopupHandler;
+ 
+@@ -66,6 +66,8 @@
+   // synchronizes full input state (`SyncNativeStateToWebUI()`). If the popup
+   // was already open, sends a dedicated `SetFocus(true)` Mojo IPC to ensure
+   // DOM input focus in the WebUI is restored without resetting input state.
++  // If a modal dialog blurred the omnibox and closed the popup, restores the
++  // selection the omnibox had instead.
+   void OnFocus(bool query_zps, bool select_all, bool show_full_url) override;
+   void FocusSearchWithDefaultSearchEngineKeywordMode() override;
+   // Called when the native omnibox loses focus. Sends a dedicated
+@@ -110,10 +112,14 @@
+   // Implements `SyncNativeStateToWebUI()` and
+   // `SyncNativeStateToWebUIPreservingMatches()`. For
+   // `MatchesUpdate::kPreserveMatches`, the input state is sent even if
+-  // unchanged, so that WebUI stops any in-flight query.
++  // unchanged, so that WebUI stops any in-flight query. If set, and its text is
++  // the text sent, `focus_state_to_restore` overrides the selection sent. See
++  // `OnFocus()`.
+   void SyncNativeStateToWebUIImpl(
+       omnibox_popup::mojom::MatchesUpdate matches_update,
+-      bool show_full_url);
++      bool show_full_url,
++      std::optional<OmniboxPopupFullPresenter::FocusStateToRestore>
++          focus_state_to_restore);
+ 
+   // Caches the last text string sent to the WebUI to avoid redundant IPCs.
+   // Null after a state reset (e.g., tab switch).
+diff --git a/chrome/browser/ui/webui/searchbox/BUILD.gn b/chrome/browser/ui/webui/searchbox/BUILD.gn
+index 5ab1d23..fe9d0a5a 100644
+--- a/chrome/browser/ui/webui/searchbox/BUILD.gn
++++ b/chrome/browser/ui/webui/searchbox/BUILD.gn
+@@ -365,6 +365,7 @@
+       "//ui/events:test_support",
+       "//ui/gfx/geometry",
+       "//ui/shell_dialogs",
++      "//ui/shell_dialogs:test_support",
+       "//ui/strings",
+       "//ui/touch_selection",
+       "//ui/views",
 diff --git a/components/certificate_transparency/data/log_list.json b/components/certificate_transparency/data/log_list.json
 index 00700b0..96df0f3e 100644
 --- a/components/certificate_transparency/data/log_list.json
@@ -392,6 +1448,42 @@ index 1705bc4..a4698f75 100644
    MOCK_METHOD(std::vector<raw_ptr<const FileInfo>>,
                GetFileInfoList,
                (),
+diff --git a/components/contextual_tasks/public/features.cc b/components/contextual_tasks/public/features.cc
+index 3dabbe9..c0190ce 100644
+--- a/components/contextual_tasks/public/features.cc
++++ b/components/contextual_tasks/public/features.cc
+@@ -993,6 +993,12 @@
+              kContextualTasksEphemeralPinButtonRefactor);
+ }
+ 
++bool IsEphemeralPinningVisibleWhenPermanentlyPinnedEnabled() {
++  return base::FeatureList::IsEnabled(
++             kEphemeralPinningVisibleWhenPermanentlyPinned) &&
++         !IsContextualTasksEphemeralPinButtonRefactorEnabled();
++}
++
+ bool IsContextualTasksEphemeralEntryPointEnabled() {
+   return kShowEntryPoint.Get() == EntryPointOption::kToolbarEphemeralBranded ||
+          IsContextualTasksEphemeralPinButtonRefactorEnabled();
+diff --git a/components/contextual_tasks/public/features.h b/components/contextual_tasks/public/features.h
+index cc905cc..b7b3beb2 100644
+--- a/components/contextual_tasks/public/features.h
++++ b/components/contextual_tasks/public/features.h
+@@ -667,6 +667,14 @@
+ // ContextualTasksButton.
+ extern bool IsContextualTasksEphemeralPinButtonRefactorEnabled();
+ 
++// Returns whether the ephemeral toolbar button should stay visible alongside
++// the permanently pinned button
++// (`kEphemeralPinningVisibleWhenPermanentlyPinned`). Always false under the
++// ephemeral pin button refactor: there, the ephemeral and permanent buttons are
++// the same toolbar action, which can only be shown once, so the two-button mode
++// is unsupported.
++extern bool IsEphemeralPinningVisibleWhenPermanentlyPinnedEnabled();
++
+ // Returns whether an ephemeral toolbar entry point for Contextual Tasks is
+ // active, either the legacy `toolbar-ephemeral-branded` entry point param or
+ // the ephemeral pin button refactor. Use this instead of comparing
 diff --git a/components/critical_actions/core/browser/critical_action_backend.cc b/components/critical_actions/core/browser/critical_action_backend.cc
 index 00aadd40..b3c45d2 100644
 --- a/components/critical_actions/core/browser/critical_action_backend.cc
@@ -893,3 +1985,473 @@ index 327e0bb1..ad5867f 100644
  
      switch (parsed_record->type()) {
        case net::ARecordRdata::kType:
+diff --git a/third_party/blink/renderer/modules/webaudio/audio_context.cc b/third_party/blink/renderer/modules/webaudio/audio_context.cc
+index bf0027a..2640cbbe 100644
+--- a/third_party/blink/renderer/modules/webaudio/audio_context.cc
++++ b/third_party/blink/renderer/modules/webaudio/audio_context.cc
+@@ -523,46 +523,52 @@
+     return nullptr;
+   }
+ 
+-  // Pre-validation for renderSizeHint if sampleRate is provided. This prevents
+-  // allocating excessive memory for clearly invalid renderSizeHint values
+-  // before the AudioContext is fully constructed.
+-  bool render_quantum_frames_validated = false;
+-  if (sample_rate.has_value() && render_quantum_frames.has_value()) {
++  // Validate renderSizeHint before constructing the context, because the
++  // render quantum size drives the size of the buffers allocated during
++  // construction. When sampleRate is not provided the context sample rate is
++  // not known until the audio device has been created, so validate against the
++  // maximum supported sample rate here; the actual bound is checked below.
++  if (render_quantum_frames.has_value()) {
++    const float validation_sample_rate =
++        sample_rate.value_or(audio_utilities::MaxAudioBufferSampleRate());
+     if (!audio_utilities::IsValidRenderQuantumSize(
+-            render_quantum_frames.value(), sample_rate.value())) {
++            render_quantum_frames.value(), validation_sample_rate)) {
+       exception_state.ThrowDOMException(
+           DOMExceptionCode::kNotSupportedError,
+           ExceptionMessages::IndexOutsideRange(
+               "renderSizeHint", render_quantum_frames.value(),
+               audio_utilities::MinRenderQuantumSize(),
+               ExceptionMessages::kInclusiveBound,
+-              audio_utilities::MaxRenderQuantumSize(sample_rate.value()),
++              audio_utilities::MaxRenderQuantumSize(validation_sample_rate),
+               ExceptionMessages::kInclusiveBound));
+       return nullptr;
+     }
+-    render_quantum_frames_validated = true;
+   }
+ 
+   SCOPED_UMA_HISTOGRAM_TIMER("WebAudio.AudioContext.CreateTime");
+   AudioContext* audio_context = MakeGarbageCollected<AudioContext>(
+       window, latency_hint, sample_rate, sink_descriptor,
+       update_echo_cancellation_on_first_start, render_quantum_frames);
++  // Must be called exactly once after construction, even if the context is
++  // rejected below.
++  audio_context->UpdateStateIfNeeded();
+ 
++  // A context rejected after construction must be uninitialized. Otherwise it
++  // stays alive with pending activity until the execution context is destroyed.
+   if (audio_context->HasAllocationFailed()) {
++    audio_context->UninitializeRejectedContext();
+     exception_state.ThrowDOMException(
+         DOMExceptionCode::kNotSupportedError,
+         "The context could not be created due to memory limitation.");
+     return nullptr;
+   }
+ 
+-  ++hardware_context_count;
+-  audio_context->UpdateStateIfNeeded();
+-
+-  // If the render quantum size was not able to be validated before due to the
+-  // sample rate or hardware buffer size not being known, validate it here.
+-  if (!render_quantum_frames_validated &&
+-      !audio_utilities::IsValidRenderQuantumSize(
++  // Now that the context sample rate is known, validate the render quantum
++  // size against it. This cannot fail when sampleRate was provided, because
++  // the exact bound was already checked above.
++  if (!audio_utilities::IsValidRenderQuantumSize(
+           audio_context->renderQuantumSize(), audio_context->sampleRate())) {
++    audio_context->UninitializeRejectedContext();
+     exception_state.ThrowDOMException(
+         DOMExceptionCode::kNotSupportedError,
+         ExceptionMessages::IndexOutsideRange(
+@@ -633,6 +639,7 @@
+       use_audibility_hysteresis_(base::FeatureList::IsEnabled(
+           blink::features::kWebAudioAudibilityHysteresis)),
+       stats_update_restrictor_(std::make_unique<StatsUpdateRestrictor>()) {
++  ++hardware_context_count;
+   RecordAudioContextOperation(AudioContextOperation::kCreate);
+   SendLogMessage(__func__, GetAudioContextLogString(latency_hint, sample_rate));
+ 
+@@ -683,12 +690,14 @@
+   // AudioContext caused by the rendering quantum size or the hardware buffer
+   // size, whichever is greater.
+   //
+-  size_t base_latency_frames =
+-      std::max(static_cast<size_t>(destinationNode()
+-                                       ->GetAudioDestinationHandler()
+-                                       .GetFramesPerBuffer()),
+-               static_cast<size_t>(renderQuantumSize()));
+-  base_latency_ = base_latency_frames / static_cast<double>(sampleRate());
++  size_t base_latency_frames = std::max(
++      static_cast<size_t>(
++          destinationNode()->GetAudioDestinationHandler().GetFramesPerBuffer()),
++      static_cast<size_t>(renderQuantumSize()));
++  const double context_sample_rate = sampleRate();
++  base_latency_ = context_sample_rate > 0.0
++                      ? base_latency_frames / context_sample_rate
++                      : 0.0;
+   SendLogMessage(__func__,
+                  Format("=> (base latency={:.3f} seconds))", base_latency_));
+ 
+@@ -724,6 +733,14 @@
+ 
+ void AudioContext::Uninitialize() {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(main_thread_sequence_checker_);
++  // This runs for a context rejected by Create(), via
++  // UninitializeRejectedContext(), and again from ContextDestroyed() if the
++  // context has not been collected by then. Check `is_cleared_` directly rather
++  // than the override, which also reports true for a context that was only
++  // close()d.
++  if (BaseAudioContext::IsContextCleared()) {
++    return;
++  }
+   DCHECK_NE(hardware_context_count, 0u);
+   SendLogMessage(__func__, "");
+   --hardware_context_count;
+@@ -734,6 +751,16 @@
+   DCHECK_EQ(pending_resume_resolvers_.size(), 0u);
+ }
+ 
++void AudioContext::UninitializeRejectedContext() {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(main_thread_sequence_checker_);
++  // The constructor provisionally sets `autoplay_status_` to kFailed, which
++  // MaybeAllowAutoplayWithUnlockType() would have upgraded had the context been
++  // accepted. Drop it so that Uninitialize() does not record it.
++  DCHECK(!autoplay_unlock_type_.has_value());
++  autoplay_status_.reset();
++  Uninitialize();
++}
++
+ AudioContext::~AudioContext() {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(main_thread_sequence_checker_);
+ 
+diff --git a/third_party/blink/renderer/modules/webaudio/audio_context.h b/third_party/blink/renderer/modules/webaudio/audio_context.h
+index 6c756b9..47243251 100644
+--- a/third_party/blink/renderer/modules/webaudio/audio_context.h
++++ b/third_party/blink/renderer/modules/webaudio/audio_context.h
+@@ -341,6 +341,10 @@
+   void Uninitialize() override;
+   void DetachPendingResolvers() override;
+ 
++  // Uninitializes a context that Create() rejects after construction. Script
++  // never observes such a context, so it must not report autoplay metrics.
++  void UninitializeRejectedContext();
++
+   // Returns the AutoplayPolicy currently applying to this instance.
+   AutoplayPolicy::Type GetAutoplayPolicy() const;
+ 
+diff --git a/third_party/blink/renderer/modules/webaudio/audio_listener.cc b/third_party/blink/renderer/modules/webaudio/audio_listener.cc
+index e427acd5..901839a 100644
+--- a/third_party/blink/renderer/modules/webaudio/audio_listener.cc
++++ b/third_party/blink/renderer/modules/webaudio/audio_listener.cc
+@@ -122,6 +122,9 @@
+       forward_x_->Handler(), forward_y_->Handler(), forward_z_->Handler(),
+       up_x_->Handler(), up_y_->Handler(), up_z_->Handler(),
+       deferred_task_handler_->RenderQuantumFrames()));
++  if (Handler().HasAllocationFailed()) {
++    context.SetAllocationFailed();
++  }
+ }
+ 
+ AudioListener::~AudioListener() {
+diff --git a/third_party/blink/renderer/modules/webaudio/audio_listener_handler.cc b/third_party/blink/renderer/modules/webaudio/audio_listener_handler.cc
+index 59412e4..fa6a34d 100644
+--- a/third_party/blink/renderer/modules/webaudio/audio_listener_handler.cc
++++ b/third_party/blink/renderer/modules/webaudio/audio_listener_handler.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "third_party/blink/renderer/modules/webaudio/audio_listener_handler.h"
+ 
++#include <array>
++
+ #include "third_party/blink/renderer/modules/webaudio/panner_handler.h"
+ #include "third_party/blink/renderer/platform/audio/hrtf_database_loader.h"
+ 
+@@ -45,16 +47,25 @@
+       forward_z_handler_(&forward_z_handler),
+       up_x_handler_(&up_x_handler),
+       up_y_handler_(&up_y_handler),
+-      up_z_handler_(&up_z_handler),
+-      position_x_values_(render_quantum_frames),
+-      position_y_values_(render_quantum_frames),
+-      position_z_values_(render_quantum_frames),
+-      forward_x_values_(render_quantum_frames),
+-      forward_y_values_(render_quantum_frames),
+-      forward_z_values_(render_quantum_frames),
+-      up_x_values_(render_quantum_frames),
+-      up_y_values_(render_quantum_frames),
+-      up_z_values_(render_quantum_frames) {
++      up_z_handler_(&up_z_handler) {
++  // The render quantum size comes from the user-provided renderSizeHint, so
++  // an allocation failure here must not crash. On failure, release any arrays
++  // that were already allocated and report the failure to the owner, which
++  // propagates it to the context so that the context creation is rejected.
++  const std::array<AudioFloatArray*, 9> value_arrays = {
++      &position_x_values_, &position_y_values_, &position_z_values_,
++      &forward_x_values_,  &forward_y_values_,  &forward_z_values_,
++      &up_x_values_,       &up_y_values_,       &up_z_values_};
++  for (AudioFloatArray* values : value_arrays) {
++    if (!values->TryAllocate(render_quantum_frames)) {
++      has_allocation_failed_ = true;
++      for (AudioFloatArray* allocated_values : value_arrays) {
++        *allocated_values = {};
++      }
++      break;
++    }
++  }
++
+   // Initialize the cached values with the current values.  Thus, we don't need
+   // to notify any panners because we haved moved.
+   last_position_ = GetPosition();
+diff --git a/third_party/blink/renderer/modules/webaudio/audio_listener_handler.h b/third_party/blink/renderer/modules/webaudio/audio_listener_handler.h
+index 7511c1a2..2a390e16 100644
+--- a/third_party/blink/renderer/modules/webaudio/audio_listener_handler.h
++++ b/third_party/blink/renderer/modules/webaudio/audio_listener_handler.h
+@@ -5,6 +5,7 @@
+ #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_WEBAUDIO_AUDIO_LISTENER_HANDLER_H_
+ #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBAUDIO_AUDIO_LISTENER_HANDLER_H_
+ 
++#include "third_party/blink/renderer/modules/modules_export.h"
+ #include "third_party/blink/renderer/modules/webaudio/audio_param.h"
+ #include "ui/gfx/geometry/point3_f.h"
+ #include "ui/gfx/geometry/vector3d_f.h"
+@@ -14,7 +15,7 @@
+ class HRTFDatabaseLoader;
+ class PannerHandler;
+ 
+-class AudioListenerHandler final
++class MODULES_EXPORT AudioListenerHandler final
+     : public ThreadSafeRefCounted<AudioListenerHandler> {
+  public:
+   static scoped_refptr<AudioListenerHandler> Create(
+@@ -31,6 +32,8 @@
+ 
+   ~AudioListenerHandler();
+ 
++  bool HasAllocationFailed() const { return has_allocation_failed_; }
++
+   const gfx::Point3F GetPosition() const {
+     return gfx::Point3F(position_x_handler_->Value(),
+                         position_y_handler_->Value(),
+@@ -144,6 +147,8 @@
+ 
+   // HRTF database loader used by PannerHandlers in the same context.
+   scoped_refptr<HRTFDatabaseLoader> hrtf_database_loader_;
++
++  bool has_allocation_failed_ = false;
+ };
+ 
+ }  // namespace blink
+diff --git a/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc b/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc
+index baf8b32..3200c452 100644
+--- a/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc
++++ b/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc
+@@ -129,6 +129,7 @@
+       MakeGarbageCollected<OfflineAudioContext>(
+           window, number_of_channels, number_of_frames, sample_rate,
+           exception_state, render_quantum_frames);
++  audio_context->UpdateStateIfNeeded();
+ 
+   if (audio_context->HasAllocationFailed()) {
+     exception_state.ThrowDOMException(
+@@ -137,8 +138,6 @@
+     return nullptr;
+   }
+ 
+-  audio_context->UpdateStateIfNeeded();
+-
+ #if DEBUG_AUDIONODE_REFERENCES
+   fprintf(stderr, "[%16p]: OfflineAudioContext::OfflineAudioContext()\n",
+           audio_context);
+diff --git a/third_party/blink/renderer/modules/webaudio/realtime_audio_destination_handler.cc b/third_party/blink/renderer/modules/webaudio/realtime_audio_destination_handler.cc
+index d5b2cf6..fa48f2d0 100644
+--- a/third_party/blink/renderer/modules/webaudio/realtime_audio_destination_handler.cc
++++ b/third_party/blink/renderer/modules/webaudio/realtime_audio_destination_handler.cc
+@@ -211,7 +211,9 @@
+ }
+ 
+ uint32_t RealtimeAudioDestinationHandler::MaxChannelCount() const {
+-  return platform_destination_->MaxChannelCount();
++  // `platform_destination_` is null when its creation failed. The context is
++  // then rejected, but the inspector can still query it during teardown.
++  return platform_destination_ ? platform_destination_->MaxChannelCount() : 0;
+ }
+ 
+ double RealtimeAudioDestinationHandler::SampleRate() const {
+@@ -358,7 +360,8 @@
+   DCHECK(IsMainThread());
+   DCHECK(IsInitialized());
+ 
+-  return platform_destination_->CallbackBufferSize();
++  return platform_destination_ ? platform_destination_->CallbackBufferSize()
++                               : 0;
+ }
+ 
+ int RealtimeAudioDestinationHandler::GetFramesPerBuffer() const {
+@@ -373,7 +376,9 @@
+   DCHECK(IsMainThread());
+   DCHECK(IsInitialized());
+ 
+-  return platform_destination_->GetPlatformBufferDuration();
++  return platform_destination_
++             ? platform_destination_->GetPlatformBufferDuration()
++             : base::TimeDelta();
+ }
+ 
+ void RealtimeAudioDestinationHandler::CreatePlatformDestination() {
+diff --git a/ui/webui/resources/cr_components/composebox/threads_rail.css b/ui/webui/resources/cr_components/composebox/threads_rail.css
+index b9f1450..1b77e8b 100644
+--- a/ui/webui/resources/cr_components/composebox/threads_rail.css
++++ b/ui/webui/resources/cr_components/composebox/threads_rail.css
+@@ -27,6 +27,11 @@
+   padding: 30px 12px 20px 12px;
+ }
+ 
++:host([suppress-pointer-hover_]) #rail,
++:host([suppress-pointer-hover_]) cr-icon-button {
++  pointer-events: none;
++}
++
+ :host-context([dir='rtl']) #rail {
+   cursor: w-resize;
+ }
+diff --git a/ui/webui/resources/cr_components/composebox/threads_rail.html.ts b/ui/webui/resources/cr_components/composebox/threads_rail.html.ts
+index aebb04f..38b3b04 100644
+--- a/ui/webui/resources/cr_components/composebox/threads_rail.html.ts
++++ b/ui/webui/resources/cr_components/composebox/threads_rail.html.ts
+@@ -14,10 +14,12 @@
+         @click="${this.onLogoClick_}"
+         aria-label="${this.i18n('aimThreadsGoogleSearchLabel')}">
+     </cr-icon-button>
+-    <cr-tooltip for="logoButton" position="right" offset="16"
+-        animation-delay="0" hide-delay="0">
+-      ${this.i18n('aimThreadsGoogleSearchLabel')}
+-    </cr-tooltip>
++    ${!this.inert ? html`
++      <cr-tooltip for="logoButton" position="right" offset="16"
++          animation-delay="0" hide-delay="0">
++        ${this.i18n('aimThreadsGoogleSearchLabel')}
++      </cr-tooltip>
++    ` : nothing}
+     <div id="iconsContainer">
+       ${this.getItems_().map((item, index) => html`
+         <cr-icon-button id="railItem-${index}"
+@@ -26,7 +28,7 @@
+             @click="${this.onItemClick_}"
+             aria-label="${item.name || nothing}">
+         </cr-icon-button>
+-        ${item.name ? html`
++        ${!this.inert && item.name ? html`
+           <cr-tooltip for="railItem-${index}" position="right"
+               offset="16" animation-delay="0" hide-delay="0">
+             ${item.name}
+diff --git a/ui/webui/resources/cr_components/composebox/threads_rail.ts b/ui/webui/resources/cr_components/composebox/threads_rail.ts
+index 36a66a95..1838080 100644
+--- a/ui/webui/resources/cr_components/composebox/threads_rail.ts
++++ b/ui/webui/resources/cr_components/composebox/threads_rail.ts
+@@ -6,7 +6,9 @@
+ 
+ import {I18nMixinLit} from '//resources/cr_elements/i18n_mixin_lit.js';
+ import {assert} from '//resources/js/assert.js';
++import {EventTracker} from '//resources/js/event_tracker.js';
+ import {loadTimeData} from '//resources/js/load_time_data.js';
++import type {PropertyValues} from '//resources/lit/v3_0/lit.rollup.js';
+ import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
+ 
+ import {getCss} from './threads_rail.css.js';
+@@ -56,11 +58,53 @@
+   static override get properties() {
+     return {
+       config_: {type: Object},
++      inert: {
++        type: Boolean,
++        reflect: true,
++      },
++      suppressPointerHover_: {
++        type: Boolean,
++        reflect: true,
++      },
+     };
+   }
+ 
++  override accessor inert: boolean = false;
+   protected accessor config_: LhsRailConfig =
+       loadTimeData.getValue('lhsRailConfig');
++  protected accessor suppressPointerHover_: boolean = false;
++  private eventTracker_: EventTracker = new EventTracker();
++
++  override disconnectedCallback() {
++    super.disconnectedCallback();
++    this.unsuppressPointerHover_();
++  }
++
++  override willUpdate(changedProperties: PropertyValues<this>) {
++    super.willUpdate(changedProperties);
++    if (!changedProperties.has('inert')) {
++      return;
++    }
++
++    this.unsuppressPointerHover_();
++    // Suppress pointer hit-testing when leaving inert until the next real
++    // pointer event so Blink's post-layout hover recomputation at a stale
++    // pre-OOPIF mouse position does not re-trigger :hover or tooltips on
++    // collapse.
++    this.suppressPointerHover_ =
++        !this.inert && changedProperties.get('inert') === true;
++    if (this.suppressPointerHover_) {
++      this.eventTracker_.add(
++          window, 'pointermove', () => this.unsuppressPointerHover_());
++      this.eventTracker_.add(
++          window, 'pointerdown', () => this.unsuppressPointerHover_());
++    }
++  }
++
++  private unsuppressPointerHover_(): void {
++    this.eventTracker_.removeAll();
++    this.suppressPointerHover_ = false;
++  }
+ 
+   protected getItems_(): LhsRailItem[] {
+     return this.config_.items ?? [];
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts b/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts
+index 5aafeee..b8264ef 100644
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts
+@@ -175,6 +175,13 @@
+     // the current ones narrate the new selection. See
+     // `onAutocompleteResultChanged()`.
+     private narrateNextResultSelection_: boolean = false;
++    // The query for the text of an IME composition that was just committed,
++    // until the user presses a key or the mouse. The browser commits a
++    // composition before it dispatches the mouse press that ends it, e.g. on a
++    // match, so the results of that query could replace the match under the
++    // pointer before the click. The press freezes them instead, like key
++    // presses freeze results (see `onInputWrapperKeydown()`).
++    private compositionCommitQueryId_: number|null = null;
+     private searchboxEventTracker_: EventTracker = new EventTracker();
+     private callbackRouter_: PageCallbackRouter =
+         SearchboxBrowserProxy.getInstance().callbackRouter;
+@@ -210,6 +217,12 @@
+       this.searchboxEventTracker_.add(this, 'input-mousedown', () => {
+         this.activeQueryId = -1;
+       });
++      this.searchboxEventTracker_.add(this, 'mousedown', () => {
++        if (this.activeQueryId === this.compositionCommitQueryId_) {
++          this.activeQueryId = -1;
++        }
++        this.compositionCommitQueryId_ = null;
++      });
+       this.searchboxEventTracker_.add(
+           this.getInputElement(), 'searchbox-input-empty-changed',
+           (e: Event) => {
+@@ -622,6 +635,9 @@
+         this.queryAutocomplete(
+             input, /*preventInlineAutocomplete=*/ e.detail.isComposing,
+             /*isOnFocus=*/ false);
++        if (event instanceof CompositionEvent) {
++          this.compositionCommitQueryId_ = this.activeQueryId;
++        }
+       }
+     }
+ 
+@@ -667,6 +683,7 @@
+       if (e.key !== 'Enter') {
+         this.activeQueryId = -1;
+       }
++      this.compositionCommitQueryId_ = null;
+       const modifier =
+           isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+       if (modifier && e.key === 'z') {
