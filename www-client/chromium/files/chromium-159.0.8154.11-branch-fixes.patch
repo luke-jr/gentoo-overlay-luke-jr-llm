@@ -1,22 +1,32 @@
 Chromium 159.0.8154.11 + the later changes of its release branch, up to
-3b4071105e68997ea7beb5e2a38be9e3f7aad68e (refs/branch-heads/8154@{#533}), for the
+1b381ca6cab90ef1216ac9645c542a0824ac51e5 (refs/branch-heads/8154@{#557}), for the
 159.0.8154.11 tree that chromium-159.0.8154.6-to-159.0.8154.11.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/159.0.8154.11..3b4071105e68997ea7beb5e2a38be9e3f7aad68e
-(no dependency's DEPS revision changed), as served by Gitiles, with
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.11..1b381ca6cab90ef1216ac9645c542a0824ac51e5
+and V8 f96ec3d87612..c2d7af04d502 (15.9.128.5 -> 15.9.128.6, rolled by
+"Roll commits from side projects in M159", #556), as served by Gitiles, with
 scripts/chromium-delta --branch-fixes (against the .11 tree's files): left out
 are files not in the release tarball, iOS/Android/ChromeOS/Mac/Windows-only
-files, tests and docs, translations other than en-GB, PGO/orderfile pointers.
-chrome/VERSION, the DEPS files and the stamp files stay at 159.0.8154.11.
+files, tests and docs, translations other than en-GB, PGO/orderfile pointers,
+the submodule pointer. chrome/VERSION, the DEPS files and the stamp files stay
+at 159.0.8154.11.
 
 Commits contributing to it (oldest first):
-  3b4071105e68 [M159] [blink] Clear background streamer on script revalidation
-  278dc908fd90 [M159] WebUI: Format Lit templates in NTP and lens directories
   b1a06ed1f8e0 [M159] [Contextual Tasks] Restrict Contextual Tasks UI to Desktop Android
+  278dc908fd90 [M159] WebUI: Format Lit templates in NTP and lens directories
+  3b4071105e68 [M159] [blink] Clear background streamer on script revalidation
+  733474a7874e [M159] Convert CHECK to DCHECK in ActorTask::OnFinishedAct
+  6425df6f4ed5 [M159] Downgrade CHECK_GT in WebRtcEventLogManager to DCHECK_GT
+  0909a2834ca4 [M159] Revert CHECK_CURRENTLY_ON in NotifyAppTerminating
+  5d3f9c89e5e7 [M159] Revert CHECK to DCHECK in PeriodicBackgroundSyncPermissionContext
+  aecbf448c6d6 [M159] Revert thread access CHECK in browser_shutdown back to DCHECK
+  ef1b324eb56a [M159] Revert CHECK to DCHECK in ScreenCaptureNotificationBlocker::OnAction
+  c75affb7884e [M159] Prerender: Delete pending deletion subframe RFHs before activation
 
 Checked: applies to the 159.0.8154.11 tree; every patched file is
-byte-identical to its version at the commit above; it adds 4 files
-(.style.lit_template_formatter, Lit template formatter configurations).
+byte-identical to its version at the commit above (V8's at c2d7af04d502); it
+adds 4 files (.style.lit_template_formatter, Lit template formatter
+configurations).
 
 diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
 index b2c7a924..0d0dfe6 100644
@@ -39,6 +49,40 @@ index b2c7a924..0d0dfe6 100644
      {"contextual-tasks-rearchitecture",
       contextual_tasks::flag_descriptions::kContextualTasksRearchitectureName,
       contextual_tasks::flag_descriptions::
+diff --git a/chrome/browser/actor/actor_task.cc b/chrome/browser/actor/actor_task.cc
+index 0f41fdc2..834dc2a 100644
+--- a/chrome/browser/actor/actor_task.cc
++++ b/chrome/browser/actor/actor_task.cc
+@@ -458,8 +458,9 @@
+     // before transitioning to `kActing`. Interruption (`kWaitingOnUser`) can
+     // happen while acting, but completion is deferred until the task is
+     // uninterrupted back to `kActing`.
+-    CHECK(state_ == State::kCreated || state_ == State::kActing,
+-          base::NotFatalUntil::M161);
++    // TODO(crbug.com/584658141): CHECK-exclusion: Convert to a CHECK once we
++    // are confident it won't be triggered.
++    DCHECK(state_ == State::kCreated || state_ == State::kActing);
+     action_tracker_for_metrics_->OnFinishedAct(*result);
+     std::move(callback_for_act_)
+         .Run(std::move(action_results), std::move(observation_strategy));
+diff --git a/chrome/browser/background_sync/periodic_background_sync_permission_context.cc b/chrome/browser/background_sync/periodic_background_sync_permission_context.cc
+index 38092a1..10f9622 100644
+--- a/chrome/browser/background_sync/periodic_background_sync_permission_context.cc
++++ b/chrome/browser/background_sync/periodic_background_sync_permission_context.cc
+@@ -89,9 +89,10 @@
+   auto content_setting = host_content_settings_map->GetContentSetting(
+       requesting_origin, embedding_origin,
+       ContentSettingsType::BACKGROUND_SYNC);
+-  CHECK(content_setting == CONTENT_SETTING_BLOCK ||
+-            content_setting == CONTENT_SETTING_ALLOW,
+-        base::NotFatalUntil::M161);
++  // TODO(crbug.com/584978616): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(content_setting == CONTENT_SETTING_BLOCK ||
++         content_setting == CONTENT_SETTING_ALLOW);
+   return content_setting;
+ }
+ 
 diff --git a/chrome/browser/contextual_tasks/BUILD.gn b/chrome/browser/contextual_tasks/BUILD.gn
 index c042c2f..21dabaf 100644
 --- a/chrome/browser/contextual_tasks/BUILD.gn
@@ -185,6 +229,71 @@ index c5de1d4..0ba0de9d 100644
      "name": "contextual-tasks-pinned-button-active-indicator",
      "owners": [ "dianaou@google.com", "chrome-contextual-tasks-eng@google.com" ],
      "expiry_milestone": 160
+diff --git a/chrome/browser/lifetime/browser_shutdown.cc b/chrome/browser/lifetime/browser_shutdown.cc
+index c713114c..47eedcc 100644
+--- a/chrome/browser/lifetime/browser_shutdown.cc
++++ b/chrome/browser/lifetime/browser_shutdown.cc
+@@ -185,10 +185,11 @@
+ void CheckAccessedOnCorrectThread() {
+   // Some APIs below are accessed after UI thread has been torn down, so cater
+   // for both situations here.
+-  CHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI) ||
+-            !content::BrowserThread::IsThreadInitialized(
+-                content::BrowserThread::UI),
+-        base::NotFatalUntil::M161);
++  // TODO(crbug.com/584626681): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(
++      content::BrowserThread::CurrentlyOn(content::BrowserThread::UI) ||
++      !content::BrowserThread::IsThreadInitialized(content::BrowserThread::UI));
+ }
+ 
+ }  // namespace
+diff --git a/chrome/browser/lifetime/termination_notification.cc b/chrome/browser/lifetime/termination_notification.cc
+index b6bcb41..3f2a2e9 100644
+--- a/chrome/browser/lifetime/termination_notification.cc
++++ b/chrome/browser/lifetime/termination_notification.cc
+@@ -24,7 +24,9 @@
+ }
+ 
+ void NotifyAppTerminating() {
+-  CHECK_CURRENTLY_ON(content::BrowserThread::UI, base::NotFatalUntil::M161);
++  // TODO(crbug.com/584702463): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+   static bool notified = false;
+   if (notified) {
+     return;
+diff --git a/chrome/browser/media/webrtc/webrtc_event_log_manager.cc b/chrome/browser/media/webrtc/webrtc_event_log_manager.cc
+index e35ffe0..8879a823 100644
+--- a/chrome/browser/media/webrtc/webrtc_event_log_manager.cc
++++ b/chrome/browser/media/webrtc/webrtc_event_log_manager.cc
+@@ -1191,7 +1191,9 @@
+ void WebRtcEventLogManager::OnClearCacheForBrowserContextDoneInternal(
+     base::OnceClosure reply) {
+   CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M161);
+-  CHECK_GT(num_user_blocking_tasks_, 0u, base::NotFatalUntil::M161);
++  // TODO(crbug.com/584552050): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK_GT(num_user_blocking_tasks_, 0u);
+   if (--num_user_blocking_tasks_ == 0) {
+     task_runner_->UpdatePriority(base::TaskPriority::BEST_EFFORT);
+   }
+diff --git a/chrome/browser/notifications/screen_capture_notification_blocker.cc b/chrome/browser/notifications/screen_capture_notification_blocker.cc
+index 5d61d14..2b263c1 100644
+--- a/chrome/browser/notifications/screen_capture_notification_blocker.cc
++++ b/chrome/browser/notifications/screen_capture_notification_blocker.cc
+@@ -82,7 +82,9 @@
+ 
+ void ScreenCaptureNotificationBlocker::OnAction(
+     MutedNotificationHandler::Action action) {
+-  CHECK(state_ == NotifyState::kNotifyMuted, base::NotFatalUntil::M161);
++  // TODO(crbug.com/584661832): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(state_ == NotifyState::kNotifyMuted);
+   CloseMuteNotification();
+ 
+   switch (action) {
 diff --git a/chrome/browser/resources/lens/.style.lit_template_formatter b/chrome/browser/resources/lens/.style.lit_template_formatter
 new file mode 100644
 index 0000000..e69de29
@@ -1362,6 +1471,56 @@ index b7b3beb2..6802134 100644
  extern const char kContextualTasksCookiePrefetchName[];
  extern const char kContextualTasksCookiePrefetchDescription[];
  extern const char kEnableContextualTasksPinButtonInToolbarName[];
+diff --git a/content/browser/preloading/prerender/prerender_host.cc b/content/browser/preloading/prerender/prerender_host.cc
+index c76bbe36..a581a52 100644
+--- a/content/browser/preloading/prerender/prerender_host.cc
++++ b/content/browser/preloading/prerender/prerender_host.cc
+@@ -863,6 +863,27 @@
+   std::vector<FrameTreeNode*> subframe_nodes(std::next(node_range.begin()),
+                                              node_range.end());
+ 
++  // Delete the RenderFrameHosts in the subframes' pending deletion lists (i.e.,
++  // the ones swapped out on navigation and still waiting for unload
++  // completion), as if their unload timeout expired. They are owned by the
++  // RenderFrameHostManagers of `subframe_nodes`, so they would be moved to
++  // `target_frame_tree` along with the subframes. However,
++  // FrameTreeNode::SetFrameTree() below doesn't update their FrameTree (nor
++  // the ones of their descendants), which would dangle once the prerendering
++  // FrameTree is destroyed, while they can still receive messages from the
++  // renderer (see https://crbug.com/583734992). The RenderFrameHosts in the
++  // root's pending deletion list are not moved, and are deleted when the
++  // prerendering FrameTree is shut down.
++  //
++  // This needs to happen before TakePrerenderedPage() below, as deleting a
++  // RenderFrameHost notifies observers.
++  //
++  // TODO(crbug.com/40177949): Consider moving these RenderFrameHosts to
++  // `target_frame_tree` instead, so that their unload handlers can complete.
++  for (FrameTreeNode* subframe_node : subframe_nodes) {
++    subframe_node->render_manager()->ClearRFHsPendingShutdown();
++  }
++
+   // Before the root's current_frame_host is cleared, collect the replication
+   // state so that it can be used for post-activation validation.
+   blink::mojom::FrameReplicationState prior_replication_state =
+@@ -932,14 +953,9 @@
+   // associated frame tree. Note that subframe proxies don't need their
+   // FrameTrees independently updated, since their FrameTreeNodes don't
+   // change, and FrameTree references in those FrameTreeNodes will be updated
+-  // through RenderFrameHosts.
+-  //
+-  // TODO(crbug.com/40177949): Need to investigate if and how
+-  // pending delete RenderFrameHost objects should be handled if prerendering
+-  // runs all of the unload handlers; they are not currently handled here.
+-  // This is because pending delete RenderFrameHosts can still receive and
+-  // process some messages while the RenderFrameHost FrameTree and
+-  // FrameTreeNode are stale.
++  // through RenderFrameHosts. The RenderFrameHosts in the subframes' pending
++  // deletion lists don't need to be updated either, as they were deleted
++  // above.
+   for (FrameTreeNode* subframe_node : subframe_nodes) {
+     subframe_node->SetFrameTree(target_frame_tree);
+   }
 diff --git a/third_party/blink/renderer/core/loader/resource/script_resource.cc b/third_party/blink/renderer/core/loader/resource/script_resource.cc
 index e667756..18a8d2f 100644
 --- a/third_party/blink/renderer/core/loader/resource/script_resource.cc
@@ -1382,3 +1541,47 @@ index e667756..18a8d2f 100644
    // Revalidation requests don't actually load the current Resource, so disable
    // streaming.
    DisableStreaming(ScriptStreamer::NotStreamingReason::kRevalidate);
+diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
+index c48fd91..ead3034 100644
+--- a/v8/include/v8-version.h
++++ b/v8/include/v8-version.h
+@@ -11,7 +11,7 @@
+ #define V8_MAJOR_VERSION 15
+ #define V8_MINOR_VERSION 9
+ #define V8_BUILD_NUMBER 128
+-#define V8_PATCH_LEVEL 5
++#define V8_PATCH_LEVEL 6
+ 
+ // Use 1 for candidates and 0 otherwise.
+ // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/runtime/runtime-literals.cc b/v8/src/runtime/runtime-literals.cc
+index 2b63e41..9eb9b59 100644
+--- a/v8/src/runtime/runtime-literals.cc
++++ b/v8/src/runtime/runtime-literals.cc
+@@ -156,15 +156,22 @@
+           if (copying) dict->ValueAtPut(i, *value);
+         }
+       } else {
++        // Iterate in enumeration order so traversal stays in sync with the
++        // nested AllocationSite list built by DeepWalk if a fast boilerplate is
++        // later normalized to a NameDictionary by JSObject::MigrateInstance.
+         DirectHandle<NameDictionary> dict(copy->property_dictionary(), isolate);
+-        for (InternalIndex i : dict->IterateEntries()) {
+-          Tagged<Object> raw = dict->ValueAt(i);
++        DirectHandle<FixedArray> key_indices =
++            NameDictionary::IterationIndices(isolate, dict);
++        uint32_t key_indices_len = key_indices->ulength().value();
++        for (uint32_t i = 0; i < key_indices_len; i++) {
++          InternalIndex key_index(Smi::ToInt(key_indices->get(i)));
++          Tagged<Object> raw = dict->ValueAt(key_index);
+           if (!IsJSObject(raw)) continue;
+-          DCHECK(IsName(dict->KeyAt(i)));
++          DCHECK(IsName(dict->KeyAt(key_index)));
+           Handle<JSObject> value(Cast<JSObject>(raw), isolate);
+           ASSIGN_RETURN_ON_EXCEPTION(isolate, value,
+                                      VisitElementOrProperty(copy, value));
+-          if (copying) dict->ValueAtPut(i, *value);
++          if (copying) dict->ValueAtPut(key_index, *value);
+         }
+       }
+     }
