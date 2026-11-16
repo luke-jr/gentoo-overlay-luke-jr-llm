@@ -181,13 +181,15 @@ KEYWORDS="~amd64 ~arm64"
 # pending-deletion subframes (crbug 583734992; merged to 159), page popups' dangling
 # opener (crbugs 580868681, 580866198; merged to 159) and client-side phishing
 # detection's visual extractor destroyed during its paint preview (crbug 585380054;
-# merged to 159).
+# merged to 159), and V8's cached ObjectCreateMap on JSGlobalProxy map migration (crbug
+# 583109107; on V8's 15.8 branch, not rolled into 158 yet).
 CHROMIUM_FIXES=(
 	chromium-158.0.8127.64-branch-fixes.patch
 	chromium-158-blink-script-revalidation-streamer.patch
 	chromium-158-prerender-pending-deletion-subframes.patch
 	chromium-158-page-popup-dangling-opener.patch
 	chromium-158-csd-visual-extractor-reentrancy.patch
+	chromium-158-v8-global-proxy-object-create-map.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
