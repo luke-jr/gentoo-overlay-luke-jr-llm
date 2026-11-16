@@ -179,14 +179,16 @@ KEYWORDS="~amd64 ~arm64"
 # hasn't got yet (their headers say where they come from): Blink's script revalidation
 # with a background streamer (crbug 574605993; merged to 159), prerender activation's
 # pending-deletion subframes (crbug 583734992; merged to 159) and page popups' dangling
-# opener (crbugs 580868681, 580866198; merged to 159), and V8's cached ObjectCreateMap on
-# JSGlobalProxy map migration (crbug 583109107; on V8's 15.8 branch, not rolled into 158
-# yet).
+# opener (crbugs 580868681, 580866198; merged to 159) and CSS animations cancelled during
+# animated style and update passes (crbug 584687200; merged to 159), and V8's cached
+# ObjectCreateMap on JSGlobalProxy map migration (crbug 583109107; on V8's 15.8 branch, not
+# rolled into 158 yet).
 CHROMIUM_FIXES=(
 	chromium-158.0.8127.64-branch-fixes.patch
 	chromium-158-blink-script-revalidation-streamer.patch
 	chromium-158-prerender-pending-deletion-subframes.patch
 	chromium-158-page-popup-dangling-opener.patch
+	chromium-158-css-animations-cancel-during-update.patch
 	chromium-158-v8-global-proxy-object-create-map.patch
 )
 
