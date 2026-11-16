@@ -1,10 +1,11 @@
 Chromium 158.0.8127.64 + the later changes of its release branch, up to
-d25d9598995c1e16bc09f85a2147effa6e4aaff1 (refs/branch-heads/8127@{#1789}), for the
+617f202ebeae468af0f651c6fcf29b0075ef8ffb (refs/branch-heads/8127@{#1790}), for the
 158.0.8127.64 tree that chromium-158.0.8127.37-to-158.0.8127.64.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..d25d9598995c1e16bc09f85a2147effa6e4aaff1,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..617f202ebeae468af0f651c6fcf29b0075ef8ffb,
 from the branch's roll of chromium/deps/icu c670d124c9b6aa92c0b492cf543808300e0e6103..c66ba5d8cda8b645d16778c92c902a871c0fd45c (under third_party/icu/),
-and from its rolls of v8/v8 19c06df29e0050413f5f041888f4c990de970314..263a273977a7a6ac6119fd8f32572121df2bebcd (under v8/),
+from its rolls of v8/v8 19c06df29e0050413f5f041888f4c990de970314..263a273977a7a6ac6119fd8f32572121df2bebcd (under v8/),
+and from its roll of external/leveldb bb74ef739973a70ca9f0d90788a1da89b788c0ad..29465588d3dfdc80fba5e198037582b8fdb5dd60 (under third_party/leveldatabase/src/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .64 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -25,6 +26,8 @@ Commits contributing to it (oldest first):
     v8 dde423cbb0e5 [M158] [maglev] Add SBXCHECK for predecessor index at merge points
     v8 263a273977a7 Version 15.8.62.40
   d25d9598995c [M158] Prevent CacheStorageSideDataWriter leak to sandboxed workers
+  617f202ebeae [M158] Roll src/third_party/leveldatabase/src/ bb74ef739..29465588d (1 commit)
+    leveldb 29465588d3df Prevent potential integer overflow when validating block entry lengths.
 
 Checked: applies to the 158.0.8127.64 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -976,6 +979,19 @@ index 3c1dd7b..ddc6162 100644
      }
    }
  
+diff --git a/third_party/leveldatabase/README.chromium b/third_party/leveldatabase/README.chromium
+index d7df43d..b7e19e2 100644
+--- a/third_party/leveldatabase/README.chromium
++++ b/third_party/leveldatabase/README.chromium
+@@ -2,7 +2,7 @@
+ Short Name: leveldb
+ URL: https://github.com/google/leveldb.git
+ Version: 1.23
+-Revision: bb74ef739973a70ca9f0d90788a1da89b788c0ad
++Revision: 29465588d3dfdc80fba5e198037582b8fdb5dd60
+ Update Mechanism: Manual
+ License: BSD-3-Clause
+ License File: src/LICENSE
 diff --git a/third_party/icu/README.chromium b/third_party/icu/README.chromium
 index 1ad19b3..d2833e9 100644
 --- a/third_party/icu/README.chromium
@@ -1953,3 +1969,17 @@ index c594525..0b70ae0 100644
          }
        }
      }
+diff --git a/third_party/leveldatabase/src/table/block.cc b/third_party/leveldatabase/src/table/block.cc
+index 3b15257..742ced8 100644
+--- a/third_party/leveldatabase/src/table/block.cc
++++ b/third_party/leveldatabase/src/table/block.cc
+@@ -68,7 +68,8 @@
+     if ((p = GetVarint32Ptr(p, limit, value_length)) == nullptr) return nullptr;
+   }
+ 
+-  if (static_cast<uint32_t>(limit - p) < (*non_shared + *value_length)) {
++  if (static_cast<uint32_t>(limit - p) < *non_shared ||
++      static_cast<uint32_t>(limit - p) - *non_shared < *value_length) {
+     return nullptr;
+   }
+   return p;
