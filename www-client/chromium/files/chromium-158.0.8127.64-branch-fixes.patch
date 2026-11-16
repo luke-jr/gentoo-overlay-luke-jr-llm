@@ -1,9 +1,10 @@
 Chromium 158.0.8127.64 + the later changes of its release branch, up to
-e49b8af15215b70988a64f347157f543fdacc559 (refs/branch-heads/8127@{#1785}), for the
+d25d9598995c1e16bc09f85a2147effa6e4aaff1 (refs/branch-heads/8127@{#1789}), for the
 158.0.8127.64 tree that chromium-158.0.8127.37-to-158.0.8127.64.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..e49b8af15215b70988a64f347157f543fdacc559,
-and from the branch's roll of chromium/deps/icu c670d124c9b6aa92c0b492cf543808300e0e6103..c66ba5d8cda8b645d16778c92c902a871c0fd45c (under third_party/icu/),
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..d25d9598995c1e16bc09f85a2147effa6e4aaff1,
+from the branch's roll of chromium/deps/icu c670d124c9b6aa92c0b492cf543808300e0e6103..c66ba5d8cda8b645d16778c92c902a871c0fd45c (under third_party/icu/),
+and from its rolls of v8/v8 19c06df29e0050413f5f041888f4c990de970314..263a273977a7a6ac6119fd8f32572121df2bebcd (under v8/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .64 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -17,6 +18,13 @@ Commits contributing to it (oldest first):
     icu c66ba5d8cda8 [m156][m157][m158][icu] Check memory allocation failures in DecNum and Scale
   4a134c10c68b [M158] Use one directory database per first-party default bucket
   28b364ed64ac [M158] [blink] Notify Oilpan per element in HeapVector bulk operations
+  314be21d5570 Roll commits from side projects in M158
+    v8 17fc9dcbf8e1 [M158] [runtime] Walk literal NameDictionary properties in enum order
+    v8 5a00e538cc14 Version 15.8.62.39
+  0ca98ebc0100 Roll commits from side projects in M158
+    v8 dde423cbb0e5 [M158] [maglev] Add SBXCHECK for predecessor index at merge points
+    v8 263a273977a7 Version 15.8.62.40
+  d25d9598995c [M158] Prevent CacheStorageSideDataWriter leak to sandboxed workers
 
 Checked: applies to the 158.0.8127.64 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -173,6 +181,556 @@ index 18ede1f..8472814 100644
      std::vector<base::FilePath::StringType> block_components =
          block_path.GetComponents();
      if (IsPathOrDescendantIgnoreCase(path_components, block_components)) {
+diff --git a/content/browser/service_worker/service_worker_client.cc b/content/browser/service_worker/service_worker_client.cc
+index 38e7eaf..8f38d5983 100644
+--- a/content/browser/service_worker/service_worker_client.cc
++++ b/content/browser/service_worker/service_worker_client.cc
+@@ -650,10 +650,12 @@
+ }
+ 
+ // For dedicated/shared worker cases, if a storage key is returned, it will have
+-// its origin replaced by |origin|. This would mean that the origin of the
+-// WorkerHost and the origin as used by the service worker code don't match,
+-// however in cases where these wouldn't match the load will be aborted later
+-// anyway.
++// its origin replaced by |origin| (the script URL's origin). The worker's own
++// StorageKey origin is never opaque here:
++// ServiceWorkerMainResourceLoaderInterceptor::CreateForWorker() refuses to
++// create a ServiceWorkerClient for opaque-origin workers, so this substitution
++// cannot turn an opaque worker into a client matching its precursor origin's
++// registrations (crbug.com/578670204).
+ std::optional<blink::StorageKey> GetStorageKeyFromDedicatedWorkerHost(
+     content::StoragePartition* storage_partition,
+     blink::DedicatedWorkerToken dedicated_worker_token,
+@@ -663,6 +665,7 @@
+   auto* worker_host =
+       worker_service->GetDedicatedWorkerHostFromToken(dedicated_worker_token);
+   if (worker_host) {
++    DUMP_WILL_BE_CHECK(!worker_host->GetWorkerStorageKey().origin().opaque());
+     return worker_host->GetWorkerStorageKey().WithOrigin(origin);
+   }
+   return std::nullopt;
+@@ -677,6 +680,7 @@
+   auto* worker_host =
+       worker_service->GetSharedWorkerHostFromToken(shared_worker_token);
+   if (worker_host) {
++    DUMP_WILL_BE_CHECK(!worker_host->GetWorkerStorageKey().origin().opaque());
+     return worker_host->GetWorkerStorageKey().WithOrigin(origin);
+   }
+   return std::nullopt;
+diff --git a/content/browser/service_worker/service_worker_main_resource_loader.cc b/content/browser/service_worker/service_worker_main_resource_loader.cc
+index 51300c7..18280b9 100644
+--- a/content/browser/service_worker/service_worker_main_resource_loader.cc
++++ b/content/browser/service_worker/service_worker_main_resource_loader.cc
+@@ -28,6 +28,7 @@
+ #include "content/browser/renderer_host/frame_tree_node.h"
+ #include "content/browser/renderer_host/navigation_request.h"
+ #include "content/browser/renderer_host/policy_container_host.h"
++#include "content/browser/security/cpsp/child_process_security_policy_impl.h"
+ #include "content/browser/service_worker/service_worker_client.h"
+ #include "content/browser/service_worker/service_worker_container_host.h"
+ #include "content/browser/service_worker/service_worker_context_core.h"
+@@ -725,9 +726,12 @@
+   }
+ 
+   auto head = response_head.Clone();
+-  if (response_head_.get() == response_head.get()) {
+-    head->cache_storage_side_data_writer =
+-        std::move(cache_storage_side_data_writer_);
++  if (response_head_.get() == response_head.get() &&
++      cache_storage_side_data_writer_) {
++    auto side_data_writer = std::move(cache_storage_side_data_writer_);
++    if (CanForwardCacheStorageSideDataWriter()) {
++      head->cache_storage_side_data_writer = std::move(side_data_writer);
++    }
+   }
+ 
+   url_loader_client_->OnReceiveResponse(
+@@ -2130,6 +2134,23 @@
+   return true;
+ }
+ 
++bool ServiceWorkerMainResourceLoader::CanForwardCacheStorageSideDataWriter()
++    const {
++  // CSP-sandboxed workers are handled by the worker hosts once the policy
++  // container is known, and navigations never receive the writer because
++  // `URLResponseHead::Clone()` drops it. Here, only refuse to hand the writer
++  // to a worker process that is not allowed to access the client's origin.
++  if (!service_worker_client_) {
++    return false;
++  }
++  if (!service_worker_client_->IsContainerForWorkerClient()) {
++    return true;
++  }
++  return ChildProcessSecurityPolicyImpl::GetInstance()->CanAccessDataForOrigin(
++      service_worker_client_->GetProcessId().GetUnsafeValue(),
++      service_worker_client_->key().origin());
++}
++
+ void ServiceWorkerMainResourceLoader::CreateAndRunCacheMatcher(
+     const std::optional<std::string>& cache_name,
+     scoped_refptr<ServiceWorkerVersion> active_worker) {
+diff --git a/content/browser/service_worker/service_worker_main_resource_loader.h b/content/browser/service_worker/service_worker_main_resource_loader.h
+index 1fea65e..5eaa1980 100644
+--- a/content/browser/service_worker/service_worker_main_resource_loader.h
++++ b/content/browser/service_worker/service_worker_main_resource_loader.h
+@@ -316,6 +316,10 @@
+   // consumed yet. This is used to decide the timing of the object destruction.
+   bool ShouldDelayDeletion();
+ 
++  // Returns true if `cache_storage_side_data_writer_` may be forwarded to the
++  // client's process.
++  bool CanForwardCacheStorageSideDataWriter() const;
++
+   NavigationLoaderInterceptor::FallbackCallback fallback_callback_;
+ 
+   int32_t request_id_ = 0;
+diff --git a/content/browser/service_worker/service_worker_main_resource_loader_interceptor.cc b/content/browser/service_worker/service_worker_main_resource_loader_interceptor.cc
+index f83e647..e0da4e46 100644
+--- a/content/browser/service_worker/service_worker_main_resource_loader_interceptor.cc
++++ b/content/browser/service_worker/service_worker_main_resource_loader_interceptor.cc
+@@ -14,6 +14,7 @@
+ #include "content/browser/preloading/prefetch/prefetch_features.h"
+ #include "content/browser/renderer_host/navigation_request.h"
+ #include "content/browser/renderer_host/navigation_request_info.h"
++#include "content/browser/security/cpsp/child_process_security_policy_impl.h"
+ #include "content/browser/service_worker/service_worker_client.h"
+ #include "content/browser/service_worker/service_worker_context_core.h"
+ #include "content/browser/service_worker/service_worker_context_wrapper.h"
+@@ -65,6 +66,18 @@
+   return url.SchemeIsHTTPOrHTTPS() || OriginCanAccessServiceWorkers(url);
+ }
+ 
++// Returns false if a worker with `worker_storage_key` hosted in `process_id`
++// must never match that origin's service worker registrations: a worker with an
++// opaque StorageKey origin (e.g. created by a sandboxed frame), or a process
++// that is not allowed to access the origin's data.
++bool CanWorkerAccessServiceWorkers(
++    ChildProcessId process_id,
++    const blink::StorageKey& worker_storage_key) {
++  return !worker_storage_key.origin().opaque() &&
++         ChildProcessSecurityPolicyImpl::GetInstance()->CanAccessDataForOrigin(
++             process_id.GetUnsafeValue(), worker_storage_key.origin());
++}
++
+ }  // namespace
+ 
+ std::unique_ptr<NavigationLoaderInterceptor>
+@@ -180,6 +193,7 @@
+     const net::IsolationInfo& isolation_info,
+     ChildProcessId process_id,
+     const DedicatedOrSharedWorkerToken& worker_token,
++    const blink::StorageKey& worker_storage_key,
+     base::WeakPtr<ServiceWorkerMainResourceHandle> navigation_handle) {
+   CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
+ 
+@@ -199,6 +213,10 @@
+     return nullptr;
+   }
+ 
++  if (!CanWorkerAccessServiceWorkers(process_id, worker_storage_key)) {
++    return nullptr;
++  }
++
+   navigation_handle->set_service_worker_client(
+       navigation_handle->context_wrapper()
+           ->context()
+diff --git a/content/browser/service_worker/service_worker_main_resource_loader_interceptor.h b/content/browser/service_worker/service_worker_main_resource_loader_interceptor.h
+index a0c63029..bbd02f77 100644
+--- a/content/browser/service_worker/service_worker_main_resource_loader_interceptor.h
++++ b/content/browser/service_worker/service_worker_main_resource_loader_interceptor.h
+@@ -22,6 +22,10 @@
+ #include "services/network/public/mojom/fetch_api.mojom.h"
+ #include "third_party/blink/public/mojom/service_worker/service_worker_provider.mojom.h"
+ 
++namespace blink {
++class StorageKey;
++}  // namespace blink
++
+ namespace content {
+ 
+ class ServiceWorkerMainResourceHandle;
+@@ -54,6 +58,7 @@
+       const net::IsolationInfo& isolation_info,
+       ChildProcessId process_id,
+       const DedicatedOrSharedWorkerToken& worker_token,
++      const blink::StorageKey& worker_storage_key,
+       base::WeakPtr<ServiceWorkerMainResourceHandle> navigation_handle);
+ 
+   static std::unique_ptr<ServiceWorkerMainResourceLoaderInterceptor>
+diff --git a/content/browser/worker_host/dedicated_worker_host.cc b/content/browser/worker_host/dedicated_worker_host.cc
+index b206e6eb3..870565a 100644
+--- a/content/browser/worker_host/dedicated_worker_host.cc
++++ b/content/browser/worker_host/dedicated_worker_host.cc
+@@ -609,15 +609,40 @@
+   auto policy_container_host = base::MakeRefCounted<PolicyContainerHost>(
+       std::move(result->policy_container_policies));
+ 
+-  // A worker sandboxed without `allow-same-origin` has an opaque origin and
+-  // is not eligible to use service workers (mirroring
+-  // `NavigationRequest::CommitNavigation()`).
+-  if (base::FeatureList::IsEnabled(
+-          features::kServiceWorkerDropHandleForCSPSandboxedWorker) &&
+-      service_worker_handle_ &&
+-      (policy_container_host->policies().sandbox_flags &
+-       network::mojom::WebSandboxFlags::kOrigin) ==
+-          network::mojom::WebSandboxFlags::kOrigin) {
++  // A worker sandboxed without `allow-same-origin`, or created by an
++  // opaque-origin context, runs with an opaque origin and must never receive
++  // the CacheStorageSideDataWriter for its precursor origin's CacheStorage
++  // entry. This is a security fix with no web-observable behavior and is not
++  // behind a kill switch.
++  bool is_csp_sandboxed =
++      IsSandboxedToOpaqueOrigin(policy_container_host->policies());
++  if (!is_csp_sandboxed &&
++      !base::FeatureList::IsEnabled(
++          features::kServiceWorkerDropHandleForCSPSandboxedWorker)) {
++    if (result->final_response_url.SchemeIsLocal()) {
++      is_csp_sandboxed = IsSandboxedToOpaqueOrigin(creator_policies_);
++    } else if (result->main_script_load_params->response_head &&
++               result->main_script_load_params->response_head->parsed_headers) {
++      is_csp_sandboxed = IsSandboxedToOpaqueOrigin(PolicyContainerPolicies(
++          result->final_response_url,
++          result->main_script_load_params->response_head.get(), nullptr));
++    }
++  }
++  is_csp_sandboxed_ = is_csp_sandboxed;
++  const bool has_opaque_storage_key = worker_storage_key_.origin().opaque();
++  if (is_csp_sandboxed || has_opaque_storage_key) {
++    result->main_script_load_params->response_head
++        ->cache_storage_side_data_writer.reset();
++  }
++  // An opaque-origin worker is not eligible to use service workers (mirroring
++  // `NavigationRequest::CommitNavigation()`). For an opaque StorageKey the
++  // interceptor never created a ServiceWorkerClient, so dropping the handle is
++  // unconditional; only the CSP-sandbox-derived drop is web-observable and
++  // guarded by the kill switch.
++  if (has_opaque_storage_key ||
++      (is_csp_sandboxed &&
++       base::FeatureList::IsEnabled(
++           features::kServiceWorkerDropHandleForCSPSandboxedWorker))) {
+     service_worker_handle_.reset();
+   }
+ 
+@@ -911,10 +936,28 @@
+   base::WeakPtr<CrossOriginEmbedderPolicyReporter> creator_coep_reporter =
+       GetWorkerCoepReporter();
+ 
++  blink::StorageKey creator_storage_key_for_nested_worker =
++      GetWorkerStorageKey();
++  // Nested workers of a CSP-sandboxed worker inherit its opaque origin. This
++  // is not behind kServiceWorkerDropHandleForCSPSandboxedWorker because it
++  // determines the nested worker's StorageKey, not just its service worker
++  // eligibility.
++  if (is_csp_sandboxed_ &&
++      !creator_storage_key_for_nested_worker.origin().opaque()) {
++    if (!nested_worker_storage_key_for_sandbox_) {
++      nested_worker_storage_key_for_sandbox_ =
++          creator_storage_key_for_nested_worker.WithOrigin(
++              creator_storage_key_for_nested_worker.origin()
++                  .DeriveNewOpaqueOrigin());
++    }
++    creator_storage_key_for_nested_worker =
++        *nested_worker_storage_key_for_sandbox_;
++  }
++
+   DedicatedWorkerHostFactoryImpl::Create(
+       *ancestor_render_frame_host, std::move(receiver),
+       worker_process_host_->GetID(), /*creator=*/token_, ancestor_document_,
+-      GetWorkerStorageKey(), isolation_info_,
++      creator_storage_key_for_nested_worker, isolation_info_,
+       worker_client_security_state_->Clone(), creator_policies_,
+       creator_coep_reporter, network_restrictions_id_);
+ }
+diff --git a/content/browser/worker_host/dedicated_worker_host.h b/content/browser/worker_host/dedicated_worker_host.h
+index 5bb43195..41783ba 100644
+--- a/content/browser/worker_host/dedicated_worker_host.h
++++ b/content/browser/worker_host/dedicated_worker_host.h
+@@ -372,6 +372,16 @@
+   // for retrieving the origin of this worker
+   // (https://html.spec.whatwg.org/C/#concept-settings-object-origin).
+   const blink::StorageKey worker_storage_key_;
++  // Whether this worker's script response sandboxed it into an opaque origin
++  // (without `allow-same-origin`). Recorded in `DidStartScriptLoad()` so
++  // `CreateNestedDedicatedWorker()` can derive an opaque StorageKey for nested
++  // workers.
++  bool is_csp_sandboxed_ = false;
++  // Opaque-origin StorageKey handed to nested workers when this worker is
++  // CSP-sandboxed without `allow-same-origin`. Derived once so that sibling
++  // nested workers share one opaque origin, like workers of a sandboxed
++  // document.
++  std::optional<blink::StorageKey> nested_worker_storage_key_for_sandbox_;
+ 
+   // The origin used by this dedicated worker on the renderer side. This will
+   // almost always be the same as `worker_storage_key_`'s origin, except in the
+diff --git a/content/browser/worker_host/mock_shared_worker.cc b/content/browser/worker_host/mock_shared_worker.cc
+index d2d0ad2..1f73a41e 100644
+--- a/content/browser/worker_host/mock_shared_worker.cc
++++ b/content/browser/worker_host/mock_shared_worker.cc
+@@ -100,7 +100,8 @@
+     const std::vector<network::mojom::ContentSecurityPolicyPtr>&
+         expected_content_security_policies,
+     mojo::Remote<blink::mojom::SharedWorkerHost>* host,
+-    mojo::PendingReceiver<blink::mojom::SharedWorker>* receiver) {
++    mojo::PendingReceiver<blink::mojom::SharedWorker>* receiver,
++    blink::mojom::WorkerMainScriptLoadParamsPtr* main_script_load_params) {
+   std::unique_ptr<CreateParams> create_params = std::move(create_params_);
+   if (!create_params)
+     return false;
+@@ -118,6 +119,10 @@
+   }
+   host->Bind(std::move(create_params->host));
+   *receiver = std::move(create_params->receiver);
++  if (main_script_load_params) {
++    *main_script_load_params =
++        std::move(create_params->main_script_load_params);
++  }
+   return true;
+ }
+ 
+@@ -168,6 +173,7 @@
+   create_params_->info = std::move(info);
+   create_params_->pause_on_start = pause_on_start;
+   create_params_->content_settings = std::move(content_settings);
++  create_params_->main_script_load_params = std::move(main_script_load_params);
+   create_params_->host = std::move(host);
+   create_params_->receiver = std::move(receiver);
+   create_params_->ukm_source_id = ukm_source_id;
+diff --git a/content/browser/worker_host/mock_shared_worker.h b/content/browser/worker_host/mock_shared_worker.h
+index 1645cb8d..2a5bacb 100644
+--- a/content/browser/worker_host/mock_shared_worker.h
++++ b/content/browser/worker_host/mock_shared_worker.h
+@@ -88,7 +88,9 @@
+       const std::vector<network::mojom::ContentSecurityPolicyPtr>&
+           expected_content_security_policies,
+       mojo::Remote<blink::mojom::SharedWorkerHost>* host,
+-      mojo::PendingReceiver<blink::mojom::SharedWorker>* receiver);
++      mojo::PendingReceiver<blink::mojom::SharedWorker>* receiver,
++      blink::mojom::WorkerMainScriptLoadParamsPtr* main_script_load_params =
++          nullptr);
+ 
+   void Disconnect();
+ 
+@@ -137,6 +139,7 @@
+     bool pause_on_start;
+     mojo::PendingRemote<blink::mojom::WorkerContentSettingsProxy>
+         content_settings;
++    blink::mojom::WorkerMainScriptLoadParamsPtr main_script_load_params;
+     mojo::PendingRemote<blink::mojom::SharedWorkerHost> host;
+     mojo::PendingReceiver<blink::mojom::SharedWorker> receiver;
+     ukm::SourceId ukm_source_id;
+diff --git a/content/browser/worker_host/shared_worker_host.cc b/content/browser/worker_host/shared_worker_host.cc
+index 673f676..e20a1d34 100644
+--- a/content/browser/worker_host/shared_worker_host.cc
++++ b/content/browser/worker_host/shared_worker_host.cc
+@@ -440,15 +440,27 @@
+   result.subresource_loader_factories->set_bypass_redirect_checks(
+       bypass_redirect_checks);
+ 
+-  // A worker sandboxed without `allow-same-origin` has an opaque origin and
+-  // is not eligible to use service workers (mirroring
+-  // `NavigationRequest::CommitNavigation()`).
+-  if (base::FeatureList::IsEnabled(
+-          features::kServiceWorkerDropHandleForCSPSandboxedWorker) &&
+-      service_worker_handle_ &&
+-      (policy_container_host->policies().sandbox_flags &
+-       network::mojom::WebSandboxFlags::kOrigin) ==
+-          network::mojom::WebSandboxFlags::kOrigin) {
++  // A worker sandboxed without `allow-same-origin`, or created by an
++  // opaque-origin context, runs with an opaque origin and must never receive
++  // the CacheStorageSideDataWriter for its precursor origin's CacheStorage
++  // entry. This is a security fix with no web-observable behavior and is not
++  // behind a kill switch.
++  const bool is_csp_sandboxed =
++      IsSandboxedToOpaqueOrigin(policy_container_host->policies());
++  const bool has_opaque_storage_key = GetWorkerStorageKey().origin().opaque();
++  if (is_csp_sandboxed || has_opaque_storage_key) {
++    result.main_script_load_params->response_head
++        ->cache_storage_side_data_writer.reset();
++  }
++  // An opaque-origin worker is not eligible to use service workers (mirroring
++  // `NavigationRequest::CommitNavigation()`). For an opaque StorageKey the
++  // interceptor never created a ServiceWorkerClient, so dropping the handle is
++  // unconditional; only the CSP-sandbox-derived drop is web-observable and
++  // guarded by the kill switch.
++  if (has_opaque_storage_key ||
++      (is_csp_sandboxed &&
++       base::FeatureList::IsEnabled(
++           features::kServiceWorkerDropHandleForCSPSandboxedWorker))) {
+     service_worker_handle_.reset();
+   }
+ 
+diff --git a/content/browser/worker_host/worker_script_fetcher.cc b/content/browser/worker_host/worker_script_fetcher.cc
+index 77f5160..08b9f74 100644
+--- a/content/browser/worker_host/worker_script_fetcher.cc
++++ b/content/browser/worker_host/worker_script_fetcher.cc
+@@ -423,10 +423,11 @@
+       *resource_request);
+ 
+   WorkerScriptFetcher::CreateScriptLoader(
+-      worker_process_id, worker_token, initial_request_url,
+-      ancestor_render_frame_host, creator_render_frame_host,
+-      trusted_isolation_info, std::move(client_security_state),
+-      std::move(resource_request), std::move(factory_bundle_for_browser),
++      worker_process_id, worker_token, request_initiator_storage_key,
++      initial_request_url, ancestor_render_frame_host,
++      creator_render_frame_host, trusted_isolation_info,
++      std::move(client_security_state), std::move(resource_request),
++      std::move(factory_bundle_for_browser),
+       std::move(subresource_loader_factories),
+       std::move(service_worker_context), service_worker_handle,
+       std::move(blob_url_loader_factory),
+@@ -439,6 +440,7 @@
+ void WorkerScriptFetcher::CreateScriptLoader(
+     int worker_process_id,
+     const DedicatedOrSharedWorkerToken& worker_token,
++    const blink::StorageKey& worker_storage_key,
+     const GURL& initial_request_url,
+     RenderFrameHostImpl& ancestor_render_frame_host,
+     RenderFrameHostImpl* creator_render_frame_host,
+@@ -617,8 +619,8 @@
+   auto* script_fetcher = new WorkerScriptFetcher(
+       std::make_unique<WorkerScriptLoaderFactory>(
+           ChildProcessId::FromUnsafeValue(worker_process_id), worker_token,
+-          trusted_isolation_info, service_worker_handle, browser_context_getter,
+-          std::move(url_loader_factory)),
++          worker_storage_key, trusted_isolation_info, service_worker_handle,
++          browser_context_getter, std::move(url_loader_factory)),
+       std::move(resource_request),
+       base::BindOnce(DidCreateScriptLoader, std::move(callback),
+                      std::move(subresource_loader_factories),
+diff --git a/content/browser/worker_host/worker_script_fetcher.h b/content/browser/worker_host/worker_script_fetcher.h
+index de982a15..6e4716fa 100644
+--- a/content/browser/worker_host/worker_script_fetcher.h
++++ b/content/browser/worker_host/worker_script_fetcher.h
+@@ -39,6 +39,14 @@
+ namespace content {
+ 
+ class DedicatedWorkerHost;
++
++// Returns true if `policies` sandbox a worker into an opaque origin, i.e. its
++// script response carried `Content-Security-Policy: sandbox` without
++// `allow-same-origin`.
++inline bool IsSandboxedToOpaqueOrigin(const PolicyContainerPolicies& policies) {
++  return (policies.sandbox_flags & network::mojom::WebSandboxFlags::kOrigin) ==
++         network::mojom::WebSandboxFlags::kOrigin;
++}
+ class DevToolsAgentHostImpl;
+ class RenderFrameHostImpl;
+ class ServiceWorkerContextWrapper;
+@@ -209,6 +217,7 @@
+   static void CreateScriptLoader(
+       int worker_process_id,
+       const DedicatedOrSharedWorkerToken& worker_token,
++      const blink::StorageKey& worker_storage_key,
+       const GURL& initial_request_url,
+       RenderFrameHostImpl& ancestor_render_frame_host,
+       RenderFrameHostImpl* creator_render_frame_host,
+diff --git a/content/browser/worker_host/worker_script_loader.cc b/content/browser/worker_host/worker_script_loader.cc
+index 9844e1c..4542849 100644
+--- a/content/browser/worker_host/worker_script_loader.cc
++++ b/content/browser/worker_host/worker_script_loader.cc
+@@ -27,6 +27,7 @@
+ WorkerScriptLoader::WorkerScriptLoader(
+     ChildProcessId process_id,
+     const DedicatedOrSharedWorkerToken& worker_token,
++    const blink::StorageKey& worker_storage_key,
+     int32_t request_id,
+     uint32_t options,
+     const network::ResourceRequest& resource_request,
+@@ -53,7 +54,7 @@
+   }
+   interceptor_ = ServiceWorkerMainResourceLoaderInterceptor::CreateForWorker(
+       resource_request_, isolation_info, process_id, worker_token,
+-      service_worker_handle_);
++      worker_storage_key, service_worker_handle_);
+ 
+   Start();
+ }
+diff --git a/content/browser/worker_host/worker_script_loader.h b/content/browser/worker_host/worker_script_loader.h
+index 3311f12a..4dbaaef7 100644
+--- a/content/browser/worker_host/worker_script_loader.h
++++ b/content/browser/worker_host/worker_script_loader.h
+@@ -25,6 +25,10 @@
+ #include "services/network/public/mojom/url_loader.mojom.h"
+ #include "third_party/blink/public/common/tokens/tokens.h"
+ 
++namespace blink {
++class StorageKey;
++}  // namespace blink
++
+ namespace net {
+ class IsolationInfo;
+ }  // namespace net
+@@ -62,6 +66,7 @@
+   WorkerScriptLoader(
+       ChildProcessId process_id,
+       const DedicatedOrSharedWorkerToken& worker_token,
++      const blink::StorageKey& worker_storage_key,
+       int32_t request_id,
+       uint32_t options,
+       const network::ResourceRequest& resource_request,
+diff --git a/content/browser/worker_host/worker_script_loader_factory.cc b/content/browser/worker_host/worker_script_loader_factory.cc
+index 7ab6412..097805dc 100644
+--- a/content/browser/worker_host/worker_script_loader_factory.cc
++++ b/content/browser/worker_host/worker_script_loader_factory.cc
+@@ -22,12 +22,14 @@
+ WorkerScriptLoaderFactory::WorkerScriptLoaderFactory(
+     ChildProcessId process_id,
+     const DedicatedOrSharedWorkerToken& worker_token,
++    const blink::StorageKey& worker_storage_key,
+     const net::IsolationInfo& isolation_info,
+     ServiceWorkerMainResourceHandle* service_worker_handle,
+     const BrowserContextGetter& browser_context_getter,
+     scoped_refptr<network::SharedURLLoaderFactory> loader_factory)
+     : process_id_(process_id),
+       worker_token_(worker_token),
++      worker_storage_key_(worker_storage_key),
+       isolation_info_(isolation_info),
+       browser_context_getter_(browser_context_getter),
+       loader_factory_(std::move(loader_factory)) {
+@@ -59,9 +61,10 @@
+ 
+   // Create a WorkerScriptLoader to load the script.
+   auto script_loader = std::make_unique<WorkerScriptLoader>(
+-      process_id_, worker_token_, request_id, options, resource_request,
+-      isolation_info_, std::move(client), service_worker_handle_,
+-      browser_context_getter_, loader_factory_, traffic_annotation);
++      process_id_, worker_token_, worker_storage_key_, request_id, options,
++      resource_request, isolation_info_, std::move(client),
++      service_worker_handle_, browser_context_getter_, loader_factory_,
++      traffic_annotation);
+   script_loader_ = script_loader->GetWeakPtr();
+   mojo::MakeSelfOwnedReceiver(std::move(script_loader), std::move(receiver));
+ }
+diff --git a/content/browser/worker_host/worker_script_loader_factory.h b/content/browser/worker_host/worker_script_loader_factory.h
+index 11b0390a..8df27e6 100644
+--- a/content/browser/worker_host/worker_script_loader_factory.h
++++ b/content/browser/worker_host/worker_script_loader_factory.h
+@@ -14,6 +14,7 @@
+ #include "mojo/public/cpp/bindings/pending_remote.h"
+ #include "net/base/isolation_info.h"
+ #include "services/network/public/mojom/url_loader_factory.mojom.h"
++#include "third_party/blink/public/common/storage_key/storage_key.h"
+ #include "third_party/blink/public/common/tokens/tokens.h"
+ 
+ namespace network {
+@@ -47,6 +48,7 @@
+   WorkerScriptLoaderFactory(
+       ChildProcessId process_id,
+       const DedicatedOrSharedWorkerToken& worker_token,
++      const blink::StorageKey& worker_storage_key,
+       const net::IsolationInfo& isolation_info,
+       ServiceWorkerMainResourceHandle* service_worker_handle,
+       const BrowserContextGetter& browser_context_getter,
+@@ -75,6 +77,7 @@
+  private:
+   const ChildProcessId process_id_;
+   const DedicatedOrSharedWorkerToken worker_token_;
++  const blink::StorageKey worker_storage_key_;
+   const net::IsolationInfo isolation_info_;
+   base::WeakPtr<ServiceWorkerMainResourceHandle> service_worker_handle_;
+   BrowserContextGetter browser_context_getter_;
 diff --git a/storage/browser/file_system/obfuscated_file_util.cc b/storage/browser/file_system/obfuscated_file_util.cc
 index 29b7a23..1bc9829e 100644
 --- a/storage/browser/file_system/obfuscated_file_util.cc
@@ -1339,3 +1897,59 @@ index ad70532..2e239a6 100644
      uprv_decNumberDivide(fData, fData, rhs.fData, &fContext);
      if ((fContext.status & DEC_Inexact) != 0) {
          // Ignore.
+diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
+index f49ea92..04b6849 100644
+--- a/v8/include/v8-version.h
++++ b/v8/include/v8-version.h
+@@ -11,7 +11,7 @@
+ #define V8_MAJOR_VERSION 15
+ #define V8_MINOR_VERSION 8
+ #define V8_BUILD_NUMBER 62
+-#define V8_PATCH_LEVEL 38
++#define V8_PATCH_LEVEL 40
+ 
+ // Use 1 for candidates and 0 otherwise.
+ // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
+index fa3f2ac..18149e3 100644
+--- a/v8/src/maglev/maglev-graph-builder.cc
++++ b/v8/src/maglev/maglev-graph-builder.cc
+@@ -17084,6 +17084,7 @@
+   }
+   BasicBlockRef* old_jump_targets = jump_targets.Reset();
+   while (old_jump_targets != nullptr) {
++    SBXCHECK_GE(predecessor_index, 0);
+     BasicBlock* predecessor = merge_state.predecessor_at(predecessor_index);
+     CHECK(predecessor);
+     ControlNode* control = predecessor->control_node();
+diff --git a/v8/src/runtime/runtime-literals.cc b/v8/src/runtime/runtime-literals.cc
+index c594525..0b70ae0 100644
+--- a/v8/src/runtime/runtime-literals.cc
++++ b/v8/src/runtime/runtime-literals.cc
+@@ -156,15 +156,22 @@
+           if (copying) dict->ValueAtPut(i, *value);
+         }
+       } else {
++        // Iterate in enumeration order so traversal stays in sync with the
++        // nested AllocationSite list built by DeepWalk if a fast boilerplate is
++        // later normalized to a NameDictionary by JSObject::MigrateInstance.
+         DirectHandle<NameDictionary> dict(copy->property_dictionary(), isolate);
+-        for (InternalIndex i : dict->IterateEntries()) {
+-          Tagged<Object> raw = dict->ValueAt(i);
++        DirectHandle<FixedArray> key_indices =
++            NameDictionary::IterationIndices(isolate, dict);
++        uint32_t key_indices_len = key_indices->ulength().value();
++        for (uint32_t i = 0; i < key_indices_len; i++) {
++          InternalIndex key_index(Smi::ToInt(key_indices->get(i)));
++          Tagged<Object> raw = dict->ValueAt(key_index);
+           if (!IsJSObject(raw)) continue;
+-          DCHECK(IsName(dict->KeyAt(i)));
++          DCHECK(IsName(dict->KeyAt(key_index)));
+           Handle<JSObject> value(Cast<JSObject>(raw), isolate);
+           ASSIGN_RETURN_ON_EXCEPTION(isolate, value,
+                                      VisitElementOrProperty(copy, value));
+-          if (copying) dict->ValueAtPut(i, *value);
++          if (copying) dict->ValueAtPut(key_index, *value);
+         }
+       }
+     }
