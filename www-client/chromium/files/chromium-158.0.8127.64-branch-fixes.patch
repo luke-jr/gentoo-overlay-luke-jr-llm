@@ -1,8 +1,8 @@
 Chromium 158.0.8127.64 + the later changes of its release branch, up to
-3d68d684476b6cb9ef60352c3dbf967d9272ca0c (refs/branch-heads/8127@{#1816}), for the
+b06f0fda735358548809858f1e65bead6e697348 (refs/branch-heads/8127@{#1817}), for the
 158.0.8127.64 tree that chromium-158.0.8127.37-to-158.0.8127.64.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..3d68d684476b6cb9ef60352c3dbf967d9272ca0c,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..b06f0fda735358548809858f1e65bead6e697348,
 from the branch's roll of chromium/deps/icu c670d124c9b6aa92c0b492cf543808300e0e6103..c66ba5d8cda8b645d16778c92c902a871c0fd45c (under third_party/icu/),
 from its rolls of v8/v8 19c06df29e0050413f5f041888f4c990de970314..e613b92ff31da46781a39135cca49bdf4403f28a (under v8/),
 from its roll of external/leveldb bb74ef739973a70ca9f0d90788a1da89b788c0ad..29465588d3dfdc80fba5e198037582b8fdb5dd60 (under third_party/leveldatabase/src/),
@@ -66,6 +66,7 @@ Commits contributing to it (oldest first):
     dawn 534b718adcc7 [M158] [ir] prevent infinite loops: ensure loop increment survives backends
   3d68d684476b Roll commits from side projects in M158
     angle eae431b4e9b9 [M158] PLS: Require complete FBO when attachments exist
+  b06f0fda7353 [M158] Block re-entrant navigations during CommitNavigation document abort
 
 Checked: applies to the 158.0.8127.64 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -1604,6 +1605,48 @@ index 29b7a23..1bc9829e 100644
    type_ = type;
  }
  
+diff --git a/third_party/blink/renderer/bindings/core/v8/script_controller.cc b/third_party/blink/renderer/bindings/core/v8/script_controller.cc
+index c3620479..7ec30c8 100644
+--- a/third_party/blink/renderer/bindings/core/v8/script_controller.cc
++++ b/third_party/blink/renderer/bindings/core/v8/script_controller.cc
+@@ -230,6 +230,7 @@
+ 
+   bool had_navigation_before =
+       window_->GetFrame()->Loader().HasProvisionalNavigation();
++  Document* previous_document = window_->document();
+ 
+   // https://html.spec.whatwg.org/multipage/browsing-the-web.html#javascript-protocol
+   // Step 6. "Let baseURL be settings's API base URL." [spec text]
+@@ -238,6 +239,13 @@
+   String script_source = window_->CheckAndGetJavascriptUrl(
+       world_for_csp, url, nullptr /* element */, csp_disposition);
+ 
++  // Executing a Trusted Types default policy in CheckAndGetJavascriptUrl() may
++  // have detached this frame or committed a new document (even if the initial
++  // empty DOMWindow was reused).
++  if (!window_->GetFrame() || window_->document() != previous_document) {
++    return;
++  }
++
+   // Step 7. "Let script be the result of creating a classic script given
+   // scriptSource, settings, baseURL, and the default classic script fetch
+   // options." [spec text]
+@@ -267,10 +275,12 @@
+     }
+   }
+ 
+-  // If executing script caused this frame to be removed from the page, we
+-  // don't want to try to replace its document!
+-  if (!window_->GetFrame())
++  // If executing script caused this frame to be removed from the page or
++  // committed a new document (even if the initial empty DOMWindow was reused),
++  // we don't want to replace its document!
++  if (!window_->GetFrame() || window_->document() != previous_document) {
+     return;
++  }
+   // If a navigation begins during the javascript: url's execution, ignore
+   // the return value of the script. Otherwise, replacing the document with a
+   // string result would cancel the navigation.
 diff --git a/third_party/blink/renderer/core/animation/css/css_animations.cc b/third_party/blink/renderer/core/animation/css/css_animations.cc
 index 678f1b49..768b3e6 100644
 --- a/third_party/blink/renderer/core/animation/css/css_animations.cc
@@ -2601,6 +2644,29 @@ index 0000000..d57edf2
 +}  // namespace blink
 +
 +#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_EVENTS_POINTER_EVENT_CONTEXT_H_
+diff --git a/third_party/blink/renderer/core/loader/frame_loader.cc b/third_party/blink/renderer/core/loader/frame_loader.cc
+index 286d40b..e9c4d9c6 100644
+--- a/third_party/blink/renderer/core/loader/frame_loader.cc
++++ b/third_party/blink/renderer/core/loader/frame_loader.cc
+@@ -1204,8 +1204,16 @@
+   //   with regards to the last commit.
+   // In this rare case, we intentionally proceed as cross-document.
+ 
+-  if (!CancelProvisionalLoaderForNewNavigation())
+-    return;
++  {
++    // CancelProvisionalLoaderForNewNavigation() calls Document::Abort(), which
++    // can synchronously fire readystatechange. Disable navigations and
++    // re-entrant commits while aborting the previous document, matching
++    // DetachDocument() below.
++    FrameNavigationDisabler navigation_disabler(*frame_);
++    if (!CancelProvisionalLoaderForNewNavigation()) {
++      return;
++    }
++  }
+ 
+   FillStaticResponseIfNeeded(navigation_params.get(), frame_);
+   AssertCanNavigate(navigation_params.get(), frame_);
 diff --git a/third_party/blink/renderer/platform/runtime_enabled_features.json5 b/third_party/blink/renderer/platform/runtime_enabled_features.json5
 index 4d4dce811..9e3a7c9 100644
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
