@@ -1,13 +1,13 @@
 Chromium 158.0.8127.64 + the later changes of its release branch, up to
-d79c6b3e60187cf056019dfe2019ec419ffdf00b (refs/branch-heads/8127@{#1814}), for the
+3d68d684476b6cb9ef60352c3dbf967d9272ca0c (refs/branch-heads/8127@{#1816}), for the
 158.0.8127.64 tree that chromium-158.0.8127.37-to-158.0.8127.64.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..d79c6b3e60187cf056019dfe2019ec419ffdf00b,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..3d68d684476b6cb9ef60352c3dbf967d9272ca0c,
 from the branch's roll of chromium/deps/icu c670d124c9b6aa92c0b492cf543808300e0e6103..c66ba5d8cda8b645d16778c92c902a871c0fd45c (under third_party/icu/),
 from its rolls of v8/v8 19c06df29e0050413f5f041888f4c990de970314..e613b92ff31da46781a39135cca49bdf4403f28a (under v8/),
 from its roll of external/leveldb bb74ef739973a70ca9f0d90788a1da89b788c0ad..29465588d3dfdc80fba5e198037582b8fdb5dd60 (under third_party/leveldatabase/src/),
 from its rolls of skia 707e33875fb45f2997a4d781128bec122fb777b4..9f8fb9da7e434d74187003c2431f13d0f11641f7 (under third_party/skia/),
-from its rolls of angle/angle 3708e472b77d8338dbc7365fea884beb0272c6de..5514b35dfa76a46321896fa3b3e078b983dc9e41 (under third_party/angle/),
+from its rolls of angle/angle 3708e472b77d8338dbc7365fea884beb0272c6de..eae431b4e9b9f8cbd2ef289066ff69b46d523278 (under third_party/angle/),
 and from its rolls of dawn 8e5f22673a5787225d45065929bf00e63d2fd541..534b718adcc75d4b3e1d30fefd0715b374ac5d11 (under third_party/dawn/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .64 tree's files, renames included): left out are files not in the release
@@ -64,6 +64,8 @@ Commits contributing to it (oldest first):
     v8 28eb1a380678 [M158] [runtime] Limit recursion depth in HeapObject::HeapObjectShortPrint
     v8 e613b92ff31d Version 15.8.62.43
     dawn 534b718adcc7 [M158] [ir] prevent infinite loops: ensure loop increment survives backends
+  3d68d684476b Roll commits from side projects in M158
+    angle eae431b4e9b9 [M158] PLS: Require complete FBO when attachments exist
 
 Checked: applies to the 158.0.8127.64 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -4777,6 +4779,21 @@ index 75101a8..7d6c4cc 100644
                  fp = GrTextureEffect::MakeSubset(std::move(proxyView), alphaType, SkMatrix::I(),
                                                   samplerState, *subset, localRect, caps);
              } else {
+diff --git a/third_party/angle/extensions/ANGLE_shader_pixel_local_storage.txt b/third_party/angle/extensions/ANGLE_shader_pixel_local_storage.txt
+index c60c549..111370c 100644
+--- a/third_party/angle/extensions/ANGLE_shader_pixel_local_storage.txt
++++ b/third_party/angle/extensions/ANGLE_shader_pixel_local_storage.txt
+@@ -346,6 +346,10 @@
+         draw framebuffer is in an interrupted state. (See section 2.X.2
+         "Interrupting Pixel Local Storage")
+ 
++      * INVALID_FRAMEBUFFER_OPERATION is generated if the draw framebuffer has
++        any attachment, and CheckFramebufferStatus(DRAW_FRAMEBUFFER) is not
++        FRAMEBUFFER_COMPLETE.
++
+       * INVALID_OPERATION is generated if
+         PIXEL_LOCAL_STORAGE_ACTIVE_PLANES_ANGLE is nonzero.
+ 
 diff --git a/third_party/angle/include/GLSLANG/ShaderLang.h b/third_party/angle/include/GLSLANG/ShaderLang.h
 index b19834f..64548e0 100644
 --- a/third_party/angle/include/GLSLANG/ShaderLang.h
@@ -5418,6 +5435,36 @@ index f8cdd97..7b007b3 100644
      // Default to state validation disabled. It is extremely costly and should only be enabled
      // explicitly when debugging.
      ANGLE_FEATURE_CONDITION(features, validateState, false);
+diff --git a/third_party/angle/src/libANGLE/validationESEXT.cpp b/third_party/angle/src/libANGLE/validationESEXT.cpp
+index 9a5f8d8..ec578e1 100644
+--- a/third_party/angle/src/libANGLE/validationESEXT.cpp
++++ b/third_party/angle/src/libANGLE/validationESEXT.cpp
+@@ -1935,6 +1935,16 @@
+         return false;
+     }
+ 
++    // INVALID_FRAMEBUFFER_OPERATION is generated if the draw framebuffer has any attachment, and
++    // CheckFramebufferStatus(DRAW_FRAMEBUFFER) is not FRAMEBUFFER_COMPLETE.
++    const FramebufferAttachment *firstAttachment =
++        framebuffer->getState().getFirstNonNullAttachment();
++    if (firstAttachment != nullptr &&
++        !ValidateFramebufferComplete(context, entryPoint, framebuffer))
++    {
++        return false;
++    }
++
+     // INVALID_OPERATION is generated if the value of SAMPLE_BUFFERS is 1 (i.e., if rendering to a
+     // multisampled framebuffer).
+     if (framebuffer->getSamples(context) != 0)
+@@ -2110,8 +2120,6 @@
+         }
+     }
+ 
+-    const FramebufferAttachment *firstAttachment =
+-        framebuffer->getState().getFirstNonNullAttachment();
+     if (firstAttachment)
+     {
+         // INVALID_OPERATION is generated if the draw framebuffer has other attachments, and its
 diff --git a/third_party/angle/util/autogen/angle_features_autogen.cpp b/third_party/angle/util/autogen/angle_features_autogen.cpp
 index 42782c3..d7da6da 100644
 --- a/third_party/angle/util/autogen/angle_features_autogen.cpp
