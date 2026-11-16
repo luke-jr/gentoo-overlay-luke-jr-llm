@@ -1,12 +1,13 @@
 Chromium 158.0.8127.64 + the later changes of its release branch, up to
-4a46834488b5e8846be5c5b90fbc00edeeb67417 (refs/branch-heads/8127@{#1795}), for the
+0f2106d3402363baa950455dd2fce70ff3b3aa33 (refs/branch-heads/8127@{#1797}), for the
 158.0.8127.64 tree that chromium-158.0.8127.37-to-158.0.8127.64.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..4a46834488b5e8846be5c5b90fbc00edeeb67417,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..0f2106d3402363baa950455dd2fce70ff3b3aa33,
 from the branch's roll of chromium/deps/icu c670d124c9b6aa92c0b492cf543808300e0e6103..c66ba5d8cda8b645d16778c92c902a871c0fd45c (under third_party/icu/),
-from its rolls of v8/v8 19c06df29e0050413f5f041888f4c990de970314..263a273977a7a6ac6119fd8f32572121df2bebcd (under v8/),
+from its rolls of v8/v8 19c06df29e0050413f5f041888f4c990de970314..7391c3adca5214b7a36b1c54c95a6e8f360dc2b4 (under v8/),
 from its roll of external/leveldb bb74ef739973a70ca9f0d90788a1da89b788c0ad..29465588d3dfdc80fba5e198037582b8fdb5dd60 (under third_party/leveldatabase/src/),
-and from its roll of skia 707e33875fb45f2997a4d781128bec122fb777b4..f83bef670ab0e9f2b65eac2fcd45959048321e9f (under third_party/skia/),
+from its rolls of skia 707e33875fb45f2997a4d781128bec122fb777b4..9f8fb9da7e434d74187003c2431f13d0f11641f7 (under third_party/skia/),
+and from its roll of angle/angle 3708e472b77d8338dbc7365fea884beb0272c6de..b021b8b3c46964982a2ae71144a411b03a8d9154 (under third_party/angle/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .64 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -32,6 +33,13 @@ Commits contributing to it (oldest first):
   a75f07a1f8c8 Roll commits from side projects in M158
     skia f83bef670ab0 [M158] Account for AA coordinate extrapolation in subset clamping
   4a46834488b5 [M158] Retarget coalesced and predicted PointerEvents across shadow boundaries
+  d888fc198536 [M158] [Linux Installer] Pin RPM package format to v4 for rpm >= 6.0
+  0f2106d34023 Roll commits from side projects in M158
+    v8 834a98bc0efc [M158] [ic] Fix cross-context Object.create(..) and prototype access checks
+    v8 6f4bc41ed164 [M158] [parser] Fix heritage scope handling when reparsing class initializers
+    v8 7391c3adca52 Version 15.8.62.41
+    skia 9f8fb9da7e43 [M158] Avoid float equality for hashing image filters
+    angle b021b8b3c469 [M158] GL: Limit expanded variable fields per shader on PowerVR
 
 Checked: applies to the 158.0.8127.64 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -188,6 +196,105 @@ index 18ede1f..8472814 100644
      std::vector<base::FilePath::StringType> block_components =
          block_path.GetComponents();
      if (IsPathOrDescendantIgnoreCase(path_components, block_components)) {
+diff --git a/chrome/installer/linux/PRESUBMIT.py b/chrome/installer/linux/PRESUBMIT.py
+index 273f63c..38f165b1e 100644
+--- a/chrome/installer/linux/PRESUBMIT.py
++++ b/chrome/installer/linux/PRESUBMIT.py
+@@ -108,6 +108,14 @@
+ def _CommonChecks(input_api, output_api):
+     results = []
+     results.extend(_CheckRepoPackageVersionBump(input_api, output_api))
++    results.extend(
++        input_api.canned_checks.RunUnitTestsInDirectory(
++            input_api,
++            output_api,
++            "rpm",
++            files_to_check=[r"^.+_unittest\.py$"],
++        )
++    )
+     return results
+ 
+ 
+diff --git a/chrome/installer/linux/rpm/build.py b/chrome/installer/linux/rpm/build.py
+index 43237aaa..327584f 100755
+--- a/chrome/installer/linux/rpm/build.py
++++ b/chrome/installer/linux/rpm/build.py
+@@ -7,7 +7,6 @@
+ import logging
+ import os
+ import pathlib
+-import re
+ import shutil
+ import subprocess
+ import sys
+@@ -16,6 +15,9 @@
+ sys.path.append(os.path.join(os.path.dirname(__file__), "../common"))
+ import installer
+ 
++RPM_LEAD_MAGIC = b"\xed\xab\xee\xdb"
++RPM_V4_LEAD_MAJOR = 3
++
+ 
+ def parse_args() -> argparse.Namespace:
+     parser = installer.parse_common_args()
+@@ -41,21 +43,29 @@
+ def verify_package(
+     config: installer.InstallerConfig, rpm_file: pathlib.Path
+ ) -> None:
++    with rpm_file.open("rb") as f:
++        lead = f.read(6)
++    if (
++        len(lead) < 6
++        or lead[:4] != RPM_LEAD_MAGIC
++        or lead[4] != RPM_V4_LEAD_MAJOR
++    ):
++        print(
++            f"Unexpected RPM lead header in {rpm_file}: {lead.hex()} "
++            f"(expected RPM v4 lead magic {RPM_LEAD_MAGIC.hex()} with "
++            f"major {RPM_V4_LEAD_MAJOR})",
++            file=sys.stderr,
++        )
++        sys.exit(1)
++
+     depends = config.rpm_depends
+-    version_output = subprocess.check_output(["rpm", "--version"])
+-    version_match = re.match(r'.*version ([.\d]*)', str(version_output))
+     additional_deps = [
+         "/bin/sh",
++        "rpmlib(CompressedFileNames) <= 3.0.4-1",
++        "rpmlib(FileDigests) <= 4.6.0-1",
++        "rpmlib(PayloadFilesHavePrefix) <= 4.0-1",
+         "/usr/sbin/update-alternatives",
+     ]
+-    if version_match and version_match[1] >= '6.0':
+-        additional_deps += ['rpmlib(LargeFiles) <= 4.12.0-1']
+-    else:
+-        additional_deps += [
+-            "rpmlib(CompressedFileNames) <= 3.0.4-1",
+-            "rpmlib(FileDigests) <= 4.6.0-1",
+-            "rpmlib(PayloadFilesHavePrefix) <= 4.0-1",
+-        ]
+     if config.is_official_build:
+         additional_deps.append("rpmlib(PayloadIsXz) <= 5.2-1")
+ 
+@@ -140,6 +150,9 @@
+         else:
+             compression_opt = "_binary_payload w0.gzdio"
+ 
++        # Pin RPM v4 format so rpm >= 6.0 continues emitting v4 headers and
++        # standard SVR4 cpio payloads instead of v6 stripped cpio (07070X),
++        # which libarchive and rpm-ostree cannot extract (crbug.com/583945825).
+         cmd = [
+             "fakeroot",
+             "rpmbuild",
+@@ -147,6 +160,7 @@
+             f"--target={args.arch}",
+             "--rmspec",
+             f"--define=_topdir {rpm_build_dir}",
++            "--define=_rpmformat 4",
+             f"--define={compression_opt}",
+             "--define=__os_install_post %{nil}",
+             "--define=_build_id_links none",
 diff --git a/content/browser/service_worker/service_worker_client.cc b/content/browser/service_worker/service_worker_client.cc
 index 38e7eaf..8f38d5983 100644
 --- a/content/browser/service_worker/service_worker_client.cc
@@ -2493,7 +2600,7 @@ index ad70532..2e239a6 100644
      if ((fContext.status & DEC_Inexact) != 0) {
          // Ignore.
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index f49ea92..04b6849 100644
+index f49ea92..8a696dc 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -2501,10 +2608,271 @@ index f49ea92..04b6849 100644
  #define V8_MINOR_VERSION 8
  #define V8_BUILD_NUMBER 62
 -#define V8_PATCH_LEVEL 38
-+#define V8_PATCH_LEVEL 40
++#define V8_PATCH_LEVEL 41
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/builtins/builtins-object-gen.cc b/v8/src/builtins/builtins-object-gen.cc
+index bf12c80..fa410f7 100644
+--- a/v8/src/builtins/builtins-object-gen.cc
++++ b/v8/src/builtins/builtins-object-gen.cc
+@@ -1283,12 +1283,15 @@
+     BIND(&non_null_proto);
+     {
+       new_properties = EmptyFixedArrayConstant();
+-      map = LoadObjectFunctionInitialMap(native_context);
++      TNode<JSFunction> object_function = Cast(LoadContextElementNoCell(
++          native_context, Context::OBJECT_FUNCTION_INDEX));
++      map = CAST(LoadJSFunctionPrototypeOrInitialMap(object_function));
+       GotoIf(TaggedEqual(prototype, LoadMapPrototype(map.value())),
+              &instantiate_map);
++      TNode<Map> prototype_map = LoadMap(CAST(prototype));
+       // Try loading the prototype info.
+       TNode<PrototypeInfo> prototype_info =
+-          LoadMapPrototypeInfo(LoadMap(CAST(prototype)), &call_runtime);
++          LoadMapPrototypeInfo(prototype_map, &call_runtime);
+       Comment("Load ObjectCreateMap from PrototypeInfo");
+       TNode<HeapObject> derived_maps = CAST(LoadObjectField(
+           prototype_info, offsetof(PrototypeInfo, derived_maps_)));
+@@ -1300,6 +1303,20 @@
+       TNode<MaybeObject> maybe_map = UncheckedCast<MaybeObject>(LoadObjectField(
+           derived_maps, IntPtrConstant(WeakArrayList::kHeaderSize)));
+       map = CAST(GetHeapObjectAssumeWeak(maybe_map, &call_runtime));
++      // Only use the cached map in PrototypeInfo if the prototype belongs to
++      // the same native context, matching Map::GetObjectCreateMap.
++      TNode<BoolT> is_same_context;
++      {
++        TNode<JSFunction> constructor =
++            CAST(LoadMapConstructorOrBackPointerOrNativeContext(map.value()));
++        // Given that we already have both object_function and the initial map,
++        // this is a faster version of BelongsToSameNativeContextAs.
++        is_same_context = TaggedEqual(constructor, object_function);
++        CSA_DCHECK(this, Word32Equal(is_same_context,
++                                     BelongsToSameNativeContextAs(
++                                         map.value(), native_context)));
++      }
++      GotoIfNot(is_same_context, &call_runtime);
+       Goto(&instantiate_map);
+     }
+ 
+diff --git a/v8/src/builtins/object.tq b/v8/src/builtins/object.tq
+index 5858aa8..f0363db 100644
+--- a/v8/src/builtins/object.tq
++++ b/v8/src/builtins/object.tq
+@@ -118,6 +118,18 @@
+               const theMap = MaybeObjectToStrong(derived_maps.objects[0])
+                   otherwise Runtime;
+               map = UnsafeCast<Map>(theMap);
++              // Only use the cached map in PrototypeInfo if the prototype
++              // belongs to the same native context, matching
++              // Map::GetObjectCreateMap.
++              // Given that we already have both objectFunction and the initial
++              // map, this is a faster version of BelongsToSameNativeContextAs.
++              const constructor =
++                  map.constructor_or_back_pointer_or_native_context;
++              const isSameContext: bool =
++                  TaggedEqual(constructor, objectFunction);
++              dcheck(
++                  isSameContext == BelongsToSameNativeContextAs(map, context));
++              if (!isSameContext) goto Runtime;
+             }
+           }
+         }
+diff --git a/v8/src/codegen/code-stub-assembler.cc b/v8/src/codegen/code-stub-assembler.cc
+index b535dd1..3ca3a3a 100644
+--- a/v8/src/codegen/code-stub-assembler.cc
++++ b/v8/src/codegen/code-stub-assembler.cc
+@@ -12446,6 +12446,19 @@
+   return var_maybe_constructor.value();
+ }
+ 
++TNode<BoolT> CodeStubAssembler::BelongsToSameNativeContextAs(
++    TNode<Map> map, TNode<Context> context) {
++  TNode<Map> context_meta_map = LoadMap(LoadMap(context));
++  // Make sure context_meta_map is both contextful and meta map.
++  CSA_DCHECK(this, TaggedEqual(context_meta_map, LoadMap(context_meta_map)));
++  CSA_DCHECK(
++      this, IsNativeContext(CAST(LoadMapConstructorOrBackPointerOrNativeContext(
++                context_meta_map))));
++
++  TNode<Map> this_meta_map = LoadMap(map);
++  return TaggedEqual(this_meta_map, context_meta_map);
++}
++
+ TNode<NativeContext> CodeStubAssembler::GetCreationContextFromMap(
+     TNode<Map> map, Label* if_bailout) {
+   TNode<Map> meta_map = LoadMap(map);
+diff --git a/v8/src/codegen/code-stub-assembler.h b/v8/src/codegen/code-stub-assembler.h
+index 63b3b9c..649da04 100644
+--- a/v8/src/codegen/code-stub-assembler.h
++++ b/v8/src/codegen/code-stub-assembler.h
+@@ -2290,6 +2290,8 @@
+                                   const Function& materialize_target,
+                                   bool target_is_new);
+ 
++  TNode<BoolT> BelongsToSameNativeContextAs(TNode<Map> map,
++                                            TNode<Context> context);
+   TNode<NativeContext> GetCreationContextFromMap(TNode<Map> map,
+                                                  Label* if_bailout);
+   TNode<NativeContext> GetCreationContext(TNode<JSReceiver> receiver,
+diff --git a/v8/src/compiler/access-info.cc b/v8/src/compiler/access-info.cc
+index f2768ac..35025fb 100644
+--- a/v8/src/compiler/access-info.cc
++++ b/v8/src/compiler/access-info.cc
+@@ -56,8 +56,7 @@
+   if (IsJSObjectMap(*map.object())) {
+     if (map.is_dictionary_map()) {
+       if (!V8_DICT_PROPERTY_CONST_TRACKING_BOOL) return false;
+-      return access_mode == AccessMode::kLoad &&
+-             map.object()->is_prototype_map();
++      return access_mode == AccessMode::kLoad && map.is_prototype_map();
+     }
+     return !map.has_named_interceptor() &&
+            // TODO(verwaest): Allowlist contexts to which we have access.
+@@ -792,7 +791,7 @@
+   InstanceType holder_instance_type = holder_map.instance_type();
+   if (holder_instance_type == JS_MODULE_NAMESPACE_TYPE ||
+       holder_instance_type == JS_DEFERRED_MODULE_NAMESPACE_TYPE) {
+-    DCHECK(holder_map.object()->is_prototype_map());
++    DCHECK(holder_map.is_prototype_map());
+     DirectHandle<PrototypeInfo> proto_info = broker->CanonicalPersistentHandle(
+         Cast<PrototypeInfo>(holder_map.object()->prototype_info()));
+     DirectHandle<JSModuleNamespace> module_namespace =
+@@ -936,7 +935,7 @@
+     InternalIndex dictionary_index, AccessMode access_mode,
+     PropertyDetails details) const {
+   CHECK(V8_DICT_PROPERTY_CONST_TRACKING_BOOL);
+-  DCHECK(holder.map(broker()).object()->is_prototype_map());
++  DCHECK(holder.map(broker()).is_prototype_map());
+   DCHECK_EQ(access_mode, AccessMode::kLoad);
+ 
+   // We can only inline accesses to constant properties.
+@@ -963,7 +962,7 @@
+     InternalIndex* index_out, PropertyDetails* details_out) const {
+   if (map.is_dictionary_map()) {
+     DCHECK(V8_DICT_PROPERTY_CONST_TRACKING_BOOL);
+-    DCHECK(map.object()->is_prototype_map());
++    DCHECK(map.is_prototype_map());
+ 
+     DisallowGarbageCollection no_gc;
+ 
+@@ -1226,7 +1225,7 @@
+ 
+     if (V8_DICT_PROPERTY_CONST_TRACKING_BOOL && holder.has_value()) {
+       // At this point, we are past the first loop iteration.
+-      DCHECK(holder->object()->map()->is_prototype_map());
++      DCHECK(holder->map(broker()).is_prototype_map());
+       DCHECK(!holder->map(broker()).equals(receiver_map));
+ 
+       fast_mode_prototype_on_chain =
+diff --git a/v8/src/compiler/heap-refs.cc b/v8/src/compiler/heap-refs.cc
+index cf2f7c6..6884052 100644
+--- a/v8/src/compiler/heap-refs.cc
++++ b/v8/src/compiler/heap-refs.cc
+@@ -1823,6 +1823,8 @@
+                 Map::Bits3::NumberOfOwnDescriptorsBits)
+ HEAP_ACCESSOR_B(Map, bit_field3, is_migration_target,
+                 Map::Bits3::IsMigrationTargetBit)
++HEAP_ACCESSOR_B(Map, bit_field3, is_prototype_map,
++                Map::Bits3::IsPrototypeMapBit)
+ BIMODAL_ACCESSOR_B(Map, bit_field3, is_extensible, Map::Bits3::IsExtensibleBit)
+ BIMODAL_ACCESSOR_B(Map, bit_field3, construction_counter,
+                    Map::Bits3::ConstructionCounterBits)
+@@ -2045,6 +2047,13 @@
+   return MakeRefAssumeMemoryFence(broker, object()->native_context());
+ }
+ 
++bool MapRef::BelongsToSameNativeContextAs(JSHeapBroker* broker,
++                                          ContextRef context) const {
++  MapRef this_meta_map = map(broker);
++  MapRef context_meta_map = context.map(broker).map(broker);
++  return this_meta_map.equals(context_meta_map);
++}
++
+ OptionalHeapObjectRef MapRef::GetBackPointer(JSHeapBroker* broker) const {
+   // Keep in sync with Map::GetBackpointer.
+   OptionalObjectRef maybe_bptr =
+@@ -2716,16 +2725,19 @@
+ }
+ 
+ OptionalMapRef JSObjectRef::GetObjectCreateMap(JSHeapBroker* broker) const {
+-  DirectHandle<Map> map_handle = Cast<Map>(map(broker).object());
++  MapRef map_ref = map(broker);
+   // Note: implemented as an acquire-load.
+-  if (!map_handle->is_prototype_map()) return {};
++  if (!map_ref.is_prototype_map()) return {};
++  NativeContextRef native_context = broker->target_native_context();
++  if (!map_ref.BelongsToSameNativeContextAs(broker, native_context)) return {};
+ 
+   DirectHandle<Object> maybe_proto_info = broker->CanonicalPersistentHandle(
+-      map_handle->prototype_info(kAcquireLoad));
++      map_ref.object()->prototype_info(kAcquireLoad));
+   if (!IsPrototypeInfo(*maybe_proto_info)) return {};
+ 
+   Tagged<MaybeObject> maybe_object_create_map =
+-      Cast<PrototypeInfo>(maybe_proto_info)->ObjectCreateMap(kAcquireLoad);
++      Cast<PrototypeInfo>(maybe_proto_info)
++          ->ObjectCreateMap(*native_context.object(), kAcquireLoad);
+   if (!maybe_object_create_map.IsWeak()) return {};
+ 
+   return MapRef(broker->GetOrCreateData(
+diff --git a/v8/src/compiler/heap-refs.h b/v8/src/compiler/heap-refs.h
+index f0b86bb..6942f41 100644
+--- a/v8/src/compiler/heap-refs.h
++++ b/v8/src/compiler/heap-refs.h
+@@ -1011,6 +1011,7 @@
+   int construction_counter() const;
+   bool is_migration_target() const;
+   bool is_extensible() const;
++  bool is_prototype_map() const;
+   bool supports_fast_array_iteration(JSHeapBroker* broker) const;
+   bool supports_fast_array_resize(JSHeapBroker* broker) const;
+   bool is_abandoned_prototype_map() const;
+@@ -1057,6 +1058,8 @@
+   MapRef FindRootMap(JSHeapBroker* broker) const;
+   OptionalObjectRef GetConstructor(JSHeapBroker* broker) const;
+   NativeContextRef native_context(JSHeapBroker* broker) const;
++  bool BelongsToSameNativeContextAs(JSHeapBroker* broker,
++                                    ContextRef context) const;
+ };
+ 
+ struct HolderLookupResult {
+diff --git a/v8/src/ic/ic.cc b/v8/src/ic/ic.cc
+index 9a957dd..a98c555 100644
+--- a/v8/src/ic/ic.cc
++++ b/v8/src/ic/ic.cc
+@@ -240,8 +240,13 @@
+         continue;
+       }
+       case LookupIterator::ACCESS_CHECK:
+-        // ICs know how to perform access checks on global proxies.
+-        if (!IsAccessCheckNeeded(*it->GetHolder<JSObject>())) continue;
++        // ICs only support access checks on the lookup start object (when it
++        // is a global proxy), not on objects in the prototype chain.
++        if (it->GetHolder<JSObject>().is_identical_to(
++                it->lookup_start_object()) &&
++            !IsAccessCheckNeeded(*it->GetHolder<JSObject>())) {
++          continue;
++        }
+         return;
+       case LookupIterator::MODULE_NAMESPACE: {
+         if (JSDeferredModuleNamespace::TriggersEvaluation(it)) {
+@@ -2078,8 +2083,13 @@
+         continue;
+       }
+       case LookupIterator::ACCESS_CHECK:
+-        // ICs know how to perform access checks on global proxies.
+-        if (!IsAccessCheckNeeded(*it->GetHolder<JSObject>())) continue;
++        // ICs only support access checks on the lookup start object (when it
++        // is a global proxy), not on objects in the prototype chain.
++        if (it->GetHolder<JSObject>().is_identical_to(
++                it->lookup_start_object()) &&
++            !IsAccessCheckNeeded(*it->GetHolder<JSObject>())) {
++          continue;
++        }
+         return false;
+       case LookupIterator::ACCESSOR:
+         return !it->IsReadOnly();
 diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
 index fa3f2ac..18149e3 100644
 --- a/v8/src/maglev/maglev-graph-builder.cc
@@ -2517,6 +2885,161 @@ index fa3f2ac..18149e3 100644
      BasicBlock* predecessor = merge_state.predecessor_at(predecessor_index);
      CHECK(predecessor);
      ControlNode* control = predecessor->control_node();
+diff --git a/v8/src/objects/map.cc b/v8/src/objects/map.cc
+index 1e94d0f..0c12701 100644
+--- a/v8/src/objects/map.cc
++++ b/v8/src/objects/map.cc
+@@ -973,18 +973,21 @@
+     if (!js_prototype->map()->is_prototype_map()) {
+       JSObject::OptimizeAsPrototype(js_prototype);
+     }
+-    DirectHandle<PrototypeInfo> info =
+-        Map::GetOrCreatePrototypeInfo(js_prototype, isolate);
+-    // TODO(verwaest): Use inobject slack tracking for this map.
+-    Tagged<HeapObject> map_obj;
+-    if (info->ObjectCreateMap().GetHeapObjectIfWeak(&map_obj)) {
+-      map = direct_handle(Cast<Map>(map_obj), isolate);
+-    } else {
+-      map = Map::CopyInitialMap(isolate, map);
+-      Map::SetPrototype(isolate, map, prototype);
+-      PrototypeInfo::SetObjectCreateMap(info, map, isolate);
++    if (js_prototype->map()->BelongsToSameNativeContextAs(isolate->context())) {
++      DirectHandle<PrototypeInfo> info =
++          Map::GetOrCreatePrototypeInfo(js_prototype, isolate);
++      // TODO(verwaest): Use inobject slack tracking for this map.
++      Tagged<HeapObject> map_obj;
++      if (info->ObjectCreateMap(isolate->context())
++              .GetHeapObjectIfWeak(&map_obj)) {
++        map = direct_handle(Cast<Map>(map_obj), isolate);
++      } else {
++        map = Map::CopyInitialMap(isolate, map);
++        Map::SetPrototype(isolate, map, prototype);
++        PrototypeInfo::SetObjectCreateMap(info, map, isolate);
++      }
++      return map;
+     }
+-    return map;
+   }
+ 
+   return Map::TransitionRootMapToPrototypeForNewObject(isolate, map, prototype);
+diff --git a/v8/src/objects/map.tq b/v8/src/objects/map.tq
+index cc90e8a..3fe05f9 100644
+--- a/v8/src/objects/map.tq
++++ b/v8/src/objects/map.tq
+@@ -148,3 +148,4 @@
+ }
+ 
+ extern macro IsSpecialReceiverInstanceType(InstanceType): bool;
++extern macro BelongsToSameNativeContextAs(Map, Context): bool;
+diff --git a/v8/src/objects/prototype-info-inl.h b/v8/src/objects/prototype-info-inl.h
+index be329f5..0aa0877 100644
+--- a/v8/src/objects/prototype-info-inl.h
++++ b/v8/src/objects/prototype-info-inl.h
+@@ -116,7 +116,8 @@
+   cached_handler_[index].store(this, value, mode);
+ }
+ 
+-Tagged<MaybeObject> PrototypeInfo::ObjectCreateMap() {
++Tagged<MaybeObject> PrototypeInfo::ObjectCreateMap(
++    Tagged<Context> accessing_context) {
+   auto derived = derived_maps();
+   if (IsUndefined(derived)) {
+     return Tagged<MaybeObject>();
+@@ -126,10 +127,14 @@
+   DCHECK_GT(derived_list->length().value(), 0);
+   Tagged<MaybeObject> el = derived_list->Get(0);
+   DCHECK(el.IsWeakOrCleared());
++  DCHECK_IMPLIES(!el.IsCleared(),
++                 Cast<Map>(el.GetHeapObjectAssumeWeak())
++                     ->BelongsToSameNativeContextAs(accessing_context));
+   return el;
+ }
+ 
+-Tagged<MaybeObject> PrototypeInfo::ObjectCreateMap(AcquireLoadTag tag) {
++Tagged<MaybeObject> PrototypeInfo::ObjectCreateMap(
++    Tagged<Context> accessing_context, AcquireLoadTag tag) {
+   auto derived = derived_maps(tag);
+   if (IsUndefined(derived)) {
+     return Tagged<MaybeObject>();
+@@ -139,6 +144,9 @@
+   DCHECK_GT(derived_list->length().value(), 0);
+   Tagged<MaybeObject> el = derived_list->get(0, kAcquireLoad);
+   DCHECK(el.IsWeakOrCleared());
++  DCHECK_IMPLIES(!el.IsCleared(),
++                 Cast<Map>(el.GetHeapObjectAssumeWeak())
++                     ->BelongsToSameNativeContextAs(accessing_context));
+   return el;
+ }
+ 
+@@ -146,6 +154,8 @@
+ void PrototypeInfo::SetObjectCreateMap(DirectHandle<PrototypeInfo> info,
+                                        DirectHandle<Map> map,
+                                        Isolate* isolate) {
++  DCHECK(map->BelongsToSameNativeContextAs(isolate->raw_native_context()));
++  DCHECK(map->BelongsToSameNativeContextAs(map->prototype()->map()));
+   if (IsUndefined(info->derived_maps())) {
+     Tagged<WeakArrayList> derived = *isolate->factory()->NewWeakArrayList(1);
+     derived->Set(0, MakeWeak(*map));
+diff --git a/v8/src/objects/prototype-info.h b/v8/src/objects/prototype-info.h
+index dfad726..a8cc4c3 100644
+--- a/v8/src/objects/prototype-info.h
++++ b/v8/src/objects/prototype-info.h
+@@ -80,8 +80,9 @@
+   static inline void SetObjectCreateMap(DirectHandle<PrototypeInfo> info,
+                                         DirectHandle<Map> map,
+                                         Isolate* isolate);
+-  inline Tagged<MaybeObject> ObjectCreateMap(AcquireLoadTag);
+-  inline Tagged<MaybeObject> ObjectCreateMap();
++  inline Tagged<MaybeObject> ObjectCreateMap(Tagged<Context> accessing_context,
++                                             AcquireLoadTag);
++  inline Tagged<MaybeObject> ObjectCreateMap(Tagged<Context> accessing_context);
+ 
+   static inline void AddDerivedMap(DirectHandle<PrototypeInfo> info,
+                                    DirectHandle<Map> to, Isolate* isolate);
+diff --git a/v8/src/parsing/parser.cc b/v8/src/parsing/parser.cc
+index 0b44c11..59a8e5b 100644
+--- a/v8/src/parsing/parser.cc
++++ b/v8/src/parsing/parser.cc
+@@ -1115,6 +1115,14 @@
+ 
+   FunctionKind function_kind = flags().function_kind();
+   FunctionLiteral* result;
++  std::optional<ClassScope::HeritageParsingScope> heritage;
++  if (V8_UNLIKELY(shared_info->private_name_lookup_skips_outer_class() &&
++                  original_scope_->is_class_scope())) {
++    // If the function skips the outer class and the outer scope is a class, the
++    // function is in heritage position. Otherwise the function scope's skip bit
++    // will be correctly inherited from the outer scope.
++    heritage.emplace(original_scope_->AsClassScope());
++  }
+   if (V8_UNLIKELY(IsClassInitializerFunction(function_kind))) {
+     // Reparsing of class member initializer functions has to be handled
+     // specially because they require reparsing of the whole class body,
+@@ -1124,14 +1132,6 @@
+         function_kind, start_position, function_literal_id, end_position,
+         info->function_name());
+     info->set_max_info_id(GetLastInfoId());
+-  } else if (V8_UNLIKELY(shared_info->private_name_lookup_skips_outer_class() &&
+-                         original_scope_->is_class_scope())) {
+-    // If the function skips the outer class and the outer scope is a class, the
+-    // function is in heritage position. Otherwise the function scope's skip bit
+-    // will be correctly inherited from the outer scope.
+-    ClassScope::HeritageParsingScope heritage(original_scope_->AsClassScope());
+-    result = DoParseFunction(isolate, info, start_position, end_position,
+-                             function_literal_id, info->function_name());
+   } else {
+     result = DoParseFunction(isolate, info, start_position, end_position,
+                              function_literal_id, info->function_name());
+@@ -1397,6 +1397,9 @@
+   }
+ 
+   if (has_error()) return nullptr;
++  if (V8_UNLIKELY(flags().private_name_lookup_skips_outer_class())) {
++    initializer->scope()->RecordNeedsPrivateNameContextChainRecalc();
++  }
+ 
+   DCHECK(IsClassInitializerFunction(initializer_kind));
+ 
 diff --git a/v8/src/runtime/runtime-literals.cc b/v8/src/runtime/runtime-literals.cc
 index c594525..0b70ae0 100644
 --- a/v8/src/runtime/runtime-literals.cc
@@ -2562,6 +3085,31 @@ index 3b15257..742ced8 100644
      return nullptr;
    }
    return p;
+diff --git a/third_party/skia/src/core/SkImageFilterCache.h b/third_party/skia/src/core/SkImageFilterCache.h
+index 92f40eb..b1266e4 100644
+--- a/third_party/skia/src/core/SkImageFilterCache.h
++++ b/third_party/skia/src/core/SkImageFilterCache.h
+@@ -16,6 +16,7 @@
+ 
+ #include <cstddef>
+ #include <cstdint>
++#include <cstring>
+ 
+ class SkImageFilter;
+ namespace skif { class FilterResult; }
+@@ -45,11 +46,7 @@
+     uint32_t fPad = 0;
+ 
+     bool operator==(const SkImageFilterCacheKey& other) const {
+-        return fUniqueID == other.fUniqueID &&
+-               fMatrix == other.fMatrix &&
+-               fClipBounds == other.fClipBounds &&
+-               fSrcGenID == other.fSrcGenID &&
+-               fSrcSubset == other.fSrcSubset;
++        return memcmp(this, &other, sizeof(*this)) == 0;
+     }
+ };
+ 
 diff --git a/third_party/skia/src/core/SkImageFilterTypes.cpp b/third_party/skia/src/core/SkImageFilterTypes.cpp
 index ae3b79c..a469416 100644
 --- a/third_party/skia/src/core/SkImageFilterTypes.cpp
@@ -2815,3 +3363,303 @@ index 75101a8..7d6c4cc 100644
                  fp = GrTextureEffect::MakeSubset(std::move(proxyView), alphaType, SkMatrix::I(),
                                                   samplerState, *subset, localRect, caps);
              } else {
+diff --git a/third_party/angle/include/GLSLANG/ShaderLang.h b/third_party/angle/include/GLSLANG/ShaderLang.h
+index b19834f..64548e0 100644
+--- a/third_party/angle/include/GLSLANG/ShaderLang.h
++++ b/third_party/angle/include/GLSLANG/ShaderLang.h
+@@ -26,7 +26,7 @@
+ 
+ // Version number for shader translation API.
+ // It is incremented every time the API changes.
+-#define ANGLE_SH_VERSION 426
++#define ANGLE_SH_VERSION 427
+ 
+ enum ShShaderSpec
+ {
+@@ -461,7 +461,9 @@
+     // Ensure all loops execute side-effects or terminate.
+     uint64_t ensureLoopForwardProgress : 1;
+ 
+-    uint64_t unused2 : 1;
++    // Limit the total number of declared variables and expanded struct/interface-block fields per
++    // shader to work around driver bugs.
++    uint64_t limitShaderVariableFieldsAtCompileTime : 1;
+ 
+     uint64_t transformFloatUniformTo16Bits : 1;
+ 
+diff --git a/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h b/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
+index 6e7ed71..343ff17 100644
+--- a/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
++++ b/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
+@@ -752,6 +752,12 @@
+         &members,
+     };
+ 
++    FeatureInfo limitShaderVariableFieldsAtCompileTime = {
++        "limitShaderVariableFieldsAtCompileTime",
++        FeatureCategory::OpenGLWorkarounds,
++        &members,
++    };
++
+     FeatureInfo avoidComplexExpressionsInStructConstructor = {
+         "avoidComplexExpressionsInStructConstructor",
+         FeatureCategory::OpenGLWorkarounds,
+diff --git a/third_party/angle/include/platform/gl_features.json b/third_party/angle/include/platform/gl_features.json
+index a64ed34..8f35981 100644
+--- a/third_party/angle/include/platform/gl_features.json
++++ b/third_party/angle/include/platform/gl_features.json
+@@ -993,6 +993,16 @@
+             "issue": "http://crbug.com/529991907"
+         },
+         {
++            "name": "limit_shader_variable_fields_at_compile_time",
++            "category": "Workarounds",
++            "description": [
++                "Limit the total number of declared variables and expanded struct and ",
++                "interface-block fields per shader at compile time to work around a PowerVR ",
++                "driver bug."
++            ],
++            "issue": "https://crbug.com/583945831"
++        },
++        {
+             "name": "avoid_complex_expressions_in_struct_constructor",
+             "category": "Workarounds",
+             "description": [
+diff --git a/third_party/angle/src/compiler/translator/ParseContext.cpp b/third_party/angle/src/compiler/translator/ParseContext.cpp
+index c6ca050..d731e42 100644
+--- a/third_party/angle/src/compiler/translator/ParseContext.cpp
++++ b/third_party/angle/src/compiler/translator/ParseContext.cpp
+@@ -55,6 +55,11 @@
+ constexpr size_t kWebGLMaxPrivateVariableSizeInBytes = static_cast<size_t>(64) * 1024;
+ constexpr size_t kWebGLMaxTotalPrivateVariableSizeInBytes = static_cast<size_t>(16) * 1024 * 1024;
+ 
++// Limit the total number of declared variables and expanded struct/interface-block fields in a
++// shader.  Some drivers use 16-bit integers to index and serialize global variable and struct
++// member info maps, overflowing at 65536 entries.
++constexpr size_t kMaxTotalShaderVariableFields = 32768;
++
+ // The 1024 character identifier limit, `-2` for the `_u`
+ constexpr size_t kMaxAvailableIdentifierLength = 1022;
+ 
+@@ -437,6 +442,61 @@
+     return isStd140 ? kVec4Size : type->getNominalSize() * sizeof(float);
+ }
+ 
++// Calculate the number of declared variable and recursively expanded struct/interface-block fields
++// contributed by a variable or field of |type|.
++angle::base::CheckedNumeric<size_t> CalculateVariableFieldCount(
++    const TType *type,
++    TMap<const TFieldListCollection *, size_t> *validatedFieldCollectionCounts)
++{
++    if (type->getBasicType() == EbtStruct || type->getBasicType() == EbtInterfaceBlock)
++    {
++        const TFieldListCollection *fieldCollection =
++            type->getBasicType() == EbtStruct
++                ? static_cast<const TFieldListCollection *>(type->getStruct())
++                : static_cast<const TFieldListCollection *>(type->getInterfaceBlock());
++
++        size_t collectionFieldCount = 0;
++        auto iter                   = validatedFieldCollectionCounts->find(fieldCollection);
++        if (iter != validatedFieldCollectionCounts->end())
++        {
++            collectionFieldCount = iter->second;
++        }
++        else
++        {
++            angle::base::CheckedNumeric<size_t> checkedCollectionFields = 1;
++            for (const TField *field : fieldCollection->fields())
++            {
++                checkedCollectionFields +=
++                    CalculateVariableFieldCount(field->type(), validatedFieldCollectionCounts);
++            }
++            collectionFieldCount =
++                checkedCollectionFields.ValueOrDefault(std::numeric_limits<size_t>::max());
++            (*validatedFieldCollectionCounts)[fieldCollection] = collectionFieldCount;
++        }
++
++        angle::base::CheckedNumeric<size_t> totalFields = collectionFieldCount;
++        for (unsigned int arraySize : type->getArraySizes())
++        {
++            totalFields *= std::max(arraySize, 1u);
++        }
++        return totalFields;
++    }
++
++    // Non-struct, non-interface-block variables (e.g. scalars, vectors, matrices, and
++    // one-dimensional arrays of basic types) count as a single variable entry.  For arrays of
++    // arrays, getArraySizes()[0] is the innermost array dimension, so multiplying only the outer
++    // dimensions counts each innermost one-dimensional array as one entry.
++    angle::base::CheckedNumeric<size_t> totalFields = 1;
++    if (type->isArrayOfArrays())
++    {
++        for (size_t i = 1; i < type->getArraySizes().size(); ++i)
++        {
++            totalFields *= std::max(type->getArraySizes()[i], 1u);
++        }
++    }
++    return totalFields;
++}
++
+ unsigned int GetMaxUniformBlocksForShaderType(sh::GLenum shaderType,
+                                               const ShCompileOptions &options,
+                                               const ShBuiltInResources &resources)
+@@ -2231,6 +2291,29 @@
+     return true;
+ }
+ 
++bool TParseContext::checkVariableFieldCount(const TSourceLoc &line,
++                                            const ImmutableString &identifier,
++                                            const TType *type)
++{
++    if (!mCompileOptions.limitShaderVariableFieldsAtCompileTime)
++    {
++        return true;
++    }
++
++    const angle::base::CheckedNumeric<size_t> fieldCount =
++        CalculateVariableFieldCount(type, &mValidatedFieldCollectionCounts);
++    mTotalVariableFields += fieldCount;
++    if (mTotalVariableFields.ValueOrDefault(std::numeric_limits<size_t>::max()) >
++        kMaxTotalShaderVariableFields)
++    {
++        error(line, "Number of declared variable fields exceeds implementation-defined limit",
++              identifier);
++        return false;
++    }
++
++    return true;
++}
++
+ void TParseContext::checkVaryingLocations(const TSourceLoc &line, const TVariable *variable)
+ {
+     // This function only checks those varyings with explicit locations for the purposes of conflict
+@@ -2629,6 +2712,10 @@
+     {
+         return false;
+     }
++    if (sized == GeomTessArray::Sized && !checkVariableFieldCount(line, identifier, type))
++    {
++        return false;
++    }
+     checkVariableLocations(line, *variable);
+ 
+     // Declare the variable in IR
+@@ -6119,6 +6206,7 @@
+ 
+     for (const TVariable *variable : mDeferredArrayVariablesToSize)
+     {
++        checkVariableFieldCount(kNoSourceLoc, variable->name(), &variable->getType());
+         declareIRVariable(variable, GeomTessArray::Sized);
+     }
+     mDeferredArrayVariablesToSize.clear();
+@@ -6495,6 +6583,7 @@
+     {
+         const TVariable *param = mCurrentFunction->getParam(paramIndex);
+         checkVariableSize(functionPrototype->getLine(), param->name(), &param->getType());
++        checkVariableFieldCount(functionPrototype->getLine(), param->name(), &param->getType());
+     }
+ 
+     if (functionBody == nullptr)
+@@ -6851,6 +6940,10 @@
+     }
+ 
+     checkVariableSize(line, ImmutableString(""), &type);
++    if (type.getBasicType() == EbtStruct || type.isArrayOfArrays())
++    {
++        checkVariableFieldCount(line, kEmptyImmutableString, &type);
++    }
+ 
+     if (!checkConstructorArguments(line, arguments, type))
+     {
+@@ -7342,6 +7435,10 @@
+                       instanceName.empty() ? SymbolType::Empty : instanceSymbolType);
+ 
+     checkVariableSize(nameLine, blockName, interfaceBlockType);
++    if (sized == GeomTessArray::Sized)
++    {
++        checkVariableFieldCount(nameLine, blockName, interfaceBlockType);
++    }
+     checkVariableLocations(nameLine, instanceVariable);
+     declareIRVariable(instanceVariable, sized);
+ 
+diff --git a/third_party/angle/src/compiler/translator/ParseContext.h b/third_party/angle/src/compiler/translator/ParseContext.h
+index e42234d..29dcc1a 100644
+--- a/third_party/angle/src/compiler/translator/ParseContext.h
++++ b/third_party/angle/src/compiler/translator/ParseContext.h
+@@ -834,6 +834,9 @@
+     bool checkVariableSize(const TSourceLoc &line,
+                            const ImmutableString &identifier,
+                            const TType *type);
++    bool checkVariableFieldCount(const TSourceLoc &line,
++                                 const ImmutableString &identifier,
++                                 const TType *type);
+     void checkVaryingLocations(const TSourceLoc &line, const TVariable *variable);
+     void checkFragmentOutputLocations(const TSourceLoc &line, const TVariable *variable);
+     void checkVariableLocations(const TSourceLoc &line, const TVariable *variable);
+@@ -997,6 +1000,11 @@
+     angle::base::CheckedNumeric<size_t> mTotalPrivateVariablesSize;
+     // Tracks if a type has been validated as safe in checkVariableSize.
+     TMap<TType, size_t> mValidatedVariableTypeSizes;
++    // Keeps track of the total number of declared variables and expanded struct/interface-block
++    // fields in the shader.
++    angle::base::CheckedNumeric<size_t> mTotalVariableFields;
++    // Caches the recursively expanded field count of each struct or interface block collection.
++    TMap<const TFieldListCollection *, size_t> mValidatedFieldCollectionCounts;
+ 
+     // Track state related to control flow, used for various validation:
+     //
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/ShaderGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/ShaderGL.cpp
+index 11bb815..cccc4ec 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/ShaderGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/ShaderGL.cpp
+@@ -276,6 +276,11 @@
+         options->limitOutputVaryingsTo256 = true;
+     }
+ 
++    if (features.limitShaderVariableFieldsAtCompileTime.enabled)
++    {
++        options->limitShaderVariableFieldsAtCompileTime = true;
++    }
++
+     return std::shared_ptr<ShaderTranslateTask>(
+         new ShaderTranslateTaskGL(functions, mShaderID, contextGL->hasNativeParallelCompile()));
+ }
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp b/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp
+index f8cdd97..5abfe5e 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp
+@@ -2795,6 +2795,10 @@
+     // crbug.com/529991907
+     ANGLE_FEATURE_CONDITION(features, limitOutputVaryingsTo256AtCompileTime, isPowerVR);
+ 
++    // PowerVR GL drivers use 16-bit integers to index and serialize global variable and struct
++    // member info maps, wrapping at 65536 entries. crbug.com/583945831
++    ANGLE_FEATURE_CONDITION(features, limitShaderVariableFieldsAtCompileTime, isPowerVR);
++
+     // crbug.com/529509587 -- IMG GLSL frontend OOB-writes during semantic analysis of a struct
+     // constructor whose array-typed member receives a constant array-constructor argument with a
+     // precision mismatch.  The workaround avoids all complex expressions, not just constant arrays
+diff --git a/third_party/angle/util/autogen/angle_features_autogen.cpp b/third_party/angle/util/autogen/angle_features_autogen.cpp
+index 42782c3..e02f4c8 100644
+--- a/third_party/angle/util/autogen/angle_features_autogen.cpp
++++ b/third_party/angle/util/autogen/angle_features_autogen.cpp
+@@ -260,6 +260,7 @@
+     {Feature::LimitMaxVisibilityQueryOffset, "limitMaxVisibilityQueryOffset"},
+     {Feature::LimitOutputVaryingsTo256AtCompileTime, "limitOutputVaryingsTo256AtCompileTime"},
+     {Feature::LimitSampleCountTo2, "limitSampleCountTo2"},
++    {Feature::LimitShaderVariableFieldsAtCompileTime, "limitShaderVariableFieldsAtCompileTime"},
+     {Feature::LimitWebglMaxTextureSizeTo4096, "limitWebglMaxTextureSizeTo4096"},
+     {Feature::LimitWebglMaxTextureSizeTo8192, "limitWebglMaxTextureSizeTo8192"},
+     {Feature::LinkJobIsThreadSafe, "linkJobIsThreadSafe"},
+diff --git a/third_party/angle/util/autogen/angle_features_autogen.h b/third_party/angle/util/autogen/angle_features_autogen.h
+index 88139af..e8d2a9b 100644
+--- a/third_party/angle/util/autogen/angle_features_autogen.h
++++ b/third_party/angle/util/autogen/angle_features_autogen.h
+@@ -260,6 +260,7 @@
+     LimitMaxVisibilityQueryOffset,
+     LimitOutputVaryingsTo256AtCompileTime,
+     LimitSampleCountTo2,
++    LimitShaderVariableFieldsAtCompileTime,
+     LimitWebglMaxTextureSizeTo4096,
+     LimitWebglMaxTextureSizeTo8192,
+     LinkJobIsThreadSafe,
