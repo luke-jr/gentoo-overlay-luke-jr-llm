@@ -1,8 +1,8 @@
 Chromium 158.0.8127.64 + the later changes of its release branch, up to
-14fe18bad8247b21283b25e0c2b704f3199a4908 (refs/branch-heads/8127@{#1782}), for the
+4a134c10c68bf42d5d47c37f91cc33cea77aa8af (refs/branch-heads/8127@{#1783}), for the
 158.0.8127.64 tree that chromium-158.0.8127.37-to-158.0.8127.64.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..14fe18bad8247b21283b25e0c2b704f3199a4908,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..4a134c10c68bf42d5d47c37f91cc33cea77aa8af,
 and from the branch's roll of chromium/deps/icu c670d124c9b6aa92c0b492cf543808300e0e6103..c66ba5d8cda8b645d16778c92c902a871c0fd45c (under third_party/icu/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .64 tree's files, renames included): left out are files not in the release
@@ -15,6 +15,7 @@ Commits contributing to it (oldest first):
   05223677198a [M158] FSA: restrict */.git writes to an allowlist of safe repository paths
   14fe18bad824 [M158] Roll src/third_party/icu/ b09986242..c66ba5d (1 commit)
     icu c66ba5d8cda8 [m156][m157][m158][icu] Check memory allocation failures in DecNum and Scale
+  4a134c10c68b [M158] Use one directory database per first-party default bucket
 
 Checked: applies to the 158.0.8127.64 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -171,6 +172,27 @@ index 18ede1f..8472814 100644
      std::vector<base::FilePath::StringType> block_components =
          block_path.GetComponents();
      if (IsPathOrDescendantIgnoreCase(path_components, block_components)) {
+diff --git a/storage/browser/file_system/obfuscated_file_util.cc b/storage/browser/file_system/obfuscated_file_util.cc
+index 29b7a23..1bc9829e 100644
+--- a/storage/browser/file_system/obfuscated_file_util.cc
++++ b/storage/browser/file_system/obfuscated_file_util.cc
+@@ -127,7 +127,15 @@
+                          const std::optional<BucketLocator>& bucket,
+                          const std::string& type) {
+   storage_key_ = storage_key;
+-  bucket_ = bucket;
++  // The directory of a first-party default bucket only depends on the
++  // StorageKey (see GetDirectoryForBucketAndType()), so don't include the
++  // bucket ID in the key either. Otherwise, different IDs for the same default
++  // bucket (e.g. from before and after it was deleted and recreated) would
++  // result in multiple SandboxDirectoryDatabases for the same directory.
++  bucket_ = (bucket.has_value() && bucket->is_default &&
++             storage_key.IsFirstPartyContext())
++                ? BucketLocator::ForDefaultBucket(storage_key)
++                : bucket;
+   type_ = type;
+ }
+ 
 diff --git a/third_party/icu/README.chromium b/third_party/icu/README.chromium
 index 1ad19b3..d2833e9 100644
 --- a/third_party/icu/README.chromium
