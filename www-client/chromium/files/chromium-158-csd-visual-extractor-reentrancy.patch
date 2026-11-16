@@ -1,0 +1,83 @@
+The fix for crbug 585380054 (restricted: "[CSD] Guard visual extractor across
+CapturePaintPreview()"): chromium/src main commit
+ab953f30dcc2aa66a00ed34df868081ea9e8d23d (main@{#1744445}), merged to the 159
+branch as 9230df70a9 (8154). Its 158 merge (Gerrit 8825185) is pending, as of
+8127@{#1795}.
+
+Client-side phishing detection's PhishingVisualFeatureExtractor::ExtractFeatures()
+calls CapturePaintPreview(), whose Blink lifecycle update can synchronously
+dispatch DOM events; page script could then get the extractor deleted (through
+CancelPendingImageEmbedding()) while ExtractFeatures() is still on the stack,
+and it went on using freed memory: a use-after-free in the renderer, reachable
+from web content when the phishing classifier runs on the page.
+
+This is the main commit's change without its browser test
+(phishing_classifier_browsertest.cc); it applies to 158's files as is (they are
+the same at the .37 tag and at 8127@{#1795}). The header's virtual
+CapturePaintPreview() test seam is kept as upstream has it. Drop this once 158
+gets the fix (check that the merged change is the same).
+
+diff --git a/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.cc b/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.cc
+index cbcbf4f..27ae93f2 100644
+--- a/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.cc
++++ b/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.cc
+@@ -129,10 +129,17 @@
+   cc::PaintCanvas* canvas = recorder.beginRecording();
+   canvas->SetPaintPreviewTracker(tracker.get());
+ 
+-  if (!frame->CapturePaintPreview(bounds, canvas,
+-                                  /*include_linked_destinations=*/false,
+-                                  /*skip_accelerated_content=*/true,
+-                                  /*allow_scrollbars=*/false)) {
++  // `CapturePaintPreview()` runs a Blink lifecycle update that can
++  // synchronously dispatch events/script and cancel visual feature extraction,
++  // destroying `this`.
++  base::WeakPtr<PhishingVisualFeatureExtractor> weak_this =
++      weak_factory_.GetWeakPtr();
++  const bool capture_succeeded = CapturePaintPreview(frame, bounds, canvas);
++  if (!weak_this) {
++    return;
++  }
++
++  if (!capture_succeeded) {
+     RunCallback(nullptr);
+     return;
+   }
+@@ -162,4 +169,14 @@
+   std::move(done_callback_).Run(std::move(bitmap));
+ }
+ 
++bool PhishingVisualFeatureExtractor::CapturePaintPreview(
++    blink::WebLocalFrame* frame,
++    const gfx::Rect& bounds,
++    cc::PaintCanvas* canvas) {
++  return frame->CapturePaintPreview(bounds, canvas,
++                                    /*include_linked_destinations=*/false,
++                                    /*skip_accelerated_content=*/true,
++                                    /*allow_scrollbars=*/false);
++}
++
+ }  // namespace safe_browsing
+diff --git a/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.h b/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.h
+index e90ef22..5e3536c 100644
+--- a/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.h
++++ b/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.h
+@@ -32,10 +32,17 @@
+   PhishingVisualFeatureExtractor& operator=(
+       const PhishingVisualFeatureExtractor&) = delete;
+ 
+-  ~PhishingVisualFeatureExtractor();
++  virtual ~PhishingVisualFeatureExtractor();
+ 
+   void ExtractFeatures(blink::WebLocalFrame* frame, DoneCallback done_callback);
+ 
++ protected:
++  // Virtual seam for tests to simulate re-entrant cancellation during Blink's
++  // paint-preview lifecycle update.
++  virtual bool CapturePaintPreview(blink::WebLocalFrame* frame,
++                                   const gfx::Rect& bounds,
++                                   cc::PaintCanvas* canvas);
++
+  private:
+   void CancelPendingExtraction();
+ 
