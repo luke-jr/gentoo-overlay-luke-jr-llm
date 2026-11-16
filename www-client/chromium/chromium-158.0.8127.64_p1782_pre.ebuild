@@ -175,13 +175,11 @@ LICENSE+=" rar? ( unRAR )"
 SLOT="stable"
 KEYWORDS="~amd64 ~arm64"
 
-# The 158 branch's changes after the 158.0.8127.64 tag (see its header), then fixes 158
-# hasn't got yet (each patch's header says where it comes from): ICU's
-# DecNum/MaybeStackArray allocation failures (crbug 573288374; 159's ICU has it) and
-# Blink's script revalidation with a background streamer (crbug 574605993; merged to 159).
+# The 158 branch's changes after the 158.0.8127.64 tag (see its header), then a fix 158
+# hasn't got yet (its header says where it comes from): Blink's script revalidation with
+# a background streamer (crbug 574605993; merged to 159).
 CHROMIUM_FIXES=(
 	chromium-158.0.8127.64-branch-fixes.patch
-	chromium-158-icu-decnum-alloc-failure.patch
 	chromium-158-blink-script-revalidation-streamer.patch
 )
 

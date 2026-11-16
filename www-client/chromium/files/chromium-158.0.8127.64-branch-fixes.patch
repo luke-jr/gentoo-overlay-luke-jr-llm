@@ -1,20 +1,23 @@
 Chromium 158.0.8127.64 + the later changes of its release branch, up to
-05223677198a7af3524b41b2d1de1dccaaddd8fc (refs/branch-heads/8127@{#1781}), for the
+14fe18bad8247b21283b25e0c2b704f3199a4908 (refs/branch-heads/8127@{#1782}), for the
 158.0.8127.64 tree that chromium-158.0.8127.37-to-158.0.8127.64.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..05223677198a7af3524b41b2d1de1dccaaddd8fc
-(no dependency's DEPS revision changed), as served by Gitiles, with
-scripts/chromium-delta --branch-fixes (against the .64 tree's files, renames
-included): left out are files not in the release tarball,
-iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs, translations
-other than en-GB, PGO/orderfile/AFDO pointers, submodule pointer updates. chrome/VERSION, the DEPS
-files and the stamp files stay at 158.0.8127.64.
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..14fe18bad8247b21283b25e0c2b704f3199a4908,
+and from the branch's roll of chromium/deps/icu c670d124c9b6aa92c0b492cf543808300e0e6103..c66ba5d8cda8b645d16778c92c902a871c0fd45c (under third_party/icu/),
+as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
+.64 tree's files, renames included): left out are files not in the release
+tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
+translations other than en-GB, PGO/orderfile/AFDO pointers, submodule pointer
+updates. chrome/VERSION, the DEPS files and the stamp files stay at
+158.0.8127.64.
 
 Commits contributing to it (oldest first):
   05223677198a [M158] FSA: restrict */.git writes to an allowlist of safe repository paths
+  14fe18bad824 [M158] Roll src/third_party/icu/ b09986242..c66ba5d (1 commit)
+    icu c66ba5d8cda8 [m156][m157][m158][icu] Check memory allocation failures in DecNum and Scale
 
 Checked: applies to the 158.0.8127.64 tree; every patched file is
-byte-identical to its version at the commit above.
+byte-identical to its version at the last commit above.
 
 diff --git a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
 index 18ede1f..8472814 100644
@@ -168,3 +171,924 @@ index 18ede1f..8472814 100644
      std::vector<base::FilePath::StringType> block_components =
          block_path.GetComponents();
      if (IsPathOrDescendantIgnoreCase(path_components, block_components)) {
+diff --git a/third_party/icu/README.chromium b/third_party/icu/README.chromium
+index 1ad19b3..d2833e9 100644
+--- a/third_party/icu/README.chromium
++++ b/third_party/icu/README.chromium
+@@ -303,3 +303,9 @@
+   - https://github.com/unicode-org/icu/pull/4214
+   - https://github.com/unicode-org/icu/pull/4296
+   - https://crbug.com/574025697
++
++20. Check memory allocation failures in DecNum, Scale, and MaybeStackArray.
++  - patches/decnum_alloc_failure.patch
++  - https://unicode-org.atlassian.net/browse/ICU-23604
++  - https://github.com/unicode-org/icu/pull/4345
++  - https://crbug.com/573288374
+diff --git a/third_party/icu/patches/decnum_alloc_failure.patch b/third_party/icu/patches/decnum_alloc_failure.patch
+new file mode 100644
+index 0000000..969948d
+--- /dev/null
++++ b/third_party/icu/patches/decnum_alloc_failure.patch
+@@ -0,0 +1,606 @@
++diff --git a/source/common/cmemory.h b/source/common/cmemory.h
++index e31c54aac..6b4d6fcf2 100644
++--- a/source/common/cmemory.h
+++++ b/source/common/cmemory.h
++@@ -345,7 +345,7 @@ public:
++      * Intended for use when an approximate capacity is known at compile time but the true
++      * capacity is not known until runtime.
++      */
++-    MaybeStackArray(int32_t newCapacity, UErrorCode status) : MaybeStackArray() {
+++    MaybeStackArray(int32_t newCapacity, UErrorCode &status) : MaybeStackArray() {
++         if (U_FAILURE(status)) {
++             return;
++         }
++diff --git a/source/i18n/number_decnum.h b/source/i18n/number_decnum.h
++index db0e69f68..b1d5930ad 100644
++--- a/source/i18n/number_decnum.h
+++++ b/source/i18n/number_decnum.h
++@@ -24,38 +24,39 @@ class U_I18N_API_CLASS DecNum : public UMemory {
++     U_I18N_API DecNum();  // leaves object in valid but undefined state
++ 
++     // Copy-like constructor; use the default move operators.
++-    DecNum(const DecNum& other, UErrorCode& status);
+++    U_I18N_API DecNum(const DecNum &other, UErrorCode &status);
++ 
++     /** Sets the decNumber to the StringPiece. */
++-    void setTo(StringPiece str, UErrorCode& status);
+++    U_I18N_API void setTo(StringPiece str, UErrorCode &status);
++ 
++     /** Sets the decNumber to the NUL-terminated char string. */
++-    void setTo(const char* str, UErrorCode& status);
+++    U_I18N_API void setTo(const char *str, UErrorCode &status);
++ 
++     /** Uses double_conversion to set this decNumber to the given double. */
++-    void setTo(double d, UErrorCode& status);
+++    U_I18N_API void setTo(double d, UErrorCode &status);
++ 
++     /** Sets the decNumber to the BCD representation. */
++-    void setTo(const uint8_t* bcd, int32_t length, int32_t scale, bool isNegative, UErrorCode& status);
+++    U_I18N_API void setTo(const uint8_t *bcd, int32_t length, int32_t scale, bool isNegative,
+++                          UErrorCode &status);
++ 
++-    void normalize();
+++    U_I18N_API void normalize();
++ 
++-    void multiplyBy(const DecNum& rhs, UErrorCode& status);
+++    U_I18N_API void multiplyBy(const DecNum &rhs, UErrorCode &status);
++ 
++-    void divideBy(const DecNum& rhs, UErrorCode& status);
+++    U_I18N_API void divideBy(const DecNum &rhs, UErrorCode &status);
++ 
++-    bool isNegative() const;
+++    U_I18N_API bool isNegative() const;
++ 
++-    bool isZero() const;
+++    U_I18N_API bool isZero() const;
++ 
++     /** Is infinity or NaN */
++-    bool isSpecial() const;
+++    U_I18N_API bool isSpecial() const;
++ 
++-    bool isInfinity() const;
+++    U_I18N_API bool isInfinity() const;
++ 
++-    bool isNaN() const;
+++    U_I18N_API bool isNaN() const;
++ 
++-    void toString(ByteSink& output, UErrorCode& status) const;
+++    U_I18N_API void toString(ByteSink &output, UErrorCode &status) const;
++ 
++     inline CharString toCharString(UErrorCode& status) const {
++       CharString cstr;
++diff --git a/source/i18n/number_multiplier.cpp b/source/i18n/number_multiplier.cpp
++index e6bc2a1e3..c00df9b52 100644
++--- a/source/i18n/number_multiplier.cpp
+++++ b/source/i18n/number_multiplier.cpp
++@@ -9,12 +9,13 @@
++ // Helpful in toString methods and elsewhere.
++ #define UNISTR_FROM_STRING_EXPLICIT
++ 
+++#include "decNumber.h"
++ #include "number_decnum.h"
++-#include "number_types.h"
+++#include "number_microprops.h"
++ #include "number_multiplier.h"
++-#include "numparse_validators.h"
+++#include "number_types.h"
++ #include "number_utils.h"
++-#include "decNumber.h"
+++#include "numparse_validators.h"
++ 
++ using namespace icu;
++ using namespace icu::number;
++@@ -41,20 +42,30 @@ Scale::Scale(const Scale& other)
++         : fMagnitude(other.fMagnitude), fArbitrary(nullptr), fError(other.fError) {
++     if (other.fArbitrary != nullptr) {
++         UErrorCode localStatus = U_ZERO_ERROR;
++-        fArbitrary = new DecNum(*other.fArbitrary, localStatus);
+++        LocalPointer<DecNum> decnum(new DecNum(*other.fArbitrary, localStatus), localStatus);
+++        if (U_FAILURE(localStatus)) {
+++            fError = localStatus;
+++            return;
+++        }
+++        fArbitrary = decnum.orphan();
++     }
++ }
++ 
++ Scale& Scale::operator=(const Scale& other) {
++     if (this == &other) { return *this; }  // self-assignment: no-op
++     fMagnitude = other.fMagnitude;
+++    delete fArbitrary;
+++    fArbitrary = nullptr;
+++    fError = other.fError;
++     if (other.fArbitrary != nullptr) {
++         UErrorCode localStatus = U_ZERO_ERROR;
++-        fArbitrary = new DecNum(*other.fArbitrary, localStatus);
++-    } else {
++-        fArbitrary = nullptr;
+++        LocalPointer<DecNum> decnum(new DecNum(*other.fArbitrary, localStatus), localStatus);
+++        if (U_FAILURE(localStatus)) {
+++            fError = localStatus;
+++            return *this;
+++        }
+++        fArbitrary = decnum.orphan();
++     }
++-    fError = other.fError;
++     return *this;
++ }
++ 
++@@ -152,6 +163,10 @@ MultiplierFormatHandler::setAndChain(const Scale& multiplier, const MicroPropsGe
++ void MultiplierFormatHandler::processQuantity(DecimalQuantity& quantity, MicroProps& micros,
++                                               UErrorCode& status) const {
++     fParent->processQuantity(quantity, micros, status);
+++    if (U_FAILURE(status) || fMultiplier.copyErrorTo(status) ||
+++        micros.helpers.multiplier.fMultiplier.copyErrorTo(status)) {
+++        return;
+++    }
++     fMultiplier.applyTo(quantity);
++ }
++ 
++diff --git a/source/i18n/number_utils.cpp b/source/i18n/number_utils.cpp
++index ad7053214..2e239a62f 100644
++--- a/source/i18n/number_utils.cpp
+++++ b/source/i18n/number_utils.cpp
++@@ -96,15 +96,24 @@ DecNum::DecNum() {
++     uprv_decContextDefault(&fContext, DEC_INIT_BASE);
++     uprv_decContextSetRounding(&fContext, DEC_ROUND_HALF_EVEN);
++     fContext.traps = 0; // no traps, thank you (what does this even mean?)
+++    fContext.digits = kDefaultDigits;
+++    uprv_decNumberZero(fData.getAlias());
++ }
++ 
++ DecNum::DecNum(const DecNum& other, UErrorCode& status)
++         : fContext(other.fContext) {
+++    if (U_FAILURE(status)) {
+++        fContext.digits = kDefaultDigits;
+++        uprv_decNumberZero(fData.getAlias());
+++        return;
+++    }
++     // Allocate memory for the new DecNum.
++-    U_ASSERT(fContext.digits == other.fData.getCapacity());
+++    U_ASSERT(fContext.digits <= other.fData.getCapacity());
++     if (fContext.digits > kDefaultDigits) {
++         void* p = fData.resize(fContext.digits, 0);
++         if (p == nullptr) {
+++            fContext.digits = kDefaultDigits;
+++            uprv_decNumberZero(fData.getAlias());
++             status = U_MEMORY_ALLOCATION_ERROR;
++             return;
++         }
++@@ -112,23 +121,35 @@ DecNum::DecNum(const DecNum& other, UErrorCode& status)
++ 
++     // Copy the data from the old DecNum to the new one.
++     uprv_memcpy(fData.getAlias(), other.fData.getAlias(), sizeof(decNumber));
++-    uprv_memcpy(fData.getArrayStart(),
++-            other.fData.getArrayStart(),
++-            other.fData.getArrayLimit() - other.fData.getArrayStart());
+++    uprv_memcpy(fData.getArrayStart(), other.fData.getArrayStart(), fData.getCapacity());
++ }
++ 
++ void DecNum::setTo(StringPiece str, UErrorCode& status) {
+++    if (U_FAILURE(status)) {
+++        return;
+++    }
++     // We need NUL-terminated for decNumber; CharString guarantees this, but not StringPiece.
++     CharString cstr(str, status);
++     if (U_FAILURE(status)) { return; }
++-    _setTo(cstr.data(), str.length(), status);
+++    _setTo(cstr.data(), cstr.length(), status);
++ }
++ 
++ void DecNum::setTo(const char* str, UErrorCode& status) {
++-    _setTo(str, static_cast<int32_t>(uprv_strlen(str)), status);
+++    if (U_FAILURE(status)) {
+++        return;
+++    }
+++    size_t length = uprv_strlen(str);
+++    if (length > DEC_MAX_DIGITS) {
+++        status = U_UNSUPPORTED_ERROR;
+++        return;
+++    }
+++    _setTo(str, static_cast<int32_t>(length), status);
++ }
++ 
++ void DecNum::setTo(double d, UErrorCode& status) {
+++    if (U_FAILURE(status)) {
+++        return;
+++    }
++     // Need to check for NaN and Infinity before going into DoubleToStringConverter
++     if (std::isnan(d) != 0 || std::isfinite(d) == 0) {
++         status = U_UNSUPPORTED_ERROR;
++@@ -154,6 +175,9 @@ void DecNum::setTo(double d, UErrorCode& status) {
++ 
++     // Read initial result as a string.
++     _setTo(buffer, length, status);
+++    if (U_FAILURE(status)) {
+++        return;
+++    }
++ 
++     // Set exponent and bitmask. Note that DoubleToStringConverter does not do negatives.
++     fData.getAlias()->exponent += point - length;
++@@ -161,8 +185,18 @@ void DecNum::setTo(double d, UErrorCode& status) {
++ }
++ 
++ void DecNum::_setTo(const char* str, int32_t maxDigits, UErrorCode& status) {
+++    if (U_FAILURE(status)) {
+++        return;
+++    }
+++    if (maxDigits < 0 || maxDigits > DEC_MAX_DIGITS) {
+++        status = U_UNSUPPORTED_ERROR;
+++        return;
+++    }
++     if (maxDigits > kDefaultDigits) {
++-        fData.resize(maxDigits, 0);
+++        if (fData.resize(maxDigits, 0) == nullptr) {
+++            status = U_MEMORY_ALLOCATION_ERROR;
+++            return;
+++        }
++         fContext.digits = maxDigits;
++     } else {
++         fContext.digits = kDefaultDigits;
++@@ -184,13 +218,9 @@ void DecNum::_setTo(const char* str, int32_t maxDigits, UErrorCode& status) {
++ 
++ void
++ DecNum::setTo(const uint8_t* bcd, int32_t length, int32_t scale, bool isNegative, UErrorCode& status) {
++-    if (length > kDefaultDigits) {
++-        fData.resize(length, 0);
++-        fContext.digits = length;
++-    } else {
++-        fContext.digits = kDefaultDigits;
+++    if (U_FAILURE(status)) {
+++        return;
++     }
++-
++     // "digits is of type int32_t, and must have a value in the range 1 through 999,999,999."
++     if (length < 1 || length > 999999999) {
++         // Too large for decNumber
++@@ -208,6 +238,16 @@ DecNum::setTo(const uint8_t* bcd, int32_t length, int32_t scale, bool isNegative
++         return;
++     }
++ 
+++    if (length > kDefaultDigits) {
+++        if (fData.resize(length, 0) == nullptr) {
+++            status = U_MEMORY_ALLOCATION_ERROR;
+++            return;
+++        }
+++        fContext.digits = length;
+++    } else {
+++        fContext.digits = kDefaultDigits;
+++    }
+++
++     fData.getAlias()->digits = length;
++     fData.getAlias()->exponent = scale;
++     fData.getAlias()->bits = static_cast<uint8_t>(isNegative ? DECNEG : 0);
++@@ -223,6 +263,9 @@ void DecNum::normalize() {
++ }
++ 
++ void DecNum::multiplyBy(const DecNum& rhs, UErrorCode& status) {
+++    if (U_FAILURE(status)) {
+++        return;
+++    }
++     uprv_decNumberMultiply(fData, fData, rhs.fData, &fContext);
++     if (fContext.status != 0) {
++         status = U_INTERNAL_PROGRAM_ERROR;
++@@ -230,6 +273,9 @@ void DecNum::multiplyBy(const DecNum& rhs, UErrorCode& status) {
++ }
++ 
++ void DecNum::divideBy(const DecNum& rhs, UErrorCode& status) {
+++    if (U_FAILURE(status)) {
+++        return;
+++    }
++     uprv_decNumberDivide(fData, fData, rhs.fData, &fContext);
++     if ((fContext.status & DEC_Inexact) != 0) {
++         // Ignore.
++diff --git a/source/test/intltest/numbertest.h b/source/test/intltest/numbertest.h
++index 32aca96df..dd13e103a 100644
++--- a/source/test/intltest/numbertest.h
+++++ b/source/test/intltest/numbertest.h
++@@ -214,6 +214,7 @@ class DecimalQuantityTest : public IntlTest {
++     void testScientificAndCompactSuppressedExponent();
++     void testSuppressedExponentUnchangedByInitialScaling();
++     void testDecimalQuantityParseFormatRoundTrip();
+++    void testDecNumAllocationFailure();
++ 
++     void runIndexedTest(int32_t index, UBool exec, const char*& name, char* par = nullptr) override;
++ 
++diff --git a/source/test/intltest/numbertest_decimalquantity.cpp b/source/test/intltest/numbertest_decimalquantity.cpp
++index 80c3eb4da..6db1c6c53 100644
++--- a/source/test/intltest/numbertest_decimalquantity.cpp
+++++ b/source/test/intltest/numbertest_decimalquantity.cpp
++@@ -5,12 +5,15 @@
++ 
++ #if !UCONFIG_NO_FORMATTING
++ 
+++#include "math.h"
++ #include "number_decimalquantity.h"
++ #include "number_decnum.h"
++-#include "math.h"
++-#include <cmath>
++ #include "number_utils.h"
++ #include "numbertest.h"
+++#include "unicode/uclean.h"
+++#include "unicode/unumberformatter.h"
+++#include <cmath>
+++#include <cstdlib>
++ 
++ void DecimalQuantityTest::runIndexedTest(int32_t index, UBool exec, const char *&name, char *) {
++     if (exec) {
++@@ -34,7 +37,8 @@ void DecimalQuantityTest::runIndexedTest(int32_t index, UBool exec, const char *
++         TESTCASE_AUTO(testScientificAndCompactSuppressedExponent);
++         TESTCASE_AUTO(testSuppressedExponentUnchangedByInitialScaling);
++         TESTCASE_AUTO(testDecimalQuantityParseFormatRoundTrip);
++-    TESTCASE_AUTO_END;
+++        TESTCASE_AUTO(testDecNumAllocationFailure);
+++        TESTCASE_AUTO_END;
++ }
++ 
++ void DecimalQuantityTest::assertDoubleEquals(UnicodeString message, double a, double b) {
++@@ -773,4 +777,268 @@ void DecimalQuantityTest::testDecimalQuantityParseFormatRoundTrip() {
++ 
++ }
++ 
+++namespace {
+++
+++struct FailingAllocatorContext {
+++    int32_t allocations_remaining = -1;
+++};
+++
+++void *U_CALLCONV TestMemAlloc(const void *context, size_t size) {
+++    auto *ctx = const_cast<FailingAllocatorContext *>(
+++        static_cast<const FailingAllocatorContext *>(context));
+++    if (ctx != nullptr && ctx->allocations_remaining >= 0) {
+++        if (ctx->allocations_remaining == 0) {
+++            return nullptr;
+++        }
+++        --ctx->allocations_remaining;
+++    }
+++    return std::malloc(size);
+++}
+++
+++void *U_CALLCONV TestMemRealloc(const void *context, void *mem, size_t size) {
+++    auto *ctx = const_cast<FailingAllocatorContext *>(
+++        static_cast<const FailingAllocatorContext *>(context));
+++    if (ctx != nullptr && ctx->allocations_remaining >= 0) {
+++        if (ctx->allocations_remaining == 0) {
+++            return nullptr;
+++        }
+++        --ctx->allocations_remaining;
+++    }
+++    return std::realloc(mem, size);
+++}
+++
+++void U_CALLCONV TestMemFree(const void *, void *mem) { std::free(mem); }
+++
+++class ScopedFailingAllocator {
+++  public:
+++    ScopedFailingAllocator(FailingAllocatorContext *ctx, UErrorCode &status) : ctx_(ctx) {
+++        u_setMemoryFunctions(ctx_, TestMemAlloc, TestMemRealloc, TestMemFree, &status);
+++    }
+++
+++    ~ScopedFailingAllocator() {
+++        ctx_->allocations_remaining = -1;
+++        UErrorCode status = U_ZERO_ERROR;
+++        u_setMemoryFunctions(nullptr, TestMemAlloc, TestMemRealloc, TestMemFree, &status);
+++    }
+++
+++  private:
+++    FailingAllocatorContext *ctx_;
+++};
+++
+++} // namespace
+++
+++void DecimalQuantityTest::testDecNumAllocationFailure() {
+++    IcuTestErrorCode status(*this, "testDecNumAllocationFailure");
+++
+++    // 38 digits (> DECNUM_INITIAL_CAPACITY = 34, fits in CharString's 40-byte stack buffer)
+++    // and 200 digits (allocates both CharString and DecNum on the heap).
+++    const char kDigits38[39] = "77777777777777777777777777777777777777";
+++    const char kLongDigits[201] = "77777777777777777777777777777777777777777777777777"
+++                                  "77777777777777777777777777777777777777777777777777"
+++                                  "77777777777777777777777777777777777777777777777777"
+++                                  "77777777777777777777777777777777777777777777777777";
+++    uint8_t bcd[200];
+++    for (size_t i = 0; i < sizeof(bcd); ++i) {
+++        bcd[i] = 7;
+++    }
+++
+++    // Verify normal >34-digit operations succeed when allocations succeed,
+++    // including StringPiece with -1 NUL-terminated length.
+++    DecNum validDecNum;
+++    validDecNum.setTo({kLongDigits, -1}, status);
+++    if (!assertSuccess("validDecNum.setTo", status)) {
+++        return;
+++    }
+++    CharString validStr = validDecNum.toCharString(status);
+++    assertSuccess("validDecNum.toCharString", status);
+++    assertEquals("validDecNum length", 200, validStr.length());
+++
+++    // Verify copying a DecNum that was previously resized to 200 digits and then reused
+++    // for a <=34-digit number succeeds without overflowing the destination buffer.
+++    {
+++        DecNum reusedDecNum;
+++        reusedDecNum.setTo(kLongDigits, status);
+++        reusedDecNum.setTo("1234567890", status);
+++        DecNum copiedReused(reusedDecNum, status);
+++        assertSuccess("copiedReused DecNum", status);
+++        CharString copiedStr = copiedReused.toCharString(status);
+++        assertSuccess("copiedReused.toCharString", status);
+++        assertEquals("copiedReused value", "1234567890", copiedStr.data());
+++    }
+++
+++    DecimalQuantity validDq;
+++    validDq.setToDecNum(validDecNum, status);
+++    assertSuccess("validDq.setToDecNum", status);
+++
+++    Scale validScale = Scale::byDecimal(kDigits38);
+++
+++    LocalUNumberFormatterPointer uformatter(
+++        unumf_openForSkeletonAndLocale(u"", 0, "en_US", status));
+++    LocalUFormattedNumberPointer uresult(unumf_openResult(status));
+++    if (!assertSuccess("unumf_openForSkeletonAndLocale", status)) {
+++        return;
+++    }
+++    unumf_formatDecimal(uformatter.getAlias(), kLongDigits, -1, uresult.getAlias(), status);
+++    assertSuccess("unumf_formatDecimal warmup", status);
+++
+++    char decBuf[256] = {};
+++    int32_t decLen =
+++        unumf_resultToDecimalNumber(uresult.getAlias(), decBuf, sizeof(decBuf), status);
+++    assertSuccess("unumf_resultToDecimalNumber warmup", status);
+++    assertEquals("unumf_resultToDecimalNumber length", 200, decLen);
+++
+++    const char16_t *kScaleSkeleton = u"scale/77777777777777777777777777777777777777";
+++    LocalUNumberFormatterPointer scaleFormatter(
+++        unumf_openForSkeletonAndLocale(kScaleSkeleton, -1, "en_US", status));
+++    if (!assertSuccess("scaleFormatter open", status)) {
+++        return;
+++    }
+++    // Warm up scaleFormatter past the 3-call compilation threshold so subsequent
+++    // unumf_formatInt calls take the compiled MicroProps copy assignment path.
+++    for (int i = 0; i < 4; ++i) {
+++        unumf_formatInt(scaleFormatter.getAlias(), 1, uresult.getAlias(), status);
+++        if (!assertSuccess("scaleFormatter warmup", status)) {
+++            return;
+++        }
+++    }
+++
+++    FailingAllocatorContext ctx;
+++    UErrorCode memStatus = U_ZERO_ERROR;
+++    ScopedFailingAllocator scopedAlloc(&ctx, memStatus);
+++    if (!assertSuccess("u_setMemoryFunctions", memStatus)) {
+++        return;
+++    }
+++
+++    // 1. DecNum::setTo(const char*, status) when fData.resize fails.
+++    {
+++        ctx.allocations_remaining = 0;
+++        UErrorCode err = U_ZERO_ERROR;
+++        DecNum dn;
+++        dn.setTo(kLongDigits, err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("DecNum::setTo(const char*) allocation failure", U_MEMORY_ALLOCATION_ERROR,
+++                     err);
+++    }
+++
+++    // 2. DecNum::setTo(StringPiece, status) when CharString fails (alloc 0) or
+++    // when CharString succeeds and DecNum::_setTo fData.resize fails (alloc 1).
+++    for (int32_t allowedAllocs : {0, 1}) {
+++        ctx.allocations_remaining = allowedAllocs;
+++        UErrorCode err = U_ZERO_ERROR;
+++        DecNum dn;
+++        dn.setTo(StringPiece(kLongDigits, 200), err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("DecNum::setTo(StringPiece) allocation failure", U_MEMORY_ALLOCATION_ERROR,
+++                     err);
+++    }
+++
+++    // 3. DecNum::setTo(bcd, ...) when fData.resize fails, and when length is out of bounds.
+++    {
+++        ctx.allocations_remaining = 0;
+++        UErrorCode err = U_ZERO_ERROR;
+++        DecNum dn;
+++        dn.setTo(bcd, 200, 0, false, err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("DecNum::setTo(bcd) allocation failure", U_MEMORY_ALLOCATION_ERROR, err);
+++
+++        err = U_ZERO_ERROR;
+++        dn.setTo(bcd, 1000000000, 0, false, err);
+++        assertEquals("DecNum::setTo(bcd) out-of-range length", U_UNSUPPORTED_ERROR, err);
+++    }
+++
+++    // 4. DecNum copy constructor when fData.resize fails.
+++    {
+++        ctx.allocations_remaining = 0;
+++        UErrorCode err = U_ZERO_ERROR;
+++        DecNum copy(validDecNum, err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("DecNum copy constructor allocation failure", U_MEMORY_ALLOCATION_ERROR, err);
+++    }
+++
+++    // 5. DecNum::toCharString when MaybeStackArray resize fails.
+++    {
+++        ctx.allocations_remaining = 0;
+++        UErrorCode err = U_ZERO_ERROR;
+++        CharString out = validDecNum.toCharString(err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("DecNum::toCharString allocation failure", U_MEMORY_ALLOCATION_ERROR, err);
+++    }
+++
+++    // 6. DecimalQuantity::toDecNum when MaybeStackArray(ubcd) or DecNum::setTo fails.
+++    for (int32_t allowedAllocs : {0, 1}) {
+++        ctx.allocations_remaining = allowedAllocs;
+++        UErrorCode err = U_ZERO_ERROR;
+++        DecNum out;
+++        validDq.toDecNum(out, err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("DecimalQuantity::toDecNum allocation failure", U_MEMORY_ALLOCATION_ERROR,
+++                     err);
+++    }
+++
+++    // 7. Scale copy constructor and copy assignment when new DecNum (alloc 0 when
+++    // U_OVERRIDE_CXX_ALLOCATION is enabled) or DecNum fData.resize fails.
+++    constexpr int32_t kMaxScaleCopyAllocs = U_OVERRIDE_CXX_ALLOCATION ? 1 : 0;
+++    for (int32_t allowedAllocs = 0; allowedAllocs <= kMaxScaleCopyAllocs; ++allowedAllocs) {
+++        ctx.allocations_remaining = allowedAllocs;
+++        Scale copiedScale(validScale);
+++        ctx.allocations_remaining = -1;
+++        UErrorCode err = U_ZERO_ERROR;
+++        NumberFormatter::withLocale("en_US").scale(copiedScale).formatInt(1, err);
+++        assertEquals("Scale copy constructor allocation failure", U_MEMORY_ALLOCATION_ERROR, err);
+++
+++        ctx.allocations_remaining = allowedAllocs;
+++        Scale assignedScale = Scale::none();
+++        assignedScale = validScale;
+++        ctx.allocations_remaining = -1;
+++        err = U_ZERO_ERROR;
+++        NumberFormatter::withLocale("en_US").scale(assignedScale).formatInt(1, err);
+++        assertEquals("Scale copy assignment allocation failure", U_MEMORY_ALLOCATION_ERROR, err);
+++    }
+++
+++    // 8. C API unumf_formatDecimal with 38 digits (CharString uses stack buffer,
+++    // DecNum::_setTo fData.resize fails) and 200 digits.
+++    {
+++        ctx.allocations_remaining = 0;
+++        UErrorCode err = U_ZERO_ERROR;
+++        unumf_formatDecimal(uformatter.getAlias(), kDigits38, 38, uresult.getAlias(), &err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("unumf_formatDecimal 38 digits allocation failure", U_MEMORY_ALLOCATION_ERROR,
+++                     err);
+++    }
+++    for (int32_t allowedAllocs : {0, 1}) {
+++        ctx.allocations_remaining = allowedAllocs;
+++        UErrorCode err = U_ZERO_ERROR;
+++        unumf_formatDecimal(uformatter.getAlias(), kLongDigits, 200, uresult.getAlias(), &err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("unumf_formatDecimal 200 digits allocation failure", U_MEMORY_ALLOCATION_ERROR,
+++                     err);
+++    }
+++
+++    // Re-populate uresult with a valid 200-digit quantity for unumf_resultToDecimalNumber.
+++    unumf_formatDecimal(uformatter.getAlias(), kLongDigits, 200, uresult.getAlias(), status);
+++    assertSuccess("unumf_formatDecimal repopulate", status);
+++
+++    // 9. C API unumf_resultToDecimalNumber (MaybeStackArray ubcd, DecNum::setTo,
+++    // and MaybeStackArray buffer in DecNum::toString).
+++    for (int32_t allowedAllocs : {0, 1, 2}) {
+++        ctx.allocations_remaining = allowedAllocs;
+++        UErrorCode err = U_ZERO_ERROR;
+++        unumf_resultToDecimalNumber(uresult.getAlias(), decBuf, sizeof(decBuf), &err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("unumf_resultToDecimalNumber allocation failure", U_MEMORY_ALLOCATION_ERROR,
+++                     err);
+++    }
+++
+++    // 10. C API unumf_formatInt on compiled scaleFormatter (MicroProps copy assignment ->
+++    // Scale::operator= -> MultiplierFormatHandler::processQuantity error propagation).
+++    for (int32_t allowedAllocs = 0; allowedAllocs <= kMaxScaleCopyAllocs; ++allowedAllocs) {
+++        ctx.allocations_remaining = allowedAllocs;
+++        UErrorCode err = U_ZERO_ERROR;
+++        unumf_formatInt(scaleFormatter.getAlias(), 1, uresult.getAlias(), &err);
+++        ctx.allocations_remaining = -1;
+++        assertEquals("compiled scaleFormatter unumf_formatInt allocation failure",
+++                     U_MEMORY_ALLOCATION_ERROR, err);
+++    }
+++}
+++
++ #endif /* #if !UCONFIG_NO_FORMATTING */
+diff --git a/third_party/icu/source/common/cmemory.h b/third_party/icu/source/common/cmemory.h
+index e31c54a..6b4d6fc 100644
+--- a/third_party/icu/source/common/cmemory.h
++++ b/third_party/icu/source/common/cmemory.h
+@@ -345,7 +345,7 @@
+      * Intended for use when an approximate capacity is known at compile time but the true
+      * capacity is not known until runtime.
+      */
+-    MaybeStackArray(int32_t newCapacity, UErrorCode status) : MaybeStackArray() {
++    MaybeStackArray(int32_t newCapacity, UErrorCode &status) : MaybeStackArray() {
+         if (U_FAILURE(status)) {
+             return;
+         }
+diff --git a/third_party/icu/source/i18n/number_decnum.h b/third_party/icu/source/i18n/number_decnum.h
+index db0e69f..b1d5930 100644
+--- a/third_party/icu/source/i18n/number_decnum.h
++++ b/third_party/icu/source/i18n/number_decnum.h
+@@ -24,38 +24,39 @@
+     U_I18N_API DecNum();  // leaves object in valid but undefined state
+ 
+     // Copy-like constructor; use the default move operators.
+-    DecNum(const DecNum& other, UErrorCode& status);
++    U_I18N_API DecNum(const DecNum &other, UErrorCode &status);
+ 
+     /** Sets the decNumber to the StringPiece. */
+-    void setTo(StringPiece str, UErrorCode& status);
++    U_I18N_API void setTo(StringPiece str, UErrorCode &status);
+ 
+     /** Sets the decNumber to the NUL-terminated char string. */
+-    void setTo(const char* str, UErrorCode& status);
++    U_I18N_API void setTo(const char *str, UErrorCode &status);
+ 
+     /** Uses double_conversion to set this decNumber to the given double. */
+-    void setTo(double d, UErrorCode& status);
++    U_I18N_API void setTo(double d, UErrorCode &status);
+ 
+     /** Sets the decNumber to the BCD representation. */
+-    void setTo(const uint8_t* bcd, int32_t length, int32_t scale, bool isNegative, UErrorCode& status);
++    U_I18N_API void setTo(const uint8_t *bcd, int32_t length, int32_t scale, bool isNegative,
++                          UErrorCode &status);
+ 
+-    void normalize();
++    U_I18N_API void normalize();
+ 
+-    void multiplyBy(const DecNum& rhs, UErrorCode& status);
++    U_I18N_API void multiplyBy(const DecNum &rhs, UErrorCode &status);
+ 
+-    void divideBy(const DecNum& rhs, UErrorCode& status);
++    U_I18N_API void divideBy(const DecNum &rhs, UErrorCode &status);
+ 
+-    bool isNegative() const;
++    U_I18N_API bool isNegative() const;
+ 
+-    bool isZero() const;
++    U_I18N_API bool isZero() const;
+ 
+     /** Is infinity or NaN */
+-    bool isSpecial() const;
++    U_I18N_API bool isSpecial() const;
+ 
+-    bool isInfinity() const;
++    U_I18N_API bool isInfinity() const;
+ 
+-    bool isNaN() const;
++    U_I18N_API bool isNaN() const;
+ 
+-    void toString(ByteSink& output, UErrorCode& status) const;
++    U_I18N_API void toString(ByteSink &output, UErrorCode &status) const;
+ 
+     inline CharString toCharString(UErrorCode& status) const {
+       CharString cstr;
+diff --git a/third_party/icu/source/i18n/number_multiplier.cpp b/third_party/icu/source/i18n/number_multiplier.cpp
+index e6bc2a1..c00df9b 100644
+--- a/third_party/icu/source/i18n/number_multiplier.cpp
++++ b/third_party/icu/source/i18n/number_multiplier.cpp
+@@ -9,12 +9,13 @@
+ // Helpful in toString methods and elsewhere.
+ #define UNISTR_FROM_STRING_EXPLICIT
+ 
+-#include "number_decnum.h"
+-#include "number_types.h"
+-#include "number_multiplier.h"
+-#include "numparse_validators.h"
+-#include "number_utils.h"
+ #include "decNumber.h"
++#include "number_decnum.h"
++#include "number_microprops.h"
++#include "number_multiplier.h"
++#include "number_types.h"
++#include "number_utils.h"
++#include "numparse_validators.h"
+ 
+ using namespace icu;
+ using namespace icu::number;
+@@ -41,20 +42,30 @@
+         : fMagnitude(other.fMagnitude), fArbitrary(nullptr), fError(other.fError) {
+     if (other.fArbitrary != nullptr) {
+         UErrorCode localStatus = U_ZERO_ERROR;
+-        fArbitrary = new DecNum(*other.fArbitrary, localStatus);
++        LocalPointer<DecNum> decnum(new DecNum(*other.fArbitrary, localStatus), localStatus);
++        if (U_FAILURE(localStatus)) {
++            fError = localStatus;
++            return;
++        }
++        fArbitrary = decnum.orphan();
+     }
+ }
+ 
+ Scale& Scale::operator=(const Scale& other) {
+     if (this == &other) { return *this; }  // self-assignment: no-op
+     fMagnitude = other.fMagnitude;
++    delete fArbitrary;
++    fArbitrary = nullptr;
++    fError = other.fError;
+     if (other.fArbitrary != nullptr) {
+         UErrorCode localStatus = U_ZERO_ERROR;
+-        fArbitrary = new DecNum(*other.fArbitrary, localStatus);
+-    } else {
+-        fArbitrary = nullptr;
++        LocalPointer<DecNum> decnum(new DecNum(*other.fArbitrary, localStatus), localStatus);
++        if (U_FAILURE(localStatus)) {
++            fError = localStatus;
++            return *this;
++        }
++        fArbitrary = decnum.orphan();
+     }
+-    fError = other.fError;
+     return *this;
+ }
+ 
+@@ -152,6 +163,10 @@
+ void MultiplierFormatHandler::processQuantity(DecimalQuantity& quantity, MicroProps& micros,
+                                               UErrorCode& status) const {
+     fParent->processQuantity(quantity, micros, status);
++    if (U_FAILURE(status) || fMultiplier.copyErrorTo(status) ||
++        micros.helpers.multiplier.fMultiplier.copyErrorTo(status)) {
++        return;
++    }
+     fMultiplier.applyTo(quantity);
+ }
+ 
+diff --git a/third_party/icu/source/i18n/number_utils.cpp b/third_party/icu/source/i18n/number_utils.cpp
+index ad70532..2e239a6 100644
+--- a/third_party/icu/source/i18n/number_utils.cpp
++++ b/third_party/icu/source/i18n/number_utils.cpp
+@@ -96,15 +96,24 @@
+     uprv_decContextDefault(&fContext, DEC_INIT_BASE);
+     uprv_decContextSetRounding(&fContext, DEC_ROUND_HALF_EVEN);
+     fContext.traps = 0; // no traps, thank you (what does this even mean?)
++    fContext.digits = kDefaultDigits;
++    uprv_decNumberZero(fData.getAlias());
+ }
+ 
+ DecNum::DecNum(const DecNum& other, UErrorCode& status)
+         : fContext(other.fContext) {
++    if (U_FAILURE(status)) {
++        fContext.digits = kDefaultDigits;
++        uprv_decNumberZero(fData.getAlias());
++        return;
++    }
+     // Allocate memory for the new DecNum.
+-    U_ASSERT(fContext.digits == other.fData.getCapacity());
++    U_ASSERT(fContext.digits <= other.fData.getCapacity());
+     if (fContext.digits > kDefaultDigits) {
+         void* p = fData.resize(fContext.digits, 0);
+         if (p == nullptr) {
++            fContext.digits = kDefaultDigits;
++            uprv_decNumberZero(fData.getAlias());
+             status = U_MEMORY_ALLOCATION_ERROR;
+             return;
+         }
+@@ -112,23 +121,35 @@
+ 
+     // Copy the data from the old DecNum to the new one.
+     uprv_memcpy(fData.getAlias(), other.fData.getAlias(), sizeof(decNumber));
+-    uprv_memcpy(fData.getArrayStart(),
+-            other.fData.getArrayStart(),
+-            other.fData.getArrayLimit() - other.fData.getArrayStart());
++    uprv_memcpy(fData.getArrayStart(), other.fData.getArrayStart(), fData.getCapacity());
+ }
+ 
+ void DecNum::setTo(StringPiece str, UErrorCode& status) {
++    if (U_FAILURE(status)) {
++        return;
++    }
+     // We need NUL-terminated for decNumber; CharString guarantees this, but not StringPiece.
+     CharString cstr(str, status);
+     if (U_FAILURE(status)) { return; }
+-    _setTo(cstr.data(), str.length(), status);
++    _setTo(cstr.data(), cstr.length(), status);
+ }
+ 
+ void DecNum::setTo(const char* str, UErrorCode& status) {
+-    _setTo(str, static_cast<int32_t>(uprv_strlen(str)), status);
++    if (U_FAILURE(status)) {
++        return;
++    }
++    size_t length = uprv_strlen(str);
++    if (length > DEC_MAX_DIGITS) {
++        status = U_UNSUPPORTED_ERROR;
++        return;
++    }
++    _setTo(str, static_cast<int32_t>(length), status);
+ }
+ 
+ void DecNum::setTo(double d, UErrorCode& status) {
++    if (U_FAILURE(status)) {
++        return;
++    }
+     // Need to check for NaN and Infinity before going into DoubleToStringConverter
+     if (std::isnan(d) != 0 || std::isfinite(d) == 0) {
+         status = U_UNSUPPORTED_ERROR;
+@@ -154,6 +175,9 @@
+ 
+     // Read initial result as a string.
+     _setTo(buffer, length, status);
++    if (U_FAILURE(status)) {
++        return;
++    }
+ 
+     // Set exponent and bitmask. Note that DoubleToStringConverter does not do negatives.
+     fData.getAlias()->exponent += point - length;
+@@ -161,8 +185,18 @@
+ }
+ 
+ void DecNum::_setTo(const char* str, int32_t maxDigits, UErrorCode& status) {
++    if (U_FAILURE(status)) {
++        return;
++    }
++    if (maxDigits < 0 || maxDigits > DEC_MAX_DIGITS) {
++        status = U_UNSUPPORTED_ERROR;
++        return;
++    }
+     if (maxDigits > kDefaultDigits) {
+-        fData.resize(maxDigits, 0);
++        if (fData.resize(maxDigits, 0) == nullptr) {
++            status = U_MEMORY_ALLOCATION_ERROR;
++            return;
++        }
+         fContext.digits = maxDigits;
+     } else {
+         fContext.digits = kDefaultDigits;
+@@ -184,13 +218,9 @@
+ 
+ void
+ DecNum::setTo(const uint8_t* bcd, int32_t length, int32_t scale, bool isNegative, UErrorCode& status) {
+-    if (length > kDefaultDigits) {
+-        fData.resize(length, 0);
+-        fContext.digits = length;
+-    } else {
+-        fContext.digits = kDefaultDigits;
++    if (U_FAILURE(status)) {
++        return;
+     }
+-
+     // "digits is of type int32_t, and must have a value in the range 1 through 999,999,999."
+     if (length < 1 || length > 999999999) {
+         // Too large for decNumber
+@@ -208,6 +238,16 @@
+         return;
+     }
+ 
++    if (length > kDefaultDigits) {
++        if (fData.resize(length, 0) == nullptr) {
++            status = U_MEMORY_ALLOCATION_ERROR;
++            return;
++        }
++        fContext.digits = length;
++    } else {
++        fContext.digits = kDefaultDigits;
++    }
++
+     fData.getAlias()->digits = length;
+     fData.getAlias()->exponent = scale;
+     fData.getAlias()->bits = static_cast<uint8_t>(isNegative ? DECNEG : 0);
+@@ -223,6 +263,9 @@
+ }
+ 
+ void DecNum::multiplyBy(const DecNum& rhs, UErrorCode& status) {
++    if (U_FAILURE(status)) {
++        return;
++    }
+     uprv_decNumberMultiply(fData, fData, rhs.fData, &fContext);
+     if (fContext.status != 0) {
+         status = U_INTERNAL_PROGRAM_ERROR;
+@@ -230,6 +273,9 @@
+ }
+ 
+ void DecNum::divideBy(const DecNum& rhs, UErrorCode& status) {
++    if (U_FAILURE(status)) {
++        return;
++    }
+     uprv_decNumberDivide(fData, fData, rhs.fData, &fContext);
+     if ((fContext.status & DEC_Inexact) != 0) {
+         // Ignore.
