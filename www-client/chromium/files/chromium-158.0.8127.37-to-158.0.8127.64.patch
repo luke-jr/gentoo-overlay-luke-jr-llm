@@ -1,14 +1,16 @@
-Chromium 158.0.8127.37 -> 158.0.8127.63, for the 158.0.8127.37 tarball.
+Chromium 158.0.8127.37 -> 158.0.8127.64, for the 158.0.8127.37 tarball.
 
-158.0.8127.63 is a tag on the 158 branch (refs/branch-heads/8127@{#1767}) that
-has no source tarball (as of 2026-11-15). It adds 75 branch commits to
-158.0.8127.37 (#1692), 60 of them not PGO/orderfile/AFDO rolls, translation
+158.0.8127.64 is a tag on the 158 branch (refs/branch-heads/8127@{#1779}) that
+has no source tarball (as of 2026-11-16). It adds 87 branch commits to
+158.0.8127.37 (#1692), 65 of them not PGO/orderfile/AFDO rolls, translation
 updates or VERSION increments: security fixes (PDFium page unloading, extension
 script injection, DBSC session deletion, the P2P socket manager (two), scroll
 timeline snapshots, FedCM (four), ChromePluginServiceFilter's RenderProcessHost
 handling, Blink's AtomicString attribute references and HTMLPlugInElement image
 loads, MediaPermissionDispatcher, the Bluetooth chooser's event handler,
-SVGImage's isolated document shutdown, remoting's StreamPacketSocket, and in
+SVGImage's isolated document shutdown, remoting's StreamPacketSocket, mDNS
+response parsing, WidgetInputHandlerImpl::DispatchEvent, WebAudio's
+renderSizeHint validation, and in
 the "Roll commits from side projects": ANGLE's GL texture and Vulkan render
 pass, image view, SPIR-V varyings, default attribute and XFB write hazard fixes
 (two GL ones reverted again upstream), Dawn's wire buffer mapping, OpenGL snorm
@@ -20,7 +22,7 @@ PDFium's AlertIfPossible), DCSI's WrappedSkImageBacking, glic (three), GPU
 raster SLQ, Device Sync field trials.
 
 Generated from the upstream diffs between the tags: chromium/src
-refs/tags/158.0.8127.37..158.0.8127.63 and the dependencies whose DEPS
+refs/tags/158.0.8127.37..158.0.8127.64 and the dependencies whose DEPS
 revision changed:
 angle/angle 1f6526a566c27c7c33aa73a78517450a4a2a1714..3708e472b77d8338dbc7365fea884beb0272c6de (under third_party/angle/),
 dawn 6e24542436a3ef58d4a1110f01712da9afbff3e3..8e5f22673a5787225d45065929bf00e63d2fd541 (under third_party/dawn/),
@@ -37,8 +39,8 @@ updates, DEPS.
 Added: the tarball's stamp files for the new commit (stamps.py:
 build/util/LASTCHANGE{,.committime}, gpu/config/gpu_lists_version.h,
 skia/ext/skia_commit_hash.h, gpu/webgpu/DAWN_VERSION and
-gpu/webgpu/dawn_commit_hash.h; commit 282ddaa10c22799e989dfcf3b9aa434a59017f77,
-refs/branch-heads/8127@{#1767}). build/util/MINIBRANCH doesn't change.
+gpu/webgpu/dawn_commit_hash.h; commit 7e27f7a59c3d5b52e82f0b84dfc3fb7624929656,
+refs/branch-heads/8127@{#1779}). build/util/MINIBRANCH doesn't change.
 
 Commits contributing to it (oldest first):
   04148613a268 [M158] [PDF] Reject re-entrancy in PDFiumPage::Unload()
@@ -91,6 +93,9 @@ Commits contributing to it (oldest first):
   a2194772f78d Roll commits from side projects in M158
   03cb7d89e25b Roll commits from side projects in M158
   ec19904a012b [M158] [remoting] Handle StreamPacketSocket errors and close events safely
+  fdc6e3d4266d [M158] Bound mDNS response parsing by received datagram length
+  fb2ddb35e20d [M158] Avoid use-after-free in WidgetInputHandlerImpl::DispatchEvent
+  ec6a71ead56c [M158] [WebAudio] Validate renderSizeHint without sampleRate
     v8 a48ee922c86a [M158] [builtins] Unbox radix as Smi in Number.prototype.toString
     v8 c292af6c1585 [M158] [deoptimizer] Ensure materialized frame slots are HeapObjects
     v8 1e43c50c48b3 [M158] [builtins] Enforce no-JS execution scopes in InvokeApiFunction
@@ -122,7 +127,7 @@ Commits contributing to it (oldest first):
     pdfium 65a1784fbce7 [M158] Add BlockingScope in AlertIfPossible()
 
 Checked: applies to the 158.0.8127.37 tarball; chrome/VERSION becomes
-158.0.8127.63; every patched source file is byte-identical to its version
+158.0.8127.64; every patched source file is byte-identical to its version
 at the tag (or the dependency's DEPS revision); it adds, deletes and renames
 no files; the 158.0.8127.37 tarball's non-git files are all classified
 (tarball-generated.py with generated.conf).
@@ -130,7 +135,7 @@ no files; the 158.0.8127.37 tarball's non-git files are all classified
 Apply with git apply.
 
 diff --git a/chrome/VERSION b/chrome/VERSION
-index ee74b6d..9ebe322 100644
+index ee74b6d..dfdc719 100644
 --- a/chrome/VERSION
 +++ b/chrome/VERSION
 @@ -1,4 +1,4 @@
@@ -138,7 +143,35 @@ index ee74b6d..9ebe322 100644
  MINOR=0
  BUILD=8127
 -PATCH=37
-+PATCH=63
++PATCH=64
+diff --git a/chrome/app/resources/generated_resources_en-GB.xtb b/chrome/app/resources/generated_resources_en-GB.xtb
+index f778983..f20fee1c 100644
+--- a/chrome/app/resources/generated_resources_en-GB.xtb
++++ b/chrome/app/resources/generated_resources_en-GB.xtb
+@@ -535,7 +535,6 @@
+ <translation id="1401216725754314428">Learn more about related sites in a new tab</translation>
+ <translation id="1402426911829176748">Connecting to your device</translation>
+ <translation id="1405779994569073824">Crashed.</translation>
+-<translation id="1406812885827747674">Allow this time</translation>
+ <translation id="1407069428457324124">Dark theme</translation>
+ <translation id="1407135791313364759">Open all</translation>
+ <translation id="140723521119632973">Mobile activation</translation>
+@@ -5344,7 +5343,6 @@
+ <translation id="5031769842769721381">{SELECTED_ITEMS,plural, =0{Addresses}=1{Address ({SELECTED_ITEMS})}other{Addresses ({SELECTED_ITEMS})}}</translation>
+ <translation id="5032430150487044192">Can't create QR code</translation>
+ <translation id="5033137252639132982">Not allowed to use motion sensors</translation>
+-<translation id="5034158480345261097"><ph name="ACTOR_NAME" /> can use Google Password Manager to sign in for you. <ph name="BEGIN_LINK" />Learn how <ph name="ACTOR_NAME" /> handles your data<ph name="END_LINK" /></translation>
+ <translation id="5035846135112863536">Choose 'More details' below to get more information from <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" />.</translation>
+ <translation id="5037676449506322593">Select all</translation>
+ <translation id="5038621320029329200">Trusted certificates</translation>
+@@ -8530,7 +8528,6 @@
+ <translation id="7495149565104413027">Android app</translation>
+ <translation id="7497322070873193353">Google AI</translation>
+ <translation id="7497981768003291373">You have no recently captured WebRTC text logs.</translation>
+-<translation id="7499684925421947861">Allow <ph name="ACTOR_NAME" /> to sign in to <ph name="DOMAIN" /> for you?</translation>
+ <translation id="7501957181231305652">or</translation>
+ <translation id="7502220299952823578">Add to the ‘always keep these sites active’ list</translation>
+ <translation id="7502528909759062987">Pause casting tab to <ph name="DEVICE_NAME" /></translation>
 diff --git a/chrome/browser/extensions/api/declarative_content/content_action.cc b/chrome/browser/extensions/api/declarative_content/content_action.cc
 index 72466c9..ef7b4d01 100644
 --- a/chrome/browser/extensions/api/declarative_content/content_action.cc
@@ -1147,6 +1180,26 @@ index 8a26383..90f8c992 100755
      return 0
  
  
+diff --git a/components/strings/components_strings_en-GB.xtb b/components/strings/components_strings_en-GB.xtb
+index d7e5647f..4e2e37f 100644
+--- a/components/strings/components_strings_en-GB.xtb
++++ b/components/strings/components_strings_en-GB.xtb
+@@ -2433,6 +2433,7 @@
+ <translation id="5026121202864677765">Write my cover letter</translation>
+ <translation id="5030338702439866405">Issued By</translation>
+ <translation id="503069730517007720">A root certificate for '<ph name="SOFTWARE_NAME" />' is required but isn’t installed. Your IT administrator should look at configuration instructions for '<ph name="SOFTWARE_NAME" />' to fix this problem. <ph name="FURTHER_EXPLANATION" /></translation>
++<translation id="5034158480345261097"><ph name="ACTOR_NAME" /> can use Google Password Manager to sign in for you. <ph name="BEGIN_LINK" />Learn how <ph name="ACTOR_NAME" /> handles your data<ph name="END_LINK" /></translation>
+ <translation id="5034488401832901795">Save KTN securely in Google Wallet</translation>
+ <translation id="503498442187459473"><ph name="HOST" /> wants to use your camera and microphone</translation>
+ <translation id="503574301575803523">SRA3</translation>
+@@ -3905,6 +3906,7 @@
+ <translation id="7490622939531327327">Smarter form understanding</translation>
+ <translation id="7495528107193238112">This content is blocked. Contact the site owner to fix the issue.</translation>
+ <translation id="7499188644237027195">When you make purchases in Chrome, see eWallet and Pix as options</translation>
++<translation id="7499684925421947861">Allow <ph name="ACTOR_NAME" /> to sign in to <ph name="DOMAIN" /> for you?</translation>
+ <translation id="7500917112031739411">Show by group</translation>
+ <translation id="7501663406926337752">The site ahead is flagged by your organisation</translation>
+ <translation id="7502044688973049724">manage your info</translation>
 diff --git a/components/variations/service/variations_field_trial_creator.cc b/components/variations/service/variations_field_trial_creator.cc
 index a7b8b68..fff8417 100644
 --- a/components/variations/service/variations_field_trial_creator.cc
@@ -2938,6 +2991,62 @@ index bca202b..56aaaf1 100644
  };
  
  }  // namespace remoting::protocol
+diff --git a/services/network/mdns_responder.cc b/services/network/mdns_responder.cc
+index 327e0bb1..ad5867f 100644
+--- a/services/network/mdns_responder.cc
++++ b/services/network/mdns_responder.cc
+@@ -6,6 +6,7 @@
+ 
+ #include <algorithm>
+ #include <cmath>
++#include <cstddef>
+ #include <numeric>
+ #include <optional>
+ #include <queue>
+@@ -1105,17 +1106,19 @@
+   if (result < 0)
+     return responder_manager_->IsFatalError(result) ? result : net::OK;
+ 
++  const size_t bytes_read = base::checked_cast<size_t>(result);
+   net::DnsQuery query(io_buffer_.get());
+-  bool parsed_as_query = query.Parse(result);
++  bool parsed_as_query = query.Parse(bytes_read);
+   if (parsed_as_query) {
+     responder_manager_->OnMdnsQueryReceived(query, id_);
+     return result;
+   }
+ 
+-  net::DnsResponse response(io_buffer_.get(), io_buffer_->size());
+-  if (!response.InitParseWithoutQuery(io_buffer_->size()) ||
+-      response.answer_count() == 0)
++  net::DnsResponse response(io_buffer_.get(), bytes_read);
++  if (!response.InitParseWithoutQuery(bytes_read) ||
++      response.answer_count() == 0) {
+     return result;
++  }
+ 
+   // There could be multiple records for the same name in the response.
+   std::map<std::string, std::set<net::IPAddress>> external_address_maps;
+@@ -1123,10 +1126,18 @@
+   auto parser = response.Parser();
+   DCHECK_GT(response.answer_count(), 0u);
+   for (size_t i = 0; i < response.answer_count(); ++i) {
++    const size_t offset = parser.GetOffset();
+     auto parsed_record =
+         net::RecordParsed::CreateFrom(&parser, base::Time::Now());
+-    if (!parsed_record || !parsed_record->ttl())
++    if (!parsed_record) {
++      if (offset == parser.GetOffset()) {
++        break;
++      }
+       continue;
++    }
++    if (!parsed_record->ttl()) {
++      continue;
++    }
+ 
+     switch (parsed_record->type()) {
+       case net::ARecordRdata::kType:
 diff --git a/services/network/network_context.cc b/services/network/network_context.cc
 index 68d93ae..7fec06b 100644
 --- a/services/network/network_context.cc
@@ -3744,6 +3853,313 @@ index b9b5f74f..64416210 100644
  
    SVGAnimatedString& EnsureClassName() const;
  
+diff --git a/third_party/blink/renderer/modules/webaudio/audio_context.cc b/third_party/blink/renderer/modules/webaudio/audio_context.cc
+index 1b7598ba..e28bb98f 100644
+--- a/third_party/blink/renderer/modules/webaudio/audio_context.cc
++++ b/third_party/blink/renderer/modules/webaudio/audio_context.cc
+@@ -519,46 +519,52 @@
+     return nullptr;
+   }
+ 
+-  // Pre-validation for renderSizeHint if sampleRate is provided. This prevents
+-  // allocating excessive memory for clearly invalid renderSizeHint values
+-  // before the AudioContext is fully constructed.
+-  bool render_quantum_frames_validated = false;
+-  if (sample_rate.has_value() && render_quantum_frames.has_value()) {
++  // Validate renderSizeHint before constructing the context, because the
++  // render quantum size drives the size of the buffers allocated during
++  // construction. When sampleRate is not provided the context sample rate is
++  // not known until the audio device has been created, so validate against the
++  // maximum supported sample rate here; the actual bound is checked below.
++  if (render_quantum_frames.has_value()) {
++    const float validation_sample_rate =
++        sample_rate.value_or(audio_utilities::MaxAudioBufferSampleRate());
+     if (!audio_utilities::IsValidRenderQuantumSize(
+-            render_quantum_frames.value(), sample_rate.value())) {
++            render_quantum_frames.value(), validation_sample_rate)) {
+       exception_state.ThrowDOMException(
+           DOMExceptionCode::kNotSupportedError,
+           ExceptionMessages::IndexOutsideRange(
+               "renderSizeHint", render_quantum_frames.value(),
+               audio_utilities::MinRenderQuantumSize(),
+               ExceptionMessages::kInclusiveBound,
+-              audio_utilities::MaxRenderQuantumSize(sample_rate.value()),
++              audio_utilities::MaxRenderQuantumSize(validation_sample_rate),
+               ExceptionMessages::kInclusiveBound));
+       return nullptr;
+     }
+-    render_quantum_frames_validated = true;
+   }
+ 
+   SCOPED_UMA_HISTOGRAM_TIMER("WebAudio.AudioContext.CreateTime");
+   AudioContext* audio_context = MakeGarbageCollected<AudioContext>(
+       window, latency_hint, sample_rate, sink_descriptor,
+       update_echo_cancellation_on_first_start, render_quantum_frames);
++  // Must be called exactly once after construction, even if the context is
++  // rejected below.
++  audio_context->UpdateStateIfNeeded();
+ 
++  // A context rejected after construction must be uninitialized. Otherwise it
++  // stays alive with pending activity until the execution context is destroyed.
+   if (audio_context->HasAllocationFailed()) {
++    audio_context->UninitializeRejectedContext();
+     exception_state.ThrowDOMException(
+         DOMExceptionCode::kNotSupportedError,
+         "The context could not be created due to memory limitation.");
+     return nullptr;
+   }
+ 
+-  ++hardware_context_count;
+-  audio_context->UpdateStateIfNeeded();
+-
+-  // If the render quantum size was not able to be validated before due to the
+-  // sample rate or hardware buffer size not being known, validate it here.
+-  if (!render_quantum_frames_validated &&
+-      !audio_utilities::IsValidRenderQuantumSize(
++  // Now that the context sample rate is known, validate the render quantum
++  // size against it. This cannot fail when sampleRate was provided, because
++  // the exact bound was already checked above.
++  if (!audio_utilities::IsValidRenderQuantumSize(
+           audio_context->renderQuantumSize(), audio_context->sampleRate())) {
++    audio_context->UninitializeRejectedContext();
+     exception_state.ThrowDOMException(
+         DOMExceptionCode::kNotSupportedError,
+         ExceptionMessages::IndexOutsideRange(
+@@ -629,6 +635,7 @@
+       use_audibility_hysteresis_(base::FeatureList::IsEnabled(
+           blink::features::kWebAudioAudibilityHysteresis)),
+       stats_update_restrictor_(std::make_unique<StatsUpdateRestrictor>()) {
++  ++hardware_context_count;
+   RecordAudioContextOperation(AudioContextOperation::kCreate);
+   SendLogMessage(__func__, GetAudioContextLogString(latency_hint, sample_rate));
+ 
+@@ -679,12 +686,14 @@
+   // AudioContext caused by the rendering quantum size or the hardware buffer
+   // size, whichever is greater.
+   //
+-  size_t base_latency_frames =
+-      std::max(static_cast<size_t>(destinationNode()
+-                                       ->GetAudioDestinationHandler()
+-                                       .GetFramesPerBuffer()),
+-               static_cast<size_t>(renderQuantumSize()));
+-  base_latency_ = base_latency_frames / static_cast<double>(sampleRate());
++  size_t base_latency_frames = std::max(
++      static_cast<size_t>(
++          destinationNode()->GetAudioDestinationHandler().GetFramesPerBuffer()),
++      static_cast<size_t>(renderQuantumSize()));
++  const double context_sample_rate = sampleRate();
++  base_latency_ = context_sample_rate > 0.0
++                      ? base_latency_frames / context_sample_rate
++                      : 0.0;
+   SendLogMessage(__func__,
+                  Format("=> (base latency={:.3f} seconds))", base_latency_));
+ 
+@@ -720,6 +729,14 @@
+ 
+ void AudioContext::Uninitialize() {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(main_thread_sequence_checker_);
++  // This runs for a context rejected by Create(), via
++  // UninitializeRejectedContext(), and again from ContextDestroyed() if the
++  // context has not been collected by then. Check `is_cleared_` directly rather
++  // than the override, which also reports true for a context that was only
++  // close()d.
++  if (BaseAudioContext::IsContextCleared()) {
++    return;
++  }
+   DCHECK_NE(hardware_context_count, 0u);
+   SendLogMessage(__func__, "");
+   --hardware_context_count;
+@@ -730,6 +747,16 @@
+   DCHECK_EQ(pending_resume_resolvers_.size(), 0u);
+ }
+ 
++void AudioContext::UninitializeRejectedContext() {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(main_thread_sequence_checker_);
++  // The constructor provisionally sets `autoplay_status_` to kFailed, which
++  // MaybeAllowAutoplayWithUnlockType() would have upgraded had the context been
++  // accepted. Drop it so that Uninitialize() does not record it.
++  DCHECK(!autoplay_unlock_type_.has_value());
++  autoplay_status_.reset();
++  Uninitialize();
++}
++
+ AudioContext::~AudioContext() {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(main_thread_sequence_checker_);
+ 
+diff --git a/third_party/blink/renderer/modules/webaudio/audio_context.h b/third_party/blink/renderer/modules/webaudio/audio_context.h
+index 5548c84..04d0edd 100644
+--- a/third_party/blink/renderer/modules/webaudio/audio_context.h
++++ b/third_party/blink/renderer/modules/webaudio/audio_context.h
+@@ -343,6 +343,10 @@
+   void Uninitialize() override;
+   void DetachPendingResolvers() override;
+ 
++  // Uninitializes a context that Create() rejects after construction. Script
++  // never observes such a context, so it must not report autoplay metrics.
++  void UninitializeRejectedContext();
++
+   // Returns the AutoplayPolicy currently applying to this instance.
+   AutoplayPolicy::Type GetAutoplayPolicy() const;
+ 
+diff --git a/third_party/blink/renderer/modules/webaudio/audio_listener.cc b/third_party/blink/renderer/modules/webaudio/audio_listener.cc
+index e427acd5..901839a 100644
+--- a/third_party/blink/renderer/modules/webaudio/audio_listener.cc
++++ b/third_party/blink/renderer/modules/webaudio/audio_listener.cc
+@@ -122,6 +122,9 @@
+       forward_x_->Handler(), forward_y_->Handler(), forward_z_->Handler(),
+       up_x_->Handler(), up_y_->Handler(), up_z_->Handler(),
+       deferred_task_handler_->RenderQuantumFrames()));
++  if (Handler().HasAllocationFailed()) {
++    context.SetAllocationFailed();
++  }
+ }
+ 
+ AudioListener::~AudioListener() {
+diff --git a/third_party/blink/renderer/modules/webaudio/audio_listener_handler.cc b/third_party/blink/renderer/modules/webaudio/audio_listener_handler.cc
+index 59412e4..fa6a34d 100644
+--- a/third_party/blink/renderer/modules/webaudio/audio_listener_handler.cc
++++ b/third_party/blink/renderer/modules/webaudio/audio_listener_handler.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "third_party/blink/renderer/modules/webaudio/audio_listener_handler.h"
+ 
++#include <array>
++
+ #include "third_party/blink/renderer/modules/webaudio/panner_handler.h"
+ #include "third_party/blink/renderer/platform/audio/hrtf_database_loader.h"
+ 
+@@ -45,16 +47,25 @@
+       forward_z_handler_(&forward_z_handler),
+       up_x_handler_(&up_x_handler),
+       up_y_handler_(&up_y_handler),
+-      up_z_handler_(&up_z_handler),
+-      position_x_values_(render_quantum_frames),
+-      position_y_values_(render_quantum_frames),
+-      position_z_values_(render_quantum_frames),
+-      forward_x_values_(render_quantum_frames),
+-      forward_y_values_(render_quantum_frames),
+-      forward_z_values_(render_quantum_frames),
+-      up_x_values_(render_quantum_frames),
+-      up_y_values_(render_quantum_frames),
+-      up_z_values_(render_quantum_frames) {
++      up_z_handler_(&up_z_handler) {
++  // The render quantum size comes from the user-provided renderSizeHint, so
++  // an allocation failure here must not crash. On failure, release any arrays
++  // that were already allocated and report the failure to the owner, which
++  // propagates it to the context so that the context creation is rejected.
++  const std::array<AudioFloatArray*, 9> value_arrays = {
++      &position_x_values_, &position_y_values_, &position_z_values_,
++      &forward_x_values_,  &forward_y_values_,  &forward_z_values_,
++      &up_x_values_,       &up_y_values_,       &up_z_values_};
++  for (AudioFloatArray* values : value_arrays) {
++    if (!values->TryAllocate(render_quantum_frames)) {
++      has_allocation_failed_ = true;
++      for (AudioFloatArray* allocated_values : value_arrays) {
++        *allocated_values = {};
++      }
++      break;
++    }
++  }
++
+   // Initialize the cached values with the current values.  Thus, we don't need
+   // to notify any panners because we haved moved.
+   last_position_ = GetPosition();
+diff --git a/third_party/blink/renderer/modules/webaudio/audio_listener_handler.h b/third_party/blink/renderer/modules/webaudio/audio_listener_handler.h
+index 7511c1a2..2a390e16 100644
+--- a/third_party/blink/renderer/modules/webaudio/audio_listener_handler.h
++++ b/third_party/blink/renderer/modules/webaudio/audio_listener_handler.h
+@@ -5,6 +5,7 @@
+ #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_WEBAUDIO_AUDIO_LISTENER_HANDLER_H_
+ #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBAUDIO_AUDIO_LISTENER_HANDLER_H_
+ 
++#include "third_party/blink/renderer/modules/modules_export.h"
+ #include "third_party/blink/renderer/modules/webaudio/audio_param.h"
+ #include "ui/gfx/geometry/point3_f.h"
+ #include "ui/gfx/geometry/vector3d_f.h"
+@@ -14,7 +15,7 @@
+ class HRTFDatabaseLoader;
+ class PannerHandler;
+ 
+-class AudioListenerHandler final
++class MODULES_EXPORT AudioListenerHandler final
+     : public ThreadSafeRefCounted<AudioListenerHandler> {
+  public:
+   static scoped_refptr<AudioListenerHandler> Create(
+@@ -31,6 +32,8 @@
+ 
+   ~AudioListenerHandler();
+ 
++  bool HasAllocationFailed() const { return has_allocation_failed_; }
++
+   const gfx::Point3F GetPosition() const {
+     return gfx::Point3F(position_x_handler_->Value(),
+                         position_y_handler_->Value(),
+@@ -144,6 +147,8 @@
+ 
+   // HRTF database loader used by PannerHandlers in the same context.
+   scoped_refptr<HRTFDatabaseLoader> hrtf_database_loader_;
++
++  bool has_allocation_failed_ = false;
+ };
+ 
+ }  // namespace blink
+diff --git a/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc b/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc
+index baf8b32..3200c452 100644
+--- a/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc
++++ b/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc
+@@ -129,6 +129,7 @@
+       MakeGarbageCollected<OfflineAudioContext>(
+           window, number_of_channels, number_of_frames, sample_rate,
+           exception_state, render_quantum_frames);
++  audio_context->UpdateStateIfNeeded();
+ 
+   if (audio_context->HasAllocationFailed()) {
+     exception_state.ThrowDOMException(
+@@ -137,8 +138,6 @@
+     return nullptr;
+   }
+ 
+-  audio_context->UpdateStateIfNeeded();
+-
+ #if DEBUG_AUDIONODE_REFERENCES
+   fprintf(stderr, "[%16p]: OfflineAudioContext::OfflineAudioContext()\n",
+           audio_context);
+diff --git a/third_party/blink/renderer/modules/webaudio/realtime_audio_destination_handler.cc b/third_party/blink/renderer/modules/webaudio/realtime_audio_destination_handler.cc
+index d5b2cf6..fa48f2d0 100644
+--- a/third_party/blink/renderer/modules/webaudio/realtime_audio_destination_handler.cc
++++ b/third_party/blink/renderer/modules/webaudio/realtime_audio_destination_handler.cc
+@@ -211,7 +211,9 @@
+ }
+ 
+ uint32_t RealtimeAudioDestinationHandler::MaxChannelCount() const {
+-  return platform_destination_->MaxChannelCount();
++  // `platform_destination_` is null when its creation failed. The context is
++  // then rejected, but the inspector can still query it during teardown.
++  return platform_destination_ ? platform_destination_->MaxChannelCount() : 0;
+ }
+ 
+ double RealtimeAudioDestinationHandler::SampleRate() const {
+@@ -358,7 +360,8 @@
+   DCHECK(IsMainThread());
+   DCHECK(IsInitialized());
+ 
+-  return platform_destination_->CallbackBufferSize();
++  return platform_destination_ ? platform_destination_->CallbackBufferSize()
++                               : 0;
+ }
+ 
+ int RealtimeAudioDestinationHandler::GetFramesPerBuffer() const {
+@@ -373,7 +376,9 @@
+   DCHECK(IsMainThread());
+   DCHECK(IsInitialized());
+ 
+-  return platform_destination_->GetPlatformBufferDuration();
++  return platform_destination_
++             ? platform_destination_->GetPlatformBufferDuration()
++             : base::TimeDelta();
+ }
+ 
+ void RealtimeAudioDestinationHandler::CreatePlatformDestination() {
 diff --git a/third_party/blink/renderer/platform/runtime_enabled_features.json5 b/third_party/blink/renderer/platform/runtime_enabled_features.json5
 index 5730001..4d4dce811 100644
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
@@ -3774,6 +4190,31 @@ index 5730001..4d4dce811 100644
        name: "SvgImageNonUniformScalingFix",
        status: "stable",
      },
+diff --git a/third_party/blink/renderer/platform/widget/input/widget_input_handler_impl.cc b/third_party/blink/renderer/platform/widget/input/widget_input_handler_impl.cc
+index 4286bb00..629a70f 100644
+--- a/third_party/blink/renderer/platform/widget/input/widget_input_handler_impl.cc
++++ b/third_party/blink/renderer/platform/widget/input/widget_input_handler_impl.cc
+@@ -202,11 +202,17 @@
+         original_event_for_gesture,
+     DispatchEventCallback callback) {
+   TRACE_EVENT("input,input.scrolling", "WidgetInputHandlerImpl::DispatchEvent");
++  scoped_refptr<WidgetInputHandlerManager> manager = input_handler_manager_;
+   if (original_event_for_gesture.has_value()) {
+-    input_handler_manager_->DispatchEvent(
+-        std::move(original_event_for_gesture.value()), DispatchEventCallback());
++    base::WeakPtr<WidgetInputHandlerImpl> weak_this =
++        weak_ptr_factory_.GetWeakPtr();
++    manager->DispatchEvent(std::move(original_event_for_gesture.value()),
++                           DispatchEventCallback());
++    if (!weak_this) {
++      return;
++    }
+   }
+-  input_handler_manager_->DispatchEvent(std::move(event), std::move(callback));
++  manager->DispatchEvent(std::move(event), std::move(callback));
+ }
+ 
+ void WidgetInputHandlerImpl::DispatchNonBlockingEvent(
 diff --git a/third_party/angle/src/libANGLE/renderer/gl/TextureGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/TextureGL.cpp
 index 47e8edf..6c4e6a8 100644
 --- a/third_party/angle/src/libANGLE/renderer/gl/TextureGL.cpp
@@ -6605,7 +7046,7 @@ diff --git a/build/util/LASTCHANGE b/build/util/LASTCHANGE
 +++ b/build/util/LASTCHANGE
 @@ -1,2 +1,2 @@
 -LASTCHANGE=b8c2be851f62f6a394ec57955d7f31335d7cb6d4-refs/branch-heads/8127@{#1692}
-+LASTCHANGE=282ddaa10c22799e989dfcf3b9aa434a59017f77-refs/branch-heads/8127@{#1767}
++LASTCHANGE=7e27f7a59c3d5b52e82f0b84dfc3fb7624929656-refs/branch-heads/8127@{#1779}
  LASTCHANGE_YEAR=2026
 diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 --- a/build/util/LASTCHANGE.committime
@@ -6613,7 +7054,7 @@ diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 @@ -1 +1 @@
 -1794431194
 \ No newline at end of file
-+1794702432
++1794785009
 \ No newline at end of file
 diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
 --- a/gpu/config/gpu_lists_version.h
@@ -6623,7 +7064,7 @@ diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
  #define GPU_CONFIG_GPU_LISTS_VERSION_H_
  
 -#define GPU_LISTS_VERSION "b8c2be851f62f6a394ec57955d7f31335d7cb6d4"
-+#define GPU_LISTS_VERSION "282ddaa10c22799e989dfcf3b9aa434a59017f77"
++#define GPU_LISTS_VERSION "7e27f7a59c3d5b52e82f0b84dfc3fb7624929656"
  
  #endif  // GPU_CONFIG_GPU_LISTS_VERSION_H_
 diff --git a/skia/ext/skia_commit_hash.h b/skia/ext/skia_commit_hash.h
