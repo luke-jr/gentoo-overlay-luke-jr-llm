@@ -1,0 +1,1384 @@
+Chromium 159.0.8154.11 + the later changes of its release branch, up to
+3b4071105e68997ea7beb5e2a38be9e3f7aad68e (refs/branch-heads/8154@{#533}), for the
+159.0.8154.11 tree that chromium-159.0.8154.6-to-159.0.8154.11.patch makes.
+
+Generated from the upstream diff chromium/src refs/tags/159.0.8154.11..3b4071105e68997ea7beb5e2a38be9e3f7aad68e
+(no dependency's DEPS revision changed), as served by Gitiles, with
+scripts/chromium-delta --branch-fixes (against the .11 tree's files): left out
+are files not in the release tarball, iOS/Android/ChromeOS/Mac/Windows-only
+files, tests and docs, translations other than en-GB, PGO/orderfile pointers.
+chrome/VERSION, the DEPS files and the stamp files stay at 159.0.8154.11.
+
+Commits contributing to it (oldest first):
+  3b4071105e68 [M159] [blink] Clear background streamer on script revalidation
+  278dc908fd90 [M159] WebUI: Format Lit templates in NTP and lens directories
+  b1a06ed1f8e0 [M159] [Contextual Tasks] Restrict Contextual Tasks UI to Desktop Android
+
+Checked: applies to the 159.0.8154.11 tree; every patched file is
+byte-identical to its version at the commit above; it adds 4 files
+(.style.lit_template_formatter, Lit template formatter configurations).
+
+diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
+index b2c7a924..0d0dfe6 100644
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -12275,16 +12275,6 @@
+      FEATURE_VALUE_TYPE(
+          contextual_tasks::kContextualTasksSidePanelDefaultRight)},
+ 
+-    {"contextual-tasks-override-show-bottom-sheet-on-large-screen",
+-     contextual_tasks::flag_descriptions::
+-         kContextualTasksOverrideShowBottomSheetOnLargeScreenName,
+-     contextual_tasks::flag_descriptions::
+-         kContextualTasksOverrideShowBottomSheetOnLargeScreenDescription,
+-     kOsAndroid,
+-     FEATURE_VALUE_TYPE(
+-         contextual_tasks::
+-             kContextualTasksOverrideShowBottomSheetOnLargeScreen)},
+-
+     {"contextual-tasks-rearchitecture",
+      contextual_tasks::flag_descriptions::kContextualTasksRearchitectureName,
+      contextual_tasks::flag_descriptions::
+diff --git a/chrome/browser/contextual_tasks/BUILD.gn b/chrome/browser/contextual_tasks/BUILD.gn
+index c042c2f..21dabaf 100644
+--- a/chrome/browser/contextual_tasks/BUILD.gn
++++ b/chrome/browser/contextual_tasks/BUILD.gn
+@@ -1127,6 +1127,7 @@
+     srcjar_deps = [ ":utils_jni_headers" ]
+     sources = [ "android/java/src/org/chromium/chrome/browser/contextual_tasks/ContextualTasksUtils.java" ]
+     deps = [
++      "//base:build_info_java",
+       "//base:features_java",
+       "//chrome/browser/flags:java",
+       "//components/embedder_support/android:util_java",
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_service_test_base.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui_service_test_base.cc
+index cd3d7c7..c0e0ae6 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui_service_test_base.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_service_test_base.cc
+@@ -8,6 +8,7 @@
+ 
+ #include "base/functional/bind.h"
+ #include "base/test/test_future.h"
++#include "build/build_config.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_ui_service_factory.h"
+ #include "chrome/browser/search_engines/template_url_service_factory.h"
+ #include "chrome/browser/signin/chrome_signin_client_factory.h"
+@@ -17,6 +18,10 @@
+ #include "testing/gmock/include/gmock/gmock.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+ 
++#if BUILDFLAG(IS_ANDROID)
++#include "base/android/device_info.h"
++#endif
++
+ using testing::_;
+ using testing::NiceMock;
+ using testing::Return;
+@@ -106,6 +111,12 @@
+ 
+ void ContextualTasksUiServiceTestBase::SetUp() {
+   content::RenderViewHostTestHarness::SetUp();
++#if BUILDFLAG(IS_ANDROID)
++  if (!base::android::device_info::is_desktop()) {
++    GTEST_SKIP() << "Contextual Tasks UI is only supported on Desktop "
++                    "Android.";
++  }
++#endif
+   // IdentityTestEnvironment must be created after the TaskEnvironment.
+   identity_test_env_ = std::make_unique<signin::IdentityTestEnvironment>();
+ 
+@@ -197,6 +208,13 @@
+ }
+ 
+ void ContextualTasksUiServiceTestBase::TearDown() {
++#if BUILDFLAG(IS_ANDROID)
++  if (!base::android::device_info::is_desktop()) {
++    // SetUp() skipped the test after setting up the harness.
++    content::RenderViewHostTestHarness::TearDown();
++    return;
++  }
++#endif
+   real_service_ = nullptr;
+   service_for_nav_ = nullptr;
+   ContextualTasksUiServiceFactory::GetInstance()->SetTestingFactory(
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_utils.cc b/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
+index 561214fc..c5aec34 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
+@@ -6,6 +6,7 @@
+ 
+ #include <algorithm>
+ 
++#include "base/check.h"
+ #include "base/containers/fixed_flat_map.h"
+ #include "base/feature_list.h"
+ #include "base/metrics/histogram_functions.h"
+@@ -88,7 +89,6 @@
+ #include "url/gurl.h"
+ 
+ #if BUILDFLAG(IS_ANDROID)
+-#include "chrome/browser/contextual_tasks/android/contextual_tasks_panel_host_android.h"
+ #include "chrome/browser/contextual_tasks/android/contextual_tasks_panel_host_desktop_android.h"
+ #else
+ #include "chrome/browser/contextual_tasks/contextual_tasks_panel_host_desktop.h"
+@@ -664,16 +664,6 @@
+   message_poster->PostAimMessage(client_to_aim_message);
+ }
+ 
+-bool ShouldShowSidePanel() {
+-#if BUILDFLAG(IS_ANDROID)
+-  return IsAndroidDesktopFormFactor() &&
+-         !base::FeatureList::IsEnabled(
+-             kContextualTasksOverrideShowBottomSheetOnLargeScreen);
+-#else
+-  return true;
+-#endif
+-}
+-
+ bool IsAndroidMobileFormFactor() {
+ #if BUILDFLAG(IS_ANDROID)
+   return ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_PHONE;
+@@ -703,12 +693,10 @@
+ std::unique_ptr<ContextualTasksPanelHost> ContextualTasksPanelHost::Create(
+     BrowserWindowInterface* browser_window) {
+ #if BUILDFLAG(IS_ANDROID)
+-  if (ShouldShowSidePanel()) {
+-    return std::make_unique<ContextualTasksPanelHostDesktopAndroid>(
+-        browser_window);
+-  } else {
+-    return std::make_unique<ContextualTasksPanelHostAndroid>(browser_window);
+-  }
++  // We shouldn't reach this method for phones and tablets.
++  CHECK(IsAndroidDesktopFormFactor());
++  return std::make_unique<ContextualTasksPanelHostDesktopAndroid>(
++      browser_window);
+ #else
+   return std::make_unique<ContextualTasksPanelHostDesktop>(browser_window);
+ #endif
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_utils.h b/chrome/browser/contextual_tasks/contextual_tasks_utils.h
+index 3965acd3..ea2eb05 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_utils.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_utils.h
+@@ -200,9 +200,6 @@
+ void SendInjectedInputRemovedUpdate(AimMessagePoster* message_poster,
+                                     const std::string& id);
+ 
+-// Returns true if the side panel should be used instead of the bottom sheet.
+-bool ShouldShowSidePanel();
+-
+ // Returns true if running on Android mobile (phone form factor).
+ bool IsAndroidMobileFormFactor();
+ 
+diff --git a/chrome/browser/flag-metadata.json b/chrome/browser/flag-metadata.json
+index c5de1d4..0ba0de9d 100644
+--- a/chrome/browser/flag-metadata.json
++++ b/chrome/browser/flag-metadata.json
+@@ -2548,11 +2548,6 @@
+     "expiry_milestone": 160
+   },
+   {
+-    "name": "contextual-tasks-override-show-bottom-sheet-on-large-screen",
+-    "owners": ["shaktisahu@chromium.org", "chrome-contextual-tasks-eng@google.com"],
+-    "expiry_milestone": 159
+-  },
+-  {
+     "name": "contextual-tasks-pinned-button-active-indicator",
+     "owners": [ "dianaou@google.com", "chrome-contextual-tasks-eng@google.com" ],
+     "expiry_milestone": 160
+diff --git a/chrome/browser/resources/lens/.style.lit_template_formatter b/chrome/browser/resources/lens/.style.lit_template_formatter
+new file mode 100644
+index 0000000..e69de29
+--- /dev/null
++++ b/chrome/browser/resources/lens/.style.lit_template_formatter
+diff --git a/chrome/browser/resources/lens/overlay/overlay_border_glow.html.ts b/chrome/browser/resources/lens/overlay/overlay_border_glow.html.ts
+index 37503030..a7d646c 100644
+--- a/chrome/browser/resources/lens/overlay/overlay_border_glow.html.ts
++++ b/chrome/browser/resources/lens/overlay/overlay_border_glow.html.ts
+@@ -7,8 +7,8 @@
+ import type {OverlayBorderGlowElement} from './overlay_border_glow.js';
+ 
+ export function getHtml(this: OverlayBorderGlowElement) {
+-  return html`<div id="borderGlowContainer" .style="${this.getBoundsStyles()}">
+-    <div .style="${
+-      this.getGradientColorStyles()}" id="gradientColorLayer"></div>
+-  </div>`;
++  return html`
++<div id="borderGlowContainer" .style="${this.getBoundsStyles()}">
++  <div .style="${this.getGradientColorStyles()}" id="gradientColorLayer"></div>
++</div>`;
+ }
+diff --git a/chrome/browser/resources/lens/overlay/side_panel/feedback_toast.html.ts b/chrome/browser/resources/lens/overlay/side_panel/feedback_toast.html.ts
+index 61a2948..1e1c138 100644
+--- a/chrome/browser/resources/lens/overlay/side_panel/feedback_toast.html.ts
++++ b/chrome/browser/resources/lens/overlay/side_panel/feedback_toast.html.ts
+@@ -11,7 +11,6 @@
+ import type {FeedbackToastElement} from './feedback_toast.js';
+ 
+ export function getHtml(this: FeedbackToastElement) {
+-  // clang-format off
+   return html`<!--_html_template_start_-->
+ <cr-toast id="feedbackToast" duration="0">
+   <div id="feedbackToastMessage">$i18n{feedbackToastMessage}</div>
+@@ -26,5 +25,4 @@
+   </div>
+ </cr-toast>
+ <!--_html_template_end_-->`;
+-  // clang-format on
+ }
+diff --git a/chrome/browser/resources/lens/overlay/side_panel/side_panel_error_page.html.ts b/chrome/browser/resources/lens/overlay/side_panel/side_panel_error_page.html.ts
+index fef6f85..bd47911 100644
+--- a/chrome/browser/resources/lens/overlay/side_panel/side_panel_error_page.html.ts
++++ b/chrome/browser/resources/lens/overlay/side_panel/side_panel_error_page.html.ts
+@@ -7,11 +7,11 @@
+ import type {SidePanelErrorPageElement} from './side_panel_error_page.js';
+ 
+ export function getHtml(this: SidePanelErrorPageElement) {
+-  return html`<div id="errorPage">
++  return html`
++<div id="errorPage">
+   <div id="errorIcon">
+     <picture id="genericIcon">
+-      <source srcset="generic-error-icon-dark.png"
+-        media="${this.darkMode}">
++      <source srcset="generic-error-icon-dark.png" media="${this.darkMode}">
+       <img src="generic-error-icon.png">
+     </picture>
+     <span id="protectedIcon"></span>
+diff --git a/chrome/browser/resources/lens/overlay/simplified_text_layer.html.ts b/chrome/browser/resources/lens/overlay/simplified_text_layer.html.ts
+index 74b5ecfc..811d136 100644
+--- a/chrome/browser/resources/lens/overlay/simplified_text_layer.html.ts
++++ b/chrome/browser/resources/lens/overlay/simplified_text_layer.html.ts
+@@ -7,7 +7,9 @@
+ import type {SimplifiedTextLayerElement} from './simplified_text_layer.js';
+ 
+ export function getHtml(this: SimplifiedTextLayerElement) {
+-  return html`${this.highlightedLines.map(item => html`
++  return html`
++${this.highlightedLines.map(item => html`
+   <div .style="${this.getHighlightedLineStyle(item)}" class="highlighted-line">
+-  `)}`;
++  </div>
++`)}`;
+ }
+diff --git a/chrome/browser/resources/lens/shared/searchbox/lens_searchbox.html.ts b/chrome/browser/resources/lens/shared/searchbox/lens_searchbox.html.ts
+index 6d6e1c7..d240c2b9 100644
+--- a/chrome/browser/resources/lens/shared/searchbox/lens_searchbox.html.ts
++++ b/chrome/browser/resources/lens/shared/searchbox/lens_searchbox.html.ts
+@@ -7,12 +7,10 @@
+ import type {LensSearchboxElement} from './lens_searchbox.js';
+ 
+ export function getHtml(this: LensSearchboxElement) {
+-  // clang-format off
+   return html`<!--_html_template_start_-->
+ <div id="inputWrapper" @focusout="${this.onInputWrapperFocusout}"
+     @keydown="${this.onInputWrapperKeydown}">
+-  <cr-searchbox-input id="input"
+-      exportparts="searchbox-input"
++  <cr-searchbox-input id="input" exportparts="searchbox-input"
+       .searchboxIcon="${this.searchboxIcon_}"
+       .searchboxAriaDescription="${this.searchboxAriaDescription}"
+       .selectedMatch="${this.selectedMatch}"
+@@ -25,8 +23,7 @@
+       @input-focus-changed="${this.onInputFocusChanged}">
+     ${this.showThumbnail ? html`
+       <div id="thumbnailContainer" slot="thumbnail">
+-        <cr-searchbox-thumbnail
+-            thumbnail-url="${this.thumbnailUrl_}"
++        <cr-searchbox-thumbnail thumbnail-url="${this.thumbnailUrl_}"
+             ?is-deletable="${this.isThumbnailDeletable_}"
+             @remove-thumbnail-click="${this.onRemoveThumbnailClick_}"
+             role="button" aria-label="${this.i18n('searchboxThumbnailLabel')}"
+@@ -34,7 +31,7 @@
+         </cr-searchbox-thumbnail>
+       </div>
+     ` : nothing}
+-    ${this.searchboxLensSearchEnabled_? html`
++    ${this.searchboxLensSearchEnabled_ ? html`
+       <div class="searchbox-icon-button-container lens">
+         <button id="lensSearchButton" class="searchbox-icon-button lens"
+             @click="${this.onLensSearchClick_}"
+@@ -44,15 +41,12 @@
+     ` : ''}
+   </cr-searchbox-input>
+   <cr-searchbox-dropdown id="matches" part="searchbox-dropdown"
+-      exportparts="dropdown-content"
+-      role="listbox" .result="${this.result}"
++      exportparts="dropdown-content" role="listbox" .result="${this.result}"
+       selected-match-index="${this.selectedMatchIndex}"
+       @selected-match-index-changed="${this.onSelectedMatchIndexChanged}"
+       @match-focusin="${this.onMatchFocusin}"
+-      @match-click="${this.onMatchClick}"
+-      ?hidden="${!this.dropdownIsVisible}">
++      @match-click="${this.onMatchClick}" ?hidden="${!this.dropdownIsVisible}">
+   </cr-searchbox-dropdown>
+ </div>
+ <!--_html_template_end_-->`;
+-  // clang-format on
+ }
+diff --git a/chrome/browser/resources/lens/shared/searchbox_ghost_loader.html.ts b/chrome/browser/resources/lens/shared/searchbox_ghost_loader.html.ts
+index 26139775..b143a55 100644
+--- a/chrome/browser/resources/lens/shared/searchbox_ghost_loader.html.ts
++++ b/chrome/browser/resources/lens/shared/searchbox_ghost_loader.html.ts
+@@ -25,9 +25,7 @@
+     <div class="suggestion-loader-container">
+       ${this.getSuggestionItems().map(() => html`
+         <div class="ghost-loader-item">
+-          <cr-searchbox-icon
+-              class="searchbox-icon"
+-              match=""
++          <cr-searchbox-icon class="searchbox-icon" match=""
+               default-icon="//resources/cr_components/searchbox/icons/search_cr23.svg">
+           </cr-searchbox-icon>
+           <div class="loading-bar"></div>
+diff --git a/chrome/browser/resources/new_tab_footer/.style.lit_template_formatter b/chrome/browser/resources/new_tab_footer/.style.lit_template_formatter
+new file mode 100644
+index 0000000..e69de29
+--- /dev/null
++++ b/chrome/browser/resources/new_tab_footer/.style.lit_template_formatter
+diff --git a/chrome/browser/resources/new_tab_footer/app.html.ts b/chrome/browser/resources/new_tab_footer/app.html.ts
+index 3a68c47..ac76953 100644
+--- a/chrome/browser/resources/new_tab_footer/app.html.ts
++++ b/chrome/browser/resources/new_tab_footer/app.html.ts
+@@ -7,33 +7,34 @@
+ import type {NewTabFooterAppElement} from './app.js';
+ 
+ export function getHtml(this: NewTabFooterAppElement) {
+-  // clang-format off
+   return html`<!--_html_template_start_-->
+-<!--
+-Container for housing the items in the center of the footer that are
+-separated from each other by a divider.
+--->
++<!-- Container for housing the items in the center of the footer that are
++     separated from each other by a divider. -->
+ <div id="container" @contextmenu="${this.onContextmenu_}">
+   <div id="spacer"></div>
+   <div id="infoContainer">
+-  ${this.managementNotice_ ?
+-      html`<div id="managementNoticeContainer" class="notice-item"
+-        title="${this.managementNotice_.text}">
++    ${this.managementNotice_ ? html`
++      <div id="managementNoticeContainer" class="notice-item"
++          title="${this.managementNotice_.text}">
+         <div id="managementNoticeLogoContainer"
+-             class="${this.managementNotice_.customBitmapDataUrl ?
+-             'custom_logo' : ''}">
++            class="${this.managementNotice_.customBitmapDataUrl ?
++                'custom_logo' :
++                ''}">
+           ${this.managementNotice_.customBitmapDataUrl ? html`
+             <img id="managementNoticeLogo" alt=""
+-                src="${this.managementNotice_.customBitmapDataUrl}">`: html`
+-            <cr-icon icon="cr:domain" alt="" id="managementNoticeLogo" >
+-            </cr-icon>`}
++                src="${this.managementNotice_.customBitmapDataUrl}">
++          ` : html`
++            <cr-icon icon="cr:domain" alt="" id="managementNoticeLogo">
++            </cr-icon>
++          `}
+         </div>
+         <button @click="${this.onManagementNoticeClick_}" role="link"
+             aria-label="${this.managementNotice_.text}"
+             aria-description="$i18n{managementLinkDesc}">
+-            ${this.managementNotice_.text}
++          ${this.managementNotice_.text}
+         </button>
+-      </div>` : ''}
++      </div>
++    ` : ''}
+     ${this.showExtension_ ? html`
+       <div id="extensionNameContainer" title="${this.extensionName_}"
+           class="notice-item">
+@@ -42,9 +43,10 @@
+             aria-description="$i18n{manageExtension}">
+           ${this.extensionName_}
+         </button>
+-      </div>` : ''}
++      </div>
++    ` : ''}
+     ${this.showBackgroundAttribution_ ? html`
+-      ${this.backgroundAttributionLink_ ?  html`
++      ${this.backgroundAttributionLink_ ? html`
+         <div id="backgroundAttributionContainer" class="notice-item"
+             title="${this.backgroundAttributionText_}">
+           <button @click="${this.onBackgroundAttributionClick_}" role="link"
+@@ -52,22 +54,26 @@
+               aria-description="$i18n{backgroundAttributionDesc}">
+             ${this.backgroundAttributionText_}
+           </button>
+-        </div>` : html`
++        </div>
++      ` : html`
+         <div id="backgroundAttributionContainer" class="notice-item">
+           <p>${this.backgroundAttributionText_}</p>
+-        </div>`}`
+-      : ''}
++        </div>
++      `}
++    ` : ''}
+   </div>
+-  ${!this.showCustomizeButtons_ ? html`<div id="spacer"></div>` : ''}
++  ${!this.showCustomizeButtons_ ? html`
++    <div id="spacer"></div>
++  ` : ''}
+   ${this.showCustomizeButtons_ ? html`
+     <ntp-customize-buttons id="customizeButtons"
+-        ?info-shown-to-user="${!!this.managementNotice_ ||
+-                               !!this.extensionName_}"
++        ?info-shown-to-user="${
++            !!this.managementNotice_ || !!this.extensionName_}"
+         ?show-customize="${this.isCustomizeActive_}"
+         ?show-customize-chrome-text="${this.showCustomizeText_}"
+         @customize-click="${this.onCustomizeClick_}">
+-    </ntp-customize-buttons>` : ''}
++    </ntp-customize-buttons>
++  ` : ''}
+ </div>
+ <!--_html_template_end_-->`;
+-  // clang-format off
+ }
+diff --git a/chrome/browser/resources/new_tab_page/.style.lit_template_formatter b/chrome/browser/resources/new_tab_page/.style.lit_template_formatter
+new file mode 100644
+index 0000000..e69de29
+--- /dev/null
++++ b/chrome/browser/resources/new_tab_page/.style.lit_template_formatter
+diff --git a/chrome/browser/resources/new_tab_page/action_chips/action_chips.html.ts b/chrome/browser/resources/new_tab_page/action_chips/action_chips.html.ts
+index a4f1f4db..bffd2356 100644
+--- a/chrome/browser/resources/new_tab_page/action_chips/action_chips.html.ts
++++ b/chrome/browser/resources/new_tab_page/action_chips/action_chips.html.ts
+@@ -9,68 +9,59 @@
+ import {type ActionChipsElement} from './action_chips.js';
+ 
+ export function getHtml(this: ActionChipsElement) {
+-  // clang-format off
+   return html`
+-  <!--_html_template_start_-->
+-  <div class="action-chips-wrapper">
+-    ${
+-      this.actionChips_.length ?
+-      html`
+-      <div class="action-chips-container">
+-      ${
+-          this.actionChips_.map(
+-              (chip: ActionChip, index: number) => html`
++<!--_html_template_start_-->
++<div class="action-chips-wrapper">
++  ${this.actionChips_.length ? html`
++    <div class="action-chips-container">
++      ${this.actionChips_.map((chip: ActionChip, index: number) => html`
+         <div class="chip-button-wrapper">
+-          <button
+-            class="action-chip"
+-            data-index="${index}"
+-            title="${this.getChipTitle_(chip)}"
+-            @click="${this.onClick_}"
+-            @auxclick="${this.onAuxclick_}"
+-            @contextmenu="${this.disablementContextMenuEnabled_ ?
+-                this.onContextmenu_ : nothing}">
+-            <div class="action-chip-icon-container ${
++          <button class="action-chip" data-index="${index}"
++              title="${this.getChipTitle_(chip)}" @click="${this.onClick_}"
++              @auxclick="${this.onAuxclick_}"
++              @contextmenu="${this.disablementContextMenuEnabled_ ?
++                  this.onContextmenu_ :
++                  nothing}">
++            <div
++                class="action-chip-icon-container ${
+                     this.getAdditionalIconClasses_(chip)}">
+-              ${
+-                    chip.suggestTemplateInfo.typeIcon === IconType.kFavicon ?
+-                        html`<img class='action-chip-recent-tab-favicon'
+-                    src="${this.getMostRecentTabFaviconUrl_(chip)}">` :
+-                        ''}
++              ${chip.suggestTemplateInfo.typeIcon === IconType.kFavicon ?
++                  html`
++                <img class="action-chip-recent-tab-favicon"
++                    src="${this.getMostRecentTabFaviconUrl_(chip)}">
++              ` : ''}
+               ${this.getIcon_(chip) ? html`
+-                <cr-icon icon="${this.getIcon_(chip)}"></cr-icon>` : ''}
++                <cr-icon icon="${this.getIcon_(chip)}"></cr-icon>
++              ` : ''}
+             </div>
+             <div class="action-chip-text-container">
+-              ${chip.suggestTemplateInfo.primaryText.text ?
+-                  html`
+-                  <span class="chip-title">
+-                    ${chip.suggestTemplateInfo.primaryText.text}
+-                  </span>` :
+-                  ''}
++              ${chip.suggestTemplateInfo.primaryText.text ? html`
++                <span class="chip-title">
++                  ${chip.suggestTemplateInfo.primaryText.text}
++                </span>
++              ` : ''}
+               ${!this.smallChipsEnabled_ && this.getChipSubtitle_(chip) ?
+                   html`
+-                <span
+-                  title="${this.getChipTitle_(chip)}"
+-                  class="chip-body">
++                <span title="${this.getChipTitle_(chip)}" class="chip-body">
+                   ${this.getChipSubtitle_(chip)}
+-                </span>` :
+-                  ''}
++                </span>
++              ` : ''}
+             </div>
+             ${this.showDismissalUI_ ? html`
+-              <cr-icon-button
+-                class="chip-remove-button" data-index="${index}"
+-                @click="${this.onRemoveClick_}">
++              <cr-icon-button class="chip-remove-button" data-index="${index}"
++                  @click="${this.onRemoveClick_}">
+               </cr-icon-button>
+-                ` : nothing}
++            ` : nothing}
+           </button>
+-        </div>`)}
+-      </div>
+-      ` : nothing}
+-  </div>
+-  <cr-action-menu id="actionMenu">
+-    <button class="dropdown-item" @click="${this.onDisableSuggestionClick_}">
+-      $i18n{disableSuggestion}
+-    </button>
+-  </cr-action-menu>
+-  <!--_html_template_end_-->`;
+-  // clang-format on
++        </div>
++      `)}
++    </div>
++  ` : nothing}
++</div>
++<cr-action-menu id="actionMenu">
++  <button class="dropdown-item" @click="${this.onDisableSuggestionClick_}">
++    $i18n{disableSuggestion}
++  </button>
++</cr-action-menu>
++<!--_html_template_end_-->`;
+ }
+diff --git a/chrome/browser/resources/new_tab_page/left_hand_side.html.ts b/chrome/browser/resources/new_tab_page/left_hand_side.html.ts
+index bb8290a..9fcd26b 100644
+--- a/chrome/browser/resources/new_tab_page/left_hand_side.html.ts
++++ b/chrome/browser/resources/new_tab_page/left_hand_side.html.ts
+@@ -7,31 +7,25 @@
+ import type {LeftHandSideElement} from './left_hand_side.js';
+ 
+ export function getHtml(this: LeftHandSideElement) {
+-  // clang-format off
+   return html`<!--_html_template_start_-->
+-  ${this.enableThreadsRailHybrid_
+-      ? html`<cr-threads-rail id="folded"
+-                 ?inert="${this.isExpandedReady_ && this.isExpanded_}"
+-                 @expand-rail="${this.onExpandRail_}"
+-                 @click="${this.onFoldedClick_}"
+-                 @pointerenter="${this.onFoldedPointerenter_}"
+-                 @pointerleave="${this.onFoldedPointerleave_}"
+-                 @focusin="${this.onFoldedFocusin_}"
+-                 @focusout="${this.onFoldedFocusout_}">
+-             </cr-threads-rail>`
+-      : ''}
+-  ${!this.enableThreadsRailHybrid_ || this.hasPreloaded_
+-      ? html`<ntp-iframe id="expanded"
+-            class="${this.isExpandedReady_ ? 'ready' : ''}"
+-            allow="clipboard-write; unbounded-element"
+-            style="${this.enableThreadsRailHybrid_
+-                       ? `width: ${this.expandedWidth_}px;`
+-                       : ''}"
+-            src="${this.expandedLhsUrl_}"
+-            ?hidden="${!this.isExpandedReady_}"
+-            ?inert="${this.enableThreadsRailHybrid_ && !this.isExpanded_}">
+-        </ntp-iframe>`
+-      : ''}
+-  <!--_html_template_end_-->`;
+-  // clang-format on
++${this.enableThreadsRailHybrid_ ? html`
++  <cr-threads-rail id="folded"
++      ?inert="${this.isExpandedReady_ && this.isExpanded_}"
++      @expand-rail="${this.onExpandRail_}" @click="${this.onFoldedClick_}"
++      @pointerenter="${this.onFoldedPointerenter_}"
++      @pointerleave="${this.onFoldedPointerleave_}"
++      @focusin="${this.onFoldedFocusin_}" @focusout="${this.onFoldedFocusout_}">
++  </cr-threads-rail>
++` : ''}
++${!this.enableThreadsRailHybrid_ || this.hasPreloaded_ ? html`
++  <ntp-iframe id="expanded" class="${this.isExpandedReady_ ? 'ready' : ''}"
++      allow="clipboard-write; unbounded-element"
++      style="${this.enableThreadsRailHybrid_ ?
++          `width: ${this.expandedWidth_}px;` :
++          ''}"
++      src="${this.expandedLhsUrl_}" ?hidden="${!this.isExpandedReady_}"
++      ?inert="${this.enableThreadsRailHybrid_ && !this.isExpanded_}">
++  </ntp-iframe>
++` : ''}
++<!--_html_template_end_-->`;
+ }
+diff --git a/chrome/browser/resources/new_tab_page/modules/tab_groups/icon_container.html.ts b/chrome/browser/resources/new_tab_page/modules/tab_groups/icon_container.html.ts
+index 1be3ed0..3e02e2c 100644
+--- a/chrome/browser/resources/new_tab_page/modules/tab_groups/icon_container.html.ts
++++ b/chrome/browser/resources/new_tab_page/modules/tab_groups/icon_container.html.ts
+@@ -8,7 +8,6 @@
+ import type {IconContainerElement} from './icon_container.js';
+ 
+ export function getHtml(this: IconContainerElement) {
+-  // clang-format off
+   return html`<!--_html_template_start_-->
+ <div class="icons-container">
+   ${this.getFaviconCells().map(item => html`
+@@ -18,15 +17,18 @@
+       </div>
+     </div>
+   `)}
+-  ${this.getEmptyCells().map(() => html`<div class="cell empty"></div>`)}
++  ${this.getEmptyCells().map(() => html`
++    <div class="cell empty"></div>
++  `)}
+   ${this.shouldShowOverflow() ? html`
+     <div class="cell overflow-count" aria-hidden="true">
+       ${this.getOverflowCount() <= 99 ? html`
+         +${this.getOverflowCount()}
+-      ` : html`99+`}
++      ` : html`
++        99+
++      `}
+     </div>
+   ` : ''}
+-  </div>
++</div>
+ <!--_html_template_end_-->`;
+-  // clang-format on
+ }
+diff --git a/chrome/browser/resources/new_tab_page/ntp_composebox.html.ts b/chrome/browser/resources/new_tab_page/ntp_composebox.html.ts
+index afa981b..0d9e0d73 100644
+--- a/chrome/browser/resources/new_tab_page/ntp_composebox.html.ts
++++ b/chrome/browser/resources/new_tab_page/ntp_composebox.html.ts
+@@ -11,202 +11,179 @@
+ 
+ 
+ export function getHtml(this: NtpComposeboxElement) {
+-  // clang-format off
+   return html`<!--_html_template_start_-->
+-    <search-animated-glow id="animatedSearchElement"
+-        animation-state="${this.animationState}"
+-        .glowMode="${this.willFulfillInAim ? GlowMode.OUTER_GLOW : GlowMode.NONE}"
+-        .coloredTicTacVoiceAnimationEnabled="${this.voiceSearchCoherenceEnabled}"
+-        .requiresVoice="${this.shouldShowVoiceSearchAnimation()}"
+-        .transcript="${this.transcript}"
+-        .receivedSpeech="${this.receivedSpeech}"
+-        .isListening="${this.isListening}"
+-        .energyEffectAnimationEnabled="${this.energyEffectAnimationEnabled}"
+-        .darkThemeColorsEnabled="${false}"
+-        exportparts="composebox-background">
+-      ${this.showFileCarousel && this.shouldShowVoiceSearchAnimation() &&
+-          this.voiceSearchCoherenceEnabled ? html`
+-        <div id="voiceCarouselContainer"
+-            slot="carousel"
+-            part="carousel-container">
+-          <div id="voiceCarouselContainerInner"
+-              class="carousel-container-inner">
+-            <cr-composebox-file-carousel
+-              id="voiceSearchCarousel"
+-              .files="${this.getFilteredCarouselFiles()}"
+-              enable-scrolling
+-              @delete-file="${this.onDeleteFile}">
+-            </cr-composebox-file-carousel>
+-          </div>
+-        </div>
++<search-animated-glow id="animatedSearchElement"
++    animation-state="${this.animationState}"
++    .glowMode="${this.willFulfillInAim ? GlowMode.OUTER_GLOW : GlowMode.NONE}"
++    .coloredTicTacVoiceAnimationEnabled="${this.voiceSearchCoherenceEnabled}"
++    .requiresVoice="${this.shouldShowVoiceSearchAnimation()}"
++    .transcript="${this.transcript}" .receivedSpeech="${this.receivedSpeech}"
++    .isListening="${this.isListening}"
++    .energyEffectAnimationEnabled="${this.energyEffectAnimationEnabled}"
++    .darkThemeColorsEnabled="${false}" exportparts="composebox-background">
++  ${this.showFileCarousel && this.shouldShowVoiceSearchAnimation() &&
++          this.voiceSearchCoherenceEnabled ?
++      html`
++    <div id="voiceCarouselContainer" slot="carousel" part="carousel-container">
++      <div id="voiceCarouselContainerInner" class="carousel-container-inner">
++        <cr-composebox-file-carousel id="voiceSearchCarousel"
++            .files="${this.getFilteredCarouselFiles()}" enable-scrolling
++            @delete-file="${this.onDeleteFile}">
++        </cr-composebox-file-carousel>
++      </div>
++    </div>
++  ` : ''}
++  ${this.shouldShowVoiceSearchAnimation() && this.voiceSearchCoherenceEnabled &&
++          this.inToolMode ?
++      html`
++    <div class="context-menu-container voice-context-menu-container"
++        id="voiceToolChipsContainer" slot="tool-chip"
++        part="tool-chips-container">
++      <cr-composebox-tool-chip exportparts="tool-chip-label"
++          .inputState="${this.inputState}"
++          .isCanvasQuerySubmitted="${this.isCanvasQuerySubmitted}"
++          @tool-click="${this.onToolClick}" part="tool-chip">
++      </cr-composebox-tool-chip>
++    </div>
++  ` : ''}
++</search-animated-glow>
++${this.errorMessage ? html`
++  <ntp-error-scrim id="errorScrim" part="error-scrim"
++      ?compact-mode="${
++          this.searchboxLayoutMode === 'Compact' && !this.hasFiles()}"
++      .errorMessage="${this.errorMessage}"
++      @dismiss-error-scrim="${this.onDismissErrorScrim}">
++  </ntp-error-scrim>
++` : ''}
++<div id="composebox" part="composebox" ?inert="${!!this.errorMessage}"
++    @dragenter="${this.dragAndDropHandler.handleDragEnter}"
++    @dragover="${this.dragAndDropHandler.handleDragOver}"
++    @dragleave="${this.dragAndDropHandler.handleDragLeave}"
++    @drop="${this.dragAndDropHandler.handleDrop}" @paste="${this.onPaste}">
++  <div id="inputContainer" part="input-container" @keydown="${this.onKeydown}">
++    <cr-composebox-input id="composeboxInput"
++        class="${this.hasTabs() ? 'has-tabs' : ''}"
++        exportparts="text-container, icon-container, mirror, input, smart-compose, cancel, action-icon, cancel-icon"
++        .composeboxSkillsEnabled="${this.composeboxSkillsEnabled}"
++        .disableCaretColorAnimation="${
++            this.disableCaretColorAnimation || !this.willFulfillInAim}"
++        .showDropdown="${this.showDropdown}"
++        .inputPlaceholder="${this.inputPlaceholder}" .input="${this.input}"
++        .smartComposeEnabled="${this.smartComposeEnabled}"
++        .smartComposeInlineHint="${this.smartComposeInlineHint}"
++        .submitEnabled="${this.submitEnabled}"
++        .cancelButtonTitle="${this.computeCancelButtonTitle()}"
++        .hideCancel="${this.persistentAimButtonEnabled_}"
++        .skipEmptyHeightLock="${this.persistentAimButtonEnabled_}"
++        @input-input="${this.onInputInput}"
++        @input-focusin="${this.onInputFocusin}"
++        @cancel-click="${this.onCancelClick}"
++        @clear-smart-compose="${this.onClearSmartCompose}">
++      ${this.shouldShowVoiceSearch() ? html`
++        <cr-icon-button id="voiceSearchButton" class="voice-icon"
++            slot="action-buttons" part="voice-icon" iron-icon="cr:mic-filled"
++            @click="${this.onVoiceSearchButtonClick}"
++            title="${this.i18n('voiceSearchButtonLabel')}">
++        </cr-icon-button>
+       ` : ''}
+-      ${this.shouldShowVoiceSearchAnimation() &&
+-            this.voiceSearchCoherenceEnabled && this.inToolMode
+-          ? html`<div class=
+-              "context-menu-container voice-context-menu-container"
+-                    id="voiceToolChipsContainer"
+-                    slot="tool-chip"
+-                    part="tool-chips-container">
+-                  <cr-composebox-tool-chip
+-                    exportparts="tool-chip-label"
++      ${this.persistentAimButtonEnabled_ ? html`
++        <cr-composebox-aim-button slot="action-buttons"
++            .mode="${this.getAimButtonMode()}"
++            .showExitIcon="${this.showAimButtonExitIcon_}"
++            .disabled="${this.isAimButtonDisabled()}"
++            .energyEffectAnimationEnabled="${
++                this.energyEffectAnimationEnabled}"
++            .label="${this.i18n('searchboxComposeButtonText')}"
++            .exitTitle="${this.i18n('composeboxAimButtonExitTitle')}"
++            .sendTitle="${this.i18n('composeboxAimButtonSendTitle')}"
++            @aim-button-click="${this.onAimButtonClick}"
++            @focusin="${this.onAimButtonFocusin}">
++        </cr-composebox-aim-button>
++      ` : ''}
++    </cr-composebox-input>
++    <div id="context" part="context-entrypoint">
++      <cr-composebox-file-inputs id="fileInputs"
++          @file-change="${this.onFileChange}"
++          .disableFileInputs="${this.shouldDisableFileInputs()}">
++        <div id="carouselContainer" part="carousel-container">
++          <div class="carousel-container-inner">
++            ${this.showFileCarousel ? html`
++              <cr-composebox-file-carousel part="cr-composebox-file-carousel"
++                  exportparts="thumbnail, thumbnail-title" id="carousel"
++                  .files="${this.getFilteredCarouselFiles()}"
++                  @delete-file="${this.onDeleteFile}">
++              </cr-composebox-file-carousel>
++            ` : ''}
++            ${this.contextMenuEnabled ? html`
++              ${getContextMenuHtml.bind(this)()}
++            ` : ''}
++            ${this.inToolMode ? html`
++              <div class="context-menu-container" id="toolChipsContainer"
++                  part="tool-chips-container">
++                <cr-composebox-tool-chip exportparts="tool-chip-label"
+                     .inputState="${this.inputState}"
+-                    .isCanvasQuerySubmitted="${
+-                        this.isCanvasQuerySubmitted}"
+-                    @tool-click="${this.onToolClick}"
+-                    part="tool-chip">
+-                  </cr-composebox-tool-chip>
+-                </div>
+-      ` : ''}
+-    </search-animated-glow>
+-    ${this.errorMessage ?
+-      html`<ntp-error-scrim id="errorScrim" part="error-scrim"
+-          ?compact-mode="${this.searchboxLayoutMode === 'Compact' &&
+-                          !this.hasFiles()}"
+-          .errorMessage="${this.errorMessage}"
+-          @dismiss-error-scrim="${this.onDismissErrorScrim}">
+-      </ntp-error-scrim>`
+-    : ''}
+-    <div id="composebox" part="composebox" ?inert="${!!this.errorMessage}"
+-        @dragenter="${this.dragAndDropHandler.handleDragEnter}"
+-        @dragover="${this.dragAndDropHandler.handleDragOver}"
+-        @dragleave="${this.dragAndDropHandler.handleDragLeave}"
+-        @drop="${this.dragAndDropHandler.handleDrop}"
+-        @paste="${this.onPaste}">
+-      <div id="inputContainer" part="input-container"
+-          @keydown="${this.onKeydown}">
+-        <cr-composebox-input id="composeboxInput"
+-            class="${this.hasTabs() ? 'has-tabs' : ''}"
+-            exportparts="text-container, icon-container, mirror, input, smart-compose, cancel, action-icon, cancel-icon"
+-            .composeboxSkillsEnabled="${this.composeboxSkillsEnabled}"
+-            .disableCaretColorAnimation="${
+-                this.disableCaretColorAnimation || !this.willFulfillInAim}"
+-            .showDropdown="${this.showDropdown}"
+-            .inputPlaceholder="${this.inputPlaceholder}"
+-            .input="${this.input}"
+-            .smartComposeEnabled="${this.smartComposeEnabled}"
+-            .smartComposeInlineHint="${this.smartComposeInlineHint}"
+-            .submitEnabled="${this.submitEnabled}"
+-            .cancelButtonTitle="${this.computeCancelButtonTitle()}"
+-            .hideCancel="${this.persistentAimButtonEnabled_}"
+-            .skipEmptyHeightLock="${this.persistentAimButtonEnabled_}"
+-            @input-input="${this.onInputInput}"
+-            @input-focusin="${this.onInputFocusin}"
+-            @cancel-click="${this.onCancelClick}"
+-            @clear-smart-compose="${this.onClearSmartCompose}">
+-          ${this.shouldShowVoiceSearch() ? html`
+-            <cr-icon-button id="voiceSearchButton" class="voice-icon"
+-                slot="action-buttons"
+-                part="voice-icon" iron-icon="cr:mic-filled"
+-                @click="${this.onVoiceSearchButtonClick}"
+-                title="${this.i18n('voiceSearchButtonLabel')}">
+-            </cr-icon-button>
+-          ` : ''}
+-          ${this.persistentAimButtonEnabled_ ? html`
+-            <cr-composebox-aim-button slot="action-buttons"
+-                .mode="${this.getAimButtonMode()}"
+-                .showExitIcon="${this.showAimButtonExitIcon_}"
+-                .disabled="${this.isAimButtonDisabled()}"
+-                .energyEffectAnimationEnabled="${
+-                    this.energyEffectAnimationEnabled}"
+-                .label="${this.i18n('searchboxComposeButtonText')}"
+-                .exitTitle="${this.i18n('composeboxAimButtonExitTitle')}"
+-                .sendTitle="${this.i18n('composeboxAimButtonSendTitle')}"
+-                @aim-button-click="${this.onAimButtonClick}"
+-                @focusin="${this.onAimButtonFocusin}">
+-            </cr-composebox-aim-button>
+-          ` : ''}
+-        </cr-composebox-input>
+-        <div id="context" part="context-entrypoint">
+-          <cr-composebox-file-inputs id="fileInputs"
+-              @file-change="${this.onFileChange}"
+-              .disableFileInputs="${this.shouldDisableFileInputs()}">
+-            <div id="carouselContainer" part="carousel-container">
+-              <div class="carousel-container-inner">
+-                ${this.showFileCarousel ? html`
+-                  <cr-composebox-file-carousel
+-                    part="cr-composebox-file-carousel"
+-                    exportparts="thumbnail, thumbnail-title"
+-                    id="carousel"
+-                    .files="${this.getFilteredCarouselFiles()}"
+-                    @delete-file="${this.onDeleteFile}">
+-                  </cr-composebox-file-carousel> ` : ''}
+-                  ${this.contextMenuEnabled ? html`
+-                      ${getContextMenuHtml.bind(this)()}
+-                  ` : ''}
+-                  ${this.inToolMode ? html`
+-                  <div class="context-menu-container" id="toolChipsContainer"
+-                      part="tool-chips-container">
+-                      <cr-composebox-tool-chip
+-                        exportparts="tool-chip-label"
+-                        .inputState="${this.inputState}"
+-                        .isCanvasQuerySubmitted="${this.isCanvasQuerySubmitted}"
+-                        @tool-click="${this.onToolClick}"
+-                        part="tool-chip">
+-                      </cr-composebox-tool-chip>
+-                  </div>
+-                  ` : ''}
++                    .isCanvasQuerySubmitted="${this.isCanvasQuerySubmitted}"
++                    @tool-click="${this.onToolClick}" part="tool-chip">
++                </cr-composebox-tool-chip>
+               </div>
+-              ${!this.persistentAimButtonEnabled_ &&
+-                  this.shouldShowSubmitButton() ? html`
+-              <cr-composebox-submit
++            ` : ''}
++          </div>
++          ${!this.persistentAimButtonEnabled_ && this.shouldShowSubmitButton() ?
++              html`
++            <cr-composebox-submit
+                 exportparts="action-icon, submit, submit-icon, submit-overlay"
+                 ?disabled="${!this.canSubmitFilesAndInput}"
+-                .iconType="${this.submitButtonIconType}"
+-                .submitButtonTitle="${this.i18n('composeboxSubmitButtonTitle')}"
++                .iconType="${this.submitButtonIconType}" .submitButtonTitle="${
++                    this.i18n('composeboxSubmitButtonTitle')}"
+                 @submit-click="${this.onSubmitClick}"
+                 @submit-focusin="${this.onSubmitFocusin}">
+-              </cr-composebox-submit>
+-              ` : ''}
+-            </div>
+-            ${this.shouldShowDivider() ? html`
+-            <div class="carousel-divider" part="carousel-divider"></div>
+-            ` : ''}
+-          </cr-composebox-file-inputs>
+-          <cr-composebox-dropdown
+-              id="matches"
+-              part="dropdown"
+-              exportparts="match-text-container"
+-              role="listbox"
+-              .result="${this.result}"
+-              .selectedMatchIndex="${this.selectedMatchIndex}"
+-              .maxSuggestions="${this.maxSuggestions}"
+-              .toolMode="${this.inputState?.activeTool || ToolMode.kUnspecified}"
+-              .richImageSuggestionsEnabled="${
+-                  this.richImageSuggestionsEnabled}"
+-              @selected-match-index-changed="${this.onSelectedMatchIndexChanged}"
+-              @match-focusin="${this.onMatchFocusin}"
+-              @match-click="${this.onMatchClick}"
+-              ?hidden="${this.shouldHideDropdown()}"
+-              .lastQueriedInput="${this.lastQueriedInput}">
+-          </cr-composebox-dropdown>
++            </cr-composebox-submit>
++          ` : ''}
+         </div>
+-      </div>
+-      ${this.shouldShowSuggestionActivityLink() ? html`
+-      <div id="suggestionActivity">
+-        <localized-link
++        ${this.shouldShowDivider() ? html`
++          <div class="carousel-divider" part="carousel-divider"></div>
++        ` : ''}
++      </cr-composebox-file-inputs>
++      <cr-composebox-dropdown id="matches" part="dropdown"
++          exportparts="match-text-container" role="listbox"
++          .result="${this.result}"
++          .selectedMatchIndex="${this.selectedMatchIndex}"
++          .maxSuggestions="${this.maxSuggestions}"
++          .toolMode="${this.inputState?.activeTool || ToolMode.kUnspecified}"
++          .richImageSuggestionsEnabled="${this.richImageSuggestionsEnabled}"
++          @selected-match-index-changed="${this.onSelectedMatchIndexChanged}"
++          @match-focusin="${this.onMatchFocusin}"
++          @match-click="${this.onMatchClick}"
++          ?hidden="${this.shouldHideDropdown()}"
++          .lastQueriedInput="${this.lastQueriedInput}">
++      </cr-composebox-dropdown>
++    </div>
++  </div>
++  ${this.shouldShowSuggestionActivityLink() ? html`
++    <div id="suggestionActivity">
++      <localized-link
+           .localizedString="${this.i18nAdvanced('suggestionActivityLink')}"
+           @link-clicked="${this.onLinkClicked}">
+-        </localized-link>
+-      </div>
+-      ` : ''}
++      </localized-link>
+     </div>
+-  ${this.shouldShowVoiceSearch() ? html`
+-    <cr-composebox-voice-search id="voiceSearch"
+-        @voice-permission-changed="${this.onVoicePermissionChanged}"
+-        @voice-search-cancel="${this.onVoiceSearchCancel}"
+-        @voice-search-final-result="${this.onVoiceSearchFinalResult}"
+-        @voice-search-error="${this.onVoiceSearchError}"
+-        @transcript-update="${this.onTranscriptUpdate}"
+-        @speech-received="${this.onSpeechReceived}"
+-        @recording-stopped="${this.onRecordingStopped}"
+-        .submitStopButtonsEnabled="${this.voiceSearchCoherenceEnabled}"
+-        .liveTranscriptEnabled="${!this.voiceSearchCoherenceEnabled}"
+-        .submitButtonIconType="${this.submitButtonIconType}"
+-        .dynamicTimeoutEnabled="${false}"
+-        .pageCallbackRouter="${this.getSearchboxCallbackRouter()}"
+-        exportparts="voice-close-button, voice-details-link, voice-stop-button, voice-submit-button">
+-    </cr-composebox-voice-search>
+   ` : ''}
+-  <!--_html_template_end_-->`;
+-  // clang-format on
++</div>
++${this.shouldShowVoiceSearch() ? html`
++  <cr-composebox-voice-search id="voiceSearch"
++      @voice-permission-changed="${this.onVoicePermissionChanged}"
++      @voice-search-cancel="${this.onVoiceSearchCancel}"
++      @voice-search-final-result="${this.onVoiceSearchFinalResult}"
++      @voice-search-error="${this.onVoiceSearchError}"
++      @transcript-update="${this.onTranscriptUpdate}"
++      @speech-received="${this.onSpeechReceived}"
++      @recording-stopped="${this.onRecordingStopped}"
++      .submitStopButtonsEnabled="${this.voiceSearchCoherenceEnabled}"
++      .liveTranscriptEnabled="${!this.voiceSearchCoherenceEnabled}"
++      .submitButtonIconType="${this.submitButtonIconType}"
++      .dynamicTimeoutEnabled="${false}"
++      .pageCallbackRouter="${this.getSearchboxCallbackRouter()}"
++      exportparts="voice-close-button, voice-details-link, voice-stop-button, voice-submit-button">
++  </cr-composebox-voice-search>
++` : ''}
++<!--_html_template_end_-->`;
+ }
+diff --git a/chrome/browser/resources/new_tab_page/ntp_composebox_context_menu.html.ts b/chrome/browser/resources/new_tab_page/ntp_composebox_context_menu.html.ts
+index 9ea8d2d..1c5635e 100644
+--- a/chrome/browser/resources/new_tab_page/ntp_composebox_context_menu.html.ts
++++ b/chrome/browser/resources/new_tab_page/ntp_composebox_context_menu.html.ts
+@@ -7,36 +7,32 @@
+ import type {NtpComposeboxElement} from './ntp_composebox.js';
+ 
+ export function getHtml(this: NtpComposeboxElement) {
+-  // clang-format off
+   return html`
+ <div class="context-menu-container" id="contextMenuContainer"
+-    part="context-menu-and-tools"
+-    @click="${this.onContextMenuContainerClick}">
+-  <cr-composebox-contextual-entrypoint-and-menu
+-      id="contextEntrypoint"
++    part="context-menu-and-tools" @click="${this.onContextMenuContainerClick}">
++  <cr-composebox-contextual-entrypoint-and-menu id="contextEntrypoint"
+       part="composebox-entrypoint"
+       exportparts="context-menu-entrypoint-icon, entrypoint-button"
+-      class="upload-button no-overlap"
+-      disable-auto-reposition
++      class="upload-button no-overlap" disable-auto-reposition
+       @add-tab-context="${this.onAddTabContext}"
+       @delete-tab-context="${this.onDeleteTabContext}"
+-      @tool-click="${this.onToolClick}"
+-      @model-click="${this.onModelClick}"
++      @tool-click="${this.onToolClick}" @model-click="${this.onModelClick}"
+       @get-tab-preview="${this.onGetTabPreview}"
+       @context-menu-closed="${this.onContextMenuClosed}"
+       @context-menu-opened="${this.onContextMenuOpened}"
+       @open-image-upload="${this.onOpenImageUpload}"
+       @open-file-upload="${this.onOpenFileUpload}"
+       @open-drive-upload="${this.onOpenDriveUpload}"
+-      @smart-tab-sharing-active-changed="${this.onSmartTabSharingActiveChanged}"
++      @smart-tab-sharing-active-changed="${
++          this.onSmartTabSharingActiveChanged}"
+       @share-tabs-flyout-open-changed="${this.onShareTabsFlyoutOpenChanged}"
+       @request-tab-suggestions-load="${this.onRequestTabSuggestionsLoad}"
+       .shareTabsFlyoutOpen="${this.shareTabsFlyoutOpen}"
+-      .inputState="${this.inputState}"
+-      .usePecApi="${this.usePecApi}"
++      .inputState="${this.inputState}" .usePecApi="${this.usePecApi}"
+       .recentTabId="${this.recentTabId}"
+       .smartTabSharingActive="${this.smartTabSharingActive}"
+-      .contextManagementInComposeboxEnabled="${this.contextManagementInComposeboxEnabled}"
++      .contextManagementInComposeboxEnabled="${
++          this.contextManagementInComposeboxEnabled}"
+       .composeboxContextMenuTooltipsEnabled="${
+           this.composeboxContextMenuTooltipsEnabled}"
+       .smartTabSharingVisible="${this.smartTabSharingVisible}"
+@@ -53,7 +49,5 @@
+       .disableFallbackGlifAnimation="${true}"
+       ?show-context-menu-description="${this.showContextMenuDescription}">
+   </cr-composebox-contextual-entrypoint-and-menu>
+-</div>
+-  `;
+-  // clang-format on
++</div>`;
+ }
+diff --git a/chrome/browser/resources/new_tab_page/ntp_promo/individual_promos.html.ts b/chrome/browser/resources/new_tab_page/ntp_promo/individual_promos.html.ts
+index 5e0cb29..7832dd4 100644
+--- a/chrome/browser/resources/new_tab_page/ntp_promo/individual_promos.html.ts
++++ b/chrome/browser/resources/new_tab_page/ntp_promo/individual_promos.html.ts
+@@ -7,7 +7,6 @@
+ import type {IndividualPromosElement} from './individual_promos.js';
+ 
+ export function getHtml(this: IndividualPromosElement) {
+-  // clang-format off
+   return html`<!--_html_template_start_-->
+ <div id="promos">
+   ${this.promo_ ? html`
+@@ -20,16 +19,15 @@
+       <cr-icon id="actionIcon" icon="cr:chevron-right"></cr-icon>
+       <cr-icon-button id="menuButton" iron-icon="cr:more-vert"
+           @click="${this.onMenuButtonClick_}"
+-          aria-label="$i18n{ntpPromoMenuA11yLabel}"
+-          title="$i18n{ntpPromoMenu}">
++          aria-label="$i18n{ntpPromoMenuA11yLabel}" title="$i18n{ntpPromoMenu}">
+       </cr-icon-button>
+     </button>
+     <cr-action-menu id="actionMenu">
+       <button class="dropdown-item" @click="${this.onPromoDismissed_}">
+         $i18n{ntpPromoDismiss}
+       </button>
+-    </cr-action-menu>` : ''}
++    </cr-action-menu>
++  ` : ''}
+ </div>
+ <!--_html_template_end_-->`;
+-  // clang-format on
+ }
+diff --git a/chrome/browser/resources/new_tab_page/ntp_searchbox.html.ts b/chrome/browser/resources/new_tab_page/ntp_searchbox.html.ts
+index 966a387..f4ed7981 100644
+--- a/chrome/browser/resources/new_tab_page/ntp_searchbox.html.ts
++++ b/chrome/browser/resources/new_tab_page/ntp_searchbox.html.ts
+@@ -10,7 +10,6 @@
+ import {getHtml as getContextualEntrypointHtml} from './ntp_searchbox_contextual_entrypoint.html.js';
+ 
+ export function getHtml(this: NtpSearchboxElement) {
+-  // clang-format off
+   return html`<!--_html_template_start_-->
+ <div id="inputWrapper" @focusout="${this.onInputWrapperFocusout}"
+     @keydown="${this.onInputWrapperKeydown}"
+@@ -18,18 +17,14 @@
+     @dragover="${this.dragAndDropHandler?.handleDragOver || nothing}"
+     @dragleave="${this.dragAndDropHandler?.handleDragLeave || nothing}"
+     @drop="${this.dragAndDropHandler?.handleDrop || nothing}">
+-  ${this.ntpRealboxNextEnabled ?
+-    html`
+-      <search-animated-glow
+-        animation-state="${this.animationState}"
+-        .isListening="${this.isListening}"
+-        .darkThemeColorsEnabled="${false}"
++  ${this.ntpRealboxNextEnabled ? html`
++    <search-animated-glow animation-state="${this.animationState}"
++        .isListening="${this.isListening}" .darkThemeColorsEnabled="${false}"
+         .energyEffectAnimationEnabled="${this.energyEffectAnimationEnabled}"
+         part="animated-glow">
+-      </search-animated-glow>
+-    ` : ''}
+-  <cr-searchbox-input id="input"
+-      exportparts="searchbox-input"
++    </search-animated-glow>
++  ` : ''}
++  <cr-searchbox-input id="input" exportparts="searchbox-input"
+       ?dropdown-is-visible="${this.dropdownIsVisible}"
+       ?multi-line-enabled="${this.multiLineEnabled}"
+       placeholder-text="${this.computePlaceholderText_(this.placeholderText)}"
+@@ -45,15 +40,17 @@
+       @searchbox-input-text-updated="${this.onSearchboxInputTextUpdated_}"
+       @input-focus-changed="${this.onInputFocusChanged}">
+     ${this.ntpRealboxNextEnabled ? html`
+-      <div class="contextualEntrypointContainer contextualEntrypointContainerCompact" slot="contextual-entrypoint">
++      <div
++          class="contextualEntrypointContainer contextualEntrypointContainerCompact"
++          slot="contextual-entrypoint">
+         ${getContextualEntrypointHtml.bind(this)()}
+       </div>
+     ` : ''}
+     ${this.shouldShowVoiceLens_(this.searchboxVoiceSearchEnabled_) ? html`
+       <div slot="action-buttons" class="searchbox-icon-button-container voice">
+         <button id="voiceSearchButton" class="searchbox-icon-button"
+-            tabindex="${this.virtualFocusEnabled &&
+-                this.dropdownIsVisible ? -1 : 0}"
++            tabindex="${
++                this.virtualFocusEnabled && this.dropdownIsVisible ? -1 : 0}"
+             @click="${this.onVoiceSearchClick}"
+             title="${this.i18n('voiceSearchButtonLabel')}">
+         </button>
+@@ -62,8 +59,8 @@
+     ${this.shouldShowVoiceLens_(this.searchboxLensSearchEnabled_) ? html`
+       <div slot="action-buttons" class="searchbox-icon-button-container lens">
+         <button id="lensSearchButton" class="searchbox-icon-button lens"
+-            tabindex="${this.virtualFocusEnabled &&
+-                this.dropdownIsVisible ? -1 : 0}"
++            tabindex="${
++                this.virtualFocusEnabled && this.dropdownIsVisible ? -1 : 0}"
+             @click="${this.onLensSearchClick_}"
+             title="${this.i18n('lensSearchButtonLabel')}">
+         </button>
+@@ -84,8 +81,7 @@
+   </cr-searchbox-input>
+   <div class="dropdownContainer">
+     <cr-searchbox-dropdown id="matches" part="searchbox-dropdown"
+-        exportparts="dropdown-content"
+-        role="listbox" .result="${this.result}"
++        exportparts="dropdown-content" role="listbox" .result="${this.result}"
+         .selection="${this.selection}"
+         @selection-changed="${this.onSelectionChanged}"
+         selected-match-index="${this.selectedMatchIndex}"
+@@ -99,5 +95,4 @@
+   </div>
+ </div>
+ <!--_html_template_end_-->`;
+-  // clang-format on
+ }
+diff --git a/chrome/browser/resources/new_tab_page/ntp_searchbox_contextual_entrypoint.html.ts b/chrome/browser/resources/new_tab_page/ntp_searchbox_contextual_entrypoint.html.ts
+index e44aa3c0..6b88815 100644
+--- a/chrome/browser/resources/new_tab_page/ntp_searchbox_contextual_entrypoint.html.ts
++++ b/chrome/browser/resources/new_tab_page/ntp_searchbox_contextual_entrypoint.html.ts
+@@ -7,15 +7,12 @@
+ import type {NtpSearchboxElement} from './ntp_searchbox.js';
+ 
+ export function getHtml(this: NtpSearchboxElement) {
+-  // clang-format off
+   return html`
+ <cr-composebox-file-inputs @file-change="${this.onFileChange_}">
+   <div class="context-menu-container" id="contextMenuContainer">
+     <cr-composebox-contextual-entrypoint-and-menu id="context"
+-        exportparts="context-menu-entrypoint-icon"
+-        class="upload-button"
+-        disable-auto-reposition
+-        @add-tab-context="${this.onAddTabContext_}"
++        exportparts="context-menu-entrypoint-icon" class="upload-button"
++        disable-auto-reposition @add-tab-context="${this.onAddTabContext_}"
+         @tool-click="${this.onToolClick_}"
+         @deep-search-click="${this.onDeepSearchClick_}"
+         @create-image-click="${this.onCreateImageClick_}"
+@@ -32,7 +29,8 @@
+         .tabSuggestions="${this.tabSuggestions_}"
+         .tabSuggestionsState="${this.tabSuggestionsState_}"
+         .recentTabId="${this.recentTabId_}"
+-        .contextManagementInComposeboxEnabled="${this.contextManagementInComposeboxEnabled}"
++        .contextManagementInComposeboxEnabled="${
++            this.contextManagementInComposeboxEnabled}"
+         .composeboxContextMenuTooltipsEnabled="${
+             this.composeboxContextMenuTooltipsEnabled}"
+         ?show-context-menu-description="${!this.useCompactLayout_()}"
+@@ -41,12 +39,10 @@
+         .smartTabSharingVisible="${this.smartTabSharingVisible}"
+         .smartTabSharingActive="${this.smartTabSharingActive}"
+         .shareTabsFlyoutOpen="${this.shareTabsFlyoutOpen}"
+-        @smart-tab-sharing-active-changed="${this.onSmartTabSharingActiveChanged_}"
+-        @share-tabs-flyout-open-changed="${this.onShareTabsFlyoutOpenChanged_}"
+-      >
++        @smart-tab-sharing-active-changed="${
++            this.onSmartTabSharingActiveChanged_}"
++        @share-tabs-flyout-open-changed="${this.onShareTabsFlyoutOpenChanged_}">
+     </cr-composebox-contextual-entrypoint-and-menu>
+   </div>
+-</cr-composebox-file-inputs>
+-`;
+-  // clang-format on
++</cr-composebox-file-inputs>`;
+ }
+diff --git a/chrome/browser/resources/new_tab_shared/.style.lit_template_formatter b/chrome/browser/resources/new_tab_shared/.style.lit_template_formatter
+new file mode 100644
+index 0000000..e69de29
+--- /dev/null
++++ b/chrome/browser/resources/new_tab_shared/.style.lit_template_formatter
+diff --git a/chrome/browser/resources/new_tab_shared/customize_buttons/customize_buttons.html.ts b/chrome/browser/resources/new_tab_shared/customize_buttons/customize_buttons.html.ts
+index 6e19d1a..dba367a 100644
+--- a/chrome/browser/resources/new_tab_shared/customize_buttons/customize_buttons.html.ts
++++ b/chrome/browser/resources/new_tab_shared/customize_buttons/customize_buttons.html.ts
+@@ -7,16 +7,16 @@
+ import type {CustomizeButtonsElement} from './customize_buttons.js';
+ 
+ export function getHtml(this: CustomizeButtonsElement) {
+-  // clang-format off
+   return html`<!--_html_template_start_-->
+ <div id="customizeButtons">
+   ${this.showWallpaperSearchButton ? html`
+-    <cr-button id="wallpaperSearchButton"
+-        class="customize-button" @click="${this.onWallpaperSearchClick_}"
++    <cr-button id="wallpaperSearchButton" class="customize-button"
++        @click="${this.onWallpaperSearchClick_}"
+         title="$i18n{customizeThisPageWallpaperSearch}"
+         aria-pressed="${this.showWallpaperSearch}">
+       <cr-icon id="wallpaperSearchIcon" class="customize-icon"
+-          slot="prefix-icon" icon="ntp:sparkle-custom"></cr-icon>
++          slot="prefix-icon" icon="ntp:sparkle-custom">
++      </cr-icon>
+       <div id="wallpaperSearchText" class="customize-text"
+           ?hidden="${this.showWallpaperSearch}">
+         $i18n{wallpaperSearchButton}
+@@ -35,5 +35,4 @@
+   </cr-button>
+ </div>
+ <!--_html_template_end_-->`;
+-  // clang-format on
+ }
+diff --git a/components/contextual_tasks/public/features.cc b/components/contextual_tasks/public/features.cc
+index c0190ce..350e3a0 100644
+--- a/components/contextual_tasks/public/features.cc
++++ b/components/contextual_tasks/public/features.cc
+@@ -15,6 +15,7 @@
+ #include "base/rand_util.h"
+ #include "base/strings/string_split.h"
+ #include "base/strings/string_util.h"
++#include "build/build_config.h"
+ #include "build/buildflag.h"
+ #include "ui/base/device_form_factor.h"
+ 
+@@ -359,10 +360,6 @@
+ BASE_FEATURE(kContextualTasksWebpageApcComparison,
+              base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+-// Enables overriding side panel to show Bottom Sheet on demand.
+-BASE_FEATURE(kContextualTasksOverrideShowBottomSheetOnLargeScreen,
+-             base::FEATURE_DISABLED_BY_DEFAULT);
+-
+ // Enables prefetching of cookies for contextual tasks.
+ BASE_FEATURE(kContextualTasksCookiePrefetch, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+@@ -1275,6 +1272,13 @@
+ }
+ 
+ bool IsContextualTasksUIEnabled() {
++#if BUILDFLAG(IS_ANDROID)
++  // On Android, Contextual Tasks is only supported on the desktop form factor.
++  // Phones and tablets are not supported.
++  if (ui::GetDeviceFormFactor() != ui::DEVICE_FORM_FACTOR_DESKTOP) {
++    return false;
++  }
++#endif
+   return base::FeatureList::IsEnabled(kContextualTasksSidePanel) ||
+          base::FeatureList::IsEnabled(kContextualTasks) ||
+          base::FeatureList::IsEnabled(kContextualTasksRearchitecture) ||
+@@ -1337,12 +1341,6 @@
+ const char kContextualTasksCloseTabExpandsSidePanelDescription[] =
+     "Enables expanding the contextual tasks side panel on close tab actions.";
+ 
+-const char kContextualTasksOverrideShowBottomSheetOnLargeScreenName[] =
+-    "Override Show Bottom Sheet On Large Screen for Contextual Tasks";
+-const char kContextualTasksOverrideShowBottomSheetOnLargeScreenDescription[] =
+-    "Enables overriding side panel to show Bottom Sheet on large screens for "
+-    "contextual tasks.";
+-
+ const char kContextualTasksCookiePrefetchName[] =
+     "Contextual Tasks Cookie Prefetch";
+ const char kContextualTasksCookiePrefetchDescription[] =
+diff --git a/components/contextual_tasks/public/features.h b/components/contextual_tasks/public/features.h
+index b7b3beb2..6802134 100644
+--- a/components/contextual_tasks/public/features.h
++++ b/components/contextual_tasks/public/features.h
+@@ -127,9 +127,6 @@
+ // Enables the use of APC comparison for webpages in the recontextualization
+ BASE_DECLARE_FEATURE(kContextualTasksWebpageApcComparison);
+ 
+-// Enables overriding side panel to show Bottom Sheet on demand.
+-BASE_DECLARE_FEATURE(kContextualTasksOverrideShowBottomSheetOnLargeScreen);
+-
+ // When enabled, AIM must send the browser a message to initiate the cobrowse
+ // experience for link clicks.
+ BASE_DECLARE_FEATURE(kAimTriggeredThreadLinks);
+@@ -274,7 +271,8 @@
+ // Returns true if full Contextual Tasks (`kContextualTasks`),
+ // infrastructure-only mode (`kContextualTasksSidePanel`), or the Contextual
+ // Tasks rearchitecture (`kContextualTasksRearchitecture` /
+-// `kContextualTasksSidePanelRearchitecture`) is enabled.
++// `kContextualTasksSidePanelRearchitecture`) is enabled. On Android, always
++// returns false unless the device is a desktop form factor.
+ bool IsContextualTasksUIEnabled();
+ 
+ bool IsStickyConversationEnabled();
+@@ -758,9 +756,6 @@
+ extern const char kContextualTasksBackButtonExpandsSidePanelDescription[];
+ extern const char kContextualTasksCloseTabExpandsSidePanelName[];
+ extern const char kContextualTasksCloseTabExpandsSidePanelDescription[];
+-extern const char kContextualTasksOverrideShowBottomSheetOnLargeScreenName[];
+-extern const char
+-    kContextualTasksOverrideShowBottomSheetOnLargeScreenDescription[];
+ extern const char kContextualTasksCookiePrefetchName[];
+ extern const char kContextualTasksCookiePrefetchDescription[];
+ extern const char kEnableContextualTasksPinButtonInToolbarName[];
+diff --git a/third_party/blink/renderer/core/loader/resource/script_resource.cc b/third_party/blink/renderer/core/loader/resource/script_resource.cc
+index e667756..18a8d2f 100644
+--- a/third_party/blink/renderer/core/loader/resource/script_resource.cc
++++ b/third_party/blink/renderer/core/loader/resource/script_resource.cc
+@@ -356,6 +356,7 @@
+   source_text_ = ParkableString();
+   // Make sure there's no streaming.
+   DCHECK(!streamer_);
++  DCHECK(!background_streamer_);
+   DCHECK_EQ(streaming_state_, StreamingState::kStreamingDisabled);
+   SetDecodedSize(0);
+   DCHECK(!cache_consumer_);
+@@ -370,6 +371,7 @@
+     CHECK(streamer_->IsFinished());
+     streamer_ = nullptr;
+   }
++  background_streamer_ = nullptr;
+   // Revalidation requests don't actually load the current Resource, so disable
+   // streaming.
+   DisableStreaming(ScriptStreamer::NotStreamingReason::kRevalidate);
