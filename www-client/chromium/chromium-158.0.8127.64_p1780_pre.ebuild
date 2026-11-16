@@ -43,8 +43,8 @@ RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit build (rustc driver, ti
 CRUBIT_DATE="20261015"
 PPC64_HASH="7aae8a84e327fc2078ce1625c9c70bfda77d626f"
 COPIUM_COMMIT="84aa29c73d11981f56eb9a9fbbf35ec993f9d7ff"
-# 158.0.8127.63 is a tag without a tarball: built from the 158.0.8127.37 tarball plus
-# files/chromium-158.0.8127.37-to-158.0.8127.63.patch (see its header).
+# 158.0.8127.64 is a tag without a tarball: built from the 158.0.8127.37 tarball plus
+# files/chromium-158.0.8127.37-to-158.0.8127.64.patch (see its header).
 CHROMIUM_TARBALL_PV="158.0.8127.37"
 # Inputs of ANGLE's code generators that the tarball lacks (files/chromium-angle-regen.py):
 # Khronos' registries at ANGLE's (and, for Vulkan, Chromium's) DEPS revisions; perfect-hash,
@@ -175,12 +175,14 @@ LICENSE+=" rar? ( unRAR )"
 SLOT="stable"
 KEYWORDS="~amd64 ~arm64"
 
-# The 158 branch's changes after the 158.0.8127.63 tag (see its header), and the ICU
-# DecNum/MaybeStackArray fix (crbug 573288374) 158's ICU hasn't got yet (159's has it;
-# see its header).
+# The 158 branch after the 158.0.8127.64 tag, up to 8127@{#1780}, only increments
+# chrome/VERSION (left out, as in every branch-fixes patch), so there's no branch-fixes
+# patch. Fixes 158 hasn't got yet (each patch's header says where it comes from): ICU's
+# DecNum/MaybeStackArray allocation failures (crbug 573288374; 159's ICU has it) and
+# Blink's script revalidation with a background streamer (crbug 574605993; merged to 159).
 CHROMIUM_FIXES=(
-	chromium-158.0.8127.63-branch-fixes.patch
 	chromium-158-icu-decnum-alloc-failure.patch
+	chromium-158-blink-script-revalidation-streamer.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
