@@ -1,14 +1,15 @@
 Chromium 159.0.8154.11 + the later changes of its release branch, up to
-1b381ca6cab90ef1216ac9645c542a0824ac51e5 (refs/branch-heads/8154@{#557}), for the
+a4bd890031a10cefe84d3d3eba47e05503567a23 (refs/branch-heads/8154@{#585}), for the
 159.0.8154.11 tree that chromium-159.0.8154.6-to-159.0.8154.11.patch makes.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.11..1b381ca6cab90ef1216ac9645c542a0824ac51e5
-and V8 f96ec3d87612..c2d7af04d502 (15.9.128.5 -> 15.9.128.6, rolled by
-"Roll commits from side projects in M159", #556), as served by Gitiles, with
-scripts/chromium-delta --branch-fixes (against the .11 tree's files): left out
-are files not in the release tarball, iOS/Android/ChromeOS/Mac/Windows-only
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.11..a4bd890031a10cefe84d3d3eba47e05503567a23,
+V8 f96ec3d87612..3ebed6ee1bb6 (15.9.128.5 -> 15.9.128.7, rolled by
+"Roll commits from side projects in M159", #556 and #577) and LevelDB
+bb74ef739973..29465588d3df (rolled by e7ccd2eea5a7, #574), as served by Gitiles,
+with scripts/chromium-delta --branch-fixes (against the .11 tree's files): left
+out are files not in the release tarball, iOS/Android/ChromeOS/Mac/Windows-only
 files, tests and docs, translations other than en-GB, PGO/orderfile pointers,
-the submodule pointer. chrome/VERSION, the DEPS files and the stamp files stay
+the submodule pointers. chrome/VERSION, the DEPS files and the stamp files stay
 at 159.0.8154.11.
 
 Commits contributing to it (oldest first):
@@ -22,11 +23,26 @@ Commits contributing to it (oldest first):
   aecbf448c6d6 [M159] Revert thread access CHECK in browser_shutdown back to DCHECK
   ef1b324eb56a [M159] Revert CHECK to DCHECK in ScreenCaptureNotificationBlocker::OnAction
   c75affb7884e [M159] Prerender: Delete pending deletion subframe RFHs before activation
+  b28e81adbd87 Roll commits from side projects in M159
+  f265d753bf24 [M159] [Android][Autofill] Unify CredMan state management in OnTriggerPasskeyRequest
+  4bb12d3c00d4 [M159] [OTP] Renew OTP source subscriptions when suggestions are requested
+  7d065da4a2a3 [M159] [OTP] Resolve pending callback on Gmail failure if no SMS is in flight
+  ae88bfd38c4b [M159] [OTP] Declare Autofill.FormEvents.OneTimePassword histogram
+  a137258e3742 [M159] [OTP] Add Gmail variants of the OTP key metrics
+  7a7a24beda57 [M159] [OTP] Add Gmail variants of the OTP funnel metrics
+  714dc30764fb [M159] [MagiChrome] Record Signin.HybridPasskey.Outcome in all arms
+  eb5d0548b4d8 [M159] [SigninPrefs] Record primary account last sign-in time
+  e7ccd2eea5a7 [M159] Roll src/third_party/leveldatabase/src/ bb74ef739..29465588d (1 commit)
+  6dc6244411a1 Roll commits from side projects in M159
+  3026ea3512cd [OTP] Add proactive trigger outcome and suppression histograms
+  b86d9f5a589a [M159] Downgrade UI thread check to DCHECK in BrowserContext::GetDownloadManager
+  e05e325ce44d [M159] Prevent CacheStorageSideDataWriter leak to sandboxed workers
+  5a3a702aa51d [M159] Handle use-shadow-tree update emptying the SMIL priority queue
 
 Checked: applies to the 159.0.8154.11 tree; every patched file is
-byte-identical to its version at the commit above (V8's at c2d7af04d502); it
-adds 4 files (.style.lit_template_formatter, Lit template formatter
-configurations).
+byte-identical to its version at the commit above (V8's at 3ebed6ee1bb6,
+LevelDB's at 29465588d3df); it adds 4 files (.style.lit_template_formatter, Lit
+template formatter configurations).
 
 diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
 index b2c7a924..0d0dfe6 100644
@@ -1387,6 +1403,1075 @@ index 6e19d1a..dba367a 100644
  <!--_html_template_end_-->`;
 -  // clang-format on
  }
+diff --git a/chrome/browser/webauthn/chrome_authenticator_request_delegate.cc b/chrome/browser/webauthn/chrome_authenticator_request_delegate.cc
+index 8b89d56e..0c2fe51 100644
+--- a/chrome/browser/webauthn/chrome_authenticator_request_delegate.cc
++++ b/chrome/browser/webauthn/chrome_authenticator_request_delegate.cc
+@@ -759,11 +759,12 @@
+   dialog_controller_->set_cable_transport_info(qr_string);
+ 
+ #if BUILDFLAG(ENABLE_DICE_SUPPORT)
+-  if (IsChromeSigninPage(GetRenderFrameHost()) &&
+-      switches::IsMagiChromePasskeyAutofillEnabled()) {
++  if (IsChromeSigninPage(GetRenderFrameHost())) {
+     is_chrome_signin_request_ = true;
+ #if BUILDFLAG(IS_WIN)
+-    discovery_factory->set_force_hybrid_discovery(true);
++    if (switches::IsMagiChromePasskeyAutofillEnabled()) {
++      discovery_factory->set_force_hybrid_discovery(true);
++    }
+ #endif  // BUILDFLAG(IS_WIN)
+   }
+ #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
+diff --git a/components/android_autofill/browser/android_autofill_provider.cc b/components/android_autofill/browser/android_autofill_provider.cc
+index 3800b7ce..88b2c1f 100644
+--- a/components/android_autofill/browser/android_autofill_provider.cc
++++ b/components/android_autofill/browser/android_autofill_provider.cc
+@@ -84,6 +84,9 @@
+ }
+ 
+ WebAuthnCredManDelegate* GetCredManDelegate(content::RenderFrameHost* rfh) {
++  if (!rfh) {
++    return nullptr;
++  }
+   return WebAuthnCredManDelegateFactory::GetFactory(
+              content::WebContents::FromRenderFrameHost(rfh))
+       ->GetRequestDelegate(rfh);
+@@ -463,26 +466,26 @@
+     return false;
+   }
+ 
+-  content::RenderFrameHost* rfh =
+-      GetRenderFrameHost(session_state_->manager.get(), field->host_frame());
+-  return rfh && GetCredManDelegate(rfh);
++  return GetCredManDelegate(
++      GetRenderFrameHost(session_state_->manager.get(), field->host_frame()));
+ }
+ 
+ void AndroidAutofillProvider::OnTriggerPasskeyRequest() {
++  if (credman_sheet_status_ == CredManBottomSheetLifecycle::kIsShowing) {
++    return;
++  }
+   if (!session_state_ || !session_state_->manager || !session_state_->form) {
+     return;
+   }
+   const FormFieldData* field = session_state_->form->form().FindFieldByGlobalId(
+       session_state_->current_field.id);
+-  if (!field) {
++  if (!field || !AllowCredManOnField(*field)) {
+     return;
+   }
+-  if (content::RenderFrameHost* rfh = GetRenderFrameHost(
+-          session_state_->manager.get(), field->host_frame())) {
+-    if (WebAuthnCredManDelegate* delegate = GetCredManDelegate(rfh)) {
+-      delegate->TriggerCredManUi(RequestPasswords(false));
+-    }
+-  }
++  ShowCredManSheet(
++      GetRenderFrameHost(session_state_->manager.get(), field->host_frame()),
++      session_state_->form->form().global_id(),
++      /*field_to_focus=*/std::nullopt);
+ }
+ 
+ void AndroidAutofillProvider::OnTextFieldValueChanged(
+@@ -801,8 +804,12 @@
+     content::RenderFrameHost* rfh,
+     FormGlobalId form_id,
+     std::optional<FieldInfo> field_to_focus) {
+-  CHECK_EQ(credman_sheet_status_, CredManBottomSheetLifecycle::kNotShown);
+-  if (WebAuthnCredManDelegate* delegate = GetCredManDelegate(rfh)) {
++  // Unlike focus (which only auto-shows when `kNotShown`), long-press
++  // (`OnTriggerPasskeyRequest`) can re-open a `kClosed` sheet.
++  CHECK_NE(credman_sheet_status_, CredManBottomSheetLifecycle::kIsShowing);
++  if (WebAuthnCredManDelegate* delegate = GetCredManDelegate(rfh);
++      delegate &&
++      delegate->HasPasskeys() != WebAuthnCredManDelegate::State::kNotReady) {
+     credman_sheet_status_ = CredManBottomSheetLifecycle::kIsShowing;
+     credman_sheet_rfh_id_ = rfh->GetGlobalId();
+     delegate->SetRequestCompletionCallback(base::BindRepeating(
+diff --git a/components/android_autofill/browser/android_autofill_provider.h b/components/android_autofill/browser/android_autofill_provider.h
+index 9273c40..1114525 100644
+--- a/components/android_autofill/browser/android_autofill_provider.h
++++ b/components/android_autofill/browser/android_autofill_provider.h
+@@ -284,10 +284,11 @@
+   bool ShouldShowCredManForField(const FormFieldData& field,
+                                  content::RenderFrameHost* rfh);
+ 
+-  // Triggers a prefetched passkey request which opens a bottom sheet. The given
+-  // `field_to_focus` is used to continue any interrupted focus event once
+-  // CredMan closes. Returns true if the sheet was opened and false if that
+-  // wasn't possible.
++  // Triggers a prefetched passkey request which opens a bottom sheet. If
++  // `field_to_focus` is given, it is used to continue an interrupted focus
++  // event once CredMan closes. Must not be called while `credman_sheet_status_`
++  // is `kIsShowing`. Returns true if the sheet was triggered and false if the
++  // delegate is unavailable or not ready.
+   bool ShowCredManSheet(
+       content::RenderFrameHost* rfh,
+       FormGlobalId form_id,
+@@ -296,7 +297,7 @@
+   enum class CredManBottomSheetLifecycle {
+     kNotShown,   // The sheet hasn't been shown. Does not indicate it will be.
+     kIsShowing,  // The sheet was triggered. Does not guarantee it's visible.
+-    kClosed,     // The sheet was dismissed and shouldn't be shown again.
++    kClosed,     // The sheet was dismissed and shouldn't be auto-shown again.
+   };
+ 
+   // Groups all state that is specific to the current autofill session.
+diff --git a/components/autofill/core/browser/integrators/one_time_tokens/gmail_otp_source.cc b/components/autofill/core/browser/integrators/one_time_tokens/gmail_otp_source.cc
+index d2c346e..580d42e 100644
+--- a/components/autofill/core/browser/integrators/one_time_tokens/gmail_otp_source.cc
++++ b/components/autofill/core/browser/integrators/one_time_tokens/gmail_otp_source.cc
+@@ -95,8 +95,15 @@
+   if (!gmail_otp_service_ || target.origin.opaque()) {
+     return;
+   }
+-  continuous_subscriptions_per_origin_.try_emplace(target.origin);
+-  EnsureContinuousSubscriptionForOrigin(target.origin);
++  if (!UserOptedIntoGmailOtpFilling()) {
++    continuous_subscriptions_per_origin_.try_emplace(target.origin);
++    return;
++  }
++  if (HasActiveSubscriptionForOrigin(target.origin)) {
++    ProlongSubscriptionForOrigin(target.origin);
++    return;
++  }
++  CreateNewSubscriptionForOrigin(target.origin);
+   FetchFreshestCachedOtpForOrigin(target.origin);
+ }
+ 
+@@ -172,8 +179,7 @@
+   return HasActiveSubscriptionForOrigin(origin);
+ }
+ 
+-void GmailOtpSource::EnsureContinuousSubscriptionForOrigin(
+-    const url::Origin& origin) {
++void GmailOtpSource::ProlongSubscriptionForOrigin(const url::Origin& origin) {
+   CHECK(gmail_otp_service_);
+   one_time_tokens::ExpiringSubscription* subscription =
+       base::FindOrNull(continuous_subscriptions_per_origin_, origin);
+@@ -188,6 +194,13 @@
+   *subscription = SubscribeToService(origin, expiration);
+ }
+ 
++void GmailOtpSource::CreateNewSubscriptionForOrigin(const url::Origin& origin) {
++  CHECK(gmail_otp_service_);
++  CHECK(UserOptedIntoGmailOtpFilling());
++  continuous_subscriptions_per_origin_.insert_or_assign(
++      origin, SubscribeToService(origin, ComputeSubscriptionExpiration()));
++}
++
+ void GmailOtpSource::FetchFreshestCachedOtpForOrigin(
+     const url::Origin& origin) {
+   CHECK(gmail_otp_service_);
+@@ -208,7 +221,7 @@
+       origin, /*allow_psl_matching=*/true, expiration,
+       base::BindRepeating(&GmailOtpSource::OnIncomingTokenReceived,
+                           weak_ptr_factory_.GetWeakPtr(), origin),
+-      base::BindOnce(&GmailOtpSource::EnsureContinuousSubscriptionForOrigin,
++      base::BindOnce(&GmailOtpSource::ProlongSubscriptionForOrigin,
+                      weak_ptr_factory_.GetWeakPtr(), origin));
+ }
+ 
+@@ -221,7 +234,11 @@
+     return;
+   }
+   for (const auto& [origin, _] : continuous_subscriptions_per_origin_) {
+-    EnsureContinuousSubscriptionForOrigin(origin);
++    if (HasActiveSubscriptionForOrigin(origin)) {
++      ProlongSubscriptionForOrigin(origin);
++      continue;
++    }
++    CreateNewSubscriptionForOrigin(origin);
+     FetchFreshestCachedOtpForOrigin(origin);
+   }
+ }
+diff --git a/components/autofill/core/browser/integrators/one_time_tokens/gmail_otp_source.h b/components/autofill/core/browser/integrators/one_time_tokens/gmail_otp_source.h
+index 51c88ef..63a8f8ae 100644
+--- a/components/autofill/core/browser/integrators/one_time_tokens/gmail_otp_source.h
++++ b/components/autofill/core/browser/integrators/one_time_tokens/gmail_otp_source.h
+@@ -81,7 +81,8 @@
+                     const OtpTokenIdentity& rhs) const;
+   };
+ 
+-  void EnsureContinuousSubscriptionForOrigin(const url::Origin& origin);
++  void ProlongSubscriptionForOrigin(const url::Origin& origin);
++  void CreateNewSubscriptionForOrigin(const url::Origin& origin);
+   void FetchFreshestCachedOtpForOrigin(const url::Origin& origin);
+   one_time_tokens::ExpiringSubscription SubscribeToService(
+       const url::Origin& origin,
+diff --git a/components/autofill/core/browser/integrators/one_time_tokens/metrics/otp_form_event_logger.cc b/components/autofill/core/browser/integrators/one_time_tokens/metrics/otp_form_event_logger.cc
+index f9f0d122..aa88b124 100644
+--- a/components/autofill/core/browser/integrators/one_time_tokens/metrics/otp_form_event_logger.cc
++++ b/components/autofill/core/browser/integrators/one_time_tokens/metrics/otp_form_event_logger.cc
+@@ -5,23 +5,34 @@
+ #include "components/autofill/core/browser/integrators/one_time_tokens/metrics/otp_form_event_logger.h"
+ 
+ #include <optional>
++#include <string_view>
+ 
+ #include "base/check.h"
+ #include "base/containers/span.h"
++#include "base/feature_list.h"
++#include "base/metrics/histogram_functions.h"
+ #include "base/metrics/user_metrics.h"
+ #include "base/metrics/user_metrics_action.h"
++#include "base/strings/strcat.h"
+ #include "components/autofill/core/browser/autofill_field.h"
+ #include "components/autofill/core/browser/field_types.h"
+ #include "components/autofill/core/browser/form_types.h"
++#include "components/autofill/core/browser/foundations/autofill_client.h"
+ #include "components/autofill/core/browser/foundations/autofill_driver.h"
++#include "components/autofill/core/browser/foundations/browser_autofill_manager.h"
++#include "components/autofill/core/browser/integrators/one_time_tokens/otp_metrics_tracker.h"
+ #include "components/autofill/core/browser/metrics/autofill_metrics_util.h"
+ #include "components/autofill/core/browser/metrics/form_events/form_event_logger_base.h"
+ #include "components/autofill/core/browser/metrics/form_events/form_events.h"
+ #include "components/autofill/core/browser/metrics/form_interactions_ukm_logger.h"
+ #include "components/autofill/core/browser/suggestions/suggestion.h"
+ #include "components/autofill/core/browser/suggestions/suggestion_util.h"
++#include "components/autofill/core/common/autofill_features.h"
++#include "components/autofill/core/common/autofill_prefs.h"
+ #include "components/autofill/core/common/dense_set.h"
++#include "components/autofill/core/common/logging/log_buffer.h"
+ #include "components/autofill/core/common/signatures.h"
++#include "components/metrics/profile_metrics_service.h"
+ 
+ namespace autofill::autofill_metrics {
+ 
+@@ -42,6 +53,13 @@
+                                             off_the_record, suggestions);
+ }
+ 
++void OtpFormEventLogger::OnDestroyed() {
++  if (!identified_form_types_.empty()) {
++    is_eligible_for_gmail_otps_ = IsEligibleForGmailOtps();
++  }
++  FormEventLoggerBase::OnDestroyed();
++}
++
+ void OtpFormEventLogger::OnDidFillOtpSuggestion(const FormStructure& form,
+                                                 const AutofillField& field) {
+   Log(FORM_EVENT_LOCAL_SUGGESTION_FILLED, form);
+@@ -90,4 +108,96 @@
+   return GetOneTimePasswordTypesForLogging(form, ac_unrecognized_behavior);
+ }
+ 
++void OtpFormEventLogger::RecordInteractionAfterParsedAsType(
++    LogBuffer& logs) const {
++  FormEventLoggerBase::RecordInteractionAfterParsedAsType(logs);
++  RecordGmailHistogram("Autofill.Funnel.InteractionAfterParsedAsType.",
++                       has_logged_interacted_);
++}
++
++void OtpFormEventLogger::RecordSuggestionAfterInteraction(
++    LogBuffer& logs) const {
++  FormEventLoggerBase::RecordSuggestionAfterInteraction(logs);
++  RecordGmailHistogram("Autofill.Funnel.SuggestionAfterInteraction.",
++                       has_logged_suggestions_shown_);
++}
++
++void OtpFormEventLogger::RecordFillAfterSuggestion(LogBuffer& logs) const {
++  FormEventLoggerBase::RecordFillAfterSuggestion(logs);
++  RecordGmailHistogram("Autofill.Funnel.FillAfterSuggestion.",
++                       has_logged_form_filling_suggestion_filled_);
++}
++
++void OtpFormEventLogger::RecordSubmissionAfterFill(LogBuffer& logs) const {
++  FormEventLoggerBase::RecordSubmissionAfterFill(logs);
++  RecordGmailHistogram("Autofill.Funnel.SubmissionAfterFill.",
++                       has_logged_will_submit_);
++}
++
++void OtpFormEventLogger::RecordFormSubmission(LogBuffer& logs) const {
++  FormEventLoggerBase::RecordFormSubmission(logs);
++  RecordGmailHistogram(
++      has_logged_form_filling_suggestion_filled_
++          ? "Autofill.KeyMetrics.FormSubmission.Autofilled."
++          : "Autofill.KeyMetrics.FormSubmission.NotAutofilled.",
++      has_logged_will_submit_);
++}
++
++void OtpFormEventLogger::RecordFillingReadiness(LogBuffer& logs) const {
++  FormEventLoggerBase::RecordFillingReadiness(logs);
++  RecordGmailKeyMetric("FillingReadiness", HasLoggedDataToFillAvailable());
++}
++
++void OtpFormEventLogger::RecordFillingAcceptance(LogBuffer& logs) const {
++  FormEventLoggerBase::RecordFillingAcceptance(logs);
++  RecordGmailKeyMetric("FillingAcceptance",
++                       has_logged_form_filling_suggestion_filled_);
++}
++
++void OtpFormEventLogger::RecordFillingCorrectness(LogBuffer& logs) const {
++  FormEventLoggerBase::RecordFillingCorrectness(logs);
++  RecordGmailKeyMetric("FillingCorrectness",
++                       !has_logged_edited_autofilled_field_);
++}
++
++void OtpFormEventLogger::RecordFillingAssistance(LogBuffer& logs) const {
++  FormEventLoggerBase::RecordFillingAssistance(logs);
++  RecordGmailKeyMetric("FillingAssistance",
++                       has_logged_form_filling_suggestion_filled_);
++}
++
++bool OtpFormEventLogger::IsEligibleForGmailOtps() const {
++  const AutofillClient& client = owner_->client();
++  const PrefService* prefs = client.GetPrefs();
++  return base::FeatureList::IsEnabled(
++             features::kAutofillShowGmailOtpSuggestions) &&
++         prefs && prefs::IsAutofillGmailOtpFillingEnabled(prefs) &&
++         client.GetGmailOtpBackend() &&
++         OtpMetricsTracker::IsEligibleForGmailOtps(client.GetIdentityManager());
++}
++
++void OtpFormEventLogger::RecordGmailKeyMetric(std::string_view metric,
++                                              bool value) const {
++  if (!is_eligible_for_gmail_otps_) {
++    return;
++  }
++  metrics::ProfileMetricsService* profile_metrics_service =
++      owner_->client().GetProfileMetricsService();
++  CHECK(profile_metrics_service);
++  profile_metrics_service->UmaHistogramBoolean(
++      base::StrCat({"Autofill.KeyMetrics.", metric,
++                    ".OneTimePassword.GmailEligibleClients"}),
++      value);
++}
++
++void OtpFormEventLogger::RecordGmailHistogram(std::string_view histogram_prefix,
++                                              bool value) const {
++  if (!is_eligible_for_gmail_otps_) {
++    return;
++  }
++  base::UmaHistogramBoolean(
++      base::StrCat({histogram_prefix, "OneTimePassword.GmailEligibleClients"}),
++      value);
++}
++
+ }  // namespace autofill::autofill_metrics
+diff --git a/components/autofill/core/browser/integrators/one_time_tokens/metrics/otp_form_event_logger.h b/components/autofill/core/browser/integrators/one_time_tokens/metrics/otp_form_event_logger.h
+index 45fab55b..017ba0c 100644
+--- a/components/autofill/core/browser/integrators/one_time_tokens/metrics/otp_form_event_logger.h
++++ b/components/autofill/core/browser/integrators/one_time_tokens/metrics/otp_form_event_logger.h
+@@ -5,6 +5,8 @@
+ #ifndef COMPONENTS_AUTOFILL_CORE_BROWSER_INTEGRATORS_ONE_TIME_TOKENS_METRICS_OTP_FORM_EVENT_LOGGER_H_
+ #define COMPONENTS_AUTOFILL_CORE_BROWSER_INTEGRATORS_ONE_TIME_TOKENS_METRICS_OTP_FORM_EVENT_LOGGER_H_
+ 
++#include <string_view>
++
+ #include "base/containers/span.h"
+ #include "components/autofill/core/browser/autofill_field.h"
+ #include "components/autofill/core/browser/form_structure.h"
+@@ -29,6 +31,7 @@
+                             base::TimeTicks form_parsed_timestamp,
+                             bool off_the_record,
+                             base::span<const Suggestion> suggestions) override;
++  void OnDestroyed() override;
+ 
+   void LogUkmInteractedWithForm(FormSignature form_signature) override;
+ 
+@@ -55,10 +58,44 @@
+       const FormStructure& form,
+       AutocompleteUnrecognizedBehavior ac_unrecognized_behavior) const override;
+ 
++  // Also record the funnel and key metrics as
++  // `OneTimePassword.GmailEligibleClients` for users who are eligible for Gmail
++  // OTPs.
++  void RecordInteractionAfterParsedAsType(LogBuffer& logs) const override;
++  void RecordSuggestionAfterInteraction(LogBuffer& logs) const override;
++  void RecordFillAfterSuggestion(LogBuffer& logs) const override;
++  void RecordSubmissionAfterFill(LogBuffer& logs) const override;
++  void RecordFormSubmission(LogBuffer& logs) const override;
++  void RecordFillingReadiness(LogBuffer& logs) const override;
++  void RecordFillingAcceptance(LogBuffer& logs) const override;
++  void RecordFillingCorrectness(LogBuffer& logs) const override;
++  void RecordFillingAssistance(LogBuffer& logs) const override;
++
+  private:
++  // Returns whether the user is eligible for Gmail OTPs: Gmail OTP suggestions
++  // are enabled, the user opted into them, a Gmail OTP backend exists, and the
++  // user is signed in with a Gmail account. This does not guarantee that the
++  // user gets Gmail OTPs, e.g. their Gmail settings may still block them.
++  bool IsEligibleForGmailOtps() const;
++
++  // Records
++  // `Autofill.KeyMetrics.{metric}.OneTimePassword.GmailEligibleClients` if the
++  // user is eligible for Gmail OTPs.
++  void RecordGmailKeyMetric(std::string_view metric, bool value) const;
++
++  // Records `{histogram_prefix}OneTimePassword.GmailEligibleClients` if the
++  // user is eligible for Gmail OTPs. Unlike `RecordGmailKeyMetric()`, it is not
++  // recorded per profile, like the base class's funnel and form submission
++  // metrics.
++  void RecordGmailHistogram(std::string_view histogram_prefix,
++                            bool value) const;
++
+   // Tracks the number of OTPs that have been made available for filling during
+   // the lifetime of a form.
+   bool otp_for_filling_existed_ = false;
++
++  // Set in `OnDestroyed()`, right before the metrics are recorded.
++  bool is_eligible_for_gmail_otps_ = false;
+ };
+ 
+ }  // namespace autofill::autofill_metrics
+diff --git a/components/autofill/core/browser/integrators/one_time_tokens/otp_coordinator.cc b/components/autofill/core/browser/integrators/one_time_tokens/otp_coordinator.cc
+index b3ced149..48e16933 100644
+--- a/components/autofill/core/browser/integrators/one_time_tokens/otp_coordinator.cc
++++ b/components/autofill/core/browser/integrators/one_time_tokens/otp_coordinator.cc
+@@ -19,6 +19,7 @@
+ #include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "base/metrics/histogram_functions.h"
++#include "base/notreached.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "base/time/time.h"
+ #include "base/types/expected.h"
+@@ -47,6 +48,41 @@
+       one_time_tokens::switches::kMockOtpValue);
+ }
+ 
++std::optional<OtpProactiveTriggerSuppressionReason>
++MapSkipReasonToSuppressionReason(OtpDeliveryPolicy::SkipReason reason) {
++  switch (reason) {
++    // `kNone` only accompanies allowed decisions. `kOriginMismatch`,
++    // `kPhishingVerdict` and `kPhishGuardTimedOut` are verification-stage
++    // reasons that cannot occur at the proactive stage: only verified
++    // candidates are offered, and only to targets in the `SiteFrame` they were
++    // verified for.
++    case OtpDeliveryPolicy::SkipReason::kNone:
++    case OtpDeliveryPolicy::SkipReason::kOriginMismatch:
++    case OtpDeliveryPolicy::SkipReason::kPhishingVerdict:
++    case OtpDeliveryPolicy::SkipReason::kPhishGuardTimedOut:
++      return std::nullopt;
++    // Edge case: Gmail OTP filling was turned off after the candidate was
++    // verified, e.g. while its proactive trigger was deferred.
++    case OtpDeliveryPolicy::SkipReason::kUserNotOptedIn:
++      return OtpProactiveTriggerSuppressionReason::kUserNotOptedIn;
++    case OtpDeliveryPolicy::SkipReason::kNonOtpFieldFocused:
++      return OtpProactiveTriggerSuppressionReason::kNonOtpFieldFocused;
++    case OtpDeliveryPolicy::SkipReason::kTypedInputPresent:
++      return OtpProactiveTriggerSuppressionReason::kTypedInputPresent;
++    case OtpDeliveryPolicy::SkipReason::kProactiveUnfocusedOnAndroid:
++      return OtpProactiveTriggerSuppressionReason::kProactiveUnfocusedOnAndroid;
++    case OtpDeliveryPolicy::SkipReason::kKeyboardNotVisibleOnAndroid:
++      return OtpProactiveTriggerSuppressionReason::kKeyboardNotVisibleOnAndroid;
++    case OtpDeliveryPolicy::SkipReason::kTargetFieldMissing:
++      return OtpProactiveTriggerSuppressionReason::kTargetFieldMissing;
++    case OtpDeliveryPolicy::SkipReason::kFrameInactive:
++      return OtpProactiveTriggerSuppressionReason::kFrameInactive;
++    case OtpDeliveryPolicy::SkipReason::kWebOtpBlocked:
++      return OtpProactiveTriggerSuppressionReason::kWebOtpBlocked;
++  }
++  NOTREACHED();
++}
++
+ }  // namespace
+ 
+ // static
+@@ -165,8 +201,9 @@
+   });
+ }
+ 
+-std::vector<one_time_tokens::OneTimeToken> OtpCoordinator::GetAvailableTokens(
+-    const OtpTarget& target) const {
++std::vector<one_time_tokens::OneTimeToken>
++OtpCoordinator::RenewSubscriptionsAndRetrieveAvailableTokens(
++    const OtpTarget& target) {
+   if (!IsTargetActiveAndEligible(target)) {
+     return {};
+   }
+@@ -180,6 +217,14 @@
+         base::TimeTicks::Now())};
+   }
+ 
++  if (!deliveries_.contains(target.field) ||
++      phishing_blocked_site_frames_.contains(GetSiteFrame(target))) {
++    return {};
++  }
++  for (const auto& source : sources_) {
++    source->Start(target);
++  }
++
+   std::optional<OtpCandidate> candidate = GetAvailableCandidate(target.field);
+   if (!candidate.has_value() ||
+       IsCandidateSuppressedByUsedTokens(target, *candidate) ||
+@@ -213,6 +258,11 @@
+ void OtpCoordinator::OnFrameBecameInactive(LocalFrameToken frame) {
+   base::EraseIf(phishing_blocked_site_frames_,
+                 [&](const SiteFrame& sf) { return sf.second == frame; });
++  // Logged outcomes intentionally survive `DropDeliveries()` (e.g. form
++  // re-parses), but not the document hosting the field.
++  base::EraseIf(logged_proactive_outcomes_by_field_, [&](const auto& entry) {
++    return entry.first.frame_token == frame;
++  });
+   target_field_identifier_.OnFrameBecameInactive(frame);
+   DropDeliveries([&](const OtpDelivery& delivery) {
+     return delivery.target().frame == frame ||
+@@ -246,6 +296,14 @@
+   if (std::optional<OtpCandidate> candidate = GetAvailableCandidate(field);
+       delivery && candidate.has_value() &&
+       candidate->identity.value == shown_value) {
++    if (const OtpTokenIdentity* triggered =
++            FindAttributableProactiveTrigger(field);
++        triggered && triggered->value == shown_value) {
++      MaybeLogProactiveTriggerOutcome(field, *triggered,
++                                      /*suppression_reason=*/std::nullopt);
++    }
++    // Any OTP popup on `field` ends its pending proactive attempt.
++    proactively_triggered_by_field_.erase(field);
+     RecordFormSuggestionsShown(delivery->target().form, candidate->identity);
+   }
+ }
+@@ -310,7 +368,8 @@
+         it != used_tokens.end()) {
+       it->recorded_at = now;
+     } else {
+-      used_tokens.push_back(UsedToken{.identity = identity, .recorded_at = now});
++      used_tokens.push_back(
++          UsedToken{.identity = identity, .recorded_at = now});
+     }
+   }
+ }
+@@ -466,30 +525,30 @@
+ void OtpCoordinator::TryProactiveTrigger(const OtpTarget& target,
+                                          const OtpCandidate& candidate) {
+   const bool can_show_on_screen_now = is_tab_visible_ && is_window_focused_;
++  std::optional<OtpProactiveTriggerSuppressionReason> suppression_reason;
+   if (suggestion_dropdown_dispatcher_.TriggerProactive(
+           target, candidate, can_show_on_screen_now,
+-          [this, &candidate](const OtpTarget& t) {
+-            if (!security_gateway_
+-                     .EvaluateProactiveTrigger(
+-                         t, candidate,
+-                         OtpSecurityGateway::ProactiveTriggerContext{
+-                             .target_field_exists =
+-                                 IsTargetActiveAndEligible(t),
+-                             // Frame activity is already verified by
+-                             // `IsTargetActiveAndEligible(t)` via
+-                             // `GetEligibleTargets()`.
+-                             .frame_active = true,
+-                             .is_otp_field_focused =
+-                                 target_field_identifier_.IsFieldFocused(
+-                                     t.field),
+-                             .has_non_otp_focus_anywhere =
+-                                 target_field_identifier_
+-                                     .HasNonOtpFocusAnywhere(),
+-                             .any_otp_field_has_typed_input =
+-                                 target_field_identifier_
+-                                     .AnyOtpFieldContainsTypedInput(),
+-                         })
+-                     .allowed) {
++          [this, &candidate, &suppression_reason](const OtpTarget& t) {
++            const OtpDeliveryPolicy::Decision decision =
++                security_gateway_.EvaluateProactiveTrigger(
++                    t, candidate,
++                    OtpSecurityGateway::ProactiveTriggerContext{
++                        .target_field_exists = IsTargetActiveAndEligible(t),
++                        // Frame activity is already verified by
++                        // `IsTargetActiveAndEligible(t)` via
++                        // `GetEligibleTargets()`.
++                        .frame_active = true,
++                        .is_otp_field_focused =
++                            target_field_identifier_.IsFieldFocused(t.field),
++                        .has_non_otp_focus_anywhere =
++                            target_field_identifier_.HasNonOtpFocusAnywhere(),
++                        .any_otp_field_has_typed_input =
++                            target_field_identifier_
++                                .AnyOtpFieldContainsTypedInput(),
++                    });
++            if (!decision.allowed) {
++              suppression_reason =
++                  MapSkipReasonToSuppressionReason(decision.reason);
+               return false;
+             }
+             const std::optional<OtpTarget> designated_target =
+@@ -498,18 +557,80 @@
+                 target_field_identifier_.IsFieldFocused(
+                     designated_target->field) &&
+                 designated_target->field != t.field) {
++              suppression_reason = OtpProactiveTriggerSuppressionReason::
++                  kDifferentOtpFieldFocused;
+               return false;
+             }
+             LOG_AF(client_->GetCurrentLogManager())
+                 << LoggingScope::kOneTimeTokens
+                 << "Proactively triggering suggestions via renderer for OTP "
+                    "field.";
++            // Recorded before dispatching so that attributing the resulting
++            // popup in `OnOtpSuggestionsShown()` does not rely on the renderer
++            // round trip being asynchronous.
++            proactively_triggered_by_field_.insert_or_assign(
++                t.field, DispatchedProactiveTrigger{
++                             .identity = candidate.identity,
++                             .dispatched_at = base::TimeTicks::Now()});
+             CHECK_DEREF(FindObserverForFrame(t.form_owner))
+                 .TriggerSuggestions(t.field);
+             return true;
+           })) {
+     RecordFormSuggestionsShown(target.form, candidate.identity);
++    return;
+   }
++
++  // A retry of a candidate whose own proactive trigger on `target.field` is
++  // still pending is deduplicated against that trigger. It is not recorded as
++  // suppressed, even after the attribution window: the candidate's outcome on
++  // `target.field` is either that trigger's popup being shown, or nothing.
++  if (!suppression_reason.has_value() &&
++      suggestion_dropdown_dispatcher_.IsSuppressedByDeduplication(
++          target.field, candidate.identity)) {
++    const DispatchedProactiveTrigger* pending =
++        base::FindOrNull(proactively_triggered_by_field_, target.field);
++    if (!pending || pending->identity != candidate.identity) {
++      suppression_reason =
++          OtpProactiveTriggerSuppressionReason::kAlreadyOfferedOrOlderToken;
++    }
++  }
++  if (suppression_reason.has_value()) {
++    MaybeLogProactiveTriggerOutcome(target.field, candidate.identity,
++                                    suppression_reason);
++  }
++}
++
++void OtpCoordinator::MaybeLogProactiveTriggerOutcome(
++    FieldGlobalId field,
++    const OtpTokenIdentity& identity,
++    std::optional<OtpProactiveTriggerSuppressionReason> suppression_reason) {
++  std::vector<OtpTokenIdentity>& logged_identities =
++      logged_proactive_outcomes_by_field_[field];
++  if (std::ranges::contains(logged_identities, identity)) {
++    return;
++  }
++  logged_identities.push_back(identity);
++  base::UmaHistogramEnumeration(
++      "OneTimeTokens.ProactiveTrigger.Outcome",
++      suppression_reason.has_value()
++          ? OtpProactiveTriggerOutcome::kSuppressed
++          : OtpProactiveTriggerOutcome::kTriggeredAndSuggestionsShown);
++  if (suppression_reason.has_value()) {
++    base::UmaHistogramEnumeration(
++        "OneTimeTokens.ProactiveTrigger.SuppressionReason",
++        *suppression_reason);
++  }
++}
++
++const OtpTokenIdentity* OtpCoordinator::FindAttributableProactiveTrigger(
++    FieldGlobalId field) const {
++  const DispatchedProactiveTrigger* triggered =
++      base::FindOrNull(proactively_triggered_by_field_, field);
++  if (!triggered || base::TimeTicks::Now() - triggered->dispatched_at >
++                        kProactiveTriggerAttributionWindow) {
++    return nullptr;
++  }
++  return &triggered->identity;
+ }
+ 
+ void OtpCoordinator::RetryDeferredProactiveTriggers() {
+@@ -553,6 +674,7 @@
+     }
+     affected_origins.insert(entry.second.target().origin);
+     suggestion_dropdown_dispatcher_.ClearField(entry.first);
++    proactively_triggered_by_field_.erase(entry.first);
+     return true;
+   });
+   for (const url::Origin& origin : affected_origins) {
+diff --git a/components/autofill/core/browser/integrators/one_time_tokens/otp_coordinator.h b/components/autofill/core/browser/integrators/one_time_tokens/otp_coordinator.h
+index 4846a1b3..2b30c7d 100644
+--- a/components/autofill/core/browser/integrators/one_time_tokens/otp_coordinator.h
++++ b/components/autofill/core/browser/integrators/one_time_tokens/otp_coordinator.h
+@@ -48,7 +48,8 @@
+ // `OtpSuggestionDropdownDispatcher`.
+ //
+ // While active in a tab, `OtpCoordinator`'s `OtpSecurityGateway` must be the
+-// sole caller of the single-flight `AutofillClient::GetOtpPhishGuardDelegate()`.
++// sole caller of the single-flight
++// `AutofillClient::GetOtpPhishGuardDelegate()`.
+ class OtpCoordinator : public OtpSource::Observer {
+  public:
+   class Observer : public base::CheckedObserver {
+@@ -58,6 +59,14 @@
+     virtual void TriggerSuggestions(FieldGlobalId field_id) = 0;
+   };
+ 
++  // Maximum delay between dispatching a proactive trigger to the renderer and
++  // the resulting OTP popup being shown for the popup to be attributed to the
++  // trigger. This is a heuristic: attributing via the suggestion trigger source
++  // would be precise, but requires plumbing it through
++  // `AutofillManager::Observer::OnSuggestionsShown()`.
++  static constexpr base::TimeDelta kProactiveTriggerAttributionWindow =
++      base::Seconds(5);
++
+   // `client` must be non-null and outlive this coordinator.
+   explicit OtpCoordinator(AutofillClient* client);
+   OtpCoordinator(const OtpCoordinator&) = delete;
+@@ -75,9 +84,10 @@
+   void StopListeningForForm(FormGlobalId form_id,
+                             const base::flat_set<FieldGlobalId>& except = {});
+ 
+-  // Returns verified, unused OTPs available for `target`.
+-  std::vector<one_time_tokens::OneTimeToken> GetAvailableTokens(
+-      const OtpTarget& target) const;
++  // Returns verified, unused OTPs available for `target`, and renews OTP
++  // source subscriptions if `target` has an active delivery.
++  std::vector<one_time_tokens::OneTimeToken>
++  RenewSubscriptionsAndRetrieveAvailableTokens(const OtpTarget& target);
+ 
+   // `observer` must be non-null and is retained until `UnregisterObserver()` is
+   // called or `this` is destroyed.
+@@ -134,6 +144,11 @@
+     base::TimeTicks recorded_at;
+   };
+ 
++  struct DispatchedProactiveTrigger {
++    OtpTokenIdentity identity;
++    base::TimeTicks dispatched_at;
++  };
++
+   static SiteFrame GetSiteFrame(const OtpTarget& target);
+   static bool IsUsedTokenExpired(const UsedToken& used, base::TimeTicks now);
+ 
+@@ -143,6 +158,18 @@
+                            OtpDeliveryPolicy::Decision decision);
+   void TryProactiveTrigger(const OtpTarget& target,
+                            const OtpCandidate& candidate);
++  // Records the proactive trigger outcome for `identity` on `field`: shown if
++  // `suppression_reason` is `std::nullopt`, suppressed otherwise. Records
++  // nothing if an outcome was already recorded for `identity` on `field`.
++  void MaybeLogProactiveTriggerOutcome(
++      FieldGlobalId field,
++      const OtpTokenIdentity& identity,
++      std::optional<OtpProactiveTriggerSuppressionReason> suppression_reason);
++  // Returns the identity proactively triggered on `field` if the trigger was
++  // dispatched recently enough for an OTP popup on `field` to be attributed to
++  // it, or nullptr otherwise.
++  const OtpTokenIdentity* FindAttributableProactiveTrigger(
++      FieldGlobalId field) const;
+   void RetryDeferredProactiveTriggers();
+   void RecordFormSuggestionsShown(FormGlobalId form_id,
+                                   const OtpTokenIdentity& identity);
+@@ -166,6 +193,18 @@
+   std::vector<std::unique_ptr<OtpSource>> sources_;
+   OtpSecurityGateway security_gateway_;
+   OtpSuggestionDropdownDispatcher suggestion_dropdown_dispatcher_;
++  // Proactive triggers dispatched to the renderer per field, until an OTP popup
++  // is shown on the field or the field's delivery is dropped.
++  base::flat_map<FieldGlobalId, DispatchedProactiveTrigger>
++      proactively_triggered_by_field_;
++  // Candidate identities for which a proactive trigger outcome (either shown or
++  // suppressed) was logged to UMA, per field. Several identities per field are
++  // needed because candidates are not always logged in arrival order, e.g. for
++  // the SMS and Gmail copies of one code. Entries survive `DropDeliveries()`
++  // (e.g. form re-parses) so an outcome is not logged twice, and are erased
++  // when the frame hosting the field becomes inactive.
++  base::flat_map<FieldGlobalId, std::vector<OtpTokenIdentity>>
++      logged_proactive_outcomes_by_field_;
+   base::ObserverList<Observer> observers_;
+ 
+   bool is_tab_visible_ = true;
+diff --git a/components/autofill/core/browser/integrators/one_time_tokens/otp_manager_impl.cc b/components/autofill/core/browser/integrators/one_time_tokens/otp_manager_impl.cc
+index 8a87a58e6..42af0cc 100644
+--- a/components/autofill/core/browser/integrators/one_time_tokens/otp_manager_impl.cc
++++ b/components/autofill/core/browser/integrators/one_time_tokens/otp_manager_impl.cc
+@@ -171,22 +171,27 @@
+     sms_otp_subscription_.SetExpirationTime(base::Time::Now() +
+                                             kSmsOtpSubscriptionDuration);
+   } else {
+-    sms_otp_subscription_ = sms_otp_service_->Subscribe(
+-        base::Time::Now() + kSmsOtpSubscriptionDuration,
+-        /*callback=*/
+-        base::BindRepeating(&OtpManagerImpl::OnOneTimeTokenReceived,
+-                            weak_ptr_factory_.GetWeakPtr()),
+-        /*expiration_callback=*/
+-        base::BindOnce(
+-            [](base::WeakPtr<OtpManagerImpl> self) {
+-              if (!self) {
+-                return;
+-              }
+-              CHECK(!self->sms_otp_subscription_.IsAlive());
+-              self->OnOneTimeTokenReceived(base::unexpected(
+-                  OneTimeTokenRetrievalError::kSubscriptionExpired));
+-            },
+-            weak_ptr_factory_.GetWeakPtr()));
++    sms_error_during_subscribe_ = false;
++    one_time_tokens::ExpiringSubscription subscription =
++        sms_otp_service_->Subscribe(
++            base::Time::Now() + kSmsOtpSubscriptionDuration,
++            /*callback=*/
++            base::BindRepeating(&OtpManagerImpl::OnOneTimeTokenReceived,
++                                weak_ptr_factory_.GetWeakPtr()),
++            /*expiration_callback=*/
++            base::BindOnce(
++                [](base::WeakPtr<OtpManagerImpl> self) {
++                  if (!self) {
++                    return;
++                  }
++                  CHECK(!self->sms_otp_subscription_.IsAlive());
++                  self->OnOneTimeTokenReceived(base::unexpected(
++                      OneTimeTokenRetrievalError::kSubscriptionExpired));
++                },
++                weak_ptr_factory_.GetWeakPtr()));
++    if (!sms_error_during_subscribe_) {
++      sms_otp_subscription_ = std::move(subscription);
++    }
+   }
+ }
+ 
+@@ -234,11 +239,9 @@
+   last_retrieved_gmail_otp_.reset();
+   last_triggered_otp_value_.clear();
+   gmail_phish_guard_weak_ptr_factory_.InvalidateWeakPtrs();
+-  if (is_gmail_phish_guard_pending_) {
+-    is_gmail_phish_guard_pending_ = false;
+-    if (!sms_otp_subscription_.IsAlive()) {
+-      CancelPendingGetSuggestionsCallbackAsync();
+-    }
++  is_gmail_phish_guard_pending_ = false;
++  if (!sms_otp_subscription_.IsAlive()) {
++    CancelPendingGetSuggestionsCallbackAsync();
+   }
+ }
+ 
+@@ -499,21 +502,24 @@
+                    OneTimeTokenRetrievalError> result) {
+   base::SequencedTaskRunner::GetCurrentDefault()->DeleteSoon(
+       FROM_HERE, std::move(gmail_otp_retriever_));
+-  // TODO(crbug.com/556170395): figure out correct behaviour for cases when OTP
+-  // values are absent, or fetching resulted in an error. Running the callback
+-  // right here has a potential of breaking the case when the page is actually
+-  // waiting for an SMS OTP which ends up arriving a bit later.
+   if (!result) {
+     LOG_AF(owner_->client().GetCurrentLogManager())
+         << LoggingScope::kOneTimeTokens
+         << "OTP retrieval resulted in a failure. Error code: "
+         << std::to_underlying(result.error());
++    if (!sms_otp_subscription_.IsAlive()) {
++      OnOneTimeTokenReceived(base::unexpected(result.error()));
++    }
+     return;
+   }
+   if (result->token.value().empty()) {
+     LOG_AF(owner_->client().GetCurrentLogManager())
+         << LoggingScope::kOneTimeTokens
+         << "Retrieved an empty OTP value, no suggestions will be generated.";
++    if (!sms_otp_subscription_.IsAlive()) {
++      OnOneTimeTokenReceived(
++          base::unexpected(OneTimeTokenRetrievalError::kUnknown));
++    }
+     return;
+   }
+ 
+@@ -525,13 +531,19 @@
+ 
+ void OtpManagerImpl::OnOneTimeTokenReceived(
+     base::expected<OneTimeToken, OneTimeTokenRetrievalError> token_or_error) {
+-  // Errors can originate from both the SMS and the Gmail OTP flows. Like SMS
+-  // OTPs, they must not consume `last_pending_get_suggestions_callback_` while
+-  // a PhishGuard check for a Gmail OTP is pending. Otherwise, the callback is
+-  // run with empty suggestions.
++  // An SMS error or expiry ends the SMS OTP subscription, and Gmail failures
++  // are forwarded here only once it has ended. Keep the pending callback while
++  // a Gmail OTP may still answer it; on Desktop (no SMS backend), only for a
++  // pending PhishGuard check, as a late Gmail OTP triggers suggestions itself.
+   if (!token_or_error) {
+-    if (last_pending_get_suggestions_callback_ &&
+-        !is_gmail_phish_guard_pending_) {
++    sms_error_during_subscribe_ = true;
++    sms_otp_subscription_.Cancel();
++    const bool is_waiting_for_gmail_otp =
++        is_gmail_phish_guard_pending_ ||
++        (gmail_otp_retriever_ &&
++         token_or_error.error() !=
++             OneTimeTokenRetrievalError::kSmsOtpBackendPlatformNotSupported);
++    if (last_pending_get_suggestions_callback_ && !is_waiting_for_gmail_otp) {
+       std::move(last_pending_get_suggestions_callback_).Run({});
+     }
+     return;
+diff --git a/components/autofill/core/browser/integrators/one_time_tokens/otp_manager_impl.h b/components/autofill/core/browser/integrators/one_time_tokens/otp_manager_impl.h
+index 0b1e803..88df8a5 100644
+--- a/components/autofill/core/browser/integrators/one_time_tokens/otp_manager_impl.h
++++ b/components/autofill/core/browser/integrators/one_time_tokens/otp_manager_impl.h
+@@ -106,11 +106,10 @@
+   // user has opted into Gmail OTP filling.
+   void MaybeRetrieveGmailOtp();
+ 
+-  // Stops any in-flight `gmail_otp_retriever_`, invalidates any pending Gmail
+-  // PhishGuard check (asynchronously resolving
+-  // `last_pending_get_suggestions_callback_` with empty suggestions if no SMS
+-  // OTP subscription is active), and clears cached Gmail OTP and proactive
+-  // trigger deduplication state.
++  // Stops any in-flight `gmail_otp_retriever_` and pending Gmail PhishGuard
++  // check, clears the cached Gmail OTP and proactive trigger state, and, if no
++  // SMS OTP subscription is active, asynchronously resolves
++  // `last_pending_get_suggestions_callback_` with empty suggestions.
+   void ClearGmailOtpState();
+ 
+   // Clears Gmail OTP state, cancels any in-flight SMS PhishGuard check, and
+@@ -200,6 +199,10 @@
+ 
+   // Subscription to the `SmsOtpService` for incoming SMS OTPs.
+   one_time_tokens::ExpiringSubscription sms_otp_subscription_;
++  // Set when `OnOneTimeTokenReceived()` receives an error during `Subscribe()`,
++  // so the newly created subscription is immediately discarded rather than
++  // stored as active.
++  bool sms_error_during_subscribe_ = false;
+   // Subscription to the `GmailOtpService` for incoming Gmail OTP tickles.
+   one_time_tokens::ExpiringSubscription gmail_otp_tickle_subscription_;
+ 
+diff --git a/components/autofill/core/browser/integrators/one_time_tokens/otp_suggestion_dropdown_dispatcher.cc b/components/autofill/core/browser/integrators/one_time_tokens/otp_suggestion_dropdown_dispatcher.cc
+index 03c80fc..e536a74 100644
+--- a/components/autofill/core/browser/integrators/one_time_tokens/otp_suggestion_dropdown_dispatcher.cc
++++ b/components/autofill/core/browser/integrators/one_time_tokens/otp_suggestion_dropdown_dispatcher.cc
+@@ -36,9 +36,7 @@
+     return false;
+   }
+ 
+-  if (const FieldRecord* record =
+-          base::FindOrNull(records_by_field_, target.field);
+-      record && IsSuppressedByDeduplication(*record, candidate.identity)) {
++  if (IsSuppressedByDeduplication(target.field, candidate.identity)) {
+     return false;
+   }
+ 
+@@ -57,12 +55,7 @@
+     return false;
+   }
+ 
+-  FieldRecord& record = records_by_field_[target.field];
+-  record.last_offered_identity = candidate.identity;
+-  if (record.pending_trigger.has_value() &&
+-      IsSuppressedByDeduplication(record, record.pending_trigger->second)) {
+-    record.pending_trigger.reset();
+-  }
++  RecordShown(target.field, candidate.identity);
+   return true;
+ }
+ 
+@@ -95,6 +88,13 @@
+   return record && record->pending_trigger.has_value();
+ }
+ 
++bool OtpSuggestionDropdownDispatcher::IsSuppressedByDeduplication(
++    FieldGlobalId field,
++    const OtpTokenIdentity& identity) const {
++  const FieldRecord* record = base::FindOrNull(records_by_field_, field);
++  return record && IsSuppressedByDeduplication(*record, identity);
++}
++
+ void OtpSuggestionDropdownDispatcher::RecordShown(
+     FieldGlobalId field,
+     const OtpTokenIdentity& identity) {
+diff --git a/components/autofill/core/browser/integrators/one_time_tokens/otp_suggestion_dropdown_dispatcher.h b/components/autofill/core/browser/integrators/one_time_tokens/otp_suggestion_dropdown_dispatcher.h
+index aa591c7..24c92e46c 100644
+--- a/components/autofill/core/browser/integrators/one_time_tokens/otp_suggestion_dropdown_dispatcher.h
++++ b/components/autofill/core/browser/integrators/one_time_tokens/otp_suggestion_dropdown_dispatcher.h
+@@ -61,6 +61,12 @@
+   // for the tab/window to become active.
+   bool HasPendingTrigger(FieldGlobalId field) const;
+ 
++  // Returns true if `identity` is suppressed on `field` because the same or a
++  // newer OTP has already been offered or shown on `field`, i.e. `identity` is
++  // not strictly newer than the last offered OTP.
++  bool IsSuppressedByDeduplication(FieldGlobalId field,
++                                   const OtpTokenIdentity& identity) const;
++
+   // Records that `identity` was displayed in an OTP suggestion popup for
+   // `field` (`OnSuggestionsShown()` with an OTP suggestion type) so proactive
+   // triggers do not re-trigger the same OTP.
+diff --git a/components/autofill/core/browser/integrators/one_time_tokens/otp_tab_to_frame_orchestrator.cc b/components/autofill/core/browser/integrators/one_time_tokens/otp_tab_to_frame_orchestrator.cc
+index 1a98e2d..ecd86ef 100644
+--- a/components/autofill/core/browser/integrators/one_time_tokens/otp_tab_to_frame_orchestrator.cc
++++ b/components/autofill/core/browser/integrators/one_time_tokens/otp_tab_to_frame_orchestrator.cc
+@@ -61,8 +61,9 @@
+   }
+ 
+   last_queried_otp_field_ = field.global_id();
+-  std::move(callback).Run(coordinator_->GetAvailableTokens(
+-      BuildOtpTarget(*owner_, form, *autofill_field)));
++  std::move(callback).Run(
++      coordinator_->RenewSubscriptionsAndRetrieveAvailableTokens(
++          BuildOtpTarget(*owner_, form, *autofill_field)));
+ }
+ 
+ void OtpTabToFrameOrchestrator::OnAutofillManagerStateChanged(
+diff --git a/components/autofill/core/browser/integrators/one_time_tokens/otp_types.h b/components/autofill/core/browser/integrators/one_time_tokens/otp_types.h
+index 16ac270..bf4f640 100644
+--- a/components/autofill/core/browser/integrators/one_time_tokens/otp_types.h
++++ b/components/autofill/core/browser/integrators/one_time_tokens/otp_types.h
+@@ -157,6 +157,45 @@
+   kFieldGone,
+ };
+ 
++// Outcome of evaluating a proactive OTP suggestion popup trigger on a field.
++// These values are persisted to logs. Entries should not be renumbered and
++// numeric values should never be reused.
++// LINT.IfChange(OtpProactiveTriggerOutcome)
++enum class OtpProactiveTriggerOutcome {
++  kSuppressed = 0,
++  kTriggeredAndSuggestionsShown = 1,
++  kMaxValue = kTriggeredAndSuggestionsShown,
++};
++// LINT.ThenChange(//tools/metrics/histograms/metadata/one_time_tokens/enums.xml:OtpProactiveTriggerOutcome)
++
++// Reason a proactive OTP suggestion popup trigger was suppressed after passing
++// verification-stage delivery gates.
++// These values are persisted to logs. Entries should not be renumbered and
++// numeric values should never be reused.
++// LINT.IfChange(OtpProactiveTriggerSuppressionReason)
++enum class OtpProactiveTriggerSuppressionReason {
++  kAlreadyOfferedOrOlderToken = 0,
++  kNonOtpFieldFocused = 1,
++  kTypedInputPresent = 2,
++  kDifferentOtpFieldFocused = 3,
++  kProactiveUnfocusedOnAndroid = 4,
++  // Not recorded until Android soft-keyboard visibility is plumbed into
++  // `OtpSecurityGateway::ProactiveTriggerContext` (crbug.com/451991285).
++  kKeyboardNotVisibleOnAndroid = 5,
++  kTargetFieldMissing = 6,
++  // Currently never recorded: `OtpCoordinator` passes `frame_active = true`
++  // because `IsTargetActiveAndEligible()` already excludes inactive frames.
++  kFrameInactive = 7,
++  // Edge case: the document started using WebOTP after the SMS candidate was
++  // verified, e.g. while its proactive trigger was deferred.
++  kWebOtpBlocked = 8,
++  // Edge case: the user turned off Gmail OTP filling after the candidate was
++  // verified, e.g. while its proactive trigger was deferred.
++  kUserNotOptedIn = 9,
++  kMaxValue = kUserNotOptedIn,
++};
++// LINT.ThenChange(//tools/metrics/histograms/metadata/one_time_tokens/enums.xml:OtpProactiveTriggerSuppressionReason)
++
+ }  // namespace autofill
+ 
+ #endif  // COMPONENTS_AUTOFILL_CORE_BROWSER_INTEGRATORS_ONE_TIME_TOKENS_OTP_TYPES_H_
+diff --git a/components/autofill/core/browser/metrics/form_events/form_event_logger_base.h b/components/autofill/core/browser/metrics/form_events/form_event_logger_base.h
+index 4daa98f..ed861795 100644
+--- a/components/autofill/core/browser/metrics/form_events/form_event_logger_base.h
++++ b/components/autofill/core/browser/metrics/form_events/form_event_logger_base.h
+@@ -161,10 +161,10 @@
+   // For each funnel metric, a separate function is defined below.
+   // `RecordFunnelMetrics()` checks the necessary pre-conditions for metrics to
+   // be emitted and calls the relevant functions.
+-  void RecordInteractionAfterParsedAsType(LogBuffer& logs) const;
+-  void RecordSuggestionAfterInteraction(LogBuffer& logs) const;
+-  void RecordFillAfterSuggestion(LogBuffer& logs) const;
+-  void RecordSubmissionAfterFill(LogBuffer& logs) const;
++  virtual void RecordInteractionAfterParsedAsType(LogBuffer& logs) const;
++  virtual void RecordSuggestionAfterInteraction(LogBuffer& logs) const;
++  virtual void RecordFillAfterSuggestion(LogBuffer& logs) const;
++  virtual void RecordSubmissionAfterFill(LogBuffer& logs) const;
+ 
+   // Records UMA metrics on key metrics and writes logs to autofill-internals.
+   // Similar to the funnel metrics, a separate function for each key metric is
+@@ -187,7 +187,7 @@
+   virtual void RecordFillingAssistance(LogBuffer& logs) const;
+ 
+   // Whether a (non-)autofilled form was submitted.
+-  void RecordFormSubmission(LogBuffer& logs) const;
++  virtual void RecordFormSubmission(LogBuffer& logs) const;
+ 
+   // Records UMA metrics if this form submission happened as part of an ablation
+   // study or the corresponding control group. This is not virtual because it is
 diff --git a/components/contextual_tasks/public/features.cc b/components/contextual_tasks/public/features.cc
 index c0190ce..350e3a0 100644
 --- a/components/contextual_tasks/public/features.cc
@@ -1471,6 +2556,245 @@ index b7b3beb2..6802134 100644
  extern const char kContextualTasksCookiePrefetchName[];
  extern const char kContextualTasksCookiePrefetchDescription[];
  extern const char kEnableContextualTasksPinButtonInToolbarName[];
+diff --git a/components/signin/internal/identity_manager/primary_account_manager.cc b/components/signin/internal/identity_manager/primary_account_manager.cc
+index 5cad965e..a8e83d9cf 100644
+--- a/components/signin/internal/identity_manager/primary_account_manager.cc
++++ b/components/signin/internal/identity_manager/primary_account_manager.cc
+@@ -267,6 +267,17 @@
+     // opted in to sync.
+     scoped_pref_commit.SetBoolean(prefs::kExplicitBrowserSignin, true);
+   }
++
++  if (base::FeatureList::IsEnabled(switches::kRecordChromeLastSigninTime)) {
++    const GaiaId& primary_gaia_id = GetPrimaryAccount().account_info.gaia;
++    SigninPrefs signin_prefs(*prefs);
++    if (!primary_gaia_id.empty() &&
++        !signin_prefs.GetChromeLastSigninTime(primary_gaia_id).has_value()) {
++      signin_prefs.SetChromeLastSigninTime(primary_gaia_id, base::Time::Now());
++    }
++  } else {
++    SigninPrefs(*prefs).ClearAllChromeLastSigninTime();
++  }
+ #endif
+ 
+   // `prefs::kPrefsThemesSearchEnginesAccountStorageEnabled` is set for sync
+@@ -861,11 +872,21 @@
+   SetExplicitBrowserSigninPrefs(event_details, scoped_pref_commit);
+ 
+ #if BUILDFLAG(ENABLE_DICE_SUPPORT)
+-  if (event_details.GetEventTypeFor(signin::ConsentLevel::kSignin) ==
+-      PrimaryAccountChangeEvent::Type::kCleared) {
+-    SigninPrefs(*client_->GetPrefs())
+-        .SetChromeLastSignoutTime(previous_state.primary_account.gaia,
+-                                  base::Time::Now());
++  switch (event_details.GetEventTypeFor(signin::ConsentLevel::kSignin)) {
++    case PrimaryAccountChangeEvent::Type::kNone:
++      break;
++    case PrimaryAccountChangeEvent::Type::kSet:
++      if (base::FeatureList::IsEnabled(switches::kRecordChromeLastSigninTime)) {
++        SigninPrefs(*client_->GetPrefs())
++            .SetChromeLastSigninTime(current_state.primary_account.gaia,
++                                     base::Time::Now());
++      }
++      break;
++    case PrimaryAccountChangeEvent::Type::kCleared:
++      SigninPrefs(*client_->GetPrefs())
++          .SetChromeLastSignoutTime(previous_state.primary_account.gaia,
++                                    base::Time::Now());
++      break;
+   }
+ #endif
+ 
+diff --git a/components/signin/public/base/signin_prefs.cc b/components/signin/public/base/signin_prefs.cc
+index cc10cd0..1de83391 100644
+--- a/components/signin/public/base/signin_prefs.cc
++++ b/components/signin/public/base/signin_prefs.cc
+@@ -111,6 +111,22 @@
+   pref_service_->SetInteger(kAccountMetricsNextUnassignedId, id);
+ }
+ 
++void SigninPrefs::SetChromeLastSigninTime(const GaiaId& gaia_id,
++                                          base::Time last_signin_time) {
++  accessor_.SetTimePref(gaia_id, signin::internal::kChromeLastSigninTime,
++                        last_signin_time);
++}
++
++void SigninPrefs::ClearAllChromeLastSigninTime() {
++  accessor_.ClearPrefForAllAccounts(signin::internal::kChromeLastSigninTime);
++}
++
++std::optional<base::Time> SigninPrefs::GetChromeLastSigninTime(
++    const GaiaId& gaia_id) const {
++  return accessor_.GetTimePref(gaia_id,
++                               signin::internal::kChromeLastSigninTime);
++}
++
+ void SigninPrefs::SetChromeLastSignoutTime(const GaiaId& gaia_id,
+                                            base::Time last_signout_time) {
+   accessor_.SetTimePref(gaia_id, signin::internal::kChromeLastSignoutTime,
+diff --git a/components/signin/public/base/signin_prefs.h b/components/signin/public/base/signin_prefs.h
+index 8e0d397..1853c5d 100644
+--- a/components/signin/public/base/signin_prefs.h
++++ b/components/signin/public/base/signin_prefs.h
+@@ -97,6 +97,13 @@
+   // Sets the next unassigned account metrics ID.
+   void SetNextAccountMetricsUnassignedId(int id);
+ 
++  // Last primary account signin time.
++  void SetChromeLastSigninTime(const GaiaId& gaia_id,
++                               base::Time last_signin_time);
++  void ClearAllChromeLastSigninTime();
++  std::optional<base::Time> GetChromeLastSigninTime(
++      const GaiaId& gaia_id) const;
++
+   // Last signout time.
+   void SetChromeLastSignoutTime(const GaiaId& gaia_id,
+                                 base::Time last_signout_time);
+diff --git a/components/signin/public/base/signin_prefs_accessor.cc b/components/signin/public/base/signin_prefs_accessor.cc
+index cddfb98..914f976 100644
+--- a/components/signin/public/base/signin_prefs_accessor.cc
++++ b/components/signin/public/base/signin_prefs_accessor.cc
+@@ -312,6 +312,43 @@
+   return dict->Remove(key);
+ }
+ 
++size_t SigninPrefsAccessor::ClearPrefForAllAccounts(
++    std::string_view key,
++    base::span<const std::string_view> parents) {
++  CHECK(SigninPrefsRegistry::Find(base::PassKey<SigninPrefsAccessor>(), parents,
++                                  key))
++      << "Unregistered SigninPrefs key: "
++      << FormatPrefPathForCheck(parents, key);
++  if (!pref_service_->FindPreference(kSigninAccountPrefs)->IsUserControlled()) {
++    return 0;
++  }
++
++  std::vector<std::string> accounts_to_clear;
++  for (const auto [account_key, account_value] :
++       pref_service_->GetDict(kSigninAccountPrefs)) {
++    const base::DictValue* const_dict =
++        FindNestedDict(account_value.GetIfDict(), parents);
++    if (const_dict && const_dict->contains(key)) {
++      accounts_to_clear.push_back(account_key);
++    }
++  }
++  if (accounts_to_clear.empty()) {
++    return 0;
++  }
++
++  ScopedDictPrefUpdate scoped_update(&pref_service_.get(), kSigninAccountPrefs);
++  for (std::string_view account_key : accounts_to_clear) {
++    base::DictValue* dict = scoped_update->FindDict(account_key);
++    for (std::string_view parent : parents) {
++      CHECK(dict);
++      dict = dict->FindDict(parent);
++    }
++    CHECK(dict);
++    CHECK(dict->Remove(key));
++  }
++  return accounts_to_clear.size();
++}
++
+ void SigninPrefsAccessor::SetDeprecatedPrefForTesting(const GaiaId& gaia_id) {
+   CHECK(!gaia_id.empty());
+   ScopedDictPrefUpdate scoped_update(&pref_service_.get(), kSigninAccountPrefs);
+diff --git a/components/signin/public/base/signin_prefs_accessor.h b/components/signin/public/base/signin_prefs_accessor.h
+index d33780d..db1cf2b 100644
+--- a/components/signin/public/base/signin_prefs_accessor.h
++++ b/components/signin/public/base/signin_prefs_accessor.h
+@@ -147,6 +147,14 @@
+                  std::string_view key,
+                  base::span<const std::string_view> parents = {});
+ 
++  // Removes `(parents, key)` across all accounts in `SigninPrefs` in a single
++  // pref update without creating missing dictionaries. `CHECK`-enforces that
++  // `(parents, key)` is registered in `SigninPrefsRegistry`. Returns the number
++  // of accounts from which the key was removed.
++  size_t ClearPrefForAllAccounts(
++      std::string_view key,
++      base::span<const std::string_view> parents = {});
++
+   void SetDeprecatedPrefForTesting(const GaiaId& gaia_id);
+   std::optional<int> GetDeprecatedPrefForTesting(const GaiaId& gaia_id) const;
+ 
+diff --git a/components/signin/public/base/signin_prefs_keys.h b/components/signin/public/base/signin_prefs_keys.h
+index 3b17f965..8511cff 100644
+--- a/components/signin/public/base/signin_prefs_keys.h
++++ b/components/signin/public/base/signin_prefs_keys.h
+@@ -36,6 +36,11 @@
+ 
+ // LINT.IfChange(SigninPrefsKeys)
+ 
++// Pref used to track the last time the user signed in to Chrome as primary
++// account.
++inline constexpr std::string_view kChromeLastSigninTime =
++    "ChromeLastSigninTime";
++
+ // Pref used to track the last time the user signed out of Chrome.
+ inline constexpr std::string_view kChromeLastSignoutTime =
+     "kChromeLastSignoutTime";
+diff --git a/components/signin/public/base/signin_prefs_registry.cc b/components/signin/public/base/signin_prefs_registry.cc
+index 8ea485d..aa5dad9 100644
+--- a/components/signin/public/base/signin_prefs_registry.cc
++++ b/components/signin/public/base/signin_prefs_registry.cc
+@@ -34,6 +34,9 @@
+ // Registry of all active per-account preferences managed by `SigninPrefs`.
+ // LINT.IfChange(SigninPrefsKeys)
+ constexpr PrefDescriptor kRegisteredSigninPrefs[] = {
++    {.key = signin::internal::kChromeLastSigninTime,
++     .type = base::Value::Type::STRING,
++     .is_timestamp = true},
+     {.key = signin::internal::kChromeLastSignoutTime,
+      .type = base::Value::Type::STRING,
+      .is_timestamp = true},
+diff --git a/components/signin/public/base/signin_switches.cc b/components/signin/public/base/signin_switches.cc
+index cc58439..b5301596 100644
+--- a/components/signin/public/base/signin_switches.cc
++++ b/components/signin/public/base/signin_switches.cc
+@@ -882,6 +882,10 @@
+              base::FEATURE_DISABLED_BY_DEFAULT);
+ #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
+ 
++#if BUILDFLAG(ENABLE_DICE_SUPPORT)
++BASE_FEATURE(kRecordChromeLastSigninTime, base::FEATURE_ENABLED_BY_DEFAULT);
++#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
++
+ #if !BUILDFLAG(IS_ANDROID)
+ BASE_FEATURE(kRestrictDeviceManagementServiceOAuthScope,
+              base::FEATURE_ENABLED_BY_DEFAULT);
+diff --git a/components/signin/public/base/signin_switches.h b/components/signin/public/base/signin_switches.h
+index 2acb452..29a722961 100644
+--- a/components/signin/public/base/signin_switches.h
++++ b/components/signin/public/base/signin_switches.h
+@@ -861,6 +861,13 @@
+ BASE_DECLARE_FEATURE(kReauthSkipIdentifierPageFollowup);
+ #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
+ 
++#if BUILDFLAG(ENABLE_DICE_SUPPORT)
++// Kill switch for recording and migrating the primary account last sign-in
++// timestamp in `SigninPrefs`.
++COMPONENT_EXPORT(SIGNIN_SWITCHES)
++BASE_DECLARE_FEATURE(kRecordChromeLastSigninTime);
++#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
++
+ #if !BUILDFLAG(IS_ANDROID)
+ // Kill switch for Device Management Service OAuth scope.
+ COMPONENT_EXPORT(SIGNIN_SWITCHES)
+diff --git a/content/browser/browser_context.cc b/content/browser/browser_context.cc
+index 13e83a92..ef1e76c8 100644
+--- a/content/browser/browser_context.cc
++++ b/content/browser/browser_context.cc
+@@ -110,7 +110,9 @@
+ }
+ 
+ DownloadManager* BrowserContext::GetDownloadManager() {
+-  CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
++  // TODO(crbug.com/584097080): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+   return impl()->GetDownloadManager();
+ }
+ 
 diff --git a/content/browser/preloading/prerender/prerender_host.cc b/content/browser/preloading/prerender/prerender_host.cc
 index c76bbe36..a581a52 100644
 --- a/content/browser/preloading/prerender/prerender_host.cc
@@ -1521,6 +2845,538 @@ index c76bbe36..a581a52 100644
    for (FrameTreeNode* subframe_node : subframe_nodes) {
      subframe_node->SetFrameTree(target_frame_tree);
    }
+diff --git a/content/browser/service_worker/service_worker_client.cc b/content/browser/service_worker/service_worker_client.cc
+index 38e7eaf..8f38d5983 100644
+--- a/content/browser/service_worker/service_worker_client.cc
++++ b/content/browser/service_worker/service_worker_client.cc
+@@ -650,10 +650,12 @@
+ }
+ 
+ // For dedicated/shared worker cases, if a storage key is returned, it will have
+-// its origin replaced by |origin|. This would mean that the origin of the
+-// WorkerHost and the origin as used by the service worker code don't match,
+-// however in cases where these wouldn't match the load will be aborted later
+-// anyway.
++// its origin replaced by |origin| (the script URL's origin). The worker's own
++// StorageKey origin is never opaque here:
++// ServiceWorkerMainResourceLoaderInterceptor::CreateForWorker() refuses to
++// create a ServiceWorkerClient for opaque-origin workers, so this substitution
++// cannot turn an opaque worker into a client matching its precursor origin's
++// registrations (crbug.com/578670204).
+ std::optional<blink::StorageKey> GetStorageKeyFromDedicatedWorkerHost(
+     content::StoragePartition* storage_partition,
+     blink::DedicatedWorkerToken dedicated_worker_token,
+@@ -663,6 +665,7 @@
+   auto* worker_host =
+       worker_service->GetDedicatedWorkerHostFromToken(dedicated_worker_token);
+   if (worker_host) {
++    DUMP_WILL_BE_CHECK(!worker_host->GetWorkerStorageKey().origin().opaque());
+     return worker_host->GetWorkerStorageKey().WithOrigin(origin);
+   }
+   return std::nullopt;
+@@ -677,6 +680,7 @@
+   auto* worker_host =
+       worker_service->GetSharedWorkerHostFromToken(shared_worker_token);
+   if (worker_host) {
++    DUMP_WILL_BE_CHECK(!worker_host->GetWorkerStorageKey().origin().opaque());
+     return worker_host->GetWorkerStorageKey().WithOrigin(origin);
+   }
+   return std::nullopt;
+diff --git a/content/browser/service_worker/service_worker_main_resource_loader.cc b/content/browser/service_worker/service_worker_main_resource_loader.cc
+index 51300c7..18280b9 100644
+--- a/content/browser/service_worker/service_worker_main_resource_loader.cc
++++ b/content/browser/service_worker/service_worker_main_resource_loader.cc
+@@ -28,6 +28,7 @@
+ #include "content/browser/renderer_host/frame_tree_node.h"
+ #include "content/browser/renderer_host/navigation_request.h"
+ #include "content/browser/renderer_host/policy_container_host.h"
++#include "content/browser/security/cpsp/child_process_security_policy_impl.h"
+ #include "content/browser/service_worker/service_worker_client.h"
+ #include "content/browser/service_worker/service_worker_container_host.h"
+ #include "content/browser/service_worker/service_worker_context_core.h"
+@@ -725,9 +726,12 @@
+   }
+ 
+   auto head = response_head.Clone();
+-  if (response_head_.get() == response_head.get()) {
+-    head->cache_storage_side_data_writer =
+-        std::move(cache_storage_side_data_writer_);
++  if (response_head_.get() == response_head.get() &&
++      cache_storage_side_data_writer_) {
++    auto side_data_writer = std::move(cache_storage_side_data_writer_);
++    if (CanForwardCacheStorageSideDataWriter()) {
++      head->cache_storage_side_data_writer = std::move(side_data_writer);
++    }
+   }
+ 
+   url_loader_client_->OnReceiveResponse(
+@@ -2130,6 +2134,23 @@
+   return true;
+ }
+ 
++bool ServiceWorkerMainResourceLoader::CanForwardCacheStorageSideDataWriter()
++    const {
++  // CSP-sandboxed workers are handled by the worker hosts once the policy
++  // container is known, and navigations never receive the writer because
++  // `URLResponseHead::Clone()` drops it. Here, only refuse to hand the writer
++  // to a worker process that is not allowed to access the client's origin.
++  if (!service_worker_client_) {
++    return false;
++  }
++  if (!service_worker_client_->IsContainerForWorkerClient()) {
++    return true;
++  }
++  return ChildProcessSecurityPolicyImpl::GetInstance()->CanAccessDataForOrigin(
++      service_worker_client_->GetProcessId().GetUnsafeValue(),
++      service_worker_client_->key().origin());
++}
++
+ void ServiceWorkerMainResourceLoader::CreateAndRunCacheMatcher(
+     const std::optional<std::string>& cache_name,
+     scoped_refptr<ServiceWorkerVersion> active_worker) {
+diff --git a/content/browser/service_worker/service_worker_main_resource_loader.h b/content/browser/service_worker/service_worker_main_resource_loader.h
+index 1fea65e..5eaa1980 100644
+--- a/content/browser/service_worker/service_worker_main_resource_loader.h
++++ b/content/browser/service_worker/service_worker_main_resource_loader.h
+@@ -316,6 +316,10 @@
+   // consumed yet. This is used to decide the timing of the object destruction.
+   bool ShouldDelayDeletion();
+ 
++  // Returns true if `cache_storage_side_data_writer_` may be forwarded to the
++  // client's process.
++  bool CanForwardCacheStorageSideDataWriter() const;
++
+   NavigationLoaderInterceptor::FallbackCallback fallback_callback_;
+ 
+   int32_t request_id_ = 0;
+diff --git a/content/browser/service_worker/service_worker_main_resource_loader_interceptor.cc b/content/browser/service_worker/service_worker_main_resource_loader_interceptor.cc
+index f83e647..e0da4e46 100644
+--- a/content/browser/service_worker/service_worker_main_resource_loader_interceptor.cc
++++ b/content/browser/service_worker/service_worker_main_resource_loader_interceptor.cc
+@@ -14,6 +14,7 @@
+ #include "content/browser/preloading/prefetch/prefetch_features.h"
+ #include "content/browser/renderer_host/navigation_request.h"
+ #include "content/browser/renderer_host/navigation_request_info.h"
++#include "content/browser/security/cpsp/child_process_security_policy_impl.h"
+ #include "content/browser/service_worker/service_worker_client.h"
+ #include "content/browser/service_worker/service_worker_context_core.h"
+ #include "content/browser/service_worker/service_worker_context_wrapper.h"
+@@ -65,6 +66,18 @@
+   return url.SchemeIsHTTPOrHTTPS() || OriginCanAccessServiceWorkers(url);
+ }
+ 
++// Returns false if a worker with `worker_storage_key` hosted in `process_id`
++// must never match that origin's service worker registrations: a worker with an
++// opaque StorageKey origin (e.g. created by a sandboxed frame), or a process
++// that is not allowed to access the origin's data.
++bool CanWorkerAccessServiceWorkers(
++    ChildProcessId process_id,
++    const blink::StorageKey& worker_storage_key) {
++  return !worker_storage_key.origin().opaque() &&
++         ChildProcessSecurityPolicyImpl::GetInstance()->CanAccessDataForOrigin(
++             process_id.GetUnsafeValue(), worker_storage_key.origin());
++}
++
+ }  // namespace
+ 
+ std::unique_ptr<NavigationLoaderInterceptor>
+@@ -180,6 +193,7 @@
+     const net::IsolationInfo& isolation_info,
+     ChildProcessId process_id,
+     const DedicatedOrSharedWorkerToken& worker_token,
++    const blink::StorageKey& worker_storage_key,
+     base::WeakPtr<ServiceWorkerMainResourceHandle> navigation_handle) {
+   CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
+ 
+@@ -199,6 +213,10 @@
+     return nullptr;
+   }
+ 
++  if (!CanWorkerAccessServiceWorkers(process_id, worker_storage_key)) {
++    return nullptr;
++  }
++
+   navigation_handle->set_service_worker_client(
+       navigation_handle->context_wrapper()
+           ->context()
+diff --git a/content/browser/service_worker/service_worker_main_resource_loader_interceptor.h b/content/browser/service_worker/service_worker_main_resource_loader_interceptor.h
+index a0c63029..bbd02f77 100644
+--- a/content/browser/service_worker/service_worker_main_resource_loader_interceptor.h
++++ b/content/browser/service_worker/service_worker_main_resource_loader_interceptor.h
+@@ -22,6 +22,10 @@
+ #include "services/network/public/mojom/fetch_api.mojom.h"
+ #include "third_party/blink/public/mojom/service_worker/service_worker_provider.mojom.h"
+ 
++namespace blink {
++class StorageKey;
++}  // namespace blink
++
+ namespace content {
+ 
+ class ServiceWorkerMainResourceHandle;
+@@ -54,6 +58,7 @@
+       const net::IsolationInfo& isolation_info,
+       ChildProcessId process_id,
+       const DedicatedOrSharedWorkerToken& worker_token,
++      const blink::StorageKey& worker_storage_key,
+       base::WeakPtr<ServiceWorkerMainResourceHandle> navigation_handle);
+ 
+   static std::unique_ptr<ServiceWorkerMainResourceLoaderInterceptor>
+diff --git a/content/browser/worker_host/dedicated_worker_host.cc b/content/browser/worker_host/dedicated_worker_host.cc
+index 4aa1cc4e..4960671 100644
+--- a/content/browser/worker_host/dedicated_worker_host.cc
++++ b/content/browser/worker_host/dedicated_worker_host.cc
+@@ -609,15 +609,27 @@
+   result->subresource_loader_factories->set_bypass_redirect_checks(
+       bypass_redirect_checks);
+ 
+-  // A worker sandboxed without `allow-same-origin` has an opaque origin and
+-  // is not eligible to use service workers (mirroring
+-  // `NavigationRequest::CommitNavigation()`).
+-  if (base::FeatureList::IsEnabled(
+-          features::kServiceWorkerDropHandleForCSPSandboxedWorker) &&
+-      service_worker_handle_ &&
+-      (policy_container_host_->policies().sandbox_flags &
+-       network::mojom::WebSandboxFlags::kOrigin) ==
+-          network::mojom::WebSandboxFlags::kOrigin) {
++  // A worker sandboxed without `allow-same-origin`, or created by an
++  // opaque-origin context, runs with an opaque origin and must never receive
++  // the CacheStorageSideDataWriter for its precursor origin's CacheStorage
++  // entry. This is a security fix with no web-observable behavior and is not
++  // behind a kill switch.
++  const bool is_csp_sandboxed =
++      IsSandboxedToOpaqueOrigin(policy_container_host_->policies());
++  const bool has_opaque_storage_key = worker_storage_key_.origin().opaque();
++  if (is_csp_sandboxed || has_opaque_storage_key) {
++    result->main_script_load_params->response_head
++        ->cache_storage_side_data_writer.reset();
++  }
++  // An opaque-origin worker is not eligible to use service workers (mirroring
++  // `NavigationRequest::CommitNavigation()`). For an opaque StorageKey the
++  // interceptor never created a ServiceWorkerClient, so dropping the handle is
++  // unconditional; only the CSP-sandbox-derived drop is web-observable and
++  // guarded by the kill switch.
++  if (has_opaque_storage_key ||
++      (is_csp_sandboxed &&
++       base::FeatureList::IsEnabled(
++           features::kServiceWorkerDropHandleForCSPSandboxedWorker))) {
+     service_worker_handle_.reset();
+   }
+ 
+@@ -921,10 +933,28 @@
+   base::WeakPtr<CrossOriginEmbedderPolicyReporter> creator_coep_reporter =
+       GetWorkerCoepReporter();
+ 
++  blink::StorageKey creator_storage_key_for_nested_worker =
++      GetWorkerStorageKey();
++  // Nested workers of a CSP-sandboxed worker inherit its opaque origin. This
++  // is not behind kServiceWorkerDropHandleForCSPSandboxedWorker because it
++  // determines the nested worker's StorageKey, not just its service worker
++  // eligibility.
++  if (IsSandboxedToOpaqueOrigin(policy_container_host_->policies()) &&
++      !creator_storage_key_for_nested_worker.origin().opaque()) {
++    if (!nested_worker_storage_key_for_sandbox_) {
++      nested_worker_storage_key_for_sandbox_ =
++          creator_storage_key_for_nested_worker.WithOrigin(
++              creator_storage_key_for_nested_worker.origin()
++                  .DeriveNewOpaqueOrigin());
++    }
++    creator_storage_key_for_nested_worker =
++        *nested_worker_storage_key_for_sandbox_;
++  }
++
+   DedicatedWorkerHostFactoryImpl::Create(
+       *ancestor_render_frame_host, std::move(receiver),
+       worker_process_host_->GetID(), /*creator=*/token_, ancestor_document_,
+-      GetWorkerStorageKey(), isolation_info_,
++      creator_storage_key_for_nested_worker, isolation_info_,
+       worker_client_security_state_->Clone(),
+       policy_container_host_->policies(), creator_coep_reporter,
+       network_restrictions_id_);
+diff --git a/content/browser/worker_host/dedicated_worker_host.h b/content/browser/worker_host/dedicated_worker_host.h
+index 4eb2a7d..d135d662 100644
+--- a/content/browser/worker_host/dedicated_worker_host.h
++++ b/content/browser/worker_host/dedicated_worker_host.h
+@@ -372,6 +372,11 @@
+   // for retrieving the origin of this worker
+   // (https://html.spec.whatwg.org/C/#concept-settings-object-origin).
+   const blink::StorageKey worker_storage_key_;
++  // Opaque-origin StorageKey handed to nested workers when this worker is
++  // CSP-sandboxed without `allow-same-origin`. Derived once so that sibling
++  // nested workers share one opaque origin, like workers of a sandboxed
++  // document.
++  std::optional<blink::StorageKey> nested_worker_storage_key_for_sandbox_;
+ 
+   // The origin used by this dedicated worker on the renderer side. This will
+   // almost always be the same as `worker_storage_key_`'s origin, except in the
+diff --git a/content/browser/worker_host/mock_shared_worker.cc b/content/browser/worker_host/mock_shared_worker.cc
+index d2d0ad2..1f73a41e 100644
+--- a/content/browser/worker_host/mock_shared_worker.cc
++++ b/content/browser/worker_host/mock_shared_worker.cc
+@@ -100,7 +100,8 @@
+     const std::vector<network::mojom::ContentSecurityPolicyPtr>&
+         expected_content_security_policies,
+     mojo::Remote<blink::mojom::SharedWorkerHost>* host,
+-    mojo::PendingReceiver<blink::mojom::SharedWorker>* receiver) {
++    mojo::PendingReceiver<blink::mojom::SharedWorker>* receiver,
++    blink::mojom::WorkerMainScriptLoadParamsPtr* main_script_load_params) {
+   std::unique_ptr<CreateParams> create_params = std::move(create_params_);
+   if (!create_params)
+     return false;
+@@ -118,6 +119,10 @@
+   }
+   host->Bind(std::move(create_params->host));
+   *receiver = std::move(create_params->receiver);
++  if (main_script_load_params) {
++    *main_script_load_params =
++        std::move(create_params->main_script_load_params);
++  }
+   return true;
+ }
+ 
+@@ -168,6 +173,7 @@
+   create_params_->info = std::move(info);
+   create_params_->pause_on_start = pause_on_start;
+   create_params_->content_settings = std::move(content_settings);
++  create_params_->main_script_load_params = std::move(main_script_load_params);
+   create_params_->host = std::move(host);
+   create_params_->receiver = std::move(receiver);
+   create_params_->ukm_source_id = ukm_source_id;
+diff --git a/content/browser/worker_host/mock_shared_worker.h b/content/browser/worker_host/mock_shared_worker.h
+index 1645cb8d..2a5bacb 100644
+--- a/content/browser/worker_host/mock_shared_worker.h
++++ b/content/browser/worker_host/mock_shared_worker.h
+@@ -88,7 +88,9 @@
+       const std::vector<network::mojom::ContentSecurityPolicyPtr>&
+           expected_content_security_policies,
+       mojo::Remote<blink::mojom::SharedWorkerHost>* host,
+-      mojo::PendingReceiver<blink::mojom::SharedWorker>* receiver);
++      mojo::PendingReceiver<blink::mojom::SharedWorker>* receiver,
++      blink::mojom::WorkerMainScriptLoadParamsPtr* main_script_load_params =
++          nullptr);
+ 
+   void Disconnect();
+ 
+@@ -137,6 +139,7 @@
+     bool pause_on_start;
+     mojo::PendingRemote<blink::mojom::WorkerContentSettingsProxy>
+         content_settings;
++    blink::mojom::WorkerMainScriptLoadParamsPtr main_script_load_params;
+     mojo::PendingRemote<blink::mojom::SharedWorkerHost> host;
+     mojo::PendingReceiver<blink::mojom::SharedWorker> receiver;
+     ukm::SourceId ukm_source_id;
+diff --git a/content/browser/worker_host/shared_worker_host.cc b/content/browser/worker_host/shared_worker_host.cc
+index 560c3bf..bff93b818 100644
+--- a/content/browser/worker_host/shared_worker_host.cc
++++ b/content/browser/worker_host/shared_worker_host.cc
+@@ -405,15 +405,27 @@
+   result.subresource_loader_factories->set_bypass_redirect_checks(
+       bypass_redirect_checks);
+ 
+-  // A worker sandboxed without `allow-same-origin` has an opaque origin and
+-  // is not eligible to use service workers (mirroring
+-  // `NavigationRequest::CommitNavigation()`).
+-  if (base::FeatureList::IsEnabled(
+-          features::kServiceWorkerDropHandleForCSPSandboxedWorker) &&
+-      service_worker_handle_ &&
+-      (policy_container_host->policies().sandbox_flags &
+-       network::mojom::WebSandboxFlags::kOrigin) ==
+-          network::mojom::WebSandboxFlags::kOrigin) {
++  // A worker sandboxed without `allow-same-origin`, or created by an
++  // opaque-origin context, runs with an opaque origin and must never receive
++  // the CacheStorageSideDataWriter for its precursor origin's CacheStorage
++  // entry. This is a security fix with no web-observable behavior and is not
++  // behind a kill switch.
++  const bool is_csp_sandboxed =
++      IsSandboxedToOpaqueOrigin(policy_container_host->policies());
++  const bool has_opaque_storage_key = GetWorkerStorageKey().origin().opaque();
++  if (is_csp_sandboxed || has_opaque_storage_key) {
++    result.main_script_load_params->response_head
++        ->cache_storage_side_data_writer.reset();
++  }
++  // An opaque-origin worker is not eligible to use service workers (mirroring
++  // `NavigationRequest::CommitNavigation()`). For an opaque StorageKey the
++  // interceptor never created a ServiceWorkerClient, so dropping the handle is
++  // unconditional; only the CSP-sandbox-derived drop is web-observable and
++  // guarded by the kill switch.
++  if (has_opaque_storage_key ||
++      (is_csp_sandboxed &&
++       base::FeatureList::IsEnabled(
++           features::kServiceWorkerDropHandleForCSPSandboxedWorker))) {
+     service_worker_handle_.reset();
+   }
+ 
+diff --git a/content/browser/worker_host/worker_script_fetcher.cc b/content/browser/worker_host/worker_script_fetcher.cc
+index 1cfcd547..fb69264 100644
+--- a/content/browser/worker_host/worker_script_fetcher.cc
++++ b/content/browser/worker_host/worker_script_fetcher.cc
+@@ -418,10 +418,11 @@
+       *resource_request);
+ 
+   WorkerScriptFetcher::CreateScriptLoader(
+-      worker_process_id, worker_token, initial_request_url,
+-      ancestor_render_frame_host, creator_render_frame_host,
+-      trusted_isolation_info, std::move(client_security_state),
+-      std::move(resource_request), std::move(factory_bundle_for_browser),
++      worker_process_id, worker_token, request_initiator_storage_key,
++      initial_request_url, ancestor_render_frame_host,
++      creator_render_frame_host, trusted_isolation_info,
++      std::move(client_security_state), std::move(resource_request),
++      std::move(factory_bundle_for_browser),
+       std::move(subresource_loader_factories),
+       std::move(service_worker_context), service_worker_handle,
+       std::move(blob_url_loader_factory),
+@@ -434,6 +435,7 @@
+ void WorkerScriptFetcher::CreateScriptLoader(
+     int worker_process_id,
+     const DedicatedOrSharedWorkerToken& worker_token,
++    const blink::StorageKey& worker_storage_key,
+     const GURL& initial_request_url,
+     RenderFrameHostImpl& ancestor_render_frame_host,
+     RenderFrameHostImpl* creator_render_frame_host,
+@@ -612,8 +614,8 @@
+   auto* script_fetcher = new WorkerScriptFetcher(
+       std::make_unique<WorkerScriptLoaderFactory>(
+           ChildProcessId::FromUnsafeValue(worker_process_id), worker_token,
+-          trusted_isolation_info, service_worker_handle, browser_context_getter,
+-          std::move(url_loader_factory)),
++          worker_storage_key, trusted_isolation_info, service_worker_handle,
++          browser_context_getter, std::move(url_loader_factory)),
+       std::move(resource_request),
+       base::BindOnce(DidCreateScriptLoader, std::move(callback),
+                      std::move(subresource_loader_factories),
+diff --git a/content/browser/worker_host/worker_script_fetcher.h b/content/browser/worker_host/worker_script_fetcher.h
+index de982a15..6e4716fa 100644
+--- a/content/browser/worker_host/worker_script_fetcher.h
++++ b/content/browser/worker_host/worker_script_fetcher.h
+@@ -39,6 +39,14 @@
+ namespace content {
+ 
+ class DedicatedWorkerHost;
++
++// Returns true if `policies` sandbox a worker into an opaque origin, i.e. its
++// script response carried `Content-Security-Policy: sandbox` without
++// `allow-same-origin`.
++inline bool IsSandboxedToOpaqueOrigin(const PolicyContainerPolicies& policies) {
++  return (policies.sandbox_flags & network::mojom::WebSandboxFlags::kOrigin) ==
++         network::mojom::WebSandboxFlags::kOrigin;
++}
+ class DevToolsAgentHostImpl;
+ class RenderFrameHostImpl;
+ class ServiceWorkerContextWrapper;
+@@ -209,6 +217,7 @@
+   static void CreateScriptLoader(
+       int worker_process_id,
+       const DedicatedOrSharedWorkerToken& worker_token,
++      const blink::StorageKey& worker_storage_key,
+       const GURL& initial_request_url,
+       RenderFrameHostImpl& ancestor_render_frame_host,
+       RenderFrameHostImpl* creator_render_frame_host,
+diff --git a/content/browser/worker_host/worker_script_loader.cc b/content/browser/worker_host/worker_script_loader.cc
+index 9844e1c..4542849 100644
+--- a/content/browser/worker_host/worker_script_loader.cc
++++ b/content/browser/worker_host/worker_script_loader.cc
+@@ -27,6 +27,7 @@
+ WorkerScriptLoader::WorkerScriptLoader(
+     ChildProcessId process_id,
+     const DedicatedOrSharedWorkerToken& worker_token,
++    const blink::StorageKey& worker_storage_key,
+     int32_t request_id,
+     uint32_t options,
+     const network::ResourceRequest& resource_request,
+@@ -53,7 +54,7 @@
+   }
+   interceptor_ = ServiceWorkerMainResourceLoaderInterceptor::CreateForWorker(
+       resource_request_, isolation_info, process_id, worker_token,
+-      service_worker_handle_);
++      worker_storage_key, service_worker_handle_);
+ 
+   Start();
+ }
+diff --git a/content/browser/worker_host/worker_script_loader.h b/content/browser/worker_host/worker_script_loader.h
+index 3311f12a..4dbaaef7 100644
+--- a/content/browser/worker_host/worker_script_loader.h
++++ b/content/browser/worker_host/worker_script_loader.h
+@@ -25,6 +25,10 @@
+ #include "services/network/public/mojom/url_loader.mojom.h"
+ #include "third_party/blink/public/common/tokens/tokens.h"
+ 
++namespace blink {
++class StorageKey;
++}  // namespace blink
++
+ namespace net {
+ class IsolationInfo;
+ }  // namespace net
+@@ -62,6 +66,7 @@
+   WorkerScriptLoader(
+       ChildProcessId process_id,
+       const DedicatedOrSharedWorkerToken& worker_token,
++      const blink::StorageKey& worker_storage_key,
+       int32_t request_id,
+       uint32_t options,
+       const network::ResourceRequest& resource_request,
+diff --git a/content/browser/worker_host/worker_script_loader_factory.cc b/content/browser/worker_host/worker_script_loader_factory.cc
+index 7ab6412..097805dc 100644
+--- a/content/browser/worker_host/worker_script_loader_factory.cc
++++ b/content/browser/worker_host/worker_script_loader_factory.cc
+@@ -22,12 +22,14 @@
+ WorkerScriptLoaderFactory::WorkerScriptLoaderFactory(
+     ChildProcessId process_id,
+     const DedicatedOrSharedWorkerToken& worker_token,
++    const blink::StorageKey& worker_storage_key,
+     const net::IsolationInfo& isolation_info,
+     ServiceWorkerMainResourceHandle* service_worker_handle,
+     const BrowserContextGetter& browser_context_getter,
+     scoped_refptr<network::SharedURLLoaderFactory> loader_factory)
+     : process_id_(process_id),
+       worker_token_(worker_token),
++      worker_storage_key_(worker_storage_key),
+       isolation_info_(isolation_info),
+       browser_context_getter_(browser_context_getter),
+       loader_factory_(std::move(loader_factory)) {
+@@ -59,9 +61,10 @@
+ 
+   // Create a WorkerScriptLoader to load the script.
+   auto script_loader = std::make_unique<WorkerScriptLoader>(
+-      process_id_, worker_token_, request_id, options, resource_request,
+-      isolation_info_, std::move(client), service_worker_handle_,
+-      browser_context_getter_, loader_factory_, traffic_annotation);
++      process_id_, worker_token_, worker_storage_key_, request_id, options,
++      resource_request, isolation_info_, std::move(client),
++      service_worker_handle_, browser_context_getter_, loader_factory_,
++      traffic_annotation);
+   script_loader_ = script_loader->GetWeakPtr();
+   mojo::MakeSelfOwnedReceiver(std::move(script_loader), std::move(receiver));
+ }
+diff --git a/content/browser/worker_host/worker_script_loader_factory.h b/content/browser/worker_host/worker_script_loader_factory.h
+index 11b0390a..8df27e6 100644
+--- a/content/browser/worker_host/worker_script_loader_factory.h
++++ b/content/browser/worker_host/worker_script_loader_factory.h
+@@ -14,6 +14,7 @@
+ #include "mojo/public/cpp/bindings/pending_remote.h"
+ #include "net/base/isolation_info.h"
+ #include "services/network/public/mojom/url_loader_factory.mojom.h"
++#include "third_party/blink/public/common/storage_key/storage_key.h"
+ #include "third_party/blink/public/common/tokens/tokens.h"
+ 
+ namespace network {
+@@ -47,6 +48,7 @@
+   WorkerScriptLoaderFactory(
+       ChildProcessId process_id,
+       const DedicatedOrSharedWorkerToken& worker_token,
++      const blink::StorageKey& worker_storage_key,
+       const net::IsolationInfo& isolation_info,
+       ServiceWorkerMainResourceHandle* service_worker_handle,
+       const BrowserContextGetter& browser_context_getter,
+@@ -75,6 +77,7 @@
+  private:
+   const ChildProcessId process_id_;
+   const DedicatedOrSharedWorkerToken worker_token_;
++  const blink::StorageKey worker_storage_key_;
+   const net::IsolationInfo isolation_info_;
+   base::WeakPtr<ServiceWorkerMainResourceHandle> service_worker_handle_;
+   BrowserContextGetter browser_context_getter_;
 diff --git a/third_party/blink/renderer/core/loader/resource/script_resource.cc b/third_party/blink/renderer/core/loader/resource/script_resource.cc
 index e667756..18a8d2f 100644
 --- a/third_party/blink/renderer/core/loader/resource/script_resource.cc
@@ -1541,8 +3397,358 @@ index e667756..18a8d2f 100644
    // Revalidation requests don't actually load the current Resource, so disable
    // streaming.
    DisableStreaming(ScriptStreamer::NotStreamingReason::kRevalidate);
+diff --git a/third_party/blink/renderer/core/svg/animation/smil_time_container.cc b/third_party/blink/renderer/core/svg/animation/smil_time_container.cc
+index 9c6d9947..5acfcac 100644
+--- a/third_party/blink/renderer/core/svg/animation/smil_time_container.cc
++++ b/third_party/blink/renderer/core/svg/animation/smil_time_container.cc
+@@ -539,6 +539,12 @@
+   // insertion is still propagating, so a <use> that is instanced could
+   // observe a target that is not yet marked as being connected.
+   AnimationTargetsMutationsForbidden scope(this);
++  // The pending <use> shadow-tree update above can tear down shadow trees
++  // whose instanced SMIL elements were the only entries in |priority_queue_|,
++  // so re-check for an empty queue before continuing.
++  if (priority_queue_.IsEmpty()) {
++    return false;
++  }
+   UpdateTimedElements(update);
+   bool disable_throttling = ApplyTimedEffects(update.TargetTime());
+   DCHECK(!wakeup_timer_.IsActive());
+diff --git a/third_party/leveldatabase/README.chromium b/third_party/leveldatabase/README.chromium
+index d7df43d..b7e19e2 100644
+--- a/third_party/leveldatabase/README.chromium
++++ b/third_party/leveldatabase/README.chromium
+@@ -2,7 +2,7 @@
+ Short Name: leveldb
+ URL: https://github.com/google/leveldb.git
+ Version: 1.23
+-Revision: bb74ef739973a70ca9f0d90788a1da89b788c0ad
++Revision: 29465588d3dfdc80fba5e198037582b8fdb5dd60
+ Update Mechanism: Manual
+ License: BSD-3-Clause
+ License File: src/LICENSE
+diff --git a/tools/metrics/histograms/metadata/autofill/histograms.xml b/tools/metrics/histograms/metadata/autofill/histograms.xml
+index 1cdafdd..c95b0ff1 100644
+--- a/tools/metrics/histograms/metadata/autofill/histograms.xml
++++ b/tools/metrics/histograms/metadata/autofill/histograms.xml
+@@ -5557,6 +5557,23 @@
+   </summary>
+ </histogram>
+ 
++<histogram name="Autofill.FormEvents.OneTimePassword" enum="AutofillFormEvent"
++    expires_after="2027-11-08">
++  <owner>trangm@google.com</owner>
++  <owner>src/components/one_time_tokens/OWNERS</owner>
++  <summary>
++    Autofill form events for forms with a one-time password field. These are
++    recorded when such a form is parsed, when the user interacts with it or
++    Chrome proactively shows a one-time password suggestion on it, when a
++    one-time password suggestion is shown or filled, and when the form is
++    submitted after such an interaction. Events with the &quot;once&quot; suffix
++    are recorded at most once per page load.
++
++    There are no server-side one-time password suggestions, so fills and
++    submissions after a fill are recorded in the local suggestion buckets.
++  </summary>
++</histogram>
++
+ <histogram name="Autofill.FormEvents.PromoCode"
+     enum="AutofillPromoCodeFormEvent" expires_after="2027-04-30">
+   <owner>vinnypersky@google.com</owner>
+@@ -5774,6 +5791,20 @@
+   </summary>
+ </histogram>
+ 
++<histogram
++    name="Autofill.Funnel.FillAfterSuggestion.OneTimePassword.GmailEligibleClients"
++    enum="BooleanAutofillFillAfterSuggestion" expires_after="2027-11-08">
++  <owner>trangm@google.com</owner>
++  <owner>src/components/one_time_tokens/OWNERS</owner>
++  <summary>
++    Like Autofill.Funnel.FillAfterSuggestion.OneTimePassword, but recorded only
++    for users who are eligible for Gmail OTPs: Gmail OTP suggestions are
++    enabled, the user opted into them, and the user is signed in with a Gmail
++    account. Not recorded in Incognito. Eligibility does not guarantee that the
++    user gets Gmail OTPs, e.g. their Gmail settings may still block them.
++  </summary>
++</histogram>
++
+ <histogram name="Autofill.Funnel.FillAfterSuggestion.{FormType}"
+     enum="BooleanAutofillFillAfterSuggestion" expires_after="2027-12-12">
+   <owner>battre@chromium.org</owner>
+@@ -5795,6 +5826,22 @@
+   <token key="FormType" variants="AutofillFormType.Fillable"/>
+ </histogram>
+ 
++<histogram
++    name="Autofill.Funnel.InteractionAfterParsedAsType.OneTimePassword.GmailEligibleClients"
++    enum="BooleanAutofillInteractionAfterParsedAsType"
++    expires_after="2027-11-08">
++  <owner>trangm@google.com</owner>
++  <owner>src/components/one_time_tokens/OWNERS</owner>
++  <summary>
++    Like Autofill.Funnel.InteractionAfterParsedAsType.OneTimePassword, but
++    recorded only for users who are eligible for Gmail OTPs: Gmail OTP
++    suggestions are enabled, the user opted into them, and the user is signed in
++    with a Gmail account. Not recorded in Incognito. Eligibility does not
++    guarantee that the user gets Gmail OTPs, e.g. their Gmail settings may still
++    block them.
++  </summary>
++</histogram>
++
+ <histogram name="Autofill.Funnel.InteractionAfterParsedAsType.{FormType}"
+     enum="BooleanAutofillInteractionAfterParsedAsType"
+     expires_after="2027-12-12">
+@@ -5855,6 +5902,20 @@
+   <token key="FormType" variants="AutofillFormType.Fillable"/>
+ </histogram>
+ 
++<histogram
++    name="Autofill.Funnel.SubmissionAfterFill.OneTimePassword.GmailEligibleClients"
++    enum="BooleanAutofillSubmissionAfterFill" expires_after="2027-11-08">
++  <owner>trangm@google.com</owner>
++  <owner>src/components/one_time_tokens/OWNERS</owner>
++  <summary>
++    Like Autofill.Funnel.SubmissionAfterFill.OneTimePassword, but recorded only
++    for users who are eligible for Gmail OTPs: Gmail OTP suggestions are
++    enabled, the user opted into them, and the user is signed in with a Gmail
++    account. Not recorded in Incognito. Eligibility does not guarantee that the
++    user gets Gmail OTPs, e.g. their Gmail settings may still block them.
++  </summary>
++</histogram>
++
+ <histogram name="Autofill.Funnel.SubmissionAfterFill.{FormType}"
+     enum="BooleanAutofillSubmissionAfterFill" expires_after="2027-12-12">
+   <owner>battre@chromium.org</owner>
+@@ -5868,6 +5929,21 @@
+   <token key="FormType" variants="AutofillFormType.Fillable"/>
+ </histogram>
+ 
++<histogram
++    name="Autofill.Funnel.SuggestionAfterInteraction.OneTimePassword.GmailEligibleClients"
++    enum="BooleanAutofillSuggestionAfterInteraction" expires_after="2027-11-08">
++  <owner>trangm@google.com</owner>
++  <owner>src/components/one_time_tokens/OWNERS</owner>
++  <summary>
++    Like Autofill.Funnel.SuggestionAfterInteraction.OneTimePassword, but
++    recorded only for users who are eligible for Gmail OTPs: Gmail OTP
++    suggestions are enabled, the user opted into them, and the user is signed in
++    with a Gmail account. Not recorded in Incognito. Eligibility does not
++    guarantee that the user gets Gmail OTPs, e.g. their Gmail settings may still
++    block them.
++  </summary>
++</histogram>
++
+ <histogram name="Autofill.Funnel.SuggestionAfterInteraction.{FormType}"
+     enum="BooleanAutofillSuggestionAfterInteraction" expires_after="2027-12-12">
+   <owner>battre@chromium.org</owner>
+@@ -6382,6 +6458,23 @@
+   </summary>
+ </histogram>
+ 
++<histogram
++    name="Autofill.KeyMetrics.FillingAcceptance.OneTimePassword.GmailEligibleClients{Profile}"
++    enum="BooleanAutofillFillingAcceptance" expires_after="2027-11-08">
++  <owner>trangm@google.com</owner>
++  <owner>src/components/one_time_tokens/OWNERS</owner>
++  <summary>
++    Like Autofill.KeyMetrics.FillingAcceptance.OneTimePassword, but recorded
++    only for users who are eligible for Gmail OTPs: Gmail OTP suggestions are
++    enabled, the user opted into them, and the user is signed in with a Gmail
++    account. Not recorded in Incognito. Eligibility does not guarantee that the
++    user gets Gmail OTPs, e.g. their Gmail settings may still block them.
++
++    {Profile}
++  </summary>
++  <token key="Profile" variants="ProfileIndex"/>
++</histogram>
++
+ <histogram name="Autofill.KeyMetrics.FillingAcceptance.{FormType}{Profile}"
+     enum="BooleanAutofillFillingAcceptance" expires_after="2027-12-12">
+   <owner>battre@chromium.org</owner>
+@@ -6398,6 +6491,23 @@
+   <token key="Profile" variants="ProfileIndex"/>
+ </histogram>
+ 
++<histogram
++    name="Autofill.KeyMetrics.FillingAssistance.OneTimePassword.GmailEligibleClients{Profile}"
++    enum="BooleanAutofillFillingAssistance" expires_after="2027-11-08">
++  <owner>trangm@google.com</owner>
++  <owner>src/components/one_time_tokens/OWNERS</owner>
++  <summary>
++    Like Autofill.KeyMetrics.FillingAssistance.OneTimePassword, but recorded
++    only for users who are eligible for Gmail OTPs: Gmail OTP suggestions are
++    enabled, the user opted into them, and the user is signed in with a Gmail
++    account. Not recorded in Incognito. Eligibility does not guarantee that the
++    user gets Gmail OTPs, e.g. their Gmail settings may still block them.
++
++    {Profile}
++  </summary>
++  <token key="Profile" variants="ProfileIndex"/>
++</histogram>
++
+ <histogram name="Autofill.KeyMetrics.FillingAssistance.{FormType}{Profile}"
+     enum="BooleanAutofillFillingAssistance" expires_after="2027-12-12">
+   <owner>battre@chromium.org</owner>
+@@ -6417,6 +6527,23 @@
+   <token key="Profile" variants="ProfileIndex"/>
+ </histogram>
+ 
++<histogram
++    name="Autofill.KeyMetrics.FillingCorrectness.OneTimePassword.GmailEligibleClients{Profile}"
++    enum="BooleanAutofillFillingCorrectness" expires_after="2027-11-08">
++  <owner>trangm@google.com</owner>
++  <owner>src/components/one_time_tokens/OWNERS</owner>
++  <summary>
++    Like Autofill.KeyMetrics.FillingCorrectness.OneTimePassword, but recorded
++    only for users who are eligible for Gmail OTPs: Gmail OTP suggestions are
++    enabled, the user opted into them, and the user is signed in with a Gmail
++    account. Not recorded in Incognito. Eligibility does not guarantee that the
++    user gets Gmail OTPs, e.g. their Gmail settings may still block them.
++
++    {Profile}
++  </summary>
++  <token key="Profile" variants="ProfileIndex"/>
++</histogram>
++
+ <histogram name="Autofill.KeyMetrics.FillingCorrectness.{FormType}{Profile}"
+     enum="BooleanAutofillFillingCorrectness" expires_after="2027-12-12">
+   <owner>battre@chromium.org</owner>
+@@ -6449,6 +6576,23 @@
+   </token>
+ </histogram>
+ 
++<histogram
++    name="Autofill.KeyMetrics.FillingReadiness.OneTimePassword.GmailEligibleClients{Profile}"
++    enum="BooleanAutofillFillingReadiness" expires_after="2027-11-08">
++  <owner>trangm@google.com</owner>
++  <owner>src/components/one_time_tokens/OWNERS</owner>
++  <summary>
++    Like Autofill.KeyMetrics.FillingReadiness.OneTimePassword, but recorded only
++    for users who are eligible for Gmail OTPs: Gmail OTP suggestions are
++    enabled, the user opted into them, and the user is signed in with a Gmail
++    account. Not recorded in Incognito. Eligibility does not guarantee that the
++    user gets Gmail OTPs, e.g. their Gmail settings may still block them.
++
++    {Profile}
++  </summary>
++  <token key="Profile" variants="ProfileIndex"/>
++</histogram>
++
+ <histogram name="Autofill.KeyMetrics.FillingReadiness.{FormType}{Profile}"
+     enum="BooleanAutofillFillingReadiness" expires_after="2027-12-12">
+   <owner>battre@chromium.org</owner>
+@@ -6467,6 +6611,21 @@
+   <token key="Profile" variants="ProfileIndex"/>
+ </histogram>
+ 
++<histogram
++    name="Autofill.KeyMetrics.FormSubmission.Autofilled.OneTimePassword.GmailEligibleClients"
++    enum="BooleanAutofillSubmission" expires_after="2027-11-08">
++  <owner>trangm@google.com</owner>
++  <owner>src/components/one_time_tokens/OWNERS</owner>
++  <summary>
++    Like Autofill.KeyMetrics.FormSubmission.Autofilled.OneTimePassword, but
++    recorded only for users who are eligible for Gmail OTPs: Gmail OTP
++    suggestions are enabled, the user opted into them, and the user is signed in
++    with a Gmail account. Not recorded in Incognito. Eligibility does not
++    guarantee that the user gets Gmail OTPs, e.g. their Gmail settings may still
++    block them.
++  </summary>
++</histogram>
++
+ <histogram name="Autofill.KeyMetrics.FormSubmission.Autofilled.{FormType}"
+     enum="BooleanAutofillSubmission" expires_after="2027-12-12">
+   <owner>battre@chromium.org</owner>
+@@ -6483,6 +6642,21 @@
+   <token key="FormType" variants="AutofillFormType.Fillable"/>
+ </histogram>
+ 
++<histogram
++    name="Autofill.KeyMetrics.FormSubmission.NotAutofilled.OneTimePassword.GmailEligibleClients"
++    enum="BooleanAutofillSubmission" expires_after="2027-11-08">
++  <owner>trangm@google.com</owner>
++  <owner>src/components/one_time_tokens/OWNERS</owner>
++  <summary>
++    Like Autofill.KeyMetrics.FormSubmission.NotAutofilled.OneTimePassword, but
++    recorded only for users who are eligible for Gmail OTPs: Gmail OTP
++    suggestions are enabled, the user opted into them, and the user is signed in
++    with a Gmail account. Not recorded in Incognito. Eligibility does not
++    guarantee that the user gets Gmail OTPs, e.g. their Gmail settings may still
++    block them.
++  </summary>
++</histogram>
++
+ <histogram name="Autofill.KeyMetrics.FormSubmission.NotAutofilled.{FormType}"
+     enum="BooleanAutofillSubmission" expires_after="2027-12-12">
+   <owner>battre@chromium.org</owner>
+diff --git a/tools/metrics/histograms/metadata/one_time_tokens/histograms.xml b/tools/metrics/histograms/metadata/one_time_tokens/histograms.xml
+index ff29370..b70e248 100644
+--- a/tools/metrics/histograms/metadata/one_time_tokens/histograms.xml
++++ b/tools/metrics/histograms/metadata/one_time_tokens/histograms.xml
+@@ -375,6 +375,60 @@
+   </summary>
+ </histogram>
+ 
++<histogram name="OneTimeTokens.ProactiveTrigger.Outcome"
++    enum="OtpProactiveTriggerOutcome" expires_after="2027-08-01">
++  <owner>koerber@google.com</owner>
++  <owner>src/components/one_time_tokens/OWNERS</owner>
++  <summary>
++    Records the outcome of a proactive OTP suggestion trigger, i.e. Chrome
++    opening the OTP suggestion popup on an OTP field without user interaction. A
++    trigger is attempted when a verified OTP arrives, when an OTP field is
++    detected while a verified OTP is available, or when a deferred trigger is
++    retried. Recorded at most once per (OTP field, OTP candidate) pair per page
++    visit, where a candidate is one received OTP message, so a re-sent code and
++    the SMS and Gmail copies of one code are separate candidates. A pair may be
++    recorded again after the page is restored from the back/forward cache.
++    &quot;Suppressed&quot; is recorded when the trigger is blocked at the
++    proactive trigger stage (see
++    OneTimeTokens.ProactiveTrigger.SuppressionReason). &quot;Triggered and
++    suggestions shown&quot; is recorded when an OTP suggestion popup with the
++    triggered value is shown on the field within 5 seconds of the trigger being
++    dispatched to the renderer; on Android, this is when the keyboard accessory
++    receives the suggestions, which does not guarantee that they are visible.
++    Attribution is time-based, so an OTP popup with that value that the user
++    opens on the field within this window is also counted. Nothing is recorded
++    for triggers deferred while the tab is hidden or the window is unfocused
++    (only the outcome of the retry is recorded), or for dispatched triggers
++    whose popup is not shown within 5 seconds. Only recorded on desktop and
++    Android while the AutofillOtpCoordinator feature is enabled.
++  </summary>
++</histogram>
++
++<histogram name="OneTimeTokens.ProactiveTrigger.SuppressionReason"
++    enum="OtpProactiveTriggerSuppressionReason" expires_after="2027-08-01">
++  <owner>koerber@google.com</owner>
++  <owner>src/components/one_time_tokens/OWNERS</owner>
++  <summary>
++    Records why a proactive OTP suggestion trigger was suppressed for an OTP
++    candidate that had already passed delivery verification. Recorded together
++    with the &quot;Suppressed&quot; bucket of
++    OneTimeTokens.ProactiveTrigger.Outcome, at most once per (OTP field, OTP
++    candidate) pair per page visit. If several checks fail, only the first
++    failing check is recorded, in the order applied by
++    OtpCoordinator::TryProactiveTrigger(): deduplication, then
++    OtpDeliveryPolicy::Evaluate(), then the different OTP field check.
++    &quot;WebOTP blocked&quot; and &quot;User not opted in to Gmail OTP
++    filling&quot; are edge cases where a delivery precondition stopped holding
++    after verification, e.g. while the trigger was deferred. &quot;Target OTP
++    field not focused on Android&quot; and &quot;Keyboard not visible on
++    Android&quot; are only recorded on Android; &quot;Different OTP field
++    focused&quot; is only recorded on other platforms. &quot;Frame
++    inactive&quot; and &quot;Keyboard not visible on Android&quot;
++    (crbug.com/451991285) are currently never recorded. Only recorded on desktop
++    and Android while the AutofillOtpCoordinator feature is enabled.
++  </summary>
++</histogram>
++
+ <histogram
+     name="OneTimeTokens.{Type}.SenderDomainMatchAcceptedMatchType.{Source}"
+     enum="GmailOtpSenderDomainMatchType" expires_after="2027-06-30">
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index c48fd91..ead3034 100644
+index c48fd91..23c0f3e 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -1550,10 +3756,22 @@ index c48fd91..ead3034 100644
  #define V8_MINOR_VERSION 9
  #define V8_BUILD_NUMBER 128
 -#define V8_PATCH_LEVEL 5
-+#define V8_PATCH_LEVEL 6
++#define V8_PATCH_LEVEL 7
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
+index 378f611..5002743 100644
+--- a/v8/src/maglev/maglev-graph-builder.cc
++++ b/v8/src/maglev/maglev-graph-builder.cc
+@@ -16934,6 +16934,7 @@
+   }
+   BasicBlockRef* old_jump_targets = jump_targets.Reset();
+   while (old_jump_targets != nullptr) {
++    SBXCHECK_GE(predecessor_index, 0);
+     BasicBlock* predecessor = merge_state.predecessor_at(predecessor_index);
+     CHECK(predecessor);
+     ControlNode* control = predecessor->control_node();
 diff --git a/v8/src/runtime/runtime-literals.cc b/v8/src/runtime/runtime-literals.cc
 index 2b63e41..9eb9b59 100644
 --- a/v8/src/runtime/runtime-literals.cc
@@ -1585,3 +3803,17 @@ index 2b63e41..9eb9b59 100644
          }
        }
      }
+diff --git a/third_party/leveldatabase/src/table/block.cc b/third_party/leveldatabase/src/table/block.cc
+index 3b15257..742ced8 100644
+--- a/third_party/leveldatabase/src/table/block.cc
++++ b/third_party/leveldatabase/src/table/block.cc
+@@ -68,7 +68,8 @@
+     if ((p = GetVarint32Ptr(p, limit, value_length)) == nullptr) return nullptr;
+   }
+ 
+-  if (static_cast<uint32_t>(limit - p) < (*non_shared + *value_length)) {
++  if (static_cast<uint32_t>(limit - p) < *non_shared ||
++      static_cast<uint32_t>(limit - p) - *non_shared < *value_length) {
+     return nullptr;
+   }
+   return p;
