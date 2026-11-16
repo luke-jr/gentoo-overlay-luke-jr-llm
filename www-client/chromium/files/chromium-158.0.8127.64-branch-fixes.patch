@@ -1,13 +1,13 @@
 Chromium 158.0.8127.64 + the later changes of its release branch, up to
-0f2106d3402363baa950455dd2fce70ff3b3aa33 (refs/branch-heads/8127@{#1797}), for the
+67053e9f4753f1e1025e10d94c9332339222ca09 (refs/branch-heads/8127@{#1804}), for the
 158.0.8127.64 tree that chromium-158.0.8127.37-to-158.0.8127.64.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..0f2106d3402363baa950455dd2fce70ff3b3aa33,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..67053e9f4753f1e1025e10d94c9332339222ca09,
 from the branch's roll of chromium/deps/icu c670d124c9b6aa92c0b492cf543808300e0e6103..c66ba5d8cda8b645d16778c92c902a871c0fd45c (under third_party/icu/),
 from its rolls of v8/v8 19c06df29e0050413f5f041888f4c990de970314..7391c3adca5214b7a36b1c54c95a6e8f360dc2b4 (under v8/),
 from its roll of external/leveldb bb74ef739973a70ca9f0d90788a1da89b788c0ad..29465588d3dfdc80fba5e198037582b8fdb5dd60 (under third_party/leveldatabase/src/),
 from its rolls of skia 707e33875fb45f2997a4d781128bec122fb777b4..9f8fb9da7e434d74187003c2431f13d0f11641f7 (under third_party/skia/),
-and from its roll of angle/angle 3708e472b77d8338dbc7365fea884beb0272c6de..b021b8b3c46964982a2ae71144a411b03a8d9154 (under third_party/angle/),
+and from its rolls of angle/angle 3708e472b77d8338dbc7365fea884beb0272c6de..5514b35dfa76a46321896fa3b3e078b983dc9e41 (under third_party/angle/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .64 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -40,10 +40,31 @@ Commits contributing to it (oldest first):
     v8 7391c3adca52 Version 15.8.62.41
     skia 9f8fb9da7e43 [M158] Avoid float equality for hashing image filters
     angle b021b8b3c469 [M158] GL: Limit expanded variable fields per shader on PowerVR
+  cb50527811d6 [M158] [CSD] Guard visual extractor across CapturePaintPreview()
+  5f9ad920c55b Roll commits from side projects in M158
+    angle a999586e677a [M158] GL: Clamp max fragment texture image units to 13 on PowerVR
+    angle 5514b35dfa76 [M158] GL: Flush before changing draw framebuffer on PowerVR
+  91e36a339da1 [M158] [WebUI LLBC] Don't invalidate permission chip tokens
+  874d89313daf [M158] [Wayland] Use the xdg-role ancestor as the activation token surface
+  f69a9d412400 [M158] Settings: Fix protocol handlers default radio group selection
+  67053e9f4753 [M158] Ensure EditorCommand stays bound to its Document
 
 Checked: applies to the 158.0.8127.64 tree; every patched file is
 byte-identical to its version at the last commit above.
 
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_location_bar.cc b/chrome/browser/contextual_tasks/contextual_tasks_location_bar.cc
+index 2e418651..61ec6db8 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_location_bar.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_location_bar.cc
+@@ -174,7 +174,7 @@
+     // even if a chip stays visible across the switch. `OnChanged()` below
+     // pushes the new tokens to the WebUI.
+     if (permission_dashboard_) {
+-      permission_dashboard_->ResetTabState();
++      permission_dashboard_->InvalidateStateTokens();
+     }
+     web_contents_ = contents ? contents->GetWeakPtr() : nullptr;
+   }
 diff --git a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
 index 18ede1f..8472814 100644
 --- a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
@@ -196,6 +217,132 @@ index 18ede1f..8472814 100644
      std::vector<base::FilePath::StringType> block_components =
          block_path.GetComponents();
      if (IsPathOrDescendantIgnoreCase(path_components, block_components)) {
+diff --git a/chrome/browser/resources/settings/site_settings/protocol_handlers.html b/chrome/browser/resources/settings/site_settings/protocol_handlers.html
+index 784ead9..d487df3 100644
+--- a/chrome/browser/resources/settings/site_settings/protocol_handlers.html
++++ b/chrome/browser/resources/settings/site_settings/protocol_handlers.html
+@@ -47,7 +47,7 @@
+       </div>
+       <cr-radio-group
+           id="protcolHandlersRadio"
+-          selected$="[[handlersEnabled_]]"
++          selected="[[getSelectedValue_(handlersEnabled_)]]"
+           on-selected-changed="onRadioGroupChange_"
+           selectable-elements="settings-collapse-radio-button">
+         <settings-collapse-radio-button no-collapse
+diff --git a/chrome/browser/resources/settings/site_settings/protocol_handlers.ts b/chrome/browser/resources/settings/site_settings/protocol_handlers.ts
+index 00a9486a..63f4535 100644
+--- a/chrome/browser/resources/settings/site_settings/protocol_handlers.ts
++++ b/chrome/browser/resources/settings/site_settings/protocol_handlers.ts
+@@ -240,6 +240,10 @@
+     this.actionMenuModel_ = null;
+   }
+ 
++  private getSelectedValue_(): string {
++    return this.handlersEnabled_.toString();
++  }
++
+   /**
+    * A handler when the radio group selection changes.
+    */
+diff --git a/chrome/browser/ui/views/location_bar/webui_location_bar.cc b/chrome/browser/ui/views/location_bar/webui_location_bar.cc
+index aec6712..119826e 100644
+--- a/chrome/browser/ui/views/location_bar/webui_location_bar.cc
++++ b/chrome/browser/ui/views/location_bar/webui_location_bar.cc
+@@ -609,7 +609,7 @@
+       }
+     }
+     if (permission_dashboard_) {
+-      permission_dashboard_->ResetTabState();
++      permission_dashboard_->InvalidateStateTokens();
+     }
+   } else {
+     omnibox_view_->Update();
+@@ -774,9 +774,11 @@
+   if (contents) {
+     omnibox_view_->ResetTabState(contents);
+   }
+-  if (permission_dashboard_) {
+-    permission_dashboard_->ResetTabState();
+-  }
++  // Don't invalidate the permission chips' state tokens here. This is called
++  // when a background tab's URL changes, while the chips show the active tab's
++  // state, which hasn't changed. Invalidating would drop clicks already in
++  // flight for the active tab. Tab switches invalidate the tokens in
++  // `Update()`.
+ }
+ 
+ bool WebUILocationBar::HasSecurityStateChanged() {
+diff --git a/chrome/browser/ui/views/permissions/chip/webui_permission_chip.h b/chrome/browser/ui/views/permissions/chip/webui_permission_chip.h
+index af77c58..485f3aa 100644
+--- a/chrome/browser/ui/views/permissions/chip/webui_permission_chip.h
++++ b/chrome/browser/ui/views/permissions/chip/webui_permission_chip.h
+@@ -90,16 +90,22 @@
+   toolbar_ui_api::mojom::PermissionChipStatePtr GetState() const;
+ 
+   uint32_t state_token() const { return state_token_; }
+-  void InvalidateStateToken() { ++state_token_; }
+ 
+  private:
+   friend class WebUIPermissionChipTest;
++  // For `InvalidateStateToken()`.
++  friend class WebUIPermissionDashboard;
+ 
+   // How long `WaitForAnchor()` waits for the chip element to be shown before
+   // timing out and running the callback anyway. `GetAnchor()` then returns a
+   // fallback anchor.
+   static constexpr base::TimeDelta kAnchorFallbackTimeout = base::Seconds(3);
+ 
++  // Bumps `state_token_` without pushing it to the WebUI. Private so that
++  // tokens are only invalidated through
++  // `WebUIPermissionDashboard::InvalidateStateTokens()`.
++  void InvalidateStateToken() { ++state_token_; }
++
+   void NotifyVisibilityChanged();
+   void UpdateState();
+   void FinishAnimation(AnimationState state);
+@@ -111,8 +117,8 @@
+   // animation state changes (e.g. on navigations and prompt resets via
+   // `ChipController`), and on tab or side panel task switches
+   // (`InvalidateStateToken()`, via
+-  // `WebUIPermissionDashboard::ResetTabState()`). The WebUI echoes the token it
+-  // rendered the chip with in its click IPC
++  // `WebUIPermissionDashboard::InvalidateStateTokens()`). The WebUI echoes the
++  // token it rendered the chip with in its click IPC
+   // (`OnLhsChipClicked()` in the main toolbar, `OnChipClicked()` in Contextual
+   // Tasks), and `OnClickedIfCurrent()` drops clicks whose token doesn't match,
+   // so actions don't run against an obsolete tab, task or request model.
+diff --git a/chrome/browser/ui/views/permissions/chip/webui_permission_dashboard.cc b/chrome/browser/ui/views/permissions/chip/webui_permission_dashboard.cc
+index 03e5c5a2..a193f00 100644
+--- a/chrome/browser/ui/views/permissions/chip/webui_permission_dashboard.cc
++++ b/chrome/browser/ui/views/permissions/chip/webui_permission_dashboard.cc
+@@ -60,7 +60,7 @@
+   location_bar_->OnChanged();
+ }
+ 
+-void WebUIPermissionDashboard::ResetTabState() {
++void WebUIPermissionDashboard::InvalidateStateTokens() {
+   request_chip_.InvalidateStateToken();
+   indicator_chip_.InvalidateStateToken();
+ }
+diff --git a/chrome/browser/ui/views/permissions/chip/webui_permission_dashboard.h b/chrome/browser/ui/views/permissions/chip/webui_permission_dashboard.h
+index 5f517dd7..f747e36 100644
+--- a/chrome/browser/ui/views/permissions/chip/webui_permission_dashboard.h
++++ b/chrome/browser/ui/views/permissions/chip/webui_permission_dashboard.h
+@@ -28,7 +28,12 @@
+   WebUIPermissionChip* request_chip() { return &request_chip_; }
+   WebUIPermissionChip* indicator_chip() { return &indicator_chip_; }
+ 
+-  void ResetTabState();
++  // Invalidates both chips' state tokens so that in-flight clicks for the
++  // previous tab or task are dropped. This doesn't push the new tokens to the
++  // WebUI, so callers must call `LocationBar::OnChanged()` afterwards.
++  // Otherwise the WebUI keeps echoing the old tokens, and every later click is
++  // dropped as stale.
++  void InvalidateStateTokens();
+ 
+  private:
+   void UpdateState();
 diff --git a/chrome/installer/linux/PRESUBMIT.py b/chrome/installer/linux/PRESUBMIT.py
 index 273f63c..38f165b1e 100644
 --- a/chrome/installer/linux/PRESUBMIT.py
@@ -295,6 +442,70 @@ index 43237aaa..327584f 100755
              f"--define={compression_opt}",
              "--define=__os_install_post %{nil}",
              "--define=_build_id_links none",
+diff --git a/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.cc b/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.cc
+index cbcbf4f..27ae93f2 100644
+--- a/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.cc
++++ b/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.cc
+@@ -129,10 +129,17 @@
+   cc::PaintCanvas* canvas = recorder.beginRecording();
+   canvas->SetPaintPreviewTracker(tracker.get());
+ 
+-  if (!frame->CapturePaintPreview(bounds, canvas,
+-                                  /*include_linked_destinations=*/false,
+-                                  /*skip_accelerated_content=*/true,
+-                                  /*allow_scrollbars=*/false)) {
++  // `CapturePaintPreview()` runs a Blink lifecycle update that can
++  // synchronously dispatch events/script and cancel visual feature extraction,
++  // destroying `this`.
++  base::WeakPtr<PhishingVisualFeatureExtractor> weak_this =
++      weak_factory_.GetWeakPtr();
++  const bool capture_succeeded = CapturePaintPreview(frame, bounds, canvas);
++  if (!weak_this) {
++    return;
++  }
++
++  if (!capture_succeeded) {
+     RunCallback(nullptr);
+     return;
+   }
+@@ -162,4 +169,14 @@
+   std::move(done_callback_).Run(std::move(bitmap));
+ }
+ 
++bool PhishingVisualFeatureExtractor::CapturePaintPreview(
++    blink::WebLocalFrame* frame,
++    const gfx::Rect& bounds,
++    cc::PaintCanvas* canvas) {
++  return frame->CapturePaintPreview(bounds, canvas,
++                                    /*include_linked_destinations=*/false,
++                                    /*skip_accelerated_content=*/true,
++                                    /*allow_scrollbars=*/false);
++}
++
+ }  // namespace safe_browsing
+diff --git a/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.h b/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.h
+index e90ef22..5e3536c 100644
+--- a/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.h
++++ b/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.h
+@@ -32,10 +32,17 @@
+   PhishingVisualFeatureExtractor& operator=(
+       const PhishingVisualFeatureExtractor&) = delete;
+ 
+-  ~PhishingVisualFeatureExtractor();
++  virtual ~PhishingVisualFeatureExtractor();
+ 
+   void ExtractFeatures(blink::WebLocalFrame* frame, DoneCallback done_callback);
+ 
++ protected:
++  // Virtual seam for tests to simulate re-entrant cancellation during Blink's
++  // paint-preview lifecycle update.
++  virtual bool CapturePaintPreview(blink::WebLocalFrame* frame,
++                                   const gfx::Rect& bounds,
++                                   cc::PaintCanvas* canvas);
++
+  private:
+   void CancelPendingExtraction();
+ 
 diff --git a/content/browser/service_worker/service_worker_client.cc b/content/browser/service_worker/service_worker_client.cc
 index 38e7eaf..8f38d5983 100644
 --- a/content/browser/service_worker/service_worker_client.cc
@@ -1221,6 +1432,299 @@ index 17fd901..c44396d 100644
  }  // namespace blink
  
  #endif  // THIRD_PARTY_BLINK_RENDERER_CORE_DOM_EVENTS_WINDOW_EVENT_CONTEXT_H_
+diff --git a/third_party/blink/renderer/core/editing/commands/document_exec_command.cc b/third_party/blink/renderer/core/editing/commands/document_exec_command.cc
+index e052fd0..67c06c96 100644
+--- a/third_party/blink/renderer/core/editing/commands/document_exec_command.cc
++++ b/third_party/blink/renderer/core/editing/commands/document_exec_command.cc
+@@ -55,9 +55,10 @@
+   if (!frame || frame->GetDocument() != document)
+     return EditorCommand();
+ 
++  EditorCommand command =
++      frame->GetEditor().CreateCommand(command_name, EditorCommandSource::kDom);
+   document->UpdateStyleAndLayoutTree();
+-  return frame->GetEditor().CreateCommand(command_name,
+-                                          EditorCommandSource::kDom);
++  return command;
+ }
+ 
+ // Trusted Types requires that HTML (or Script, or script URLs) to be
+diff --git a/third_party/blink/renderer/core/editing/commands/editor_command.cc b/third_party/blink/renderer/core/editing/commands/editor_command.cc
+index 63b57c9d..815026b9 100644
+--- a/third_party/blink/renderer/core/editing/commands/editor_command.cc
++++ b/third_party/blink/renderer/core/editing/commands/editor_command.cc
+@@ -1130,6 +1130,14 @@
+ 
+ // Enabled functions
+ 
++// Updates style and layout, returning true if `frame` is still attached to the
++// same `Document` afterward (i.e. neither detached nor navigated).
++static bool UpdateStyleAndLayoutForCommand(LocalFrame& frame) {
++  Document* const document = frame.GetDocument();
++  document->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  return frame.GetDocument() == document && document->GetFrame() == &frame;
++}
++
+ static bool Enabled(LocalFrame&, Event*, EditorCommandSource) {
+   return true;
+ }
+@@ -1142,7 +1150,9 @@
+     return false;
+   }
+ 
+-  frame.GetDocument()->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!UpdateStyleAndLayoutForCommand(frame)) {
++    return false;
++  }
+ 
+   if (source == EditorCommandSource::kMenuOrKeyBinding &&
+       !frame.Selection().SelectionHasFocus()) {
+@@ -1169,7 +1179,9 @@
+     return false;
+   }
+ 
+-  frame.GetDocument()->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!UpdateStyleAndLayoutForCommand(frame)) {
++    return false;
++  }
+ 
+   if (source == EditorCommandSource::kMenuOrKeyBinding &&
+       !frame.Selection().SelectionHasFocus()) {
+@@ -1195,7 +1207,9 @@
+     return false;
+   }
+ 
+-  frame.GetDocument()->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!UpdateStyleAndLayoutForCommand(frame)) {
++    return false;
++  }
+ 
+   if (source == EditorCommandSource::kMenuOrKeyBinding &&
+       !frame.Selection().SelectionHasFocus()) {
+@@ -1222,7 +1236,9 @@
+     }
+   }
+ 
+-  frame.GetDocument()->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!UpdateStyleAndLayoutForCommand(frame)) {
++    return false;
++  }
+   if (source == EditorCommandSource::kMenuOrKeyBinding &&
+       !frame.Selection().SelectionHasFocus()) {
+     return false;
+@@ -1244,7 +1260,9 @@
+     }
+   }
+ 
+-  frame.GetDocument()->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!UpdateStyleAndLayoutForCommand(frame)) {
++    return false;
++  }
+   if (source == EditorCommandSource::kMenuOrKeyBinding &&
+       !frame.Selection().SelectionHasFocus()) {
+     return false;
+@@ -1287,7 +1305,9 @@
+     return false;
+   }
+ 
+-  frame.GetDocument()->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!UpdateStyleAndLayoutForCommand(frame)) {
++    return false;
++  }
+   if (source == EditorCommandSource::kMenuOrKeyBinding &&
+       !frame.Selection().SelectionHasFocus()) {
+     return false;
+@@ -1306,7 +1326,9 @@
+     return false;
+   }
+ 
+-  frame.GetDocument()->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!UpdateStyleAndLayoutForCommand(frame)) {
++    return false;
++  }
+   if (source == EditorCommandSource::kMenuOrKeyBinding &&
+       !frame.Selection().SelectionHasFocus()) {
+     return false;
+@@ -1338,7 +1360,9 @@
+     return false;
+   }
+ 
+-  frame.GetDocument()->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!UpdateStyleAndLayoutForCommand(frame)) {
++    return false;
++  }
+ 
+   // The term "visible" here includes a caret in editable text or a range in any
+   // text.
+@@ -1358,7 +1382,9 @@
+ 
+   // TODO(editing-dev): The use of UpdateStyleAndLayout
+   // needs to be audited.  See http://crbug.com/590369 for more details.
+-  frame.GetDocument()->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!UpdateStyleAndLayoutForCommand(frame)) {
++    return false;
++  }
+   const VisibleSelection& selection =
+       frame.Selection().ComputeVisibleSelectionInDomTree();
+   if (selection.IsNone()) {
+@@ -2110,12 +2136,17 @@
+ EditorCommand::EditorCommand(const EditorInternalCommand* command,
+                              EditorCommandSource source,
+                              LocalFrame* frame)
+-    : command_(command), source_(source), frame_(command ? frame : nullptr) {
++    : command_(command),
++      source_(source),
++      frame_(command ? frame : nullptr),
++      document_((command && frame) ? frame->GetDocument() : nullptr) {
+   // Use separate assertions so we can tell which bad thing happened.
+   if (!command) {
+     DCHECK(!frame_);
++    DCHECK(!document_);
+   } else {
+     DCHECK(frame_);
++    DCHECK(document_);
+   }
+ }
+ 
+@@ -2124,6 +2155,11 @@
+   return *frame_;
+ }
+ 
++bool EditorCommand::IsCurrentDocument() const {
++  return frame_ && document_ && frame_->GetDocument() == document_ &&
++         document_->GetFrame() == frame_;
++}
++
+ bool EditorCommand::Execute(const String& parameter,
+                             Event* triggering_event) const {
+   if (!CanExecute(triggering_event)) {
+@@ -2148,16 +2184,15 @@
+           undo_step = *frame_->GetEditor().GetUndoStack().RedoSteps().begin();
+         }
+       }
+-      Node* target_node =
+-          undo_step ? undo_step->StartingRootEditableElement()
+-                    : EventTargetNodeForDocument(frame_->GetDocument());
++      Node* target_node = undo_step ? undo_step->StartingRootEditableElement()
++                                    : EventTargetNodeForDocument(document_);
+       if (DispatchBeforeInputEditorCommand(target_node, input_type,
+                                            GetTargetRanges()) !=
+           DispatchEventResult::kNotCanceled) {
+         return true;
+       }
+-      // 'beforeinput' event handler may destroy target frame.
+-      if (frame_->GetDocument()->GetFrame() != frame_) {
++      // 'beforeinput' event handler may destroy or navigate target frame.
++      if (!IsCurrentDocument()) {
+         return false;
+       }
+     }
+@@ -2203,14 +2238,14 @@
+   // ExecuteFindString/Editor::FindString will hit bad style/layout data.
+   DisplayLockDocumentState::ScopedForceActivatableDisplayLocks forced_locks;
+   if (command_->command_type == EditingCommandType::kFindString) {
+-    forced_locks.Add(GetFrame()
+-                         .GetDocument()
+-                         ->GetDisplayLockDocumentState()
++    forced_locks.Add(document_->GetDisplayLockDocumentState()
+                          .GetScopedForceActivatableLocks());
+   }
+ 
+-  GetFrame().GetDocument()->UpdateStyleAndLayout(
+-      DocumentUpdateReason::kEditing);
++  document_->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!IsCurrentDocument()) {
++    return false;
++  }
+   return command_->execute(*frame_, triggering_event, source_, parameter);
+ }
+ 
+@@ -2222,7 +2257,8 @@
+   if (IsEnabled(triggering_event)) {
+     return true;
+   }
+-  return IsSupported() && frame_ && command_->can_execute(*frame_, source_);
++  return IsSupported() && IsCurrentDocument() &&
++         command_->can_execute(*frame_, source_);
+ }
+ 
+ bool EditorCommand::IsSupported() const {
+@@ -2239,24 +2275,27 @@
+ }
+ 
+ bool EditorCommand::IsEnabled(Event* triggering_event) const {
+-  if (!IsSupported() || !frame_) {
++  if (!IsSupported() || !IsCurrentDocument()) {
+     return false;
+   }
+-  return command_->is_enabled(*frame_, triggering_event, source_);
++  return command_->is_enabled(*frame_, triggering_event, source_) &&
++         IsCurrentDocument();
+ }
+ 
+ EditingTriState EditorCommand::GetState(Event* triggering_event) const {
+-  if (!IsSupported() || !frame_) {
++  if (!IsSupported() || !IsCurrentDocument()) {
+     return EditingTriState::kFalse;
+   }
+-  return command_->state(*frame_, triggering_event);
++  const EditingTriState state = command_->state(*frame_, triggering_event);
++  return IsCurrentDocument() ? state : EditingTriState::kFalse;
+ }
+ 
+ String EditorCommand::Value(Event* triggering_event) const {
+-  if (!IsSupported() || !frame_) {
++  if (!IsSupported() || !IsCurrentDocument()) {
+     return String();
+   }
+-  return command_->value(*command_, *frame_, triggering_event);
++  const String value = command_->value(*command_, *frame_, triggering_event);
++  return IsCurrentDocument() ? value : String();
+ }
+ 
+ bool EditorCommand::IsTextInsertion() const {
+@@ -2273,8 +2312,11 @@
+ }
+ 
+ const GCedStaticRangeVector* EditorCommand::GetTargetRanges() const {
+-  const Node* target = EventTargetNodeForDocument(frame_->GetDocument());
+-  if (!IsSupported() || !frame_ || !target || !IsRichlyEditable(*target)) {
++  if (!IsSupported() || !IsCurrentDocument()) {
++    return nullptr;
++  }
++  const Node* target = EventTargetNodeForDocument(document_);
++  if (!target || !IsRichlyEditable(*target)) {
+     return nullptr;
+   }
+ 
+diff --git a/third_party/blink/renderer/core/editing/commands/editor_command.h b/third_party/blink/renderer/core/editing/commands/editor_command.h
+index 7dc508f..cf39cfe 100644
+--- a/third_party/blink/renderer/core/editing/commands/editor_command.h
++++ b/third_party/blink/renderer/core/editing/commands/editor_command.h
+@@ -38,6 +38,7 @@
+ 
+ namespace blink {
+ 
++class Document;
+ class EditorInternalCommand;
+ class Event;
+ class LocalFrame;
+@@ -71,6 +72,7 @@
+ 
+  private:
+   LocalFrame& GetFrame() const;
++  bool IsCurrentDocument() const;
+ 
+   FRIEND_TEST_ALL_PREFIXES(EditingCommandTest,
+                            DeleteSoftLineBackwardTargetRanges);
+@@ -89,6 +91,7 @@
+   const EditorInternalCommand* command_ = nullptr;
+   const EditorCommandSource source_;
+   LocalFrame* const frame_ = nullptr;
++  Document* const document_ = nullptr;
+ };
+ 
+ }  // namespace blink
 diff --git a/third_party/blink/renderer/core/events/build.gni b/third_party/blink/renderer/core/events/build.gni
 index 9e320e3..c4a4152 100644
 --- a/third_party/blink/renderer/core/events/build.gni
@@ -1678,6 +2182,31 @@ index d7df43d..b7e19e2 100644
  Update Mechanism: Manual
  License: BSD-3-Clause
  License File: src/LICENSE
+diff --git a/ui/ozone/platform/wayland/host/xdg_activation.cc b/ui/ozone/platform/wayland/host/xdg_activation.cc
+index 529a40b..feb765f 100644
+--- a/ui/ozone/platform/wayland/host/xdg_activation.cc
++++ b/ui/ozone/platform/wayland/host/xdg_activation.cc
+@@ -177,7 +177,7 @@
+ 
+ wl_surface* XdgActivation::TokenRequest::DetermineSurface(
+     const std::optional<wl::Serial>& serial) const {
+-  WaylandWindow const* window = nullptr;
++  WaylandWindow* window = nullptr;
+   auto* const window_manager = connection_->window_manager();
+ 
+   // The spec isn't clear about what types of surfaces should be used as
+@@ -201,6 +201,11 @@
+         break;
+     }
+   }
++  // Compositors don't accept a subsurface (WaylandBubble) as the requestor;
++  // use its xdg-role ancestor.
++  if (window && window->AsWaylandBubble()) {
++    window = window->GetXdgParentWindow();
++  }
+   return window ? window->root_surface()->surface() : nullptr;
+ }
+ 
 diff --git a/third_party/icu/README.chromium b/third_party/icu/README.chromium
 index 1ad19b3..d2833e9 100644
 --- a/third_party/icu/README.chromium
@@ -3388,7 +3917,7 @@ index b19834f..64548e0 100644
      uint64_t transformFloatUniformTo16Bits : 1;
  
 diff --git a/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h b/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
-index 6e7ed71..343ff17 100644
+index 6e7ed71..82151a3 100644
 --- a/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
 +++ b/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
 @@ -752,6 +752,12 @@
@@ -3404,8 +3933,27 @@ index 6e7ed71..343ff17 100644
      FeatureInfo avoidComplexExpressionsInStructConstructor = {
          "avoidComplexExpressionsInStructConstructor",
          FeatureCategory::OpenGLWorkarounds,
+@@ -818,6 +824,18 @@
+         &members,
+     };
+ 
++    FeatureInfo limitMaxTextureImageUnitsTo13 = {
++        "limitMaxTextureImageUnitsTo13",
++        FeatureCategory::OpenGLWorkarounds,
++        &members,
++    };
++
++    FeatureInfo flushBeforeDrawFramebufferChange = {
++        "flushBeforeDrawFramebufferChange",
++        FeatureCategory::OpenGLWorkarounds,
++        &members,
++    };
++
+ };
+ 
+ inline FeaturesGL::FeaturesGL()  = default;
 diff --git a/third_party/angle/include/platform/gl_features.json b/third_party/angle/include/platform/gl_features.json
-index a64ed34..8f35981 100644
+index a64ed34..e6064b6 100644
 --- a/third_party/angle/include/platform/gl_features.json
 +++ b/third_party/angle/include/platform/gl_features.json
 @@ -993,6 +993,16 @@
@@ -3425,6 +3973,31 @@ index a64ed34..8f35981 100644
              "name": "avoid_complex_expressions_in_struct_constructor",
              "category": "Workarounds",
              "description": [
+@@ -1083,6 +1093,24 @@
+                 "Disable ANGLE_shader_pixel_local_storage; kill-switch for known broken GPUs."
+             ],
+             "issue": "http://anglebug.com/40096838"
++        },
++        {
++            "name": "limit_max_texture_image_units_to_13",
++            "category": "Workarounds",
++            "description": [
++                "Clamp GL_MAX_TEXTURE_IMAGE_UNITS to 13 so programs with more than 13 active ",
++                "fragment shader samplers are rejected during linking."
++            ],
++            "issue": "https://crbug.com/577781532"
++        },
++        {
++            "name": "flush_before_draw_framebuffer_change",
++            "category": "Workarounds",
++            "description": [
++                "Force a flush before changing a non-default draw framebuffer binding to ",
++                "avoid stale cross-framebuffer state in PowerVR drivers."
++            ],
++            "issue": "https://crbug.com/584036299"
+         }
+     ]
+ }
 diff --git a/third_party/angle/src/compiler/translator/ParseContext.cpp b/third_party/angle/src/compiler/translator/ParseContext.cpp
 index c6ca050..d731e42 100644
 --- a/third_party/angle/src/compiler/translator/ParseContext.cpp
@@ -3608,6 +4181,23 @@ index e42234d..29dcc1a 100644
  
      // Track state related to control flow, used for various validation:
      //
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
+index c17b13b..d9a5353 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
+@@ -1548,6 +1548,12 @@
+             activeColorAttachments.set(*mState.getColorAttachmentsMask().begin());
+         }
+     }
++    else if (attachmentsDirty && mHasSyncedAttachments && mFramebufferID != 0 &&
++             stateManager->getFramebufferID(angle::FramebufferBindingDraw) == mFramebufferID &&
++             GetFeaturesGL(context).flushBeforeDrawFramebufferChange.enabled)
++    {
++        stateManager->forcefullyFlush();
++    }
+ 
+     stateManager->bindFramebuffer(GL_FRAMEBUFFER, mFramebufferID);
+ 
 diff --git a/third_party/angle/src/libANGLE/renderer/gl/ShaderGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/ShaderGL.cpp
 index 11bb815..cccc4ec 100644
 --- a/third_party/angle/src/libANGLE/renderer/gl/ShaderGL.cpp
@@ -3624,11 +4214,291 @@ index 11bb815..cccc4ec 100644
      return std::shared_ptr<ShaderTranslateTask>(
          new ShaderTranslateTaskGL(functions, mShaderID, contextGL->hasNativeParallelCompile()));
  }
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp
+index 51eb6bf..3ba0efe 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp
+@@ -2137,6 +2137,14 @@
+ 
+ void StateManagerGL::bindFramebuffer(GLenum type, GLuint framebuffer)
+ {
++    if (type != GL_READ_FRAMEBUFFER && mState.framebuffers[angle::FramebufferBindingDraw] != 0 &&
++        mState.framebuffers[angle::FramebufferBindingDraw] != framebuffer &&
++        mFeatures.flushBeforeDrawFramebufferChange.enabled)
++    {
++        // Flush pending rendering on the outgoing draw framebuffer while still bound.
++        forcefullyFlush();
++    }
++
+     bool framebufferChanged = false;
+     switch (type)
+     {
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL_unittest.cpp b/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL_unittest.cpp
+index 54a0cd5..5d22543 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL_unittest.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL_unittest.cpp
+@@ -25,13 +25,33 @@
+ namespace
+ {
+ 
++enum class DriverCallType
++{
++    BindFramebuffer,
++    DeleteFramebuffer,
++    FlushSync,
++    Finish,
++};
++
++struct DriverCall
++{
++    DriverCallType type = DriverCallType::BindFramebuffer;
++    GLenum target       = 0;
++    GLuint framebuffer  = 0;
++};
++
+ struct MockDriverState
+ {
+     GLboolean blendEnabled             = GL_FALSE;
+     std::array<GLboolean, 4> colorMask = {GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE};
++    GLuint readFramebuffer             = 0;
++    GLuint drawFramebuffer             = 0;
+     int enableBlendCallCount           = 0;
+     int disableBlendCallCount          = 0;
+     int colorMaskCallCount             = 0;
++    int fenceSyncCallCount             = 0;
++    int deleteSyncCallCount            = 0;
++    std::vector<DriverCall> calls;
+ };
+ 
+ MockDriverState *gDriverState = nullptr;
+@@ -104,8 +124,61 @@
+ {
+     *framebuffers = 1;
+ }
+-void GL_APIENTRY StubBindFramebuffer(GLenum, GLuint) {}
+-void GL_APIENTRY StubDeleteFramebuffers(GLsizei, const GLuint *) {}
++void GL_APIENTRY StubBindFramebuffer(GLenum target, GLuint framebuffer)
++{
++    if (gDriverState == nullptr)
++    {
++        return;
++    }
++    if (target == GL_READ_FRAMEBUFFER || target == GL_FRAMEBUFFER)
++    {
++        gDriverState->readFramebuffer = framebuffer;
++    }
++    if (target == GL_DRAW_FRAMEBUFFER || target == GL_FRAMEBUFFER)
++    {
++        gDriverState->drawFramebuffer = framebuffer;
++    }
++    gDriverState->calls.push_back({DriverCallType::BindFramebuffer, target, framebuffer});
++}
++void GL_APIENTRY StubDeleteFramebuffers(GLsizei count, const GLuint *framebuffers)
++{
++    if (gDriverState != nullptr && count > 0 && framebuffers != nullptr)
++    {
++        gDriverState->calls.push_back({DriverCallType::DeleteFramebuffer, 0, *framebuffers});
++    }
++}
++GLsync GL_APIENTRY StubFenceSync(GLenum, GLbitfield)
++{
++    if (gDriverState != nullptr)
++    {
++        gDriverState->fenceSyncCallCount++;
++    }
++    static int sDummySync = 0;
++    return reinterpret_cast<GLsync>(&sDummySync);
++}
++GLenum GL_APIENTRY StubClientWaitSync(GLsync, GLbitfield flags, GLuint64 timeout)
++{
++    if (gDriverState != nullptr && (flags & GL_SYNC_FLUSH_COMMANDS_BIT) != 0 && timeout == 0)
++    {
++        gDriverState->calls.push_back(
++            {DriverCallType::FlushSync, 0, gDriverState->drawFramebuffer});
++    }
++    return GL_ALREADY_SIGNALED;
++}
++void GL_APIENTRY StubDeleteSync(GLsync)
++{
++    if (gDriverState != nullptr)
++    {
++        gDriverState->deleteSyncCallCount++;
++    }
++}
++void GL_APIENTRY StubFinish()
++{
++    if (gDriverState != nullptr)
++    {
++        gDriverState->calls.push_back({DriverCallType::Finish, 0, gDriverState->drawFramebuffer});
++    }
++}
+ void GL_APIENTRY StubGenRenderbuffers(GLsizei, GLuint *renderbuffers)
+ {
+     *renderbuffers = 1;
+@@ -147,6 +220,10 @@
+         genFramebuffers         = StubGenFramebuffers;
+         bindFramebuffer         = StubBindFramebuffer;
+         deleteFramebuffers      = StubDeleteFramebuffers;
++        fenceSync               = StubFenceSync;
++        clientWaitSync          = StubClientWaitSync;
++        deleteSync              = StubDeleteSync;
++        finish                  = StubFinish;
+         genRenderbuffers        = StubGenRenderbuffers;
+         bindRenderbuffer        = StubBindRenderbuffer;
+         deleteRenderbuffers     = StubDeleteRenderbuffers;
+@@ -238,7 +315,9 @@
+ 
+     StateManagerGL &stateManager() { return mStateManager; }
+     MockDriverState &driverState() { return mDriverState; }
++    TestFunctionsGL &mutableFunctions() { return mFunctions; }
+     const TestFunctionsGL &functions() const { return mFunctions; }
++    angle::FeaturesGL &features() { return mFeatures; }
+ 
+   private:
+     MockDriverState mDriverState;
+@@ -445,5 +524,124 @@
+     EXPECT_EQ(0, driverState().disableBlendCallCount);
+ }
+ 
++// Verify that when flushBeforeDrawFramebufferChange is enabled, switching away from a
++// non-default draw framebuffer flushes pending commands while the outgoing draw framebuffer is
++// still bound, while leaving default framebuffer 0, redundant binds, and read-only changes do
++// not flush.
++TEST_F(StateManagerGLTest, FlushBeforeDrawFramebufferChangeOrdering)
++{
++    ASSERT_TRUE(stateManager().getHasSeparateFramebufferBindings());
++    features().flushBeforeDrawFramebufferChange.enabled = true;
++    driverState().calls.clear();
++
++    // 0 -> 10 on GL_FRAMEBUFFER: leaving default FBO 0 does not flush.
++    stateManager().bindFramebuffer(GL_FRAMEBUFFER, 10);
++    ASSERT_EQ(1u, driverState().calls.size());
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[0].type);
++    EXPECT_EQ(static_cast<GLenum>(GL_FRAMEBUFFER), driverState().calls[0].target);
++    EXPECT_EQ(10u, driverState().calls[0].framebuffer);
++
++    // Redundant bind to 10: no flush and no native bind.
++    driverState().calls.clear();
++    stateManager().bindFramebuffer(GL_FRAMEBUFFER, 10);
++    EXPECT_TRUE(driverState().calls.empty());
++
++    // 10 -> 20 on GL_FRAMEBUFFER: flush while 10 is still bound, then bind 20.
++    stateManager().bindFramebuffer(GL_FRAMEBUFFER, 20);
++    ASSERT_EQ(2u, driverState().calls.size());
++    EXPECT_EQ(DriverCallType::FlushSync, driverState().calls[0].type);
++    EXPECT_EQ(10u, driverState().calls[0].framebuffer);
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[1].type);
++    EXPECT_EQ(static_cast<GLenum>(GL_FRAMEBUFFER), driverState().calls[1].target);
++    EXPECT_EQ(20u, driverState().calls[1].framebuffer);
++    EXPECT_EQ(1, driverState().fenceSyncCallCount);
++    EXPECT_EQ(1, driverState().deleteSyncCallCount);
++
++    // Changing only GL_READ_FRAMEBUFFER (20 -> 30) while draw remains 20: bind read, no flush.
++    driverState().calls.clear();
++    stateManager().bindFramebuffer(GL_READ_FRAMEBUFFER, 30);
++    ASSERT_EQ(1u, driverState().calls.size());
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[0].type);
++    EXPECT_EQ(static_cast<GLenum>(GL_READ_FRAMEBUFFER), driverState().calls[0].target);
++    EXPECT_EQ(30u, driverState().calls[0].framebuffer);
++
++    // GL_FRAMEBUFFER bind to 20 when Read == 30 and Draw == 20: draw FBO is unchanged, no flush.
++    driverState().calls.clear();
++    stateManager().bindFramebuffer(GL_FRAMEBUFFER, 20);
++    ASSERT_EQ(1u, driverState().calls.size());
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[0].type);
++    EXPECT_EQ(static_cast<GLenum>(GL_FRAMEBUFFER), driverState().calls[0].target);
++    EXPECT_EQ(20u, driverState().calls[0].framebuffer);
++
++    // GL_DRAW_FRAMEBUFFER transition 20 -> 30: flush while 20 is still bound, then bind 30,
++    // preserving Read == 20.
++    driverState().calls.clear();
++    stateManager().bindFramebuffer(GL_DRAW_FRAMEBUFFER, 30);
++    ASSERT_EQ(2u, driverState().calls.size());
++    EXPECT_EQ(DriverCallType::FlushSync, driverState().calls[0].type);
++    EXPECT_EQ(20u, driverState().calls[0].framebuffer);
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[1].type);
++    EXPECT_EQ(static_cast<GLenum>(GL_DRAW_FRAMEBUFFER), driverState().calls[1].target);
++    EXPECT_EQ(30u, driverState().calls[1].framebuffer);
++    EXPECT_EQ(20u, driverState().readFramebuffer);
++    EXPECT_EQ(2, driverState().fenceSyncCallCount);
++    EXPECT_EQ(2, driverState().deleteSyncCallCount);
++
++    // GL_FRAMEBUFFER transition 30 -> 0: flush while 30 is still bound, then bind 0.
++    driverState().calls.clear();
++    stateManager().bindFramebuffer(GL_FRAMEBUFFER, 0);
++    ASSERT_EQ(2u, driverState().calls.size());
++    EXPECT_EQ(DriverCallType::FlushSync, driverState().calls[0].type);
++    EXPECT_EQ(30u, driverState().calls[0].framebuffer);
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[1].type);
++    EXPECT_EQ(static_cast<GLenum>(GL_FRAMEBUFFER), driverState().calls[1].target);
++    EXPECT_EQ(0u, driverState().calls[1].framebuffer);
++}
++
++// Verify deleting a currently bound non-default draw framebuffer flushes pending work before
++// unbinding and deleting it, without issuing a second flush when binding a new FBO from 0.
++TEST_F(StateManagerGLTest, FlushBeforeDrawFramebufferChangeOnDeleteBoundDrawFramebuffer)
++{
++    features().flushBeforeDrawFramebufferChange.enabled = true;
++    stateManager().bindFramebuffer(GL_FRAMEBUFFER, 15);
++    driverState().calls.clear();
++
++    stateManager().deleteFramebuffer(15);
++    ASSERT_EQ(4u, driverState().calls.size());
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[0].type);
++    EXPECT_EQ(static_cast<GLenum>(GL_READ_FRAMEBUFFER), driverState().calls[0].target);
++    EXPECT_EQ(0u, driverState().calls[0].framebuffer);
++    EXPECT_EQ(DriverCallType::FlushSync, driverState().calls[1].type);
++    EXPECT_EQ(15u, driverState().calls[1].framebuffer);
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[2].type);
++    EXPECT_EQ(static_cast<GLenum>(GL_DRAW_FRAMEBUFFER), driverState().calls[2].target);
++    EXPECT_EQ(0u, driverState().calls[2].framebuffer);
++    EXPECT_EQ(DriverCallType::DeleteFramebuffer, driverState().calls[3].type);
++    EXPECT_EQ(15u, driverState().calls[3].framebuffer);
++
++    // Subsequent 0 -> 25 bind does not double-flush.
++    driverState().calls.clear();
++    stateManager().bindFramebuffer(GL_FRAMEBUFFER, 25);
++    ASSERT_EQ(1u, driverState().calls.size());
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[0].type);
++    EXPECT_EQ(25u, driverState().calls[0].framebuffer);
++}
++
++// Verify finish() fallback in forcefullyFlush() when sync entry points are unavailable.
++TEST_F(StateManagerGLTest, FlushBeforeDrawFramebufferChangeFinishFallback)
++{
++    features().flushBeforeDrawFramebufferChange.enabled = true;
++    mutableFunctions().fenceSync                        = nullptr;
++
++    stateManager().bindFramebuffer(GL_FRAMEBUFFER, 10);
++    driverState().calls.clear();
++
++    stateManager().bindFramebuffer(GL_DRAW_FRAMEBUFFER, 20);
++    ASSERT_EQ(2u, driverState().calls.size());
++    EXPECT_EQ(DriverCallType::Finish, driverState().calls[0].type);
++    EXPECT_EQ(10u, driverState().calls[0].framebuffer);
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[1].type);
++    EXPECT_EQ(20u, driverState().calls[1].framebuffer);
++}
+ }  // namespace
+ }  // namespace rx
 diff --git a/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp b/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp
-index f8cdd97..5abfe5e 100644
+index f8cdd97..7b007b3 100644
 --- a/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp
 +++ b/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp
-@@ -2795,6 +2795,10 @@
+@@ -2190,6 +2190,12 @@
+     {
+         limitations->roundUp3DTextureSizeToPOTForLimit = true;
+     }
++
++    if (features.limitMaxTextureImageUnitsTo13.enabled)
++    {
++        caps->maxShaderTextureImageUnits[gl::ShaderType::Fragment] =
++            std::min(caps->maxShaderTextureImageUnits[gl::ShaderType::Fragment], 13);
++    }
+ }
+ 
+ bool GetSystemInfoVendorIDAndDeviceID(const FunctionsGL *functions,
+@@ -2795,6 +2801,10 @@
      // crbug.com/529991907
      ANGLE_FEATURE_CONDITION(features, limitOutputVaryingsTo256AtCompileTime, isPowerVR);
  
@@ -3639,11 +4509,47 @@ index f8cdd97..5abfe5e 100644
      // crbug.com/529509587 -- IMG GLSL frontend OOB-writes during semantic analysis of a struct
      // constructor whose array-typed member receives a constant array-constructor argument with a
      // precision mismatch.  The workaround avoids all complex expressions, not just constant arrays
+@@ -2811,6 +2821,11 @@
+ 
+     ANGLE_FEATURE_CONDITION(features, recreateFboOnAttachmentRespecification, isPowerVR);
+ 
++    // Clamp GL_MAX_TEXTURE_IMAGE_UNITS to 13 so programs exceeding 13 active fragment samplers
++    // fail linking before reaching the IMG driver.
++    // https://crbug.com/577781532
++    ANGLE_FEATURE_CONDITION(features, limitMaxTextureImageUnitsTo13, isPowerVR);
++
+     // Mac Intel drivers are unable to allocate buffers larger than ~1gb
+     ANGLE_FEATURE_CONDITION(features, limitMaxBufferSizeTo1gb, isApple && isIntel);
+ 
+@@ -2819,6 +2834,11 @@
+     // https://crbug.com/552672183
+     ANGLE_FEATURE_CONDITION(features, finishBeforeSameTextureCopy, IsPowerVR(vendor));
+ 
++    // Force a flush before switching away from a non-default draw framebuffer to avoid stale
++    // cross-framebuffer attachment state in IMG drivers.
++    // https://crbug.com/584036299
++    ANGLE_FEATURE_CONDITION(features, flushBeforeDrawFramebufferChange, isPowerVR);
++
+     // Default to state validation disabled. It is extremely costly and should only be enabled
+     // explicitly when debugging.
+     ANGLE_FEATURE_CONDITION(features, validateState, false);
 diff --git a/third_party/angle/util/autogen/angle_features_autogen.cpp b/third_party/angle/util/autogen/angle_features_autogen.cpp
-index 42782c3..e02f4c8 100644
+index 42782c3..d7da6da 100644
 --- a/third_party/angle/util/autogen/angle_features_autogen.cpp
 +++ b/third_party/angle/util/autogen/angle_features_autogen.cpp
-@@ -260,6 +260,7 @@
+@@ -197,6 +197,7 @@
+     {Feature::FlushAfterEndingTransformFeedback, "flushAfterEndingTransformFeedback"},
+     {Feature::FlushAfterStreamVertexData, "flushAfterStreamVertexData"},
+     {Feature::FlushBeforeDeleteTextureIfCopiedTo, "flushBeforeDeleteTextureIfCopiedTo"},
++    {Feature::FlushBeforeDrawFramebufferChange, "flushBeforeDrawFramebufferChange"},
+     {Feature::FlushBeforeGenerateMipmap, "flushBeforeGenerateMipmap"},
+     {Feature::FlushOnFramebufferChange, "flushOnFramebufferChange"},
+     {Feature::FlushQueriesBeforeDeletingOrUnbindingFbo, "flushQueriesBeforeDeletingOrUnbindingFbo"},
+@@ -257,9 +258,11 @@
+     {Feature::LimitMaxMSAASamplesTo4, "limitMaxMSAASamplesTo4"},
+     {Feature::LimitMaxStorageBufferSize, "limitMaxStorageBufferSize"},
+     {Feature::LimitMaxTextureBytesTo1MB, "limitMaxTextureBytesTo1MB"},
++    {Feature::LimitMaxTextureImageUnitsTo13, "limitMaxTextureImageUnitsTo13"},
      {Feature::LimitMaxVisibilityQueryOffset, "limitMaxVisibilityQueryOffset"},
      {Feature::LimitOutputVaryingsTo256AtCompileTime, "limitOutputVaryingsTo256AtCompileTime"},
      {Feature::LimitSampleCountTo2, "limitSampleCountTo2"},
@@ -3652,10 +4558,22 @@ index 42782c3..e02f4c8 100644
      {Feature::LimitWebglMaxTextureSizeTo8192, "limitWebglMaxTextureSizeTo8192"},
      {Feature::LinkJobIsThreadSafe, "linkJobIsThreadSafe"},
 diff --git a/third_party/angle/util/autogen/angle_features_autogen.h b/third_party/angle/util/autogen/angle_features_autogen.h
-index 88139af..e8d2a9b 100644
+index 88139af..9b821c9 100644
 --- a/third_party/angle/util/autogen/angle_features_autogen.h
 +++ b/third_party/angle/util/autogen/angle_features_autogen.h
-@@ -260,6 +260,7 @@
+@@ -197,6 +197,7 @@
+     FlushAfterEndingTransformFeedback,
+     FlushAfterStreamVertexData,
+     FlushBeforeDeleteTextureIfCopiedTo,
++    FlushBeforeDrawFramebufferChange,
+     FlushBeforeGenerateMipmap,
+     FlushOnFramebufferChange,
+     FlushQueriesBeforeDeletingOrUnbindingFbo,
+@@ -257,9 +258,11 @@
+     LimitMaxMSAASamplesTo4,
+     LimitMaxStorageBufferSize,
+     LimitMaxTextureBytesTo1MB,
++    LimitMaxTextureImageUnitsTo13,
      LimitMaxVisibilityQueryOffset,
      LimitOutputVaryingsTo256AtCompileTime,
      LimitSampleCountTo2,
