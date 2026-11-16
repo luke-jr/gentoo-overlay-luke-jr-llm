@@ -175,12 +175,16 @@ LICENSE+=" rar? ( unRAR )"
 SLOT="stable"
 KEYWORDS="~amd64 ~arm64"
 
-# The 158 branch's changes after the 158.0.8127.64 tag (see its header), then a fix 158
-# hasn't got yet (its header says where it comes from): Blink's script revalidation with
-# a background streamer (crbug 574605993; merged to 159).
+# The 158 branch's changes after the 158.0.8127.64 tag (see its header), then fixes 158
+# hasn't got yet (their headers say where they come from): Blink's script revalidation
+# with a background streamer (crbug 574605993; merged to 159), V8's literal
+# NameDictionary walk (crbug 577314726; merged to V8 15.8, not rolled into 158 yet) and
+# prerender activation's pending-deletion subframes (crbug 583734992; merged to 159).
 CHROMIUM_FIXES=(
 	chromium-158.0.8127.64-branch-fixes.patch
 	chromium-158-blink-script-revalidation-streamer.patch
+	chromium-158-v8-literal-dictionary-enum-order.patch
+	chromium-158-prerender-pending-deletion-subframes.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
