@@ -1,8 +1,8 @@
 Chromium 159.0.8154.11 + the later changes of its release branch, up to
-a4bd890031a10cefe84d3d3eba47e05503567a23 (refs/branch-heads/8154@{#585}), for the
+9f52a3287d5101538c5795226e8463c3d4e3c1a1 (refs/branch-heads/8154@{#599}), for the
 159.0.8154.11 tree that chromium-159.0.8154.6-to-159.0.8154.11.patch makes.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.11..a4bd890031a10cefe84d3d3eba47e05503567a23,
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.11..9f52a3287d5101538c5795226e8463c3d4e3c1a1,
 V8 f96ec3d87612..3ebed6ee1bb6 (15.9.128.5 -> 15.9.128.7, rolled by
 "Roll commits from side projects in M159", #556 and #577) and LevelDB
 bb74ef739973..29465588d3df (rolled by e7ccd2eea5a7, #574), as served by Gitiles,
@@ -38,6 +38,11 @@ Commits contributing to it (oldest first):
   b86d9f5a589a [M159] Downgrade UI thread check to DCHECK in BrowserContext::GetDownloadManager
   e05e325ce44d [M159] Prevent CacheStorageSideDataWriter leak to sandboxed workers
   5a3a702aa51d [M159] Handle use-shadow-tree update emptying the SMIL priority queue
+  58a2632967c2 [M159] [Webium] Use an ephemeral media device ID salt without cookie settings
+  04111ac322d4 [M159] [OTP] Keep listening for OTP forms after submission
+  f0c89060e67e [CT] Automatic update from google3
+  689a928b40cf [M159] Make code robust when called mid-construction before slot assignment is created.
+  9f52a3287d51 [M159] Make it harder for page popups to have a dangling opener_web_view_.
 
 Checked: applies to the 159.0.8154.11 tree; every patched file is
 byte-identical to its version at the commit above (V8's at 3ebed6ee1bb6,
@@ -99,6 +104,31 @@ index 38092a1..10f9622 100644
    return content_setting;
  }
  
+diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
+index 159ca88a..6a73958a 100644
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -8213,13 +8213,16 @@
+   url::Origin top_frame_origin = rfh->GetMainFrame()->GetLastCommittedOrigin();
+   content::BrowserContext* browser_context = rfh->GetBrowserContext();
+ 
+-  // Persistent MediaDevice IDs are allowed iff cookies are allowed.
++  // Persistent MediaDevice IDs are allowed iff cookies are allowed. A browser
++  // context without cookie settings, e.g. TopChromeWebUIProfile, gets an
++  // ephemeral salt.
+   scoped_refptr<content_settings::CookieSettings> cookie_settings =
+       CookieSettingsFactory::GetForProfile(
+           Profile::FromBrowserContext(browser_context));
+-  bool allowed = cookie_settings->IsFullCookieAccessAllowed(
+-      url, site_for_cookies, top_frame_origin, net::CookieSettingOverrides(),
+-      storage_key.ToCookiePartitionKey());
++  bool allowed = cookie_settings && cookie_settings->IsFullCookieAccessAllowed(
++                                        url, site_for_cookies, top_frame_origin,
++                                        net::CookieSettingOverrides(),
++                                        storage_key.ToCookiePartitionKey());
+   ChromeBrowsingDataModelDelegate::BrowsingDataAccessed(
+       rfh, storage_key,
+       ChromeBrowsingDataModelDelegate::StorageType::kMediaDeviceSalt, !allowed);
 diff --git a/chrome/browser/contextual_tasks/BUILD.gn b/chrome/browser/contextual_tasks/BUILD.gn
 index c042c2f..21dabaf 100644
 --- a/chrome/browser/contextual_tasks/BUILD.gn
@@ -1817,7 +1847,7 @@ index 45fab55b..017ba0c 100644
  
  }  // namespace autofill::autofill_metrics
 diff --git a/components/autofill/core/browser/integrators/one_time_tokens/otp_coordinator.cc b/components/autofill/core/browser/integrators/one_time_tokens/otp_coordinator.cc
-index b3ced149..48e16933 100644
+index b3ced149..375cd4ea7 100644
 --- a/components/autofill/core/browser/integrators/one_time_tokens/otp_coordinator.cc
 +++ b/components/autofill/core/browser/integrators/one_time_tokens/otp_coordinator.cc
 @@ -19,6 +19,7 @@
@@ -1934,7 +1964,15 @@ index b3ced149..48e16933 100644
      }
    }
  }
-@@ -466,30 +525,30 @@
+@@ -338,7 +397,6 @@
+       OnOtpFilled(target, base::UTF16ToUTF8(value));
+     }
+   }
+-  StopListeningForForm(form.global_id());
+ }
+ 
+ void OtpCoordinator::OnSourceCandidateAvailable(
+@@ -466,30 +524,30 @@
  void OtpCoordinator::TryProactiveTrigger(const OtpTarget& target,
                                           const OtpCandidate& candidate) {
    const bool can_show_on_screen_now = is_tab_visible_ && is_window_focused_;
@@ -1987,7 +2025,7 @@ index b3ced149..48e16933 100644
                return false;
              }
              const std::optional<OtpTarget> designated_target =
-@@ -498,18 +557,80 @@
+@@ -498,18 +556,80 @@
                  target_field_identifier_.IsFieldFocused(
                      designated_target->field) &&
                  designated_target->field != t.field) {
@@ -2068,7 +2106,7 @@ index b3ced149..48e16933 100644
  }
  
  void OtpCoordinator::RetryDeferredProactiveTriggers() {
-@@ -553,6 +674,7 @@
+@@ -553,6 +673,7 @@
      }
      affected_origins.insert(entry.second.target().origin);
      suggestion_dropdown_dispatcher_.ClearField(entry.first);
@@ -2077,7 +2115,7 @@ index b3ced149..48e16933 100644
    });
    for (const url::Origin& origin : affected_origins) {
 diff --git a/components/autofill/core/browser/integrators/one_time_tokens/otp_coordinator.h b/components/autofill/core/browser/integrators/one_time_tokens/otp_coordinator.h
-index 4846a1b3..2b30c7d 100644
+index 4846a1b3..9f91f141 100644
 --- a/components/autofill/core/browser/integrators/one_time_tokens/otp_coordinator.h
 +++ b/components/autofill/core/browser/integrators/one_time_tokens/otp_coordinator.h
 @@ -48,7 +48,8 @@
@@ -2119,7 +2157,20 @@ index 4846a1b3..2b30c7d 100644
  
    // `observer` must be non-null and is retained until `UnregisterObserver()` is
    // called or `this` is destroyed.
-@@ -134,6 +144,11 @@
+@@ -115,7 +125,11 @@
+   void OnOtpFilled(const OtpTarget& target, const std::string& filled_value);
+ 
+   // Consumes any non-empty OTP field value on `form` across sources and
+-  // deliveries for the field's origin, and drops the form's deliveries.
++  // deliveries for the field's origin. Keeps listening for `form`'s OTP fields
++  // because a submission does not imply that the OTP flow ended (e.g. a
++  // single-page app may reject the code and keep the form for a resent OTP);
++  // their deliveries are dropped once the form is removed, re-classified, or
++  // its frame becomes inactive.
+   void OnOtpFormSubmitted(const FormData& form);
+ 
+   // OtpSource::Observer:
+@@ -134,6 +148,11 @@
      base::TimeTicks recorded_at;
    };
  
@@ -2131,7 +2182,7 @@ index 4846a1b3..2b30c7d 100644
    static SiteFrame GetSiteFrame(const OtpTarget& target);
    static bool IsUsedTokenExpired(const UsedToken& used, base::TimeTicks now);
  
-@@ -143,6 +158,18 @@
+@@ -143,6 +162,18 @@
                             OtpDeliveryPolicy::Decision decision);
    void TryProactiveTrigger(const OtpTarget& target,
                             const OtpCandidate& candidate);
@@ -2150,7 +2201,7 @@ index 4846a1b3..2b30c7d 100644
    void RetryDeferredProactiveTriggers();
    void RecordFormSuggestionsShown(FormGlobalId form_id,
                                    const OtpTokenIdentity& identity);
-@@ -166,6 +193,18 @@
+@@ -166,6 +197,18 @@
    std::vector<std::unique_ptr<OtpSource>> sources_;
    OtpSecurityGateway security_gateway_;
    OtpSuggestionDropdownDispatcher suggestion_dropdown_dispatcher_;
@@ -2472,6 +2523,19 @@ index 4daa98f..ed861795 100644
  
    // Records UMA metrics if this form submission happened as part of an ablation
    // study or the corresponding control group. This is not virtual because it is
+diff --git a/components/certificate_transparency/data/log_list.json b/components/certificate_transparency/data/log_list.json
+index 96df0f3e..3b518e2 100644
+--- a/components/certificate_transparency/data/log_list.json
++++ b/components/certificate_transparency/data/log_list.json
+@@ -1,6 +1,6 @@
+ {
+-  "version": "97.2",
+-  "log_list_timestamp": "2026-11-15T13:39:53Z",
++  "version": "97.3",
++  "log_list_timestamp": "2026-11-16T13:35:12Z",
+   "operators": [
+     {
+       "name": "Google",
 diff --git a/components/contextual_tasks/public/features.cc b/components/contextual_tasks/public/features.cc
 index c0190ce..350e3a0 100644
 --- a/components/contextual_tasks/public/features.cc
@@ -3377,6 +3441,161 @@ index 11b0390a..8df27e6 100644
    const net::IsolationInfo isolation_info_;
    base::WeakPtr<ServiceWorkerMainResourceHandle> service_worker_handle_;
    BrowserContextGetter browser_context_getter_;
+diff --git a/third_party/blink/renderer/core/exported/web_view_impl.cc b/third_party/blink/renderer/core/exported/web_view_impl.cc
+index fce5b26..8b6b3ae 100644
+--- a/third_party/blink/renderer/core/exported/web_view_impl.cc
++++ b/third_party/blink/renderer/core/exported/web_view_impl.cc
+@@ -616,7 +616,9 @@
+ 
+ WebViewImpl::~WebViewImpl() {
+   DCHECK(!page_);
+-  DCHECK(!page_popup_);
++  // A page popup must never outlive its opener WebViewImpl: its
++  // `opener_web_view_` is a raw pointer that would dangle.
++  CHECK(!page_popup_);
+ }
+ 
+ void WebViewImpl::SetTabKeyCyclesThroughElements(bool value) {
+@@ -1059,6 +1061,10 @@
+ 
+ WebPagePopupImpl* WebViewImpl::OpenPagePopup(PagePopupClient* client) {
+   CHECK(client);
++  if (is_closing_) {
++    // In Close(), we cannot create a new page popup.
++    return nullptr;
++  }
+ 
+   // Make sure there is never more than one page popup active at a time.
+   CancelPagePopup();
+@@ -1071,7 +1077,21 @@
+     return nullptr;
+   }
+ 
+-  LocalFrame* opener_frame = client->OwnerElement().GetDocument().GetFrame();
++  // CancelPagePopup() above (and NotifyPopupOpeningObservers() in the callers)
++  // can run author script synchronously, before the popup client has recorded
++  // the popup it is about to open. That script may move the owner element into
++  // a document that belongs to a different WebView, or into one that is no
++  // longer active. A popup created in that state would be bound to `this`
++  // through `opener_web_view_` while ChromeClientImpl::DocumentDetached() no
++  // longer recognizes it as ours, so it would outlive `this`. Refuse to open
++  // the popup unless the owner still lives in an active document of our Page.
++  Document& owner_document = client->OwnerElement().GetDocument();
++  LocalFrame* opener_frame = owner_document.GetFrame();
++  if (!opener_frame || opener_frame->GetPage() != page_.Get() ||
++      !owner_document.IsActive()) {
++    return nullptr;
++  }
++
+   WebLocalFrameImpl* web_opener_frame =
+       WebLocalFrameImpl::FromFrame(opener_frame);
+ 
+@@ -1198,6 +1218,8 @@
+   DCHECK(AllInstances().Contains(this));
+   AllInstances().erase(this);
+ 
++  is_closing_ = true;
++
+   // Ensure if we have a page popup we cancel it immediately as we do not
+   // want page popups to re-enter WebViewImpl during our shutdown.
+   CancelPagePopup();
+diff --git a/third_party/blink/renderer/core/exported/web_view_impl.h b/third_party/blink/renderer/core/exported/web_view_impl.h
+index 1c4e22e..b231584 100644
+--- a/third_party/blink/renderer/core/exported/web_view_impl.h
++++ b/third_party/blink/renderer/core/exported/web_view_impl.h
+@@ -1029,6 +1029,9 @@
+   // native restoration. Reset on each lifecycle update.
+   bool last_page_lifecycle_state_update_restored_from_bfcache_ = false;
+ 
++  // Whether we're currently in Close().
++  bool is_closing_ = false;
++
+   // All the registered observers.
+   base::ObserverList<WebViewObserver> observers_;
+ };
+diff --git a/third_party/blink/renderer/core/html/forms/date_time_chooser_impl.cc b/third_party/blink/renderer/core/html/forms/date_time_chooser_impl.cc
+index 22ef503..c621bdd 100644
+--- a/third_party/blink/renderer/core/html/forms/date_time_chooser_impl.cc
++++ b/third_party/blink/renderer/core/html/forms/date_time_chooser_impl.cc
+@@ -82,8 +82,14 @@
+ }
+ 
+ void DateTimeChooserImpl::EndChooser() {
+-  if (!popup_)
++  if (!popup_) {
++    if (client_) {
++      DateTimeChooserClient* client = client_;
++      client_ = nullptr;
++      client->DidEndChooser();
++    }
+     return;
++  }
+   if (chrome_client_) {
+     chrome_client_->ClosePagePopup(popup_);
+   }
+@@ -296,7 +302,11 @@
+   To<HTMLFormControlElement>(OwnerElement()).SetFreezeHoverForOpenPopup(false);
+   DCHECK(client_);
+   popup_ = nullptr;
+-  client_->DidEndChooser();
++  if (client_) {
++    DateTimeChooserClient* client = client_;
++    client_ = nullptr;
++    client->DidEndChooser();
++  }
+ }
+ 
+ void DateTimeChooserImpl::AdjustSettings(Settings& popup_settings) {
+diff --git a/third_party/blink/renderer/core/html/html_slot_element.cc b/third_party/blink/renderer/core/html/html_slot_element.cc
+index a1981869..688b381 100644
+--- a/third_party/blink/renderer/core/html/html_slot_element.cc
++++ b/third_party/blink/renderer/core/html/html_slot_element.cc
+@@ -68,10 +68,15 @@
+ 
+ const HeapVector<Member<Node>>& HTMLSlotElement::AssignedNodes() const {
+   if (!SupportsAssignment()) {
+-    DCHECK(assigned_nodes_.empty());
++    CHECK(assigned_nodes_.empty());
+     return assigned_nodes_;
+   }
+-  ContainingShadowRoot()->GetSlotAssignment().RecalcAssignment();
++  ShadowRoot* root = ContainingShadowRoot();
++  if (!root->HasSlotAssignment()) {
++    CHECK(assigned_nodes_.empty());
++    return assigned_nodes_;
++  }
++  root->GetSlotAssignment().RecalcAssignment();
+   return assigned_nodes_;
+ }
+ 
+@@ -765,7 +770,7 @@
+ 
+ void HTMLSlotElement::SetShadowRootNeedsAssignmentRecalc() {
+   DCHECK(ContainingShadowRoot());
+-  ContainingShadowRoot()->GetSlotAssignment().SetNeedsAssignmentRecalc();
++  ContainingShadowRoot()->SetNeedsAssignmentRecalc();
+ }
+ 
+ void HTMLSlotElement::DidSlotChange(SlotChangeType slot_change_type) {
+@@ -824,6 +829,9 @@
+ bool HTMLSlotElement::HasAssignedNodesSlow() const {
+   ShadowRoot* root = ContainingShadowRoot();
+   DCHECK(root) << "This should only be called on slots inside a shadow tree";
++  if (!root->HasSlotAssignment()) {
++    return false;
++  }
+   SlotAssignment& assignment = root->GetSlotAssignment();
+   if (assignment.FindSlotByName(GetName()) != this)
+     return false;
+@@ -838,7 +846,7 @@
+ 
+ bool HTMLSlotElement::CalculateAndAdjustAutoDirectionality() {
+   if (SupportsAssignment() &&
+-      ContainingShadowRoot()->GetSlotAssignment().NeedsAssignmentRecalc()) {
++      ContainingShadowRoot()->NeedsSlotAssignmentRecalc()) {
+     // It might not be safe to do an auto directionality update right now
+     // since it might run RecalcAssignment at a bad time; we should wait until
+     // RecalcAssignment runs.  RecalcAssignment needs to update directionality
 diff --git a/third_party/blink/renderer/core/loader/resource/script_resource.cc b/third_party/blink/renderer/core/loader/resource/script_resource.cc
 index e667756..18a8d2f 100644
 --- a/third_party/blink/renderer/core/loader/resource/script_resource.cc
@@ -3397,6 +3616,43 @@ index e667756..18a8d2f 100644
    // Revalidation requests don't actually load the current Resource, so disable
    // streaming.
    DisableStreaming(ScriptStreamer::NotStreamingReason::kRevalidate);
+diff --git a/third_party/blink/renderer/core/page/chrome_client_impl.cc b/third_party/blink/renderer/core/page/chrome_client_impl.cc
+index 99de6ae2..8d56e87 100644
+--- a/third_party/blink/renderer/core/page/chrome_client_impl.cc
++++ b/third_party/blink/renderer/core/page/chrome_client_impl.cc
+@@ -819,6 +819,13 @@
+ #endif
+   }
+   controller->OpenUI();
++  if (RuntimeEnabledFeatures::PagePopupEnabled() &&
++      !controller->IsPickerVisible()) {
++    // This can happen if the web view is closing (for example, showPicker()
++    // called during pagehide) or if synchronous script moved the owner
++    // element into another Page or an inactive document during popup opening.
++    return nullptr;
++  }
+   return controller;
+ }
+ 
+@@ -831,8 +838,16 @@
+   // picker.
+ #if !BUILDFLAG(IS_ANDROID)
+   if (RuntimeEnabledFeatures::InputMultipleFieldsUIEnabled()) {
+-    return MakeGarbageCollected<DateTimeChooserImpl>(frame, picker_client,
+-                                                     parameters);
++    auto* chooser = MakeGarbageCollected<DateTimeChooserImpl>(
++        frame, picker_client, parameters);
++    if (!chooser->IsPickerVisible()) {
++      // This can happen if the web view is closing (for example, showPicker()
++      // called during pagehide) or if synchronous script moved the owner
++      // element into another Page or an inactive document during popup
++      // opening.
++      return nullptr;
++    }
++    return chooser;
+   }
+ #endif
+ 
 diff --git a/third_party/blink/renderer/core/svg/animation/smil_time_container.cc b/third_party/blink/renderer/core/svg/animation/smil_time_container.cc
 index 9c6d9947..5acfcac 100644
 --- a/third_party/blink/renderer/core/svg/animation/smil_time_container.cc
