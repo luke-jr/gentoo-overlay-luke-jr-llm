@@ -1,14 +1,14 @@
 Chromium 158.0.8127.64 + the later changes of its release branch, up to
-9e7090f5b3f004257256b3fe2706f75008bb30ba (refs/branch-heads/8127@{#1809}), for the
+b06f0fda735358548809858f1e65bead6e697348 (refs/branch-heads/8127@{#1817}), for the
 158.0.8127.64 tree that chromium-158.0.8127.37-to-158.0.8127.64.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..9e7090f5b3f004257256b3fe2706f75008bb30ba,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..b06f0fda735358548809858f1e65bead6e697348,
 from the branch's roll of chromium/deps/icu c670d124c9b6aa92c0b492cf543808300e0e6103..c66ba5d8cda8b645d16778c92c902a871c0fd45c (under third_party/icu/),
-from its rolls of v8/v8 19c06df29e0050413f5f041888f4c990de970314..7391c3adca5214b7a36b1c54c95a6e8f360dc2b4 (under v8/),
+from its rolls of v8/v8 19c06df29e0050413f5f041888f4c990de970314..e613b92ff31da46781a39135cca49bdf4403f28a (under v8/),
 from its roll of external/leveldb bb74ef739973a70ca9f0d90788a1da89b788c0ad..29465588d3dfdc80fba5e198037582b8fdb5dd60 (under third_party/leveldatabase/src/),
 from its rolls of skia 707e33875fb45f2997a4d781128bec122fb777b4..9f8fb9da7e434d74187003c2431f13d0f11641f7 (under third_party/skia/),
-from its rolls of angle/angle 3708e472b77d8338dbc7365fea884beb0272c6de..5514b35dfa76a46321896fa3b3e078b983dc9e41 (under third_party/angle/),
-and from its roll of dawn 8e5f22673a5787225d45065929bf00e63d2fd541..6e3cc78d3b9296946ad3022d9e66623a0fcc828f (under third_party/dawn/),
+from its rolls of angle/angle 3708e472b77d8338dbc7365fea884beb0272c6de..eae431b4e9b9f8cbd2ef289066ff69b46d523278 (under third_party/angle/),
+and from its rolls of dawn 8e5f22673a5787225d45065929bf00e63d2fd541..534b718adcc75d4b3e1d30fefd0715b374ac5d11 (under third_party/dawn/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .64 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -55,6 +55,18 @@ Commits contributing to it (oldest first):
   461660ebcc85 [M158] [macOS] Fix Option-key center live resizing under kAsyncLiveResize
   9e7090f5b3f0 Roll commits from side projects in M158
     dawn 6e3cc78d3b92 [M158] Always split oversized B2T/T2B row/image strides
+  ee0bbd8a792b Roll commits from side projects in M158
+    v8 1ce20415f8c0 [M158] [objects] Clear cached ObjectCreateMap on JSGlobalProxy map migration
+    v8 537be0f1022e Version 15.8.62.42
+  2361bedc86bc [M158] [ExternalIntents] Add Finch-configurable intent filter
+  dca534612e60 [M158] Forbid CSSAnimations::Cancel during animated style and update passes
+  d79c6b3e6018 Roll commits from side projects in M158
+    v8 28eb1a380678 [M158] [runtime] Limit recursion depth in HeapObject::HeapObjectShortPrint
+    v8 e613b92ff31d Version 15.8.62.43
+    dawn 534b718adcc7 [M158] [ir] prevent infinite loops: ensure loop increment survives backends
+  3d68d684476b Roll commits from side projects in M158
+    angle eae431b4e9b9 [M158] PLS: Require complete FBO when attachments exist
+  b06f0fda7353 [M158] Block re-entrant navigations during CommitNavigation document abort
 
 Checked: applies to the 158.0.8127.64 tree; every patched file is
 byte-identical to its version at the last commit above.
@@ -1593,6 +1605,176 @@ index 29b7a23..1bc9829e 100644
    type_ = type;
  }
  
+diff --git a/third_party/blink/renderer/bindings/core/v8/script_controller.cc b/third_party/blink/renderer/bindings/core/v8/script_controller.cc
+index c3620479..7ec30c8 100644
+--- a/third_party/blink/renderer/bindings/core/v8/script_controller.cc
++++ b/third_party/blink/renderer/bindings/core/v8/script_controller.cc
+@@ -230,6 +230,7 @@
+ 
+   bool had_navigation_before =
+       window_->GetFrame()->Loader().HasProvisionalNavigation();
++  Document* previous_document = window_->document();
+ 
+   // https://html.spec.whatwg.org/multipage/browsing-the-web.html#javascript-protocol
+   // Step 6. "Let baseURL be settings's API base URL." [spec text]
+@@ -238,6 +239,13 @@
+   String script_source = window_->CheckAndGetJavascriptUrl(
+       world_for_csp, url, nullptr /* element */, csp_disposition);
+ 
++  // Executing a Trusted Types default policy in CheckAndGetJavascriptUrl() may
++  // have detached this frame or committed a new document (even if the initial
++  // empty DOMWindow was reused).
++  if (!window_->GetFrame() || window_->document() != previous_document) {
++    return;
++  }
++
+   // Step 7. "Let script be the result of creating a classic script given
+   // scriptSource, settings, baseURL, and the default classic script fetch
+   // options." [spec text]
+@@ -267,10 +275,12 @@
+     }
+   }
+ 
+-  // If executing script caused this frame to be removed from the page, we
+-  // don't want to try to replace its document!
+-  if (!window_->GetFrame())
++  // If executing script caused this frame to be removed from the page or
++  // committed a new document (even if the initial empty DOMWindow was reused),
++  // we don't want to replace its document!
++  if (!window_->GetFrame() || window_->document() != previous_document) {
+     return;
++  }
+   // If a navigation begins during the javascript: url's execution, ignore
+   // the return value of the script. Otherwise, replacing the document with a
+   // string result would cancel the navigation.
+diff --git a/third_party/blink/renderer/core/animation/css/css_animations.cc b/third_party/blink/renderer/core/animation/css/css_animations.cc
+index 678f1b49..768b3e6 100644
+--- a/third_party/blink/renderer/core/animation/css/css_animations.cc
++++ b/third_party/blink/renderer/core/animation/css/css_animations.cc
+@@ -3326,6 +3326,7 @@
+   Element* ancestor = &element;
+   do {
+     ancestor = LayoutTreeBuilderTraversal::ParentElement(*ancestor);
++    CHECK(ancestor);
+     ancestors.push_back(ancestor);
+   } while (ancestor != root);
+   return ancestors;
+@@ -3457,7 +3458,11 @@
+   return state.base_style;
+ }
+ 
+-void CSSAnimations::Cancel() {
++void CSSAnimations::Cancel(const Document& document) {
++  const StyleEngine& style_engine = document.GetStyleEngine();
++  CHECK(!style_engine.InApplyAnimatedStyle());
++  CHECK(!style_engine.InApplyAnimationUpdate());
++
+   for (const auto& running_animation : running_animations_) {
+     running_animation->animation->cancel();
+     running_animation->animation->Update(kTimingUpdateOnDemand);
+diff --git a/third_party/blink/renderer/core/animation/css/css_animations.h b/third_party/blink/renderer/core/animation/css/css_animations.h
+index 5c486b5..9e06a3e 100644
+--- a/third_party/blink/renderer/core/animation/css/css_animations.h
++++ b/third_party/blink/renderer/core/animation/css/css_animations.h
+@@ -168,7 +168,7 @@
+            pending_update_.IsEmpty();
+   }
+   bool HasTimelines() const { return !timeline_data_.IsEmpty(); }
+-  void Cancel();
++  void Cancel(const Document&);
+ 
+   void Trace(Visitor*) const;
+ 
+diff --git a/third_party/blink/renderer/core/css/post_style_update_scope.cc b/third_party/blink/renderer/core/css/post_style_update_scope.cc
+index 45092d01..8633818 100644
+--- a/third_party/blink/renderer/core/css/post_style_update_scope.cc
++++ b/third_party/blink/renderer/core/css/post_style_update_scope.cc
+@@ -84,6 +84,8 @@
+     if (!element_animations) {
+       continue;
+     }
++    StyleEngine::InApplyAnimationUpdateScope element_apply_scope(
++        element->GetDocument().GetStyleEngine());
+     element_animations->CssAnimations().MaybeApplyPendingUpdate(element.Get());
+   }
+ 
+diff --git a/third_party/blink/renderer/core/css/resolver/style_resolver.cc b/third_party/blink/renderer/core/css/resolver/style_resolver.cc
+index 68c6d7fa..87830cda 100644
+--- a/third_party/blink/renderer/core/css/resolver/style_resolver.cc
++++ b/third_party/blink/renderer/core/css/resolver/style_resolver.cc
+@@ -2810,6 +2810,9 @@
+     return false;
+   }
+ 
++  StyleEngine::InApplyAnimatedStyleScope in_apply_animated_style_scope(
++      GetDocument().GetStyleEngine());
++
+   if (HasTimelines(state)) {
+     CSSAnimations::CalculateTimelineUpdate(
+         state.AnimationUpdate(), *animating_element, state.StyleBuilder());
+diff --git a/third_party/blink/renderer/core/css/style_engine.h b/third_party/blink/renderer/core/css/style_engine.h
+index bf140b46..af53f158 100644
+--- a/third_party/blink/renderer/core/css/style_engine.h
++++ b/third_party/blink/renderer/core/css/style_engine.h
+@@ -453,6 +453,19 @@
+   bool MayHaveViewportDependentMediaQueries();
+   bool HasViewportDependentPropertyRegistrations();
+ 
++  class InApplyAnimatedStyleScope {
++    STACK_ALLOCATED();
++
++   public:
++    explicit InApplyAnimatedStyleScope(StyleEngine& engine)
++        : auto_reset_(&engine.in_apply_animated_style_, true) {}
++
++   private:
++    base::AutoReset<bool> auto_reset_;
++  };
++
++  bool InApplyAnimatedStyle() const { return in_apply_animated_style_; }
++
+   class InApplyAnimationUpdateScope {
+     STACK_ALLOCATED();
+ 
+@@ -1096,6 +1109,7 @@
+   bool in_scroll_markers_attachment_{false};
+   bool in_dom_removal_{false};
+   bool in_detach_scope_{false};
++  bool in_apply_animated_style_{false};
+   bool in_apply_animation_update_{false};
+   bool in_ensure_computed_style_{false};
+   bool viewport_style_dirty_{false};
+diff --git a/third_party/blink/renderer/core/dom/element.cc b/third_party/blink/renderer/core/dom/element.cc
+index 75a5206a9..03befc3 100644
+--- a/third_party/blink/renderer/core/dom/element.cc
++++ b/third_party/blink/renderer/core/dom/element.cc
+@@ -4773,7 +4773,7 @@
+     if (!GetDocument().StatePreservingAtomicMoveInProgress()) {
+       if (ElementAnimations* element_animations =
+               data->GetElementAnimations()) {
+-        element_animations->CssAnimations().Cancel();
++        element_animations->CssAnimations().Cancel(document);
+         element_animations->CssImageAnimations().Clear();
+       }
+     }
+@@ -5109,7 +5109,7 @@
+     if (ElementAnimations* element_animations = data->GetElementAnimations()) {
+       if (!performing_reattach) {
+         DocumentLifecycle::DetachScope will_detach(GetDocument().Lifecycle());
+-        element_animations->CssAnimations().Cancel();
++        element_animations->CssAnimations().Cancel(GetDocument());
+         element_animations->CssImageAnimations().Clear();
+         element_animations->SetAnimationStyleChange(false);
+       }
+@@ -5965,7 +5965,7 @@
+         // means an animation set display:none, and an animation shouldn't
+         // cancel itself in this case.
+         if (base_is_display_none) {
+-          element_animations->CssAnimations().Cancel();
++          element_animations->CssAnimations().Cancel(GetDocument());
+           element_animations->CssImageAnimations().Clear();
+         }
+       }
 diff --git a/third_party/blink/renderer/core/dom/events/event_dispatcher.cc b/third_party/blink/renderer/core/dom/events/event_dispatcher.cc
 index e326ad17..a56cb82 100644
 --- a/third_party/blink/renderer/core/dom/events/event_dispatcher.cc
@@ -2462,6 +2644,29 @@ index 0000000..d57edf2
 +}  // namespace blink
 +
 +#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_EVENTS_POINTER_EVENT_CONTEXT_H_
+diff --git a/third_party/blink/renderer/core/loader/frame_loader.cc b/third_party/blink/renderer/core/loader/frame_loader.cc
+index 286d40b..e9c4d9c6 100644
+--- a/third_party/blink/renderer/core/loader/frame_loader.cc
++++ b/third_party/blink/renderer/core/loader/frame_loader.cc
+@@ -1204,8 +1204,16 @@
+   //   with regards to the last commit.
+   // In this rare case, we intentionally proceed as cross-document.
+ 
+-  if (!CancelProvisionalLoaderForNewNavigation())
+-    return;
++  {
++    // CancelProvisionalLoaderForNewNavigation() calls Document::Abort(), which
++    // can synchronously fire readystatechange. Disable navigations and
++    // re-entrant commits while aborting the previous document, matching
++    // DetachDocument() below.
++    FrameNavigationDisabler navigation_disabler(*frame_);
++    if (!CancelProvisionalLoaderForNewNavigation()) {
++      return;
++    }
++  }
+ 
+   FillStaticResponseIfNeeded(navigation_params.get(), frame_);
+   AssertCanNavigate(navigation_params.get(), frame_);
 diff --git a/third_party/blink/renderer/platform/runtime_enabled_features.json5 b/third_party/blink/renderer/platform/runtime_enabled_features.json5
 index 4d4dce811..9e3a7c9 100644
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
@@ -3664,7 +3869,7 @@ index ad70532..2e239a6 100644
      if ((fContext.status & DEC_Inexact) != 0) {
          // Ignore.
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index f49ea92..8a696dc 100644
+index f49ea92..2e40c4a 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -3672,7 +3877,7 @@ index f49ea92..8a696dc 100644
  #define V8_MINOR_VERSION 8
  #define V8_BUILD_NUMBER 62
 -#define V8_PATCH_LEVEL 38
-+#define V8_PATCH_LEVEL 41
++#define V8_PATCH_LEVEL 43
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
@@ -3830,7 +4035,7 @@ index f2768ac..35025fb 100644
  
        fast_mode_prototype_on_chain =
 diff --git a/v8/src/compiler/heap-refs.cc b/v8/src/compiler/heap-refs.cc
-index cf2f7c6..6884052 100644
+index cf2f7c6..1c14ba6 100644
 --- a/v8/src/compiler/heap-refs.cc
 +++ b/v8/src/compiler/heap-refs.cc
 @@ -1823,6 +1823,8 @@
@@ -3856,7 +4061,7 @@ index cf2f7c6..6884052 100644
  OptionalHeapObjectRef MapRef::GetBackPointer(JSHeapBroker* broker) const {
    // Keep in sync with Map::GetBackpointer.
    OptionalObjectRef maybe_bptr =
-@@ -2716,16 +2725,19 @@
+@@ -2716,20 +2725,35 @@
  }
  
  OptionalMapRef JSObjectRef::GetObjectCreateMap(JSHeapBroker* broker) const {
@@ -3874,12 +4079,28 @@ index cf2f7c6..6884052 100644
    if (!IsPrototypeInfo(*maybe_proto_info)) return {};
  
    Tagged<MaybeObject> maybe_object_create_map =
--      Cast<PrototypeInfo>(maybe_proto_info)->ObjectCreateMap(kAcquireLoad);
-+      Cast<PrototypeInfo>(maybe_proto_info)
-+          ->ObjectCreateMap(*native_context.object(), kAcquireLoad);
+       Cast<PrototypeInfo>(maybe_proto_info)->ObjectCreateMap(kAcquireLoad);
    if (!maybe_object_create_map.IsWeak()) return {};
  
-   return MapRef(broker->GetOrCreateData(
+-  return MapRef(broker->GetOrCreateData(
++  MapRef object_create_map(broker->GetOrCreateData(
+       maybe_object_create_map.GetHeapObjectAssumeWeak(), kAssumeMemoryFence));
++  // A JSGlobalProxy might have navigated concurrently on the main thread and
++  // populated PrototypeInfo with a map from a different native context.
++  if (!object_create_map.BelongsToSameNativeContextAs(broker, native_context)) {
++    return {};
++  }
++  if (map_ref.IsJSGlobalProxyMap()) {
++    // Subscribe to map changes on the global proxy so that if it detaches or
++    // navigates to another context, the optimized code is deoptimized and stops
++    // using the pre-navigation ObjectCreateMap.
++    if (!map_ref.is_stable()) return {};
++    broker->dependencies()->DependOnStableMap(map_ref);
++  }
++  return object_create_map;
+ }
+ 
+ bool JSObjectRef::IsArrayOrObjectPrototype(JSHeapBroker* broker) const {
 diff --git a/v8/src/compiler/heap-refs.h b/v8/src/compiler/heap-refs.h
 index f0b86bb..6942f41 100644
 --- a/v8/src/compiler/heap-refs.h
@@ -3901,6 +4122,89 @@ index f0b86bb..6942f41 100644
  };
  
  struct HolderLookupResult {
+diff --git a/v8/src/diagnostics/objects-debug.cc b/v8/src/diagnostics/objects-debug.cc
+index 41130f0..bfcd867 100644
+--- a/v8/src/diagnostics/objects-debug.cc
++++ b/v8/src/diagnostics/objects-debug.cc
+@@ -908,6 +908,17 @@
+     CHECK(prototype_info() == Smi::zero() ||
+           IsPrototypeInfo(prototype_info()) ||
+           IsPrototypeSharedClosureInfo(prototype_info()));
++    Tagged<PrototypeInfo> proto_info;
++    if (TryGetPrototypeInfo(&proto_info) &&
++        !IsUndefined(proto_info->derived_maps())) {
++      Tagged<WeakArrayList> derived_list =
++          Cast<WeakArrayList>(proto_info->derived_maps());
++      CHECK_GT(derived_list->length().value(), 0);
++      Tagged<MaybeObject> el = derived_list->Get(0);
++      CHECK(el.IsWeakOrCleared());
++      CHECK_IMPLIES(!el.IsCleared(), Cast<Map>(el.GetHeapObjectAssumeWeak())
++                                         ->BelongsToSameNativeContextAs(this));
++    }
+   }
+ }
+ 
+diff --git a/v8/src/diagnostics/objects-printer.cc b/v8/src/diagnostics/objects-printer.cc
+index 0afb0ac..77c3fa9 100644
+--- a/v8/src/diagnostics/objects-printer.cc
++++ b/v8/src/diagnostics/objects-printer.cc
+@@ -12,6 +12,7 @@
+ #include "src/base/logging.h"
+ #include "src/common/assert-scope.h"
+ #include "src/common/globals.h"
++#include "src/common/scoped-modification.h"
+ #include "src/diagnostics/disasm.h"
+ #include "src/diagnostics/disassembler.h"
+ #include "src/execution/frames-inl.h"
+@@ -4324,6 +4325,24 @@
+ 
+ void HeapObject::HeapObjectShortPrint(std::ostream& os) {
+   os << AsHex::Address(this->ptr()) << " ";
++
++#ifdef V8_ENABLE_SANDBOX
++  // ShortPrint of various object types (e.g. JSPrimitiveWrapper, Tuple2, Cell,
++  // PropertyCell, ContextCell, etc.) recursively calls ShortPrint on nested
++  // tagged fields. With in-sandbox memory corruption, an attacker can construct
++  // arbitrarily deep chains or cycles of such objects to exhaust the native
++  // stack during diagnostic printing. Limit the recursion depth to prevent
++  // stack overflows.
++  thread_local int recursion_depth = 0;
++  constexpr int kMaxShortPrintRecursionDepth = 4;
++  if (recursion_depth >= kMaxShortPrintRecursionDepth) {
++    os << "<...>";
++    return;
++  }
++  ScopedModification<int> recursion_guard(&recursion_depth,
++                                          recursion_depth + 1);
++#endif  // V8_ENABLE_SANDBOX
++
+ #if V8_ENABLE_WEBASSEMBLY
+   if (IsWasmNull(Tagged<HeapObject>(this))) {
+     os << "WasmNull";
+diff --git a/v8/src/execution/isolate.cc b/v8/src/execution/isolate.cc
+index 61e238e..536ba8a 100644
+--- a/v8/src/execution/isolate.cc
++++ b/v8/src/execution/isolate.cc
+@@ -8035,16 +8035,10 @@
+     DCHECK(!global_proxy_for_api->IsDetachedFrom(env->global_object()));
+   }
+ 
+-  ReadOnlyRoots roots(this);
+   DirectHandle<JSGlobalProxy> global_proxy(env->global_proxy(), this);
+-  // NOTE: Turbofan's JSNativeContextSpecialization and Maglev depend on
+-  // DetachGlobal causing a map change.
+-  JSObject::ForceSetPrototype(this, global_proxy, factory()->null_value());
+-  // Detach the global object from the native context by making its map
+-  // contextless (use the global metamap instead of the contextful one).
+-  global_proxy->map()->set_map(this, roots.meta_map());
+-  global_proxy->map()->set_constructor_or_back_pointer(roots.null_value(),
+-                                                       kRelaxedStore);
++  JSGlobalProxy::MigrateToContextlessMap(
++      this, global_proxy, factory()->null_value(), factory()->null_value(),
++      "DetachGlobal");
+   if (v8_flags.track_detached_contexts) AddDetachedContext(env);
+   DCHECK(global_proxy->IsDetached());
+   env->set_microtask_queue(this, nullptr);
 diff --git a/v8/src/ic/ic.cc b/v8/src/ic/ic.cc
 index 9a957dd..a98c555 100644
 --- a/v8/src/ic/ic.cc
@@ -3937,6 +4241,44 @@ index 9a957dd..a98c555 100644
          return false;
        case LookupIterator::ACCESSOR:
          return !it->IsReadOnly();
+diff --git a/v8/src/init/bootstrapper.cc b/v8/src/init/bootstrapper.cc
+index 617c53e..6890d51 100644
+--- a/v8/src/init/bootstrapper.cc
++++ b/v8/src/init/bootstrapper.cc
+@@ -7050,9 +7050,7 @@
+       global_proxy_template->InternalFieldCount());
+ 
+   DirectHandle<JSGlobalProxy> global_proxy;
+-  if (maybe_global_proxy.ToHandle(&global_proxy)) {
+-    global_proxy->map()->set_map(isolate, ReadOnlyRoots(isolate).meta_map());
+-  } else {
++  if (!maybe_global_proxy.ToHandle(&global_proxy)) {
+     global_proxy = factory()->NewUninitializedJSGlobalProxy(proxy_size);
+   }
+ 
+@@ -7069,17 +7067,13 @@
+       ApiNatives::InstantiateRemoteObject(global_object_template)
+           .ToHandleChecked();
+ 
+-  // (Re)initialize the global proxy object.
++  // (Re)initialize the global proxy object and configure its hidden prototype
++  // chain on a contextless map.
+   DCHECK_EQ(global_proxy_data->embedder_field_count(),
+             global_proxy_template->InternalFieldCount());
+-  DirectHandle<Map> global_proxy_map = factory()->NewContextlessMap(
+-      JS_GLOBAL_PROXY_TYPE, proxy_size, TERMINAL_FAST_ELEMENTS_KIND);
+-  global_proxy_map->set_is_access_check_needed(true);
+-  global_proxy_map->set_may_have_interesting_properties(true);
+-
+-  // Configure the hidden prototype chain of the global proxy.
+-  JSObject::ForceSetPrototype(isolate, global_proxy, global_object);
+-  global_proxy->map()->SetConstructor(*global_constructor);
++  JSGlobalProxy::MigrateToContextlessMap(isolate, global_proxy, global_object,
++                                         global_constructor,
++                                         "GenesisReinitializeGlobal");
+ 
+   global_proxy_ = global_proxy;
+ }
 diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
 index fa3f2ac..18149e3 100644
 --- a/v8/src/maglev/maglev-graph-builder.cc
@@ -3949,6 +4291,73 @@ index fa3f2ac..18149e3 100644
      BasicBlock* predecessor = merge_state.predecessor_at(predecessor_index);
      CHECK(predecessor);
      ControlNode* control = predecessor->control_node();
+diff --git a/v8/src/objects/js-objects.cc b/v8/src/objects/js-objects.cc
+index 79688ea..cbcca7c 100644
+--- a/v8/src/objects/js-objects.cc
++++ b/v8/src/objects/js-objects.cc
+@@ -3230,6 +3230,17 @@
+   DCHECK(old_map->is_prototype_map());
+   DCHECK(new_map->is_prototype_map());
+   bool was_registered = JSObject::UnregisterPrototypeUser(old_map, isolate);
++  if (old_map->map() != new_map->map()) {
++    // Only JSGlobalProxy maps can change their meta_map (upon navigation,
++    // detachment, or remote context reinitialization). Clear the cached
++    // ObjectCreateMap so it is not reused across native contexts.
++    DCHECK(IsJSGlobalProxyMap(*old_map));
++    DCHECK(IsJSGlobalProxyMap(*new_map));
++    if (Tagged<PrototypeInfo> proto_info;
++        old_map->TryGetPrototypeInfo(&proto_info)) {
++      proto_info->ClearObjectCreateMap();
++    }
++  }
+   new_map->set_prototype_info(old_map->prototype_info(), kReleaseStore);
+   old_map->set_prototype_info(Smi::zero(), kReleaseStore);
+   if (v8_flags.trace_prototype_users) {
+@@ -3676,6 +3687,25 @@
+   JSObject::MigrateToMap(isolate, object, new_map);
+ }
+ 
++// static
++void JSGlobalProxy::MigrateToContextlessMap(
++    Isolate* isolate, DirectHandle<JSGlobalProxy> global_proxy,
++    DirectHandle<JSPrototype> prototype,
++    DirectHandle<UnionOf<FunctionTemplateInfo, Null>> constructor,
++    const char* reason) {
++  // NOTE: Turbofan's JSNativeContextSpecialization and Maglev depend on
++  // DetachGlobal or navigation causing a map change.
++  DirectHandle<Map> old_map(global_proxy->map(), isolate);
++  DirectHandle<Map> new_map = Map::Copy(isolate, old_map, reason);
++  // Detach the new map from the native context (by using the contextless
++  // meta_map) before migrating so UpdatePrototypeUserRegistration detects the
++  // context change and clears the cached ObjectCreateMap in PrototypeInfo.
++  new_map->set_map(isolate, ReadOnlyRoots(isolate).meta_map());
++  new_map->SetConstructor(*constructor);
++  Map::SetPrototype(isolate, new_map, prototype);
++  JSObject::MigrateToMap(isolate, global_proxy, new_map);
++}
++
+ Maybe<InterceptorResult> JSObject::SetPropertyWithInterceptor(
+     LookupIterator* it, Maybe<ShouldThrow> should_throw,
+     DirectHandle<Object> value) {
+diff --git a/v8/src/objects/js-objects.h b/v8/src/objects/js-objects.h
+index 3a7a2cb..474d9dd 100644
+--- a/v8/src/objects/js-objects.h
++++ b/v8/src/objects/js-objects.h
+@@ -1271,6 +1271,14 @@
+ 
+   static int SizeWithEmbedderFields(int embedder_field_count);
+ 
++  // Migrates |global_proxy| to a new contextless map configured with the given
++  // |prototype| and |constructor|.
++  static void MigrateToContextlessMap(
++      Isolate* isolate, DirectHandle<JSGlobalProxy> global_proxy,
++      DirectHandle<JSPrototype> prototype,
++      DirectHandle<UnionOf<FunctionTemplateInfo, Null>> constructor,
++      const char* reason);
++
+   // Dispatched behavior.
+   DECL_PRINTER(JSGlobalProxy)
+   DECL_VERIFIER(JSGlobalProxy)
 diff --git a/v8/src/objects/map.cc b/v8/src/objects/map.cc
 index 1e94d0f..0c12701 100644
 --- a/v8/src/objects/map.cc
@@ -3996,7 +4405,7 @@ index cc90e8a..3fe05f9 100644
  extern macro IsSpecialReceiverInstanceType(InstanceType): bool;
 +extern macro BelongsToSameNativeContextAs(Map, Context): bool;
 diff --git a/v8/src/objects/prototype-info-inl.h b/v8/src/objects/prototype-info-inl.h
-index be329f5..0aa0877 100644
+index be329f5..0866794 100644
 --- a/v8/src/objects/prototype-info-inl.h
 +++ b/v8/src/objects/prototype-info-inl.h
 @@ -116,7 +116,8 @@
@@ -4009,7 +4418,7 @@ index be329f5..0aa0877 100644
    auto derived = derived_maps();
    if (IsUndefined(derived)) {
      return Tagged<MaybeObject>();
-@@ -126,10 +127,14 @@
+@@ -126,6 +127,9 @@
    DCHECK_GT(derived_list->length().value(), 0);
    Tagged<MaybeObject> el = derived_list->Get(0);
    DCHECK(el.IsWeakOrCleared());
@@ -4019,23 +4428,29 @@ index be329f5..0aa0877 100644
    return el;
  }
  
--Tagged<MaybeObject> PrototypeInfo::ObjectCreateMap(AcquireLoadTag tag) {
-+Tagged<MaybeObject> PrototypeInfo::ObjectCreateMap(
-+    Tagged<Context> accessing_context, AcquireLoadTag tag) {
-   auto derived = derived_maps(tag);
+@@ -134,7 +138,8 @@
    if (IsUndefined(derived)) {
      return Tagged<MaybeObject>();
-@@ -139,6 +144,9 @@
+   }
+-  // Index 0 is the map for object create
++  // Index 0 is the map for object create. Note: concurrent callers must check
++  // that the returned map belongs to the accessing native context.
+   Tagged<WeakArrayList> derived_list = Cast<WeakArrayList>(derived);
    DCHECK_GT(derived_list->length().value(), 0);
    Tagged<MaybeObject> el = derived_list->get(0, kAcquireLoad);
-   DCHECK(el.IsWeakOrCleared());
-+  DCHECK_IMPLIES(!el.IsCleared(),
-+                 Cast<Map>(el.GetHeapObjectAssumeWeak())
-+                     ->BelongsToSameNativeContextAs(accessing_context));
+@@ -142,10 +147,20 @@
    return el;
  }
  
-@@ -146,6 +154,8 @@
++void PrototypeInfo::ClearObjectCreateMap() {
++  auto derived = derived_maps();
++  if (IsUndefined(derived)) return;
++  Tagged<WeakArrayList> derived_list = Cast<WeakArrayList>(derived);
++  DCHECK_GT(derived_list->length().value(), 0);
++  derived_list->set(0, kClearedWeakValue, kReleaseStore);
++}
++
+ // static
  void PrototypeInfo::SetObjectCreateMap(DirectHandle<PrototypeInfo> info,
                                         DirectHandle<Map> map,
                                         Isolate* isolate) {
@@ -4045,17 +4460,20 @@ index be329f5..0aa0877 100644
      Tagged<WeakArrayList> derived = *isolate->factory()->NewWeakArrayList(1);
      derived->Set(0, MakeWeak(*map));
 diff --git a/v8/src/objects/prototype-info.h b/v8/src/objects/prototype-info.h
-index dfad726..a8cc4c3 100644
+index dfad726..fa100b8 100644
 --- a/v8/src/objects/prototype-info.h
 +++ b/v8/src/objects/prototype-info.h
-@@ -80,8 +80,9 @@
+@@ -80,8 +80,13 @@
    static inline void SetObjectCreateMap(DirectHandle<PrototypeInfo> info,
                                          DirectHandle<Map> map,
                                          Isolate* isolate);
--  inline Tagged<MaybeObject> ObjectCreateMap(AcquireLoadTag);
++  inline void ClearObjectCreateMap();
++  // Concurrent reader for background compilation. Because a JSGlobalProxy may
++  // navigate concurrently on the main thread and reuse this PrototypeInfo in a
++  // new native context, the caller must verify that the returned map belongs to
++  // the expected native context.
+   inline Tagged<MaybeObject> ObjectCreateMap(AcquireLoadTag);
 -  inline Tagged<MaybeObject> ObjectCreateMap();
-+  inline Tagged<MaybeObject> ObjectCreateMap(Tagged<Context> accessing_context,
-+                                             AcquireLoadTag);
 +  inline Tagged<MaybeObject> ObjectCreateMap(Tagged<Context> accessing_context);
  
    static inline void AddDerivedMap(DirectHandle<PrototypeInfo> info,
@@ -4427,6 +4845,21 @@ index 75101a8..7d6c4cc 100644
                  fp = GrTextureEffect::MakeSubset(std::move(proxyView), alphaType, SkMatrix::I(),
                                                   samplerState, *subset, localRect, caps);
              } else {
+diff --git a/third_party/angle/extensions/ANGLE_shader_pixel_local_storage.txt b/third_party/angle/extensions/ANGLE_shader_pixel_local_storage.txt
+index c60c549..111370c 100644
+--- a/third_party/angle/extensions/ANGLE_shader_pixel_local_storage.txt
++++ b/third_party/angle/extensions/ANGLE_shader_pixel_local_storage.txt
+@@ -346,6 +346,10 @@
+         draw framebuffer is in an interrupted state. (See section 2.X.2
+         "Interrupting Pixel Local Storage")
+ 
++      * INVALID_FRAMEBUFFER_OPERATION is generated if the draw framebuffer has
++        any attachment, and CheckFramebufferStatus(DRAW_FRAMEBUFFER) is not
++        FRAMEBUFFER_COMPLETE.
++
+       * INVALID_OPERATION is generated if
+         PIXEL_LOCAL_STORAGE_ACTIVE_PLANES_ANGLE is nonzero.
+ 
 diff --git a/third_party/angle/include/GLSLANG/ShaderLang.h b/third_party/angle/include/GLSLANG/ShaderLang.h
 index b19834f..64548e0 100644
 --- a/third_party/angle/include/GLSLANG/ShaderLang.h
@@ -5068,6 +5501,36 @@ index f8cdd97..7b007b3 100644
      // Default to state validation disabled. It is extremely costly and should only be enabled
      // explicitly when debugging.
      ANGLE_FEATURE_CONDITION(features, validateState, false);
+diff --git a/third_party/angle/src/libANGLE/validationESEXT.cpp b/third_party/angle/src/libANGLE/validationESEXT.cpp
+index 9a5f8d8..ec578e1 100644
+--- a/third_party/angle/src/libANGLE/validationESEXT.cpp
++++ b/third_party/angle/src/libANGLE/validationESEXT.cpp
+@@ -1935,6 +1935,16 @@
+         return false;
+     }
+ 
++    // INVALID_FRAMEBUFFER_OPERATION is generated if the draw framebuffer has any attachment, and
++    // CheckFramebufferStatus(DRAW_FRAMEBUFFER) is not FRAMEBUFFER_COMPLETE.
++    const FramebufferAttachment *firstAttachment =
++        framebuffer->getState().getFirstNonNullAttachment();
++    if (firstAttachment != nullptr &&
++        !ValidateFramebufferComplete(context, entryPoint, framebuffer))
++    {
++        return false;
++    }
++
+     // INVALID_OPERATION is generated if the value of SAMPLE_BUFFERS is 1 (i.e., if rendering to a
+     // multisampled framebuffer).
+     if (framebuffer->getSamples(context) != 0)
+@@ -2110,8 +2120,6 @@
+         }
+     }
+ 
+-    const FramebufferAttachment *firstAttachment =
+-        framebuffer->getState().getFirstNonNullAttachment();
+     if (firstAttachment)
+     {
+         // INVALID_OPERATION is generated if the draw framebuffer has other attachments, and its
 diff --git a/third_party/angle/util/autogen/angle_features_autogen.cpp b/third_party/angle/util/autogen/angle_features_autogen.cpp
 index 42782c3..d7da6da 100644
 --- a/third_party/angle/util/autogen/angle_features_autogen.cpp
@@ -5317,3 +5780,21 @@ index d2fb028..6060568 100644
      // Collapse redundant subgroup min and max operations to workaround a driver crash on some AMD
      // GPUs.  Should only affect AMD Windows Driver versions < 31.0.22000.0, but because this is a
      // harmless "optimizing" workaround go ahead enable for all versions. See:
+diff --git a/third_party/dawn/src/tint/lang/core/ir/transform/prevent_infinite_loops.cc b/third_party/dawn/src/tint/lang/core/ir/transform/prevent_infinite_loops.cc
+index f298b48..e836795 100644
+--- a/third_party/dawn/src/tint/lang/core/ir/transform/prevent_infinite_loops.cc
++++ b/third_party/dawn/src/tint/lang/core/ir/transform/prevent_infinite_loops.cc
+@@ -99,6 +99,13 @@
+             });
+         });
+ 
++        // Ensure the continuing block survives to the backend. Backend
++        // compilers must see the loop counter increment.
++        if (auto* unreachable = loop->Body()->Terminator()->As<Unreachable>()) {
++            b.InsertBefore(unreachable, [&] { b.Continue(loop); });
++            unreachable->Destroy();
++        }
++
+         // Increment the index variable at the top of the continuing block.
+         if (loop->Continuing()->IsEmpty()) {
+             loop->Continuing()->Append(b.NextIteration(loop));
