@@ -1,12 +1,13 @@
 Chromium 158.0.8127.64 + the later changes of its release branch, up to
-3c34c4295d93981630c89851f33bc41211491272 (refs/branch-heads/8127@{#1793}), for the
+67053e9f4753f1e1025e10d94c9332339222ca09 (refs/branch-heads/8127@{#1804}), for the
 158.0.8127.64 tree that chromium-158.0.8127.37-to-158.0.8127.64.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..3c34c4295d93981630c89851f33bc41211491272,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..67053e9f4753f1e1025e10d94c9332339222ca09,
 from the branch's roll of chromium/deps/icu c670d124c9b6aa92c0b492cf543808300e0e6103..c66ba5d8cda8b645d16778c92c902a871c0fd45c (under third_party/icu/),
-from its rolls of v8/v8 19c06df29e0050413f5f041888f4c990de970314..263a273977a7a6ac6119fd8f32572121df2bebcd (under v8/),
+from its rolls of v8/v8 19c06df29e0050413f5f041888f4c990de970314..7391c3adca5214b7a36b1c54c95a6e8f360dc2b4 (under v8/),
 from its roll of external/leveldb bb74ef739973a70ca9f0d90788a1da89b788c0ad..29465588d3dfdc80fba5e198037582b8fdb5dd60 (under third_party/leveldatabase/src/),
-and from its roll of skia 707e33875fb45f2997a4d781128bec122fb777b4..f83bef670ab0e9f2b65eac2fcd45959048321e9f (under third_party/skia/),
+from its rolls of skia 707e33875fb45f2997a4d781128bec122fb777b4..9f8fb9da7e434d74187003c2431f13d0f11641f7 (under third_party/skia/),
+and from its rolls of angle/angle 3708e472b77d8338dbc7365fea884beb0272c6de..5514b35dfa76a46321896fa3b3e078b983dc9e41 (under third_party/angle/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .64 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -31,10 +32,39 @@ Commits contributing to it (oldest first):
     leveldb 29465588d3df Prevent potential integer overflow when validating block entry lengths.
   a75f07a1f8c8 Roll commits from side projects in M158
     skia f83bef670ab0 [M158] Account for AA coordinate extrapolation in subset clamping
+  4a46834488b5 [M158] Retarget coalesced and predicted PointerEvents across shadow boundaries
+  d888fc198536 [M158] [Linux Installer] Pin RPM package format to v4 for rpm >= 6.0
+  0f2106d34023 Roll commits from side projects in M158
+    v8 834a98bc0efc [M158] [ic] Fix cross-context Object.create(..) and prototype access checks
+    v8 6f4bc41ed164 [M158] [parser] Fix heritage scope handling when reparsing class initializers
+    v8 7391c3adca52 Version 15.8.62.41
+    skia 9f8fb9da7e43 [M158] Avoid float equality for hashing image filters
+    angle b021b8b3c469 [M158] GL: Limit expanded variable fields per shader on PowerVR
+  cb50527811d6 [M158] [CSD] Guard visual extractor across CapturePaintPreview()
+  5f9ad920c55b Roll commits from side projects in M158
+    angle a999586e677a [M158] GL: Clamp max fragment texture image units to 13 on PowerVR
+    angle 5514b35dfa76 [M158] GL: Flush before changing draw framebuffer on PowerVR
+  91e36a339da1 [M158] [WebUI LLBC] Don't invalidate permission chip tokens
+  874d89313daf [M158] [Wayland] Use the xdg-role ancestor as the activation token surface
+  f69a9d412400 [M158] Settings: Fix protocol handlers default radio group selection
+  67053e9f4753 [M158] Ensure EditorCommand stays bound to its Document
 
 Checked: applies to the 158.0.8127.64 tree; every patched file is
 byte-identical to its version at the last commit above.
 
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_location_bar.cc b/chrome/browser/contextual_tasks/contextual_tasks_location_bar.cc
+index 2e418651..61ec6db8 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_location_bar.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_location_bar.cc
+@@ -174,7 +174,7 @@
+     // even if a chip stays visible across the switch. `OnChanged()` below
+     // pushes the new tokens to the WebUI.
+     if (permission_dashboard_) {
+-      permission_dashboard_->ResetTabState();
++      permission_dashboard_->InvalidateStateTokens();
+     }
+     web_contents_ = contents ? contents->GetWeakPtr() : nullptr;
+   }
 diff --git a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
 index 18ede1f..8472814 100644
 --- a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
@@ -187,6 +217,295 @@ index 18ede1f..8472814 100644
      std::vector<base::FilePath::StringType> block_components =
          block_path.GetComponents();
      if (IsPathOrDescendantIgnoreCase(path_components, block_components)) {
+diff --git a/chrome/browser/resources/settings/site_settings/protocol_handlers.html b/chrome/browser/resources/settings/site_settings/protocol_handlers.html
+index 784ead9..d487df3 100644
+--- a/chrome/browser/resources/settings/site_settings/protocol_handlers.html
++++ b/chrome/browser/resources/settings/site_settings/protocol_handlers.html
+@@ -47,7 +47,7 @@
+       </div>
+       <cr-radio-group
+           id="protcolHandlersRadio"
+-          selected$="[[handlersEnabled_]]"
++          selected="[[getSelectedValue_(handlersEnabled_)]]"
+           on-selected-changed="onRadioGroupChange_"
+           selectable-elements="settings-collapse-radio-button">
+         <settings-collapse-radio-button no-collapse
+diff --git a/chrome/browser/resources/settings/site_settings/protocol_handlers.ts b/chrome/browser/resources/settings/site_settings/protocol_handlers.ts
+index 00a9486a..63f4535 100644
+--- a/chrome/browser/resources/settings/site_settings/protocol_handlers.ts
++++ b/chrome/browser/resources/settings/site_settings/protocol_handlers.ts
+@@ -240,6 +240,10 @@
+     this.actionMenuModel_ = null;
+   }
+ 
++  private getSelectedValue_(): string {
++    return this.handlersEnabled_.toString();
++  }
++
+   /**
+    * A handler when the radio group selection changes.
+    */
+diff --git a/chrome/browser/ui/views/location_bar/webui_location_bar.cc b/chrome/browser/ui/views/location_bar/webui_location_bar.cc
+index aec6712..119826e 100644
+--- a/chrome/browser/ui/views/location_bar/webui_location_bar.cc
++++ b/chrome/browser/ui/views/location_bar/webui_location_bar.cc
+@@ -609,7 +609,7 @@
+       }
+     }
+     if (permission_dashboard_) {
+-      permission_dashboard_->ResetTabState();
++      permission_dashboard_->InvalidateStateTokens();
+     }
+   } else {
+     omnibox_view_->Update();
+@@ -774,9 +774,11 @@
+   if (contents) {
+     omnibox_view_->ResetTabState(contents);
+   }
+-  if (permission_dashboard_) {
+-    permission_dashboard_->ResetTabState();
+-  }
++  // Don't invalidate the permission chips' state tokens here. This is called
++  // when a background tab's URL changes, while the chips show the active tab's
++  // state, which hasn't changed. Invalidating would drop clicks already in
++  // flight for the active tab. Tab switches invalidate the tokens in
++  // `Update()`.
+ }
+ 
+ bool WebUILocationBar::HasSecurityStateChanged() {
+diff --git a/chrome/browser/ui/views/permissions/chip/webui_permission_chip.h b/chrome/browser/ui/views/permissions/chip/webui_permission_chip.h
+index af77c58..485f3aa 100644
+--- a/chrome/browser/ui/views/permissions/chip/webui_permission_chip.h
++++ b/chrome/browser/ui/views/permissions/chip/webui_permission_chip.h
+@@ -90,16 +90,22 @@
+   toolbar_ui_api::mojom::PermissionChipStatePtr GetState() const;
+ 
+   uint32_t state_token() const { return state_token_; }
+-  void InvalidateStateToken() { ++state_token_; }
+ 
+  private:
+   friend class WebUIPermissionChipTest;
++  // For `InvalidateStateToken()`.
++  friend class WebUIPermissionDashboard;
+ 
+   // How long `WaitForAnchor()` waits for the chip element to be shown before
+   // timing out and running the callback anyway. `GetAnchor()` then returns a
+   // fallback anchor.
+   static constexpr base::TimeDelta kAnchorFallbackTimeout = base::Seconds(3);
+ 
++  // Bumps `state_token_` without pushing it to the WebUI. Private so that
++  // tokens are only invalidated through
++  // `WebUIPermissionDashboard::InvalidateStateTokens()`.
++  void InvalidateStateToken() { ++state_token_; }
++
+   void NotifyVisibilityChanged();
+   void UpdateState();
+   void FinishAnimation(AnimationState state);
+@@ -111,8 +117,8 @@
+   // animation state changes (e.g. on navigations and prompt resets via
+   // `ChipController`), and on tab or side panel task switches
+   // (`InvalidateStateToken()`, via
+-  // `WebUIPermissionDashboard::ResetTabState()`). The WebUI echoes the token it
+-  // rendered the chip with in its click IPC
++  // `WebUIPermissionDashboard::InvalidateStateTokens()`). The WebUI echoes the
++  // token it rendered the chip with in its click IPC
+   // (`OnLhsChipClicked()` in the main toolbar, `OnChipClicked()` in Contextual
+   // Tasks), and `OnClickedIfCurrent()` drops clicks whose token doesn't match,
+   // so actions don't run against an obsolete tab, task or request model.
+diff --git a/chrome/browser/ui/views/permissions/chip/webui_permission_dashboard.cc b/chrome/browser/ui/views/permissions/chip/webui_permission_dashboard.cc
+index 03e5c5a2..a193f00 100644
+--- a/chrome/browser/ui/views/permissions/chip/webui_permission_dashboard.cc
++++ b/chrome/browser/ui/views/permissions/chip/webui_permission_dashboard.cc
+@@ -60,7 +60,7 @@
+   location_bar_->OnChanged();
+ }
+ 
+-void WebUIPermissionDashboard::ResetTabState() {
++void WebUIPermissionDashboard::InvalidateStateTokens() {
+   request_chip_.InvalidateStateToken();
+   indicator_chip_.InvalidateStateToken();
+ }
+diff --git a/chrome/browser/ui/views/permissions/chip/webui_permission_dashboard.h b/chrome/browser/ui/views/permissions/chip/webui_permission_dashboard.h
+index 5f517dd7..f747e36 100644
+--- a/chrome/browser/ui/views/permissions/chip/webui_permission_dashboard.h
++++ b/chrome/browser/ui/views/permissions/chip/webui_permission_dashboard.h
+@@ -28,7 +28,12 @@
+   WebUIPermissionChip* request_chip() { return &request_chip_; }
+   WebUIPermissionChip* indicator_chip() { return &indicator_chip_; }
+ 
+-  void ResetTabState();
++  // Invalidates both chips' state tokens so that in-flight clicks for the
++  // previous tab or task are dropped. This doesn't push the new tokens to the
++  // WebUI, so callers must call `LocationBar::OnChanged()` afterwards.
++  // Otherwise the WebUI keeps echoing the old tokens, and every later click is
++  // dropped as stale.
++  void InvalidateStateTokens();
+ 
+  private:
+   void UpdateState();
+diff --git a/chrome/installer/linux/PRESUBMIT.py b/chrome/installer/linux/PRESUBMIT.py
+index 273f63c..38f165b1e 100644
+--- a/chrome/installer/linux/PRESUBMIT.py
++++ b/chrome/installer/linux/PRESUBMIT.py
+@@ -108,6 +108,14 @@
+ def _CommonChecks(input_api, output_api):
+     results = []
+     results.extend(_CheckRepoPackageVersionBump(input_api, output_api))
++    results.extend(
++        input_api.canned_checks.RunUnitTestsInDirectory(
++            input_api,
++            output_api,
++            "rpm",
++            files_to_check=[r"^.+_unittest\.py$"],
++        )
++    )
+     return results
+ 
+ 
+diff --git a/chrome/installer/linux/rpm/build.py b/chrome/installer/linux/rpm/build.py
+index 43237aaa..327584f 100755
+--- a/chrome/installer/linux/rpm/build.py
++++ b/chrome/installer/linux/rpm/build.py
+@@ -7,7 +7,6 @@
+ import logging
+ import os
+ import pathlib
+-import re
+ import shutil
+ import subprocess
+ import sys
+@@ -16,6 +15,9 @@
+ sys.path.append(os.path.join(os.path.dirname(__file__), "../common"))
+ import installer
+ 
++RPM_LEAD_MAGIC = b"\xed\xab\xee\xdb"
++RPM_V4_LEAD_MAJOR = 3
++
+ 
+ def parse_args() -> argparse.Namespace:
+     parser = installer.parse_common_args()
+@@ -41,21 +43,29 @@
+ def verify_package(
+     config: installer.InstallerConfig, rpm_file: pathlib.Path
+ ) -> None:
++    with rpm_file.open("rb") as f:
++        lead = f.read(6)
++    if (
++        len(lead) < 6
++        or lead[:4] != RPM_LEAD_MAGIC
++        or lead[4] != RPM_V4_LEAD_MAJOR
++    ):
++        print(
++            f"Unexpected RPM lead header in {rpm_file}: {lead.hex()} "
++            f"(expected RPM v4 lead magic {RPM_LEAD_MAGIC.hex()} with "
++            f"major {RPM_V4_LEAD_MAJOR})",
++            file=sys.stderr,
++        )
++        sys.exit(1)
++
+     depends = config.rpm_depends
+-    version_output = subprocess.check_output(["rpm", "--version"])
+-    version_match = re.match(r'.*version ([.\d]*)', str(version_output))
+     additional_deps = [
+         "/bin/sh",
++        "rpmlib(CompressedFileNames) <= 3.0.4-1",
++        "rpmlib(FileDigests) <= 4.6.0-1",
++        "rpmlib(PayloadFilesHavePrefix) <= 4.0-1",
+         "/usr/sbin/update-alternatives",
+     ]
+-    if version_match and version_match[1] >= '6.0':
+-        additional_deps += ['rpmlib(LargeFiles) <= 4.12.0-1']
+-    else:
+-        additional_deps += [
+-            "rpmlib(CompressedFileNames) <= 3.0.4-1",
+-            "rpmlib(FileDigests) <= 4.6.0-1",
+-            "rpmlib(PayloadFilesHavePrefix) <= 4.0-1",
+-        ]
+     if config.is_official_build:
+         additional_deps.append("rpmlib(PayloadIsXz) <= 5.2-1")
+ 
+@@ -140,6 +150,9 @@
+         else:
+             compression_opt = "_binary_payload w0.gzdio"
+ 
++        # Pin RPM v4 format so rpm >= 6.0 continues emitting v4 headers and
++        # standard SVR4 cpio payloads instead of v6 stripped cpio (07070X),
++        # which libarchive and rpm-ostree cannot extract (crbug.com/583945825).
+         cmd = [
+             "fakeroot",
+             "rpmbuild",
+@@ -147,6 +160,7 @@
+             f"--target={args.arch}",
+             "--rmspec",
+             f"--define=_topdir {rpm_build_dir}",
++            "--define=_rpmformat 4",
+             f"--define={compression_opt}",
+             "--define=__os_install_post %{nil}",
+             "--define=_build_id_links none",
+diff --git a/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.cc b/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.cc
+index cbcbf4f..27ae93f2 100644
+--- a/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.cc
++++ b/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.cc
+@@ -129,10 +129,17 @@
+   cc::PaintCanvas* canvas = recorder.beginRecording();
+   canvas->SetPaintPreviewTracker(tracker.get());
+ 
+-  if (!frame->CapturePaintPreview(bounds, canvas,
+-                                  /*include_linked_destinations=*/false,
+-                                  /*skip_accelerated_content=*/true,
+-                                  /*allow_scrollbars=*/false)) {
++  // `CapturePaintPreview()` runs a Blink lifecycle update that can
++  // synchronously dispatch events/script and cancel visual feature extraction,
++  // destroying `this`.
++  base::WeakPtr<PhishingVisualFeatureExtractor> weak_this =
++      weak_factory_.GetWeakPtr();
++  const bool capture_succeeded = CapturePaintPreview(frame, bounds, canvas);
++  if (!weak_this) {
++    return;
++  }
++
++  if (!capture_succeeded) {
+     RunCallback(nullptr);
+     return;
+   }
+@@ -162,4 +169,14 @@
+   std::move(done_callback_).Run(std::move(bitmap));
+ }
+ 
++bool PhishingVisualFeatureExtractor::CapturePaintPreview(
++    blink::WebLocalFrame* frame,
++    const gfx::Rect& bounds,
++    cc::PaintCanvas* canvas) {
++  return frame->CapturePaintPreview(bounds, canvas,
++                                    /*include_linked_destinations=*/false,
++                                    /*skip_accelerated_content=*/true,
++                                    /*allow_scrollbars=*/false);
++}
++
+ }  // namespace safe_browsing
+diff --git a/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.h b/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.h
+index e90ef22..5e3536c 100644
+--- a/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.h
++++ b/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.h
+@@ -32,10 +32,17 @@
+   PhishingVisualFeatureExtractor& operator=(
+       const PhishingVisualFeatureExtractor&) = delete;
+ 
+-  ~PhishingVisualFeatureExtractor();
++  virtual ~PhishingVisualFeatureExtractor();
+ 
+   void ExtractFeatures(blink::WebLocalFrame* frame, DoneCallback done_callback);
+ 
++ protected:
++  // Virtual seam for tests to simulate re-entrant cancellation during Blink's
++  // paint-preview lifecycle update.
++  virtual bool CapturePaintPreview(blink::WebLocalFrame* frame,
++                                   const gfx::Rect& bounds,
++                                   cc::PaintCanvas* canvas);
++
+  private:
+   void CancelPendingExtraction();
+ 
 diff --git a/content/browser/service_worker/service_worker_client.cc b/content/browser/service_worker/service_worker_client.cc
 index 38e7eaf..8f38d5983 100644
 --- a/content/browser/service_worker/service_worker_client.cc
@@ -758,6 +1077,874 @@ index 29b7a23..1bc9829e 100644
    type_ = type;
  }
  
+diff --git a/third_party/blink/renderer/core/dom/events/event_dispatcher.cc b/third_party/blink/renderer/core/dom/events/event_dispatcher.cc
+index e326ad17..a56cb82 100644
+--- a/third_party/blink/renderer/core/dom/events/event_dispatcher.cc
++++ b/third_party/blink/renderer/core/dom/events/event_dispatcher.cc
+@@ -49,6 +49,7 @@
+ #include "third_party/blink/renderer/core/event_type_names.h"
+ #include "third_party/blink/renderer/core/events/keyboard_event.h"
+ #include "third_party/blink/renderer/core/events/mouse_event.h"
++#include "third_party/blink/renderer/core/events/pointer_event_context.h"
+ #include "third_party/blink/renderer/core/events/simulated_event_util.h"
+ #include "third_party/blink/renderer/core/events/text_event.h"
+ #include "third_party/blink/renderer/core/execution_context/agent.h"
+@@ -66,6 +67,7 @@
+ #include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
+ #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
+ #include "third_party/blink/renderer/platform/keyboard_codes.h"
++#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ #include "ui/events/keycodes/dom/keycode_converter.h"
+ namespace blink {
+ 
+@@ -578,6 +580,14 @@
+   // 16. If target's root is a shadow root, then set event's target attribute
+   // and event's relatedTarget to null.
+   event_->SetTarget(event_->GetEventPath().GetWindowEventContext().Target());
++  if (RuntimeEnabledFeatures::RetargetEventsInPointerEventListsEnabled()) {
++    if (PointerEventContext* pointer_event_context =
++            event_->GetEventPath()
++                .GetWindowEventContext()
++                .GetPointerEventContext()) {
++      pointer_event_context->HandleLocalEvents(*event_);
++    }
++  }
+   if (!event_->RawTarget()) {
+     event_->SetRelatedTarget(nullptr);
+   }
+diff --git a/third_party/blink/renderer/core/dom/events/event_path.cc b/third_party/blink/renderer/core/dom/events/event_path.cc
+index 8687cf6f..f59d72a 100644
+--- a/third_party/blink/renderer/core/dom/events/event_path.cc
++++ b/third_party/blink/renderer/core/dom/events/event_path.cc
+@@ -30,12 +30,15 @@
+ #include "third_party/blink/renderer/core/dom/events/window_event_context.h"
+ #include "third_party/blink/renderer/core/dom/pseudo_element.h"
+ #include "third_party/blink/renderer/core/dom/shadow_root.h"
++#include "third_party/blink/renderer/core/events/pointer_event.h"
++#include "third_party/blink/renderer/core/events/pointer_event_context.h"
+ #include "third_party/blink/renderer/core/events/touch_event.h"
+ #include "third_party/blink/renderer/core/events/touch_event_context.h"
+ #include "third_party/blink/renderer/core/execution_context/execution_context.h"
+ #include "third_party/blink/renderer/core/html/html_slot_element.h"
+ #include "third_party/blink/renderer/core/input/touch.h"
+ #include "third_party/blink/renderer/core/input/touch_list.h"
++#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ 
+ namespace blink {
+ 
+@@ -421,6 +424,51 @@
+   }
+ }
+ 
++void EventPath::AdjustForPointerEvent(const PointerEvent& pointer_event) {
++  CHECK(RuntimeEnabledFeatures::RetargetEventsInPointerEventListsEnabled());
++  const HeapVector<Member<PointerEvent>>& coalesced_events =
++      pointer_event.CoalescedEvents();
++  const HeapVector<Member<PointerEvent>>& predicted_events =
++      pointer_event.PredictedEvents();
++  if (coalesced_events.empty() && predicted_events.empty()) {
++    return;
++  }
++
++  // Unlike TouchEvent (where each Touch can have a distinct target node that
++  // must be retargeted independently via RelatedTargetMap), coalesced and
++  // predicted events always share the parent PointerEvent's target. Therefore
++  // `tree_scope_event_context->Target()` already holds the retargeted target,
++  // and cloning is needed only across shadow boundaries (`i > 0`).
++  for (wtf_size_t i = 0; i < tree_scope_event_contexts_.size(); ++i) {
++    TreeScopeEventContext* tree_scope_event_context =
++        tree_scope_event_contexts_[i].Get();
++    PointerEventContext& pointer_event_context =
++        tree_scope_event_context->EnsurePointerEventContext();
++    EventTarget* adjusted_target = tree_scope_event_context->Target();
++    bool clone = i > 0;
++    AdjustPointerEventList(coalesced_events, clone, adjusted_target,
++                           pointer_event_context.CoalescedEvents());
++    AdjustPointerEventList(predicted_events, clone, adjusted_target,
++                           pointer_event_context.PredictedEvents());
++  }
++}
++
++void EventPath::AdjustPointerEventList(
++    const HeapVector<Member<PointerEvent>>& pointer_event_list,
++    bool clone,
++    EventTarget* adjusted_target,
++    HeapVector<Member<PointerEvent>>& adjusted_pointer_event_list) {
++  CHECK(RuntimeEnabledFeatures::RetargetEventsInPointerEventListsEnabled());
++  adjusted_pointer_event_list.reserve(pointer_event_list.size());
++  for (PointerEvent* pointer_event : pointer_event_list) {
++    if (clone) {
++      pointer_event = pointer_event->CloneCoalescedOrPredictedEvent();
++    }
++    pointer_event->SetTarget(adjusted_target);
++    adjusted_pointer_event_list.push_back(pointer_event);
++  }
++}
++
+ void EventPath::AdjustForDisabledFormControl() {
+   for (unsigned i = 0; i < node_event_contexts_.size(); i++) {
+     if (IsDisabledFormControl(&node_event_contexts_[i].GetNode())) {
+diff --git a/third_party/blink/renderer/core/dom/events/event_path.h b/third_party/blink/renderer/core/dom/events/event_path.h
+index cd437728..a56021c 100644
+--- a/third_party/blink/renderer/core/dom/events/event_path.h
++++ b/third_party/blink/renderer/core/dom/events/event_path.h
+@@ -39,6 +39,7 @@
+ class Event;
+ class EventTarget;
+ class Node;
++class PointerEvent;
+ class TouchEvent;
+ class TouchList;
+ class TreeScope;
+@@ -102,7 +103,15 @@
+ 
+   void AdjustForRelatedTarget(Node&, EventTarget* related_target);
+   void AdjustForReferenceTarget(Node&, EventTarget* source);
++
++  // Retargets Touch targets in `touches`, `targetTouches`, and
++  // `changedTouches` across shadow boundaries.
+   void AdjustForTouchEvent(const TouchEvent&);
++
++  // Retargets coalesced and predicted PointerEvent targets across shadow
++  // boundaries.
++  void AdjustForPointerEvent(const PointerEvent&);
++
+   // AdjustForDisabledFormControl will shrink this event path if there is a
+   // disabled form control in it so that the disabled form control and its
+   // parents are not included.
+@@ -142,6 +151,11 @@
+   void AdjustTouchList(const TouchList*,
+                        HeapVector<Member<TouchList>> adjusted_touch_list,
+                        const HeapVector<Member<TreeScope>>& tree_scopes);
++  void AdjustPointerEventList(
++      const HeapVector<Member<PointerEvent>>& pointer_event_list,
++      bool clone,
++      EventTarget* adjusted_target,
++      HeapVector<Member<PointerEvent>>& adjusted_pointer_event_list);
+ 
+   TreeScopeEventContext* GetTreeScopeEventContext(TreeScope&);
+   TreeScopeEventContext* EnsureTreeScopeEventContext(Node* current_target,
+diff --git a/third_party/blink/renderer/core/dom/events/node_event_context.cc b/third_party/blink/renderer/core/dom/events/node_event_context.cc
+index 0c06bfe..dbdaa5b8 100644
+--- a/third_party/blink/renderer/core/dom/events/node_event_context.cc
++++ b/third_party/blink/renderer/core/dom/events/node_event_context.cc
+@@ -30,8 +30,10 @@
+ #include "third_party/blink/renderer/core/events/focus_event.h"
+ #include "third_party/blink/renderer/core/events/mouse_event.h"
+ #include "third_party/blink/renderer/core/events/pointer_event.h"
++#include "third_party/blink/renderer/core/events/pointer_event_context.h"
+ #include "third_party/blink/renderer/core/events/touch_event_context.h"
+ #include "third_party/blink/renderer/core/input/touch_list.h"
++#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ 
+ namespace blink {
+ 
+@@ -53,8 +55,17 @@
+ void NodeEventContext::HandleLocalEvents(Event& event) const {
+   if (TouchEventContext* touch_context = GetTouchEventContext()) {
+     touch_context->HandleLocalEvents(event);
+-  } else if (RelatedTarget()) {
+-    event.SetRelatedTarget(RelatedTarget());
++  } else {
++    if (RuntimeEnabledFeatures::RetargetEventsInPointerEventListsEnabled()) {
++      if (PointerEventContext* pointer_context = GetPointerEventContext()) {
++        pointer_context->HandleLocalEvents(event);
++      }
++    }
++    // TODO(mustaq@chromium.org): Investigate why TouchEvents skip retargeting
++    // of relatedTarget.
++    if (RelatedTarget()) {
++      event.SetRelatedTarget(RelatedTarget());
++    }
+   }
+   event.SetTarget(Target());
+   event.SetCurrentTarget(current_target_.Get());
+diff --git a/third_party/blink/renderer/core/dom/events/node_event_context.h b/third_party/blink/renderer/core/dom/events/node_event_context.h
+index 20d23ae..5e5c2b6 100644
+--- a/third_party/blink/renderer/core/dom/events/node_event_context.h
++++ b/third_party/blink/renderer/core/dom/events/node_event_context.h
+@@ -34,6 +34,7 @@
+ 
+ class EventTarget;
+ class Node;
++class PointerEventContext;
+ class TouchEventContext;
+ 
+ class CORE_EXPORT NodeEventContext {
+@@ -62,6 +63,9 @@
+   TouchEventContext* GetTouchEventContext() const {
+     return tree_scope_event_context_->GetTouchEventContext();
+   }
++  PointerEventContext* GetPointerEventContext() const {
++    return tree_scope_event_context_->GetPointerEventContext();
++  }
+ 
+   bool CurrentTargetSameAsTarget() const {
+     return current_target_.Get() == Target();
+diff --git a/third_party/blink/renderer/core/dom/events/tree_scope_event_context.cc b/third_party/blink/renderer/core/dom/events/tree_scope_event_context.cc
+index 102122bf..44fc9e2 100644
+--- a/third_party/blink/renderer/core/dom/events/tree_scope_event_context.cc
++++ b/third_party/blink/renderer/core/dom/events/tree_scope_event_context.cc
+@@ -30,9 +30,11 @@
+ #include "third_party/blink/renderer/core/dom/events/window_event_context.h"
+ #include "third_party/blink/renderer/core/dom/shadow_root.h"
+ #include "third_party/blink/renderer/core/dom/static_node_list.h"
++#include "third_party/blink/renderer/core/events/pointer_event_context.h"
+ #include "third_party/blink/renderer/core/events/touch_event_context.h"
+ #include "third_party/blink/renderer/core/frame/local_dom_window.h"
+ #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
++#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ 
+ namespace blink {
+ 
+@@ -87,6 +89,14 @@
+   return *touch_event_context_;
+ }
+ 
++PointerEventContext& TreeScopeEventContext::EnsurePointerEventContext() {
++  CHECK(RuntimeEnabledFeatures::RetargetEventsInPointerEventListsEnabled());
++  if (!pointer_event_context_) {
++    pointer_event_context_ = MakeGarbageCollected<PointerEventContext>();
++  }
++  return *pointer_event_context_;
++}
++
+ TreeScopeEventContext::TreeScopeEventContext(TreeScope& tree_scope)
+     : tree_scope_(tree_scope),
+       containing_closed_shadow_tree_(nullptr),
+@@ -99,6 +109,7 @@
+   visitor->Trace(related_target_);
+   visitor->Trace(event_path_);
+   visitor->Trace(touch_event_context_);
++  visitor->Trace(pointer_event_context_);
+   visitor->Trace(containing_closed_shadow_tree_);
+   visitor->Trace(children_);
+ }
+diff --git a/third_party/blink/renderer/core/dom/events/tree_scope_event_context.h b/third_party/blink/renderer/core/dom/events/tree_scope_event_context.h
+index 6355461..10c6f99 100644
+--- a/third_party/blink/renderer/core/dom/events/tree_scope_event_context.h
++++ b/third_party/blink/renderer/core/dom/events/tree_scope_event_context.h
+@@ -40,6 +40,7 @@
+ class ContainerNode;
+ class EventPath;
+ class EventTarget;
++class PointerEventContext;
+ template <typename NodeType>
+ class StaticNodeTypeList;
+ using StaticNodeList = StaticNodeTypeList<Node>;
+@@ -66,6 +67,11 @@
+   }
+   TouchEventContext& EnsureTouchEventContext();
+ 
++  PointerEventContext* GetPointerEventContext() const {
++    return pointer_event_context_.Get();
++  }
++  PointerEventContext& EnsurePointerEventContext();
++
+   GCedHeapVector<Member<EventTarget>>& EnsureEventPath(EventPath&);
+ 
+   bool IsInclusiveAncestorOf(const TreeScopeEventContext&) const;
+@@ -95,6 +101,7 @@
+   Member<EventTarget> related_target_;
+   Member<GCedHeapVector<Member<EventTarget>>> event_path_;
+   Member<TouchEventContext> touch_event_context_;
++  Member<PointerEventContext> pointer_event_context_;
+   Member<TreeScopeEventContext> containing_closed_shadow_tree_;
+ 
+   HeapVector<Member<TreeScopeEventContext>> children_;
+diff --git a/third_party/blink/renderer/core/dom/events/window_event_context.cc b/third_party/blink/renderer/core/dom/events/window_event_context.cc
+index 0c61a30..24ae85c4 100644
+--- a/third_party/blink/renderer/core/dom/events/window_event_context.cc
++++ b/third_party/blink/renderer/core/dom/events/window_event_context.cc
+@@ -30,6 +30,7 @@
+ #include "third_party/blink/renderer/core/dom/events/event.h"
+ #include "third_party/blink/renderer/core/dom/events/node_event_context.h"
+ #include "third_party/blink/renderer/core/dom/node.h"
++#include "third_party/blink/renderer/core/events/pointer_event_context.h"
+ #include "third_party/blink/renderer/core/events/touch_event_context.h"
+ #include "third_party/blink/renderer/core/frame/local_dom_window.h"
+ #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+@@ -55,6 +56,9 @@
+   target_ = top_node_event_context.Target();
+   related_target_ = top_node_event_context.RelatedTarget();
+   touch_event_context_ = top_node_event_context.GetTouchEventContext();
++  if (RuntimeEnabledFeatures::RetargetEventsInPointerEventListsEnabled()) {
++    pointer_event_context_ = top_node_event_context.GetPointerEventContext();
++  }
+ }
+ 
+ bool WindowEventContext::HandleLocalEvents(Event& event) {
+@@ -63,6 +67,10 @@
+ 
+   if (touch_event_context_) {
+     touch_event_context_->HandleLocalEvents(event);
++  } else if (RuntimeEnabledFeatures::
++                 RetargetEventsInPointerEventListsEnabled() &&
++             pointer_event_context_) {
++    pointer_event_context_->HandleLocalEvents(event);
+   }
+   event.SetTarget(Target());
+   event.SetCurrentTarget(Window());
+@@ -77,6 +85,7 @@
+   visitor->Trace(target_);
+   visitor->Trace(related_target_);
+   visitor->Trace(touch_event_context_);
++  visitor->Trace(pointer_event_context_);
+ }
+ 
+ }  // namespace blink
+diff --git a/third_party/blink/renderer/core/dom/events/window_event_context.h b/third_party/blink/renderer/core/dom/events/window_event_context.h
+index 17fd901..c44396d 100644
+--- a/third_party/blink/renderer/core/dom/events/window_event_context.h
++++ b/third_party/blink/renderer/core/dom/events/window_event_context.h
+@@ -36,6 +36,7 @@
+ class Event;
+ class LocalDOMWindow;
+ class NodeEventContext;
++class PointerEventContext;
+ class TouchEventContext;
+ 
+ class WindowEventContext : public GarbageCollected<WindowEventContext> {
+@@ -47,6 +48,7 @@
+   LocalDOMWindow* Window() const;
+   EventTarget* Target() const;
+   EventTarget* RelatedTarget() const;
++  PointerEventContext* GetPointerEventContext() const;
+   bool HandleLocalEvents(Event&);
+ 
+   void Trace(Visitor*) const;
+@@ -56,6 +58,7 @@
+   Member<EventTarget> target_;
+   Member<EventTarget> related_target_;
+   Member<TouchEventContext> touch_event_context_;
++  Member<PointerEventContext> pointer_event_context_;
+ };
+ 
+ inline LocalDOMWindow* WindowEventContext::Window() const {
+@@ -70,6 +73,10 @@
+   return related_target_.Get();
+ }
+ 
++inline PointerEventContext* WindowEventContext::GetPointerEventContext() const {
++  return pointer_event_context_.Get();
++}
++
+ }  // namespace blink
+ 
+ #endif  // THIRD_PARTY_BLINK_RENDERER_CORE_DOM_EVENTS_WINDOW_EVENT_CONTEXT_H_
+diff --git a/third_party/blink/renderer/core/editing/commands/document_exec_command.cc b/third_party/blink/renderer/core/editing/commands/document_exec_command.cc
+index e052fd0..67c06c96 100644
+--- a/third_party/blink/renderer/core/editing/commands/document_exec_command.cc
++++ b/third_party/blink/renderer/core/editing/commands/document_exec_command.cc
+@@ -55,9 +55,10 @@
+   if (!frame || frame->GetDocument() != document)
+     return EditorCommand();
+ 
++  EditorCommand command =
++      frame->GetEditor().CreateCommand(command_name, EditorCommandSource::kDom);
+   document->UpdateStyleAndLayoutTree();
+-  return frame->GetEditor().CreateCommand(command_name,
+-                                          EditorCommandSource::kDom);
++  return command;
+ }
+ 
+ // Trusted Types requires that HTML (or Script, or script URLs) to be
+diff --git a/third_party/blink/renderer/core/editing/commands/editor_command.cc b/third_party/blink/renderer/core/editing/commands/editor_command.cc
+index 63b57c9d..815026b9 100644
+--- a/third_party/blink/renderer/core/editing/commands/editor_command.cc
++++ b/third_party/blink/renderer/core/editing/commands/editor_command.cc
+@@ -1130,6 +1130,14 @@
+ 
+ // Enabled functions
+ 
++// Updates style and layout, returning true if `frame` is still attached to the
++// same `Document` afterward (i.e. neither detached nor navigated).
++static bool UpdateStyleAndLayoutForCommand(LocalFrame& frame) {
++  Document* const document = frame.GetDocument();
++  document->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  return frame.GetDocument() == document && document->GetFrame() == &frame;
++}
++
+ static bool Enabled(LocalFrame&, Event*, EditorCommandSource) {
+   return true;
+ }
+@@ -1142,7 +1150,9 @@
+     return false;
+   }
+ 
+-  frame.GetDocument()->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!UpdateStyleAndLayoutForCommand(frame)) {
++    return false;
++  }
+ 
+   if (source == EditorCommandSource::kMenuOrKeyBinding &&
+       !frame.Selection().SelectionHasFocus()) {
+@@ -1169,7 +1179,9 @@
+     return false;
+   }
+ 
+-  frame.GetDocument()->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!UpdateStyleAndLayoutForCommand(frame)) {
++    return false;
++  }
+ 
+   if (source == EditorCommandSource::kMenuOrKeyBinding &&
+       !frame.Selection().SelectionHasFocus()) {
+@@ -1195,7 +1207,9 @@
+     return false;
+   }
+ 
+-  frame.GetDocument()->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!UpdateStyleAndLayoutForCommand(frame)) {
++    return false;
++  }
+ 
+   if (source == EditorCommandSource::kMenuOrKeyBinding &&
+       !frame.Selection().SelectionHasFocus()) {
+@@ -1222,7 +1236,9 @@
+     }
+   }
+ 
+-  frame.GetDocument()->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!UpdateStyleAndLayoutForCommand(frame)) {
++    return false;
++  }
+   if (source == EditorCommandSource::kMenuOrKeyBinding &&
+       !frame.Selection().SelectionHasFocus()) {
+     return false;
+@@ -1244,7 +1260,9 @@
+     }
+   }
+ 
+-  frame.GetDocument()->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!UpdateStyleAndLayoutForCommand(frame)) {
++    return false;
++  }
+   if (source == EditorCommandSource::kMenuOrKeyBinding &&
+       !frame.Selection().SelectionHasFocus()) {
+     return false;
+@@ -1287,7 +1305,9 @@
+     return false;
+   }
+ 
+-  frame.GetDocument()->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!UpdateStyleAndLayoutForCommand(frame)) {
++    return false;
++  }
+   if (source == EditorCommandSource::kMenuOrKeyBinding &&
+       !frame.Selection().SelectionHasFocus()) {
+     return false;
+@@ -1306,7 +1326,9 @@
+     return false;
+   }
+ 
+-  frame.GetDocument()->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!UpdateStyleAndLayoutForCommand(frame)) {
++    return false;
++  }
+   if (source == EditorCommandSource::kMenuOrKeyBinding &&
+       !frame.Selection().SelectionHasFocus()) {
+     return false;
+@@ -1338,7 +1360,9 @@
+     return false;
+   }
+ 
+-  frame.GetDocument()->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!UpdateStyleAndLayoutForCommand(frame)) {
++    return false;
++  }
+ 
+   // The term "visible" here includes a caret in editable text or a range in any
+   // text.
+@@ -1358,7 +1382,9 @@
+ 
+   // TODO(editing-dev): The use of UpdateStyleAndLayout
+   // needs to be audited.  See http://crbug.com/590369 for more details.
+-  frame.GetDocument()->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!UpdateStyleAndLayoutForCommand(frame)) {
++    return false;
++  }
+   const VisibleSelection& selection =
+       frame.Selection().ComputeVisibleSelectionInDomTree();
+   if (selection.IsNone()) {
+@@ -2110,12 +2136,17 @@
+ EditorCommand::EditorCommand(const EditorInternalCommand* command,
+                              EditorCommandSource source,
+                              LocalFrame* frame)
+-    : command_(command), source_(source), frame_(command ? frame : nullptr) {
++    : command_(command),
++      source_(source),
++      frame_(command ? frame : nullptr),
++      document_((command && frame) ? frame->GetDocument() : nullptr) {
+   // Use separate assertions so we can tell which bad thing happened.
+   if (!command) {
+     DCHECK(!frame_);
++    DCHECK(!document_);
+   } else {
+     DCHECK(frame_);
++    DCHECK(document_);
+   }
+ }
+ 
+@@ -2124,6 +2155,11 @@
+   return *frame_;
+ }
+ 
++bool EditorCommand::IsCurrentDocument() const {
++  return frame_ && document_ && frame_->GetDocument() == document_ &&
++         document_->GetFrame() == frame_;
++}
++
+ bool EditorCommand::Execute(const String& parameter,
+                             Event* triggering_event) const {
+   if (!CanExecute(triggering_event)) {
+@@ -2148,16 +2184,15 @@
+           undo_step = *frame_->GetEditor().GetUndoStack().RedoSteps().begin();
+         }
+       }
+-      Node* target_node =
+-          undo_step ? undo_step->StartingRootEditableElement()
+-                    : EventTargetNodeForDocument(frame_->GetDocument());
++      Node* target_node = undo_step ? undo_step->StartingRootEditableElement()
++                                    : EventTargetNodeForDocument(document_);
+       if (DispatchBeforeInputEditorCommand(target_node, input_type,
+                                            GetTargetRanges()) !=
+           DispatchEventResult::kNotCanceled) {
+         return true;
+       }
+-      // 'beforeinput' event handler may destroy target frame.
+-      if (frame_->GetDocument()->GetFrame() != frame_) {
++      // 'beforeinput' event handler may destroy or navigate target frame.
++      if (!IsCurrentDocument()) {
+         return false;
+       }
+     }
+@@ -2203,14 +2238,14 @@
+   // ExecuteFindString/Editor::FindString will hit bad style/layout data.
+   DisplayLockDocumentState::ScopedForceActivatableDisplayLocks forced_locks;
+   if (command_->command_type == EditingCommandType::kFindString) {
+-    forced_locks.Add(GetFrame()
+-                         .GetDocument()
+-                         ->GetDisplayLockDocumentState()
++    forced_locks.Add(document_->GetDisplayLockDocumentState()
+                          .GetScopedForceActivatableLocks());
+   }
+ 
+-  GetFrame().GetDocument()->UpdateStyleAndLayout(
+-      DocumentUpdateReason::kEditing);
++  document_->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
++  if (!IsCurrentDocument()) {
++    return false;
++  }
+   return command_->execute(*frame_, triggering_event, source_, parameter);
+ }
+ 
+@@ -2222,7 +2257,8 @@
+   if (IsEnabled(triggering_event)) {
+     return true;
+   }
+-  return IsSupported() && frame_ && command_->can_execute(*frame_, source_);
++  return IsSupported() && IsCurrentDocument() &&
++         command_->can_execute(*frame_, source_);
+ }
+ 
+ bool EditorCommand::IsSupported() const {
+@@ -2239,24 +2275,27 @@
+ }
+ 
+ bool EditorCommand::IsEnabled(Event* triggering_event) const {
+-  if (!IsSupported() || !frame_) {
++  if (!IsSupported() || !IsCurrentDocument()) {
+     return false;
+   }
+-  return command_->is_enabled(*frame_, triggering_event, source_);
++  return command_->is_enabled(*frame_, triggering_event, source_) &&
++         IsCurrentDocument();
+ }
+ 
+ EditingTriState EditorCommand::GetState(Event* triggering_event) const {
+-  if (!IsSupported() || !frame_) {
++  if (!IsSupported() || !IsCurrentDocument()) {
+     return EditingTriState::kFalse;
+   }
+-  return command_->state(*frame_, triggering_event);
++  const EditingTriState state = command_->state(*frame_, triggering_event);
++  return IsCurrentDocument() ? state : EditingTriState::kFalse;
+ }
+ 
+ String EditorCommand::Value(Event* triggering_event) const {
+-  if (!IsSupported() || !frame_) {
++  if (!IsSupported() || !IsCurrentDocument()) {
+     return String();
+   }
+-  return command_->value(*command_, *frame_, triggering_event);
++  const String value = command_->value(*command_, *frame_, triggering_event);
++  return IsCurrentDocument() ? value : String();
+ }
+ 
+ bool EditorCommand::IsTextInsertion() const {
+@@ -2273,8 +2312,11 @@
+ }
+ 
+ const GCedStaticRangeVector* EditorCommand::GetTargetRanges() const {
+-  const Node* target = EventTargetNodeForDocument(frame_->GetDocument());
+-  if (!IsSupported() || !frame_ || !target || !IsRichlyEditable(*target)) {
++  if (!IsSupported() || !IsCurrentDocument()) {
++    return nullptr;
++  }
++  const Node* target = EventTargetNodeForDocument(document_);
++  if (!target || !IsRichlyEditable(*target)) {
+     return nullptr;
+   }
+ 
+diff --git a/third_party/blink/renderer/core/editing/commands/editor_command.h b/third_party/blink/renderer/core/editing/commands/editor_command.h
+index 7dc508f..cf39cfe 100644
+--- a/third_party/blink/renderer/core/editing/commands/editor_command.h
++++ b/third_party/blink/renderer/core/editing/commands/editor_command.h
+@@ -38,6 +38,7 @@
+ 
+ namespace blink {
+ 
++class Document;
+ class EditorInternalCommand;
+ class Event;
+ class LocalFrame;
+@@ -71,6 +72,7 @@
+ 
+  private:
+   LocalFrame& GetFrame() const;
++  bool IsCurrentDocument() const;
+ 
+   FRIEND_TEST_ALL_PREFIXES(EditingCommandTest,
+                            DeleteSoftLineBackwardTargetRanges);
+@@ -89,6 +91,7 @@
+   const EditorInternalCommand* command_ = nullptr;
+   const EditorCommandSource source_;
+   LocalFrame* const frame_ = nullptr;
++  Document* const document_ = nullptr;
+ };
+ 
+ }  // namespace blink
+diff --git a/third_party/blink/renderer/core/events/build.gni b/third_party/blink/renderer/core/events/build.gni
+index 9e320e3..c4a4152 100644
+--- a/third_party/blink/renderer/core/events/build.gni
++++ b/third_party/blink/renderer/core/events/build.gni
+@@ -49,6 +49,8 @@
+   "page_transition_event.h",
+   "pointer_event.cc",
+   "pointer_event.h",
++  "pointer_event_context.cc",
++  "pointer_event_context.h",
+   "pointer_event_factory.cc",
+   "pointer_event_factory.h",
+   "pointer_event_util.cc",
+diff --git a/third_party/blink/renderer/core/events/pointer_event.cc b/third_party/blink/renderer/core/events/pointer_event.cc
+index 8595c9b7..5693cedf 100644
+--- a/third_party/blink/renderer/core/events/pointer_event.cc
++++ b/third_party/blink/renderer/core/events/pointer_event.cc
+@@ -12,6 +12,7 @@
+ #include "third_party/blink/renderer/core/events/pointer_event_util.h"
+ #include "third_party/blink/renderer/core/frame/local_dom_window.h"
+ #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
++#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ #include "third_party/blink/renderer/platform/wtf/math_extras.h"
+ 
+ namespace blink {
+@@ -160,6 +161,46 @@
+   return predicted_events_;
+ }
+ 
++PointerEvent* PointerEvent::CloneCoalescedOrPredictedEvent() const {
++  CHECK(RuntimeEnabledFeatures::RetargetEventsInPointerEventListsEnabled());
++  PointerEventInit* initializer = PointerEventInit::Create();
++
++  if (AbstractView* abstract_view = view()) {
++    initializer->setView(abstract_view);
++  }
++  UIEventWithKeyState::SetFromWebInputEventModifiers(initializer,
++                                                     GetModifiers());
++
++  initializer->setScreenX(screen_x_);
++  initializer->setScreenY(screen_y_);
++  initializer->setClientX(client_x_);
++  initializer->setClientY(client_y_);
++  initializer->setButton(RawButton());
++  initializer->setButtons(buttons());
++  initializer->setMovementX(movementX());
++  initializer->setMovementY(movementY());
++
++  initializer->setPointerId(pointer_id_);
++  initializer->setWidth(width_);
++  initializer->setHeight(height_);
++  initializer->setPressure(pressure_);
++  initializer->setTiltX(tilt_x_);
++  initializer->setTiltY(tilt_y_);
++  initializer->setAzimuthAngle(azimuth_angle_);
++  initializer->setAltitudeAngle(altitude_angle_);
++  initializer->setTangentialPressure(tangential_pressure_);
++  initializer->setTwist(twist_);
++  initializer->setPointerType(pointer_type_);
++  initializer->setIsPrimary(is_primary_);
++  initializer->setPersistentDeviceId(persistent_device_id_);
++
++  PointerEvent* clone =
++      PointerEvent::Create(type(), initializer, PlatformTimeStamp());
++  clone->SetTrusted(isTrusted());
++
++  return clone;
++}
++
+ base::TimeTicks PointerEvent::OldestPlatformTimeStamp() const {
+   if (coalesced_events_.size() > 0) {
+     // Assume that time stamps of coalesced events are in ascending order.
+@@ -179,11 +220,15 @@
+     return DispatchEventResult::kNotCanceled;  // Shouldn't happen.
+ 
+   if (isTrusted()) {
+-    for (const auto& coalesced_event : coalesced_events_) {
+-      coalesced_event->SetTarget(&dispatcher.GetNode());
+-    }
+-    for (const auto& predicted_event : predicted_events_) {
+-      predicted_event->SetTarget(&dispatcher.GetNode());
++    if (RuntimeEnabledFeatures::RetargetEventsInPointerEventListsEnabled()) {
++      GetEventPath().AdjustForPointerEvent(*this);
++    } else {
++      for (const auto& coalesced_event : coalesced_events_) {
++        coalesced_event->SetTarget(&dispatcher.GetNode());
++      }
++      for (const auto& predicted_event : predicted_events_) {
++        predicted_event->SetTarget(&dispatcher.GetNode());
++      }
+     }
+   }
+ 
+diff --git a/third_party/blink/renderer/core/events/pointer_event.h b/third_party/blink/renderer/core/events/pointer_event.h
+index 14392bf..297a054 100644
+--- a/third_party/blink/renderer/core/events/pointer_event.h
++++ b/third_party/blink/renderer/core/events/pointer_event.h
+@@ -102,6 +102,26 @@
+ 
+   HeapVector<Member<PointerEvent>> getCoalescedEvents();
+   HeapVector<Member<PointerEvent>> getPredictedEvents();
++  const HeapVector<Member<PointerEvent>>& CoalescedEvents() const {
++    return coalesced_events_;
++  }
++  const HeapVector<Member<PointerEvent>>& PredictedEvents() const {
++    return predicted_events_;
++  }
++  void SetCoalescedEvents(
++      const HeapVector<Member<PointerEvent>>& coalesced_events) {
++    coalesced_events_ = coalesced_events;
++  }
++  void SetPredictedEvents(
++      const HeapVector<Member<PointerEvent>>& predicted_events) {
++    predicted_events_ = predicted_events;
++  }
++
++  // Clones a coalesced or predicted PointerEvent, leaving dispatch-only and
++  // nested-list attributes at their defaults per
++  // https://w3c.github.io/pointerevents/#populating-and-maintaining-the-coalesced-and-predicted-events-lists
++  PointerEvent* CloneCoalescedOrPredictedEvent() const;
++
+   base::TimeTicks OldestPlatformTimeStamp() const;
+ 
+   DispatchEventResult DispatchEvent(EventDispatcher&) override;
+diff --git a/third_party/blink/renderer/core/events/pointer_event_context.cc b/third_party/blink/renderer/core/events/pointer_event_context.cc
+new file mode 100644
+index 0000000..1dd2329d
+--- /dev/null
++++ b/third_party/blink/renderer/core/events/pointer_event_context.cc
+@@ -0,0 +1,26 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "third_party/blink/renderer/core/events/pointer_event_context.h"
++
++#include "third_party/blink/renderer/core/dom/events/event.h"
++#include "third_party/blink/renderer/core/events/pointer_event.h"
++#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
++
++namespace blink {
++
++void PointerEventContext::HandleLocalEvents(Event& event) const {
++  CHECK(RuntimeEnabledFeatures::RetargetEventsInPointerEventListsEnabled());
++  CHECK(IsA<PointerEvent>(event));
++  auto& pointer_event = To<PointerEvent>(event);
++  pointer_event.SetCoalescedEvents(coalesced_events_);
++  pointer_event.SetPredictedEvents(predicted_events_);
++}
++
++void PointerEventContext::Trace(Visitor* visitor) const {
++  visitor->Trace(coalesced_events_);
++  visitor->Trace(predicted_events_);
++}
++
++}  // namespace blink
+diff --git a/third_party/blink/renderer/core/events/pointer_event_context.h b/third_party/blink/renderer/core/events/pointer_event_context.h
+new file mode 100644
+index 0000000..d57edf2
+--- /dev/null
++++ b/third_party/blink/renderer/core/events/pointer_event_context.h
+@@ -0,0 +1,40 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef THIRD_PARTY_BLINK_RENDERER_CORE_EVENTS_POINTER_EVENT_CONTEXT_H_
++#define THIRD_PARTY_BLINK_RENDERER_CORE_EVENTS_POINTER_EVENT_CONTEXT_H_
++
++#include "third_party/blink/renderer/core/core_export.h"
++#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
++#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
++#include "third_party/blink/renderer/platform/heap/member.h"
++
++namespace blink {
++
++class Event;
++class PointerEvent;
++
++class CORE_EXPORT PointerEventContext
++    : public GarbageCollected<PointerEventContext> {
++ public:
++  PointerEventContext() = default;
++
++  void HandleLocalEvents(Event&) const;
++  HeapVector<Member<PointerEvent>>& CoalescedEvents() {
++    return coalesced_events_;
++  }
++  HeapVector<Member<PointerEvent>>& PredictedEvents() {
++    return predicted_events_;
++  }
++
++  void Trace(Visitor*) const;
++
++ private:
++  HeapVector<Member<PointerEvent>> coalesced_events_;
++  HeapVector<Member<PointerEvent>> predicted_events_;
++};
++
++}  // namespace blink
++
++#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_EVENTS_POINTER_EVENT_CONTEXT_H_
+diff --git a/third_party/blink/renderer/platform/runtime_enabled_features.json5 b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+index 4d4dce811..9e3a7c9 100644
+--- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
++++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+@@ -5618,6 +5618,13 @@
+       status: "stable",
+     },
+     {
++      // Retarget coalesced and predicted events in PointerEvent across shadow
++      // boundaries.
++      // crbug.com/515272369
++      name: "RetargetEventsInPointerEventLists",
++      status: "stable",
++    },
++    {
+       // If enabled, makes the root scrollbars' foreground elements follow the
+       // browser
+       name: "RootScrollbarFollowsBrowserTheme",
 diff --git a/third_party/blink/renderer/platform/wtf/vector.h b/third_party/blink/renderer/platform/wtf/vector.h
 index 3c1dd7b..ddc6162 100644
 --- a/third_party/blink/renderer/platform/wtf/vector.h
@@ -995,6 +2182,31 @@ index d7df43d..b7e19e2 100644
  Update Mechanism: Manual
  License: BSD-3-Clause
  License File: src/LICENSE
+diff --git a/ui/ozone/platform/wayland/host/xdg_activation.cc b/ui/ozone/platform/wayland/host/xdg_activation.cc
+index 529a40b..feb765f 100644
+--- a/ui/ozone/platform/wayland/host/xdg_activation.cc
++++ b/ui/ozone/platform/wayland/host/xdg_activation.cc
+@@ -177,7 +177,7 @@
+ 
+ wl_surface* XdgActivation::TokenRequest::DetermineSurface(
+     const std::optional<wl::Serial>& serial) const {
+-  WaylandWindow const* window = nullptr;
++  WaylandWindow* window = nullptr;
+   auto* const window_manager = connection_->window_manager();
+ 
+   // The spec isn't clear about what types of surfaces should be used as
+@@ -201,6 +201,11 @@
+         break;
+     }
+   }
++  // Compositors don't accept a subsurface (WaylandBubble) as the requestor;
++  // use its xdg-role ancestor.
++  if (window && window->AsWaylandBubble()) {
++    window = window->GetXdgParentWindow();
++  }
+   return window ? window->root_surface()->surface() : nullptr;
+ }
+ 
 diff --git a/third_party/icu/README.chromium b/third_party/icu/README.chromium
 index 1ad19b3..d2833e9 100644
 --- a/third_party/icu/README.chromium
@@ -1917,7 +3129,7 @@ index ad70532..2e239a6 100644
      if ((fContext.status & DEC_Inexact) != 0) {
          // Ignore.
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index f49ea92..04b6849 100644
+index f49ea92..8a696dc 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -1925,10 +3137,271 @@ index f49ea92..04b6849 100644
  #define V8_MINOR_VERSION 8
  #define V8_BUILD_NUMBER 62
 -#define V8_PATCH_LEVEL 38
-+#define V8_PATCH_LEVEL 40
++#define V8_PATCH_LEVEL 41
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/builtins/builtins-object-gen.cc b/v8/src/builtins/builtins-object-gen.cc
+index bf12c80..fa410f7 100644
+--- a/v8/src/builtins/builtins-object-gen.cc
++++ b/v8/src/builtins/builtins-object-gen.cc
+@@ -1283,12 +1283,15 @@
+     BIND(&non_null_proto);
+     {
+       new_properties = EmptyFixedArrayConstant();
+-      map = LoadObjectFunctionInitialMap(native_context);
++      TNode<JSFunction> object_function = Cast(LoadContextElementNoCell(
++          native_context, Context::OBJECT_FUNCTION_INDEX));
++      map = CAST(LoadJSFunctionPrototypeOrInitialMap(object_function));
+       GotoIf(TaggedEqual(prototype, LoadMapPrototype(map.value())),
+              &instantiate_map);
++      TNode<Map> prototype_map = LoadMap(CAST(prototype));
+       // Try loading the prototype info.
+       TNode<PrototypeInfo> prototype_info =
+-          LoadMapPrototypeInfo(LoadMap(CAST(prototype)), &call_runtime);
++          LoadMapPrototypeInfo(prototype_map, &call_runtime);
+       Comment("Load ObjectCreateMap from PrototypeInfo");
+       TNode<HeapObject> derived_maps = CAST(LoadObjectField(
+           prototype_info, offsetof(PrototypeInfo, derived_maps_)));
+@@ -1300,6 +1303,20 @@
+       TNode<MaybeObject> maybe_map = UncheckedCast<MaybeObject>(LoadObjectField(
+           derived_maps, IntPtrConstant(WeakArrayList::kHeaderSize)));
+       map = CAST(GetHeapObjectAssumeWeak(maybe_map, &call_runtime));
++      // Only use the cached map in PrototypeInfo if the prototype belongs to
++      // the same native context, matching Map::GetObjectCreateMap.
++      TNode<BoolT> is_same_context;
++      {
++        TNode<JSFunction> constructor =
++            CAST(LoadMapConstructorOrBackPointerOrNativeContext(map.value()));
++        // Given that we already have both object_function and the initial map,
++        // this is a faster version of BelongsToSameNativeContextAs.
++        is_same_context = TaggedEqual(constructor, object_function);
++        CSA_DCHECK(this, Word32Equal(is_same_context,
++                                     BelongsToSameNativeContextAs(
++                                         map.value(), native_context)));
++      }
++      GotoIfNot(is_same_context, &call_runtime);
+       Goto(&instantiate_map);
+     }
+ 
+diff --git a/v8/src/builtins/object.tq b/v8/src/builtins/object.tq
+index 5858aa8..f0363db 100644
+--- a/v8/src/builtins/object.tq
++++ b/v8/src/builtins/object.tq
+@@ -118,6 +118,18 @@
+               const theMap = MaybeObjectToStrong(derived_maps.objects[0])
+                   otherwise Runtime;
+               map = UnsafeCast<Map>(theMap);
++              // Only use the cached map in PrototypeInfo if the prototype
++              // belongs to the same native context, matching
++              // Map::GetObjectCreateMap.
++              // Given that we already have both objectFunction and the initial
++              // map, this is a faster version of BelongsToSameNativeContextAs.
++              const constructor =
++                  map.constructor_or_back_pointer_or_native_context;
++              const isSameContext: bool =
++                  TaggedEqual(constructor, objectFunction);
++              dcheck(
++                  isSameContext == BelongsToSameNativeContextAs(map, context));
++              if (!isSameContext) goto Runtime;
+             }
+           }
+         }
+diff --git a/v8/src/codegen/code-stub-assembler.cc b/v8/src/codegen/code-stub-assembler.cc
+index b535dd1..3ca3a3a 100644
+--- a/v8/src/codegen/code-stub-assembler.cc
++++ b/v8/src/codegen/code-stub-assembler.cc
+@@ -12446,6 +12446,19 @@
+   return var_maybe_constructor.value();
+ }
+ 
++TNode<BoolT> CodeStubAssembler::BelongsToSameNativeContextAs(
++    TNode<Map> map, TNode<Context> context) {
++  TNode<Map> context_meta_map = LoadMap(LoadMap(context));
++  // Make sure context_meta_map is both contextful and meta map.
++  CSA_DCHECK(this, TaggedEqual(context_meta_map, LoadMap(context_meta_map)));
++  CSA_DCHECK(
++      this, IsNativeContext(CAST(LoadMapConstructorOrBackPointerOrNativeContext(
++                context_meta_map))));
++
++  TNode<Map> this_meta_map = LoadMap(map);
++  return TaggedEqual(this_meta_map, context_meta_map);
++}
++
+ TNode<NativeContext> CodeStubAssembler::GetCreationContextFromMap(
+     TNode<Map> map, Label* if_bailout) {
+   TNode<Map> meta_map = LoadMap(map);
+diff --git a/v8/src/codegen/code-stub-assembler.h b/v8/src/codegen/code-stub-assembler.h
+index 63b3b9c..649da04 100644
+--- a/v8/src/codegen/code-stub-assembler.h
++++ b/v8/src/codegen/code-stub-assembler.h
+@@ -2290,6 +2290,8 @@
+                                   const Function& materialize_target,
+                                   bool target_is_new);
+ 
++  TNode<BoolT> BelongsToSameNativeContextAs(TNode<Map> map,
++                                            TNode<Context> context);
+   TNode<NativeContext> GetCreationContextFromMap(TNode<Map> map,
+                                                  Label* if_bailout);
+   TNode<NativeContext> GetCreationContext(TNode<JSReceiver> receiver,
+diff --git a/v8/src/compiler/access-info.cc b/v8/src/compiler/access-info.cc
+index f2768ac..35025fb 100644
+--- a/v8/src/compiler/access-info.cc
++++ b/v8/src/compiler/access-info.cc
+@@ -56,8 +56,7 @@
+   if (IsJSObjectMap(*map.object())) {
+     if (map.is_dictionary_map()) {
+       if (!V8_DICT_PROPERTY_CONST_TRACKING_BOOL) return false;
+-      return access_mode == AccessMode::kLoad &&
+-             map.object()->is_prototype_map();
++      return access_mode == AccessMode::kLoad && map.is_prototype_map();
+     }
+     return !map.has_named_interceptor() &&
+            // TODO(verwaest): Allowlist contexts to which we have access.
+@@ -792,7 +791,7 @@
+   InstanceType holder_instance_type = holder_map.instance_type();
+   if (holder_instance_type == JS_MODULE_NAMESPACE_TYPE ||
+       holder_instance_type == JS_DEFERRED_MODULE_NAMESPACE_TYPE) {
+-    DCHECK(holder_map.object()->is_prototype_map());
++    DCHECK(holder_map.is_prototype_map());
+     DirectHandle<PrototypeInfo> proto_info = broker->CanonicalPersistentHandle(
+         Cast<PrototypeInfo>(holder_map.object()->prototype_info()));
+     DirectHandle<JSModuleNamespace> module_namespace =
+@@ -936,7 +935,7 @@
+     InternalIndex dictionary_index, AccessMode access_mode,
+     PropertyDetails details) const {
+   CHECK(V8_DICT_PROPERTY_CONST_TRACKING_BOOL);
+-  DCHECK(holder.map(broker()).object()->is_prototype_map());
++  DCHECK(holder.map(broker()).is_prototype_map());
+   DCHECK_EQ(access_mode, AccessMode::kLoad);
+ 
+   // We can only inline accesses to constant properties.
+@@ -963,7 +962,7 @@
+     InternalIndex* index_out, PropertyDetails* details_out) const {
+   if (map.is_dictionary_map()) {
+     DCHECK(V8_DICT_PROPERTY_CONST_TRACKING_BOOL);
+-    DCHECK(map.object()->is_prototype_map());
++    DCHECK(map.is_prototype_map());
+ 
+     DisallowGarbageCollection no_gc;
+ 
+@@ -1226,7 +1225,7 @@
+ 
+     if (V8_DICT_PROPERTY_CONST_TRACKING_BOOL && holder.has_value()) {
+       // At this point, we are past the first loop iteration.
+-      DCHECK(holder->object()->map()->is_prototype_map());
++      DCHECK(holder->map(broker()).is_prototype_map());
+       DCHECK(!holder->map(broker()).equals(receiver_map));
+ 
+       fast_mode_prototype_on_chain =
+diff --git a/v8/src/compiler/heap-refs.cc b/v8/src/compiler/heap-refs.cc
+index cf2f7c6..6884052 100644
+--- a/v8/src/compiler/heap-refs.cc
++++ b/v8/src/compiler/heap-refs.cc
+@@ -1823,6 +1823,8 @@
+                 Map::Bits3::NumberOfOwnDescriptorsBits)
+ HEAP_ACCESSOR_B(Map, bit_field3, is_migration_target,
+                 Map::Bits3::IsMigrationTargetBit)
++HEAP_ACCESSOR_B(Map, bit_field3, is_prototype_map,
++                Map::Bits3::IsPrototypeMapBit)
+ BIMODAL_ACCESSOR_B(Map, bit_field3, is_extensible, Map::Bits3::IsExtensibleBit)
+ BIMODAL_ACCESSOR_B(Map, bit_field3, construction_counter,
+                    Map::Bits3::ConstructionCounterBits)
+@@ -2045,6 +2047,13 @@
+   return MakeRefAssumeMemoryFence(broker, object()->native_context());
+ }
+ 
++bool MapRef::BelongsToSameNativeContextAs(JSHeapBroker* broker,
++                                          ContextRef context) const {
++  MapRef this_meta_map = map(broker);
++  MapRef context_meta_map = context.map(broker).map(broker);
++  return this_meta_map.equals(context_meta_map);
++}
++
+ OptionalHeapObjectRef MapRef::GetBackPointer(JSHeapBroker* broker) const {
+   // Keep in sync with Map::GetBackpointer.
+   OptionalObjectRef maybe_bptr =
+@@ -2716,16 +2725,19 @@
+ }
+ 
+ OptionalMapRef JSObjectRef::GetObjectCreateMap(JSHeapBroker* broker) const {
+-  DirectHandle<Map> map_handle = Cast<Map>(map(broker).object());
++  MapRef map_ref = map(broker);
+   // Note: implemented as an acquire-load.
+-  if (!map_handle->is_prototype_map()) return {};
++  if (!map_ref.is_prototype_map()) return {};
++  NativeContextRef native_context = broker->target_native_context();
++  if (!map_ref.BelongsToSameNativeContextAs(broker, native_context)) return {};
+ 
+   DirectHandle<Object> maybe_proto_info = broker->CanonicalPersistentHandle(
+-      map_handle->prototype_info(kAcquireLoad));
++      map_ref.object()->prototype_info(kAcquireLoad));
+   if (!IsPrototypeInfo(*maybe_proto_info)) return {};
+ 
+   Tagged<MaybeObject> maybe_object_create_map =
+-      Cast<PrototypeInfo>(maybe_proto_info)->ObjectCreateMap(kAcquireLoad);
++      Cast<PrototypeInfo>(maybe_proto_info)
++          ->ObjectCreateMap(*native_context.object(), kAcquireLoad);
+   if (!maybe_object_create_map.IsWeak()) return {};
+ 
+   return MapRef(broker->GetOrCreateData(
+diff --git a/v8/src/compiler/heap-refs.h b/v8/src/compiler/heap-refs.h
+index f0b86bb..6942f41 100644
+--- a/v8/src/compiler/heap-refs.h
++++ b/v8/src/compiler/heap-refs.h
+@@ -1011,6 +1011,7 @@
+   int construction_counter() const;
+   bool is_migration_target() const;
+   bool is_extensible() const;
++  bool is_prototype_map() const;
+   bool supports_fast_array_iteration(JSHeapBroker* broker) const;
+   bool supports_fast_array_resize(JSHeapBroker* broker) const;
+   bool is_abandoned_prototype_map() const;
+@@ -1057,6 +1058,8 @@
+   MapRef FindRootMap(JSHeapBroker* broker) const;
+   OptionalObjectRef GetConstructor(JSHeapBroker* broker) const;
+   NativeContextRef native_context(JSHeapBroker* broker) const;
++  bool BelongsToSameNativeContextAs(JSHeapBroker* broker,
++                                    ContextRef context) const;
+ };
+ 
+ struct HolderLookupResult {
+diff --git a/v8/src/ic/ic.cc b/v8/src/ic/ic.cc
+index 9a957dd..a98c555 100644
+--- a/v8/src/ic/ic.cc
++++ b/v8/src/ic/ic.cc
+@@ -240,8 +240,13 @@
+         continue;
+       }
+       case LookupIterator::ACCESS_CHECK:
+-        // ICs know how to perform access checks on global proxies.
+-        if (!IsAccessCheckNeeded(*it->GetHolder<JSObject>())) continue;
++        // ICs only support access checks on the lookup start object (when it
++        // is a global proxy), not on objects in the prototype chain.
++        if (it->GetHolder<JSObject>().is_identical_to(
++                it->lookup_start_object()) &&
++            !IsAccessCheckNeeded(*it->GetHolder<JSObject>())) {
++          continue;
++        }
+         return;
+       case LookupIterator::MODULE_NAMESPACE: {
+         if (JSDeferredModuleNamespace::TriggersEvaluation(it)) {
+@@ -2078,8 +2083,13 @@
+         continue;
+       }
+       case LookupIterator::ACCESS_CHECK:
+-        // ICs know how to perform access checks on global proxies.
+-        if (!IsAccessCheckNeeded(*it->GetHolder<JSObject>())) continue;
++        // ICs only support access checks on the lookup start object (when it
++        // is a global proxy), not on objects in the prototype chain.
++        if (it->GetHolder<JSObject>().is_identical_to(
++                it->lookup_start_object()) &&
++            !IsAccessCheckNeeded(*it->GetHolder<JSObject>())) {
++          continue;
++        }
+         return false;
+       case LookupIterator::ACCESSOR:
+         return !it->IsReadOnly();
 diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
 index fa3f2ac..18149e3 100644
 --- a/v8/src/maglev/maglev-graph-builder.cc
@@ -1941,6 +3414,161 @@ index fa3f2ac..18149e3 100644
      BasicBlock* predecessor = merge_state.predecessor_at(predecessor_index);
      CHECK(predecessor);
      ControlNode* control = predecessor->control_node();
+diff --git a/v8/src/objects/map.cc b/v8/src/objects/map.cc
+index 1e94d0f..0c12701 100644
+--- a/v8/src/objects/map.cc
++++ b/v8/src/objects/map.cc
+@@ -973,18 +973,21 @@
+     if (!js_prototype->map()->is_prototype_map()) {
+       JSObject::OptimizeAsPrototype(js_prototype);
+     }
+-    DirectHandle<PrototypeInfo> info =
+-        Map::GetOrCreatePrototypeInfo(js_prototype, isolate);
+-    // TODO(verwaest): Use inobject slack tracking for this map.
+-    Tagged<HeapObject> map_obj;
+-    if (info->ObjectCreateMap().GetHeapObjectIfWeak(&map_obj)) {
+-      map = direct_handle(Cast<Map>(map_obj), isolate);
+-    } else {
+-      map = Map::CopyInitialMap(isolate, map);
+-      Map::SetPrototype(isolate, map, prototype);
+-      PrototypeInfo::SetObjectCreateMap(info, map, isolate);
++    if (js_prototype->map()->BelongsToSameNativeContextAs(isolate->context())) {
++      DirectHandle<PrototypeInfo> info =
++          Map::GetOrCreatePrototypeInfo(js_prototype, isolate);
++      // TODO(verwaest): Use inobject slack tracking for this map.
++      Tagged<HeapObject> map_obj;
++      if (info->ObjectCreateMap(isolate->context())
++              .GetHeapObjectIfWeak(&map_obj)) {
++        map = direct_handle(Cast<Map>(map_obj), isolate);
++      } else {
++        map = Map::CopyInitialMap(isolate, map);
++        Map::SetPrototype(isolate, map, prototype);
++        PrototypeInfo::SetObjectCreateMap(info, map, isolate);
++      }
++      return map;
+     }
+-    return map;
+   }
+ 
+   return Map::TransitionRootMapToPrototypeForNewObject(isolate, map, prototype);
+diff --git a/v8/src/objects/map.tq b/v8/src/objects/map.tq
+index cc90e8a..3fe05f9 100644
+--- a/v8/src/objects/map.tq
++++ b/v8/src/objects/map.tq
+@@ -148,3 +148,4 @@
+ }
+ 
+ extern macro IsSpecialReceiverInstanceType(InstanceType): bool;
++extern macro BelongsToSameNativeContextAs(Map, Context): bool;
+diff --git a/v8/src/objects/prototype-info-inl.h b/v8/src/objects/prototype-info-inl.h
+index be329f5..0aa0877 100644
+--- a/v8/src/objects/prototype-info-inl.h
++++ b/v8/src/objects/prototype-info-inl.h
+@@ -116,7 +116,8 @@
+   cached_handler_[index].store(this, value, mode);
+ }
+ 
+-Tagged<MaybeObject> PrototypeInfo::ObjectCreateMap() {
++Tagged<MaybeObject> PrototypeInfo::ObjectCreateMap(
++    Tagged<Context> accessing_context) {
+   auto derived = derived_maps();
+   if (IsUndefined(derived)) {
+     return Tagged<MaybeObject>();
+@@ -126,10 +127,14 @@
+   DCHECK_GT(derived_list->length().value(), 0);
+   Tagged<MaybeObject> el = derived_list->Get(0);
+   DCHECK(el.IsWeakOrCleared());
++  DCHECK_IMPLIES(!el.IsCleared(),
++                 Cast<Map>(el.GetHeapObjectAssumeWeak())
++                     ->BelongsToSameNativeContextAs(accessing_context));
+   return el;
+ }
+ 
+-Tagged<MaybeObject> PrototypeInfo::ObjectCreateMap(AcquireLoadTag tag) {
++Tagged<MaybeObject> PrototypeInfo::ObjectCreateMap(
++    Tagged<Context> accessing_context, AcquireLoadTag tag) {
+   auto derived = derived_maps(tag);
+   if (IsUndefined(derived)) {
+     return Tagged<MaybeObject>();
+@@ -139,6 +144,9 @@
+   DCHECK_GT(derived_list->length().value(), 0);
+   Tagged<MaybeObject> el = derived_list->get(0, kAcquireLoad);
+   DCHECK(el.IsWeakOrCleared());
++  DCHECK_IMPLIES(!el.IsCleared(),
++                 Cast<Map>(el.GetHeapObjectAssumeWeak())
++                     ->BelongsToSameNativeContextAs(accessing_context));
+   return el;
+ }
+ 
+@@ -146,6 +154,8 @@
+ void PrototypeInfo::SetObjectCreateMap(DirectHandle<PrototypeInfo> info,
+                                        DirectHandle<Map> map,
+                                        Isolate* isolate) {
++  DCHECK(map->BelongsToSameNativeContextAs(isolate->raw_native_context()));
++  DCHECK(map->BelongsToSameNativeContextAs(map->prototype()->map()));
+   if (IsUndefined(info->derived_maps())) {
+     Tagged<WeakArrayList> derived = *isolate->factory()->NewWeakArrayList(1);
+     derived->Set(0, MakeWeak(*map));
+diff --git a/v8/src/objects/prototype-info.h b/v8/src/objects/prototype-info.h
+index dfad726..a8cc4c3 100644
+--- a/v8/src/objects/prototype-info.h
++++ b/v8/src/objects/prototype-info.h
+@@ -80,8 +80,9 @@
+   static inline void SetObjectCreateMap(DirectHandle<PrototypeInfo> info,
+                                         DirectHandle<Map> map,
+                                         Isolate* isolate);
+-  inline Tagged<MaybeObject> ObjectCreateMap(AcquireLoadTag);
+-  inline Tagged<MaybeObject> ObjectCreateMap();
++  inline Tagged<MaybeObject> ObjectCreateMap(Tagged<Context> accessing_context,
++                                             AcquireLoadTag);
++  inline Tagged<MaybeObject> ObjectCreateMap(Tagged<Context> accessing_context);
+ 
+   static inline void AddDerivedMap(DirectHandle<PrototypeInfo> info,
+                                    DirectHandle<Map> to, Isolate* isolate);
+diff --git a/v8/src/parsing/parser.cc b/v8/src/parsing/parser.cc
+index 0b44c11..59a8e5b 100644
+--- a/v8/src/parsing/parser.cc
++++ b/v8/src/parsing/parser.cc
+@@ -1115,6 +1115,14 @@
+ 
+   FunctionKind function_kind = flags().function_kind();
+   FunctionLiteral* result;
++  std::optional<ClassScope::HeritageParsingScope> heritage;
++  if (V8_UNLIKELY(shared_info->private_name_lookup_skips_outer_class() &&
++                  original_scope_->is_class_scope())) {
++    // If the function skips the outer class and the outer scope is a class, the
++    // function is in heritage position. Otherwise the function scope's skip bit
++    // will be correctly inherited from the outer scope.
++    heritage.emplace(original_scope_->AsClassScope());
++  }
+   if (V8_UNLIKELY(IsClassInitializerFunction(function_kind))) {
+     // Reparsing of class member initializer functions has to be handled
+     // specially because they require reparsing of the whole class body,
+@@ -1124,14 +1132,6 @@
+         function_kind, start_position, function_literal_id, end_position,
+         info->function_name());
+     info->set_max_info_id(GetLastInfoId());
+-  } else if (V8_UNLIKELY(shared_info->private_name_lookup_skips_outer_class() &&
+-                         original_scope_->is_class_scope())) {
+-    // If the function skips the outer class and the outer scope is a class, the
+-    // function is in heritage position. Otherwise the function scope's skip bit
+-    // will be correctly inherited from the outer scope.
+-    ClassScope::HeritageParsingScope heritage(original_scope_->AsClassScope());
+-    result = DoParseFunction(isolate, info, start_position, end_position,
+-                             function_literal_id, info->function_name());
+   } else {
+     result = DoParseFunction(isolate, info, start_position, end_position,
+                              function_literal_id, info->function_name());
+@@ -1397,6 +1397,9 @@
+   }
+ 
+   if (has_error()) return nullptr;
++  if (V8_UNLIKELY(flags().private_name_lookup_skips_outer_class())) {
++    initializer->scope()->RecordNeedsPrivateNameContextChainRecalc();
++  }
+ 
+   DCHECK(IsClassInitializerFunction(initializer_kind));
+ 
 diff --git a/v8/src/runtime/runtime-literals.cc b/v8/src/runtime/runtime-literals.cc
 index c594525..0b70ae0 100644
 --- a/v8/src/runtime/runtime-literals.cc
@@ -1986,6 +3614,31 @@ index 3b15257..742ced8 100644
      return nullptr;
    }
    return p;
+diff --git a/third_party/skia/src/core/SkImageFilterCache.h b/third_party/skia/src/core/SkImageFilterCache.h
+index 92f40eb..b1266e4 100644
+--- a/third_party/skia/src/core/SkImageFilterCache.h
++++ b/third_party/skia/src/core/SkImageFilterCache.h
+@@ -16,6 +16,7 @@
+ 
+ #include <cstddef>
+ #include <cstdint>
++#include <cstring>
+ 
+ class SkImageFilter;
+ namespace skif { class FilterResult; }
+@@ -45,11 +46,7 @@
+     uint32_t fPad = 0;
+ 
+     bool operator==(const SkImageFilterCacheKey& other) const {
+-        return fUniqueID == other.fUniqueID &&
+-               fMatrix == other.fMatrix &&
+-               fClipBounds == other.fClipBounds &&
+-               fSrcGenID == other.fSrcGenID &&
+-               fSrcSubset == other.fSrcSubset;
++        return memcmp(this, &other, sizeof(*this)) == 0;
+     }
+ };
+ 
 diff --git a/third_party/skia/src/core/SkImageFilterTypes.cpp b/third_party/skia/src/core/SkImageFilterTypes.cpp
 index ae3b79c..a469416 100644
 --- a/third_party/skia/src/core/SkImageFilterTypes.cpp
@@ -2239,3 +3892,692 @@ index 75101a8..7d6c4cc 100644
                  fp = GrTextureEffect::MakeSubset(std::move(proxyView), alphaType, SkMatrix::I(),
                                                   samplerState, *subset, localRect, caps);
              } else {
+diff --git a/third_party/angle/include/GLSLANG/ShaderLang.h b/third_party/angle/include/GLSLANG/ShaderLang.h
+index b19834f..64548e0 100644
+--- a/third_party/angle/include/GLSLANG/ShaderLang.h
++++ b/third_party/angle/include/GLSLANG/ShaderLang.h
+@@ -26,7 +26,7 @@
+ 
+ // Version number for shader translation API.
+ // It is incremented every time the API changes.
+-#define ANGLE_SH_VERSION 426
++#define ANGLE_SH_VERSION 427
+ 
+ enum ShShaderSpec
+ {
+@@ -461,7 +461,9 @@
+     // Ensure all loops execute side-effects or terminate.
+     uint64_t ensureLoopForwardProgress : 1;
+ 
+-    uint64_t unused2 : 1;
++    // Limit the total number of declared variables and expanded struct/interface-block fields per
++    // shader to work around driver bugs.
++    uint64_t limitShaderVariableFieldsAtCompileTime : 1;
+ 
+     uint64_t transformFloatUniformTo16Bits : 1;
+ 
+diff --git a/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h b/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
+index 6e7ed71..82151a3 100644
+--- a/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
++++ b/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
+@@ -752,6 +752,12 @@
+         &members,
+     };
+ 
++    FeatureInfo limitShaderVariableFieldsAtCompileTime = {
++        "limitShaderVariableFieldsAtCompileTime",
++        FeatureCategory::OpenGLWorkarounds,
++        &members,
++    };
++
+     FeatureInfo avoidComplexExpressionsInStructConstructor = {
+         "avoidComplexExpressionsInStructConstructor",
+         FeatureCategory::OpenGLWorkarounds,
+@@ -818,6 +824,18 @@
+         &members,
+     };
+ 
++    FeatureInfo limitMaxTextureImageUnitsTo13 = {
++        "limitMaxTextureImageUnitsTo13",
++        FeatureCategory::OpenGLWorkarounds,
++        &members,
++    };
++
++    FeatureInfo flushBeforeDrawFramebufferChange = {
++        "flushBeforeDrawFramebufferChange",
++        FeatureCategory::OpenGLWorkarounds,
++        &members,
++    };
++
+ };
+ 
+ inline FeaturesGL::FeaturesGL()  = default;
+diff --git a/third_party/angle/include/platform/gl_features.json b/third_party/angle/include/platform/gl_features.json
+index a64ed34..e6064b6 100644
+--- a/third_party/angle/include/platform/gl_features.json
++++ b/third_party/angle/include/platform/gl_features.json
+@@ -993,6 +993,16 @@
+             "issue": "http://crbug.com/529991907"
+         },
+         {
++            "name": "limit_shader_variable_fields_at_compile_time",
++            "category": "Workarounds",
++            "description": [
++                "Limit the total number of declared variables and expanded struct and ",
++                "interface-block fields per shader at compile time to work around a PowerVR ",
++                "driver bug."
++            ],
++            "issue": "https://crbug.com/583945831"
++        },
++        {
+             "name": "avoid_complex_expressions_in_struct_constructor",
+             "category": "Workarounds",
+             "description": [
+@@ -1083,6 +1093,24 @@
+                 "Disable ANGLE_shader_pixel_local_storage; kill-switch for known broken GPUs."
+             ],
+             "issue": "http://anglebug.com/40096838"
++        },
++        {
++            "name": "limit_max_texture_image_units_to_13",
++            "category": "Workarounds",
++            "description": [
++                "Clamp GL_MAX_TEXTURE_IMAGE_UNITS to 13 so programs with more than 13 active ",
++                "fragment shader samplers are rejected during linking."
++            ],
++            "issue": "https://crbug.com/577781532"
++        },
++        {
++            "name": "flush_before_draw_framebuffer_change",
++            "category": "Workarounds",
++            "description": [
++                "Force a flush before changing a non-default draw framebuffer binding to ",
++                "avoid stale cross-framebuffer state in PowerVR drivers."
++            ],
++            "issue": "https://crbug.com/584036299"
+         }
+     ]
+ }
+diff --git a/third_party/angle/src/compiler/translator/ParseContext.cpp b/third_party/angle/src/compiler/translator/ParseContext.cpp
+index c6ca050..d731e42 100644
+--- a/third_party/angle/src/compiler/translator/ParseContext.cpp
++++ b/third_party/angle/src/compiler/translator/ParseContext.cpp
+@@ -55,6 +55,11 @@
+ constexpr size_t kWebGLMaxPrivateVariableSizeInBytes = static_cast<size_t>(64) * 1024;
+ constexpr size_t kWebGLMaxTotalPrivateVariableSizeInBytes = static_cast<size_t>(16) * 1024 * 1024;
+ 
++// Limit the total number of declared variables and expanded struct/interface-block fields in a
++// shader.  Some drivers use 16-bit integers to index and serialize global variable and struct
++// member info maps, overflowing at 65536 entries.
++constexpr size_t kMaxTotalShaderVariableFields = 32768;
++
+ // The 1024 character identifier limit, `-2` for the `_u`
+ constexpr size_t kMaxAvailableIdentifierLength = 1022;
+ 
+@@ -437,6 +442,61 @@
+     return isStd140 ? kVec4Size : type->getNominalSize() * sizeof(float);
+ }
+ 
++// Calculate the number of declared variable and recursively expanded struct/interface-block fields
++// contributed by a variable or field of |type|.
++angle::base::CheckedNumeric<size_t> CalculateVariableFieldCount(
++    const TType *type,
++    TMap<const TFieldListCollection *, size_t> *validatedFieldCollectionCounts)
++{
++    if (type->getBasicType() == EbtStruct || type->getBasicType() == EbtInterfaceBlock)
++    {
++        const TFieldListCollection *fieldCollection =
++            type->getBasicType() == EbtStruct
++                ? static_cast<const TFieldListCollection *>(type->getStruct())
++                : static_cast<const TFieldListCollection *>(type->getInterfaceBlock());
++
++        size_t collectionFieldCount = 0;
++        auto iter                   = validatedFieldCollectionCounts->find(fieldCollection);
++        if (iter != validatedFieldCollectionCounts->end())
++        {
++            collectionFieldCount = iter->second;
++        }
++        else
++        {
++            angle::base::CheckedNumeric<size_t> checkedCollectionFields = 1;
++            for (const TField *field : fieldCollection->fields())
++            {
++                checkedCollectionFields +=
++                    CalculateVariableFieldCount(field->type(), validatedFieldCollectionCounts);
++            }
++            collectionFieldCount =
++                checkedCollectionFields.ValueOrDefault(std::numeric_limits<size_t>::max());
++            (*validatedFieldCollectionCounts)[fieldCollection] = collectionFieldCount;
++        }
++
++        angle::base::CheckedNumeric<size_t> totalFields = collectionFieldCount;
++        for (unsigned int arraySize : type->getArraySizes())
++        {
++            totalFields *= std::max(arraySize, 1u);
++        }
++        return totalFields;
++    }
++
++    // Non-struct, non-interface-block variables (e.g. scalars, vectors, matrices, and
++    // one-dimensional arrays of basic types) count as a single variable entry.  For arrays of
++    // arrays, getArraySizes()[0] is the innermost array dimension, so multiplying only the outer
++    // dimensions counts each innermost one-dimensional array as one entry.
++    angle::base::CheckedNumeric<size_t> totalFields = 1;
++    if (type->isArrayOfArrays())
++    {
++        for (size_t i = 1; i < type->getArraySizes().size(); ++i)
++        {
++            totalFields *= std::max(type->getArraySizes()[i], 1u);
++        }
++    }
++    return totalFields;
++}
++
+ unsigned int GetMaxUniformBlocksForShaderType(sh::GLenum shaderType,
+                                               const ShCompileOptions &options,
+                                               const ShBuiltInResources &resources)
+@@ -2231,6 +2291,29 @@
+     return true;
+ }
+ 
++bool TParseContext::checkVariableFieldCount(const TSourceLoc &line,
++                                            const ImmutableString &identifier,
++                                            const TType *type)
++{
++    if (!mCompileOptions.limitShaderVariableFieldsAtCompileTime)
++    {
++        return true;
++    }
++
++    const angle::base::CheckedNumeric<size_t> fieldCount =
++        CalculateVariableFieldCount(type, &mValidatedFieldCollectionCounts);
++    mTotalVariableFields += fieldCount;
++    if (mTotalVariableFields.ValueOrDefault(std::numeric_limits<size_t>::max()) >
++        kMaxTotalShaderVariableFields)
++    {
++        error(line, "Number of declared variable fields exceeds implementation-defined limit",
++              identifier);
++        return false;
++    }
++
++    return true;
++}
++
+ void TParseContext::checkVaryingLocations(const TSourceLoc &line, const TVariable *variable)
+ {
+     // This function only checks those varyings with explicit locations for the purposes of conflict
+@@ -2629,6 +2712,10 @@
+     {
+         return false;
+     }
++    if (sized == GeomTessArray::Sized && !checkVariableFieldCount(line, identifier, type))
++    {
++        return false;
++    }
+     checkVariableLocations(line, *variable);
+ 
+     // Declare the variable in IR
+@@ -6119,6 +6206,7 @@
+ 
+     for (const TVariable *variable : mDeferredArrayVariablesToSize)
+     {
++        checkVariableFieldCount(kNoSourceLoc, variable->name(), &variable->getType());
+         declareIRVariable(variable, GeomTessArray::Sized);
+     }
+     mDeferredArrayVariablesToSize.clear();
+@@ -6495,6 +6583,7 @@
+     {
+         const TVariable *param = mCurrentFunction->getParam(paramIndex);
+         checkVariableSize(functionPrototype->getLine(), param->name(), &param->getType());
++        checkVariableFieldCount(functionPrototype->getLine(), param->name(), &param->getType());
+     }
+ 
+     if (functionBody == nullptr)
+@@ -6851,6 +6940,10 @@
+     }
+ 
+     checkVariableSize(line, ImmutableString(""), &type);
++    if (type.getBasicType() == EbtStruct || type.isArrayOfArrays())
++    {
++        checkVariableFieldCount(line, kEmptyImmutableString, &type);
++    }
+ 
+     if (!checkConstructorArguments(line, arguments, type))
+     {
+@@ -7342,6 +7435,10 @@
+                       instanceName.empty() ? SymbolType::Empty : instanceSymbolType);
+ 
+     checkVariableSize(nameLine, blockName, interfaceBlockType);
++    if (sized == GeomTessArray::Sized)
++    {
++        checkVariableFieldCount(nameLine, blockName, interfaceBlockType);
++    }
+     checkVariableLocations(nameLine, instanceVariable);
+     declareIRVariable(instanceVariable, sized);
+ 
+diff --git a/third_party/angle/src/compiler/translator/ParseContext.h b/third_party/angle/src/compiler/translator/ParseContext.h
+index e42234d..29dcc1a 100644
+--- a/third_party/angle/src/compiler/translator/ParseContext.h
++++ b/third_party/angle/src/compiler/translator/ParseContext.h
+@@ -834,6 +834,9 @@
+     bool checkVariableSize(const TSourceLoc &line,
+                            const ImmutableString &identifier,
+                            const TType *type);
++    bool checkVariableFieldCount(const TSourceLoc &line,
++                                 const ImmutableString &identifier,
++                                 const TType *type);
+     void checkVaryingLocations(const TSourceLoc &line, const TVariable *variable);
+     void checkFragmentOutputLocations(const TSourceLoc &line, const TVariable *variable);
+     void checkVariableLocations(const TSourceLoc &line, const TVariable *variable);
+@@ -997,6 +1000,11 @@
+     angle::base::CheckedNumeric<size_t> mTotalPrivateVariablesSize;
+     // Tracks if a type has been validated as safe in checkVariableSize.
+     TMap<TType, size_t> mValidatedVariableTypeSizes;
++    // Keeps track of the total number of declared variables and expanded struct/interface-block
++    // fields in the shader.
++    angle::base::CheckedNumeric<size_t> mTotalVariableFields;
++    // Caches the recursively expanded field count of each struct or interface block collection.
++    TMap<const TFieldListCollection *, size_t> mValidatedFieldCollectionCounts;
+ 
+     // Track state related to control flow, used for various validation:
+     //
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
+index c17b13b..d9a5353 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
+@@ -1548,6 +1548,12 @@
+             activeColorAttachments.set(*mState.getColorAttachmentsMask().begin());
+         }
+     }
++    else if (attachmentsDirty && mHasSyncedAttachments && mFramebufferID != 0 &&
++             stateManager->getFramebufferID(angle::FramebufferBindingDraw) == mFramebufferID &&
++             GetFeaturesGL(context).flushBeforeDrawFramebufferChange.enabled)
++    {
++        stateManager->forcefullyFlush();
++    }
+ 
+     stateManager->bindFramebuffer(GL_FRAMEBUFFER, mFramebufferID);
+ 
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/ShaderGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/ShaderGL.cpp
+index 11bb815..cccc4ec 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/ShaderGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/ShaderGL.cpp
+@@ -276,6 +276,11 @@
+         options->limitOutputVaryingsTo256 = true;
+     }
+ 
++    if (features.limitShaderVariableFieldsAtCompileTime.enabled)
++    {
++        options->limitShaderVariableFieldsAtCompileTime = true;
++    }
++
+     return std::shared_ptr<ShaderTranslateTask>(
+         new ShaderTranslateTaskGL(functions, mShaderID, contextGL->hasNativeParallelCompile()));
+ }
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp
+index 51eb6bf..3ba0efe 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL.cpp
+@@ -2137,6 +2137,14 @@
+ 
+ void StateManagerGL::bindFramebuffer(GLenum type, GLuint framebuffer)
+ {
++    if (type != GL_READ_FRAMEBUFFER && mState.framebuffers[angle::FramebufferBindingDraw] != 0 &&
++        mState.framebuffers[angle::FramebufferBindingDraw] != framebuffer &&
++        mFeatures.flushBeforeDrawFramebufferChange.enabled)
++    {
++        // Flush pending rendering on the outgoing draw framebuffer while still bound.
++        forcefullyFlush();
++    }
++
+     bool framebufferChanged = false;
+     switch (type)
+     {
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL_unittest.cpp b/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL_unittest.cpp
+index 54a0cd5..5d22543 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL_unittest.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/StateManagerGL_unittest.cpp
+@@ -25,13 +25,33 @@
+ namespace
+ {
+ 
++enum class DriverCallType
++{
++    BindFramebuffer,
++    DeleteFramebuffer,
++    FlushSync,
++    Finish,
++};
++
++struct DriverCall
++{
++    DriverCallType type = DriverCallType::BindFramebuffer;
++    GLenum target       = 0;
++    GLuint framebuffer  = 0;
++};
++
+ struct MockDriverState
+ {
+     GLboolean blendEnabled             = GL_FALSE;
+     std::array<GLboolean, 4> colorMask = {GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE};
++    GLuint readFramebuffer             = 0;
++    GLuint drawFramebuffer             = 0;
+     int enableBlendCallCount           = 0;
+     int disableBlendCallCount          = 0;
+     int colorMaskCallCount             = 0;
++    int fenceSyncCallCount             = 0;
++    int deleteSyncCallCount            = 0;
++    std::vector<DriverCall> calls;
+ };
+ 
+ MockDriverState *gDriverState = nullptr;
+@@ -104,8 +124,61 @@
+ {
+     *framebuffers = 1;
+ }
+-void GL_APIENTRY StubBindFramebuffer(GLenum, GLuint) {}
+-void GL_APIENTRY StubDeleteFramebuffers(GLsizei, const GLuint *) {}
++void GL_APIENTRY StubBindFramebuffer(GLenum target, GLuint framebuffer)
++{
++    if (gDriverState == nullptr)
++    {
++        return;
++    }
++    if (target == GL_READ_FRAMEBUFFER || target == GL_FRAMEBUFFER)
++    {
++        gDriverState->readFramebuffer = framebuffer;
++    }
++    if (target == GL_DRAW_FRAMEBUFFER || target == GL_FRAMEBUFFER)
++    {
++        gDriverState->drawFramebuffer = framebuffer;
++    }
++    gDriverState->calls.push_back({DriverCallType::BindFramebuffer, target, framebuffer});
++}
++void GL_APIENTRY StubDeleteFramebuffers(GLsizei count, const GLuint *framebuffers)
++{
++    if (gDriverState != nullptr && count > 0 && framebuffers != nullptr)
++    {
++        gDriverState->calls.push_back({DriverCallType::DeleteFramebuffer, 0, *framebuffers});
++    }
++}
++GLsync GL_APIENTRY StubFenceSync(GLenum, GLbitfield)
++{
++    if (gDriverState != nullptr)
++    {
++        gDriverState->fenceSyncCallCount++;
++    }
++    static int sDummySync = 0;
++    return reinterpret_cast<GLsync>(&sDummySync);
++}
++GLenum GL_APIENTRY StubClientWaitSync(GLsync, GLbitfield flags, GLuint64 timeout)
++{
++    if (gDriverState != nullptr && (flags & GL_SYNC_FLUSH_COMMANDS_BIT) != 0 && timeout == 0)
++    {
++        gDriverState->calls.push_back(
++            {DriverCallType::FlushSync, 0, gDriverState->drawFramebuffer});
++    }
++    return GL_ALREADY_SIGNALED;
++}
++void GL_APIENTRY StubDeleteSync(GLsync)
++{
++    if (gDriverState != nullptr)
++    {
++        gDriverState->deleteSyncCallCount++;
++    }
++}
++void GL_APIENTRY StubFinish()
++{
++    if (gDriverState != nullptr)
++    {
++        gDriverState->calls.push_back({DriverCallType::Finish, 0, gDriverState->drawFramebuffer});
++    }
++}
+ void GL_APIENTRY StubGenRenderbuffers(GLsizei, GLuint *renderbuffers)
+ {
+     *renderbuffers = 1;
+@@ -147,6 +220,10 @@
+         genFramebuffers         = StubGenFramebuffers;
+         bindFramebuffer         = StubBindFramebuffer;
+         deleteFramebuffers      = StubDeleteFramebuffers;
++        fenceSync               = StubFenceSync;
++        clientWaitSync          = StubClientWaitSync;
++        deleteSync              = StubDeleteSync;
++        finish                  = StubFinish;
+         genRenderbuffers        = StubGenRenderbuffers;
+         bindRenderbuffer        = StubBindRenderbuffer;
+         deleteRenderbuffers     = StubDeleteRenderbuffers;
+@@ -238,7 +315,9 @@
+ 
+     StateManagerGL &stateManager() { return mStateManager; }
+     MockDriverState &driverState() { return mDriverState; }
++    TestFunctionsGL &mutableFunctions() { return mFunctions; }
+     const TestFunctionsGL &functions() const { return mFunctions; }
++    angle::FeaturesGL &features() { return mFeatures; }
+ 
+   private:
+     MockDriverState mDriverState;
+@@ -445,5 +524,124 @@
+     EXPECT_EQ(0, driverState().disableBlendCallCount);
+ }
+ 
++// Verify that when flushBeforeDrawFramebufferChange is enabled, switching away from a
++// non-default draw framebuffer flushes pending commands while the outgoing draw framebuffer is
++// still bound, while leaving default framebuffer 0, redundant binds, and read-only changes do
++// not flush.
++TEST_F(StateManagerGLTest, FlushBeforeDrawFramebufferChangeOrdering)
++{
++    ASSERT_TRUE(stateManager().getHasSeparateFramebufferBindings());
++    features().flushBeforeDrawFramebufferChange.enabled = true;
++    driverState().calls.clear();
++
++    // 0 -> 10 on GL_FRAMEBUFFER: leaving default FBO 0 does not flush.
++    stateManager().bindFramebuffer(GL_FRAMEBUFFER, 10);
++    ASSERT_EQ(1u, driverState().calls.size());
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[0].type);
++    EXPECT_EQ(static_cast<GLenum>(GL_FRAMEBUFFER), driverState().calls[0].target);
++    EXPECT_EQ(10u, driverState().calls[0].framebuffer);
++
++    // Redundant bind to 10: no flush and no native bind.
++    driverState().calls.clear();
++    stateManager().bindFramebuffer(GL_FRAMEBUFFER, 10);
++    EXPECT_TRUE(driverState().calls.empty());
++
++    // 10 -> 20 on GL_FRAMEBUFFER: flush while 10 is still bound, then bind 20.
++    stateManager().bindFramebuffer(GL_FRAMEBUFFER, 20);
++    ASSERT_EQ(2u, driverState().calls.size());
++    EXPECT_EQ(DriverCallType::FlushSync, driverState().calls[0].type);
++    EXPECT_EQ(10u, driverState().calls[0].framebuffer);
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[1].type);
++    EXPECT_EQ(static_cast<GLenum>(GL_FRAMEBUFFER), driverState().calls[1].target);
++    EXPECT_EQ(20u, driverState().calls[1].framebuffer);
++    EXPECT_EQ(1, driverState().fenceSyncCallCount);
++    EXPECT_EQ(1, driverState().deleteSyncCallCount);
++
++    // Changing only GL_READ_FRAMEBUFFER (20 -> 30) while draw remains 20: bind read, no flush.
++    driverState().calls.clear();
++    stateManager().bindFramebuffer(GL_READ_FRAMEBUFFER, 30);
++    ASSERT_EQ(1u, driverState().calls.size());
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[0].type);
++    EXPECT_EQ(static_cast<GLenum>(GL_READ_FRAMEBUFFER), driverState().calls[0].target);
++    EXPECT_EQ(30u, driverState().calls[0].framebuffer);
++
++    // GL_FRAMEBUFFER bind to 20 when Read == 30 and Draw == 20: draw FBO is unchanged, no flush.
++    driverState().calls.clear();
++    stateManager().bindFramebuffer(GL_FRAMEBUFFER, 20);
++    ASSERT_EQ(1u, driverState().calls.size());
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[0].type);
++    EXPECT_EQ(static_cast<GLenum>(GL_FRAMEBUFFER), driverState().calls[0].target);
++    EXPECT_EQ(20u, driverState().calls[0].framebuffer);
++
++    // GL_DRAW_FRAMEBUFFER transition 20 -> 30: flush while 20 is still bound, then bind 30,
++    // preserving Read == 20.
++    driverState().calls.clear();
++    stateManager().bindFramebuffer(GL_DRAW_FRAMEBUFFER, 30);
++    ASSERT_EQ(2u, driverState().calls.size());
++    EXPECT_EQ(DriverCallType::FlushSync, driverState().calls[0].type);
++    EXPECT_EQ(20u, driverState().calls[0].framebuffer);
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[1].type);
++    EXPECT_EQ(static_cast<GLenum>(GL_DRAW_FRAMEBUFFER), driverState().calls[1].target);
++    EXPECT_EQ(30u, driverState().calls[1].framebuffer);
++    EXPECT_EQ(20u, driverState().readFramebuffer);
++    EXPECT_EQ(2, driverState().fenceSyncCallCount);
++    EXPECT_EQ(2, driverState().deleteSyncCallCount);
++
++    // GL_FRAMEBUFFER transition 30 -> 0: flush while 30 is still bound, then bind 0.
++    driverState().calls.clear();
++    stateManager().bindFramebuffer(GL_FRAMEBUFFER, 0);
++    ASSERT_EQ(2u, driverState().calls.size());
++    EXPECT_EQ(DriverCallType::FlushSync, driverState().calls[0].type);
++    EXPECT_EQ(30u, driverState().calls[0].framebuffer);
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[1].type);
++    EXPECT_EQ(static_cast<GLenum>(GL_FRAMEBUFFER), driverState().calls[1].target);
++    EXPECT_EQ(0u, driverState().calls[1].framebuffer);
++}
++
++// Verify deleting a currently bound non-default draw framebuffer flushes pending work before
++// unbinding and deleting it, without issuing a second flush when binding a new FBO from 0.
++TEST_F(StateManagerGLTest, FlushBeforeDrawFramebufferChangeOnDeleteBoundDrawFramebuffer)
++{
++    features().flushBeforeDrawFramebufferChange.enabled = true;
++    stateManager().bindFramebuffer(GL_FRAMEBUFFER, 15);
++    driverState().calls.clear();
++
++    stateManager().deleteFramebuffer(15);
++    ASSERT_EQ(4u, driverState().calls.size());
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[0].type);
++    EXPECT_EQ(static_cast<GLenum>(GL_READ_FRAMEBUFFER), driverState().calls[0].target);
++    EXPECT_EQ(0u, driverState().calls[0].framebuffer);
++    EXPECT_EQ(DriverCallType::FlushSync, driverState().calls[1].type);
++    EXPECT_EQ(15u, driverState().calls[1].framebuffer);
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[2].type);
++    EXPECT_EQ(static_cast<GLenum>(GL_DRAW_FRAMEBUFFER), driverState().calls[2].target);
++    EXPECT_EQ(0u, driverState().calls[2].framebuffer);
++    EXPECT_EQ(DriverCallType::DeleteFramebuffer, driverState().calls[3].type);
++    EXPECT_EQ(15u, driverState().calls[3].framebuffer);
++
++    // Subsequent 0 -> 25 bind does not double-flush.
++    driverState().calls.clear();
++    stateManager().bindFramebuffer(GL_FRAMEBUFFER, 25);
++    ASSERT_EQ(1u, driverState().calls.size());
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[0].type);
++    EXPECT_EQ(25u, driverState().calls[0].framebuffer);
++}
++
++// Verify finish() fallback in forcefullyFlush() when sync entry points are unavailable.
++TEST_F(StateManagerGLTest, FlushBeforeDrawFramebufferChangeFinishFallback)
++{
++    features().flushBeforeDrawFramebufferChange.enabled = true;
++    mutableFunctions().fenceSync                        = nullptr;
++
++    stateManager().bindFramebuffer(GL_FRAMEBUFFER, 10);
++    driverState().calls.clear();
++
++    stateManager().bindFramebuffer(GL_DRAW_FRAMEBUFFER, 20);
++    ASSERT_EQ(2u, driverState().calls.size());
++    EXPECT_EQ(DriverCallType::Finish, driverState().calls[0].type);
++    EXPECT_EQ(10u, driverState().calls[0].framebuffer);
++    EXPECT_EQ(DriverCallType::BindFramebuffer, driverState().calls[1].type);
++    EXPECT_EQ(20u, driverState().calls[1].framebuffer);
++}
+ }  // namespace
+ }  // namespace rx
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp b/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp
+index f8cdd97..7b007b3 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp
+@@ -2190,6 +2190,12 @@
+     {
+         limitations->roundUp3DTextureSizeToPOTForLimit = true;
+     }
++
++    if (features.limitMaxTextureImageUnitsTo13.enabled)
++    {
++        caps->maxShaderTextureImageUnits[gl::ShaderType::Fragment] =
++            std::min(caps->maxShaderTextureImageUnits[gl::ShaderType::Fragment], 13);
++    }
+ }
+ 
+ bool GetSystemInfoVendorIDAndDeviceID(const FunctionsGL *functions,
+@@ -2795,6 +2801,10 @@
+     // crbug.com/529991907
+     ANGLE_FEATURE_CONDITION(features, limitOutputVaryingsTo256AtCompileTime, isPowerVR);
+ 
++    // PowerVR GL drivers use 16-bit integers to index and serialize global variable and struct
++    // member info maps, wrapping at 65536 entries. crbug.com/583945831
++    ANGLE_FEATURE_CONDITION(features, limitShaderVariableFieldsAtCompileTime, isPowerVR);
++
+     // crbug.com/529509587 -- IMG GLSL frontend OOB-writes during semantic analysis of a struct
+     // constructor whose array-typed member receives a constant array-constructor argument with a
+     // precision mismatch.  The workaround avoids all complex expressions, not just constant arrays
+@@ -2811,6 +2821,11 @@
+ 
+     ANGLE_FEATURE_CONDITION(features, recreateFboOnAttachmentRespecification, isPowerVR);
+ 
++    // Clamp GL_MAX_TEXTURE_IMAGE_UNITS to 13 so programs exceeding 13 active fragment samplers
++    // fail linking before reaching the IMG driver.
++    // https://crbug.com/577781532
++    ANGLE_FEATURE_CONDITION(features, limitMaxTextureImageUnitsTo13, isPowerVR);
++
+     // Mac Intel drivers are unable to allocate buffers larger than ~1gb
+     ANGLE_FEATURE_CONDITION(features, limitMaxBufferSizeTo1gb, isApple && isIntel);
+ 
+@@ -2819,6 +2834,11 @@
+     // https://crbug.com/552672183
+     ANGLE_FEATURE_CONDITION(features, finishBeforeSameTextureCopy, IsPowerVR(vendor));
+ 
++    // Force a flush before switching away from a non-default draw framebuffer to avoid stale
++    // cross-framebuffer attachment state in IMG drivers.
++    // https://crbug.com/584036299
++    ANGLE_FEATURE_CONDITION(features, flushBeforeDrawFramebufferChange, isPowerVR);
++
+     // Default to state validation disabled. It is extremely costly and should only be enabled
+     // explicitly when debugging.
+     ANGLE_FEATURE_CONDITION(features, validateState, false);
+diff --git a/third_party/angle/util/autogen/angle_features_autogen.cpp b/third_party/angle/util/autogen/angle_features_autogen.cpp
+index 42782c3..d7da6da 100644
+--- a/third_party/angle/util/autogen/angle_features_autogen.cpp
++++ b/third_party/angle/util/autogen/angle_features_autogen.cpp
+@@ -197,6 +197,7 @@
+     {Feature::FlushAfterEndingTransformFeedback, "flushAfterEndingTransformFeedback"},
+     {Feature::FlushAfterStreamVertexData, "flushAfterStreamVertexData"},
+     {Feature::FlushBeforeDeleteTextureIfCopiedTo, "flushBeforeDeleteTextureIfCopiedTo"},
++    {Feature::FlushBeforeDrawFramebufferChange, "flushBeforeDrawFramebufferChange"},
+     {Feature::FlushBeforeGenerateMipmap, "flushBeforeGenerateMipmap"},
+     {Feature::FlushOnFramebufferChange, "flushOnFramebufferChange"},
+     {Feature::FlushQueriesBeforeDeletingOrUnbindingFbo, "flushQueriesBeforeDeletingOrUnbindingFbo"},
+@@ -257,9 +258,11 @@
+     {Feature::LimitMaxMSAASamplesTo4, "limitMaxMSAASamplesTo4"},
+     {Feature::LimitMaxStorageBufferSize, "limitMaxStorageBufferSize"},
+     {Feature::LimitMaxTextureBytesTo1MB, "limitMaxTextureBytesTo1MB"},
++    {Feature::LimitMaxTextureImageUnitsTo13, "limitMaxTextureImageUnitsTo13"},
+     {Feature::LimitMaxVisibilityQueryOffset, "limitMaxVisibilityQueryOffset"},
+     {Feature::LimitOutputVaryingsTo256AtCompileTime, "limitOutputVaryingsTo256AtCompileTime"},
+     {Feature::LimitSampleCountTo2, "limitSampleCountTo2"},
++    {Feature::LimitShaderVariableFieldsAtCompileTime, "limitShaderVariableFieldsAtCompileTime"},
+     {Feature::LimitWebglMaxTextureSizeTo4096, "limitWebglMaxTextureSizeTo4096"},
+     {Feature::LimitWebglMaxTextureSizeTo8192, "limitWebglMaxTextureSizeTo8192"},
+     {Feature::LinkJobIsThreadSafe, "linkJobIsThreadSafe"},
+diff --git a/third_party/angle/util/autogen/angle_features_autogen.h b/third_party/angle/util/autogen/angle_features_autogen.h
+index 88139af..9b821c9 100644
+--- a/third_party/angle/util/autogen/angle_features_autogen.h
++++ b/third_party/angle/util/autogen/angle_features_autogen.h
+@@ -197,6 +197,7 @@
+     FlushAfterEndingTransformFeedback,
+     FlushAfterStreamVertexData,
+     FlushBeforeDeleteTextureIfCopiedTo,
++    FlushBeforeDrawFramebufferChange,
+     FlushBeforeGenerateMipmap,
+     FlushOnFramebufferChange,
+     FlushQueriesBeforeDeletingOrUnbindingFbo,
+@@ -257,9 +258,11 @@
+     LimitMaxMSAASamplesTo4,
+     LimitMaxStorageBufferSize,
+     LimitMaxTextureBytesTo1MB,
++    LimitMaxTextureImageUnitsTo13,
+     LimitMaxVisibilityQueryOffset,
+     LimitOutputVaryingsTo256AtCompileTime,
+     LimitSampleCountTo2,
++    LimitShaderVariableFieldsAtCompileTime,
+     LimitWebglMaxTextureSizeTo4096,
+     LimitWebglMaxTextureSizeTo8192,
+     LinkJobIsThreadSafe,
