@@ -1,13 +1,14 @@
 Chromium 158.0.8127.64 + the later changes of its release branch, up to
-67053e9f4753f1e1025e10d94c9332339222ca09 (refs/branch-heads/8127@{#1804}), for the
+9e7090f5b3f004257256b3fe2706f75008bb30ba (refs/branch-heads/8127@{#1809}), for the
 158.0.8127.64 tree that chromium-158.0.8127.37-to-158.0.8127.64.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..67053e9f4753f1e1025e10d94c9332339222ca09,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.64..9e7090f5b3f004257256b3fe2706f75008bb30ba,
 from the branch's roll of chromium/deps/icu c670d124c9b6aa92c0b492cf543808300e0e6103..c66ba5d8cda8b645d16778c92c902a871c0fd45c (under third_party/icu/),
 from its rolls of v8/v8 19c06df29e0050413f5f041888f4c990de970314..7391c3adca5214b7a36b1c54c95a6e8f360dc2b4 (under v8/),
 from its roll of external/leveldb bb74ef739973a70ca9f0d90788a1da89b788c0ad..29465588d3dfdc80fba5e198037582b8fdb5dd60 (under third_party/leveldatabase/src/),
 from its rolls of skia 707e33875fb45f2997a4d781128bec122fb777b4..9f8fb9da7e434d74187003c2431f13d0f11641f7 (under third_party/skia/),
-and from its rolls of angle/angle 3708e472b77d8338dbc7365fea884beb0272c6de..5514b35dfa76a46321896fa3b3e078b983dc9e41 (under third_party/angle/),
+from its rolls of angle/angle 3708e472b77d8338dbc7365fea884beb0272c6de..5514b35dfa76a46321896fa3b3e078b983dc9e41 (under third_party/angle/),
+and from its roll of dawn 8e5f22673a5787225d45065929bf00e63d2fd541..6e3cc78d3b9296946ad3022d9e66623a0fcc828f (under third_party/dawn/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .64 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
@@ -48,10 +49,99 @@ Commits contributing to it (oldest first):
   874d89313daf [M158] [Wayland] Use the xdg-role ancestor as the activation token surface
   f69a9d412400 [M158] Settings: Fix protocol handlers default radio group selection
   67053e9f4753 [M158] Ensure EditorCommand stays bound to its Document
+  bc764e4cd476 [M158] Copy style attribute in FormatBlockCommand
+  32d51bfeb389 [M158] Built-in AI: Use Conversation API backend for Gemma 4 flag
+  7a7d2053a856 [M158] [ChroMenu GlowUp] Add missing PWA menu items
+  461660ebcc85 [M158] [macOS] Fix Option-key center live resizing under kAsyncLiveResize
+  9e7090f5b3f0 Roll commits from side projects in M158
+    dawn 6e3cc78d3b92 [M158] Always split oversized B2T/T2B row/image strides
 
 Checked: applies to the 158.0.8127.64 tree; every patched file is
 byte-identical to its version at the last commit above.
 
+diff --git a/chrome/app/vector_icons/BUILD.gn b/chrome/app/vector_icons/BUILD.gn
+index d08b8c0..e704f76 100644
+--- a/chrome/app/vector_icons/BUILD.gn
++++ b/chrome/app/vector_icons/BUILD.gn
+@@ -334,6 +334,7 @@
+     "tab_group_old.icon",
+     "tab_group_sharing_old.icon",
+     "tab_groups_sync_old.icon",
++    "tab_move.icon",
+     "tab_old.icon",
+     "tab_search_tab_strip_old.icon",
+     "tab_usb_connected_old.icon",
+diff --git a/chrome/app/vector_icons/tab_move.icon b/chrome/app/vector_icons/tab_move.icon
+new file mode 100644
+index 0000000..a3032a89
+--- /dev/null
++++ b/chrome/app/vector_icons/tab_move.icon
+@@ -0,0 +1,52 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++CANVAS_DIMENSIONS, 16,
++FILL_RULE_NONZERO,
++MOVE_TO, 3.65f, 13.73f,
++R_CUBIC_TO, -0.38f, 0, -0.71f, -0.14f, -0.98f, -0.41f,
++R_ARC_TO, 1.34f, 1.34f, 0, 0, 1, -0.4f, -0.97f,
++R_V_LINE_TO, -1.2f,
++R_ARC_TO, 0.64f, 0.64f, 0, 0, 1, 0.19f, -0.47f,
++R_ARC_TO, 0.62f, 0.62f, 0, 0, 1, 0.47f, -0.2f,
++R_CUBIC_TO, 0.18f, 0, 0.34f, 0.06f, 0.47f, 0.2f,
++R_CUBIC_TO, 0.13f, 0.13f, 0.2f, 0.28f, 0.2f, 0.47f,
++R_V_LINE_TO, 1.25f,
++R_H_LINE_TO, 8.8f,
++R_V_LINE_TO, -7.62f,
++H_LINE_TO, 3.6f,
++V_LINE_TO, 6.43f,
++R_ARC_TO, 0.66f, 0.66f, 0, 0, 1, -0.66f, 0.67f,
++R_ARC_TO, 0.66f, 0.66f, 0, 0, 1, -0.48f, -0.2f,
++R_ARC_TO, 0.65f, 0.65f, 0, 0, 1, -0.19f, -0.47f,
++V_LINE_TO, 3.65f,
++R_CUBIC_TO, 0, -0.37f, 0.13f, -0.7f, 0.4f, -0.97f,
++R_CUBIC_TO, 0.27f, -0.27f, 0.6f, -0.41f, 0.98f, -0.41f,
++R_H_LINE_TO, 8.7f,
++R_CUBIC_TO, 0.38f, 0, 0.71f, 0.14f, 0.98f, 0.41f,
++R_CUBIC_TO, 0.27f, 0.27f, 0.4f, 0.6f, 0.4f, 0.97f,
++R_V_LINE_TO, 8.7f,
++R_CUBIC_TO, 0, 0.38f, -0.13f, 0.7f, -0.4f, 0.97f,
++R_CUBIC_TO, -0.27f, 0.27f, -0.6f, 0.41f, -0.98f, 0.41f,
++CLOSE,
++R_MOVE_TO, 4.23f, -4.25f,
++H_LINE_TO, 2.96f,
++R_ARC_TO, 0.67f, 0.67f, 0, 0, 1, -0.49f, -0.2f,
++R_ARC_TO, 0.67f, 0.67f, 0, 0, 1, -0.2f, -0.49f,
++R_CUBIC_TO, 0, -0.19f, 0.07f, -0.36f, 0.2f, -0.49f,
++R_ARC_TO, 0.66f, 0.66f, 0, 0, 1, 0.49f, -0.2f,
++R_H_LINE_TO, 4.92f,
++R_LINE_TO, -0.78f, -0.78f,
++R_ARC_TO, 0.64f, 0.64f, 0, 0, 1, -0.2f, -0.49f,
++R_ARC_TO, 0.74f, 0.74f, 0, 0, 1, 0.22f, -0.49f,
++R_ARC_TO, 0.67f, 0.67f, 0, 0, 1, 0.49f, -0.21f,
++R_CUBIC_TO, 0.18f, 0, 0.35f, 0.07f, 0.49f, 0.22f,
++R_LINE_TO, 1.94f, 1.96f,
++R_ARC_TO, 0.68f, 0.68f, 0, 0, 1, 0.22f, 0.49f,
++R_CUBIC_TO, 0, 0.19f, -0.07f, 0.35f, -0.21f, 0.48f,
++R_LINE_TO, -1.96f, 1.97f,
++R_ARC_TO, 0.65f, 0.65f, 0, 0, 1, -0.48f, 0.2f,
++R_ARC_TO, 0.71f, 0.71f, 0, 0, 1, -0.48f, -0.22f,
++R_ARC_TO, 0.67f, 0.67f, 0, 0, 1, 0, -0.98f,
++CLOSE
+diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
+index 0f43cb2..87ed47f 100644
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -4983,7 +4983,7 @@
+ const FeatureEntry::Choice kGemma4Choices[] = {
+     {flags_ui::kGenericExperimentChoiceDefault, "", ""},
+     {flags_ui::kGenericExperimentChoiceEnabled, switches::kEnableFeatures,
+-     "OptimizationGuideManifestBroker,"
++     "OnDeviceModelConversationBackend,OptimizationGuideManifestBroker,"
+      "AIApiFoundationalModel:model_version/v4"}};
+ 
+ // Scores options with EmbeddingGemma V1 or the Prompt API's foundation model
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_location_bar.cc b/chrome/browser/contextual_tasks/contextual_tasks_location_bar.cc
 index 2e418651..61ec6db8 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_location_bar.cc
@@ -217,6 +307,19 @@ index 18ede1f..8472814 100644
      std::vector<base::FilePath::StringType> block_components =
          block_path.GetComponents();
      if (IsPathOrDescendantIgnoreCase(path_components, block_components)) {
+diff --git a/chrome/browser/flag_descriptions.h b/chrome/browser/flag_descriptions.h
+index ccecbadcf..c12456e 100644
+--- a/chrome/browser/flag_descriptions.h
++++ b/chrome/browser/flag_descriptions.h
+@@ -5268,7 +5268,7 @@
+ inline constexpr char kGemma4ForBuiltInAIName[] = "Gemma 4 for Built-in AI";
+ inline constexpr char kGemma4ForBuiltInAIDescription[] =
+     "Enables all built-in AI APIs (Prompt, Summarizer, Writer, etc.) to use "
+-    "the Gemma 4 model.";
++    "the Gemma 4 model with the LiteRT-LM Conversation backend.";
+ 
+ inline constexpr char kOnDeviceModelSpeculativeDecodingName[] =
+     "Multi-Token Prediction (MTP) for Built-in AI";
 diff --git a/chrome/browser/resources/settings/site_settings/protocol_handlers.html b/chrome/browser/resources/settings/site_settings/protocol_handlers.html
 index 784ead9..d487df3 100644
 --- a/chrome/browser/resources/settings/site_settings/protocol_handlers.html
@@ -245,6 +348,391 @@ index 00a9486a..63f4535 100644
    /**
     * A handler when the radio group selection changes.
     */
+diff --git a/chrome/browser/ui/BUILD.gn b/chrome/browser/ui/BUILD.gn
+index 88668a0..a992579 100644
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -393,7 +393,11 @@
+       "//components/skills:features",
+       "//components/spellcheck/browser",
+       "//components/undo",
++      "//extensions/buildflags",
+     ]
++    if (enable_extensions) {
++      deps += [ "//chrome/browser/ui/extensions" ]
++    }
+     if (is_mac) {
+       deps += [
+         ":browser_commands_mac",
+@@ -404,6 +408,7 @@
+       deps += [
+         ":browser_commands_chromeos",
+         "//chrome/browser/ui/ash/multi_user",
++        "//chromeos/strings",
+       ]
+     }
+     if (is_win || is_mac || is_linux) {
+diff --git a/chrome/browser/ui/actions/chrome_action_id.h b/chrome/browser/ui/actions/chrome_action_id.h
+index 4bcf8e9..c7749dcf 100644
+--- a/chrome/browser/ui/actions/chrome_action_id.h
++++ b/chrome/browser/ui/actions/chrome_action_id.h
+@@ -64,6 +64,8 @@
+   E(kActionWebAppSettings, IDC_WEB_APP_SETTINGS) \
+   E(kActionWebAppMenuAppInfo, IDC_WEB_APP_MENU_APP_INFO) \
+   E(kActionUninstallWebApp, IDC_UNINSTALL_WEB_APP) \
++  E(kActionWebAppUpgradeDialog, IDC_WEB_APP_UPGRADE_DIALOG) \
++  E(kActionWebAppShowExtensions) \
+   /* Page-related commands */ \
+   E(kActionBookmarkThisTab, IDC_BOOKMARK_THIS_TAB) \
+   E(kActionBookmarkAllTabs, IDC_BOOKMARK_ALL_TABS) \
+@@ -294,7 +296,8 @@
+   E(kActionVisitDesktopOfLruUser2, IDC_VISIT_DESKTOP_OF_LRU_USER_2) \
+   E(kActionVisitDesktopOfLruUser3, IDC_VISIT_DESKTOP_OF_LRU_USER_3) \
+   E(kActionVisitDesktopOfLruUser4, IDC_VISIT_DESKTOP_OF_LRU_USER_4) \
+-  E(kActionVisitDesktopOfLruUser5, IDC_VISIT_DESKTOP_OF_LRU_USER_5)
++  E(kActionVisitDesktopOfLruUser5, IDC_VISIT_DESKTOP_OF_LRU_USER_5) \
++  E(kActionMoveToDesksSubmenu)
+ #elif BUILDFLAG(IS_LINUX)
+ #define CHROME_PLATFORM_SPECIFIC_ACTION_IDS \
+   E(kUseSystemTitleBar, IDC_USE_SYSTEM_TITLE_BAR) \
+diff --git a/chrome/browser/ui/browser_actions.cc b/chrome/browser/ui/browser_actions.cc
+index d716fe05..698d584 100644
+--- a/chrome/browser/ui/browser_actions.cc
++++ b/chrome/browser/ui/browser_actions.cc
+@@ -121,6 +121,9 @@
+ #include "chrome/browser/ui/commerce/commerce_ui_tab_helper.h"
+ #include "chrome/browser/ui/customize_chrome/side_panel_controller.h"
+ #include "chrome/browser/ui/dialogs/browser_dialogs.h"
++#if BUILDFLAG(ENABLE_EXTENSIONS)
++#include "chrome/browser/ui/extensions/extensions_container.h"
++#endif
+ #include "chrome/browser/ui/global_error/global_error.h"
+ #include "chrome/browser/ui/global_error/global_error_service.h"
+ #include "chrome/browser/ui/global_error/global_error_service_factory.h"
+@@ -233,10 +236,12 @@
+ #include "components/sync/base/features.h"
+ #include "components/tabs/public/tab_interface.h"
+ #include "content/public/browser/page_navigator.h"
++#include "extensions/buildflags/buildflags.h"
+ #include "extensions/common/extension_urls.h"
+ #if BUILDFLAG(IS_CHROMEOS)
+ #include "chrome/browser/ui/ash/multi_user/multi_user_context_menu.h"
+ #include "chrome/browser/ui/browser_commands_chromeos.h"
++#include "chromeos/strings/grit/chromeos_strings.h"
+ #endif
+ #include "chrome/browser/ui/lens/lens_search_controller.h"
+ #include "components/lens/lens_overlay_invocation_source.h"
+@@ -4580,6 +4585,58 @@
+               ui::kColorIcon))
+           .Build());
+ 
++  root_action_item_->AddChild(
++      actions::ActionItem::Builder(
++          base::BindRepeating(
++              [](BrowserWindowInterface* bwi, actions::ActionItem* item,
++                 actions::ActionInvocationContext context) {
++                auto* controller = web_app::AppBrowserController::From(bwi);
++                if (controller) {
++                  controller->TriggerAppUpdateOrMigrationDialog(
++                      base::TimeTicks::Now());
++                }
++              },
++              bwi))
++          .SetActionId(kActionWebAppUpgradeDialog)
++          .SetText(GetCleanTitleText(
++              l10n_util::GetStringUTF16(IDS_REVIEW_APP_UPDATE)))
++          .SetTooltipText(GetCleanTooltipText(
++              l10n_util::GetStringUTF16(IDS_REVIEW_APP_UPDATE)))
++          .Build());
++
++#if BUILDFLAG(ENABLE_EXTENSIONS)
++  root_action_item_->AddChild(
++      actions::ActionItem::Builder(
++          base::BindRepeating(
++              [](BrowserWindowInterface* bwi, actions::ActionItem* item,
++                 actions::ActionInvocationContext context) {
++                if (auto* container = ExtensionsContainer::From(*bwi)) {
++                  container->ToggleExtensionsMenu();
++                }
++              },
++              bwi))
++          .SetActionId(kActionWebAppShowExtensions)
++          .SetText(
++              GetCleanTitleText(l10n_util::GetStringUTF16(IDS_SHOW_EXTENSIONS)))
++          .SetTooltipText(GetCleanTooltipText(
++              l10n_util::GetStringUTF16(IDS_SHOW_EXTENSIONS)))
++          .SetImage(ui::ImageModel::FromVectorIcon(
++              features::IsRoundedIconsEnabled()
++                  ? vector_icons::kChromeExtensionIcon
++                  : vector_icons::kExtensionChromeRefreshOldIcon))
++          .Build());
++#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
++
++#if BUILDFLAG(IS_CHROMEOS)
++  root_action_item_->AddChild(
++      actions::ActionItem::Builder()
++          .SetActionId(kActionMoveToDesksSubmenu)
++          .SetText(l10n_util::GetStringUTF16(IDS_MOVE_TO_DESKS_MENU))
++          .SetTooltipText(l10n_util::GetStringUTF16(IDS_MOVE_TO_DESKS_MENU))
++          .SetImage(ui::ImageModel::FromVectorIcon(kTabMoveIcon))
++          .Build());
++#endif
++
+ #if !BUILDFLAG(IS_CHROMEOS)
+   root_action_item_->AddChild(
+       actions::ActionItem::Builder(
+diff --git a/chrome/browser/ui/views/app_menu/BUILD.gn b/chrome/browser/ui/views/app_menu/BUILD.gn
+index 496c864..65600df 100644
+--- a/chrome/browser/ui/views/app_menu/BUILD.gn
++++ b/chrome/browser/ui/views/app_menu/BUILD.gn
+@@ -182,7 +182,10 @@
+   }
+ 
+   if (enable_extensions) {
+-    deps += [ "//chrome/browser/extensions" ]
++    deps += [
++      "//chrome/browser/extensions",
++      "//chrome/browser/ui/extensions",
++    ]
+   }
+ 
+   if (!is_chromeos) {
+@@ -192,6 +195,13 @@
+     ]
+   }
+ 
++  if (is_chromeos) {
++    deps += [
++      "//chromeos/strings",
++      "//chromeos/ui/frame",
++    ]
++  }
++
+   if (is_win || is_mac || is_linux) {
+     deps += [ "//chrome/browser/lifetime" ]
+   }
+diff --git a/chrome/browser/ui/views/app_menu/action_app_menu_manager.cc b/chrome/browser/ui/views/app_menu/action_app_menu_manager.cc
+index 7888046..63571a6 100644
+--- a/chrome/browser/ui/views/app_menu/action_app_menu_manager.cc
++++ b/chrome/browser/ui/views/app_menu/action_app_menu_manager.cc
+@@ -45,9 +45,14 @@
+ #include "chrome/browser/lifetime/scheduled_restart_manager.h"
+ #endif
+ #if BUILDFLAG(IS_CHROMEOS)
++#include "chromeos/strings/grit/chromeos_strings.h"
++#include "chromeos/ui/frame/desks/move_to_desks_menu_delegate.h"
++#include "chromeos/ui/frame/desks/move_to_desks_menu_model.h"
+ #include "content/public/browser/navigation_controller.h"
+ #include "content/public/browser/navigation_entry.h"
++#include "ui/base/base_window.h"
+ #include "ui/display/screen.h"
++#include "ui/views/widget/widget.h"
+ #endif
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+@@ -79,6 +84,7 @@
+ #include "chrome/browser/ui/views/bookmarks/saved_tab_groups/saved_tab_group_everything_menu.h"
+ #include "chrome/browser/ui/views/toolbar/toolbar_button_menu_highlighter.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
++#include "chrome/browser/ui/web_applications/web_app_browser_controller.h"
+ #include "chrome/browser/ui/web_applications/web_app_menu_model.h"
+ #include "chrome/browser/ui/web_applications/web_app_ui_utils.h"
+ #include "chrome/browser/ui/webui/side_panel/customize_chrome/customize_chrome_page_handler.h"
+@@ -108,6 +114,7 @@
+ #include "extensions/buildflags/buildflags.h"
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+ #include "chrome/browser/extensions/extension_ui_util.h"
++#include "chrome/browser/ui/extensions/extensions_container.h"
+ #endif
+ #include "chrome/browser/ui/browser_element_identifiers.h"
+ #include "ui/actions/action_id.h"
+@@ -236,6 +243,14 @@
+     return *this;
+   }
+ 
++  // Adds a directly constructed action item.
++  AppMenuBuilder& AddActionItem(std::unique_ptr<actions::ActionItem> item) {
++    if (item && parent_) {
++      parent_->AddChild(std::move(item));
++    }
++    return *this;
++  }
++
+   // Adds a header item to the current parent without modifying the parent.
+   AppMenuBuilder& AddHeader(
+       int string_id,
+@@ -1247,6 +1262,35 @@
+       web_app::AppBrowserController::From(browser_window_interface_);
+   CHECK(app_browser_controller);
+ 
++  web_app::WebAppBrowserController* app_controller =
++      app_browser_controller->AsWebAppBrowserController();
++  if (app_controller && (app_controller->HasPendingUpdate() ||
++                         app_controller->HasPendingMigration())) {
++    gfx::ImageSkia icon = app_controller->GetAppMenuIcon();
++    ui::ImageModel update_icon;
++    if (!icon.isNull()) {
++      update_icon = ui::ImageModel::FromImageSkia(icon);
++    }
++    if (update_icon.IsEmpty()) {
++      update_icon = ui::ImageModel::FromVectorIcon(
++          features::IsRoundedIconsEnabled()
++              ? kRocketLaunchIcon
++              : kBrowserToolsUpdateChromeRefreshOldIcon,
++          ui::kColorMenuIconOnEmphasizedBackground);
++    }
++    AppMenuBuilder(root, browser_window_interface_,
++                   highlighted_menu_identifier_,
++                   ui::kColorAppMenuUpgradeRowBackground)
++        .AddSection(
++            DisplayType::kSection, [&update_icon](AppMenuBuilder& section) {
++              section.AddAction(
++                  kActionWebAppUpgradeDialog,
++                  {.display_type = DisplayType::kNotification,
++                   .icon_override = std::move(update_icon),
++                   .item_height = AppMenuActionItem::ItemHeight::kMedium});
++            });
++  }
++
+   AppMenuBuilder builder(root, browser_window_interface_,
+                          highlighted_menu_identifier_);
+ 
+@@ -1280,13 +1324,100 @@
+   AppMenuBuilder(root, browser_window_interface_, highlighted_menu_identifier_,
+                  kColorAppMenuToolsAndActionsBackground,
+                  kColorAppMenuToolsAndActionsForeground)
+-      .AddSection(DisplayType::kSection, [this](AppMenuBuilder& section) {
++      .AddSection(DisplayType::kSection, [this, app_browser_controller,
++                                          is_isolated_web_app](
++                                             AppMenuBuilder& section) {
++#if BUILDFLAG(ENABLE_EXTENSIONS)
++        ExtensionsContainer* extensions_container =
++            ExtensionsContainer::From(*browser_window_interface_);
++        if (base::FeatureList::IsEnabled(
++                features::kDesktopPWAsElidedExtensionsMenu) &&
++            extensions_container && extensions_container->HasAnyExtensions() &&
++            !is_isolated_web_app) {
++          section.AddAction(kActionWebAppShowExtensions);
++        }
++#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
++
++        if (app_browser_controller->has_tab_strip() &&
++            !app_browser_controller->ShouldHideNewTabButton()) {
++          section.AddAction(
++              kActionNewTab,
++              {.icon_override = ui::ImageModel::FromVectorIcon(
++                   features::IsRoundedIconsEnabled() ? kTabIcon
++                                                     : kNewTabRefreshOldIcon)});
++        }
++
+         section.AddAction(kActionCopyUrl);
+ 
+         if (ShouldAllowOpenInChrome(browser_window_interface_)) {
+           section.AddAction(kActionOpenInChrome);
+         }
+ 
++#if BUILDFLAG(IS_CHROMEOS)
++        views::Widget* widget =
++            browser_window_interface_->GetWindow()
++                ? views::Widget::GetWidgetForNativeWindow(
++                      browser_window_interface_->GetWindow()->GetNativeWindow())
++                : nullptr;
++        if (widget &&
++            chromeos::MoveToDesksMenuDelegate::ShouldShowMoveToDesksMenu()) {
++          chromeos::MoveToDesksMenuDelegate delegate(widget);
++          section.AddSubmenu(kActionMoveToDesksSubmenu, [&delegate,
++                                                         widget](AppMenuBuilder&
++                                                                     sub) {
++            if (delegate.IsCommandIdEnabled(chromeos::MoveToDesksMenuModel::
++                                                TOGGLE_ASSIGN_TO_ALL_DESKS)) {
++              auto item =
++                  actions::ActionItem::Builder(
++                      base::BindRepeating(
++                          [](views::Widget* w, actions::ActionItem*,
++                             actions::ActionInvocationContext) {
++                            chromeos::MoveToDesksMenuDelegate(w).ExecuteCommand(
++                                chromeos::MoveToDesksMenuModel::
++                                    TOGGLE_ASSIGN_TO_ALL_DESKS,
++                                0);
++                          },
++                          widget))
++                      .SetText(
++                          l10n_util::GetStringUTF16(IDS_ASSIGN_TO_ALL_DESKS))
++                      .SetChecked(delegate.IsCommandIdChecked(
++                          chromeos::MoveToDesksMenuModel::
++                              TOGGLE_ASSIGN_TO_ALL_DESKS))
++                      .Build();
++              item->SetProperty(AppMenuActionItem::kIsCheckableKey, true);
++              sub.AddActionItem(std::move(item));
++              sub.AddDivider();
++            }
++
++            constexpr int kMaxNumberOfDesks =
++                chromeos::MoveToDesksMenuModel::MOVE_TO_DESK_16 -
++                chromeos::MoveToDesksMenuModel::MOVE_TO_DESK_1 + 1;
++            for (int i = 0; i < kMaxNumberOfDesks; ++i) {
++              int command_id =
++                  chromeos::MoveToDesksMenuModel::MOVE_TO_DESK_1 + i;
++              if (!delegate.IsCommandIdVisible(command_id)) {
++                continue;
++              }
++              auto item =
++                  actions::ActionItem::Builder(
++                      base::BindRepeating(
++                          [](views::Widget* w, int cid, actions::ActionItem*,
++                             actions::ActionInvocationContext) {
++                            chromeos::MoveToDesksMenuDelegate(w).ExecuteCommand(
++                                cid, 0);
++                          },
++                          widget, command_id))
++                      .SetText(delegate.GetLabelForCommandId(command_id))
++                      .SetChecked(delegate.IsCommandIdChecked(command_id))
++                      .SetEnabled(delegate.IsCommandIdEnabled(command_id))
++                      .Build();
++              item->SetProperty(AppMenuActionItem::kIsCheckableKey, true);
++              sub.AddActionItem(std::move(item));
++            }
++          });
++        }
++#endif  // BUILDFLAG(IS_CHROMEOS)
++
+         section.AddDivider(ui::MenuSeparatorType::SPACING_SEPARATOR)
+             .AddSubmenu(
+                 kActionZoomSubmenu,
+diff --git a/chrome/browser/ui/views/app_menu/action_app_menu_metrics.cc b/chrome/browser/ui/views/app_menu/action_app_menu_metrics.cc
+index 9b8f896..be0442fd 100644
+--- a/chrome/browser/ui/views/app_menu/action_app_menu_metrics.cc
++++ b/chrome/browser/ui/views/app_menu/action_app_menu_metrics.cc
+@@ -355,6 +355,13 @@
+     case kActionUninstallWebApp:
+       LogMenuActionHistogram(MENU_ACTION_UNINSTALL_APP);
+       break;
++    case kActionWebAppUpgradeDialog:
++      RecordAction(MENU_ACTION_TRIGGER_APP_UPDATE_DIALOG,
++                   "WebAppMenuReloadOrMigrate");
++      break;
++    case kActionWebAppShowExtensions:
++      RecordTimeToAction();
++      break;
+     case kActionViewPasswords:
+       RecordAction(MENU_ACTION_PASSWORD_MANAGER, "PasswordManager");
+       break;
+diff --git a/chrome/browser/ui/views/app_menu/action_app_menu_test_base.cc b/chrome/browser/ui/views/app_menu/action_app_menu_test_base.cc
+index 3f1838b..3feff5d 100644
+--- a/chrome/browser/ui/views/app_menu/action_app_menu_test_base.cc
++++ b/chrome/browser/ui/views/app_menu/action_app_menu_test_base.cc
+@@ -226,6 +226,11 @@
+   add_action(kActionOpenInChrome, u"Open in Chrome");
+   add_action(kActionWebAppMenuAppInfo, u"App Info");
+   add_action(kActionUninstallWebApp, u"Uninstall");
++  add_action(kActionWebAppUpgradeDialog, u"Review update");
++  add_action(kActionWebAppShowExtensions, u"Extensions");
++#if BUILDFLAG(IS_CHROMEOS)
++  add_action(kActionMoveToDesksSubmenu, u"Move window to desk");
++#endif
+ 
+   actions::ActionManager::Get().AddAction(std::move(root));
+ 
 diff --git a/chrome/browser/ui/views/location_bar/webui_location_bar.cc b/chrome/browser/ui/views/location_bar/webui_location_bar.cc
 index aec6712..119826e 100644
 --- a/chrome/browser/ui/views/location_bar/webui_location_bar.cc
@@ -442,6 +930,34 @@ index 43237aaa..327584f 100755
              f"--define={compression_opt}",
              "--define=__os_install_post %{nil}",
              "--define=_build_id_links none",
+diff --git a/components/remote_cocoa/app_shim/views_nswindow_delegate.h b/components/remote_cocoa/app_shim/views_nswindow_delegate.h
+index 40b1e27..070acf4 100644
+--- a/components/remote_cocoa/app_shim/views_nswindow_delegate.h
++++ b/components/remote_cocoa/app_shim/views_nswindow_delegate.h
+@@ -16,6 +16,23 @@
+ class NativeWidgetNSWindowBridge;
+ }  // namespace remote_cocoa
+ 
++// Models the bitmask returned by AppKit's private SPI
++// -[NSWindow liveResizeEdges], which identifies the active window edges during
++// a user live-resize event.
++typedef NS_OPTIONS(NSUInteger, NSWindowLiveResizeEdges) {
++  NSWindowLiveResizeEdgesNone = 0,
++  NSWindowLiveResizeEdgesLeft = 1 << 0,
++  NSWindowLiveResizeEdgesBottom = 1 << 1,
++  NSWindowLiveResizeEdgesRight = 1 << 2,
++  NSWindowLiveResizeEdgesTop = 1 << 3,
++  NSWindowLiveResizeEdgesHorizontal = NSWindowLiveResizeEdgesLeft |
++                                      NSWindowLiveResizeEdgesRight,
++  NSWindowLiveResizeEdgesVertical = NSWindowLiveResizeEdgesBottom |
++                                    NSWindowLiveResizeEdgesTop,
++  NSWindowLiveResizeEdgesAll = NSWindowLiveResizeEdgesHorizontal |
++                               NSWindowLiveResizeEdgesVertical,
++};
++
+ // The delegate set on the NSWindow when a
+ // remote_cocoa::NativeWidgetNSWindowBridge is initialized.
+ REMOTE_COCOA_APP_SHIM_EXPORT
 diff --git a/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.cc b/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.cc
 index cbcbf4f..27ae93f2 100644
 --- a/components/safe_browsing/content/renderer/phishing_classifier/phishing_visual_feature_extractor.cc
@@ -1725,6 +2241,25 @@ index 7dc508f..cf39cfe 100644
  };
  
  }  // namespace blink
+diff --git a/third_party/blink/renderer/core/editing/commands/format_block_command.cc b/third_party/blink/renderer/core/editing/commands/format_block_command.cc
+index ea11a7f0..0cd72e4 100644
+--- a/third_party/blink/renderer/core/editing/commands/format_block_command.cc
++++ b/third_party/blink/renderer/core/editing/commands/format_block_command.cc
+@@ -144,9 +144,11 @@
+   if (outer_block != node_after_insertion_position &&
+       To<HTMLElement>(node_after_insertion_position)
+           ->hasAttribute(html_names::kStyleAttr)) {
+-    block_element->setAttribute(html_names::kStyleAttr,
+-                                To<HTMLElement>(node_after_insertion_position)
+-                                    ->getAttribute(html_names::kStyleAttr));
++    // Hold a copy: `setAttribute()` can pause in the debugger and reallocate
++    // `node_after_insertion_position`'s attribute storage.
++    const AtomicString style = To<HTMLElement>(node_after_insertion_position)
++                                   ->getAttribute(html_names::kStyleAttr);
++    block_element->setAttribute(html_names::kStyleAttr, style);
+   }
+ 
+   GetDocument().UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
 diff --git a/third_party/blink/renderer/core/events/build.gni b/third_party/blink/renderer/core/events/build.gni
 index 9e320e3..c4a4152 100644
 --- a/third_party/blink/renderer/core/events/build.gni
@@ -4581,3 +5116,204 @@ index 88139af..9b821c9 100644
      LimitWebglMaxTextureSizeTo4096,
      LimitWebglMaxTextureSizeTo8192,
      LinkJobIsThreadSafe,
+diff --git a/third_party/dawn/src/dawn/native/BufferTextureCopyOversizedRow.cpp b/third_party/dawn/src/dawn/native/BufferTextureCopyOversizedRow.cpp
+index f5fbf5f..076e0b6 100644
+--- a/third_party/dawn/src/dawn/native/BufferTextureCopyOversizedRow.cpp
++++ b/third_party/dawn/src/dawn/native/BufferTextureCopyOversizedRow.cpp
+@@ -33,9 +33,7 @@
+ #include "src/dawn/common/Math.h"
+ #include "src/dawn/native/Buffer.h"
+ #include "src/dawn/native/CommandAllocator.h"
+-#include "src/dawn/native/Device.h"
+ #include "src/dawn/native/Texture.h"
+-#include "src/dawn/native/Toggles.h"
+ 
+ namespace dawn::native {
+ 
+@@ -46,12 +44,17 @@
+ // be checked independently: bytesPerRow == texelsPerRow * bytesPerBlock, so a format with a small
+ // bytesPerBlock (e.g. R8Unorm, 1 byte/texel) can push texelsPerRow past 2^14 while bytesPerRow is
+ // still nowhere near 2^18. See crbug.com/481934465.
+-// These thresholds also cover the larger 256 MiB (2^28 bytes) row pitch overflow / wrap-around
+-// limits on ARM Mali (crbug.com/569161611), ImgTec PowerVR (crbug.com/529867799),
+-// and Qualcomm Adreno (crbug.com/380487895).
++// These thresholds also cover the larger row pitch overflow / wrap-around limits on ARM Mali
++// (2^28 bytes, crbug.com/569161611), ImgTec PowerVR (2^28 bytes, crbug.com/529867799),
++// Qualcomm Adreno (2^28 bytes, crbug.com/380487895), and NVIDIA (2^31 bytes, crbug.com/583083283).
+ constexpr uint64_t kMaxBytesPerRow = 1u << 18;
+ constexpr uint64_t kMaxTexelsPerRow = 1u << 14;
+ 
++// Multi-slice copies also step across images by `bytesPerImage = bytesPerRow * rowsPerImage`.
++// ARM Mali GLES wraps signed 32-bit bit strides at 2^28 bytes (256 MiB), and drivers that compute
++// byte strides in signed 32-bit integers (e.g. NVIDIA Vulkan, crbug.com/583083283) wrap at 2 GiB.
++constexpr uint64_t kMaxBytesPerImage = 1ull << 28;
++
+ // Splits {bufferCopy, textureCopy, copySize} into one sub-copy per unpadded row, in row-major
+ // order, invoking `func(bufferOffset, origin)` for each one. `bufferOffset` is the real
+ // (unclamped) offset of the row in the buffer; `origin` is the texture origin of this row (the
+@@ -81,17 +84,17 @@
+ 
+ }  // namespace
+ 
+-bool NeedsBufferTextureCopySplitForOversizedRow(const DeviceBase* device,
+-                                                const BufferCopy& bufferCopy,
++bool NeedsBufferTextureCopySplitForOversizedRow(const BufferCopy& bufferCopy,
++                                                const BlockExtent3D& copySize,
+                                                 const TypedTexelBlockInfo& blockInfo) {
+-    if (!device->IsToggleEnabled(Toggle::SplitBufferTextureCopyForOversizedRow)) {
+-        return false;
+-    }
+     const bool exceedsMaxBytesPerRow =
+         blockInfo.ToBytes(bufferCopy.blocksPerRow) >= kMaxBytesPerRow;
+     const bool exceedsMaxTexelsPerRow =
+         static_cast<uint64_t>(blockInfo.ToTexelWidth(bufferCopy.blocksPerRow)) >= kMaxTexelsPerRow;
+-    return exceedsMaxBytesPerRow || exceedsMaxTexelsPerRow;
++    const bool exceedsMaxBytesPerImage =
++        copySize.depthOrArrayLayers > BlockCount{1u} &&
++        blockInfo.ToBytes(bufferCopy.blocksPerRow * bufferCopy.rowsPerImage) >= kMaxBytesPerImage;
++    return exceedsMaxBytesPerRow || exceedsMaxTexelsPerRow || exceedsMaxBytesPerImage;
+ }
+ 
+ void SplitCopyTextureToBufferForOversizedRow(CommandAllocator* allocator,
+diff --git a/third_party/dawn/src/dawn/native/BufferTextureCopyOversizedRow.h b/third_party/dawn/src/dawn/native/BufferTextureCopyOversizedRow.h
+index 800ce32..c53de72 100644
+--- a/third_party/dawn/src/dawn/native/BufferTextureCopyOversizedRow.h
++++ b/third_party/dawn/src/dawn/native/BufferTextureCopyOversizedRow.h
+@@ -34,15 +34,14 @@
+ namespace dawn::native {
+ 
+ class CommandAllocator;
+-class DeviceBase;
+ 
+ // Determines whether a buffer<->texture copy needs to be split for oversized rows. This happens
+-// if the SplitBufferTextureCopyForOversizedRow toggle is enabled and `bufferCopy`'s bytes per row
+-// or texels per row overflows the limited-width hardware register field or driver stride
+-// calculation used to store it. See crbug.com/481934465, crbug.com/569161611,
+-// crbug.com/529867799, and crbug.com/380487895.
+-bool NeedsBufferTextureCopySplitForOversizedRow(const DeviceBase* device,
+-                                                const BufferCopy& bufferCopy,
++// when `bufferCopy`'s bytes per row, texels per row, or multi-slice bytes per image overflows the
++// limited-width hardware register field or 32-bit driver stride calculation used across multiple
++// GPU vendors. See crbug.com/481934465, crbug.com/569161611, crbug.com/529867799,
++// crbug.com/380487895, and crbug.com/583083283.
++bool NeedsBufferTextureCopySplitForOversizedRow(const BufferCopy& bufferCopy,
++                                                const BlockExtent3D& copySize,
+                                                 const TypedTexelBlockInfo& blockInfo);
+ 
+ // Applies the oversized-row-pitch workaround to a texture-to-buffer copy: splits
+diff --git a/third_party/dawn/src/dawn/native/CommandEncoder.cpp b/third_party/dawn/src/dawn/native/CommandEncoder.cpp
+index ddb4e12..f22756d 100644
+--- a/third_party/dawn/src/dawn/native/CommandEncoder.cpp
++++ b/third_party/dawn/src/dawn/native/CommandEncoder.cpp
+@@ -1943,7 +1943,7 @@
+ 
+                 return {};
+             }
+-            if (NeedsBufferTextureCopySplitForOversizedRow(GetDevice(), src, blockInfo)) {
++            if (NeedsBufferTextureCopySplitForOversizedRow(src, blockCopySize, blockInfo)) {
+                 SplitCopyBufferToTextureForOversizedRow(allocator, src, dst, blockCopySize,
+                                                         blockInfo);
+                 return {};
+@@ -2050,7 +2050,7 @@
+             }
+ 
+             // Workaround to split copies with oversized rows into per-row copies.
+-            if (NeedsBufferTextureCopySplitForOversizedRow(GetDevice(), dst, blockInfo)) {
++            if (NeedsBufferTextureCopySplitForOversizedRow(dst, blockCopySize, blockInfo)) {
+                 SplitCopyTextureToBufferForOversizedRow(allocator, dst, src, blockCopySize,
+                                                         blockInfo);
+                 return {};
+diff --git a/third_party/dawn/src/dawn/native/Toggles.cpp b/third_party/dawn/src/dawn/native/Toggles.cpp
+index 9d0dfc9..1a56d02 100644
+--- a/third_party/dawn/src/dawn/native/Toggles.cpp
++++ b/third_party/dawn/src/dawn/native/Toggles.cpp
+@@ -527,13 +527,6 @@
+       "attachment's alpha channel unchanged, so the workaround is not observable to the "
+       "application. Skipped for non-blendable formats.",
+       "https://issues.chromium.org/issues/525294804", ToggleStage::Device}},
+-    {Toggle::SplitBufferTextureCopyForOversizedRow,
+-     {"split_buffer_texture_copy_for_oversized_row",
+-      "Split a buffer-to-texture or texture-to-buffer copy into one copy command per row so its "
+-      "row pitch (bytes) and row width (texels) never overflow hardware register fields or driver "
+-      "stride calculations. Workaround for Intel, ARM, ImgTec, and Qualcomm GPU hardware/driver "
+-      "limitations.",
+-      "https://crbug.com/481934465", ToggleStage::Device}},
+     {Toggle::GLUseArrayLengthFromImmediate,
+      {"gl_use_array_length_from_immediate",
+       "Use immediate data to replace arrayLength() function calls of dynamic storage buffers. "
+diff --git a/third_party/dawn/src/dawn/native/Toggles.h b/third_party/dawn/src/dawn/native/Toggles.h
+index c8bb00d..4c797bb 100644
+--- a/third_party/dawn/src/dawn/native/Toggles.h
++++ b/third_party/dawn/src/dawn/native/Toggles.h
+@@ -131,7 +131,6 @@
+     UseBlitForSintTextureToBufferCopy,
+     VulkanSplitBufferTextureCopyForArrayLayers,
+     VulkanForceAlphaWriteForAlphaToCoverage,
+-    SplitBufferTextureCopyForOversizedRow,
+     GLUseArrayLengthFromImmediate,
+     D3D11DisableCPUUploadBuffers,
+     UseT2B2TForSRGBTextureCopy,
+diff --git a/third_party/dawn/src/dawn/native/d3d12/PhysicalDeviceD3D12.cpp b/third_party/dawn/src/dawn/native/d3d12/PhysicalDeviceD3D12.cpp
+index d45f1b0..27bc1ab 100644
+--- a/third_party/dawn/src/dawn/native/d3d12/PhysicalDeviceD3D12.cpp
++++ b/third_party/dawn/src/dawn/native/d3d12/PhysicalDeviceD3D12.cpp
+@@ -968,10 +968,6 @@
+     }
+ 
+     if (gpu_info::IsIntel(vendorId)) {
+-        // Workaround an Intel GPU hardware limitation that corrupts buffer<->texture copies with
+-        // a large row pitch. See https://crbug.com/481934465.
+-        deviceToggles->Default(Toggle::SplitBufferTextureCopyForOversizedRow, true);
+-
+         // The workaround below is needed on old Intel drivers and newer version of Windows 11.
+         // See http://crbug.com/dawn/2308 for more information.
+         constexpr uint64_t kAffectedMinimumWindowsBuildNumber = 25957u;
+@@ -996,9 +992,6 @@
+     // See https://crbug.com/411268750 for more information.
+     if (gpu_info::IsQualcommACPI(vendorId)) {
+         deviceToggles->Default(Toggle::UsePackedDepth24UnormStencil8Format, true);
+-        // Workaround a Qualcomm GPU limitation that wraps row offsets at 256 MiB in
+-        // buffer<->texture copies (crbug.com/380487895).
+-        deviceToggles->Default(Toggle::SplitBufferTextureCopyForOversizedRow, true);
+     }
+ 
+     // Enable the integer range analysis for shader robustness by default if the corresponding
+diff --git a/third_party/dawn/src/dawn/native/opengl/PhysicalDeviceGL.cpp b/third_party/dawn/src/dawn/native/opengl/PhysicalDeviceGL.cpp
+index faded7a..74943aa 100644
+--- a/third_party/dawn/src/dawn/native/opengl/PhysicalDeviceGL.cpp
++++ b/third_party/dawn/src/dawn/native/opengl/PhysicalDeviceGL.cpp
+@@ -523,15 +523,6 @@
+     deviceToggles->Default(Toggle::Limit3DTexturePotFootprintTo4GB,
+                            mVendorId == gpu_info::kVendorID_ImgTec);
+ 
+-    // Workaround hardware/driver limitations on ARM Mali (crbug.com/569161611),
+-    // ImgTec PowerVR (crbug.com/529867799), Intel (crbug.com/481934465), and
+-    // Qualcomm Adreno (crbug.com/380487895) where buffer<->texture copies with a
+-    // large row pitch overflow or wrap around.
+-    if (gpu_info::IsARM(mVendorId) || gpu_info::IsImgTec(mVendorId) ||
+-        gpu_info::IsIntel(mVendorId) || gpu_info::IsQualcommPCI(mVendorId)) {
+-        deviceToggles->Default(Toggle::SplitBufferTextureCopyForOversizedRow, true);
+-    }
+-
+     // (crbug.com/569195060): Driver crash evaluating structure constructors containing arrays.
+     deviceToggles->Default(Toggle::GLHoistConstantArrayInitializers,
+                            mVendorId == gpu_info::kVendorID_ImgTec);
+diff --git a/third_party/dawn/src/dawn/native/vulkan/PhysicalDeviceVk.cpp b/third_party/dawn/src/dawn/native/vulkan/PhysicalDeviceVk.cpp
+index d2fb028..6060568 100644
+--- a/third_party/dawn/src/dawn/native/vulkan/PhysicalDeviceVk.cpp
++++ b/third_party/dawn/src/dawn/native/vulkan/PhysicalDeviceVk.cpp
+@@ -1161,14 +1161,6 @@
+         deviceToggles->Default(Toggle::VulkanForceAlphaWriteForAlphaToCoverage, true);
+     }
+ 
+-    if (gpu_info::IsIntel(GetVendorId()) || gpu_info::IsImgTec(GetVendorId()) ||
+-        gpu_info::IsQualcommPCI(GetVendorId()) || gpu_info::IsQualcommACPI(GetVendorId())) {
+-        // Workaround Intel (crbug.com/481934465), ImgTec (crbug.com/529867799), and Qualcomm
+-        // (crbug.com/380487895) GPU hardware/driver limitations that corrupt buffer<->texture
+-        // copies with a large row pitch.
+-        deviceToggles->Default(Toggle::SplitBufferTextureCopyForOversizedRow, true);
+-    }
+-
+     // Collapse redundant subgroup min and max operations to workaround a driver crash on some AMD
+     // GPUs.  Should only affect AMD Windows Driver versions < 31.0.22000.0, but because this is a
+     // harmless "optimizing" workaround go ahead enable for all versions. See:
