@@ -1,0 +1,425 @@
+Chromium 158.0.8127.65 + the later changes of its release branch, up to
+964187406f8552dd9c55ccf45b0785ea83523345 (refs/branch-heads/8127@{#1855}), for the
+158.0.8127.65 tree that chromium-158.0.8127.37-to-158.0.8127.65.patch makes.
+
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.65..964187406f8552dd9c55ccf45b0785ea83523345,
+and from its roll of v8/v8 e613b92ff31da46781a39135cca49bdf4403f28a..5b636f1e136bb74d71a80db874593b3ab1e8b9ae (under v8/),
+as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
+.65 tree's files, renames included): left out are files not in the release
+tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs (GN files
+kept), translations other than en-GB, PGO/orderfile/AFDO pointers, submodule
+pointer updates. chrome/VERSION, the DEPS files and the stamp files stay at
+158.0.8127.65.
+
+Commits contributing to it (oldest first):
+  43dcb1859d89 [M158] Prerender: Delete pending deletion subframe RFHs before activation
+  964187406f85 Roll commits from side projects in M158
+    v8 590090588152 [M158] [compiler] Fix mixed-width FP move cycle resolution
+    v8 5b636f1e136b Version 15.8.62.44
+
+diff --git a/content/browser/preloading/prerender/prerender_host.cc b/content/browser/preloading/prerender/prerender_host.cc
+index ffa117d..88095cc9 100644
+--- a/content/browser/preloading/prerender/prerender_host.cc
++++ b/content/browser/preloading/prerender/prerender_host.cc
+@@ -863,6 +863,27 @@
+   std::vector<FrameTreeNode*> subframe_nodes(std::next(node_range.begin()),
+                                              node_range.end());
+ 
++  // Delete the RenderFrameHosts in the subframes' pending deletion lists (i.e.,
++  // the ones swapped out on navigation and still waiting for unload
++  // completion), as if their unload timeout expired. They are owned by the
++  // RenderFrameHostManagers of `subframe_nodes`, so they would be moved to
++  // `target_frame_tree` along with the subframes. However,
++  // FrameTreeNode::SetFrameTree() below doesn't update their FrameTree (nor
++  // the ones of their descendants), which would dangle once the prerendering
++  // FrameTree is destroyed, while they can still receive messages from the
++  // renderer (see https://crbug.com/583734992). The RenderFrameHosts in the
++  // root's pending deletion list are not moved, and are deleted when the
++  // prerendering FrameTree is shut down.
++  //
++  // This needs to happen before TakePrerenderedPage() below, as deleting a
++  // RenderFrameHost notifies observers.
++  //
++  // TODO(crbug.com/40177949): Consider moving these RenderFrameHosts to
++  // `target_frame_tree` instead, so that their unload handlers can complete.
++  for (FrameTreeNode* subframe_node : subframe_nodes) {
++    subframe_node->render_manager()->ClearRFHsPendingShutdown();
++  }
++
+   // Before the root's current_frame_host is cleared, collect the replication
+   // state so that it can be used for post-activation validation.
+   blink::mojom::FrameReplicationState prior_replication_state =
+@@ -932,14 +953,9 @@
+   // associated frame tree. Note that subframe proxies don't need their
+   // FrameTrees independently updated, since their FrameTreeNodes don't
+   // change, and FrameTree references in those FrameTreeNodes will be updated
+-  // through RenderFrameHosts.
+-  //
+-  // TODO(crbug.com/40177949): Need to investigate if and how
+-  // pending delete RenderFrameHost objects should be handled if prerendering
+-  // runs all of the unload handlers; they are not currently handled here.
+-  // This is because pending delete RenderFrameHosts can still receive and
+-  // process some messages while the RenderFrameHost FrameTree and
+-  // FrameTreeNode are stale.
++  // through RenderFrameHosts. The RenderFrameHosts in the subframes' pending
++  // deletion lists don't need to be updated either, as they were deleted
++  // above.
+   for (FrameTreeNode* subframe_node : subframe_nodes) {
+     subframe_node->SetFrameTree(target_frame_tree);
+   }
+diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
+index 2e40c4a..83a261b 100644
+--- a/v8/include/v8-version.h
++++ b/v8/include/v8-version.h
+@@ -11,7 +11,7 @@
+ #define V8_MAJOR_VERSION 15
+ #define V8_MINOR_VERSION 8
+ #define V8_BUILD_NUMBER 62
+-#define V8_PATCH_LEVEL 43
++#define V8_PATCH_LEVEL 44
+ 
+ // Use 1 for candidates and 0 otherwise.
+ // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/compiler/backend/arm/code-generator-arm.cc b/v8/src/compiler/backend/arm/code-generator-arm.cc
+index d871369..63d8910 100644
+--- a/v8/src/compiler/backend/arm/code-generator-arm.cc
++++ b/v8/src/compiler/backend/arm/code-generator-arm.cc
+@@ -4406,6 +4406,7 @@
+     __ add(sp, sp, Operand(dropped_slots * kSystemPointerSize));
+   }
+   temp_slots_ -= dropped_slots;
++  DCHECK_GE(temp_slots_, 0);
+ }
+ 
+ void CodeGenerator::PopTempStackSlots() {
+diff --git a/v8/src/compiler/backend/arm64/code-generator-arm64.cc b/v8/src/compiler/backend/arm64/code-generator-arm64.cc
+index bd60100..0d60664 100644
+--- a/v8/src/compiler/backend/arm64/code-generator-arm64.cc
++++ b/v8/src/compiler/backend/arm64/code-generator-arm64.cc
+@@ -4635,6 +4635,7 @@
+     __ Add(sp, sp, Operand(dropped_slots * kSystemPointerSize));
+   }
+   temp_slots_ -= dropped_slots;
++  DCHECK_GE(temp_slots_, 0);
+ }
+ 
+ void CodeGenerator::PopTempStackSlots() {
+@@ -4741,7 +4742,8 @@
+     MemOperand src = g.ToMemOperand(&move->source(), masm());
+     MemOperand dst = g.ToMemOperand(&move->destination(), masm());
+     UseScratchRegisterScope temps(masm());
+-    if (move->source().IsSimd128StackSlot()) {
++    if (move->source().IsSimd128StackSlot() &&
++        move->destination().IsSimd128StackSlot()) {
+       VRegister temp = temps.AcquireQ();
+       move_cycle_.scratch_fp_regs.set(temp);
+     } else {
+@@ -4819,11 +4821,13 @@
+         __ Str(g.ToRegister(source), dst);
+       } else {
+         VRegister src = g.ToDoubleRegister(source);
+-        if (source->IsFloatRegister() || source->IsDoubleRegister()) {
+-          __ Str(src, dst);
+-        } else {
+-          DCHECK(source->IsSimd128Register());
++        if (source->IsSimd128Register() && destination->IsSimd128StackSlot()) {
+           __ Str(src.Q(), dst);
++        } else {
++          DCHECK(source->IsFloatRegister() || source->IsDoubleRegister() ||
++                 destination->IsFloatStackSlot() ||
++                 destination->IsDoubleStackSlot());
++          __ Str(src, dst);
+         }
+       }
+       return;
+@@ -4834,11 +4838,11 @@
+         __ Ldr(g.ToRegister(destination), src);
+       } else {
+         VRegister dst = g.ToDoubleRegister(destination);
+-        if (destination->IsFloatRegister() || destination->IsDoubleRegister()) {
+-          __ Ldr(dst, src);
+-        } else {
+-          DCHECK(destination->IsSimd128Register());
++        if (source->IsSimd128StackSlot()) {
+           __ Ldr(dst.Q(), src);
++        } else {
++          DCHECK(source->IsFloatStackSlot() || source->IsDoubleStackSlot());
++          __ Ldr(dst, src);
+         }
+       }
+       return;
+@@ -4846,7 +4850,7 @@
+     case MoveType::kStackToStack: {
+       MemOperand src = g.ToMemOperand(source, masm());
+       MemOperand dst = g.ToMemOperand(destination, masm());
+-      if (source->IsSimd128StackSlot()) {
++      if (source->IsSimd128StackSlot() && destination->IsSimd128StackSlot()) {
+         UseScratchRegisterScope scope(masm());
+         VRegister temp = scope.AcquireQ();
+         __ Ldr(temp, src);
+diff --git a/v8/src/compiler/backend/gap-resolver.cc b/v8/src/compiler/backend/gap-resolver.cc
+index e5d479e..dd7ab75 100644
+--- a/v8/src/compiler/backend/gap-resolver.cc
++++ b/v8/src/compiler/backend/gap-resolver.cc
+@@ -61,6 +61,7 @@
+     if (!move->IsEliminated()) PerformMove(moves, move);
+   }
+   assembler_->PopTempStackSlots();
++  DCHECK_EQ(assembler_->temp_slots_, 0);
+ }
+ 
+ // Check if a 2-move cycle is a swap. This is not always the case, for instance:
+@@ -70,12 +71,16 @@
+ //
+ // The two stack operands conflict but start at a different stack offset, so a
+ // swap would be incorrect.
+-// In general, swapping is allowed if the conflicting operands:
+-// - Have the same representation, and
+-// - Are the same register, or are stack slots with the same index
++// In general, swapping is allowed if:
++// - The conflicting operands have the same representation and are the same
++//   register, or are stack slots with the same index, and
++// - The two swapped locations have the same representation (otherwise swapping
++//   a wider register with a narrower stack slot would access past the slot).
+ bool IsSwap(MoveOperands* move1, MoveOperands* move2) {
+   return move1->source() == move2->destination() &&
+-         move2->source() == move1->destination();
++         move2->source() == move1->destination() &&
++         LocationOperand::cast(move1->source()).representation() ==
++             LocationOperand::cast(move1->destination()).representation();
+ }
+ 
+ void GapResolver::PerformCycle(const std::vector<MoveOperands*>& cycle) {
+@@ -109,8 +114,18 @@
+   // register used during the move cycle, the platform implements
+   // {SetPendingMove}, which marks the registers needed for the given moves.
+   // {MoveToTempLocation} will then choose the location accordingly.
+-  MachineRepresentation rep =
++  MachineRepresentation src_rep =
++      LocationOperand::cast(move1->source()).representation();
++  MachineRepresentation dst_rep =
+       LocationOperand::cast(move1->destination()).representation();
++  // Floating-point moves may have mixed representations (e.g. from same-as-
++  // input SIMD splat/extract instructions or identity moves). Size the
++  // temporary by the source representation so that Push and Pop agree on the
++  // number of stack slots and wider sources preserve upper lanes in registers.
++  // General-purpose moves keep the destination representation because 32-bit
++  // sources may hold 64-bit values due to virtual register renaming.
++  MachineRepresentation rep = IsFloatingPoint(src_rep) ? src_rep : dst_rep;
++  DCHECK_EQ(ElementSizeInPointers(src_rep), ElementSizeInPointers(rep));
+   for (size_t i = 0; i < cycle.size() - 1; ++i) {
+     assembler_->SetPendingMove(cycle[i]);
+   }
+diff --git a/v8/src/compiler/backend/ia32/code-generator-ia32.cc b/v8/src/compiler/backend/ia32/code-generator-ia32.cc
+index 1ded761..094a754 100644
+--- a/v8/src/compiler/backend/ia32/code-generator-ia32.cc
++++ b/v8/src/compiler/backend/ia32/code-generator-ia32.cc
+@@ -4454,7 +4454,8 @@
+   if (dest->IsRegister()) {
+     frame_access_state()->IncreaseSPDelta(-dropped_slots);
+     __ pop(g.ToRegister(dest));
+-  } else if (dest->IsStackSlot() || dest->IsFloatStackSlot()) {
++  } else if ((dest->IsStackSlot() || dest->IsFloatStackSlot()) &&
++             dropped_slots == 1) {
+     frame_access_state()->IncreaseSPDelta(-dropped_slots);
+     __ pop(g.ToOperand(dest));
+   } else {
+@@ -4465,6 +4466,7 @@
+     __ add(esp, Immediate(dropped_slots * kSystemPointerSize));
+   }
+   temp_slots_ -= dropped_slots;
++  DCHECK_GE(temp_slots_, 0);
+ }
+ 
+ void CodeGenerator::PopTempStackSlots() {
+@@ -4536,8 +4538,13 @@
+       } else {
+         DCHECK(source->IsFPRegister());
+         XMMRegister src = g.ToDoubleRegister(source);
+-        MachineRepresentation rep =
++        MachineRepresentation src_rep =
+             LocationOperand::cast(source)->representation();
++        MachineRepresentation dst_rep =
++            LocationOperand::cast(destination)->representation();
++        MachineRepresentation rep =
++            ElementSizeInBytes(dst_rep) < ElementSizeInBytes(src_rep) ? dst_rep
++                                                                      : src_rep;
+         if (rep == MachineRepresentation::kFloat32) {
+           __ Movss(dst, src);
+         } else if (rep == MachineRepresentation::kFloat64) {
+@@ -4576,8 +4583,13 @@
+         __ push(src);
+         __ pop(dst);
+       } else {
+-        MachineRepresentation rep =
++        MachineRepresentation src_rep =
+             LocationOperand::cast(source)->representation();
++        MachineRepresentation dst_rep =
++            LocationOperand::cast(destination)->representation();
++        MachineRepresentation rep =
++            ElementSizeInBytes(dst_rep) < ElementSizeInBytes(src_rep) ? dst_rep
++                                                                      : src_rep;
+         if (rep == MachineRepresentation::kFloat32) {
+           __ Movss(kScratchDoubleReg, src);
+           __ Movss(dst, kScratchDoubleReg);
+diff --git a/v8/src/compiler/backend/loong64/code-generator-loong64.cc b/v8/src/compiler/backend/loong64/code-generator-loong64.cc
+index 65c5d57..29f2689 100644
+--- a/v8/src/compiler/backend/loong64/code-generator-loong64.cc
++++ b/v8/src/compiler/backend/loong64/code-generator-loong64.cc
+@@ -5377,6 +5377,7 @@
+     __ Add_d(sp, sp, Operand(dropped_slots * kSystemPointerSize));
+   }
+   temp_slots_ -= dropped_slots;
++  DCHECK_GE(temp_slots_, 0);
+ }
+ 
+ void CodeGenerator::PopTempStackSlots() {
+diff --git a/v8/src/compiler/backend/mips64/code-generator-mips64.cc b/v8/src/compiler/backend/mips64/code-generator-mips64.cc
+index a0bc31e..98ede01 100644
+--- a/v8/src/compiler/backend/mips64/code-generator-mips64.cc
++++ b/v8/src/compiler/backend/mips64/code-generator-mips64.cc
+@@ -4558,6 +4558,7 @@
+     __ Daddu(sp, sp, Operand(dropped_slots * kSystemPointerSize));
+   }
+   temp_slots_ -= dropped_slots;
++  DCHECK_GE(temp_slots_, 0);
+ }
+ 
+ void CodeGenerator::PopTempStackSlots() {
+diff --git a/v8/src/compiler/backend/ppc/code-generator-ppc.cc b/v8/src/compiler/backend/ppc/code-generator-ppc.cc
+index bde8d65..c5fbd54 100644
+--- a/v8/src/compiler/backend/ppc/code-generator-ppc.cc
++++ b/v8/src/compiler/backend/ppc/code-generator-ppc.cc
+@@ -3493,7 +3493,8 @@
+ void CodeGenerator::Pop(InstructionOperand* dest, MachineRepresentation rep) {
+   int dropped_slots = ElementSizeInPointers(rep);
+   PPCOperandConverter g(this, nullptr);
+-  if (dest->IsFloatStackSlot() || dest->IsDoubleStackSlot()) {
++  if ((dest->IsFloatStackSlot() || dest->IsDoubleStackSlot()) &&
++      dropped_slots == 1) {
+     frame_access_state()->IncreaseSPDelta(-dropped_slots);
+     UseScratchRegisterScope temps(masm());
+     Register scratch = temps.Acquire();
+@@ -3507,6 +3508,7 @@
+     __ addi(sp, sp, Operand(dropped_slots * kSystemPointerSize));
+   }
+   temp_slots_ -= dropped_slots;
++  DCHECK_GE(temp_slots_, 0);
+ }
+ 
+ void CodeGenerator::PopTempStackSlots() {
+diff --git a/v8/src/compiler/backend/riscv/code-generator-riscv.cc b/v8/src/compiler/backend/riscv/code-generator-riscv.cc
+index fe67f1d..fb1cb84 100644
+--- a/v8/src/compiler/backend/riscv/code-generator-riscv.cc
++++ b/v8/src/compiler/backend/riscv/code-generator-riscv.cc
+@@ -6185,6 +6185,7 @@
+     __ AddWord(sp, sp, Operand(dropped_slots * kSystemPointerSize));
+   }
+   temp_slots_ -= dropped_slots;
++  DCHECK_GE(temp_slots_, 0);
+ }
+ 
+ void CodeGenerator::PopTempStackSlots() {
+diff --git a/v8/src/compiler/backend/s390/code-generator-s390.cc b/v8/src/compiler/backend/s390/code-generator-s390.cc
+index 9334495..4758c91 100644
+--- a/v8/src/compiler/backend/s390/code-generator-s390.cc
++++ b/v8/src/compiler/backend/s390/code-generator-s390.cc
+@@ -3811,7 +3811,8 @@
+ void CodeGenerator::Pop(InstructionOperand* dest, MachineRepresentation rep) {
+   int dropped_slots = ElementSizeInPointers(rep);
+   S390OperandConverter g(this, nullptr);
+-  if (dest->IsFloatStackSlot() || dest->IsDoubleStackSlot()) {
++  if ((dest->IsFloatStackSlot() || dest->IsDoubleStackSlot()) &&
++      dropped_slots == 1) {
+     frame_access_state()->IncreaseSPDelta(-dropped_slots);
+     __ Pop(r1);
+     __ StoreU64(r1, g.ToMemOperand(dest));
+@@ -3823,6 +3824,7 @@
+     __ lay(sp, MemOperand(sp, dropped_slots * kSystemPointerSize));
+   }
+   temp_slots_ -= dropped_slots;
++  DCHECK_GE(temp_slots_, 0);
+ }
+ 
+ void CodeGenerator::PopTempStackSlots() {
+diff --git a/v8/src/compiler/backend/x64/code-generator-x64.cc b/v8/src/compiler/backend/x64/code-generator-x64.cc
+index baae3cd..d81a7bb 100644
+--- a/v8/src/compiler/backend/x64/code-generator-x64.cc
++++ b/v8/src/compiler/backend/x64/code-generator-x64.cc
+@@ -8771,8 +8771,9 @@
+   if (dest->IsRegister()) {
+     frame_access_state()->IncreaseSPDelta(-dropped_slots);
+     __ popq(g.ToRegister(dest));
+-  } else if (dest->IsStackSlot() || dest->IsFloatStackSlot() ||
+-             dest->IsDoubleStackSlot()) {
++  } else if ((dest->IsStackSlot() || dest->IsFloatStackSlot() ||
++              dest->IsDoubleStackSlot()) &&
++             dropped_slots == 1) {
+     frame_access_state()->IncreaseSPDelta(-dropped_slots);
+     __ popq(g.ToOperand(dest));
+   } else {
+@@ -8783,6 +8784,7 @@
+     __ addq(rsp, Immediate(dropped_slots * kSystemPointerSize));
+   }
+   temp_slots_ -= dropped_slots;
++  DCHECK_GE(temp_slots_, 0);
+ }
+ 
+ void CodeGenerator::PopTempStackSlots() {
+@@ -8986,19 +8988,18 @@
+       } else {
+         DCHECK(source->IsFPRegister());
+         XMMRegister src = g.ToDoubleRegister(source);
+-        MachineRepresentation rep =
++        MachineRepresentation src_rep =
+             LocationOperand::cast(source)->representation();
++        MachineRepresentation dst_rep =
++            LocationOperand::cast(destination)->representation();
++        MachineRepresentation rep =
++            ElementSizeInBytes(dst_rep) < ElementSizeInBytes(src_rep) ? dst_rep
++                                                                      : src_rep;
+         if (rep == MachineRepresentation::kSimd128) {
+           __ Movups(dst, src);
+         } else if (rep == MachineRepresentation::kSimd256) {
+           CpuFeatureScope avx_scope(masm(), AVX);
+-          // Whether the ymm source should be used as a xmm.
+-          if (source->IsSimd256Register() &&
+-              destination->IsSimd128StackSlot()) {
+-            __ vmovups(dst, g.ToSimd128Register(source));
+-          } else {
+-            __ vmovups(dst, g.ToSimd256Register(source));
+-          }
++          __ vmovups(dst, g.ToSimd256Register(source));
+         } else {
+           __ Movsd(dst, src);
+         }
+@@ -9049,21 +9050,20 @@
+         // 32-bit on the stack.
+         __ movq(dst, kScratchRegister);
+       } else {
+-        MachineRepresentation rep =
++        MachineRepresentation src_rep =
+             LocationOperand::cast(source)->representation();
++        MachineRepresentation dst_rep =
++            LocationOperand::cast(destination)->representation();
++        MachineRepresentation rep =
++            ElementSizeInBytes(dst_rep) < ElementSizeInBytes(src_rep) ? dst_rep
++                                                                      : src_rep;
+         if (rep == MachineRepresentation::kSimd128) {
+           __ Movups(kScratchDoubleReg, src);
+           __ Movups(dst, kScratchDoubleReg);
+         } else if (rep == MachineRepresentation::kSimd256) {
+           CpuFeatureScope avx_scope(masm(), AVX);
+-          if (source->IsSimd256StackSlot() &&
+-              destination->IsSimd128StackSlot()) {
+-            __ vmovups(kScratchDoubleReg, src);
+-            __ vmovups(dst, kScratchDoubleReg);
+-          } else {
+-            __ vmovups(kScratchSimd256Reg, src);
+-            __ vmovups(dst, kScratchSimd256Reg);
+-          }
++          __ vmovups(kScratchSimd256Reg, src);
++          __ vmovups(dst, kScratchSimd256Reg);
+         } else {
+           __ Movsd(kScratchDoubleReg, src);
+           __ Movsd(dst, kScratchDoubleReg);
