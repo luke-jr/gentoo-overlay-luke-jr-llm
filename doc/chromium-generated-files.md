@@ -48,8 +48,9 @@ deliberately:
   `util/pregenerate` (`gen/`: the assembly from its perlasm scripts with the system Perl, the
   error-string table, the source lists; `chromium-156-boringssl-pregenerate-offline.patch`),
   `make_tables.go` and `objects.go` (EC and OID tables), and `make_curve25519_tables.py`, which
-  `chromium-156-boringssl-curve25519-tables.patch` brings in line with the hand edits made to its
-  output when BoringSSL moved into the `bssl` namespace. All byte-identical (`gen/sources.*` lacks
+  `chromium-156-boringssl-curve25519-tables.patch` brought in line (up to 157; 158's BoringSSL updated
+  the script itself) with the hand edits made to its output when BoringSSL moved into the `bssl`
+  namespace. All byte-identical (`gen/sources.*` lacks
   the test files the tarball leaves out). `crypto/hrss/asm/poly_rq_mul.S` is kept as source: it is
   the output of the HRSS authors' `poly_rq_mul.py` (in the NTRU repository), but BoringSSL has
   edited it by hand since 2018 (its own scratch-space handling, CET, bug fixes). For the Fiat files
