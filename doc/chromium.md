@@ -22,9 +22,11 @@ masked) keeps the previous set and its packages.
 
 1. LLVM 22: `llvm-core/{llvm,clang,lld}:22` and `llvm-runtimes/compiler-rt-sanitizers:22[cfi]` (for
    `USE=official`). Set `www-client/chromium LLVM_SLOT: -* 22`.
-2. `dev-lang/rust:1.98.1` with `USE="dist rustfmt"` (rustfmt is on by default). `dist`
-   builds the `rustc-dev` component, which Crubit builds against. It must match *this* Rust
-   build: it uses its exact `librustc_driver-<hash>.so`. Rebuilding Rust means rebuilding
+2. `dev-lang/rust:1.98.1` with `USE="rustc-dev rustfmt"` (rustfmt is on by default).
+   `rustc-dev` (`::gentoo` since 2026-11-08) installs the `rustc-dev` component, which Crubit
+   builds against; `USE=dist` works too (older `::gentoo`: the component is then only in the
+   dist tarball, which Crubit's ebuild unpacks). It must match *this* Rust build: it uses its
+   exact `librustc_driver-<hash>.so`. Rebuilding Rust means rebuilding
    the installed `dev-util/crubit` versions (the Chromium ebuild checks this). If you installed
    `dev-lang/rustc-dev`, unmerge it: Crubit no longer uses it.
 3. Google's Linux Stable needs only `amd64`. For Early Stable and the bleeding-edge `_p<N>_pre`
