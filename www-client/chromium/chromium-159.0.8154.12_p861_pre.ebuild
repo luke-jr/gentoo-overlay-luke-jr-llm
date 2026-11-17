@@ -171,6 +171,9 @@ ICU4X_DATAGEN_UNICODE_VER="18.0.0"
 ICU4X_DATAGEN_TZDB_VER="2026e"
 ICU4X_DATAGEN_LSTM_VER="v0.1.0"
 
+# New ebuilds have no USE=system-icu (see the eclass).
+CHROMIUM_SYSTEM_ICU_FLAG=0
+
 inherit chromium-llm
 
 DESCRIPTION="Open-source version of Google Chrome web browser"
@@ -189,7 +192,7 @@ SLOT="beta/fixes"
 # Linux Beta: no keywords (accept it with "**"); ~amd64 once it is Early Stable.
 KEYWORDS=""
 
-# The 159 branch's changes after the 159.0.8154.12 tag (see its header).
+# The 159 branch's changes after the 159.0.8154.12 tag, up to #861 (see its header).
 CHROMIUM_FIXES=(
 	chromium-159.0.8154.12-branch-fixes.patch
 )
