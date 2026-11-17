@@ -1,10 +1,10 @@
 Chromium 159.0.8154.12 + the later changes of its release branch, up to
-c48d603985d2fbba52e6ea81f3f654af6742451f (refs/branch-heads/8154@{#782}), for the
+b982b3c894d8803b4c9fa1a531903b5a05bed020 (refs/branch-heads/8154@{#788}), for the
 159.0.8154.12 tree that chromium-159.0.8154.6-to-159.0.8154.12.patch makes.
 
 Generated from the upstream diff chromium/src
-refs/tags/159.0.8154.12..c48d603985d2fbba52e6ea81f3f654af6742451f, and from its rolls
-of dawn f215b928bfa683410e905c998a738cd5f8f9ad97..4a3c7ddf6ebc7465a768164d0786ad54433f82b5
+refs/tags/159.0.8154.12..b982b3c894d8803b4c9fa1a531903b5a05bed020, and from its rolls
+of dawn f215b928bfa683410e905c998a738cd5f8f9ad97..69bfa246b5d7369f73c807d37648e25370f4db40
 (under third_party/dawn/), devtools-frontend
 bc93449ab1871f94e60dca359a46b85fc0735659..b02b389d1cfc7521b30a88f109f25b48894bcb08
 (under third_party/devtools-frontend/src/) and search_engines_data
@@ -85,6 +85,11 @@ Commits contributing to it (oldest first):
     dawn 4a3c7ddf6ebc Pass --keep_going to the LiteRT-LM Bazel build
   58abde62959f Updating XTBs based on .GRDs from branch 8154
   c48d603985d2 [M159] Retarget coalesced and predicted PointerEvents across shadow boundaries
+  14c708834e88 [M159] [SwipeToSwitch] Default the pane swipe to the emphasized curve
+  5aaf00078d9e Roll commits from side projects in M159
+    dawn 69bfa246b5d7 [M159] [dawn][gl] Dirty bind groups on pipeline change.
+  25998e3a9b54 [M159] [viz] Check drawn_rect and output_rect before skipping DrawRenderPass
+  b982b3c894d8 [M159] Check WebMediaPlayerMS validity during frame copy operations
 
 diff --git a/chrome/app/glic_strings.grdp b/chrome/app/glic_strings.grdp
 index 842e886..24e4840 100644
@@ -113,6 +118,33 @@ index 48523d3..7a36f603e 100644
  <translation id="1753905327828125965">Most Visited</translation>
  <translation id="1755601632425835748">Text size</translation>
  <translation id="1756963401828337401">Choose a screen to capture</translation>
+diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
+index 00f1134..ac9ff09a 100644
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -823,22 +823,10 @@
+      kWebAppShortEdgesCutoutModeStandaloneAndTwa, nullptr}};
+ 
+ const FeatureEntry::FeatureParam
+-    kEnableSwipeToSwitchPaneEmphasizedMaxDuration250ms[] = {
+-        {"use_emphasized_interpolator", "true"},
+-        {"max_duration_ms", "250"}};
+-const FeatureEntry::FeatureParam
+-    kEnableSwipeToSwitchPaneEmphasizedMaxDuration200ms[] = {
+-        {"use_emphasized_interpolator", "true"},
+-        {"max_duration_ms", "200"}};
+-const FeatureEntry::FeatureParam
+     kEnableSwipeToSwitchPaneWithSearchBoxAnimation[] = {
+         {"animate_search_box", "true"}};
+ 
+ const FeatureEntry::FeatureVariation kEnableSwipeToSwitchPaneVariations[] = {
+-    {"Emphasized curve (max duration 250ms)",
+-     kEnableSwipeToSwitchPaneEmphasizedMaxDuration250ms, nullptr},
+-    {"Emphasized curve (max duration 200ms)",
+-     kEnableSwipeToSwitchPaneEmphasizedMaxDuration200ms, nullptr},
+     {"with search box animation",
+      kEnableSwipeToSwitchPaneWithSearchBoxAnimation, nullptr}};
+ 
 diff --git a/chrome/browser/actor/BUILD.gn b/chrome/browser/actor/BUILD.gn
 index 0b68b03..72bc812 100644
 --- a/chrome/browser/actor/BUILD.gn
@@ -1049,6 +1081,26 @@ index 0c5af3b4..af823f848 100644
    auto it = devices_.find(guid);
    return it == devices_.end() ? nullptr : it->second.get();
  }
+diff --git a/chrome/browser/hub/internal/BUILD.gn b/chrome/browser/hub/internal/BUILD.gn
+index 1cdfaef8..931fd0b 100644
+--- a/chrome/browser/hub/internal/BUILD.gn
++++ b/chrome/browser/hub/internal/BUILD.gn
+@@ -70,7 +70,6 @@
+     "android/java/src/org/chromium/chrome/browser/hub/TabListHubLayoutAnimatorProvider.java",
+     "android/java/src/org/chromium/chrome/browser/hub/TranslateHubLayoutAnimationFactory.java",
+     "android/java/src/org/chromium/chrome/browser/hub/TranslateHubLayoutAnimationFactoryImpl.java",
+-    "android/java/src/org/chromium/chrome/browser/hub/swipe/HubPaneSwipeAnimationConfig.java",
+     "android/java/src/org/chromium/chrome/browser/hub/swipe/HubPaneSwipeAnimator.java",
+     "android/java/src/org/chromium/chrome/browser/hub/swipe/HubPaneSwipeCoordinator.java",
+     "android/java/src/org/chromium/chrome/browser/hub/swipe/HubPaneSwipeGestureHandler.java",
+@@ -209,7 +208,6 @@
+     "android/java/src/org/chromium/chrome/browser/hub/PaneTransitionHelperUnitTest.java",
+     "android/java/src/org/chromium/chrome/browser/hub/ShrinkExpandHubLayoutAnimatorProviderUnitTest.java",
+     "android/java/src/org/chromium/chrome/browser/hub/TranslateHubLayoutAnimationFactoryImplUnitTest.java",
+-    "android/java/src/org/chromium/chrome/browser/hub/swipe/HubPaneSwipeAnimationConfigUnitTest.java",
+     "android/java/src/org/chromium/chrome/browser/hub/swipe/HubPaneSwipeAnimatorUnitTest.java",
+     "android/java/src/org/chromium/chrome/browser/hub/swipe/HubPaneSwipeCoordinatorUnitTest.java",
+     "android/java/src/org/chromium/chrome/browser/hub/swipe/HubPaneSwipeGestureHandlerUnitTest.java",
 diff --git a/chrome/browser/page_load_metrics/observers/from_gws_page_load_metrics_observer.cc b/chrome/browser/page_load_metrics/observers/from_gws_page_load_metrics_observer.cc
 index 3ee1d7ba..632ec75 100644
 --- a/chrome/browser/page_load_metrics/observers/from_gws_page_load_metrics_observer.cc
@@ -4815,6 +4867,24 @@ index 50909da2..5fb2602 100644
  BASE_DECLARE_FEATURE(kNtpActionChipsSuggestTimeout);
  BASE_DECLARE_FEATURE(kNtpSharepointModule);
  enum class NtpSharepointModuleDataType {
+diff --git a/components/viz/service/display/direct_renderer.cc b/components/viz/service/display/direct_renderer.cc
+index 2efa5b7..bd8c6ba 100644
+--- a/components/viz/service/display/direct_renderer.cc
++++ b/components/viz/service/display/direct_renderer.cc
+@@ -872,7 +872,12 @@
+         !render_pass->copy_requests.empty()) {
+       return false;
+     }
+-    return IsRenderPassResourceAllocated(render_pass->id);
++    // Reuse the backing only if the drawn rect matches the `output_rect`.
++    // This is similar to handling within ComputeScissorRectForRenderPass, and
++    // avoids awkward situations where `output_rect` is larger than
++    // drawn rect.
++    return GetRenderPassBackingDrawnRect(render_pass->id) ==
++           render_pass->output_rect;
+   }
+ 
+   return false;
 diff --git a/content/browser/loader/browser_initiated_resource_request.cc b/content/browser/loader/browser_initiated_resource_request.cc
 index 5615000e..78ef11c1 100644
 --- a/content/browser/loader/browser_initiated_resource_request.cc
@@ -6685,6 +6755,59 @@ index 0000000..d57edf2
 +}  // namespace blink
 +
 +#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_EVENTS_POINTER_EVENT_CONTEXT_H_
+diff --git a/third_party/blink/renderer/modules/mediastream/web_media_player_ms_compositor.cc b/third_party/blink/renderer/modules/mediastream/web_media_player_ms_compositor.cc
+index 61d48adf..7582bfd 100644
+--- a/third_party/blink/renderer/modules/mediastream/web_media_player_ms_compositor.cc
++++ b/third_party/blink/renderer/modules/mediastream/web_media_player_ms_compositor.cc
+@@ -89,7 +89,7 @@
+ // This function copies |frame| to a new I420 or YV12A media::VideoFrame.
+ scoped_refptr<media::VideoFrame> CopyFrame(
+     scoped_refptr<media::VideoFrame> frame,
+-    media::PaintCanvasVideoRenderer* video_renderer) {
++    base::WeakPtr<WebMediaPlayerMS> player) {
+   scoped_refptr<media::VideoFrame> new_frame;
+   if (frame->HasSharedImage()) {
+     DCHECK(frame->format() == media::PIXEL_FORMAT_ARGB ||
+@@ -99,6 +99,12 @@
+            frame->format() == media::PIXEL_FORMAT_I420 ||
+            frame->format() == media::PIXEL_FORMAT_NV12);
+     auto provider = Platform::Current()->SharedMainThreadContextProvider();
++    // Creating or accessing the shared main thread context provider can
++    // synchronously flush pending GPU channel callbacks, which may trigger
++    // garbage collection and shut down `player`.
++    if (!player) {
++      return nullptr;
++    }
+     if (!provider) {
+       // Return a black frame (yuv = {0, 0x80, 0x80}).
+       return media::VideoFrame::CreateColorFrame(
+@@ -111,7 +117,8 @@
+     cc::SkiaPaintCanvas paint_canvas(bitmap);
+ 
+     DCHECK(provider->RasterInterface());
+-    video_renderer->Copy(frame.get(), &paint_canvas, provider.get());
++    player->GetPaintCanvasVideoRenderer()->Copy(frame.get(), &paint_canvas,
++                                                provider.get());
+ 
+     bitmap.setImmutable();
+     new_frame =
+@@ -1337,7 +1344,15 @@
+   // there might be a finite number of available buffers. E.g, video that
+   // originates from a video camera, HW decoded frames.
+   scoped_refptr<media::VideoFrame> copied_frame =
+-      CopyFrame(current_frame_ref, player_->GetPaintCanvasVideoRenderer());
++      CopyFrame(current_frame_ref, player_);
++  if (!copied_frame) {
++    // Pending GPU channel callbacks flushed while `CopyFrame()` accesses the
++    // context provider may trigger garbage collection and run
++    // `WebMediaPlayerMS::Shutdown()`, which posts `this` for deletion on
++    // another thread. Do not access any members of `this` when `copied_frame`
++    // is null.
++    return;
++  }
+   // Copying frame can take time, so only set the copied frame if
+   // |current_frame_| hasn't been changed.
+   {
 diff --git a/third_party/blink/renderer/modules/service_worker/DEPS b/third_party/blink/renderer/modules/service_worker/DEPS
 index 136049f..25229a5b 100644
 --- a/third_party/blink/renderer/modules/service_worker/DEPS
@@ -8104,6 +8227,113 @@ index ccd7920..ac3195f4 100644
    if (window)
      CHECK_EQ(window, rules_->GetActivatableWindow(window),
               base::NotFatalUntil::M163);
+diff --git a/third_party/dawn/src/dawn/native/BindGroupTracker.h b/third_party/dawn/src/dawn/native/BindGroupTracker.h
+index d509266..4cb1b3a 100644
+--- a/third_party/dawn/src/dawn/native/BindGroupTracker.h
++++ b/third_party/dawn/src/dawn/native/BindGroupTracker.h
+@@ -79,7 +79,7 @@
+     void OnSetPipeline(PipelineBase* pipeline) { mPipeline = pipeline; }
+ 
+   protected:
+-    virtual bool AreLayoutsCompatible() {
++    virtual bool CanSkipDirtying() {
+         return mLastAppliedPipeline != nullptr &&
+                mLastAppliedPipeline->GetLayout() == mPipeline->GetLayout();
+     }
+@@ -91,7 +91,7 @@
+ 
+     // The Derived class should call this before it applies bind groups.
+     void BeforeApply() {
+-        if (AreLayoutsCompatible()) {
++        if (CanSkipDirtying()) {
+             return;
+         }
+ 
+diff --git a/third_party/dawn/src/dawn/native/d3d12/CommandBufferD3D12.cpp b/third_party/dawn/src/dawn/native/d3d12/CommandBufferD3D12.cpp
+index 8047a24..83ca15a 100644
+--- a/third_party/dawn/src/dawn/native/d3d12/CommandBufferD3D12.cpp
++++ b/third_party/dawn/src/dawn/native/d3d12/CommandBufferD3D12.cpp
+@@ -481,7 +481,7 @@
+     // when pipelines enable different internal immediates. A different root signature invalidates
+     // all bound descriptor tables and root constants, so the bindings cannot be inherited and must
+     // be re-applied. Comparing handles is sufficient: equal handles imply the same pipeline layout.
+-    bool AreLayoutsCompatible() override {
++    bool CanSkipDirtying() override {
+         return mLastAppliedPipeline != nullptr &&
+                LastAppliedPipeline()->GetPipelineLayoutHandle() ==
+                    CurrentPipeline()->GetPipelineLayoutHandle();
+@@ -677,7 +677,7 @@
+     }
+ 
+     void UpdateRootSignatureIfNecessary(ID3D12GraphicsCommandList* commandList) {
+-        if (!AreLayoutsCompatible()) {
++        if (!CanSkipDirtying()) {
+             SetRootSignature(commandList);
+             // Invalidate the root sampler tables previously set in the root signature.
+             ResetRootSamplerTables();
+diff --git a/third_party/dawn/src/dawn/native/opengl/CommandBufferGL.cpp b/third_party/dawn/src/dawn/native/opengl/CommandBufferGL.cpp
+index f46e3cb..6f954f5 100644
+--- a/third_party/dawn/src/dawn/native/opengl/CommandBufferGL.cpp
++++ b/third_party/dawn/src/dawn/native/opengl/CommandBufferGL.cpp
+@@ -327,15 +327,23 @@
+     void OnSetPipeline(RenderPipeline* pipeline) {
+         BindGroupTrackerBase::OnSetPipeline(pipeline);
+         mPipelineGL = pipeline;
+-        ResetInternalUniformDataBindgroupAndDirtyRange();
++        ResetInternalUniformDataDirtyRange();
+     }
+ 
+     void OnSetPipeline(ComputePipeline* pipeline) {
+         BindGroupTrackerBase::OnSetPipeline(pipeline);
+         mPipelineGL = pipeline;
+-        ResetInternalUniformDataBindgroupAndDirtyRange();
++        ResetInternalUniformDataDirtyRange();
+     }
+ 
++    // Multiple parts of the BindGroup state depend on the pipeline and not just the pipeline
++    // layout: texture units, builtin metadata, etc. The only case where it is safe to not dirty
++    // is when the pipeline is the same as the previous one.
++    // TODO(crbug.com/408065421): This forces more dirtying than strictly necessary for the
++    // parts that don't depend on the pipeline like buffer bindings. In the future we'll want to
++    // optimize to only dirty the texture units but not the rest.
++    bool CanSkipDirtying() override { return mLastAppliedPipeline == mPipeline; }
++
+     template <typename Immediates>
+     MaybeError Apply(const OpenGLFunctions& gl, Immediates& immediates) {
+         BeforeApply();
+@@ -619,19 +627,6 @@
+         return {};
+     }
+ 
+-    void ResetInternalUniformDataBindgroupAndDirtyRange() {
+-        // Mark bind groups that need emulated builtin uniforms dirty so that they can be updated
+-        // properly, even if the bind group is not updated.
+-        // TODO(crbug.com/408065421): This forces bindgroups with metadata to be completely set
+-        // again each pipeline change. In the future we will want to optimize that to only recompute
+-        // the metadata as needed, not force a rebind of all resources.
+-        const auto& builtinInfo = mPipelineGL->GetEmulatedTextureBuiltinInfo();
+-        for (const auto& entry : builtinInfo) {
+-            mDirtyBindGroupsObjectChangedOrIsDynamic.set(BindGroupIndex(entry.second.group));
+-        }
+-        ResetInternalUniformDataDirtyRange();
+-    }
+-
+     raw_ptr<PipelineGL> mPipelineGL = nullptr;
+ 
+     // The data used for mPipelineGL's internal uniform buffer from current bind group.
+diff --git a/third_party/dawn/src/dawn/native/vulkan/CommandBufferVk.cpp b/third_party/dawn/src/dawn/native/vulkan/CommandBufferVk.cpp
+index 3a17c5d..6c18785 100644
+--- a/third_party/dawn/src/dawn/native/vulkan/CommandBufferVk.cpp
++++ b/third_party/dawn/src/dawn/native/vulkan/CommandBufferVk.cpp
+@@ -237,7 +237,7 @@
+ 
+ class DescriptorSetTracker : public BindGroupTrackerBase<true> {
+   public:
+-    bool AreLayoutsCompatible() override {
++    bool CanSkipDirtying() override {
+         return mLastAppliedPipeline != nullptr &&
+                mLastAppliedPipeline->GetLayout() == mPipeline->GetLayout() &&
+                mLastAppliedImmediateSize == mImmediateSize;
 diff --git a/third_party/dawn/third_party/litert-lm/build_litert_lm.py b/third_party/dawn/third_party/litert-lm/build_litert_lm.py
 index 13ffe59..1d8f439 100644
 --- a/third_party/dawn/third_party/litert-lm/build_litert_lm.py
