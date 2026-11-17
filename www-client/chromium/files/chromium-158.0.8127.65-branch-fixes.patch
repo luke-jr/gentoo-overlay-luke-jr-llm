@@ -1,8 +1,8 @@
 Chromium 158.0.8127.65 + the later changes of its release branch, up to
-964187406f8552dd9c55ccf45b0785ea83523345 (refs/branch-heads/8127@{#1855}), for the
+392c258299ff20dd0b99e130a9f0ef9cbffdbf90 (refs/branch-heads/8127@{#1860}), for the
 158.0.8127.65 tree that chromium-158.0.8127.37-to-158.0.8127.65.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.65..964187406f8552dd9c55ccf45b0785ea83523345,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.65..392c258299ff20dd0b99e130a9f0ef9cbffdbf90,
 and from its roll of v8/v8 e613b92ff31da46781a39135cca49bdf4403f28a..5b636f1e136bb74d71a80db874593b3ab1e8b9ae (under v8/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .65 tree's files, renames included): left out are files not in the release
@@ -16,7 +16,55 @@ Commits contributing to it (oldest first):
   964187406f85 Roll commits from side projects in M158
     v8 590090588152 [M158] [compiler] Fix mixed-width FP move cycle resolution
     v8 5b636f1e136b Version 15.8.62.44
+  9e6013cca031 [M158] gpu: Use kVaapi stream for CompoundImageBacking::ProduceVideo
+  392c258299ff [M158] [Autofill] Validate selected_option_text and selected_text lengths
 
+diff --git a/components/autofill/core/browser/geo/country_names_for_locale.cc b/components/autofill/core/browser/geo/country_names_for_locale.cc
+index e25fea9b..9810fd5 100644
+--- a/components/autofill/core/browser/geo/country_names_for_locale.cc
++++ b/components/autofill/core/browser/geo/country_names_for_locale.cc
+@@ -20,6 +20,7 @@
+ #include "base/strings/string_util.h"
+ #include "base/strings/string_view_util.h"
+ #include "components/autofill/core/browser/geo/country_data.h"
++#include "components/autofill/core/common/autofill_constants.h"
+ #include "components/autofill/core/common/autofill_l10n_util.h"
+ #include "third_party/icu/source/common/unicode/locid.h"
+ #include "third_party/icu/source/common/unicode/utypes.h"
+@@ -102,13 +103,15 @@
+ 
+ const std::string& CountryNamesForLocale::GetCountryCode(
+     std::u16string_view country_name) const {
+-  // As recommended[1] by ICU, initialize the buffer size to four times the
+-  // source string length.
+-  // [1] http://userguide.icu-project.org/collation/api#TOC-Examples
+-  if (!collator_) {
++  // Reject oversized inputs before allocating or calling ICU `getSortKey()`,
++  // which can overflow its internal 32-bit byte counter on huge strings.
++  if (!collator_ || country_name.size() > kMaxStringLength) {
+     return base::EmptyString();
+   }
+ 
++  // As recommended[1] by ICU, initialize the buffer size to four times the
++  // source string length.
++  // [1] http://userguide.icu-project.org/collation/api#TOC-Examples
+   auto buffer = base::HeapArray<uint8_t>::WithSize(country_name.size() * 4);
+   const std::string sort_key = GetSortKey(*collator_, country_name, buffer);
+   if (auto it = localized_names_.find(sort_key); it != localized_names_.end()) {
+diff --git a/components/autofill/core/common/autofill_data_validation.cc b/components/autofill/core/common/autofill_data_validation.cc
+index c804da8..9aab13e4 100644
+--- a/components/autofill/core/common/autofill_data_validation.cc
++++ b/components/autofill/core/common/autofill_data_validation.cc
+@@ -37,6 +37,9 @@
+ bool IsValidFormFieldData(const FormFieldData& field) {
+   return IsValidString16(field.label()) && IsValidString16(field.name()) &&
+          IsValidString16(field.value()) &&
++         field.selected_text().size() <= kMaxSelectedTextLength &&
++         (!field.selected_option_text().has_value() ||
++          IsValidString16(*field.selected_option_text())) &&
+          mojom::IsKnownEnumValue(field.form_control_type()) &&
+          (!field.IsSelectElement() || field.max_length() == 0) &&
+          IsValidString(field.autocomplete_attribute()) &&
 diff --git a/content/browser/preloading/prerender/prerender_host.cc b/content/browser/preloading/prerender/prerender_host.cc
 index ffa117d..88095cc9 100644
 --- a/content/browser/preloading/prerender/prerender_host.cc
@@ -67,6 +115,269 @@ index ffa117d..88095cc9 100644
    for (FrameTreeNode* subframe_node : subframe_nodes) {
      subframe_node->SetFrameTree(target_frame_tree);
    }
+diff --git a/gpu/command_buffer/service/shared_image/compound_image_backing.cc b/gpu/command_buffer/service/shared_image/compound_image_backing.cc
+index 688d966..1aef067 100644
+--- a/gpu/command_buffer/service/shared_image/compound_image_backing.cc
++++ b/gpu/command_buffer/service/shared_image/compound_image_backing.cc
+@@ -136,7 +136,8 @@
+     case SharedImageAccessStream::kOverlay:
+       return SHARED_IMAGE_USAGE_SCANOUT;
+     case SharedImageAccessStream::kVaapi:
+-      return SHARED_IMAGE_USAGE_VIDEO_DECODE;
++      return SHARED_IMAGE_USAGE_VIDEO_DECODE |
++             SHARED_IMAGE_USAGE_VIDEO_ENCODE_ACCELERATOR;
+     case SharedImageAccessStream::kWebNNTensor:
+       // Note that SHARED_IMAGE_USAGE_WEBNN_SHARED_TENSOR is the main usage, we
+       // always need it for WebNN, the two other(*_TENSOR_READ/WRITE) are for
+@@ -2128,7 +2129,7 @@
+     MemoryTypeTracker* tracker,
+     VideoDevice device) {
+   std::unique_ptr<SharedImageBacking> transient_backing;
+-  auto* backing = GetOrAllocateBacking(SharedImageAccessStream::kGL,
++  auto* backing = GetOrAllocateBacking(SharedImageAccessStream::kVaapi,
+                                        AccessParams(), transient_backing);
+   if (!backing) {
+     return nullptr;
+diff --git a/gpu/command_buffer/service/shared_image/d3d_image_representation.cc b/gpu/command_buffer/service/shared_image/d3d_image_representation.cc
+index 96d4529..a02ca00 100644
+--- a/gpu/command_buffer/service/shared_image/d3d_image_representation.cc
++++ b/gpu/command_buffer/service/shared_image/d3d_image_representation.cc
+@@ -9,12 +9,7 @@
+ #include "gpu/command_buffer/common/shared_image_usage.h"
+ #include "gpu/command_buffer/service/shared_image/d3d11_image_same_adapter_copy_strategy.h"
+ #include "gpu/command_buffer/service/shared_image/d3d_image_backing.h"
+-#include "gpu/ipc/common/dxgi_helpers.h"
+ #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
+-#include "third_party/angle/include/EGL/eglext_angle.h"
+-#include "ui/gl/gl_angle_util_win.h"
+-#include "ui/gl/gl_surface_egl.h"
+-#include "ui/gl/scoped_restore_texture.h"
+ 
+ namespace {
+ 
+@@ -300,107 +295,11 @@
+   return d3d11_texture_;
+ }
+ 
+-std::unique_ptr<D3D11VideoImageCopyRepresentation>
+-D3D11VideoImageCopyRepresentation::CreateFromGL(GLuint gl_texture_id,
+-                                                std::string_view debug_label,
+-                                                ID3D11Device* d3d_device,
+-                                                SharedImageManager* manager,
+-                                                SharedImageBacking* backing,
+-                                                MemoryTypeTracker* tracker) {
+-  gl::GLApi* const api = gl::g_current_gl_context;
+-  D3D11_TEXTURE2D_DESC desc = InitVideoCopyTextureDesc(
+-      backing->size().width(), backing->size().height(),
+-      DXGI_FORMAT_R8G8B8A8_UNORM);
+-
+-  Microsoft::WRL::ComPtr<ID3D11Texture2D> d3d_dest_texture;
+-  HRESULT hr = d3d_device->CreateTexture2D(&desc, nullptr, &d3d_dest_texture);
+-  if (FAILED(hr)) {
+-    LOG(ERROR) << "Failed to create destination texture for video: "
+-               << logging::SystemErrorCodeToString(hr);
+-    return nullptr;
+-  }
+-  std::string updated_debug_label = base::StrCat(
+-      {"D3D11VideoImageCopyRepresentation_", std::string(debug_label)});
+-  d3d_dest_texture->SetPrivateData(WKPDID_D3DDebugObjectName,
+-                                   updated_debug_label.length(),
+-                                   updated_debug_label.c_str());
+-
+-  Microsoft::WRL::ComPtr<IDXGIResource1> dxgi_resource;
+-  hr = d3d_dest_texture.As(&dxgi_resource);
+-  CHECK_EQ(hr, S_OK);
+-  HANDLE dest_texture_handle;
+-  hr = dxgi_resource->CreateSharedHandle(
+-      nullptr, DXGI_SHARED_RESOURCE_READ | DXGI_SHARED_RESOURCE_WRITE, nullptr,
+-      &dest_texture_handle);
+-  CHECK_EQ(hr, S_OK);
+-  base::win::ScopedHandle scoped_shared_handle(dest_texture_handle);
+-
+-  Microsoft::WRL::ComPtr<ID3D11Device> angle_device =
+-      gl::QueryD3D11DeviceObjectFromANGLE();
+-  Microsoft::WRL::ComPtr<ID3D11Device1> angle_device1;
+-  hr = angle_device->QueryInterface(IID_PPV_ARGS(&angle_device1));
+-  CHECK_EQ(hr, S_OK);
+-  Microsoft::WRL::ComPtr<ID3D11Texture2D> remote_texture;
+-  hr = angle_device1->OpenSharedResource1(dest_texture_handle,
+-                                          IID_PPV_ARGS(&remote_texture));
+-  CHECK_EQ(hr, S_OK);
+-
+-  GLuint gl_texture_dest;
+-  api->glGenTexturesFn(1, &gl_texture_dest);
+-  gl::ScopedRestoreTexture scoped_restore(gl::g_current_gl_context,
+-                                          GL_TEXTURE_2D, gl_texture_dest);
+-  api->glTexParameteriFn(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+-  api->glTexParameteriFn(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+-
+-  const EGLint egl_attrib_list[] = {EGL_TEXTURE_INTERNAL_FORMAT_ANGLE, GL_RGBA,
+-                                    EGL_NONE};
+-  auto egl_image = gl::MakeScopedEGLImage(
+-      EGL_NO_CONTEXT, EGL_D3D11_TEXTURE_ANGLE,
+-      static_cast<EGLClientBuffer>(remote_texture.Get()), egl_attrib_list);
+-  if (!egl_image.get()) {
+-    LOG(ERROR) << "Failed to create an EGL image";
+-    api->glDeleteTexturesFn(1, &gl_texture_dest);
+-    return nullptr;
+-  }
+-
+-  api->glEGLImageTargetTexture2DOESFn(GL_TEXTURE_2D, egl_image.get());
+-  if (eglGetError() != static_cast<EGLint>(EGL_SUCCESS)) {
+-    LOG(ERROR) << "Failed to bind EGL image to texture for video";
+-    api->glDeleteTexturesFn(1, &gl_texture_dest);
+-    return nullptr;
+-  }
+-
+-  Microsoft::WRL::ComPtr<IDXGIKeyedMutex> keyed_mutex;
+-  hr = remote_texture->QueryInterface(IID_PPV_ARGS(&keyed_mutex));
+-  CHECK_EQ(hr, S_OK);
+-  // Using the keyed mutex here is not required for synchronization with another
+-  // thread; the texture is only written here and only consumed by the decoder
+-  // using this representation.  However, a side effect of
+-  // AcquireSync/ReleaseSync is that  modifications to the texture made here are
+-  // "visible" to other D3D devices.
+-  hr = keyed_mutex->AcquireSync(0, INFINITE);
+-  CHECK_EQ(hr, S_OK);
+-  {
+-    DXGIScopedReleaseKeyedMutex scoped_keyed_mutex(keyed_mutex, 0);
+-
+-    // Using glCopySubTextureCHROMIUM may look odd here since the entire texture
+-    // is being copied.  However, glCopyTextureCHROMIUM for some reason releases
+-    // the backing texture before copying, which is not helpful since the goal
+-    // here is to copy to the shared texture and not some random texture that
+-    // ANGLE creates.
+-    api->glCopySubTextureCHROMIUMFn(
+-        gl_texture_id, 0, GL_TEXTURE_2D, gl_texture_dest, 0, 0, 0, 0, 0,
+-        backing->size().width(), backing->size().height(), GL_FALSE, GL_FALSE,
+-        GL_FALSE);
+-    CHECK_EQ(glGetError(), static_cast<unsigned int>(GL_NO_ERROR));
+-  }
+-
+-  api->glDeleteTexturesFn(1, &gl_texture_dest);
+-
+-  return std::make_unique<D3D11VideoImageCopyRepresentation>(
+-      manager, backing, tracker, d3d_dest_texture.Get());
+-}
+-
++// TODO(crbug.com/578060455): Copying the source texture eagerly during
++// ProduceVideo() instead of BeginReadAccess() returns stale or uninitialized
++// pixels if the backing is modified after ProduceVideo() is called or if the
++// representation is reused across multiple read accesses. Move the copy into
++// BeginReadAccess().
+ std::unique_ptr<D3D11VideoImageCopyRepresentation>
+ D3D11VideoImageCopyRepresentation::CreateFromD3D(
+     SharedImageManager* manager,
+diff --git a/gpu/command_buffer/service/shared_image/d3d_image_representation.h b/gpu/command_buffer/service/shared_image/d3d_image_representation.h
+index f170de2..00ff7340 100644
+--- a/gpu/command_buffer/service/shared_image/d3d_image_representation.h
++++ b/gpu/command_buffer/service/shared_image/d3d_image_representation.h
+@@ -152,15 +152,6 @@
+ 
+ class D3D11VideoImageCopyRepresentation : public VideoImageRepresentation {
+  public:
+-  // Creates a copy of a (D3D-backed) GL texture for use in video encode.
+-  // This avoids expensive readback.
+-  static std::unique_ptr<D3D11VideoImageCopyRepresentation> CreateFromGL(
+-      GLuint gl_texture_id,
+-      std::string_view debug_label,
+-      ID3D11Device* d3d_device,
+-      SharedImageManager* manager,
+-      SharedImageBacking* backing,
+-      MemoryTypeTracker* tracker);
+   static std::unique_ptr<D3D11VideoImageCopyRepresentation> CreateFromD3D(
+       SharedImageManager* manager,
+       SharedImageBacking* backing,
+diff --git a/gpu/command_buffer/service/shared_image/gl_texture_image_backing.cc b/gpu/command_buffer/service/shared_image/gl_texture_image_backing.cc
+index 6d1c077..755f8be 100644
+--- a/gpu/command_buffer/service/shared_image/gl_texture_image_backing.cc
++++ b/gpu/command_buffer/service/shared_image/gl_texture_image_backing.cc
+@@ -20,6 +20,7 @@
+ #include "gpu/command_buffer/service/gl_utils.h"
+ #include "gpu/command_buffer/service/gles2_cmd_decoder.h"
+ #include "gpu/command_buffer/service/shared_context_state.h"
++#include "gpu/command_buffer/service/shared_image/compound_image_backing.h"
+ #include "gpu/command_buffer/service/shared_image/shared_image_factory.h"
+ #include "gpu/command_buffer/service/shared_image/shared_image_format_service_utils.h"
+ #include "gpu/command_buffer/service/shared_image/shared_image_representation.h"
+@@ -46,10 +47,6 @@
+ #include "gpu/command_buffer/service/shared_image/skia_graphite_dawn_image_representation.h"
+ #endif
+ 
+-#if BUILDFLAG(IS_WIN)
+-#include "gpu/command_buffer/service/shared_image/d3d_image_representation.h"
+-#endif
+-
+ namespace gpu {
+ 
+ namespace {
+@@ -284,6 +281,10 @@
+ bool GLTextureImageBacking::CheckSupportForAccessStream(
+     SharedImageAccessStream stream,
+     const AccessParams& params) {
++  if (stream == SharedImageAccessStream::kVaapi) {
++    return false;
++  }
++
+   // `params.context_state` is not always available for all access streams. In
+   // such cases, we default to allowing access, assuming the context is
+   // compatible. When a context is provided, we explicitly check if it's a GL
+@@ -475,26 +476,6 @@
+ #endif
+ }
+ 
+-std::unique_ptr<VideoImageRepresentation> GLTextureImageBacking::ProduceVideo(
+-    SharedImageManager* manager,
+-    MemoryTypeTracker* tracker,
+-    VideoDevice device) {
+-#if BUILDFLAG(IS_WIN)
+-  DCHECK_EQ(textures_.size(), 1u);
+-  // The GL copy path requires a D3D11 device; a D3D12 command queue cannot use
+-  // it.
+-  const auto* d3d11_device =
+-      std::get_if<Microsoft::WRL::ComPtr<ID3D11Device>>(&device);
+-  CHECK(d3d11_device);
+-
+-  return D3D11VideoImageCopyRepresentation::CreateFromGL(
+-      textures_[0]->GetServiceId(), debug_label(), d3d11_device->Get(), manager,
+-      this, tracker);
+-#else
+-  return nullptr;
+-#endif
+-}
+-
+ void GLTextureImageBacking::InitializeGLTexture(
+     const std::vector<GLCommonImageBackingFactory::FormatInfo>& format_info,
+     base::span<const uint8_t> pixel_data,
+diff --git a/gpu/command_buffer/service/shared_image/gl_texture_image_backing.h b/gpu/command_buffer/service/shared_image/gl_texture_image_backing.h
+index 9d92add..84b9fb0 100644
+--- a/gpu/command_buffer/service/shared_image/gl_texture_image_backing.h
++++ b/gpu/command_buffer/service/shared_image/gl_texture_image_backing.h
+@@ -65,10 +65,6 @@
+       SharedImageManager* manager,
+       MemoryTypeTracker* tracker,
+       scoped_refptr<SharedContextState> context_state) override;
+-  std::unique_ptr<VideoImageRepresentation> ProduceVideo(
+-      SharedImageManager* manager,
+-      MemoryTypeTracker* tracker,
+-      VideoDevice device) override;
+   void Update(gfx::GpuFenceHandle in_fence) override;
+   bool UploadFromMemory(const std::vector<SkPixmap>& pixmaps) override;
+   bool ReadbackToMemory(const std::vector<SkPixmap>& pixmaps) override;
+diff --git a/gpu/command_buffer/service/shared_image/wrapped_graphite_texture_backing.cc b/gpu/command_buffer/service/shared_image/wrapped_graphite_texture_backing.cc
+index 0838061..798cae4a 100644
+--- a/gpu/command_buffer/service/shared_image/wrapped_graphite_texture_backing.cc
++++ b/gpu/command_buffer/service/shared_image/wrapped_graphite_texture_backing.cc
+@@ -369,6 +369,9 @@
+     if (stream == SharedImageAccessStream::kDawn) {
+       return false;
+     }
++    if (stream == SharedImageAccessStream::kVaapi) {
++      return false;
++    }
+   }
+   return true;
+ }
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
 index 2e40c4a..83a261b 100644
 --- a/v8/include/v8-version.h
