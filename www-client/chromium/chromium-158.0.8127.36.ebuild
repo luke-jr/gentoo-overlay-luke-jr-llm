@@ -170,7 +170,7 @@ LICENSE+=" Unicode-DFS-2015 Unlicense UoI-NCSA ZLIB libtiff openssl"
 LICENSE+=" rar? ( unRAR )"
 
 SLOT="stable"
-KEYWORDS="~amd64 ~arm64"
+KEYWORDS="amd64 ~arm64"
 
 # The overlay's patches, after the Gentoo patchset's common ones.
 CHROMIUM_PATCHES=(
