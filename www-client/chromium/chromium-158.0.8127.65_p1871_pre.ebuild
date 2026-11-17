@@ -191,6 +191,7 @@ CHROMIUM_FIXES=(
 	chromium-158-angle-tf-struct-varyings.patch
 	chromium-158-sw-navigation-preload-lifetime.patch
 	chromium-158-resource-fetcher-image-set-snapshot.patch
+	chromium-158-webmediaplayerms-copyframe-player-check.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
