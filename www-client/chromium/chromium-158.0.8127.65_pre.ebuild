@@ -172,8 +172,8 @@ LICENSE+=" IJG ISC LGPL-2 LGPL-2.1 MIT MPL-1.1 MPL-2.0 Ms-PL Old-MIT PSF-2 SGI-B
 LICENSE+=" Unicode-DFS-2015 Unlicense UoI-NCSA ZLIB libtiff openssl"
 LICENSE+=" rar? ( unRAR )"
 
-# Sub-slot "fixes": fixes beyond Google's release (the branch's and carried ones). Masking
-# www-client/chromium:stable/fixes keeps only Google's own releases in this slot.
+# Sub-slot "fixes": upstream changes from after Google's release (the branch's and carried fixes).
+# Masking www-client/chromium:stable/fixes keeps only the builds of Google's releases in this slot.
 SLOT="stable/fixes"
 KEYWORDS="~amd64 ~arm64"
 
