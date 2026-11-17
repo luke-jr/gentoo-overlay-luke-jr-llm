@@ -7,7 +7,8 @@ refs/tags/159.0.8154.12..90f67d028cfe7ee8e6e2063b1141be51ecd3d951 (no DEPS
 revision changes after the tag), as served by Gitiles, with scripts/chromium-delta
 --branch-fixes (against the .12 tree's files): left out are files not in the
 release tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
-translations other than en-GB, PGO/orderfile pointers. chrome/VERSION, the DEPS
+translations other than en-GB, PGO/orderfile pointers (GN files are kept even
+for tests: gn gen reads test targets' BUILD.gn too). chrome/VERSION, the DEPS
 files and the stamp files stay at 159.0.8154.12.
 
 Commits contributing to it (oldest first):
@@ -2773,6 +2774,18 @@ index b4867ca2a..9aaaa09 100644
      case actor::mojom::ToolAction::Tag::kScrollTo: {
        // This is only used to call `EnsureTargetInView()`.
        tool_ = std::make_unique<NoOpTool>(
+diff --git a/chrome/test/data/webui/BUILD.gn b/chrome/test/data/webui/BUILD.gn
+index 25f259e..634f18f1 100644
+--- a/chrome/test/data/webui/BUILD.gn
++++ b/chrome/test/data/webui/BUILD.gn
+@@ -42,6 +42,7 @@
+     "//chrome/browser/autocomplete:aim_eligibility_service",
+     "//chrome/browser/bookmarks",
+     "//chrome/browser/browser_actuator/internals",
++    "//chrome/browser/contextual_tasks:test_support",
+     "//chrome/browser/glic/public:features",
+     "//chrome/browser/ui:ui_features",
+     "//chrome/browser/ui/tabs/tab_group_home:constants",
 diff --git a/components/actor/public/mojom/actor_types.mojom b/components/actor/public/mojom/actor_types.mojom
 index b830379c1..72572fe 100644
 --- a/components/actor/public/mojom/actor_types.mojom
@@ -3656,6 +3669,18 @@ index c698d80..829e4d40 100644
      : public blink::WebServiceWorkerContextClient,
        public service_manager::mojom::InterfaceProvider {
   public:
+diff --git a/content/test/BUILD.gn b/content/test/BUILD.gn
+index 6e54064b..045d7fcc 100644
+--- a/content/test/BUILD.gn
++++ b/content/test/BUILD.gn
+@@ -3118,6 +3118,7 @@
+     "../renderer/media/renderer_webaudiodevice_impl_unittest.cc",
+     "../renderer/memory_coordinator/last_resort_gc_policy_unittest.cc",
+     "../renderer/render_thread_impl_unittest.cc",
++    "../renderer/service_worker/service_worker_context_client_unittest.cc",
+     "../renderer/service_worker/service_worker_provider_context_unittest.cc",
+     "../renderer/service_worker/service_worker_subresource_loader_unittest.cc",
+     "../renderer/skia_benchmarking_extension_unittest.cc",
 diff --git a/third_party/blink/renderer/modules/service_worker/DEPS b/third_party/blink/renderer/modules/service_worker/DEPS
 index 136049f..25229a5b 100644
 --- a/third_party/blink/renderer/modules/service_worker/DEPS

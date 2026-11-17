@@ -36,7 +36,8 @@ Gitiles, with scripts/chromium-delta.
 Left out, as they cannot affect a Linux build: files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
 translations (but en-GB), CI configuration, PGO/orderfile pointers, submodule
-pointer updates, DEPS.
+pointer updates, DEPS. GN files (*.gn, *.gni) are kept even for tests and other
+platforms: gn gen reads test targets' BUILD.gn too.
 
 Added: the tarball's stamp files for the new commit (stamps.py:
 build/util/LASTCHANGE{,.committime}, gpu/config/gpu_lists_version.h,
@@ -63,6 +64,38 @@ index 338c72a..b9ecf9a2 100644
  BUILD=8154
 -PATCH=6
 +PATCH=12
+diff --git a/chrome/android/junit/BUILD.gn b/chrome/android/junit/BUILD.gn
+index 247ff6d..ed6c3bc 100644
+--- a/chrome/android/junit/BUILD.gn
++++ b/chrome/android/junit/BUILD.gn
+@@ -1127,6 +1127,7 @@
+     deps = [
+       ":chrome_junit_tests_helper",
+       "//components/permissions/android:java",
++      "//ui/android:ui_android_features_java",
+     ]
+   }
+ 
+diff --git a/chrome/android/webapk/shell_apk/current_version/current_version.gni b/chrome/android/webapk/shell_apk/current_version/current_version.gni
+index a0c4cdb..219738e 100644
+--- a/chrome/android/webapk/shell_apk/current_version/current_version.gni
++++ b/chrome/android/webapk/shell_apk/current_version/current_version.gni
+@@ -12,4 +12,4 @@
+ # //chrome/android/webapk/shell_apk:webapk is changed. This includes
+ # Java files, Android resource files and AndroidManifest.xml. Does not affect
+ # Chrome.apk
+-current_shell_apk_version = 194
++current_shell_apk_version = 195
+diff --git a/chrome/android/webapk/shell_apk/request_update_for_version.gni b/chrome/android/webapk/shell_apk/request_update_for_version.gni
+index 09ef4c0..6109436 100644
+--- a/chrome/android/webapk/shell_apk/request_update_for_version.gni
++++ b/chrome/android/webapk/shell_apk/request_update_for_version.gni
+@@ -6,4 +6,4 @@
+ # if the WebAPK's ShellAPK version is less than
+ # |request_update_for_shell_apk_version|. The version should be incremented
+ # after a new ShellAPK has been uploaded to the WebAPK Minting Server.
+-request_update_for_shell_apk_version = 194
++request_update_for_shell_apk_version = 195
 diff --git a/chrome/app/glic_strings.grdp b/chrome/app/glic_strings.grdp
 index 1109e41..842e886 100644
 --- a/chrome/app/glic_strings.grdp
@@ -11104,6 +11137,59 @@ index e75e5719..b6a2f1e 100644
    ]
    if (!is_android) {
      sources += [
+diff --git a/chrome/browser/glic/android/BUILD.gn b/chrome/browser/glic/android/BUILD.gn
+index 2867adc..43f5b92f 100644
+--- a/chrome/browser/glic/android/BUILD.gn
++++ b/chrome/browser/glic/android/BUILD.gn
+@@ -42,6 +42,7 @@
+     "java/res/drawable/glic_fre_card_background.xml",
+     "java/res/drawable/glic_fre_skeleton_bar.xml",
+     "java/res/drawable/glic_keycap_background.xml",
++    "java/res/drawable/glic_loading_placeholder_block.xml",
+     "java/res/drawable/glic_menu_dot.xml",
+     "java/res/drawable/glic_menu_end_icon_needs_review.xml",
+     "java/res/drawable/glic_menu_end_icon_standard.xml",
+@@ -54,6 +55,7 @@
+     "java/res/layout/glic_default_tab_access.xml",
+     "java/res/layout/glic_experimental_opt_in_close_button.xml",
+     "java/res/layout/glic_fre_bottom_sheet.xml",
++    "java/res/layout/glic_loading_placeholder.xml",
+     "java/res/layout/glic_mic_permission_dialog.xml",
+     "java/res/layout/glic_promo_bottom_sheet.xml",
+     "java/res/layout/glic_settings_extra_info.xml",
+@@ -75,6 +77,8 @@
+     "//components/browser_ui/settings/android:java_resources",
+     "//components/browser_ui/styles/android:java_resources",
+     "//components/browser_ui/widget/android:java_resources",
++    "//third_party/androidx:androidx_constraintlayout_constraintlayout_java",
++    "//ui/android:ui_java_resources",
+   ]
+ }
+ 
+@@ -160,6 +164,7 @@
+     "java/src/org/chromium/chrome/browser/glic/ui/GlicBottomSheetFreTransitionController.java",
+     "java/src/org/chromium/chrome/browser/glic/ui/GlicExperimentalOptInUiCoordinator.java",
+     "java/src/org/chromium/chrome/browser/glic/ui/GlicFreRootView.java",
++    "java/src/org/chromium/chrome/browser/glic/ui/GlicLoadingPlaceholderView.java",
+     "java/src/org/chromium/chrome/browser/glic/ui/GlicMicPermissionDialogCoordinator.java",
+     "java/src/org/chromium/chrome/browser/glic/ui/GlicPromoCoordinator.java",
+     "java/src/org/chromium/chrome/browser/glic/ui/GlicSidePanelComponentProvider.java",
+@@ -231,6 +236,7 @@
+     "//third_party/androidx:androidx_activity_activity_java",
+     "//third_party/androidx:androidx_annotation_annotation_java",
+     "//third_party/androidx:androidx_appcompat_appcompat_resources_java",
++    "//third_party/androidx:androidx_constraintlayout_constraintlayout_java",
+     "//third_party/androidx:androidx_core_core_java",
+     "//third_party/androidx:androidx_fragment_fragment_java",
+     "//third_party/androidx:androidx_preference_preference_java",
+@@ -304,6 +310,7 @@
+     "java/src/org/chromium/chrome/browser/glic/ui/GlicBottomSheetFreCoordinatorUnitTest.java",
+     "java/src/org/chromium/chrome/browser/glic/ui/GlicBottomSheetFreTransitionControllerUnitTest.java",
+     "java/src/org/chromium/chrome/browser/glic/ui/GlicExperimentalOptInUiCoordinatorUnitTest.java",
++    "java/src/org/chromium/chrome/browser/glic/ui/GlicLoadingPlaceholderViewUnitTest.java",
+     "java/src/org/chromium/chrome/browser/glic/ui/GlicMicPermissionDialogCoordinatorUnitTest.java",
+     "java/src/org/chromium/chrome/browser/glic/ui/GlicPromoCoordinatorUnitTest.java",
+     "java/src/org/chromium/chrome/browser/glic/ui/GlicUiHelperUnitTest.java",
 diff --git a/chrome/browser/glic/experimental_triggering/glic_experimental_triggering_converters.cc b/chrome/browser/glic/experimental_triggering/glic_experimental_triggering_converters.cc
 index 449fb97b..6a7765b 100644
 --- a/chrome/browser/glic/experimental_triggering/glic_experimental_triggering_converters.cc
@@ -30641,6 +30727,106 @@ index ceb3fc3..743875d 100644
  
  // Result of attempting to display a notification via MacNotificationService.
  // These values are persisted to logs. Entries should not be renumbered and
+diff --git a/chrome/test/data/webui/BUILD.gn b/chrome/test/data/webui/BUILD.gn
+index dd2e95a..25f259e 100644
+--- a/chrome/test/data/webui/BUILD.gn
++++ b/chrome/test/data/webui/BUILD.gn
+@@ -205,7 +205,11 @@
+       "//components/history_clusters/core",
+       "//services/network/public/mojom:url_loader_base",
+       "//ui/webui",
++      "//ui/webui:buildflags",
+     ]
++    if (enable_webui_ntp) {
++      deps += [ "//chrome/browser/ui/webui/cr_components/most_visited" ]
++    }
+   }
+ 
+   if (enable_dice_support || is_chromeos) {
+@@ -558,11 +562,18 @@
+     deps += [
+       "//chrome/browser/contextual_tasks:test_support",
+       "//chrome/browser/contextual_tasks:ui",
++      "//chrome/browser/profiles:profile",
+       "//chrome/browser/ui:ui_features",
++      "//chrome/test/base:web_ui_test_support",
+       "//components/contextual_tasks/public",
+       "//components/history_clusters/core",
+       "//components/password_manager/content/common",
++      "//ui/webui",
++      "//ui/webui:buildflags",
+     ]
++    if (enable_webui_ntp) {
++      deps += [ "//chrome/browser/ui/webui/cr_components/most_visited" ]
++    }
+   }
+ 
+   if (enable_compose) {
+diff --git a/chrome/test/data/webui/cr_components/BUILD.gn b/chrome/test/data/webui/cr_components/BUILD.gn
+index 4cf72a0..720152ed 100644
+--- a/chrome/test/data/webui/cr_components/BUILD.gn
++++ b/chrome/test/data/webui/cr_components/BUILD.gn
+@@ -52,12 +52,8 @@
+     ]
+   }
+ 
+-  ts_path_mappings = [
+-    "chrome://customize-chrome-side-panel.top-chrome/strings.m.js|" +
++  ts_path_mappings =
++      [ "chrome://customize-chrome-side-panel.top-chrome/strings.m.js|" +
+         rebase_path("//tools/typescript/definitions/strings.d.ts",
+-                    target_gen_dir),
+-    "chrome://new-tab-page/strings.m.js|" +
+-        rebase_path("//tools/typescript/definitions/strings.d.ts",
+-                    target_gen_dir),
+-  ]
++                    target_gen_dir) ]
+ }
+diff --git a/chrome/test/data/webui/cr_components/help_bubble/BUILD.gn b/chrome/test/data/webui/cr_components/help_bubble/BUILD.gn
+index eb4fce8..496a8d6 100644
+--- a/chrome/test/data/webui/cr_components/help_bubble/BUILD.gn
++++ b/chrome/test/data/webui/cr_components/help_bubble/BUILD.gn
+@@ -18,8 +18,6 @@
+   files = [
+     "help_bubble_mixin_lit_test_container.ts",
+     "help_bubble_mixin_lit_test_element.ts",
+-    "help_bubble_mixin_test_container.ts",
+-    "help_bubble_mixin_test_element.ts",
+     "help_bubble_mixin_test.ts",
+     "help_bubble_test.ts",
+     "test_custom_help_bubble.html.ts",
+@@ -31,7 +29,6 @@
+ 
+   ts_deps = [
+     "//third_party/lit/v3_0:build_ts",
+-    "//third_party/polymer/v3_0:library",
+     "//ui/webui/resources/cr_components/help_bubble:build_ts",
+     "//ui/webui/resources/cr_elements:build_ts",
+     "//ui/webui/resources/js:build_ts",
+diff --git a/chrome/test/data/webui/lens/BUILD.gn b/chrome/test/data/webui/lens/BUILD.gn
+index 63a0f8106..50c6bce 100644
+--- a/chrome/test/data/webui/lens/BUILD.gn
++++ b/chrome/test/data/webui/lens/BUILD.gn
+@@ -17,6 +17,9 @@
+     "ghost_loader/test_ghost_loader_browser_proxy.ts",
+     "overlay/cubic_bezier_test.ts",
+     "overlay/find_words_in_region_test.ts",
++    "overlay/help_bubble_mixin_test.ts",
++    "overlay/help_bubble_mixin_test_container.ts",
++    "overlay/help_bubble_mixin_test_element.ts",
+     "overlay/object_selection_test.ts",
+     "overlay/overlay_background_scrim_test.ts",
+     "overlay/overlay_close_button_test.ts",
+@@ -74,7 +77,9 @@
+   ts_deps = [
+     "//chrome/browser/resources/lens/overlay:build_ts",
+     "//chrome/test/data/webui/cr_components/searchbox:build_ts",
++    "//third_party/polymer/v3_0:library",
+     "//ui/webui/resources/cr_components/composebox:build_ts",
++    "//ui/webui/resources/cr_components/help_bubble:build_ts",
+     "//ui/webui/resources/cr_components/searchbox:build_ts",
+     "//ui/webui/resources/cr_elements:build_ts",
+     "//ui/webui/resources/js:build_ts",
 diff --git a/components/android_autofill/browser/android_autofill_features.cc b/components/android_autofill/browser/android_autofill_features.cc
 index 4c5dd0181..01017cf1 100644
 --- a/components/android_autofill/browser/android_autofill_features.cc
@@ -33342,6 +33528,30 @@ index e2cd500..2bc11bc7 100644
  
    SEQUENCE_CHECKER(sequence_checker_);
  };
+diff --git a/components/external_intents/android/BUILD.gn b/components/external_intents/android/BUILD.gn
+index 4f5c4e0..95f3f52 100644
+--- a/components/external_intents/android/BUILD.gn
++++ b/components/external_intents/android/BUILD.gn
+@@ -8,6 +8,7 @@
+ android_library("java") {
+   srcjar_deps = [ ":jni_headers" ]
+   sources = [
++    "java/src/org/chromium/components/external_intents/ExternalIntentFilter.java",
+     "java/src/org/chromium/components/external_intents/ExternalIntentsFeatures.java",
+     "java/src/org/chromium/components/external_intents/ExternalIntentsSwitches.java",
+     "java/src/org/chromium/components/external_intents/ExternalNavigationDelegate.java",
+@@ -134,7 +135,10 @@
+ }
+ 
+ robolectric_library("junit") {
+-  sources = [ "junit/src/org/chromium/components/external_intents/RedirectHandlerTest.java" ]
++  sources = [
++    "junit/src/org/chromium/components/external_intents/ExternalIntentFilterTest.java",
++    "junit/src/org/chromium/components/external_intents/RedirectHandlerTest.java",
++  ]
+   deps = [
+     ":java",
+     "//base:base_java",
 diff --git a/components/omnibox/browser/BUILD.gn b/components/omnibox/browser/BUILD.gn
 index d6f43d0..e47e169 100644
 --- a/components/omnibox/browser/BUILD.gn
@@ -34103,6 +34313,42 @@ index d52f51f..42dcfe1 100644
    const bool allow_psl_matching_;
    // Answers all sender domain checks of this retrieval.
    GmailOtpSenderDomainMatcher sender_domain_matcher_;
+diff --git a/components/permissions/android/BUILD.gn b/components/permissions/android/BUILD.gn
+index 327ae679d..94c4101 100644
+--- a/components/permissions/android/BUILD.gn
++++ b/components/permissions/android/BUILD.gn
+@@ -211,6 +211,7 @@
+     "//third_party/androidx:androidx_core_core_java",
+     "//third_party/androidx:androidx_vectordrawable_vectordrawable_java",
+     "//third_party/jni_zero:jni_zero_java",
++    "//ui/android:ui_android_features_java",
+     "//ui/android:ui_java",
+     "//url:gurl_java",
+   ]
+@@ -243,6 +244,7 @@
+   sources = [
+     "junit/src/org/chromium/components/permissions/PermissionDialogCoordinatorTest.java",
+     "junit/src/org/chromium/components/permissions/PermissionDialogCustomViewBinderTest.java",
++    "junit/src/org/chromium/components/permissions/PermissionUtilTest.java",
+     "junit/src/org/chromium/components/permissions/PermissionVerticalButtonsDialogCustomViewBinderTest.java",
+     "junit/src/org/chromium/components/permissions/nfc/NfcSystemLevelPromptTest.java",
+   ]
+@@ -250,6 +252,7 @@
+     ":content_settings_enums_java",
+     ":java",
+     ":java_resources",
++    "//base:base_java",
+     "//base:base_java_test_support",
+     "//base:base_junit_test_support",
+     "//components/browser_ui/theme/android:java_resources",
+@@ -259,6 +262,7 @@
+     "//third_party/androidx:androidx_core_core_java",
+     "//third_party/junit",
+     "//third_party/mockito:mockito_java",
++    "//ui/android:ui_android_features_java",
+     "//ui/android:ui_java",
+     "//ui/android:ui_java_test_support",
+   ]
 diff --git a/components/policy/resources/templates/policy_definitions/Miscellaneous/ManagedClientCertificateForBrowserConfig.yaml b/components/policy/resources/templates/policy_definitions/Miscellaneous/ManagedClientCertificateForBrowserConfig.yaml
 index 2895dbc..8645081 100644
 --- a/components/policy/resources/templates/policy_definitions/Miscellaneous/ManagedClientCertificateForBrowserConfig.yaml
@@ -36220,6 +36466,18 @@ index 46933bb..8dfba61 100644
  
    return request_id;
  }
+diff --git a/content/test/BUILD.gn b/content/test/BUILD.gn
+index 3f407a2c..6e54064b 100644
+--- a/content/test/BUILD.gn
++++ b/content/test/BUILD.gn
+@@ -1820,6 +1820,7 @@
+     "../renderer/accessibility/render_accessibility_impl_browsertest.cc",
+     "../renderer/blink_platform_audio_hardware_browsertest.cc",
+     "../renderer/gin_browsertest.cc",
++    "../renderer/media/media_permission_dispatcher_browsertest.cc",
+     "../renderer/media/renderer_web_media_player_delegate_browsertest.cc",
+     "../renderer/media/too_many_web_media_players_intervention_browsertest.cc",
+     "../renderer/render_frame_impl_browsertest.cc",
 diff --git a/device/fido/hid/fido_hid_device.cc b/device/fido/hid/fido_hid_device.cc
 index 30b01f0b..8e11673 100644
 --- a/device/fido/hid/fido_hid_device.cc
@@ -36286,6 +36544,202 @@ index 556bcaf..497c4d5 100644
  COMPONENT_EXPORT(FIDO_PUBLIC)
  BASE_DECLARE_FEATURE(kWebAuthnAmbientChipOnlyTimeout);
  
+diff --git a/ios/chrome/browser/authentication/fullscreen_signin_screen/coordinator/BUILD.gn b/ios/chrome/browser/authentication/fullscreen_signin_screen/coordinator/BUILD.gn
+index e4195a7..dc477f5f 100644
+--- a/ios/chrome/browser/authentication/fullscreen_signin_screen/coordinator/BUILD.gn
++++ b/ios/chrome/browser/authentication/fullscreen_signin_screen/coordinator/BUILD.gn
+@@ -20,6 +20,7 @@
+     "//components/signin/public/identity_manager/objc",
+     "//components/sync/service",
+     "//components/web_resource",
++    "//google_apis",
+     "//ios/chrome/browser/authentication/fullscreen_signin_screen/ui",
+     "//ios/chrome/browser/authentication/ui_bundled:continuation",
+     "//ios/chrome/browser/authentication/ui_bundled/authentication_flow",
+@@ -78,6 +79,8 @@
+     "//ios/chrome/app/strings",
+     "//ios/chrome/browser/authentication/fullscreen_signin_screen/ui",
+     "//ios/chrome/browser/authentication/ui_bundled:continuation",
++    "//ios/chrome/browser/authentication/ui_bundled/authentication_flow",
++    "//ios/chrome/browser/authentication/ui_bundled/authentication_flow:request_helper",
+     "//ios/chrome/browser/authentication/ui_bundled/signin:constants",
+     "//ios/chrome/browser/authentication/ui_bundled/signin:signin_headers",
+     "//ios/chrome/browser/metrics/model:profile_metrics_service_factory",
+@@ -96,6 +99,7 @@
+     "//ios/chrome/test:test_support",
+     "//ios/web/public/test",
+     "//testing/gtest",
++    "//third_party/ocmock",
+     "//ui/base",
+   ]
+ }
+diff --git a/ios/chrome/browser/composebox/coordinator/BUILD.gn b/ios/chrome/browser/composebox/coordinator/BUILD.gn
+index 5b0a427f..45e9077 100644
+--- a/ios/chrome/browser/composebox/coordinator/BUILD.gn
++++ b/ios/chrome/browser/composebox/coordinator/BUILD.gn
+@@ -304,10 +304,7 @@
+   deps = [
+     ":intelligence_deps",
+     "//base",
+-    "//components/contextual_search:prefs",
+     "//components/contextual_search:public",
+-    "//components/contextual_search/footprints/internal",
+-    "//components/contextual_search/footprints/public",
+     "//components/omnibox/browser",
+     "//components/omnibox/common",
+     "//components/prefs",
+@@ -335,7 +332,6 @@
+     "//ios/chrome/browser/shared/ui/symbols",
+     "//ios/chrome/common:string_conversions",
+     "//ios/web/public",
+-    "//services/network/public/cpp",
+   ]
+ }
+ 
+@@ -356,7 +352,6 @@
+     ":url_loading_deps",
+     "//base",
+     "//base/test:test_support",
+-    "//components/contextual_search:prefs",
+     "//components/contextual_search:public",
+     "//components/contextual_search:test_support",
+     "//components/contextual_search/footprints/public",
+diff --git a/ios/chrome/browser/composebox/shared/coordinator/BUILD.gn b/ios/chrome/browser/composebox/shared/coordinator/BUILD.gn
+index 7b124ff..bcfc1cb 100644
+--- a/ios/chrome/browser/composebox/shared/coordinator/BUILD.gn
++++ b/ios/chrome/browser/composebox/shared/coordinator/BUILD.gn
+@@ -2,6 +2,8 @@
+   sources = [
+     "composebox_attachment_diff.h",
+     "composebox_attachment_diff.mm",
++    "composebox_drive_disclaimer_util.h",
++    "composebox_drive_disclaimer_util.mm",
+     "composebox_picker_drive_result.h",
+     "composebox_picker_drive_result.mm",
+     "composebox_picker_image_result.h",
+@@ -11,11 +13,11 @@
+   ]
+   deps = [
+     "//base",
+-    "//components/contextual_search:prefs",
+     "//components/contextual_search:public",
++    "//components/contextual_search/footprints/internal",
+     "//components/lens",
+     "//components/omnibox/common",
+-    "//components/prefs",
++    "//components/signin/public/identity_manager",
+     "//ios/chrome/browser/composebox/public:attachment_selection",
+     "//ios/chrome/browser/composebox/public:input_item_source",
+     "//ios/chrome/browser/composebox/shared/metrics",
+@@ -23,6 +25,7 @@
+     "//ios/chrome/browser/shared/model/browser",
+     "//ios/chrome/browser/shared/model/profile",
+     "//ios/chrome/browser/shared/public/commands",
++    "//ios/chrome/browser/signin/model",
+     "//ios/chrome/browser/signin/model:authentication_service",
+     "//ios/chrome/browser/signin/model:authentication_service_factory",
+     "//ios/chrome/browser/signin/model:system_identity",
+@@ -30,8 +33,12 @@
+     "//ios/chrome/browser/tabs/model",
+     "//ios/public/provider/chrome/browser/privacy_primitive:privacy_primitive_api",
+     "//net",
++    "//services/network/public/cpp",
+   ]
+-  public_deps = [ "//ios/web/public" ]
++  public_deps = [
++    "//components/contextual_search/footprints/public",
++    "//ios/web/public",
++  ]
+ }
+ 
+ source_set("unit_tests") {
+@@ -40,10 +47,9 @@
+   deps = [
+     ":coordinator",
+     "//base/test:test_support",
+-    "//components/contextual_search:prefs",
+     "//components/contextual_search:public",
++    "//components/contextual_search/footprints/public",
+     "//components/omnibox/common",
+-    "//components/prefs",
+     "//ios/chrome/browser/composebox/public:attachment_selection",
+     "//ios/chrome/browser/composebox/public:entrypoint",
+     "//ios/chrome/browser/composebox/shared/metrics",
+diff --git a/ios/chrome/browser/mini_map/coordinator/BUILD.gn b/ios/chrome/browser/mini_map/coordinator/BUILD.gn
+index 3d0a123..46453ab 100644
+--- a/ios/chrome/browser/mini_map/coordinator/BUILD.gn
++++ b/ios/chrome/browser/mini_map/coordinator/BUILD.gn
+@@ -14,7 +14,6 @@
+     "//components/prefs",
+     "//components/search_engines",
+     "//ios/chrome/app/strings",
+-    "//ios/chrome/browser/mini_map/model",
+     "//ios/chrome/browser/search_engines/model:template_url_service_factory",
+     "//ios/chrome/browser/shared/coordinator/chrome_coordinator",
+     "//ios/chrome/browser/shared/model/browser",
+@@ -31,6 +30,7 @@
+     "//ios/web/public",
+     "//ios/web/public/annotations",
+     "//ui/base",
++    "//ui/base/mojom",
+   ]
+ }
+ 
+@@ -51,13 +51,17 @@
+     "//ios/chrome/browser/shared/model/prefs:browser_prefs",
+     "//ios/chrome/browser/shared/model/prefs:pref_names",
+     "//ios/chrome/browser/shared/model/profile/test",
++    "//ios/chrome/browser/shared/model/web_state_list",
+     "//ios/chrome/browser/shared/public/commands",
+     "//ios/chrome/browser/shared/public/features",
+     "//ios/chrome/test:test_support",
+     "//ios/chrome/test/providers/mini_map",
+     "//ios/web/common:features",
+     "//ios/web/public/test",
++    "//ios/web/public/test/fakes",
+     "//testing/gtest",
+     "//third_party/ocmock",
++    "//ui/base",
++    "//ui/base/mojom",
+   ]
+ }
+diff --git a/ios/chrome/browser/passwords/bottom_sheet/coordinator/BUILD.gn b/ios/chrome/browser/passwords/bottom_sheet/coordinator/BUILD.gn
+index 6906382..eaa2148 100644
+--- a/ios/chrome/browser/passwords/bottom_sheet/coordinator/BUILD.gn
++++ b/ios/chrome/browser/passwords/bottom_sheet/coordinator/BUILD.gn
+@@ -107,12 +107,16 @@
+     "//components/autofill/ios/form_util:child_frame_registrar",
+     "//components/password_manager/core/browser:test_support",
+     "//components/password_manager/core/browser/features:password_features",
++    "//components/password_manager/core/browser/password_store:password_store_interface",
+     "//components/password_manager/core/browser/remote_actor",
+     "//components/password_manager/ios",
+     "//components/password_manager/ios:password_manager_feature_header",
+     "//components/password_manager/ios:test_support",
+     "//components/prefs:test_support",
++    "//components/signin/public/identity_manager",
++    "//components/signin/public/identity_manager:test_support",
+     "//components/strings",
++    "//components/sync:test_support",
+     "//components/sync/protocol",
+     "//components/webauthn/core/browser:test_support",
+     "//components/webauthn/ios",
+diff --git a/ios/chrome/browser/passwords/bottom_sheet/ui/BUILD.gn b/ios/chrome/browser/passwords/bottom_sheet/ui/BUILD.gn
+index 95609d2..8257ec18 100644
+--- a/ios/chrome/browser/passwords/bottom_sheet/ui/BUILD.gn
++++ b/ios/chrome/browser/passwords/bottom_sheet/ui/BUILD.gn
+@@ -79,9 +79,11 @@
+     "//ios/chrome/browser/shared/ui/table_view/content_configuration",
+     "//ios/chrome/common:string_util",
+     "//ios/chrome/common/ui/button_stack",
++    "//ios/chrome/common/ui/button_stack:constants",
+     "//ios/chrome/common/ui/confirmation_alert",
+     "//ios/chrome/common/ui/confirmation_alert:constants",
+     "//ios/chrome/common/ui/favicon",
++    "//ios/chrome/common/ui/util",
+     "//ios/chrome/test/app:test_support",
+     "//net",
+     "//testing/gtest",
 diff --git a/media/ffmpeg/scripts/generate_gn.py b/media/ffmpeg/scripts/generate_gn.py
 index 344661b6..54e10b1b 100755
 --- a/media/ffmpeg/scripts/generate_gn.py
@@ -45549,6 +46003,36 @@ index e128fab..5b10ad2 100644
  };
  
  class BufferViewHelper final : public Resource
+diff --git a/third_party/angle/src/tests/BUILD.gn b/third_party/angle/src/tests/BUILD.gn
+index c27782b..bebbbdc 100644
+--- a/third_party/angle/src/tests/BUILD.gn
++++ b/third_party/angle/src/tests/BUILD.gn
+@@ -554,6 +554,10 @@
+       sources += angle_white_box_tests_win_sources
+     }
+ 
++    if (angle_enable_gl) {
++      sources += angle_white_box_tests_gl_sources
++    }
++
+     configs += [ "${angle_root}:libANGLE_config" ]
+ 
+     deps = [
+diff --git a/third_party/angle/src/tests/angle_white_box_tests.gni b/third_party/angle/src/tests/angle_white_box_tests.gni
+index e00afa9..dc0b2ae 100644
+--- a/third_party/angle/src/tests/angle_white_box_tests.gni
++++ b/third_party/angle/src/tests/angle_white_box_tests.gni
+@@ -16,6 +16,10 @@
+   "gl_tests/D3D11InputLayoutCacheTest.cpp",
+   "gl_tests/D3DTextureTest.cpp",
+ ]
++angle_white_box_tests_gl_sources = [
++  "gl_tests/GLReattachTextureToFboTest.cpp",
++  "gl_tests/GLRecreateTextureOnTexImage3DDepthIncreaseTest.cpp",
++]
+ angle_white_box_tests_vulkan_sources = [
+   "gl_tests/VulkanDescriptorSetTest.cpp",
+   "gl_tests/VulkanFormatTablesTest.cpp",
 diff --git a/third_party/angle/util/autogen/angle_features_autogen.cpp b/third_party/angle/util/autogen/angle_features_autogen.cpp
 index 7b9efb7..31f99ad 100644
 --- a/third_party/angle/util/autogen/angle_features_autogen.cpp
