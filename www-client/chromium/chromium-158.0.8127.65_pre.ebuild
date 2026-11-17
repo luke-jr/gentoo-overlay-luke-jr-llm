@@ -172,7 +172,9 @@ LICENSE+=" IJG ISC LGPL-2 LGPL-2.1 MIT MPL-1.1 MPL-2.0 Ms-PL Old-MIT PSF-2 SGI-B
 LICENSE+=" Unicode-DFS-2015 Unlicense UoI-NCSA ZLIB libtiff openssl"
 LICENSE+=" rar? ( unRAR )"
 
-SLOT="stable"
+# Sub-slot "fixes": fixes beyond Google's release (the branch's and carried ones). Masking
+# www-client/chromium:stable/fixes keeps only Google's own releases in this slot.
+SLOT="stable/fixes"
 KEYWORDS="~amd64 ~arm64"
 
 # The 158 branch has no changes after the 158.0.8127.65 tag (#1825) that affect a Linux
