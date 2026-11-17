@@ -125,6 +125,16 @@
 # ICU4X_DATAGEN_LSTM_VER (the segmenter's LSTM models). The data is regenerated with
 # dev-util/chromium-icu4x-datagen. Unset: no such data.
 
+# @ECLASS_VARIABLE: CHROMIUM_SYSTEM_ICU_FLAG
+# @PRE_INHERIT
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# Set to 0 (before inherit) in new ebuilds: they have no USE=system-icu and always build
+# Chromium's bundled ICU, regenerated (chromium_regen_icu). System ICU doesn't build with this
+# overlay's Chromium (doc/chromium.md); the flag stays, masked in profiles/package.use.mask, only
+# in older ebuilds, unchanged. Once no ebuild has the flag, the mask and the flag's code go.
+# Unset: the flag exists (older ebuilds).
+
 # @ECLASS_VARIABLE: CHROMIUM_BUILD_DIR
 # @USER_VARIABLE
 # @DEFAULT_UNSET
@@ -410,6 +420,7 @@ SRC_URI+=" !prebuilt-chromedriver-atoms? (
 "
 
 IUSE_SYSTEM_LIBS="+system-harfbuzz +system-icu +system-zstd"
+[[ ${CHROMIUM_SYSTEM_ICU_FLAG} == 0 ]] && IUSE_SYSTEM_LIBS="+system-harfbuzz +system-zstd"
 IUSE="+X ${IUSE_SYSTEM_LIBS} bindist bundled-toolchain cups debug ffmpeg-chromium gtk4 +hangouts headless kerberos +lto +official pax-kernel pgo"
 IUSE+=" +proprietary-codecs pulseaudio qt6 +rar +screencast selinux test +vaapi +wayland +widevine cpu_flags_ppc_vsx3"
 IUSE+=" hardened openxr prebuilt-chromedriver-atoms"
@@ -476,6 +487,9 @@ COMMON_SNAPSHOT_DEPEND="
 		)
 	)
 "
+# Without USE=system-icu (CHROMIUM_SYSTEM_ICU_FLAG=0): no system ICU.
+[[ ${CHROMIUM_SYSTEM_ICU_FLAG} == 0 ]] &&
+	COMMON_SNAPSHOT_DEPEND=${COMMON_SNAPSHOT_DEPEND//"system-icu? ( >=dev-libs/icu-73.0:= )"/}
 
 COMMON_DEPEND="
 	${COMMON_SNAPSHOT_DEPEND}
@@ -582,6 +596,16 @@ BDEPEND="
 	virtual/pkgconfig
 	x11-misc/xdg-utils
 "
+
+# Without USE=system-icu (CHROMIUM_SYSTEM_ICU_FLAG=0), the bundled ICU's data needs unzip.
+[[ ${CHROMIUM_SYSTEM_ICU_FLAG} == 0 ]] && BDEPEND=${BDEPEND//"!system-icu? ( app-arch/unzip )"/app-arch/unzip}
+
+# Whether to use the system's ICU: USE=system-icu, where the ebuild has the flag
+# (CHROMIUM_SYSTEM_ICU_FLAG).
+_chromium_system_icu() {
+	[[ ${CHROMIUM_SYSTEM_ICU_FLAG} != 0 ]] && use system-icu
+}
+
 [[ -n ${ICU4X_DATAGEN_CLDR_VER} ]] && BDEPEND+=" dev-util/chromium-icu4x-datagen:${PV%%.*}"
 
 if ! has chromium_pkg_die ${EBUILD_DEATH_HOOKS}; then
@@ -1549,7 +1573,7 @@ chromium_regenerated_outputs() {
 	# ICU's Unicode data files and its data package. Its C/C++ outputs and source/data/in/ are
 	# bootstrap inputs of its own build (configure reads data/in/ for its data build's rules), which
 	# chromium-icu-regen.sh deletes or overwrites before regenerating them.
-	if use !system-icu; then
+	if ! _chromium_system_icu; then
 		local i=third_party/icu/source/data/unidata
 		echo third_party/icu/common/icudtl.dat "${i}/norm2/*.txt" \
 			"${i}"/{CaseFolding,confusables,DerivedCoreProperties,DerivedNormalizationProps}.txt \
@@ -2044,7 +2068,7 @@ chromium_regen_icu() {
 	# sources and tools, with the generators ICU's release leaves out (SRC_URI). Kept as they
 	# are, as Unicode's published release data: the locale data ICU converts from CLDR with its
 	# Java tools (source/data/*/*.txt, FractionalUCA.txt, UCARules.txt, localefallback_data.h).
-	if use !system-icu; then
+	if ! _chromium_system_icu; then
 		einfo "Regenerating ICU's generated files ..."
 		local icu_unicode="${WORKDIR}/icu-unicode" icu_tools="${WORKDIR}/icu-tools" icu_f
 		mkdir -p "${icu_unicode}"/{ucd,idna,security,emoji} "${icu_tools}"/{py,c/genprops,c/genuca} \
@@ -3449,7 +3473,7 @@ chromium_unbundle() {
 		keeplibs+=( third_party/harfbuzz )
 	fi
 
-	if ! use system-icu; then
+	if ! _chromium_system_icu; then
 		keeplibs+=( third_party/icu )
 	fi
 
@@ -3600,7 +3624,7 @@ chromium_configure() {
 		zlib
 	)
 
-	if use system-icu; then
+	if _chromium_system_icu; then
 		gn_system_libraries+=( icu )
 	fi
 
@@ -3919,7 +3943,7 @@ chromium_configure() {
 	fi
 
 	# Explicitly disable ICU data file support for system-icu/headless builds.
-	if use system-icu || use headless; then
+	if _chromium_system_icu || use headless; then
 		myconf_gn+=( "icu_use_data_file=false" )
 	fi
 
@@ -4530,7 +4554,7 @@ chromium-llm_src_install() {
 		[[ ${#files[@]} -gt 0 ]] && doins "${files[@]}"
 	)
 
-	if ! use system-icu && ! use headless; then
+	if ! _chromium_system_icu && ! use headless; then
 		doins "${CHROMIUM_OUT}"/icudtl.dat
 	fi
 

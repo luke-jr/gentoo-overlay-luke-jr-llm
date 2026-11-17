@@ -52,7 +52,8 @@ was added with (and 156 updated from .12 to .47).
 
 ## A new major version
 
-1. **Start from the previous ebuild:** copy it, and set `SLOT` (above). An ebuild has only its
+1. **Start from the previous ebuild:** copy it, and set `SLOT` (above). A new ebuild sets
+   `CHROMIUM_SYSTEM_ICU_FLAG=0` (no `USE=system-icu`, see `doc/chromium.md`). An ebuild has only its
    version's pins and lists (patches, carried fixes, extra bundled sources); the build is in
    `eclass/chromium-llm.eclass` (see "Changing the eclass" below).
 2. **Patches:** copy `files/chromium-patches-<previous>/` to `files/chromium-patches-<major>/`
@@ -102,7 +103,8 @@ newer majors link to into the oldest of those, and point the other links there.
 This is how 156 went from .47 to .78_pre (on the .73 tarball).
 
 1. **Rename the ebuild** (keep the `SLOT`, unless the release changed channel), and replace the
-   tarball's line in the `Manifest` (check the tarball against its `.hashes` first).
+   tarball's line in the `Manifest` (check the tarball against its `.hashes` first). If it doesn't set
+   `CHROMIUM_SYSTEM_ICU_FLAG=0` yet, it does now: the renamed ebuild is a new version.
 2. **Fixes after the release:** Google tags every candidate build on the release branch
    (`refs/tags/<version>`, in the branch's log), but publishes a tarball only for releases. When
    the version has no tarball, build it as a `_pre` ebuild (`CHROMIUM_TARBALL_PV` = the newest
