@@ -1,8 +1,8 @@
 Chromium 158.0.8127.65 + the later changes of its release branch, up to
-1bab17e55d63bce01ed80b08f39618a428b5dbec (refs/branch-heads/8127@{#1889}), for the
+2a241972408d2821e71235bb9a65e323c5207bf6 (refs/branch-heads/8127@{#1893}), for the
 158.0.8127.65 tree that chromium-158.0.8127.37-to-158.0.8127.65.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.65..1bab17e55d63bce01ed80b08f39618a428b5dbec,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.65..2a241972408d2821e71235bb9a65e323c5207bf6,
 and from its rolls of v8/v8 e613b92ff31da46781a39135cca49bdf4403f28a..98b95638c50152f0585529494bbcbe8caa81aed8 (under v8/)
 dawn 534b718adcc75d4b3e1d30fefd0715b374ac5d11..d142736b879e0b939aaeb479e9912f92acd0fcc0 (under third_party/dawn/)
 and angle eae431b4e9b9f8cbd2ef289066ff69b46d523278..1069527181b8d4cf55f604d06557381a2a09b2ea (under third_party/angle/),
@@ -33,7 +33,60 @@ Commits contributing to it (oldest first):
   a5d2868d94a2 [M158] Don't end recognition when SODA is released for silence
   1bab17e55d63 Roll commits from side projects in M158
     angle 1069527181b8 [M158] Translator: Wrap struct constructors after return
+  b8d51aeedd0c [M158] Handle DOM mutations during text replace in editing commands
+  2a241972408d [M158] Drop pending main-frame navigations when tab is added to task
 
+diff --git a/chrome/browser/actor/actor_task.cc b/chrome/browser/actor/actor_task.cc
+index 0b3c3feb..d38ed9a 100644
+--- a/chrome/browser/actor/actor_task.cc
++++ b/chrome/browser/actor/actor_task.cc
+@@ -39,6 +39,8 @@
+ #include "components/performance_manager/public/decorators/page_live_state_decorator.h"
+ #include "components/tabs/public/tab_interface.h"
+ #include "content/public/browser/browser_thread.h"
++#include "content/public/browser/navigation_controller.h"
++#include "content/public/browser/navigation_entry.h"
+ #include "content/public/browser/page.h"
+ #include "content/public/browser/render_frame_host.h"
+ #include "content/public/browser/render_widget_host.h"
+@@ -120,6 +122,18 @@
+   return tabs;
+ }
+ 
++// Drops pre-existing main-frame navigations so they cannot commit ungated once
++// the surface enters actor control or transient observation.
++void StopPendingMainFrameNavigation(content::WebContents* contents) {
++  if (contents && contents->HasUncommittedNavigationInPrimaryMainFrame()) {
++    content::NavigationEntry* pending_entry =
++        contents->GetController().GetPendingEntry();
++    if (!pending_entry || !pending_entry->GetURL().IsAboutBlank()) {
++      contents->Stop();
++    }
++  }
++}
++
+ }  // namespace
+ 
+ ActorTask::ActorControlledTabState::ActorControlledTabState(
+@@ -669,6 +683,7 @@
+       std::make_unique<ActorControlledTabState>(this, stop_task_on_detach));
+   last_actuated_tab_ = actor_surface_handle;
+ 
++  StopPendingMainFrameNavigation(actor_surface->GetWebContents());
+   DidTabEnterActorControl(actor_surface_handle);
+ 
+   // TODO(b/567721071): UI actually cares about visible tabs - determine how UI
+@@ -770,7 +785,9 @@
+                  .first;
+   ActorControlledTabState* state = itr->second.get();
+ 
+-  DidContentsEnterActorControl(state, actor_surface->GetWebContents());
++  content::WebContents* contents = actor_surface->GetWebContents();
++  StopPendingMainFrameNavigation(contents);
++  DidContentsEnterActorControl(state, contents);
+ }
+ 
+ void ActorTask::OnActorSurfaceWillDetach(
 diff --git a/chrome/services/speech/BUILD.gn b/chrome/services/speech/BUILD.gn
 index f72c83c..16bce711 100644
 --- a/chrome/services/speech/BUILD.gn
@@ -905,6 +958,123 @@ index 0838061..798cae4a 100644
    }
    return true;
  }
+diff --git a/third_party/blink/renderer/core/editing/commands/composite_edit_command.cc b/third_party/blink/renderer/core/editing/commands/composite_edit_command.cc
+index b3dee24..318708d 100644
+--- a/third_party/blink/renderer/core/editing/commands/composite_edit_command.cc
++++ b/third_party/blink/renderer/core/editing/commands/composite_edit_command.cc
+@@ -656,11 +656,14 @@
+     return Position();
+   }
+ 
++  const String replacement_text = text;
+   ReplaceTextInNode(text_node, start.OffsetInContainerNode(),
+                     end.OffsetInContainerNode() - start.OffsetInContainerNode(),
+-                    text, password_echo_behavior);
++                    replacement_text, password_echo_behavior);
+ 
+-  return Position(text_node, start.OffsetInContainerNode() + text.length());
++  return Position(text_node, std::min(start.OffsetInContainerNode() +
++                                          replacement_text.length(),
++                                      text_node->length()));
+ }
+ 
+ Position CompositeEditCommand::PositionOutsideTabSpan(const Position& pos) {
+diff --git a/third_party/blink/renderer/core/editing/commands/insert_text_command.cc b/third_party/blink/renderer/core/editing/commands/insert_text_command.cc
+index e12292fe..54da05a 100644
+--- a/third_party/blink/renderer/core/editing/commands/insert_text_command.cc
++++ b/third_party/blink/renderer/core/editing/commands/insert_text_command.cc
+@@ -161,7 +161,8 @@
+ 
+ // This avoids the expense of a full fledged delete operation, and avoids a
+ // layout that typically results from text removal.
+-bool InsertTextCommand::PerformTrivialReplace(const String& text) {
++bool InsertTextCommand::PerformTrivialReplace(const String& text,
++                                              EditingState* editing_state) {
+   // We may need to manipulate neighboring whitespace if we're deleting text.
+   // This case is tested in
+   // InsertTextCommandTest_InsertEmptyTextAfterWhitespaceThatNeedsFixup.
+@@ -206,8 +207,18 @@
+   if (end_position.IsNull())
+     return false;
+ 
+-  SetEndingSelectionWithoutValidation(relocatable_start->GetPosition(),
+-                                      end_position);
++  Position start_position = relocatable_start->GetPosition();
++  if (start_position.IsNull() || !start_position.IsValidFor(GetDocument()) ||
++      !end_position.IsValidFor(GetDocument()) ||
++      start_position > end_position) {
++    editing_state->Abort();
++    return false;
++  }
++  SetEndingSelectionWithoutValidation(start_position, end_position);
++  if (EndingVisibleSelection().IsNone()) {
++    editing_state->Abort();
++    return false;
++  }
+   SetEndingSelection(SelectionForUndoStep::From(
+       SelectionInDomTree::Builder()
+           .Collapse(RuntimeEnabledFeatures::EditingUseDomPositionApiEnabled()
+@@ -246,8 +257,10 @@
+   if (RuntimeEnabledFeatures::EditingUseDomPositionApiEnabled()
+           ? EndingDomSelection().IsRange()
+           : EndingSelection().IsRange()) {
+-    if (PerformTrivialReplace(text_))
++    if (PerformTrivialReplace(text_, editing_state) ||
++        editing_state->IsAborted()) {
+       return;
++    }
+     GetDocument().UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
+     bool end_of_selection_was_at_start_of_block;
+     if (RuntimeEnabledFeatures::EditingUseDomPositionApiEnabled()) {
+diff --git a/third_party/blink/renderer/core/editing/commands/insert_text_command.h b/third_party/blink/renderer/core/editing/commands/insert_text_command.h
+index 36fb392e..bebb8a2d 100644
+--- a/third_party/blink/renderer/core/editing/commands/insert_text_command.h
++++ b/third_party/blink/renderer/core/editing/commands/insert_text_command.h
+@@ -51,7 +51,7 @@
+   Position PositionInsideTextNode(const Position&, EditingState*);
+   Position InsertTab(const Position&, EditingState*);
+ 
+-  bool PerformTrivialReplace(const String&);
++  bool PerformTrivialReplace(const String&, EditingState*);
+   void SetEndingSelectionWithoutValidation(const Position& start_position,
+                                            const Position& end_position);
+ 
+diff --git a/third_party/blink/renderer/core/editing/commands/replace_selection_command.cc b/third_party/blink/renderer/core/editing/commands/replace_selection_command.cc
+index b33aefb..3ba3790 100644
+--- a/third_party/blink/renderer/core/editing/commands/replace_selection_command.cc
++++ b/third_party/blink/renderer/core/editing/commands/replace_selection_command.cc
+@@ -1540,6 +1540,8 @@
+ 
+   ReplacementFragment fragment(&GetDocument(), document_fragment_.Get(),
+                                selection);
++  ABORT_EDITING_COMMAND_IF(!selection.IsValidFor(GetDocument()) ||
++                           !EndingSelection().IsValidFor(GetDocument()));
+ 
+   bool trivial_replace_result =
+       PerformTrivialReplace(fragment, editing_state, password_echo_behavior_);
+@@ -2633,7 +2635,8 @@
+ 
+   GetDocument().UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
+ 
+-  if (node_after_insertion_pos && node_after_insertion_pos->parentNode() &&
++  if (node_after_insertion_pos && node_after_insertion_pos->isConnected() &&
++      node_after_insertion_pos->GetDocument() == GetDocument() &&
+       IsA<HTMLBRElement>(*node_after_insertion_pos) &&
+       ShouldRemoveEndBR(
+           To<HTMLBRElement>(node_after_insertion_pos),
+@@ -2653,6 +2656,12 @@
+     }
+   }
+ 
++  if (!start.IsValidFor(GetDocument()) || !end.IsValidFor(GetDocument()) ||
++      (start.IsNotNull() && start > end)) {
++    editing_state->Abort();
++    return false;
++  }
++
+   SetEndingSelection(SelectionForUndoStep::From(
+       SelectionInDomTree::Builder()
+           .SetBaseAndExtentDeprecated(select_replacement_ ? start : end, end)
 diff --git a/third_party/blink/renderer/modules/service_worker/DEPS b/third_party/blink/renderer/modules/service_worker/DEPS
 index 136049f..25229a5b 100644
 --- a/third_party/blink/renderer/modules/service_worker/DEPS
