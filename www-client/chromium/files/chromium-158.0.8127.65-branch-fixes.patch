@@ -1,10 +1,10 @@
 Chromium 158.0.8127.65 + the later changes of its release branch, up to
-a969bccfc84bb70873b2b5c178adfa05f1d6d2b3 (refs/branch-heads/8127@{#1871}), for the
+1ec158ffcc954b87c96d5210d54ef644f980fe0d (refs/branch-heads/8127@{#1875}), for the
 158.0.8127.65 tree that chromium-158.0.8127.37-to-158.0.8127.65.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.65..a969bccfc84bb70873b2b5c178adfa05f1d6d2b3,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.65..1ec158ffcc954b87c96d5210d54ef644f980fe0d,
 and from its rolls of v8/v8 e613b92ff31da46781a39135cca49bdf4403f28a..98b95638c50152f0585529494bbcbe8caa81aed8 (under v8/)
-and dawn 534b718adcc75d4b3e1d30fefd0715b374ac5d11..670ce3ccc8538665581b3c40acd85480ac678224 (under third_party/dawn/),
+and dawn 534b718adcc75d4b3e1d30fefd0715b374ac5d11..b4dfec9e19ef3e23044ad039c0f7876ce4599c3a (under third_party/dawn/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .65 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs (GN files
@@ -24,6 +24,9 @@ Commits contributing to it (oldest first):
   a969bccfc84b Roll commits from side projects in M158
     v8 f7ddb157b55d [M158] [regalloc] Check split bounds in LiveRange::SplitAt
     v8 98b95638c501 Version 15.8.62.45
+  f4353614705e Roll commits from side projects in M158
+    dawn b4dfec9e19ef [M158] [dawn][gl] Dirty bind groups on pipeline change.
+  1ec158ffcc95 [M158] [viz] Check drawn_rect and output_rect before skipping DrawRenderPass
 
 diff --git a/components/autofill/core/browser/geo/country_names_for_locale.cc b/components/autofill/core/browser/geo/country_names_for_locale.cc
 index e25fea9b..9810fd5 100644
@@ -71,6 +74,24 @@ index c804da8..9aab13e4 100644
           mojom::IsKnownEnumValue(field.form_control_type()) &&
           (!field.IsSelectElement() || field.max_length() == 0) &&
           IsValidString(field.autocomplete_attribute()) &&
+diff --git a/components/viz/service/display/direct_renderer.cc b/components/viz/service/display/direct_renderer.cc
+index 524d48f..fdb00a9a 100644
+--- a/components/viz/service/display/direct_renderer.cc
++++ b/components/viz/service/display/direct_renderer.cc
+@@ -862,7 +862,12 @@
+         !render_pass->copy_requests.empty()) {
+       return false;
+     }
+-    return IsRenderPassResourceAllocated(render_pass->id);
++    // Reuse the backing only if the drawn rect matches the `output_rect`.
++    // This is similar to handling within ComputeScissorRectForRenderPass, and
++    // avoids awkward situations where `output_rect` is larger than
++    // drawn rect.
++    return GetRenderPassBackingDrawnRect(render_pass->id) ==
++           render_pass->output_rect;
+   }
+ 
+   return false;
 diff --git a/content/browser/preloading/prerender/prerender_host.cc b/content/browser/preloading/prerender/prerender_host.cc
 index ffa117d..88095cc9 100644
 --- a/content/browser/preloading/prerender/prerender_host.cc
@@ -755,6 +776,113 @@ index baae3cd..d81a7bb 100644
          } else {
            __ Movsd(kScratchDoubleReg, src);
            __ Movsd(dst, kScratchDoubleReg);
+diff --git a/third_party/dawn/src/dawn/native/BindGroupTracker.h b/third_party/dawn/src/dawn/native/BindGroupTracker.h
+index d509266..4cb1b3a 100644
+--- a/third_party/dawn/src/dawn/native/BindGroupTracker.h
++++ b/third_party/dawn/src/dawn/native/BindGroupTracker.h
+@@ -79,7 +79,7 @@
+     void OnSetPipeline(PipelineBase* pipeline) { mPipeline = pipeline; }
+ 
+   protected:
+-    virtual bool AreLayoutsCompatible() {
++    virtual bool CanSkipDirtying() {
+         return mLastAppliedPipeline != nullptr &&
+                mLastAppliedPipeline->GetLayout() == mPipeline->GetLayout();
+     }
+@@ -91,7 +91,7 @@
+ 
+     // The Derived class should call this before it applies bind groups.
+     void BeforeApply() {
+-        if (AreLayoutsCompatible()) {
++        if (CanSkipDirtying()) {
+             return;
+         }
+ 
+diff --git a/third_party/dawn/src/dawn/native/d3d12/CommandBufferD3D12.cpp b/third_party/dawn/src/dawn/native/d3d12/CommandBufferD3D12.cpp
+index 8047a24..83ca15a 100644
+--- a/third_party/dawn/src/dawn/native/d3d12/CommandBufferD3D12.cpp
++++ b/third_party/dawn/src/dawn/native/d3d12/CommandBufferD3D12.cpp
+@@ -481,7 +481,7 @@
+     // when pipelines enable different internal immediates. A different root signature invalidates
+     // all bound descriptor tables and root constants, so the bindings cannot be inherited and must
+     // be re-applied. Comparing handles is sufficient: equal handles imply the same pipeline layout.
+-    bool AreLayoutsCompatible() override {
++    bool CanSkipDirtying() override {
+         return mLastAppliedPipeline != nullptr &&
+                LastAppliedPipeline()->GetPipelineLayoutHandle() ==
+                    CurrentPipeline()->GetPipelineLayoutHandle();
+@@ -677,7 +677,7 @@
+     }
+ 
+     void UpdateRootSignatureIfNecessary(ID3D12GraphicsCommandList* commandList) {
+-        if (!AreLayoutsCompatible()) {
++        if (!CanSkipDirtying()) {
+             SetRootSignature(commandList);
+             // Invalidate the root sampler tables previously set in the root signature.
+             ResetRootSamplerTables();
+diff --git a/third_party/dawn/src/dawn/native/opengl/CommandBufferGL.cpp b/third_party/dawn/src/dawn/native/opengl/CommandBufferGL.cpp
+index f46e3cb..6f954f5 100644
+--- a/third_party/dawn/src/dawn/native/opengl/CommandBufferGL.cpp
++++ b/third_party/dawn/src/dawn/native/opengl/CommandBufferGL.cpp
+@@ -327,15 +327,23 @@
+     void OnSetPipeline(RenderPipeline* pipeline) {
+         BindGroupTrackerBase::OnSetPipeline(pipeline);
+         mPipelineGL = pipeline;
+-        ResetInternalUniformDataBindgroupAndDirtyRange();
++        ResetInternalUniformDataDirtyRange();
+     }
+ 
+     void OnSetPipeline(ComputePipeline* pipeline) {
+         BindGroupTrackerBase::OnSetPipeline(pipeline);
+         mPipelineGL = pipeline;
+-        ResetInternalUniformDataBindgroupAndDirtyRange();
++        ResetInternalUniformDataDirtyRange();
+     }
+ 
++    // Multiple parts of the BindGroup state depend on the pipeline and not just the pipeline
++    // layout: texture units, builtin metadata, etc. The only case where it is safe to not dirty
++    // is when the pipeline is the same as the previous one.
++    // TODO(crbug.com/408065421): This forces more dirtying than strictly necessary for the
++    // parts that don't depend on the pipeline like buffer bindings. In the future we'll want to
++    // optimize to only dirty the texture units but not the rest.
++    bool CanSkipDirtying() override { return mLastAppliedPipeline == mPipeline; }
++
+     template <typename Immediates>
+     MaybeError Apply(const OpenGLFunctions& gl, Immediates& immediates) {
+         BeforeApply();
+@@ -619,19 +627,6 @@
+         return {};
+     }
+ 
+-    void ResetInternalUniformDataBindgroupAndDirtyRange() {
+-        // Mark bind groups that need emulated builtin uniforms dirty so that they can be updated
+-        // properly, even if the bind group is not updated.
+-        // TODO(crbug.com/408065421): This forces bindgroups with metadata to be completely set
+-        // again each pipeline change. In the future we will want to optimize that to only recompute
+-        // the metadata as needed, not force a rebind of all resources.
+-        const auto& builtinInfo = mPipelineGL->GetEmulatedTextureBuiltinInfo();
+-        for (const auto& entry : builtinInfo) {
+-            mDirtyBindGroupsObjectChangedOrIsDynamic.set(BindGroupIndex(entry.second.group));
+-        }
+-        ResetInternalUniformDataDirtyRange();
+-    }
+-
+     raw_ptr<PipelineGL> mPipelineGL = nullptr;
+ 
+     // The data used for mPipelineGL's internal uniform buffer from current bind group.
+diff --git a/third_party/dawn/src/dawn/native/vulkan/CommandBufferVk.cpp b/third_party/dawn/src/dawn/native/vulkan/CommandBufferVk.cpp
+index 3a17c5d..6c18785 100644
+--- a/third_party/dawn/src/dawn/native/vulkan/CommandBufferVk.cpp
++++ b/third_party/dawn/src/dawn/native/vulkan/CommandBufferVk.cpp
+@@ -237,7 +237,7 @@
+ 
+ class DescriptorSetTracker : public BindGroupTrackerBase<true> {
+   public:
+-    bool AreLayoutsCompatible() override {
++    bool CanSkipDirtying() override {
+         return mLastAppliedPipeline != nullptr &&
+                mLastAppliedPipeline->GetLayout() == mPipeline->GetLayout() &&
+                mLastAppliedImmediateSize == mImmediateSize;
 diff --git a/third_party/dawn/third_party/litert-lm/build_litert_lm.py b/third_party/dawn/third_party/litert-lm/build_litert_lm.py
 index 13ffe59..1d8f439 100644
 --- a/third_party/dawn/third_party/litert-lm/build_litert_lm.py
