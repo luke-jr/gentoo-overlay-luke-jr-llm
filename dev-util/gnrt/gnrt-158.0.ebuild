@@ -169,7 +169,7 @@ LICENSE="BSD"
 # Dependent crate licenses
 LICENSE+=" Apache-2.0 Apache-2.0-with-LLVM-exceptions MIT Unicode-3.0 ZLIB"
 SLOT="$(ver_cut 1)"
-KEYWORDS="~amd64 ~arm64"
+KEYWORDS="amd64 ~arm64"
 # Only `gnrt gen` is used, and Chromium's ebuild checks what it writes.
 RESTRICT="test"
 
