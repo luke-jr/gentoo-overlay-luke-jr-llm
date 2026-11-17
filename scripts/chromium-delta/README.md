@@ -73,6 +73,19 @@ GCS dependency nor covered by generated.conf. In 156.0.8078.12's tarball, 37201 
 Each entry says what was found, and whether it was wrong or intentional. For the wrong ones
 it also says what fixes it.
 
+### 159.0.8154.12_p749 (patch 159.0.8154.6 → .12): GN files of tests
+
+**Wrong:** `gn gen` failed: `//chrome/test/data/webui/cr_components/help_bubble:build_ts can
+not depend on //third_party/polymer/v3_0:library` (not in its visibility list). Upstream narrowed
+Polymer's visibility and moved that test target off Polymer in the same range; the filter kept
+`third_party/polymer/v3_0/BUILD.gn` (a build input) but dropped the test `BUILD.gn` under its
+test rule. `gn gen` loads test targets' `BUILD.gn` too (`gn_all`), and checks visibility across
+them, so a left-out GN file can break it. The filter's BUILD_INPUTS had only `ninja -t inputs`'
+list, not GN's `build.ninja.d` (step 4 says both), which lists that file; the filter took
+that silently.
+- Fix: `filter.py` keeps every changed `*.gn`/`*.gni` (whatever directory), and exits when
+  BUILD_INPUTS has no GN file (GN's list missing).
+
 ### 158.0.8127.24 (patch 158.0.8127.18 → .24): renames
 
 **Wrong:** the first diff with renames (20 files moved into `omnibox_popup/aim/`, `full/` and
