@@ -3962,7 +3962,7 @@ chromium_configure() {
 	fi
 
 	# Since we build from tarballs, we need to set the channel here so that it can be used in the build.
-	export CHROME_VERSION_EXTRA="${SLOT}"
+	export CHROME_VERSION_EXTRA="${SLOT%/*}"
 
 	# The files GN reads that are regenerated (see chromium_regenerate_gn), once.
 	if [[ ! -e ${WORKDIR}/.chromium-regenerated-gn ]]; then
@@ -4346,7 +4346,7 @@ chromium-llm_src_compile() {
 	# Generate support files (desktop file, manpage, etc.) See: #684550 #706786 #968958
 	${EPYTHON} "${FILESDIR}/generate-support-files.py" \
 		--installdir "/usr/$(get_libdir)/chromium-browser" --outdir "${CHROMIUM_OUT}" \
-		--channel "${SLOT}" ||
+		--channel "${SLOT%/*}" ||
 			die "Failed to generate support files"
 }
 
@@ -4447,8 +4447,8 @@ chromium-llm_src_test() {
 chromium-llm_src_install() {
 	chromium_build_tree_addwrite
 	local browser_suffix
-	if [[ "${SLOT}" != "stable" ]]; then
-		browser_suffix="-${SLOT}"
+	if [[ "${SLOT%/*}" != "stable" ]]; then
+		browser_suffix="-${SLOT%/*}"
 	else
 		browser_suffix=""
 	fi
@@ -4471,7 +4471,7 @@ chromium-llm_src_install() {
 		# Wrapper to launch slotted Chromium via the chromium-common launcher script.
 		export CHROME_DESKTOP="chromium-browser${browser_suffix}.desktop"
 		export CHROME_EXEC_NAME="chromium-browser${browser_suffix}"
-		export CHROME_VERSION_EXTRA="${SLOT}"
+		export CHROME_VERSION_EXTRA="${SLOT%/*}"
 		export CHROME_WRAPPER="\$(readlink -f "\$0")"
 		export OZONE_AUTO_SESSION=$(ozone_auto_session)
 
@@ -4668,7 +4668,7 @@ chromium-llm_pkg_postinst() {
 		done
 		if ${replacing_non_slotted}; then
 			ewarn "This version of Chromium has replaced a non-slotted ebuild."
-			if [[ ${SLOT} != "stable" ]]; then
+			if [[ ${SLOT%/*} != "stable" ]]; then
 				ewarn "This channel has its own profile directory, so your existing profile will not be used."
 				ewarn "To use your existing profile, either copy or move it to the new location."
 				ewarn "See https://wiki.gentoo.org/wiki/Chromium#Profile_Directories for more information."
