@@ -1,9 +1,10 @@
 Chromium 158.0.8127.65 + the later changes of its release branch, up to
-392c258299ff20dd0b99e130a9f0ef9cbffdbf90 (refs/branch-heads/8127@{#1860}), for the
+a969bccfc84bb70873b2b5c178adfa05f1d6d2b3 (refs/branch-heads/8127@{#1871}), for the
 158.0.8127.65 tree that chromium-158.0.8127.37-to-158.0.8127.65.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.65..392c258299ff20dd0b99e130a9f0ef9cbffdbf90,
-and from its roll of v8/v8 e613b92ff31da46781a39135cca49bdf4403f28a..5b636f1e136bb74d71a80db874593b3ab1e8b9ae (under v8/),
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.65..a969bccfc84bb70873b2b5c178adfa05f1d6d2b3,
+and from its rolls of v8/v8 e613b92ff31da46781a39135cca49bdf4403f28a..98b95638c50152f0585529494bbcbe8caa81aed8 (under v8/)
+and dawn 534b718adcc75d4b3e1d30fefd0715b374ac5d11..670ce3ccc8538665581b3c40acd85480ac678224 (under third_party/dawn/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .65 tree's files, renames included): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs (GN files
@@ -18,6 +19,11 @@ Commits contributing to it (oldest first):
     v8 5b636f1e136b Version 15.8.62.44
   9e6013cca031 [M158] gpu: Use kVaapi stream for CompoundImageBacking::ProduceVideo
   392c258299ff [M158] [Autofill] Validate selected_option_text and selected_text lengths
+  67db5e164916 Roll commits from side projects in M158
+    dawn 670ce3ccc853 Pass --keep_going to the LiteRT-LM Bazel build
+  a969bccfc84b Roll commits from side projects in M158
+    v8 f7ddb157b55d [M158] [regalloc] Check split bounds in LiveRange::SplitAt
+    v8 98b95638c501 Version 15.8.62.45
 
 diff --git a/components/autofill/core/browser/geo/country_names_for_locale.cc b/components/autofill/core/browser/geo/country_names_for_locale.cc
 index e25fea9b..9810fd5 100644
@@ -379,7 +385,7 @@ index 0838061..798cae4a 100644
    return true;
  }
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index 2e40c4a..83a261b 100644
+index 2e40c4a..3c24587 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -387,7 +393,7 @@ index 2e40c4a..83a261b 100644
  #define V8_MINOR_VERSION 8
  #define V8_BUILD_NUMBER 62
 -#define V8_PATCH_LEVEL 43
-+#define V8_PATCH_LEVEL 44
++#define V8_PATCH_LEVEL 45
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
@@ -619,6 +625,21 @@ index bde8d65..c5fbd54 100644
  }
  
  void CodeGenerator::PopTempStackSlots() {
+diff --git a/v8/src/compiler/backend/register-allocator.cc b/v8/src/compiler/backend/register-allocator.cc
+index 4de50ce..3e71083 100644
+--- a/v8/src/compiler/backend/register-allocator.cc
++++ b/v8/src/compiler/backend/register-allocator.cc
+@@ -389,8 +389,8 @@
+ }
+ 
+ LiveRange* LiveRange::SplitAt(LifetimePosition position, Zone* zone) {
+-  DCHECK(Start() < position);
+-  DCHECK(End() > position);
++  CHECK_LT(Start(), position);
++  CHECK_GT(End(), position);
+ 
+   int new_id = TopLevel()->GetNextChildId();
+   LiveRange* result =
 diff --git a/v8/src/compiler/backend/riscv/code-generator-riscv.cc b/v8/src/compiler/backend/riscv/code-generator-riscv.cc
 index fe67f1d..fb1cb84 100644
 --- a/v8/src/compiler/backend/riscv/code-generator-riscv.cc
@@ -734,3 +755,15 @@ index baae3cd..d81a7bb 100644
          } else {
            __ Movsd(kScratchDoubleReg, src);
            __ Movsd(dst, kScratchDoubleReg);
+diff --git a/third_party/dawn/third_party/litert-lm/build_litert_lm.py b/third_party/dawn/third_party/litert-lm/build_litert_lm.py
+index 13ffe59..1d8f439 100644
+--- a/third_party/dawn/third_party/litert-lm/build_litert_lm.py
++++ b/third_party/dawn/third_party/litert-lm/build_litert_lm.py
+@@ -225,6 +225,7 @@
+             'build',
+             '--noexperimental_guard_against_concurrent_changes',
+             '--nowatchfs',
++            '--keep_going',
+             '--compilation_mode=opt',
+             '--define=litert_runtime_link_mode=dynamic',
+             '--define=resolve_symbols_in_exec=false',
