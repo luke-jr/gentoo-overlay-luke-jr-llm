@@ -10,17 +10,21 @@ was added with (and 156 updated from .12 to .47).
   the channel, as in `::gentoo`: `stable`, `beta` or `unstable` (dev). It is not just a label: it
   decides the install directory (`chromium-browser-<slot>`), the profile directory and the channel
   the browser reports. `KEYWORDS` say how far along the version is:
-  - Stable for Linux: `SLOT="stable"`, `KEYWORDS="amd64 ~arm64"`: the official release as a
-    plain ebuild, and the bleeding-edge `_p<N>` (below) of the same major if it is also the newest
-    stable branch. The overlay packages it builds with, at the versions it uses, get `amd64` too
-    (check with `ACCEPT_KEYWORDS=amd64 emerge -pe --with-bdeps=y =www-client/chromium-<version>`
-    and no `package.accept_keywords`);
+  - Stable for Linux: `SLOT="stable"`, `KEYWORDS="amd64 ~arm64"`: only Google's official Linux
+    release, as a plain ebuild from that release's own tarball. Our builds with fixes beyond
+    Google's release (sub-slot `fixes`: the bleeding-edge `_p<N>` below, carried fixes) stay
+    `~amd64`, even on the Linux Stable branch. The overlay packages it builds with, at the
+    versions it uses, get `amd64` too (check with
+    `ACCEPT_KEYWORDS=amd64 emerge -pe --with-bdeps=y =www-client/chromium-<version>` and no
+    `package.accept_keywords`);
   - Google's "Early Stable" (Windows and Mac first, to some users): `SLOT="stable"`,
     `KEYWORDS="~amd64 ~arm64"`. Like any official release without a tarball (Google often
     publishes none for Early Stable), it is a `<tag>_pre` built from the newest tarball of its major
     (below); it replaces the previous Early Stable's ebuild when Google releases it. When Google
-    releases it for Linux Stable, it gets `amd64`; no new slot, so installed copies keep their
-    profile;
+    releases the major for Linux Stable, the Linux release's ebuild (from its tarball, `amd64`)
+    replaces it, also when Linux's version differs from the Early Stable's (158.0.8127.36 for
+    Linux replaced the Windows/Mac Early Stable 158.0.8127.37); same slot, so installed copies
+    keep their profile;
   - Beta for Linux: `SLOT="beta"`, no `KEYWORDS` (it is accepted only explicitly, with `**`):
     the newest Linux Beta, as a bleeding-edge build of its branch (since 2026-11-04), so that the
     next major is ported before it reaches Early Stable. It replaces the previous Beta, and gets

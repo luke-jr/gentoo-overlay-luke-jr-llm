@@ -18,7 +18,7 @@ masters = gentoo
 auto-sync = no
 ```
 
-`www-client/chromium-157.0.8103.78`, `158.0.8127.37`, `158.0.8127.65_p1880_pre` and `159.0.8154.12_p835_pre`, based on `::gentoo`'s
+`www-client/chromium-158.0.8127.36`, `158.0.8127.65_p1880_pre` and `159.0.8154.12_p835_pre`, based on `::gentoo`'s
 `chromium-151.0.7922.169-r1`. `::gentoo` removed `www-client/chromium` on 2026-11-05 (bug #982204),
 with `www-client/chromium-common`, which this overlay now carries. Since that day its
 `profiles/package.mask` masks only its own old versions (`<www-client/chromium-151.0.7922.169-r1`),
@@ -60,9 +60,8 @@ What the packages here follow, beyond Gentoo's own policies:
 
 | Package | Why |
 |---|---|
-| `www-client/chromium-157.0.8103.78` | the browser: 157.0.8103.78, Google's Linux **Stable** release of 157, from its official "lite" tarball, with no fixes beyond the release. `SLOT="stable"`, `amd64`. |
-| `www-client/chromium-158.0.8127.37` | the browser: 158.0.8127.37, Google's **Early Stable** release of 158 (with .36; Windows and Mac first), from its official "lite" tarball, with no fixes beyond the release: `SLOT="stable"`, `~amd64`. |
-| `www-client/chromium-158.0.8127.65_p1880_pre` | the browser: 158.0.8127.65, the newest tag of the 158 branch, plus the branch up to 8127@{#1880} (`_p1880`); no source tarball (`_pre`): built from Google's official "lite" tarball of 158.0.8127.37 plus `files/chromium-158.0.8127.37-to-158.0.8127.65.patch` and `files/chromium-158.0.8127.65-branch-fixes.patch` (see their headers), and fixes 158 hasn't got yet: Blink's for crbug 574605993 (merged to 159: `files/chromium-158-blink-script-revalidation-streamer.patch`), page popups' for crbugs 580868681 and 580866198 (merged to 159: `files/chromium-158-page-popup-dangling-opener.patch`), ANGLE's for crbug 535344406 (merged to ANGLE's 159 branch: `files/chromium-158-angle-tf-struct-varyings.patch`), the resource fetcher's for crbug 576850257 (merged to 159: `files/chromium-158-resource-fetcher-image-set-snapshot.patch`) and WebMediaPlayerMS's for crbug 580847195 (merged to 159: `files/chromium-158-webmediaplayerms-copyframe-player-check.patch`). 158 is Google's Early Stable (since 158.0.8127.18), so `SLOT="stable/fixes"` (sub-slot: see below), `~amd64`: this is the bleeding-edge build of it. |
+| `www-client/chromium-158.0.8127.36` | the browser: 158.0.8127.36, Google's Linux **Stable** release of 158 (2026-11-17; .36/.37 for Windows and Mac), from its official "lite" tarball, with no fixes beyond the release: `SLOT="stable"`, `amd64`. |
+| `www-client/chromium-158.0.8127.65_p1880_pre` | the browser: 158.0.8127.65, the newest tag of the 158 branch, plus the branch up to 8127@{#1880} (`_p1880`); no source tarball (`_pre`): built from Google's official "lite" tarball of 158.0.8127.37 plus `files/chromium-158.0.8127.37-to-158.0.8127.65.patch` and `files/chromium-158.0.8127.65-branch-fixes.patch` (see their headers), and fixes 158 hasn't got yet: Blink's for crbug 574605993 (merged to 159: `files/chromium-158-blink-script-revalidation-streamer.patch`), page popups' for crbugs 580868681 and 580866198 (merged to 159: `files/chromium-158-page-popup-dangling-opener.patch`), ANGLE's for crbug 535344406 (merged to ANGLE's 159 branch: `files/chromium-158-angle-tf-struct-varyings.patch`), the resource fetcher's for crbug 576850257 (merged to 159: `files/chromium-158-resource-fetcher-image-set-snapshot.patch`) and WebMediaPlayerMS's for crbug 580847195 (merged to 159: `files/chromium-158-webmediaplayerms-copyframe-player-check.patch`). 158 is Google's Stable (Linux Stable since 2026-11-17), so `SLOT="stable/fixes"` (sub-slot: see below), `~amd64` (a build with fixes beyond Google's release): this is the bleeding-edge build of it. |
 | `www-client/chromium-159.0.8154.12_p835_pre` | the browser: 159.0.8154.12, the newest tag of the 159 branch, plus the branch up to 8154@{#835} (`_p835`); no source tarball (`_pre`): built from Google's official "lite" tarball of 159.0.8154.6 plus `files/chromium-159.0.8154.6-to-159.0.8154.12.patch` and `files/chromium-159.0.8154.12-branch-fixes.patch` (see their headers). 159 is Google's Linux **Beta** (159.0.8154.6), so `SLOT="beta/fixes"`, unkeyworded (accept it with `**`): the bleeding-edge build of it, installed beside the stable slot. |
 | `www-client/chromium-common-2` | the launcher script and `/etc/chromium/default` that every `www-client/chromium` slot uses, as `::gentoo` had it before removing it with its Chromium (2026-11-05). |
 | `dev-util/ragel-6.10:6` | Ragel 6 in slot 6, installed as `ragel-6`, for systems that keep `::gentoo`'s Ragel 7 (`::gentoo` has 6 and 7 both in slot 0). Chromium's ebuild regenerates HarfBuzz's state machines with Ragel 6 (HarfBuzz requires 6.10), and depends on `=dev-util/ragel-6.10*`, which either satisfies: `::gentoo`'s `dev-util/ragel-6.10` when that is installed, otherwise this slot (Portage installs it next to a Ragel 7, and prefers it on a system with no Ragel, as the overlay's repository priority is higher). |
@@ -82,8 +81,9 @@ All are **build-time only** (`BDEPEND`) for Chromium. `USE=ffmpeg-chromium` need
 `::gentoo`'s `media-video/ffmpeg-chromium:<major>` (157 and 158 since 2026-11-11; not tested with
 this overlay's builds).
 
-The Chromium version Google releases as Stable for Linux is keyworded `amd64`, and so are the versions
-of the packages above that it builds with; everything else is `~amd64`, except the Beta
+Only Google's official Linux Stable release (as released, from its tarball) is keyworded `amd64`,
+and so are the versions of the packages above that it builds with; everything else is `~amd64`,
+including our builds with fixes beyond Google's release (sub-slot `fixes`, below), except the Beta
 (`SLOT="beta"`), which has no keywords (see
 [`doc/chromium-maintenance.md`](doc/chromium-maintenance.md)). arm64 is `~arm64` (the Beta aside): only amd64 has been built and tested.
 
@@ -91,8 +91,10 @@ Every ebuild here applies the overlay's own patches (build and system-library fi
 ...). The builds that also carry upstream changes from after Google's release (its release branch
 past the release, and upstream fixes the branch hasn't got yet) have the sub-slot `fixes`
 (`SLOT="stable/fixes"`, `SLOT="beta/fixes"`); the builds of Google's releases as released have no
-sub-slot. `~amd64` gets the Early Stable with those upstream fixes; to keep only Google's releases,
-without them, mask the sub-slot in `/etc/portage/package.mask`:
+sub-slot. `amd64` gets only Google's Linux Stable release; `~amd64` gets the newest builds with
+those upstream fixes (of the Stable branch, or of the Early Stable's when Google has one of a
+newer major). To keep only Google's releases on `~amd64`, without the fixes, mask the sub-slot in
+`/etc/portage/package.mask`:
 
 ```
 www-client/chromium:stable/fixes
