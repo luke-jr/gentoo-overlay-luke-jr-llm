@@ -180,15 +180,14 @@ LICENSE+=" rar? ( unRAR )"
 SLOT="stable/fixes"
 KEYWORDS="~amd64 ~arm64"
 
-# The 158 branch's changes after the 158.0.8127.65 tag, up to #1889 (see its header), and
+# The 158 branch's changes after the 158.0.8127.65 tag, up to #1893 (see its header), and
 # fixes 158 hasn't got yet (their headers say where they come from): Blink's script
 # revalidation with a background streamer (crbug 574605993; merged to 159), page popups'
 # dangling opener (crbugs 580868681, 580866198; merged to 159), ANGLE's transform feedback
 # struct varying counting (crbug 535344406; merged to ANGLE's 159 branch), ResourceFetcher's
 # iteration over its image resource sets (crbug 576850257; merged to 159),
-# WebMediaPlayerMS's frame copy outliving the player (crbug 580847195; merged to 159),
-# ANGLE's GL texture storage size limit (crbug 577359061; merged to ANGLE's 159 branch) and
-# Blink's editing commands under DOM mutations (crbug 576742430; merged to 159).
+# WebMediaPlayerMS's frame copy outliving the player (crbug 580847195; merged to 159) and
+# ANGLE's GL texture storage size limit (crbug 577359061; merged to ANGLE's 159 branch).
 CHROMIUM_FIXES=(
 	chromium-158.0.8127.65-branch-fixes.patch
 	chromium-158-blink-script-revalidation-streamer.patch
@@ -197,7 +196,6 @@ CHROMIUM_FIXES=(
 	chromium-158-resource-fetcher-image-set-snapshot.patch
 	chromium-158-webmediaplayerms-copyframe-player-check.patch
 	chromium-158-angle-gl-max-texture-bytes.patch
-	chromium-158-blink-editing-text-replace-mutations.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
