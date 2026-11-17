@@ -24,6 +24,8 @@ The rules, in order (the first that matches decides):
   - binary files: dropped, except BINARY_KEEP (which must come as git binary patches)
   - infra/ (Chromium's CI configuration): dropped
   - files a build reads: kept
+  - GN files (*.gn, *.gni) of any directory: kept (gn gen loads test targets' BUILD.gn too, and
+    checks visibility across them; one left out can break gn gen, as 159.0.8154.12 showed)
   - tests, docs, other platforms (iOS, Android, ChromeOS, Mac, Windows, Fuchsia, ...): dropped
   - everything else: kept (to be safe)
 """
@@ -72,6 +74,8 @@ def decide(f, p, tree, inputs, branch_fixes, old=None, prefix=""):
         return None, "CI configuration"
     if f in inputs:
         return True, "build input"
+    if f.endswith((".gn", ".gni")):
+        return True, "GN file"
     if IRRELEVANT.search(f):
         return None, "test/docs/other platform"
     if PLATFORM.search(f):
@@ -91,6 +95,9 @@ def main():
     inputs = set()
     for f in inputs_files.split(","):
         inputs |= set(open(f).read().split())
+    if not any(i.endswith((".gn", ".gni")) for i in inputs):
+        sys.exit("BUILD_INPUTS has no GN files: also pass GN's build.ninja.d list "
+                 "(see the README's step 4)")
     os.makedirs(os.path.join(out, "kept"), exist_ok=True)
     stats = collections.Counter()
     with open(os.path.join(out, "report.tsv"), "w") as report:
