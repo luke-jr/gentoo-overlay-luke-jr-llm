@@ -181,14 +181,16 @@ KEYWORDS="~amd64 ~arm64"
 # fixes 158 hasn't got yet (their headers say where they come from): Blink's script
 # revalidation with a background streamer (crbug 574605993; merged to 159), page popups'
 # dangling opener (crbugs 580868681, 580866198; merged to 159), ANGLE's transform feedback
-# struct varying counting (crbug 535344406; merged to ANGLE's 159 branch) and the service
-# worker NavigationPreloadRequest's lifetime (crbug 578676178; merged to 159).
+# struct varying counting (crbug 535344406; merged to ANGLE's 159 branch), the service
+# worker NavigationPreloadRequest's lifetime (crbug 578676178; merged to 159) and
+# ResourceFetcher's iteration over its image resource sets (crbug 576850257; merged to 159).
 CHROMIUM_FIXES=(
 	chromium-158.0.8127.65-branch-fixes.patch
 	chromium-158-blink-script-revalidation-streamer.patch
 	chromium-158-page-popup-dangling-opener.patch
 	chromium-158-angle-tf-struct-varyings.patch
 	chromium-158-sw-navigation-preload-lifetime.patch
+	chromium-158-resource-fetcher-image-set-snapshot.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.
