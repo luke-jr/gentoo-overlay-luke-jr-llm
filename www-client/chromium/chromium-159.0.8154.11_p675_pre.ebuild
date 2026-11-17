@@ -183,7 +183,8 @@ LICENSE+=" IJG ISC LGPL-2 LGPL-2.1 MIT MPL-1.1 MPL-2.0 Ms-PL Old-MIT PSF-2 SGI-B
 LICENSE+=" Unicode-DFS-2015 Unlicense UoI-NCSA ZLIB libtiff openssl"
 LICENSE+=" rar? ( unRAR )"
 
-# Sub-slot "fixes": fixes beyond Google's release (mask www-client/chromium:beta/fixes to leave them out).
+# Sub-slot "fixes": upstream changes from after Google's release (mask www-client/chromium:beta/fixes
+# to leave them out).
 SLOT="beta/fixes"
 # Linux Beta: no keywords (accept it with "**"); ~amd64 once it is Early Stable.
 KEYWORDS=""

@@ -87,10 +87,12 @@ of the packages above that it builds with; everything else is `~amd64`, except t
 (`SLOT="beta"`), which has no keywords (see
 [`doc/chromium-maintenance.md`](doc/chromium-maintenance.md)). arm64 is `~arm64` (the Beta aside): only amd64 has been built and tested.
 
-The builds with fixes beyond Google's release (its release branch past the release, and fixes
-the branch hasn't got yet) have the sub-slot `fixes` (`SLOT="stable/fixes"`, `SLOT="beta/fixes"`);
-Google's own releases have none. `~amd64` gets the Early Stable with those fixes; to keep only
-Google's releases, without them, mask the sub-slot in `/etc/portage/package.mask`:
+Every ebuild here applies the overlay's own patches (build and system-library fixes, Manifest V2,
+...). The builds that also carry upstream changes from after Google's release (its release branch
+past the release, and upstream fixes the branch hasn't got yet) have the sub-slot `fixes`
+(`SLOT="stable/fixes"`, `SLOT="beta/fixes"`); the builds of Google's releases as released have no
+sub-slot. `~amd64` gets the Early Stable with those upstream fixes; to keep only Google's releases,
+without them, mask the sub-slot in `/etc/portage/package.mask`:
 
 ```
 www-client/chromium:stable/fixes
