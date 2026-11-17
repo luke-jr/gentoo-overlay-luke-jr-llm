@@ -24,8 +24,8 @@ was added with (and 156 updated from .12 to .47).
     releases the major for Linux Stable, the Linux release's ebuild (from its tarball) gets `amd64`;
     when Linux's version differs from the Early Stable's (158.0.8127.36 for Linux, 158.0.8127.37
     for Windows and Mac), the Linux one is added with `amd64` and the Early Stable's stays,
-    `~amd64`, until the next Early Stable replaces it, so that its users aren't pushed to
-    downgrade. Same slot, so installed copies keep their profile;
+    `~amd64`, so that its users aren't pushed to downgrade, until the next Early Stable or a
+    newer Linux Stable (e.g. a 158 Stable update after .37) replaces it. Same slot, so installed copies keep their profile;
   - Beta for Linux: `SLOT="beta"`, no `KEYWORDS` (it is accepted only explicitly, with `**`):
     the newest Linux Beta, as a bleeding-edge build of its branch (since 2026-11-04), so that the
     next major is ported before it reaches Early Stable. It replaces the previous Beta, and gets
