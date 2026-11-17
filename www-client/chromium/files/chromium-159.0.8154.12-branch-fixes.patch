@@ -1,9 +1,9 @@
 Chromium 159.0.8154.12 + the later changes of its release branch, up to
-c1e31361a7de88ff7d43a8df5db8f33fa0c4dbe5 (refs/branch-heads/8154@{#824}), for the
+0854f0ee7751bc9bba545823d1666440eee1b4c8 (refs/branch-heads/8154@{#835}), for the
 159.0.8154.12 tree that chromium-159.0.8154.6-to-159.0.8154.12.patch makes.
 
 Generated from the upstream diff chromium/src
-refs/tags/159.0.8154.12..c1e31361a7de88ff7d43a8df5db8f33fa0c4dbe5, and from its rolls
+refs/tags/159.0.8154.12..0854f0ee7751bc9bba545823d1666440eee1b4c8, and from its rolls
 of dawn f215b928bfa683410e905c998a738cd5f8f9ad97..69bfa246b5d7369f73c807d37648e25370f4db40
 (under third_party/dawn/), devtools-frontend
 bc93449ab1871f94e60dca359a46b85fc0735659..b02b389d1cfc7521b30a88f109f25b48894bcb08
@@ -112,6 +112,17 @@ Commits contributing to it (oldest first):
   f5c0f9c637c9 Store CRLSet serials compactly behind a feature flag
   8b4b3b593fe0 [M159] IDB: enforce transaction scope in browser
   c1e31361a7de [M159] [AIM] Omit active model URL params when tool disables model selection
+  2a24dea82a25 [M159] [Enterprise] Report conflict_type on policy conflicts
+  40658751c8dd [M159] [omnibox][webui] Don't navigate on stale fast enters
+  9b6b811c16dd [M159] [LHS] Show ghost loader while expanded LHS iframe loads
+  ab7911652f62 [M159] [NTP] Render action chip text in its own direction
+  dddc4faaf68c [M159] [omnibox][webui] Consume ctrl on ctrl+L
+  2316cd226bbc [M159] Only dismiss the contextual tasks onboarding tooltip on click or touch
+  35f2b960baf4 [M159] [WebUI Omnibox] Keep temporary text on blur when ZPS opened via arrows
+  3b12eeda7fb7 [M159] [ContextualTasks] Filter ineligible recent tabs
+  9d9d8457a919 [M159] [context-input] Keep the tab favicon pill as tall as the + button
+  6d2a51aa4793 [M159] [OTP] Match OTP suggestions against the value typed into the field
+  0854f0ee7751 [M159] [OmniboxEverywhere] Let Tab reach the profile button when expanded
 
 diff --git a/chrome/app/glic_strings.grdp b/chrome/app/glic_strings.grdp
 index 842e886..24e4840 100644
@@ -996,10 +1007,37 @@ index 6a73958a..66fc9124 100644
  
  content::AllowServiceWorkerResult
 diff --git a/chrome/browser/contextual_tasks/BUILD.gn b/chrome/browser/contextual_tasks/BUILD.gn
-index 7f93dfe..abfc803 100644
+index 7f93dfe..f793147a 100644
 --- a/chrome/browser/contextual_tasks/BUILD.gn
 +++ b/chrome/browser/contextual_tasks/BUILD.gn
-@@ -1258,6 +1258,7 @@
+@@ -743,6 +743,7 @@
+       "//chrome/browser/ui/lens:test_support",
+       "//chrome/browser/ui/page_action",
+       "//chrome/browser/ui/side_panel",
++      "//chrome/browser/ui/tabs:page_context_eligibility_helper",
+       "//chrome/browser/ui/test:dialog",
+       "//chrome/browser/ui/views:bubble_anchor_util_views",
+       "//chrome/browser/ui/views/frame:browser_view_header",
+@@ -757,8 +758,10 @@
+       "//components/contextual_tasks/public:test_support",
+       "//components/omnibox/browser:test_support",
+       "//components/omnibox/common:features",
++      "//components/optimization_guide/content/browser:page_context_eligibility",
+       "//components/optimization_guide/core:test_support",
+       "//components/optimization_guide/proto:optimization_guide_proto",
++      "//components/page_content_annotations/content",
+       "//components/page_content_annotations/core",
+       "//components/page_content_annotations/core:test_support",
+       "//components/passage_embeddings/core",
+@@ -772,6 +775,7 @@
+       "//content/test:test_support",
+       "//google_apis",
+       "//net",
++      "//net:test_support",
+       "//testing/gmock",
+       "//testing/gtest",
+       "//third_party/lens_server_proto:lens_overlay_proto",
+@@ -1258,6 +1262,7 @@
    testonly = true
    sources = [
      "contextual_tasks_test_user_variation.h",
@@ -1007,6 +1045,71 @@ index 7f93dfe..abfc803 100644
      "mock_contextual_tasks_page.cc",
      "mock_contextual_tasks_page.h",
      "mock_contextual_tasks_panel_controller.cc",
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
+index 9515819f..1f776fee 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
+@@ -486,7 +486,8 @@
+   }
+   std::move(callback).Run(ContextualSearchboxHandler::GetRecentTabInfos(
+       GetBrowserWindowInterface(), /*max_tab_suggestions=*/std::nullopt,
+-      always_include_tab_ids));
++      always_include_tab_ids,
++      /*exclude_page_context_ineligible_tabs=*/true));
+ }
+ void ContextualTasksExtensionHandler::GetTabPreview(
+     int32_t tab_id,
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc b/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc
+index 4c990f5..2442c62 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_onboarding_tooltip_controller.cc
+@@ -28,9 +28,13 @@
+ #include "components/feature_engagement/public/tracker.h"
+ #include "components/omnibox/common/omnibox_features.h"
+ #include "components/prefs/pref_service.h"
++#include "content/public/browser/web_contents.h"
++#include "third_party/blink/public/common/input/web_input_event.h"
++#include "third_party/blink/public/common/input/web_keyboard_event.h"
+ #include "ui/base/interaction/element_events.h"
+ #include "ui/base/interaction/element_tracker.h"
+ #include "ui/base/mojom/window_open_disposition.mojom.h"
++#include "ui/events/keycodes/keyboard_codes.h"
+ #include "ui/gfx/native_ui_types.h"
+ #include "ui/views/bubble/bubble_anchor.h"
+ #include "ui/views/bubble/bubble_dialog_delegate_view.h"
+@@ -70,7 +74,31 @@
+ 
+ void ContextualTasksOnboardingTooltipController::PanelWebContentsObserver::
+     DidGetUserInteraction(const blink::WebInputEvent& event) {
+-  if (controller_->IsBubbleShowing()) {
++  // A mouse press or a touch dismisses the bubble, as does activating a
++  // control with Enter or Space. Scrolling, typing in a text field, and other
++  // key presses do not.
++  bool is_dismissing_event = false;
++  switch (event.GetType()) {
++    case blink::WebInputEvent::Type::kMouseDown:
++    case blink::WebInputEvent::Type::kTouchStart:
++      is_dismissing_event = true;
++      break;
++    case blink::WebInputEvent::Type::kRawKeyDown:
++    case blink::WebInputEvent::Type::kKeyDown: {
++      const int key_code =
++          static_cast<const blink::WebKeyboardEvent&>(event).windows_key_code;
++
++      // Only Enter and Space dismiss the bubble, and only if the user isn't
++      // typing in a text field.
++      is_dismissing_event =
++          (key_code == ui::VKEY_RETURN || key_code == ui::VKEY_SPACE) &&
++          !web_contents()->IsFocusedElementEditable();
++      break;
++    }
++    default:
++      break;
++  }
++  if (is_dismissing_event && controller_->IsBubbleShowing()) {
+     controller_->CloseBubble();
+   }
+ }
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_test_utils.h b/chrome/browser/contextual_tasks/contextual_tasks_test_utils.h
 new file mode 100644
 index 0000000..828ea9c
@@ -1436,7 +1539,7 @@ index 1a1e53e9..a0c4a0e 100644
      });
  
 diff --git a/chrome/browser/resources/new_tab_page/action_chips/action_chips.css b/chrome/browser/resources/new_tab_page/action_chips/action_chips.css
-index eeefa51..8f06835 100644
+index eeefa51..86af2a5 100644
 --- a/chrome/browser/resources/new_tab_page/action_chips/action_chips.css
 +++ b/chrome/browser/resources/new_tab_page/action_chips/action_chips.css
 @@ -77,6 +77,10 @@
@@ -1462,6 +1565,25 @@ index eeefa51..8f06835 100644
  .chip-button-wrapper {
    height: fit-content;
  }
+@@ -200,7 +209,7 @@
+   font-weight: 500;
+   line-height: 20px;
+   overflow: hidden;
+-  text-align: left;
++  text-align: start;
+   text-overflow: ellipsis;
+   white-space: nowrap;
+   width: 100%;
+@@ -249,8 +258,8 @@
+   --cr-icon-image: url('chrome://resources/images/icon_clear_old.svg');
+   align-self: center;
+   display: none;
++  inset-inline-end: 16px;
+   position: absolute;
+-  right: 16px;
+ }
+ 
+ :host-context([webui-rounded-icons]) .chip-remove-button {
 @@ -260,7 +269,7 @@
  
  /* Responsive container widths and reserved min-heights. Breakpoints are
@@ -1480,6 +1602,19 @@ index eeefa51..8f06835 100644
   * calculations. */
  :host([small-chips-enabled][has-chips]) {
    min-height: unset;
+diff --git a/chrome/browser/resources/new_tab_page/action_chips/action_chips.html.ts b/chrome/browser/resources/new_tab_page/action_chips/action_chips.html.ts
+index bffd2356..4a7714f 100644
+--- a/chrome/browser/resources/new_tab_page/action_chips/action_chips.html.ts
++++ b/chrome/browser/resources/new_tab_page/action_chips/action_chips.html.ts
+@@ -34,7 +34,7 @@
+                 <cr-icon icon="${this.getIcon_(chip)}"></cr-icon>
+               ` : ''}
+             </div>
+-            <div class="action-chip-text-container">
++            <div class="action-chip-text-container" dir="auto">
+               ${chip.suggestTemplateInfo.primaryText.text ? html`
+                 <span class="chip-title">
+                   ${chip.suggestTemplateInfo.primaryText.text}
 diff --git a/chrome/browser/resources/new_tab_page/action_chips/action_chips.ts b/chrome/browser/resources/new_tab_page/action_chips/action_chips.ts
 index 1b4f63fe..9a4466f 100644
 --- a/chrome/browser/resources/new_tab_page/action_chips/action_chips.ts
@@ -1518,6 +1653,700 @@ index dc12bf4..c8ff5540 100644
  export {WindowProxy as ComposeboxWindowProxy} from 'chrome://resources/cr_components/composebox/window_proxy.js';
  export {PageImageServiceBrowserProxy} from 'chrome://resources/cr_components/page_image_service/browser_proxy.js';
  export {MojoPluralStringProxy as NTPPluralStringProxyImpl} from 'chrome://resources/cr_components/search/mojo_plural_string_proxy.js';
+diff --git a/chrome/browser/resources/new_tab_page/left_hand_side.css b/chrome/browser/resources/new_tab_page/left_hand_side.css
+index 18973a1..307b348 100644
+--- a/chrome/browser/resources/new_tab_page/left_hand_side.css
++++ b/chrome/browser/resources/new_tab_page/left_hand_side.css
+@@ -20,7 +20,8 @@
+ }
+ 
+ #expanded,
+-#folded {
++#folded,
++#ghostLoader {
+   height: 100%;
+ }
+ 
+@@ -50,44 +51,34 @@
+   grid-template-columns: minmax(0, 1fr);
+ }
+ 
++/* Stack the views in one grid cell and hide each unless it is active. Uses CSS
++ * rather than the hidden attribute so the views can cross-fade. */
+ :host([enable-threads-rail-hybrid_]) #expanded,
+-:host([enable-threads-rail-hybrid_]) #folded {
++:host([enable-threads-rail-hybrid_]) #folded,
++:host([enable-threads-rail-hybrid_]) #ghostLoader {
+   grid-area: 1 / 1;
+   justify-self: start;
++  opacity: 0;
++  pointer-events: none;
++  visibility: hidden;
+ }
+ 
+-/* Keep opacity: 1 (and no will-change) on #folded at rest so it does not
+- * create a stacking context that traps cr-tooltip (z-index: 1002) behind
+- * #rhsContent (z-index: 1). */
+-:host([enable-threads-rail-hybrid_]) #folded {
++/* Show the active view. Keep opacity: 1 at rest so #folded does not create a
++ * stacking context that traps its cr-tooltip. */
++:host([enable-threads-rail-hybrid_][view_=folded]) #folded,
++:host([enable-threads-rail-hybrid_][view_=expanded]) #expanded {
+   opacity: 1;
+   pointer-events: auto;
+   visibility: visible;
+ }
+ 
+-:host([enable-threads-rail-hybrid_][is-expanded_][is-expanded-ready_])
+-    #folded {
+-  opacity: 0;
+-  pointer-events: none;
+-  visibility: hidden;
+-}
+-
+-:host([enable-threads-rail-hybrid_]) #expanded {
+-  opacity: 0;
+-  pointer-events: none;
+-  visibility: hidden;
+-}
+-
+-:host([enable-threads-rail-hybrid_][is-expanded_][is-expanded-ready_])
+-    #expanded {
++:host([enable-threads-rail-hybrid_][view_=ghostLoader]) #ghostLoader {
+   opacity: 1;
+-  pointer-events: auto;
+   visibility: visible;
+ }
+ 
+ @starting-style {
+-  :host([enable-threads-rail-hybrid_][is-expanded_][is-expanded-ready_])
+-      #expanded {
++  :host([enable-threads-rail-hybrid_][view_=expanded]) #expanded {
+     opacity: 0;
+   }
+ }
+@@ -106,27 +97,38 @@
+   }
+ 
+   :host([enable-threads-rail-hybrid_]) #folded {
+-    /* Delay fade-in by 150ms on collapse so #expanded fades out first, then
+-     * fade #folded in over the remaining 150ms. */
+-    transition: opacity 150ms ease 150ms, visibility 0s 0s;
+-  }
+-
+-  :host([enable-threads-rail-hybrid_][is-expanded_][is-expanded-ready_])
+-      #folded {
+     /* Fade out over the first 100ms of the 450ms expand transition before
+      * #expanded begins fading in at 225ms. */
+     transition: opacity 100ms ease, visibility 0s 100ms;
+   }
+ 
++  :host([enable-threads-rail-hybrid_][view_=folded]) #folded {
++    /* Delay fade-in by 150ms on collapse so #expanded fades out first, then
++     * fade #folded in over the remaining 150ms. */
++    transition: opacity 150ms ease 150ms, visibility 0s 0s;
++  }
++
+   :host([enable-threads-rail-hybrid_]) #expanded {
+     /* Fade out over 240ms (80% of the 300ms collapse transition). */
+     transition: opacity 240ms ease, visibility 0s 240ms;
+   }
+ 
+-  :host([enable-threads-rail-hybrid_][is-expanded_][is-expanded-ready_])
+-      #expanded {
++  :host([enable-threads-rail-hybrid_][view_=expanded]) #expanded {
+     /* Delay fade-in by 225ms (50% of the 450ms expand transition) and fade in
+      * over the remaining 225ms. */
+     transition: opacity 225ms ease 225ms, visibility 0s 0s;
+   }
++
++  :host([enable-threads-rail-hybrid_]) #ghostLoader {
++    /* Fade out in sync with #expanded fading in (see above), so that the two
++     * cross-fade. */
++    transition: opacity 225ms ease 225ms, visibility 0s 450ms;
++  }
++
++  :host([enable-threads-rail-hybrid_][view_=ghostLoader]) #ghostLoader {
++    /* Show immediately on expand, since #folded is hidden immediately too.
++     * Without this, the fade-out transition above would also apply here and
++     * delay the ghost loader by 450ms. */
++    transition: none;
++  }
+ }
+diff --git a/chrome/browser/resources/new_tab_page/left_hand_side.html.ts b/chrome/browser/resources/new_tab_page/left_hand_side.html.ts
+index 9fcd26b..344bac2e 100644
+--- a/chrome/browser/resources/new_tab_page/left_hand_side.html.ts
++++ b/chrome/browser/resources/new_tab_page/left_hand_side.html.ts
+@@ -5,17 +5,24 @@
+ import {html} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+ 
+ import type {LeftHandSideElement} from './left_hand_side.js';
++import {LhsView} from './left_hand_side.js';
+ 
+ export function getHtml(this: LeftHandSideElement) {
++  // clang-format off
+   return html`<!--_html_template_start_-->
+ ${this.enableThreadsRailHybrid_ ? html`
+-  <cr-threads-rail id="folded"
+-      ?inert="${this.isExpandedReady_ && this.isExpanded_}"
++  <cr-threads-rail id="folded" ?inert="${this.view_ !== LhsView.FOLDED}"
+       @expand-rail="${this.onExpandRail_}" @click="${this.onFoldedClick_}"
+       @pointerenter="${this.onFoldedPointerenter_}"
+       @pointerleave="${this.onFoldedPointerleave_}"
+       @focusin="${this.onFoldedFocusin_}" @focusout="${this.onFoldedFocusout_}">
+   </cr-threads-rail>
++  ${this.isExpanded_ ? html`
++    <ntp-lhs-ghost-loader id="ghostLoader" role="region"
++        aria-label="${this.ghostLoaderLabel_}" aria-busy="true"
++        ?is-dark="${!!this.isDark}" style="width: ${this.expandedWidth_}px;">
++    </ntp-lhs-ghost-loader>
++  ` : ''}
+ ` : ''}
+ ${!this.enableThreadsRailHybrid_ || this.hasPreloaded_ ? html`
+   <ntp-iframe id="expanded" class="${this.isExpandedReady_ ? 'ready' : ''}"
+@@ -24,8 +31,9 @@
+           `width: ${this.expandedWidth_}px;` :
+           ''}"
+       src="${this.expandedLhsUrl_}" ?hidden="${!this.isExpandedReady_}"
+-      ?inert="${this.enableThreadsRailHybrid_ && !this.isExpanded_}">
++      ?inert="${this.view_ !== LhsView.EXPANDED}">
+   </ntp-iframe>
+ ` : ''}
+ <!--_html_template_end_-->`;
++  // clang-format on
+ }
+diff --git a/chrome/browser/resources/new_tab_page/left_hand_side.ts b/chrome/browser/resources/new_tab_page/left_hand_side.ts
+index dc477e5..2832e08 100644
+--- a/chrome/browser/resources/new_tab_page/left_hand_side.ts
++++ b/chrome/browser/resources/new_tab_page/left_hand_side.ts
+@@ -3,6 +3,7 @@
+ // found in the LICENSE file.
+ 
+ import 'chrome://resources/cr_components/composebox/threads_rail.js';
++import './lhs_ghost_loader.js';
+ 
+ import {COLOR_PROVIDER_CHANGED, ColorChangeUpdater} from 'chrome://resources/cr_components/color_change_listener/colors_css_updater.js';
+ import {EventTracker} from 'chrome://resources/js/event_tracker.js';
+@@ -66,6 +67,22 @@
+   railBackground?: string;
+ }
+ 
++// The primary view of the LHS. In hybrid mode, #folded and #expanded stay
++// rendered once the iframe is ready so that they can cross-fade (see
++// left_hand_side.css), so more than one view may be painted during a
++// transition.
++export enum LhsView {
++  // Nothing is visible. Used in full-iframe mode until the iframe is ready.
++  NONE = 'none',
++  // The folded threads rail. Used in hybrid mode only.
++  FOLDED = 'folded',
++  // The ghost loader shown while the expanded iframe loads. Used in hybrid
++  // mode only.
++  GHOST_LOADER = 'ghostLoader',
++  // The expanded LHS iframe.
++  EXPANDED = 'expanded',
++}
++
+ export class LeftHandSideElement extends CrLitElement {
+   static get is() {
+     return 'cr-left-hand-side';
+@@ -96,11 +113,12 @@
+         type: Boolean,
+         reflect: true,
+       },
+-      isExpandedReady_: {
+-        type: Boolean,
++      isExpandedReady_: {type: Boolean},
++      threadsRailPreloadDebounceMs_: {type: Number},
++      view_: {
++        type: String,
+         reflect: true,
+       },
+-      threadsRailPreloadDebounceMs_: {type: Number},
+     };
+   }
+ 
+@@ -117,6 +135,14 @@
+       loadTimeData.valueExists('threadsRailPreloadDebounceMs') ?
+       loadTimeData.getInteger('threadsRailPreloadDebounceMs') :
+       100;
++  // The primary view, reflected as the `view_` attribute so that
++  // left_hand_side.css can style each view. Derived in willUpdate().
++  protected accessor view_: LhsView = LhsView.NONE;
++  // Accessible name of the ghost loader. Together with aria-busy, it keeps the
++  // LHS region in the a11y tree as busy while the expanded iframe loads,
++  // instead of the region silently going missing.
++  protected readonly ghostLoaderLabel_: string =
++      loadTimeData.getString('aimThreadsHistoryLabel');
+   private eventTracker_: EventTracker = new EventTracker();
+   private iframeResizeObserver_: ResizeObserver|null = null;
+   private lastIframeWidth_: number = 0;
+@@ -143,6 +169,11 @@
+     this.cancelPreloadTimer_();
+   }
+ 
++  override willUpdate(changedProperties: PropertyValues<this>) {
++    super.willUpdate(changedProperties);
++    this.view_ = this.getVisibleView_();
++  }
++
+   override firstUpdated(changedProperties: PropertyValues<this>) {
+     super.firstUpdated(changedProperties);
+     if (this.enableThreadsRailHybrid_) {
+@@ -157,15 +188,27 @@
+         changedProperties as Map<PropertyKey, unknown>;
+     if (this.enableThreadsRailHybrid_ &&
+         (changedPrivateProperties.has('isExpanded_') ||
+-         changedPrivateProperties.has('isExpandedReady_') ||
+          changedPrivateProperties.has('expandedWidth_') ||
+          changedPrivateProperties.has('collapsedWidth_'))) {
+       this.setHostWidth_(
+-          (this.isExpanded_ && this.isExpandedReady_) ? this.expandedWidth_ :
+-                                                        this.collapsedWidth_);
++          this.isExpanded_ ? this.expandedWidth_ : this.collapsedWidth_);
+     }
+   }
+ 
++  // Returns the primary view to show. Every view in getHtml() is inert unless
++  // it is the primary view. Opacity and visibility for the cross-fade between
++  // views, including hiding the folded rail while the ghost loader replaces
++  // it, are handled in left_hand_side.css.
++  protected getVisibleView_(): LhsView {
++    if (this.enableThreadsRailHybrid_) {
++      if (!this.isExpanded_) {
++        return LhsView.FOLDED;
++      }
++      return this.isExpandedReady_ ? LhsView.EXPANDED : LhsView.GHOST_LOADER;
++    }
++    return this.isExpandedReady_ ? LhsView.EXPANDED : LhsView.NONE;
++  }
++
+   private setHostWidth_(width: number) {
+     this.style.setProperty(
+         '--cr-left-hand-side-width', `${Math.round(width)}px`);
+diff --git a/chrome/browser/resources/new_tab_page/lhs_ghost_loader.css b/chrome/browser/resources/new_tab_page/lhs_ghost_loader.css
+new file mode 100644
+index 0000000..d160ea0
+--- /dev/null
++++ b/chrome/browser/resources/new_tab_page/lhs_ghost_loader.css
+@@ -0,0 +1,242 @@
++/* Copyright 2026 The Chromium Authors
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file. */
++
++/* #css_wrapper_metadata_start
++ * #type=style-lit
++ * #css_wrapper_metadata_end */
++
++/* "Search:" blocks are copied from Search (paths relative to
++ * google3/java/com/google/search/next/aim/ui/ unless noted). "NTP:" marks
++ * NTP-specific code. Mapping doc: go/ntp-lhs-ghost-loader. */
++
++/* NTP: stands in for lhspanel/lhs_panel.scss &Panel. */
++:host {
++  /* TODO(crbug.com/570203672): Remove this comment and the fallback colors
++   * once crrev.com/c/8687239 defines these colors. Until then, Search
++   * defaults apply. */
++  --aim-loading-bar-base-color:
++      var(--color-new-tab-page-threads-rail-loader-base);
++  --aim-loading-bar-highlight-color:
++      var(--color-new-tab-page-threads-rail-loader-highlight);
++  background-color: var(--color-new-tab-page-threads-rail-background);
++  box-sizing: border-box;
++  display: flex;
++  flex-direction: column;
++  justify-content: space-between;
++  overflow: hidden;
++}
++
++/* NTP: placeholders for icons, labels and the logo. */
++.ghost-icon,
++.ghost-label,
++.ghost-wordmark {
++  background: var(--aim-loading-bar-base-color, #e4e7ee);
++}
++
++:host([is-dark]) .ghost-icon,
++:host([is-dark]) .ghost-label,
++:host([is-dark]) .ghost-wordmark {
++  background: var(--aim-loading-bar-base-color, #25262e);
++}
++
++/* NTP: size from AIRY_ICON_SIZE in lhspanel/consts.tsx. */
++.ghost-icon {
++  block-size: 22px;
++  border-radius: 6px;
++  flex-shrink: 0;
++  inline-size: 22px;
++}
++
++/* Search: lhspanel/lhs_panel.scss &HeaderContainer */
++.ghost-header {
++  padding-block-start: 88px;
++  /* NTP: Search uses sticky. */
++  position: relative;
++}
++
++/* Search: google3/java/com/google/gws/plugins/magi/jslayout/ghosttaco/
++ * aim_header_brandmark.html .lhs-brandmark-wordmark */
++.ghost-logo {
++  top: 32px;
++  inset-inline-start: 20px;
++  display: flex;
++  align-items: center;
++  block-size: 44px;
++  /* NTP: Search uses fixed. */
++  position: absolute;
++}
++
++/* NTP: size from google3/gws/output/pages/elements/search_form_logo.html */
++.ghost-wordmark {
++  block-size: 30px;
++  border-radius: 15px;
++  inline-size: 92px;
++}
++
++/* Search: threads/threads_header.scss &ActionButton, &CloseMenuButton and
++ * &ScootedCloseButton */
++.ghost-close-button {
++  display: flex;
++  align-items: center;
++  block-size: 48px;
++  inline-size: 40px;
++  justify-content: center;
++  top: 0;
++  position: absolute;
++  margin-block-start: 26px;
++  inset-inline: auto 12px;
++}
++
++/* Search: lhspanel/lhs_panel.scss &AiryButtonsGroup */
++.ghost-actions {
++  display: flex;
++  flex-direction: column;
++  padding-inline: 8px 12px;
++}
++
++/* Search: lhspanel/lhs_panel.scss &AiryButton */
++.ghost-button {
++  display: flex;
++  align-items: center;
++  block-size: 40px;
++  padding-inline: 12px;
++  border-radius: 12px;
++  inline-size: 100%;
++  box-sizing: border-box;
++}
++
++/* Search: lhspanel/lhs_panel.scss &AiryButtonIcon */
++.ghost-actions .ghost-icon {
++  margin-inline-end: 12px;
++}
++
++/* NTP: widths roughly match the English labels. */
++.ghost-label {
++  block-size: 16px;
++  border-radius: 8px;
++}
++
++.ghost-label.new-thread {
++  inline-size: 80px;
++}
++
++.ghost-label.search-threads {
++  inline-size: 100px;
++}
++
++.ghost-label.settings {
++  inline-size: 60px;
++}
++
++.ghost-threads {
++  /* Search: lhspanel/lhs_panel.scss &ThreadsViewContainer */
++  padding-inline: 8px 0;
++  /* Search: threads/v1p5/loading_ghost_bars.scss &Container */
++  pointer-events: none;
++  display: flex;
++  flex-direction: column;
++  gap: 22px;
++  padding-block-start: 24px; /* --sds-sys-measurement--space-xxl */
++  /* NTP */
++  flex: 1;
++  min-block-size: 0;
++  overflow: hidden;
++}
++
++/* Search: threads/v1p5/loading_ghost_bars.scss &Item */
++.ghost-line-item {
++  display: flex;
++  align-items: center;
++  height: 18px;
++  padding: 0 12px;
++}
++
++/* Search: loadingbar/loading_bar.scss &Wrapper */
++.ghost-line {
++  --loading-bar-delay: 2000ms;
++  --loading-bar-width: 100%;
++  position: relative;
++  overflow: hidden;
++  width: var(--loading-bar-width, 100%);
++  background: var(--aim-loading-bar-base-color, #e4e7ee);
++}
++
++:host([is-dark]) .ghost-line {
++  background: var(--aim-loading-bar-base-color, #25262e);
++}
++
++/* Search: loadingbar/loading_bar.scss &Gradient */
++.ghost-shimmer {
++  position: absolute;
++  top: 0;
++  left: 0;
++  height: 100%;
++  width: 300%;
++  background: linear-gradient(
++    110deg,
++    transparent 0%,
++    var(--aim-loading-bar-base-color, #e4e7ee) 20%,
++    var(--aim-loading-bar-highlight-color, #f2f3f5) 50%,
++    var(--aim-loading-bar-base-color, #e4e7ee) 80%,
++    transparent 100%
++  );
++}
++
++:host([is-dark]) .ghost-shimmer {
++  background: linear-gradient(
++    110deg,
++    transparent 0%,
++    var(--aim-loading-bar-base-color, #25262e) 20%,
++    var(--aim-loading-bar-highlight-color, #33394d) 50%,
++    var(--aim-loading-bar-base-color, #25262e) 80%,
++    transparent 100%
++  );
++}
++
++/* Search: loadingbar/loading_bar.scss @keyframes ghost-loading-slide */
++@keyframes ghost-loading-slide {
++  0% {
++    transform: translateX(-100%);
++  }
++
++  100% {
++    transform: translateX(50%);
++  }
++}
++
++/* Search: lhspanel/lhs_panel.scss &SettingsButtonContainer */
++.ghost-footer {
++  padding-block: 8px 16px;
++  padding-inline: 8px 12px;
++  height: 64px;
++  box-sizing: border-box;
++  /* NTP */
++  flex-shrink: 0;
++}
++
++/* Search: lhspanel/lhs_panel.scss &SettingsButtonAiry */
++.ghost-footer .ghost-button {
++  block-size: 40px;
++  inline-size: 100%;
++  display: flex;
++  align-items: center;
++  justify-content: flex-start;
++  gap: 8px;
++  padding-inline: 12px;
++  border-radius: 12px;
++  box-sizing: border-box;
++}
++
++/* cr_shared_vars.css only defines --cr-animations-disabled: 1 under
++ * prefers-reduced-motion: reduce (leaving it unset otherwise), so animate
++ * whenever it is not 1. */
++@container not style(--cr-animations-disabled: 1) {
++  /* Search: loadingbar/loading_bar.scss &Gradient:nth-child(1..3) */
++  .ghost-shimmer:nth-child(1),
++  .ghost-shimmer:nth-child(2),
++  .ghost-shimmer:nth-child(3) {
++    animation: 6000ms cubic-bezier(0.33, 1, 0.68, 1) var(--loading-bar-delay)
++      infinite normal both running ghost-loading-slide;
++  }
++}
+diff --git a/chrome/browser/resources/new_tab_page/lhs_ghost_loader.html.ts b/chrome/browser/resources/new_tab_page/lhs_ghost_loader.html.ts
+new file mode 100644
+index 0000000..ad688d4f
+--- /dev/null
++++ b/chrome/browser/resources/new_tab_page/lhs_ghost_loader.html.ts
+@@ -0,0 +1,52 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++import {html} from 'chrome://resources/lit/v3_0/lit.rollup.js';
++
++import type {LhsGhostLoaderElement} from './lhs_ghost_loader.js';
++
++export function getHtml(this: LhsGhostLoaderElement) {
++  // clang-format off
++  return html`<!--_html_template_start_-->
++<div class="ghost-header" aria-hidden="true">
++  <div class="ghost-logo">
++    <div class="ghost-wordmark"></div>
++  </div>
++  <div class="ghost-close-button">
++    <div class="ghost-icon"></div>
++  </div>
++  <div class="ghost-actions">
++    <div class="ghost-button">
++      <div class="ghost-icon"></div>
++      <div class="ghost-label new-thread"></div>
++    </div>
++    <div class="ghost-button">
++      <div class="ghost-icon"></div>
++      <div class="ghost-label search-threads"></div>
++    </div>
++  </div>
++</div>
++<div class="ghost-threads" aria-hidden="true">
++  ${this.ghostLoadingBars_.map(bar => html`
++    <div class="ghost-line-item">
++      <div class="ghost-line"
++          style="--loading-bar-width: ${bar.width};
++                 height: ${bar.height};
++                 border-radius: ${bar.borderRadius};">
++        ${bar.layerDelaysMs.map(delay => html`
++          <div class="ghost-shimmer"
++              style="--loading-bar-delay: ${delay}ms;">
++          </div>`)}
++      </div>
++    </div>`)}
++</div>
++<div class="ghost-footer" aria-hidden="true">
++  <div class="ghost-button">
++    <div class="ghost-icon"></div>
++    <div class="ghost-label settings"></div>
++  </div>
++</div>
++<!--_html_template_end_-->`;
++  // clang-format on
++}
+diff --git a/chrome/browser/resources/new_tab_page/lhs_ghost_loader.ts b/chrome/browser/resources/new_tab_page/lhs_ghost_loader.ts
+new file mode 100644
+index 0000000..870dbfd
+--- /dev/null
++++ b/chrome/browser/resources/new_tab_page/lhs_ghost_loader.ts
+@@ -0,0 +1,90 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
++
++import {getCss} from './lhs_ghost_loader.css.js';
++import {getHtml} from './lhs_ghost_loader.html.js';
++
++/**
++ * @fileoverview Skeleton of the expanded LHS that <cr-left-hand-side> shows
++ * in hybrid mode while the expanded LHS iframe loads. The markup, styles and
++ * thread line timings are copied from Search. Keep in sync. Mapping doc:
++ * go/ntp-lhs-ghost-loader.
++ */
++
++// Search: google3/java/com/google/search/next/aim/ui/threads/v1p5/
++// loading_ghost_bars.sfc.tsx
++const BAR_HEIGHT_PX = '18px';
++const BAR_BORDER_RADIUS_PX = '9px';
++const GHOST_BAR_WIDTHS = [85, 75, 90, 80, 95, 78, 88, 82, 92, 85];
++const LOADING_BAR_INDICES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
++
++// Search: google3/java/com/google/search/next/aim/ui/loadingbar/
++// loading_bar.sfc.tsx
++const LINE_STAGGER_MS = 200;
++const LAYER_1_BASE_DELAY_MS = -1600;
++const LAYER_2_BASE_DELAY_MS = -5600;
++const LAYER_3_BASE_DELAY_MS = -3600;
++
++// NTP: stands in for Search's LoadingBarTdp.
++export interface GhostLoadingBar {
++  width: string;
++  height: string;
++  borderRadius: string;
++  layerDelaysMs: number[];
++}
++
++// Search: LoadingGhostBars() and LoadingBar().
++function createGhostLoadingBar(index: number): GhostLoadingBar {
++  const baseGap = LINE_STAGGER_MS * index;
++  return {
++    width: `${GHOST_BAR_WIDTHS[index % GHOST_BAR_WIDTHS.length]}%`,
++    height: BAR_HEIGHT_PX,
++    borderRadius: BAR_BORDER_RADIUS_PX,
++    layerDelaysMs: [
++      baseGap + LAYER_1_BASE_DELAY_MS,
++      baseGap + LAYER_2_BASE_DELAY_MS,
++      baseGap + LAYER_3_BASE_DELAY_MS,
++    ],
++  };
++}
++
++const GHOST_LOADING_BARS: GhostLoadingBar[] =
++    LOADING_BAR_INDICES.map(createGhostLoadingBar);
++
++export class LhsGhostLoaderElement extends CrLitElement {
++  static get is() {
++    return 'ntp-lhs-ghost-loader';
++  }
++
++  static override get styles() {
++    return getCss();
++  }
++
++  override render() {
++    return getHtml.bind(this)();
++  }
++
++  static override get properties() {
++    return {
++      isDark: {
++        type: Boolean,
++        reflect: true,
++      },
++    };
++  }
++
++  // Selects the dark fallback colors in lhs_ghost_loader.css.
++  accessor isDark: boolean = false;
++  protected readonly ghostLoadingBars_: GhostLoadingBar[] = GHOST_LOADING_BARS;
++}
++
++declare global {
++  interface HTMLElementTagNameMap {
++    'ntp-lhs-ghost-loader': LhsGhostLoaderElement;
++  }
++}
++
++customElements.define(LhsGhostLoaderElement.is, LhsGhostLoaderElement);
+diff --git a/chrome/browser/resources/new_tab_page/new_tab_page.gni b/chrome/browser/resources/new_tab_page/new_tab_page.gni
+index 93cc33e5..54bdbae 100644
+--- a/chrome/browser/resources/new_tab_page/new_tab_page.gni
++++ b/chrome/browser/resources/new_tab_page/new_tab_page.gni
+@@ -20,6 +20,8 @@
+                  "left_hand_side.html.ts",
+                  "left_hand_side.ts",
+                  "lens_upload_dialog_icons.html.ts",
++                 "lhs_ghost_loader.html.ts",
++                 "lhs_ghost_loader.ts",
+                  "metrics_utils.ts",
+                  "new_tab_page_eager.ts",
+                  "new_tab_page.ts",
+@@ -53,6 +55,7 @@
+       "left_hand_side.css",
+       "lens_form.css",
+       "lens_upload_dialog.css",
++      "lhs_ghost_loader.css",
+       "logo.css",
+       "ntp_composebox.css",
+       "ntp_searchbox.css",
 diff --git a/chrome/browser/resources/omnibox_everywhere/BUILD.gn b/chrome/browser/resources/omnibox_everywhere/BUILD.gn
 index f3ff6f61..4d37d5ca 100644
 --- a/chrome/browser/resources/omnibox_everywhere/BUILD.gn
@@ -1730,8 +2559,25 @@ index f32134f4..827ff75 100644
      }
    }
    private webuiOmniboxSimplificationEnabled_: boolean =
+diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.html.ts b/chrome/browser/resources/omnibox_everywhere/omnibox.html.ts
+index be3c0d91..164068e 100644
+--- a/chrome/browser/resources/omnibox_everywhere/omnibox.html.ts
++++ b/chrome/browser/resources/omnibox_everywhere/omnibox.html.ts
+@@ -133,7 +133,11 @@
+   </div>
+   <!-- Keep last so Tab reaches it after the action buttons, which render
+            before it in the 1-line pill. -->
+-  <omnibox-everywhere-profile-icon id="profileIcon">
++  <omnibox-everywhere-profile-icon id="profileIcon"
++      .hasVirtualFocus="${this.isProfileVirtualFocused_()}"
++      .removeFromTabOrder="${
++          this.virtualFocusEnabled && this.dropdownIsVisible}"
++      @close="${this.onProfileMenuClose_}">
+   </omnibox-everywhere-profile-icon>
+ </div>`;
+ }
 diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.ts b/chrome/browser/resources/omnibox_everywhere/omnibox.ts
-index 882d39e..66b4b4b 100644
+index 882d39e..2824d84a 100644
 --- a/chrome/browser/resources/omnibox_everywhere/omnibox.ts
 +++ b/chrome/browser/resources/omnibox_everywhere/omnibox.ts
 @@ -37,9 +37,9 @@
@@ -1745,7 +2591,55 @@ index 882d39e..66b4b4b 100644
  import type {OmniboxEverywhereProfileIconElement} from './profile_icon.js';
  
  
-@@ -737,7 +737,7 @@
+@@ -476,6 +476,10 @@
+     return this.selection.state === SelectionLineState.kFocusedButtonLensSearch;
+   }
+ 
++  protected isProfileVirtualFocused_(): boolean {
++    return this.selection.state === SelectionLineState.kFocusedButtonProfile;
++  }
++
+   override getAvailableSelections(result: AutocompleteResult|null):
+       OmniboxPopupSelection[] {
+     const available = super.getAvailableSelections(result);
+@@ -496,6 +500,15 @@
+         actionIndex: 0,
+       });
+     }
++    // The profile button is selectable only when it opens the profile menu.
++    // It renders last, so Tab reaches it last.
++    if (this.$.profileIcon.isMenuEnabled) {
++      available.push({
++        line: -1,
++        state: SelectionLineState.kFocusedButtonProfile,
++        actionIndex: 0,
++      });
++    }
+     return available;
+   }
+ 
+@@ -506,6 +519,8 @@
+         return this.i18n('voiceSearchButtonLabel');
+       case SelectionLineState.kFocusedButtonLensSearch:
+         return this.i18n('lensSearchButtonLabel');
++      case SelectionLineState.kFocusedButtonProfile:
++        return this.$.profileIcon.getA11yLabel();
+       default:
+         return super.getSelectionA11yLabel(match, selection);
+     }
+@@ -528,6 +543,11 @@
+       button.click();
+       return true;
+     }
++    if (this.isProfileVirtualFocused_()) {
++      e.preventDefault();
++      this.$.profileIcon.toggleMenu();
++      return true;
++    }
+     return super.handleVirtualFocusEnter(e);
+   }
+ 
+@@ -737,7 +757,7 @@
      // `rect` is in WebUI viewport coordinates (CSS DIPs); the browser converts
      // it to screen coordinates to anchor the native menu.
      const rect = this.$.overflowMenuButton.getBoundingClientRect();
@@ -1754,7 +2648,7 @@ index 882d39e..66b4b4b 100644
          {
            x: Math.round(rect.left),
            y: Math.round(rect.top),
-@@ -856,13 +856,12 @@
+@@ -856,13 +876,12 @@
      const rect = e?.detail?.anchorRect ||
          this.shadowRoot?.querySelector('#context')?.getBoundingClientRect();
      if (rect) {
@@ -1774,6 +2668,32 @@ index 882d39e..66b4b4b 100644
      }
    }
  
+@@ -892,6 +911,25 @@
+     this.isOverflowMenuOpen = false;
+   }
+ 
++  // `cr-action-menu` returns focus to the profile button when the profile menu
++  // closes. While the dropdown is visible, keys act on the virtual selection,
++  // so move focus back to the input. The input's blur cleared the selection's
++  // screen reader label, so narrate the profile button again if it still has
++  // virtual focus. The menu also closes after this element is removed (e.g.
++  // when switching to the composebox) and when Omnibox Everywhere hides or,
++  // in persistent mode, stays visible but inactive; leave focus and narration
++  // alone then.
++  protected onProfileMenuClose_() {
++    if (!this.isConnected || document.hidden || !this.isActive ||
++        !this.virtualFocusEnabled || !this.dropdownIsVisible) {
++      return;
++    }
++    this.focusInput();
++    if (this.isProfileVirtualFocused_()) {
++      this.narrateSelection(this.selection);
++    }
++  }
++
+   override onInputWrapperFocusout(e: FocusEvent) {
+     // Native menus take focus from the WebContents while open; keep the
+     // searchbox state (input, matches) intact until they close.
 diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox_everywhere.ts b/chrome/browser/resources/omnibox_everywhere/omnibox_everywhere.ts
 index 5c0cbd31..3720c9e 100644
 --- a/chrome/browser/resources/omnibox_everywhere/omnibox_everywhere.ts
@@ -1788,8 +2708,124 @@ index 5c0cbd31..3720c9e 100644
 +export {browserProxyFactory, PageHandlerRemote as OmniboxEverywherePageHandlerRemote} from './omnibox_everywhere.mojom-webui.js';
 +export type {PageRemote as OmniboxEverywherePageRemote} from './omnibox_everywhere.mojom-webui.js';
  export {OmniboxEverywhereProfileIconElement} from './profile_icon.js';
+diff --git a/chrome/browser/resources/omnibox_everywhere/profile_icon.css b/chrome/browser/resources/omnibox_everywhere/profile_icon.css
+index d10c344..d613c90 100644
+--- a/chrome/browser/resources/omnibox_everywhere/profile_icon.css
++++ b/chrome/browser/resources/omnibox_everywhere/profile_icon.css
+@@ -32,10 +32,19 @@
+   width: 28px;
+ }
+ 
+-#profileContainer:focus-visible {
++#profileContainer:focus-visible,
++:host([has-virtual-focus]) #profileContainer {
+   box-shadow: 0 0 0 2px var(--cr-focus-outline-color);
+ }
+ 
++@media (forced-colors: active) {
++  #profileContainer:focus-visible,
++  :host([has-virtual-focus]) #profileContainer {
++    outline: 2px solid Highlight;
++    outline-offset: 2px;
++  }
++}
++
+ #profileContainer.clickable {
+   cursor: pointer;
+   pointer-events: auto;
+diff --git a/chrome/browser/resources/omnibox_everywhere/profile_icon.html.ts b/chrome/browser/resources/omnibox_everywhere/profile_icon.html.ts
+index da19b68..9c70d32a 100644
+--- a/chrome/browser/resources/omnibox_everywhere/profile_icon.html.ts
++++ b/chrome/browser/resources/omnibox_everywhere/profile_icon.html.ts
+@@ -11,8 +11,9 @@
+ <button id="profileContainer"
+     class="${this.profilePickerEnabled_ ? 'clickable' : ''}"
+     aria-disabled="${!this.profilePickerEnabled_}"
+-    aria-label="${this.getProfileAriaLabel_()}"
+-    title="${this.getProfileTooltip_()}" @click="${this.onProfileIconClick_}">
++    tabindex="${this.removeFromTabOrder ? -1 : 0}"
++    aria-label="${this.getA11yLabel()}" title="${this.getProfileTooltip_()}"
++    @click="${this.onProfileIconClick_}">
+   ${this.isEnterpriseProfile_ ? html`
+     <div id="enterpriseBadge" aria-hidden="true"
+         title="${this.i18n('managedByYourOrganization')}">
+diff --git a/chrome/browser/resources/omnibox_everywhere/profile_icon.ts b/chrome/browser/resources/omnibox_everywhere/profile_icon.ts
+index 59f4d396..9d45b535 100644
+--- a/chrome/browser/resources/omnibox_everywhere/profile_icon.ts
++++ b/chrome/browser/resources/omnibox_everywhere/profile_icon.ts
+@@ -43,6 +43,8 @@
+ 
+   static override get properties() {
+     return {
++      hasVirtualFocus: {type: Boolean, reflect: true},
++      removeFromTabOrder: {type: Boolean},
+       isEnterpriseProfile_: {
+         type: Boolean,
+         reflect: true,
+@@ -55,6 +57,12 @@
+     };
+   }
+ 
++  // Set by `<omnibox-everywhere-omnibox>` while the profile button has virtual
++  // focus, which keeps DOM focus on the input.
++  accessor hasVirtualFocus: boolean = false;
++  // Set by `<omnibox-everywhere-omnibox>` while virtual focus handles Tab, as
++  // for the other input row buttons.
++  accessor removeFromTabOrder: boolean = false;
+   protected accessor isEnterpriseProfile_: boolean =
+       loadTimeData.getBoolean('isEnterpriseProfile');
+   protected accessor profileAvatarUrl_: string =
+@@ -77,6 +85,11 @@
+     return this.isOpeningMenu_ || this.$.profileMenu.open;
+   }
+ 
++  /** Whether the profile button opens the profile menu. */
++  get isMenuEnabled(): boolean {
++    return this.profilePickerEnabled_;
++  }
++
+   // Closes the unbounded menu when Loomnibox hides in place (keeping the DOM
+   // connected without firing disconnectedCallback).
+   private onVisibilityChange_ = () => {
+@@ -120,7 +133,8 @@
+         .join('\n');
+   }
+ 
+-  protected getProfileAriaLabel_(): string {
++  /** Returns the label screen readers narrate for the profile button. */
++  getA11yLabel(): string {
+     return [
+       this.i18n('profileTooltipHeader'),
+       this.profileName_,
+@@ -129,8 +143,13 @@
+         .join(' ');
+   }
+ 
+-  protected async onProfileIconClick_() {
+-    if (!this.profilePickerEnabled_) {
++  /**
++   * Opens the profile menu, or closes it if it is open. Does nothing when the
++   * profile picker is off. Runs on click, and from the omnibox while the
++   * button has virtual focus.
++   */
++  async toggleMenu(): Promise<void> {
++    if (!this.isMenuEnabled) {
+       return;
+     }
+     if (this.isMenuOpen) {
+@@ -152,6 +171,10 @@
+     }
+   }
+ 
++  protected onProfileIconClick_(): Promise<void> {
++    return this.toggleMenu();
++  }
++
+   protected onSwitchProfileClick_() {
+     this.searchboxHandler_.openProfilePicker();
+     this.$.profileMenu.close();
 diff --git a/chrome/browser/resources/omnibox_popup/aim/omnibox_composebox.css b/chrome/browser/resources/omnibox_popup/aim/omnibox_composebox.css
-index 376ca362..b60e65c 100644
+index 376ca362..f7a9c86 100644
 --- a/chrome/browser/resources/omnibox_popup/aim/omnibox_composebox.css
 +++ b/chrome/browser/resources/omnibox_popup/aim/omnibox_composebox.css
 @@ -355,7 +355,6 @@
@@ -1800,6 +2836,22 @@ index 376ca362..b60e65c 100644
    --cr-composebox-submit-border-radius: 100px;
    --cr-composebox-submit-height: 36px;
    --cr-composebox-submit-icon-offset: 0;
+@@ -381,10 +380,14 @@
+   top: 14px;
+ }
+ 
++/* The tab favicon pill only has the 'entrypoint-button' part. */
++:host([energy-effect-enabled]) #contextEntrypoint::part(entrypoint-button) {
++  --cr-composebox-entrypoint-height: 32px;
++}
++
+ :host([energy-effect-enabled]) #contextEntrypoint::part(context-menu-entrypoint-icon) {
+   --cr-composebox-entrypoint-background-color: var(--color-omnibox-composebox-context-entrypoint-background);
+   --cr-composebox-entrypoint-border-radius: 100px;
+-  --cr-composebox-entrypoint-height: 32px;
+   --cr-composebox-entrypoint-width: 40px;
+   --cr-icon-button-icon-size: 20px;
+ }
 diff --git a/chrome/browser/resources/omnibox_popup/aim/omnibox_composebox.ts b/chrome/browser/resources/omnibox_popup/aim/omnibox_composebox.ts
 index 341d1aa..23e8c62 100644
 --- a/chrome/browser/resources/omnibox_popup/aim/omnibox_composebox.ts
@@ -1938,7 +2990,7 @@ index 937a046..e3dfe27c9 100644
      </cr-searchbox-compose-button>
    </cr-searchbox-input>
 diff --git a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
-index 6894c9596..31f3eb2 100644
+index 6894c9596..f1bde3b 100644
 --- a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
 +++ b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
 @@ -29,7 +29,7 @@
@@ -1992,18 +3044,19 @@ index 6894c9596..31f3eb2 100644
            }),
      ];
      this.eventTracker_.add(
-@@ -1079,6 +1097,10 @@
-       // select omnibox text, & query ZPS if no user input in progress.
-       e.preventDefault();
-       e.stopPropagation();
-+      // This returns before `super.onInputWrapperKeydown()` freezes the
-+      // results, so freeze them here too. Otherwise, pending results would
-+      // replace the selection below.
-+      this.activeQueryId = -1;
-       if (this.keywordModeManager.isInKeywordMode) {
-         this.keywordModeManager.clearKeyword(
-             this.getInputElement().inputElement.value);
-@@ -1736,6 +1758,10 @@
+@@ -1063,6 +1081,11 @@
+   }
+ 
+   override async onInputWrapperKeydown(e: KeyboardEvent) {
++    // Some keys below are handled without calling
++    // `super.onInputWrapperKeydown()`, so update the state every key press
++    // affects first.
++    this.updateStateForKeydown(e);
++
+     this.selectAllOnMouseRelease_ = false;
+     this.unelideOnMouseRelease_ = false;
+     this.queryZpsOnMouseRelease_ = false;
+@@ -1736,6 +1759,10 @@
      this.lastSelectedMatch_ = null;
      this.$.input.setInputText('');
      this.getInputElement().blur();
@@ -2014,7 +3067,7 @@ index 6894c9596..31f3eb2 100644
      this.clearAutocompleteMatches();
      await this.updateComplete;
    }
-@@ -1898,6 +1924,31 @@
+@@ -1898,6 +1925,31 @@
      this.searchboxPageHandler_.onFocusChanged(true);
    }
  
@@ -2046,7 +3099,21 @@ index 6894c9596..31f3eb2 100644
    /**
     * Executes deferred focus (`FOCUS` / `FOCUS_AND_SELECT`) when the tab
     * transitions from hidden to visible (`document.visibilityState ===
-@@ -2292,53 +2343,59 @@
+@@ -2196,6 +2248,13 @@
+       return;
+     }
+ 
++    if (!this.dropdownIsVisible &&
++        (e.key === 'ArrowUp' || e.key === 'ArrowDown') &&
++        !this.getInputElement()?.isMultiline() && !this.userInputInProgress_) {
++      this.userInputInProgress_ = true;
++      this.popupPageHandler_.startUserInput(this.currentSequenceNum_);
++    }
++
+     if (e.key === 'Enter' && !this.hasSelection_) {
+       // On an open page where no suggestion match is highlighted, submit the
+       // verbatim input text (or reload the permanent URL).
+@@ -2292,53 +2351,59 @@
      const dropdown = this.getDropdownElement();
      const inputEl = this.getInputElement();
  
@@ -2299,6 +3366,18 @@ index 643eeb6..4c8ba30 100644
        ForwardFocusToWebUI(/*query_zps=*/false, /*select_all=*/false,
                            /*show_full_url=*/false);
      }
+diff --git a/chrome/browser/ui/views/omnibox/BUILD.gn b/chrome/browser/ui/views/omnibox/BUILD.gn
+index b1b82f6..2aaabe1c 100644
+--- a/chrome/browser/ui/views/omnibox/BUILD.gn
++++ b/chrome/browser/ui/views/omnibox/BUILD.gn
+@@ -248,6 +248,7 @@
+     "//chrome/browser/ui/browser_window",
+     "//chrome/browser/ui/browser_window/test:test_support",
+     "//chrome/browser/ui/omnibox",
++    "//chrome/browser/ui/omnibox:test_support",
+     "//chrome/browser/ui/views:bubble_anchor_util_views",
+     "//chrome/browser/ui/views:layout_provider",
+     "//chrome/browser/ui/webui/omnibox_popup",
 diff --git a/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc b/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc
 index 66378d0..f9f3fc97 100644
 --- a/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc
@@ -2592,6 +3671,37 @@ index 509af780..8e5fb8f 100644
  };
  
  #endif  // CHROME_BROWSER_UI_VIEWS_OMNIBOX_OMNIBOX_POPUP_LOCATION_BAR_HOST_H_
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc b/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc
+index bbb817c4..5ce9ce83 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc
+@@ -92,6 +92,12 @@
+     OmniboxController& controller,
+     base::FunctionRef<void()> move_focus) {
+   OmniboxEditModel* edit_model = controller.edit_model();
++  // Blurring closes the dropdown, so keep the selected match as the user's
++  // draft, as `OmniboxController::OnResultChanged()` does in Views.
++  if (edit_model->user_input_in_progress() &&
++      edit_model->has_temporary_text()) {
++    edit_model->AcceptTemporaryTextAsUserText();
++  }
+   edit_model->RevertUneditedText();
+ 
+   if (OmniboxPopupView* popup_view = edit_model->popup_view()) {
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.h b/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.h
+index 0eeb98a..eb75e85 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.h
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.h
+@@ -87,7 +87,8 @@
+   // messy.
+   bool is_focused() const { return focused_; }
+ 
+-  // The Full popup's blur sequence: reverts unedited text (see
++  // The Full popup's blur sequence: accepts any temporary text while user
++  // input is in progress as the user's draft, reverts unedited text (see
+   // `OmniboxEditModel::RevertUneditedText()`), tells the WebUI it lost focus
+   // (`edit_model->popup_view()->OnBlur()`, when the popup view is still
+   // registered), runs `move_focus` (the host's own focus change, e.g. clearing
 diff --git a/chrome/browser/ui/views/user_education/browser_user_education_service.cc b/chrome/browser/ui/views/user_education/browser_user_education_service.cc
 index 5f4b27e..d3f9f59 100644
 --- a/chrome/browser/ui/views/user_education/browser_user_education_service.cc
@@ -2647,6 +3757,143 @@ index 5f4b27e..d3f9f59 100644
            .SetMetadata(148, "dianaou@google.com",
                         "Triggered when the ephemeral contextual tasks toolbar "
                         "button is shown after closing the side panel.")));
+diff --git a/chrome/browser/ui/webui/cr_components/searchbox/BUILD.gn b/chrome/browser/ui/webui/cr_components/searchbox/BUILD.gn
+index c2f6a11..b2b13fe 100644
+--- a/chrome/browser/ui/webui/cr_components/searchbox/BUILD.gn
++++ b/chrome/browser/ui/webui/cr_components/searchbox/BUILD.gn
+@@ -86,6 +86,7 @@
+     "//chrome/browser/ui/browser_window",
+     "//chrome/browser/ui/contextual_search",
+     "//chrome/browser/ui/omnibox",
++    "//chrome/browser/ui/tabs:page_context_eligibility_helper",
+     "//chrome/browser/ui/views/permissions:permission_prompt_observer",
+     "//chrome/browser/ui/webui",
+     "//chrome/browser/ui/webui:webui_util",
+@@ -101,6 +102,7 @@
+     "//components/omnibox/browser:suggest_template_info_mojo_utils",
+     "//components/omnibox/browser:vector_icons",
+     "//components/omnibox/common:features",
++    "//components/optimization_guide/content/browser:page_context_eligibility",
+     "//components/search",
+     "//components/search_engines",
+     "//components/security_state/core",
+diff --git a/chrome/browser/ui/webui/cr_components/searchbox/contextual_searchbox_handler.cc b/chrome/browser/ui/webui/cr_components/searchbox/contextual_searchbox_handler.cc
+index 545a21d..623eb604 100644
+--- a/chrome/browser/ui/webui/cr_components/searchbox/contextual_searchbox_handler.cc
++++ b/chrome/browser/ui/webui/cr_components/searchbox/contextual_searchbox_handler.cc
+@@ -50,6 +50,7 @@
+ #include "chrome/browser/ui/contextual_search/tab_contextualization_controller.h"
+ #include "chrome/browser/ui/omnibox/omnibox_controller.h"
+ #include "chrome/browser/ui/omnibox/omnibox_next_features.h"
++#include "chrome/browser/ui/tabs/page_context_eligibility_helper.h"
+ #include "chrome/browser/ui/webui/cr_components/searchbox/contextual_searchbox_tab_favicon_helper.h"
+ #include "chrome/browser/ui/webui/cr_components/searchbox/searchbox_utils.h"
+ #include "chrome/browser/ui/webui/new_tab_page/composebox/variations/composebox_fieldtrial.h"
+@@ -78,6 +79,7 @@
+ #include "components/omnibox/common/composebox_features.h"
+ #include "components/omnibox/common/omnibox_features.h"
+ #include "components/omnibox/composebox/contextual_search_mojom_traits.h"
++#include "components/optimization_guide/content/browser/page_context_eligibility_observer.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/search_engines/util.h"
+ #include "components/sessions/content/session_tab_helper.h"
+@@ -303,7 +305,8 @@
+ ContextualSearchboxHandler::GetRecentTabInfos(
+     BrowserWindowInterface* browser_window_interface,
+     std::optional<int> max_tab_suggestions,
+-    const base::flat_set<SessionID>& always_include_tab_ids) {
++    const base::flat_set<SessionID>& always_include_tab_ids,
++    bool exclude_page_context_ineligible_tabs) {
+   if (!browser_window_interface) {
+     return {};
+   }
+@@ -327,20 +330,34 @@
+         IsAimZeroStateURL(url)) {
+       continue;
+     }
+-    bool is_internal_page = url.SchemeIs(content::kChromeUIScheme) ||
+-                            url.SchemeIs(content::kChromeUIUntrustedScheme) ||
+-                            url.SchemeIs("chrome-extension");
+     const bool is_always_included =
+         !always_include_tab_ids.empty() && tab->GetContents() &&
+         always_include_tab_ids.contains(
+             sessions::SessionTabHelper::IdForTab(tab->GetContents()));
+-
+-    if (!is_internal_page || is_always_included) {
+-      tab_times.push_back({
+-          .tab = tab,
+-          .time = GetTabLastActiveTimeTicks(tab),
+-      });
++    if (!is_always_included) {
++      const bool is_internal_page =
++          url.SchemeIs(content::kChromeUIScheme) ||
++          url.SchemeIs(content::kChromeUIUntrustedScheme) ||
++          url.SchemeIs("chrome-extension");
++      if (is_internal_page) {
++        continue;
++      }
++      if (exclude_page_context_ineligible_tabs) {
++        auto* eligibility_helper =
++            tabs::PageContextEligibilityHelper::From(tab);
++        if (eligibility_helper &&
++            eligibility_helper->IsPageContextEligible() ==
++                optimization_guide::PageContextEligibilityStatus::
++                    kNotEligible) {
++          continue;
++        }
++      }
+     }
++
++    tab_times.push_back({
++        .tab = tab,
++        .time = GetTabLastActiveTimeTicks(tab),
++    });
+   }
+ 
+   // Sort the tabs by last active time, prioritizing the active tab.
+diff --git a/chrome/browser/ui/webui/cr_components/searchbox/contextual_searchbox_handler.h b/chrome/browser/ui/webui/cr_components/searchbox/contextual_searchbox_handler.h
+index 9d4da90..abcfdc85 100644
+--- a/chrome/browser/ui/webui/cr_components/searchbox/contextual_searchbox_handler.h
++++ b/chrome/browser/ui/webui/cr_components/searchbox/contextual_searchbox_handler.h
+@@ -193,13 +193,17 @@
+ 
+   // Returns recent tabs from the tab list associated with
+   // `browser_window_interface` sorted by recency. If `max_tab_suggestions` is
+-  // set, the result is capped to that number of tabs. Tabs whose `SessionID` is
+-  // in `always_include_tab_ids` are included even if they are internal pages
+-  // (e.g. an NTP tab attached via Lens Overlay).
++  // set, the result is capped to that number of tabs. If
++  // `exclude_page_context_ineligible_tabs` is true, tabs known to be
++  // page-context-ineligible (`kNotEligible`) are excluded. Tabs whose
++  // `SessionID` is in `always_include_tab_ids` are included even if they are
++  // internal or page-context-ineligible pages (e.g. an NTP tab attached via
++  // Lens Overlay).
+   static std::vector<searchbox::mojom::TabInfoPtr> GetRecentTabInfos(
+       BrowserWindowInterface* browser_window_interface,
+       std::optional<int> max_tab_suggestions = std::nullopt,
+-      const base::flat_set<SessionID>& always_include_tab_ids = {});
++      const base::flat_set<SessionID>& always_include_tab_ids = {},
++      bool exclude_page_context_ineligible_tabs = false);
+ 
+   void GetRecentTabs(GetRecentTabsCallback callback) override;
+   void GetTabPreview(int32_t tab_id, GetTabPreviewCallback callback) override;
+diff --git a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
+index 1a8be14..7e0b794 100644
+--- a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
++++ b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
+@@ -1773,8 +1773,10 @@
+     case searchbox::mojom::SelectionLineState::kFocusedButtonContextEntrypoint:
+     case searchbox::mojom::SelectionLineState::kFocusedButtonVoiceSearch:
+     case searchbox::mojom::SelectionLineState::kFocusedButtonLensSearch:
+-    case searchbox::mojom::SelectionLineState::kFocusedButtonContextualChip: {
+-      // Handled directly by webui omnibox popup.
++    case searchbox::mojom::SelectionLineState::kFocusedButtonContextualChip:
++    case searchbox::mojom::SelectionLineState::kFocusedButtonProfile: {
++      // Buttons that only WebUI handles. Renderers don't send these; see
++      // `selectionIsNativelySupported()`.
+       NOTREACHED();
+     }
+     case searchbox::mojom::SelectionLineState::kCtrlEnter: {
 diff --git a/chrome/browser/ui/webui/new_tab_page/BUILD.gn b/chrome/browser/ui/webui/new_tab_page/BUILD.gn
 index 0dbc81c..6e655a95 100644
 --- a/chrome/browser/ui/webui/new_tab_page/BUILD.gn
@@ -6874,7 +8121,7 @@ index 3bb7baf..814b1f0e 100644
    source->AddInteger("prefetchStartTimeThreshold", 0);
    source->AddBoolean("prefetchTriggerEnabled", false);
 diff --git a/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom b/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom
-index 3e5fbe2..53b83b3e 100644
+index 3e5fbe2..f3e0718b 100644
 --- a/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom
 +++ b/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom
 @@ -79,6 +79,17 @@
@@ -6908,7 +8155,19 @@ index 3e5fbe2..53b83b3e 100644
    // Logs the Escape key press action to UMA.
    LogEscapeAction(OmniboxEscapeAction action);
  
-@@ -162,8 +179,13 @@
+@@ -102,6 +119,11 @@
+   // Discards the call if `sequence_number` is stale.
+   OnInputCleared(uint32 sequence_number);
+ 
++  // Starts user input in the omnibox edit model when the user opens the
++  // dropdown via keyboard navigation.
++  // Discards the call if `sequence_number` is stale.
++  StartUserInput(uint32 sequence_number);
++
+   // Notifies the browser that the user has pasted text into the Omnibox.
+   // Discards the call if `sequence_number` is stale.
+   OnPaste(string text, gfx.mojom.Range selection, uint32 sequence_number);
+@@ -162,8 +184,13 @@
    // necessary cleanup and complete the callback.
    ClearPopup() => ();
  
@@ -6925,7 +8184,7 @@ index 3e5fbe2..53b83b3e 100644
    // Focuses the searchbox and enters keyword mode for the default search
    // provider (e.g. via Ctrl+K / Ctrl+E / Cmd+Option+F).
 diff --git a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc b/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc
-index acb3c6c..95280f8 100644
+index acb3c6c..6c7064eb9 100644
 --- a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc
 +++ b/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc
 @@ -24,6 +24,7 @@
@@ -6953,7 +8212,23 @@ index acb3c6c..95280f8 100644
  void OmniboxPopupHandler::OnInputCleared(uint32_t sequence_number) {
    if (sequence_number < current_sequence_number_) {
      return;
-@@ -379,8 +390,27 @@
+@@ -150,6 +161,15 @@
+   }
+ }
+ 
++void OmniboxPopupHandler::StartUserInput(uint32_t sequence_number) {
++  if (sequence_number < current_sequence_number_) {
++    return;
++  }
++  if (controller_ && controller_->edit_model()) {
++    controller_->edit_model()->SetInputInProgress(true);
++  }
++}
++
+ void OmniboxPopupHandler::OnPaste(const std::string& text,
+                                   const gfx::Range& selection,
+                                   uint32_t sequence_number) {
+@@ -379,8 +399,27 @@
        web_contents_ &&
        color_utils::IsDark(web_contents_->GetColorProvider().GetColor(
            kColorOmniboxIconBackground));
@@ -6984,10 +8259,10 @@ index acb3c6c..95280f8 100644
  
  void OmniboxPopupHandler::LogEscapeAction(
 diff --git a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.h b/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.h
-index 3134a5bc..543abe8 100644
+index 3134a5bc..343bd58c 100644
 --- a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.h
 +++ b/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.h
-@@ -65,6 +65,7 @@
+@@ -65,9 +65,11 @@
                            uint32_t sequence_number,
                            bool show_full_url) override;
    void Revert(uint32_t sequence_number) override;
@@ -6995,7 +8270,11 @@ index 3134a5bc..543abe8 100644
    void LogEscapeAction(
        omnibox_popup::mojom::OmniboxEscapeAction action) override;
    void OnInputCleared(uint32_t sequence_number) override;
-@@ -115,7 +116,7 @@
++  void StartUserInput(uint32_t sequence_number) override;
+   void OnPaste(const std::string& text,
+                const gfx::Range& selection,
+                uint32_t sequence_number) override;
+@@ -115,7 +117,7 @@
    void OnTemplateURLServiceChanged() override;
    void OnTemplateURLServiceShuttingDown() override;
  
@@ -8793,6 +10072,20 @@ index 71814c7..3dc222f 100644
      DoFillField(input_element, task.second,
                  FieldPropertiesFlags::kAutofilledChangePasswordFormOnPageLoad);
      last_element = input_element;
+diff --git a/components/autofill/core/browser/foundations/browser_autofill_manager.cc b/components/autofill/core/browser/foundations/browser_autofill_manager.cc
+index 0a174c26..b8cf10d4 100644
+--- a/components/autofill/core/browser/foundations/browser_autofill_manager.cc
++++ b/components/autofill/core/browser/foundations/browser_autofill_manager.cc
+@@ -3426,7 +3426,8 @@
+       break;
+     case FillingProduct::kOneTimePassword:
+       if (client().IsContextSecure()) {
+-        suggestions = BuildOtpSuggestions(one_time_tokens);
++        suggestions =
++            BuildOtpSuggestions(GetOtpsToSuggest(one_time_tokens, field));
+       }
+       break;
+     case FillingProduct::kAtMemory:
 diff --git a/components/autofill/core/browser/geo/country_names_for_locale.cc b/components/autofill/core/browser/geo/country_names_for_locale.cc
 index 105aba4..04beb58 100644
 --- a/components/autofill/core/browser/geo/country_names_for_locale.cc
@@ -8964,6 +10257,121 @@ index a19bfc5..6c3a2ee4 100644
  
    // Maximum duration between OTP field detection and tickle arrival for them to
    // be considered correlated. If more than this time has passed, the tickle is
+diff --git a/components/autofill/core/browser/suggestions/one_time_passwords/otp_suggestion_generator.cc b/components/autofill/core/browser/suggestions/one_time_passwords/otp_suggestion_generator.cc
+index 5e5c1d18f..94d99d7 100644
+--- a/components/autofill/core/browser/suggestions/one_time_passwords/otp_suggestion_generator.cc
++++ b/components/autofill/core/browser/suggestions/one_time_passwords/otp_suggestion_generator.cc
+@@ -12,6 +12,7 @@
+ #include "base/functional/bind.h"
+ #include "base/functional/callback.h"
+ #include "base/notreached.h"
++#include "base/strings/string_util.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "build/build_config.h"
+ #include "build/buildflag.h"
+@@ -66,6 +67,20 @@
+   return suggestion;
+ }
+ 
++// Returns `value` without whitespace and ASCII punctuation (e.g. separators
++// like '-' or input mask placeholders like '_') and with ASCII letters in
++// lower case, so that OTPs can be compared independently of their formatting.
++std::u16string NormalizeOtpForComparison(std::u16string_view value) {
++  std::u16string normalized;
++  normalized.reserve(value.size());
++  for (char16_t c : value) {
++    if (!base::IsUnicodeWhitespace(c) && !base::IsAsciiPunctuation(c)) {
++      normalized.push_back(base::ToLowerASCII(c));
++    }
++  }
++  return normalized;
++}
++
+ }  // namespace
+ 
+ std::vector<Suggestion> BuildOtpSuggestions(
+@@ -100,6 +115,25 @@
+   return suggestions;
+ }
+ 
++std::vector<one_time_tokens::OneTimeToken> GetOtpsToSuggest(
++    std::vector<one_time_tokens::OneTimeToken> one_time_tokens,
++    const FormFieldData& trigger_field) {
++  const std::u16string field_value =
++      NormalizeOtpForComparison(trigger_field.value());
++  if (field_value.empty()) {
++    return one_time_tokens;
++  }
++  std::erase_if(
++      one_time_tokens, [&](const one_time_tokens::OneTimeToken& token) {
++        const std::u16string otp_value =
++            NormalizeOtpForComparison(base::UTF8ToUTF16(token.value()));
++        return otp_value == field_value ||
++               (!trigger_field.is_autofilled_according_to_renderer() &&
++                !otp_value.starts_with(field_value));
++      });
++  return one_time_tokens;
++}
++
+ OtpSuggestionGenerator::OtpSuggestionGenerator(OtpManager& otp_manager)
+     : otp_manager_(otp_manager) {}
+ 
+@@ -130,14 +164,17 @@
+   otp_manager_->GetOtpSuggestions(
+       *form_structure, trigger_field,
+       base::BindOnce(&OtpSuggestionGenerator::OnOtpReturned,
+-                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
++                     weak_ptr_factory_.GetWeakPtr(), std::move(callback),
++                     trigger_field));
+ }
+ 
+ void OtpSuggestionGenerator::OnOtpReturned(
+     base::OnceCallback<void(ReturnedSuggestions)> callback,
++    const FormFieldData& trigger_field,
+     std::vector<one_time_tokens::OneTimeToken> one_time_tokens) {
+   std::move(callback).Run({SuggestionDataSource::kOneTimePassword,
+-                           BuildOtpSuggestions(one_time_tokens)});
++                           BuildOtpSuggestions(GetOtpsToSuggest(
++                               std::move(one_time_tokens), trigger_field))});
+ }
+ 
+ }  // namespace autofill
+diff --git a/components/autofill/core/browser/suggestions/one_time_passwords/otp_suggestion_generator.h b/components/autofill/core/browser/suggestions/one_time_passwords/otp_suggestion_generator.h
+index cccf122..6728839b 100644
+--- a/components/autofill/core/browser/suggestions/one_time_passwords/otp_suggestion_generator.h
++++ b/components/autofill/core/browser/suggestions/one_time_passwords/otp_suggestion_generator.h
+@@ -32,6 +32,23 @@
+ std::vector<Suggestion> BuildOtpSuggestions(
+     base::span<const one_time_tokens::OneTimeToken> one_time_tokens);
+ 
++// Returns the OTPs from `one_time_tokens` that are worth suggesting on
++// `trigger_field`, given the field's current value:
++// - OTPs equal to the field's value are dropped because filling them would not
++//   change the field.
++// - Unless the field is autofilled (in which case a different OTP, e.g. a
++//   resent one, may replace the filled value), OTPs are dropped if the field's
++//   value is not a prefix of them, e.g. because the user is manually typing a
++//   different code.
++// Values are compared case-insensitively for ASCII letters and ignore
++// whitespace and ASCII punctuation, such as separators or input mask
++// placeholders.
++// TODO(crbug.com/409962888): Make this an implementation detail of
++// `OtpSuggestionGenerator` once AutofillNewSuggestionGeneration is launched.
++std::vector<one_time_tokens::OneTimeToken> GetOtpsToSuggest(
++    std::vector<one_time_tokens::OneTimeToken> one_time_tokens,
++    const FormFieldData& trigger_field);
++
+ // A `SuggestionGenerator` for `FillingProduct::kOneTimePassword`.
+ class OtpSuggestionGenerator : public SuggestionGenerator {
+  public:
+@@ -49,6 +66,7 @@
+  private:
+   void OnOtpReturned(
+       base::OnceCallback<void(ReturnedSuggestions)> callback,
++      const FormFieldData& trigger_field,
+       std::vector<one_time_tokens::OneTimeToken> one_time_tokens);
+ 
+   raw_ref<OtpManager> otp_manager_;
 diff --git a/components/autofill/core/common/autofill_data_validation.cc b/components/autofill/core/common/autofill_data_validation.cc
 index c804da8..9aab13e4 100644
 --- a/components/autofill/core/common/autofill_data_validation.cc
@@ -9230,6 +10638,68 @@ index d7bceab..91e1bd4 100644
  bool IsContextualTasksUIEnabled();
  
  bool IsStickyConversationEnabled();
+diff --git a/components/enterprise/browser/reporting/policy_info.cc b/components/enterprise/browser/reporting/policy_info.cc
+index 45a890e2..558f17af 100644
+--- a/components/enterprise/browser/reporting/policy_info.cc
++++ b/components/enterprise/browser/reporting/policy_info.cc
+@@ -5,6 +5,7 @@
+ #include "components/enterprise/browser/reporting/policy_info.h"
+ 
+ #include <string>
++#include <string_view>
+ 
+ #include "base/json/json_writer.h"
+ #include "base/strings/string_util.h"
+@@ -13,6 +14,7 @@
+ #include "components/policy/core/common/cloud/cloud_policy_client.h"
+ #include "components/policy/core/common/cloud/cloud_policy_constants.h"
+ #include "components/policy/core/common/cloud/cloud_policy_manager.h"
++#include "components/policy/core/common/policy_map.h"
+ #include "components/policy/core/common/policy_types.h"
+ #include "components/strings/grit/components_strings.h"
+ 
+@@ -78,20 +80,38 @@
+                << *policy.GetDict().FindInt("source");
+ }
+ 
++em::Policy_ConflictType GetConflictType(const base::Value& policy) {
++  switch (static_cast<policy::PolicyMap::ConflictType>(
++      *policy.GetDict().FindInt("conflictType"))) {
++    case policy::PolicyMap::ConflictType::Override:
++      return em::Policy_ConflictType_CONFLICT;
++    case policy::PolicyMap::ConflictType::Supersede:
++      return em::Policy_ConflictType_SUPERSEDED;
++    case policy::PolicyMap::ConflictType::Merged:
++      return em::Policy_ConflictType_MERGED;
++    case policy::PolicyMap::ConflictType::None:
++      return em::Policy_ConflictType_CONFLICT_TYPE_UNSPECIFIED;
++  }
++  NOTREACHED() << "Invalid policy conflict type: "
++               << *policy.GetDict().FindInt("conflictType");
++}
++
+ void UpdateConflictedPolicy(em::Policy* policy_info,
+                             const base::Value& policy) {
+   policy_info->set_level(GetLevel(policy));
+   policy_info->set_scope(GetScope(policy));
+   policy_info->set_source(GetSource(policy));
++  policy_info->set_conflict_type(GetConflictType(policy));
+ }
+ 
+-void UpdateConflictedPolicies(const std::string conflict_key,
++void UpdateConflictedPolicies(std::string_view conflict_key,
+                               em::Policy* policy_info,
+                               const base::DictValue& policy) {
+-  if (!policy.contains(conflict_key)) {
++  const base::ListValue* conflicted_policies = policy.FindList(conflict_key);
++  if (!conflicted_policies) {
+     return;
+   }
+-  for (const auto& conflicted_policy : *policy.FindList(conflict_key)) {
++  for (const auto& conflicted_policy : *conflicted_policies) {
+     UpdateConflictedPolicy(policy_info->add_conflicts(), conflicted_policy);
+   }
+ }
 diff --git a/components/omnibox/browser/autocomplete_controller.cc b/components/omnibox/browser/autocomplete_controller.cc
 index 2fd0ea0..60fd8cd4 100644
 --- a/components/omnibox/browser/autocomplete_controller.cc
@@ -9419,6 +10889,18 @@ index 75ca608..dbd5280 100644
    MOCK_CONST_METHOD0(IsPagePaywalled, std::optional<bool>());
    MOCK_METHOD(bool, ShouldSendContextualUrlSuggestParam, (), (const));
    MOCK_METHOD(bool, ShouldSendPageTitleSuggestParam, (), (const));
+diff --git a/components/omnibox/browser/searchbox.mojom b/components/omnibox/browser/searchbox.mojom
+index c747936a..817399e 100644
+--- a/components/omnibox/browser/searchbox.mojom
++++ b/components/omnibox/browser/searchbox.mojom
+@@ -356,6 +356,7 @@
+   kFocusedButtonVoiceSearch = 8,
+   kFocusedButtonLensSearch = 9,
+   kFocusedButtonContextualChip = 10,
++  kFocusedButtonProfile = 11,
+ };
+ 
+ // See components/omnibox/browser/omnibox_popup_selection.h
 diff --git a/components/omnibox/browser/zero_suggest_provider.cc b/components/omnibox/browser/zero_suggest_provider.cc
 index 76d9082..f141220b 100644
 --- a/components/omnibox/browser/zero_suggest_provider.cc
@@ -10063,6 +11545,219 @@ index 0259fb4..e54cd5b 100644
    }
  
    auto* ukm_recorder = ukm::UkmRecorder::Get();
+diff --git a/components/policy/core/browser/policy_conversions_client.cc b/components/policy/core/browser/policy_conversions_client.cc
+index 37d1abf..4a5f785 100644
+--- a/components/policy/core/browser/policy_conversions_client.cc
++++ b/components/policy/core/browser/policy_conversions_client.cc
+@@ -461,16 +461,21 @@
+       base::DictValue conflicted_policy_value =
+           GetPolicyValue(policy_name, conflict.entry(), deprecated_policies,
+                          future_policies, errors, known_policy_schemas);
++      if (!convert_types_enabled_) {
++        conflicted_policy_value.Set("conflictType",
++                                    static_cast<int>(conflict.conflict_type()));
++      }
+       switch (conflict.conflict_type()) {
+         case PolicyMap::ConflictType::Supersede:
+           supersede_values.Append(std::move(conflicted_policy_value));
+           has_supersede_values = true;
+           break;
+         case PolicyMap::ConflictType::Override:
++        case PolicyMap::ConflictType::Merged:
+           override_values.Append(std::move(conflicted_policy_value));
+           has_override_values = true;
+           break;
+-        default:
++        case PolicyMap::ConflictType::None:
+           break;
+       }
+     }
+@@ -567,9 +572,10 @@
+         result->superseded.push_back(std::move(mojo_conflict));
+         break;
+       case PolicyMap::ConflictType::Override:
++      case PolicyMap::ConflictType::Merged:
+         result->conflicts.push_back(std::move(mojo_conflict));
+         break;
+-      default:
++      case PolicyMap::ConflictType::None:
+         break;
+     }
+   }
+diff --git a/components/policy/core/common/policy_map.cc b/components/policy/core/common/policy_map.cc
+index dc8ebf2..35f1f3c 100644
+--- a/components/policy/core/common/policy_map.cc
++++ b/components/policy/core/common/policy_map.cc
+@@ -117,6 +117,15 @@
+   return true;
+ }
+ 
++PolicyMap::ConflictType GetValueConflictType(const PolicyMap::Entry& a,
++                                             const PolicyMap::Entry& b) {
++  const bool same_value = (!a.value_unsafe() && !b.value_unsafe()) ||
++                          (a.value_unsafe() && b.value_unsafe() &&
++                           *a.value_unsafe() == *b.value_unsafe());
++  return same_value ? PolicyMap::ConflictType::Supersede
++                    : PolicyMap::ConflictType::Override;
++}
++
+ }  // namespace
+ 
+ PolicyMap::Entry::Entry() = default;
+@@ -152,7 +161,8 @@
+   copy.is_default_value_ = is_default_value_;
+   copy.conflicts.reserve(conflicts.size());
+   for (const auto& conflict : conflicts) {
+-    copy.AddConflictingPolicy(conflict.entry().DeepCopy());
++    copy.conflicts.emplace_back(conflict.conflict_type(),
++                                conflict.entry().DeepCopy());
+   }
+   return copy;
+ }
+@@ -221,16 +231,16 @@
+ }
+ 
+ void PolicyMap::Entry::AddConflictingPolicy(Entry&& conflict) {
+-  // Move all of the newly conflicting Entries conflicts into this Entry.
+-  std::move(conflict.conflicts.begin(), conflict.conflicts.end(),
+-            std::back_inserter(conflicts));
++  // Move all of the newly conflicting Entry's conflicts into this Entry,
++  // recomputing each ConflictType against this Entry's value.
++  conflicts.reserve(conflicts.size() + conflict.conflicts.size() + 1);
++  for (EntryConflict& nested_conflict : conflict.conflicts) {
++    nested_conflict.SetConflictType(
++        GetValueConflictType(*this, nested_conflict.entry()));
++    conflicts.push_back(std::move(nested_conflict));
++  }
+ 
+-  bool is_value_equal = (!this->value_unsafe() && !conflict.value_unsafe()) ||
+-                        (this->value_unsafe() && conflict.value_unsafe() &&
+-                         *this->value_unsafe() == *conflict.value_unsafe());
+-
+-  ConflictType type =
+-      is_value_equal ? ConflictType::Supersede : ConflictType::Override;
++  ConflictType type = GetValueConflictType(*this, conflict);
+ 
+   // Clean up conflict Entry to ensure there's no duplication since entire Entry
+   // is moved and treated as a freshly constructed Entry.
+diff --git a/components/policy/core/common/policy_map.h b/components/policy/core/common/policy_map.h
+index a412f2b3..4074b48 100644
+--- a/components/policy/core/common/policy_map.h
++++ b/components/policy/core/common/policy_map.h
+@@ -41,7 +41,7 @@
+ 
+   // Types of conflicts that can be associated with policies. New conflict types
+   // must be added here in order to appear in the policy table.
+-  enum class ConflictType { None, Override, Supersede };
++  enum class ConflictType { None, Override, Supersede, Merged };
+ 
+   // Forward declare class so that it can be used in Entry.
+   class EntryConflict;
+diff --git a/components/policy/core/common/policy_merger.cc b/components/policy/core/common/policy_merger.cc
+index fc703da..7b22a4d 100644
+--- a/components/policy/core/common/policy_merger.cc
++++ b/components/policy/core/common/policy_merger.cc
+@@ -7,6 +7,7 @@
+ #include <array>
+ #include <map>
+ #include <set>
++#include <utility>
+ 
+ #include "base/compiler_specific.h"
+ #include "build/build_config.h"
+@@ -35,6 +36,31 @@
+   };
+ }
+ 
++void FinalizeMergedEntry(PolicyMap::Entry* policy,
++                         base::Value merged_value,
++                         bool allow_user_cloud_policy_merging) {
++  PolicyMap::Entry primary_conflict = policy->DeepCopy();
++  policy->set_value(std::move(merged_value));
++  policy->ClearConflicts();
++  policy->AddConflictingPolicy(std::move(primary_conflict));
++  policy->source = POLICY_SOURCE_MERGED;
++
++  const PolicyMap::Entry& primary_entry = policy->conflicts.back().entry();
++  for (size_t i = 0; i < policy->conflicts.size(); ++i) {
++    PolicyMap::EntryConflict& conflict = policy->conflicts[i];
++    if (conflict.conflict_type() == PolicyMap::ConflictType::Supersede) {
++      continue;
++    }
++    const bool was_merged =
++        (i + 1 == policy->conflicts.size()) ||
++        PolicyMerger::EntriesCanBeMerged(conflict.entry(), primary_entry,
++                                         allow_user_cloud_policy_merging);
++    if (was_merged) {
++      conflict.SetConflictType(PolicyMap::ConflictType::Merged);
++    }
++  }
++}
++
+ }  // namespace
+ 
+ // static
+@@ -186,16 +212,13 @@
+     return;
+   }
+ 
+-  auto new_conflict = policy->DeepCopy();
+   base::ListValue new_value;
+   for (const base::Value* it : merged_values) {
+     new_value.Append(it->Clone());
+   }
+ 
+-  policy->set_value(base::Value(std::move(new_value)));
+-  policy->ClearConflicts();
+-  policy->AddConflictingPolicy(std::move(new_conflict));
+-  policy->source = POLICY_SOURCE_MERGED;
++  FinalizeMergedEntry(policy, base::Value(std::move(new_value)),
++                      AllowUserCloudPolicyMerging());
+ }
+ 
+ PolicyDictionaryMerger::PolicyDictionaryMerger(
+@@ -303,11 +326,8 @@
+     return;
+   }
+ 
+-  auto new_conflict = policy->DeepCopy();
+-  policy->set_value(base::Value(std::move(merged_dictionary)));
+-  policy->ClearConflicts();
+-  policy->AddConflictingPolicy(std::move(new_conflict));
+-  policy->source = POLICY_SOURCE_MERGED;
++  FinalizeMergedEntry(policy, base::Value(std::move(merged_dictionary)),
++                      AllowUserCloudPolicyMerging());
+ }
+ 
+ void PolicyGroupMerger::Merge(PolicyMap* policies) const {
+diff --git a/components/policy/proto/device_management_backend.proto b/components/policy/proto/device_management_backend.proto
+index 14b238f..f12b83d 100644
+--- a/components/policy/proto/device_management_backend.proto
++++ b/components/policy/proto/device_management_backend.proto
+@@ -2272,6 +2272,23 @@
+   // Other sources that set the same policy. Including the ones that are
+   // merged in or have the same value.
+   repeated Policy conflicts = 7;
++
++  // Describes how a conflicting policy entry relates to the applied policy.
++  enum ConflictType {
++    CONFLICT_TYPE_UNSPECIFIED = 0;
++    // The entry's value differs from the applied policy and was not merged.
++    CONFLICT = 1;
++    // The entry was not applied because another scope or source took
++    // precedence (or policies were merged), and its value is the same as the
++    // applied policy.
++    SUPERSEDED = 2;
++    // The entry contributed to a merged policy (`SOURCE_MERGED`) and its
++    // pre-merge value differs from the final merged value.
++    MERGED = 3;
++  }
++
++  // Only set on entries in `conflicts`.
++  optional ConflictType conflict_type = 8;
+ }
+ 
+ // Extension policy information.
 diff --git a/components/search/ntp_features.cc b/components/search/ntp_features.cc
 index e21aed2..94f68bf 100644
 --- a/components/search/ntp_features.cc
@@ -14203,6 +15898,19 @@ index 2859f18b..b1c5dbe 100644
    updateFileStatus(
        token: UnguessableToken, status: ContextUploadStatus,
        errorType: ContextUploadErrorType|
+diff --git a/ui/webui/resources/cr_components/composebox/contextual_entrypoint_button.css b/ui/webui/resources/cr_components/composebox/contextual_entrypoint_button.css
+index d19dfd7..f5e456a1 100644
+--- a/ui/webui/resources/cr_components/composebox/contextual_entrypoint_button.css
++++ b/ui/webui/resources/cr_components/composebox/contextual_entrypoint_button.css
+@@ -438,6 +438,8 @@
+ 
+ .pill-button {
+   --cr-composebox-entrypoint-background-color: var(--color-composebox-context-entrypoint-hover-background, rgba(0, 0, 0, 0.05));
++  /* Match the icon button variant, which embedders size with this variable. */
++  height: var(--cr-composebox-entrypoint-height, var(--cr-button-height));
+   min-width: auto;
+   padding: 0 10px 0 8px;
+ }
 diff --git a/ui/webui/resources/cr_components/composebox/threads_rail.ts b/ui/webui/resources/cr_components/composebox/threads_rail.ts
 index 1838080..d4b54a9 100644
 --- a/ui/webui/resources/cr_components/composebox/threads_rail.ts
@@ -14320,10 +16028,102 @@ index db6edbfb..701d8f5 100644
        assert(text);
        this.updateInput_({
 diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts b/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts
-index 7e9062f..c922b58a 100644
+index 7e9062f..2bda71f 100644
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts
 +++ b/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts
-@@ -981,11 +981,12 @@
+@@ -105,8 +105,21 @@
+     // stale results. `activeQueryId` is reset to -1 when the last query needs
+     // to be abandoned. `nextQueryId_` is monotonically increasing to avoid
+     // reusing IDs.
+-    activeQueryId: number = -1;
++    private activeQueryId_: number = -1;
+     private nextQueryId_: number = 0;
++
++    get activeQueryId(): number {
++      return this.activeQueryId_;
++    }
++
++    set activeQueryId(queryId: number) {
++      this.activeQueryId_ = queryId;
++      // An 'Enter' pressed before the active query's results arrived waits for
++      // them. Starting a new query, or abandoning the active one should abort
++      // the pending navigate.
++      this.lastIgnoredEnterEvent_ = null;
++    }
++
+     lastQueriedInput: string|null = null;
+     accessor multiLineEnabled: boolean = false;
+     accessor singleLineOnInlineAutocomplete: boolean = false;
+@@ -475,6 +488,10 @@
+       // post-deletion result.
+       const deletedLine = this.pendingDeletionLine_;
+       this.pendingDeletionLine_ = null;
++      // Likewise, an 'Enter' pressed before this query's results arrived waits
++      // for its first results only, so it can't navigate on a later update.
++      const ignoredEnterEvent = this.lastIgnoredEnterEvent_;
++      this.lastIgnoredEnterEvent_ = null;
+ 
+       this.result = result;
+       const hasMatches = this.hasMatches();
+@@ -500,9 +517,8 @@
+ 
+         // Navigate to the default up-to-date match if the user typed and
+         // pressed 'Enter' too fast.
+-        if (this.lastIgnoredEnterEvent_) {
+-          this.navigateToMatch(0, this.lastIgnoredEnterEvent_);
+-          this.lastIgnoredEnterEvent_ = null;
++        if (ignoredEnterEvent) {
++          this.navigateToMatch(0, ignoredEnterEvent);
+         }
+ 
+       } else {
+@@ -674,7 +690,11 @@
+       this.pageHandler().onFocusChanged(false);
+     }
+ 
+-    async onInputWrapperKeydown(e: KeyboardEvent) {
++    /**
++     * Updates the state that every key press affects. It's called by
++     * `onInputWrapperKeydown()` and its overrides.
++     */
++    updateStateForKeydown(e: KeyboardEvent) {
+       // On user interaction, freeze the current results to avoid result updates
+       // potentially erasing user changes like cursor position. Freezing on
+       // 'enter' would break the fast-enter navigations via
+@@ -690,13 +710,9 @@
+         this.activeQueryId = -1;
+       }
+       this.compositionCommitQueryId_ = null;
+-      const modifier =
+-          isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+-      if (modifier && e.key === 'z') {
+-        e.stopPropagation();
+-        return;
+-      }
+ 
++      // Pressing another key with Ctrl consumes it, so a following Enter
++      // doesn't trigger Ctrl+Enter.
+       if (this.shouldAppendDotComOnCtrlEnter()) {
+         if (e.key === 'Control') {
+           if (this.controlKeyState === ControlKeyState.UP) {
+@@ -708,6 +724,16 @@
+           }
+         }
+       }
++    }
++
++    async onInputWrapperKeydown(e: KeyboardEvent) {
++      this.updateStateForKeydown(e);
++      const modifier =
++          isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
++      if (modifier && e.key === 'z') {
++        e.stopPropagation();
++        return;
++      }
+ 
+       const KEYDOWN_HANDLED_KEYS = [
+         ' ',
+@@ -981,11 +1007,12 @@
        const resultsPending = this.activeQueryId !== -1 &&
            this.result?.queryId !== this.activeQueryId;
        if (isPureCtrlEnter) {
@@ -14341,6 +16141,43 @@ index 7e9062f..c922b58a 100644
        } else if (!resultsPending) {
          // If no new query's `results` are pending (though new async results for
          // the current query may be pending), navigate.
+@@ -995,10 +1022,11 @@
+       } else {
+         // User typed and pressed 'Enter' too quickly. Ignore this for now
+         // because the matches are stale. Navigate to the default match (if
+-        // one exists) once the up-to-date matches arrive.
+-        this.lastIgnoredEnterEvent_ = e;
+-        // Unfreeze `activeQueryId` so pending query results are accepted.
++        // one exists) once the up-to-date matches arrive. Unfreeze
++        // `activeQueryId` so pending query results are accepted. This must come
++        // first, since setting it clears `lastIgnoredEnterEvent_`.
+         this.activeQueryId = this.nextQueryId_ - 1;
++        this.lastIgnoredEnterEvent_ = e;
+       }
+     }
+ 
+@@ -1418,6 +1446,7 @@
+   onAutocompleteResultChanged(result: AutocompleteResult|null): void;
+   onInputFocusChanged(e: CustomEvent<{value: string}>): void;
+   onInputWrapperFocusout(e: FocusEvent): void;
++  updateStateForKeydown(e: KeyboardEvent): void;
+   onInputWrapperKeydown(e: KeyboardEvent): void;
+   onMatchClick(): void;
+   onMatchFocusin(e: CustomEvent<number>): void;
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_selection_mixin.ts b/ui/webui/resources/cr_components/searchbox/searchbox_selection_mixin.ts
+index c4127ab..05d6f064 100644
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_selection_mixin.ts
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_selection_mixin.ts
+@@ -23,7 +23,8 @@
+   return s.state !== SelectionLineState.kFocusedButtonContextEntrypoint &&
+       s.state !== SelectionLineState.kFocusedButtonVoiceSearch &&
+       s.state !== SelectionLineState.kFocusedButtonLensSearch &&
+-      s.state !== SelectionLineState.kFocusedButtonContextualChip;
++      s.state !== SelectionLineState.kFocusedButtonContextualChip &&
++      s.state !== SelectionLineState.kFocusedButtonProfile;
+ }
+ 
+ function findSelectionIndex(
 diff --git a/ui/wm/core/focus_controller.cc b/ui/wm/core/focus_controller.cc
 index ccd7920..ac3195f4 100644
 --- a/ui/wm/core/focus_controller.cc
