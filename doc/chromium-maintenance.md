@@ -21,10 +21,11 @@ was added with (and 156 updated from .12 to .47).
     `KEYWORDS="~amd64 ~arm64"`. Like any official release without a tarball (Google often
     publishes none for Early Stable), it is a `<tag>_pre` built from the newest tarball of its major
     (below); it replaces the previous Early Stable's ebuild when Google releases it. When Google
-    releases the major for Linux Stable, the Linux release's ebuild (from its tarball, `amd64`)
-    replaces it, also when Linux's version differs from the Early Stable's (158.0.8127.36 for
-    Linux replaced the Windows/Mac Early Stable 158.0.8127.37); same slot, so installed copies
-    keep their profile;
+    releases the major for Linux Stable, the Linux release's ebuild (from its tarball) gets `amd64`;
+    when Linux's version differs from the Early Stable's (158.0.8127.36 for Linux, 158.0.8127.37
+    for Windows and Mac), the Linux one is added with `amd64` and the Early Stable's stays,
+    `~amd64`, until the next Early Stable replaces it, so that its users aren't pushed to
+    downgrade. Same slot, so installed copies keep their profile;
   - Beta for Linux: `SLOT="beta"`, no `KEYWORDS` (it is accepted only explicitly, with `**`):
     the newest Linux Beta, as a bleeding-edge build of its branch (since 2026-11-04), so that the
     next major is ported before it reaches Early Stable. It replaces the previous Beta, and gets
