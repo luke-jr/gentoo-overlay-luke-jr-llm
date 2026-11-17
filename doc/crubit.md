@@ -4,7 +4,7 @@ Status: **implemented and tested.** `dev-util/crubit:1.98.1` is emerged in the b
 built and run with it (both the user's configuration and the default USE flags). The final forms were
 `dev-util/crubit/crubit-1.98.1_p20260908.ebuild` and `www-client/chromium/files/chromium-156-system-crubit.patch`
 (dropped with 156 on 2026-11-03; their successors are `crubit-1.98.1_p20260930.ebuild` and
-`chromium-157-system-crubit.patch`).
+`chromium-157-system-crubit.patch`, dropped with 157 on 2026-11-17: 158 supports a system Crubit itself).
 Sections B3/B4 below are the analysis written *before* implementation; where they say "sketch", "draft" or
 "assumed", the patch/ebuild header is authoritative.
 Source paths are relative to `chromium-156.0.8078.12/` unless noted.

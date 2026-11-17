@@ -118,7 +118,8 @@ MV2 extensions are no longer in the Chrome Web Store: load them unpacked (develo
   - Re-checks after system tools are linked in, and **dies** on anything left over. The
     only exception is our own `tsc` from `dev-lang/typescript`; nothing prebuilt
     is allowed.
-- **`chromium-157-no-runtime-executable-downloads.patch`** (first made for 156): Chromium never downloads or
+- **`chromium-157-no-runtime-executable-downloads.patch`** (first made for 156; dropped with 157 on 2026-11-17,
+  158's is `chromium-158-no-runtime-executable-downloads.patch`): Chromium never downloads or
   loads code via the component updater: Widevine CDM, Screen AI, SODA, TranslateKit, the
   WASM TTS engine, component-extension JavaScript, the Commerce Heuristics component (its
   archive carries a JavaScript file), and the remote DevTools front-end.
@@ -130,7 +131,8 @@ MV2 extensions are no longer in the Chrome Web Store: load them unpacked (develo
   - The Translator web API reports "unavailable" rather than hanging. The DevTools CSP no longer allows
     remote scripts.
   - Data components (CRLSet, filter lists, hints, …) are unaffected.
-- **`chromium-157-system-crubit.patch`** (first made for 156): lets Chromium's GN use a system Crubit with the
+- **`chromium-157-system-crubit.patch`** (first made for 156; dropped with 157 on 2026-11-17, 158 does it
+  itself, see 158 below): lets Chromium's GN use a system Crubit with the
   prebuilt system Rust stdlib.
   - New args `rust_crubit_root` and `rust_crubit_clang_format`.
   - The stdlib's C++ bindings are generated from its `.rmeta` files.
@@ -214,7 +216,8 @@ now loads only when Glic is enabled too (`chrome://flags/#glic`), as upstream th
 
 ## 157
 
-The 157 ebuild is the 156 one with these differences:
+The 157 ebuild (dropped on 2026-11-17, when 158 became Google's Linux Stable) was the 156 one with
+these differences:
 - Patches rebased for 157: `chromium-157-no-runtime-executable-downloads.patch`,
   `chromium-157-system-crubit.patch` (157 moved Crubit's tool paths into
   `build/rust/gni_impl/crubit_shared_args.gni`, and its bindings need a `std_bindings_crubit_metadata`
@@ -237,7 +240,7 @@ Built offline and runtime-tested like 156 (components, DevTools, WebDriver BiDi,
 
 ## 158
 
-The 158 ebuilds (`158.0.8127.37`, Google's Early Stable from its tarball: `SLOT="stable"`, and the
+The 158 ebuilds (`158.0.8127.36`, Google's Linux Stable from its tarball: `SLOT="stable"`, and the
 bleeding-edge `158.0.8127.<tag>_p<N>_pre`, built from a tarball and upgrade patches) are the 157 one with these
 differences:
 - No Crubit patch: 158 supports a system Crubit itself (its `rust_crubit_root` GN argument, and
