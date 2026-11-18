@@ -1,0 +1,3816 @@
+Chromium 159.0.8154.18 -> 159.0.8154.27, for the 159.0.8154.18 tarball.
+
+159.0.8154.27 is a tag on the 159 branch (refs/branch-heads/8154@{#953}) that
+has no source tarball (as of 2026-11-18). It adds 82 branch commits to
+159.0.8154.18 (#871), the newest tag with a tarball, among them PGO/orderfile
+rolls, translation updates and VERSION increments. It adds, among many CHECKs
+turned back into DCHECKs and Omnibox (the location bar's dropdown on the
+Unbounded Element API), Contextual Tasks and aim-drive changes: WebCodecs'
+callbacks routed to the execution context's task runners, SyncLoadContext's
+completion deferred while handling redirects, ServiceWorker's fetch response
+callbacks invoked directly from Take() and its startup queued during network
+restriction registration, File System Access' platform path resolution
+disallowed in incognito, OTP's PSL matching in non-login flows behind a flag; in
+the dependency rolls: ANGLE's translator validating gl_PerVertex member types.
+
+Generated from the upstream diffs between the tags: chromium/src
+refs/tags/159.0.8154.18..refs/tags/159.0.8154.27 and the dependencies whose
+DEPS revision changed (ANGLE 0f0b90f0b5bf..525fbae78ff2, Dawn
+69bfa246b5d7..e8069b445d6e: no file of Dawn's is kept, only the stamps below
+change), as served by Gitiles, with scripts/chromium-delta. The other
+dependencies' DEPS revisions don't change (the .18 tarball has them).
+
+Left out, as they cannot affect a Linux build: files not in the release
+tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs,
+translations (but en-GB), CI configuration, PGO/orderfile pointers, submodule
+pointer updates, DEPS. GN files (*.gn, *.gni) are kept even for tests and other
+platforms: gn gen reads test targets' BUILD.gn too.
+
+Added: the tarball's stamp files for the new commit (stamps.py:
+build/util/LASTCHANGE{,.committime}, gpu/config/gpu_lists_version.h,
+gpu/webgpu/DAWN_VERSION and gpu/webgpu/dawn_commit_hash.h; commit
+da5159d1f39fb6b3b0735b968df4aae0902e148e, refs/branch-heads/8154@{#953}).
+skia/ext/skia_commit_hash.h (Skia's DEPS revision doesn't change) and
+build/util/MINIBRANCH don't change.
+
+Checked: applies to the 159.0.8154.18 tarball; chrome/VERSION becomes
+159.0.8154.27; every patched source file is byte-identical to its version
+at the tag (or its dependency's DEPS revision); it adds 2 files and deletes
+none; the 159.0.8154.18 tarball's non-git files are all classified
+(tarball-generated.py with generated.conf).
+
+Apply with git apply.
+
+diff --git a/chrome/VERSION b/chrome/VERSION
+index cee63b3..4ee1533f 100644
+--- a/chrome/VERSION
++++ b/chrome/VERSION
+@@ -1,4 +1,4 @@
+ MAJOR=159
+ MINOR=0
+ BUILD=8154
+-PATCH=18
++PATCH=27
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index 668ab11f..5386c52 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -5225,6 +5225,7 @@
+     sources = [
+       "browser_encoding_browsertest.cc",
+       "chained_back_navigation_tracker_browsertest.cc",
++      "chrome_browser_interface_binders_browsertest.cc",
+       "chrome_content_browser_client_browsertest.cc",
+       "chrome_data_use_measurement_browsertest.cc",
+       "chrome_do_not_track_browsertest.cc",
+@@ -5282,12 +5283,15 @@
+       "//chrome/browser/ui:ui_features",
+       "//chrome/browser/ui/login",
+       "//chrome/browser/ui/search:test_support_ui",
++      "//chrome/browser/ui/webui/top_chrome",
++      "//chrome/services/speech/buildflags",
+       "//chrome/test/base:profile_lifecycle_test_utils",
+       "//chrome/test/base:test_launcher_utils",
+       "//chrome/test/base:testing_browser_process",
+       "//components/embedder_support",
+       "//components/enterprise/data_controls/core/browser:test_support",
+       "//components/javascript_dialogs",
++      "//components/live_caption:utils",
+       "//components/prefs",
+       "//components/privacy_sandbox/privacy_sandbox_attestations:test_support",
+       "//components/site_isolation",
+diff --git a/chrome/browser/actor/tools/one_time_token/attempt_otp_filling_tool.cc b/chrome/browser/actor/tools/one_time_token/attempt_otp_filling_tool.cc
+index c8fb454f..f54c567d 100644
+--- a/chrome/browser/actor/tools/one_time_token/attempt_otp_filling_tool.cc
++++ b/chrome/browser/actor/tools/one_time_token/attempt_otp_filling_tool.cc
+@@ -14,6 +14,7 @@
+ 
+ #include "base/command_line.h"
+ #include "base/containers/span.h"
++#include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "base/logging.h"
+ #include "base/metrics/histogram_functions.h"
+@@ -33,6 +34,7 @@
+ #include "chrome/common/actor.mojom-forward.h"
+ #include "chrome/common/actor/action_result.h"
+ #include "chrome/common/actor_webui.mojom.h"
++#include "chrome/common/chrome_features.h"
+ #include "components/actor/core/actor_switches.h"
+ #include "components/actor/core/journal_details_builder.h"
+ #include "components/actor/core/shared_types.h"
+@@ -666,6 +668,10 @@
+     return;
+   }
+ 
++  const bool allow_psl_matching =
++      is_actor_login ||
++      base::FeatureList::IsEnabled(
++          features::kGlicActorAutofillOneTimePasswordPslMatching);
+   LogJournalEvent(
+       "AttemptOtpFillingTool::OnActorLoginFlowChecked",
+       JournalDetailsBuilder().Add("status", "Calling RetrieveOtp").Build());
+@@ -673,8 +679,8 @@
+       AttemptOtpFillingToolEvent::kCancelledDuringOtpRetrieval;
+   tool_delegate().GetActorOneTimeTokenFillingService().RetrieveOtp(
+       GetWebContentsForOtpFilling(actor_surface_handle_),
+-      otp_frame->GetLastCommittedOrigin(), trigger_field_ids_, is_actor_login,
+-      ToServicePredictedOtpType(predicted_otp_type_),
++      otp_frame->GetLastCommittedOrigin(), trigger_field_ids_,
++      allow_psl_matching, ToServicePredictedOtpType(predicted_otp_type_),
+       base::BindOnce(&AttemptOtpFillingTool::OnOtpRetrieved,
+                      weak_factory_.GetWeakPtr(), std::move(callback)));
+ }
+diff --git a/chrome/browser/chrome_browser_interface_binders.cc b/chrome/browser/chrome_browser_interface_binders.cc
+index 3a62cda..d2299aa6 100644
+--- a/chrome/browser/chrome_browser_interface_binders.cc
++++ b/chrome/browser/chrome_browser_interface_binders.cc
+@@ -27,6 +27,7 @@
+ #include "chrome/browser/preloading/prefetch/no_state_prefetch/chrome_no_state_prefetch_processor_impl_delegate.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/profiles/profile_manager.h"
++#include "chrome/browser/profiles/profile_selections.h"
+ #include "chrome/browser/pwc/pwc_api_binder.h"
+ #include "chrome/browser/reader_mode/reader_mode_service_factory.h"
+ #include "chrome/browser/signin/identity_manager_factory.h"
+@@ -357,10 +358,13 @@
+     content::RenderFrameHost* frame_host,
+     mojo::PendingReceiver<media::mojom::SpeechRecognitionClientBrowserInterface>
+         receiver) {
+-  if (captions::IsLiveCaptionFeatureSupported()) {
++  Profile* profile = Profile::FromBrowserContext(
++      frame_host->GetProcess()->GetBrowserContext());
++  // A profile with keyed services disabled by default, e.g.
++  // TopChromeWebUIProfile, has no SpeechRecognitionClientBrowserInterface.
++  if (captions::IsLiveCaptionFeatureSupported() &&
++      !AreKeyedServicesDisabledForProfileByDefault(profile)) {
+     // Bind in this process.
+-    Profile* profile = Profile::FromBrowserContext(
+-        frame_host->GetProcess()->GetBrowserContext());
+     SpeechRecognitionClientBrowserInterfaceFactory::GetForProfile(profile)
+         ->BindReceiver(std::move(receiver), frame_host->GetGlobalId());
+   }
+diff --git a/chrome/browser/contextual_tasks/BUILD.gn b/chrome/browser/contextual_tasks/BUILD.gn
+index f793147a..e747eb8 100644
+--- a/chrome/browser/contextual_tasks/BUILD.gn
++++ b/chrome/browser/contextual_tasks/BUILD.gn
+@@ -1100,6 +1100,7 @@
+       "//chrome/browser/ui/contextual_search",
+       "//chrome/browser/ui/lens",
+       "//chrome/browser/ui/lens:test_support",
++      "//chrome/browser/ui/omnibox/omnibox_everywhere:prefs",
+       "//chrome/browser/ui/toolbar/pinned_toolbar",
+       "//chrome/browser/ui/views/contextual_tasks:onboarding_bubble",
+       "//chrome/browser/ui/views/frame:browser_view_header",
+diff --git a/chrome/browser/enterprise/connectors/reporting/BUILD.gn b/chrome/browser/enterprise/connectors/reporting/BUILD.gn
+index 2e697692..b6b27ff 100644
+--- a/chrome/browser/enterprise/connectors/reporting/BUILD.gn
++++ b/chrome/browser/enterprise/connectors/reporting/BUILD.gn
+@@ -15,6 +15,7 @@
+       "browser_crash_event_router.h",
+       "crash_reporting_context.h",
+       "event_initiator_utils.h",
++      "extension_actor_attribution_metrics.h",
+       "realtime_reporting_client.h",
+       "realtime_reporting_client_factory.h",
+       "reporting_event_router_factory.h",
+diff --git a/chrome/browser/enterprise/connectors/reporting/event_initiator_utils.cc b/chrome/browser/enterprise/connectors/reporting/event_initiator_utils.cc
+index b93de41..7ce3add 100644
+--- a/chrome/browser/enterprise/connectors/reporting/event_initiator_utils.cc
++++ b/chrome/browser/enterprise/connectors/reporting/event_initiator_utils.cc
+@@ -9,6 +9,7 @@
+ #include <utility>
+ 
+ #include "base/feature_list.h"
++#include "base/metrics/histogram_functions.h"
+ #include "base/notreached.h"
+ #include "base/strings/string_number_conversions.h"
+ #include "base/version.h"
+@@ -16,6 +17,7 @@
+ #include "chrome/browser/actor/actor_task.h"
+ #include "chrome/browser/enterprise/connectors/common.h"
+ #include "chrome/browser/enterprise/connectors/connectors_service.h"
++#include "chrome/browser/enterprise/connectors/reporting/extension_actor_attribution_metrics.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/common/glic_enums.mojom.h"
+ #include "components/actor/core/task_source_info.h"
+@@ -35,8 +37,10 @@
+ #include "chrome/browser/extensions/api/downloads/downloads_api.h"
+ #include "chrome/browser/extensions/extension_tab_util.h"
+ #include "extensions/browser/extension_registry.h"
++#include "extensions/common/constants.h"
+ #include "extensions/common/extension.h"
+ #include "extensions/common/mojom/manifest.mojom-shared.h"
++#include "url/origin.h"
+ #endif
+ 
+ #if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS) && \
+@@ -120,6 +124,36 @@
+   extension_info.set_install_location(ToInstallLocation(extension->location()));
+   extension_info.set_is_from_store(extension->from_webstore());
+ }
++
++// Returns the strongest extension signal on a download that was not started
++// via the `chrome.downloads` API. Used for metrics only: these signals do not
++// attribute the download yet. `download` must not be null.
++ExtensionDownloadAttributionSignal ClassifyUnattributedDownload(
++    download::DownloadItem* download) {
++  // An extension frame (popup, offscreen document) made the request itself.
++  const std::optional<url::Origin>& initiator = download->GetRequestInitiator();
++  if (initiator.has_value() &&
++      initiator->scheme() == extensions::kExtensionScheme) {
++    return ExtensionDownloadAttributionSignal::kExtensionRequestInitiator;
++  }
++
++#if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
++  // TODO(crbug.com/570065942): Prefer the actor at download start once it is
++  // snapshotted onto the `DownloadItem`. The tab's current actor can differ
++  // from it: the actor may have been set, cleared or replaced since the
++  // download started.
++  // Use the original WebContents: the actor is per-tab state and can outlive
++  // the primary page that started the download.
++  content::WebContents* web_contents =
++      content::DownloadItemUtils::GetOriginalWebContents(download);
++  if (web_contents &&
++      ExtensionActorTracker::GetActiveActor(web_contents).has_value()) {
++    return ExtensionDownloadAttributionSignal::kTabActor;
++  }
++#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
++
++  return ExtensionDownloadAttributionSignal::kNone;
++}
+ #endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+ 
+ bool CanIncludeDeviceInfoForReporting(
+@@ -214,8 +248,13 @@
+   const extensions::DownloadedByExtension* by_ext =
+       extensions::DownloadedByExtension::Get(download);
+   if (!by_ext || by_ext->id().empty()) {
++    base::UmaHistogramEnumeration(kExtensionActorLookupDownloadResultHistogram,
++                                  ClassifyUnattributedDownload(download));
+     return std::nullopt;
+   }
++  base::UmaHistogramEnumeration(
++      kExtensionActorLookupDownloadResultHistogram,
++      ExtensionDownloadAttributionSignal::kDownloadedByExtension);
+ 
+   ExtensionInfo extension_info;
+ 
+@@ -255,8 +294,13 @@
+   std::optional<extensions::ExtensionId> actor_id =
+       ExtensionActorTracker::GetActiveActor(web_contents);
+   if (!actor_id.has_value()) {
++    base::UmaHistogramEnumeration(
++        kExtensionActorLookupWebContentsResultHistogram,
++        ExtensionActorAttributionResult::kNoActor);
+     return std::nullopt;
+   }
++  base::UmaHistogramEnumeration(kExtensionActorLookupWebContentsResultHistogram,
++                                ExtensionActorAttributionResult::kAttributed);
+ 
+   ExtensionInfo extension_info;
+   extension_info.set_id(*actor_id);
+diff --git a/chrome/browser/enterprise/connectors/reporting/extension_actor_attribution_metrics.h b/chrome/browser/enterprise/connectors/reporting/extension_actor_attribution_metrics.h
+new file mode 100644
+index 0000000..309c3d5
+--- /dev/null
++++ b/chrome/browser/enterprise/connectors/reporting/extension_actor_attribution_metrics.h
+@@ -0,0 +1,83 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_ENTERPRISE_CONNECTORS_REPORTING_EXTENSION_ACTOR_ATTRIBUTION_METRICS_H_
++#define CHROME_BROWSER_ENTERPRISE_CONNECTORS_REPORTING_EXTENSION_ACTOR_ATTRIBUTION_METRICS_H_
++
++namespace enterprise_connectors {
++
++// UMA histogram names for extension actor attribution. See
++// `ExtensionActorTracker` and `event_initiator_utils.h`.
++inline constexpr char kExtensionActorTrackerClearedHistogram[] =
++    "Enterprise.ExtensionActorAttribution.Tracker.Cleared";
++inline constexpr char kExtensionActorLookupDownloadResultHistogram[] =
++    "Enterprise.ExtensionActorAttribution.Lookup.Download.Result";
++inline constexpr char kExtensionActorLookupWebContentsResultHistogram[] =
++    "Enterprise.ExtensionActorAttribution.Lookup.WebContents.Result";
++
++// Why an active extension actor was cleared from a tab.
++//
++// These values are persisted to logs. Entries should not be renumbered and
++// numeric values should never be reused.
++//
++// LINT.IfChange(ExtensionActorClearReason)
++enum class ExtensionActorClearReason {
++  // The user interacted with the tab.
++  kUserInteraction = 0,
++  // A cross-document navigation not initiated by an extension committed.
++  kNonExtensionNavigation = 1,
++  // `ExtensionActorTracker::ClearActiveActor()` was called.
++  kExplicit = 2,
++  // A browser-initiated navigation not started by an extension (e.g. from the
++  // omnibox or bookmarks) began.
++  kBrowserInitiatedNavigation = 3,
++  kMaxValue = kBrowserInitiatedNavigation,
++};
++// LINT.ThenChange(//tools/metrics/histograms/metadata/enterprise/enums.xml:ExtensionActorClearReason)
++
++// The outcome of looking up the extension that is acting on a tab.
++//
++// These values are persisted to logs. Entries should not be renumbered and
++// numeric values should never be reused.
++//
++// LINT.IfChange(ExtensionActorAttributionResult)
++enum class ExtensionActorAttributionResult {
++  // An extension was attributed, whether or not it is still installed.
++  kAttributed = 0,
++  // The tab has no active extension actor. This includes every tab in a
++  // profile for which `ExtensionActorTracker::IsEnabled()` is false.
++  kNoActor = 1,
++  kMaxValue = kNoActor,
++};
++// LINT.ThenChange(//tools/metrics/histograms/metadata/enterprise/enums.xml:ExtensionActorAttributionResult)
++
++// The strongest signal identifying the extension behind a download. Signals
++// are checked in the order `kDownloadedByExtension`,
++// `kExtensionRequestInitiator`, `kTabActor`, and the first match is recorded.
++// Buckets name the signal that was present, not whether it produced
++// attribution, so they keep their meaning as more signals start being used.
++// Currently only `kDownloadedByExtension` produces attribution; the other two
++// size the downloads that bypass `chrome.downloads` (crbug.com/570065942).
++//
++// These values are persisted to logs. Entries should not be renumbered and
++// numeric values should never be reused.
++//
++// LINT.IfChange(ExtensionDownloadAttributionSignal)
++enum class ExtensionDownloadAttributionSignal {
++  // None of the signals below was present.
++  kNone = 0,
++  // Started via the `chrome.downloads` API (`DownloadedByExtension`).
++  kDownloadedByExtension = 1,
++  // The request initiator is a `chrome-extension://` origin, e.g. an extension
++  // popup or offscreen document navigated to the file.
++  kExtensionRequestInitiator = 2,
++  // The originating tab has an active extension actor.
++  kTabActor = 3,
++  kMaxValue = kTabActor,
++};
++// LINT.ThenChange(//tools/metrics/histograms/metadata/enterprise/enums.xml:ExtensionDownloadAttributionSignal)
++
++}  // namespace enterprise_connectors
++
++#endif  // CHROME_BROWSER_ENTERPRISE_CONNECTORS_REPORTING_EXTENSION_ACTOR_ATTRIBUTION_METRICS_H_
+diff --git a/chrome/browser/enterprise/connectors/reporting/extension_actor_tracker.cc b/chrome/browser/enterprise/connectors/reporting/extension_actor_tracker.cc
+index 09acaf49..043a418 100644
+--- a/chrome/browser/enterprise/connectors/reporting/extension_actor_tracker.cc
++++ b/chrome/browser/enterprise/connectors/reporting/extension_actor_tracker.cc
+@@ -8,7 +8,9 @@
+ 
+ #include "base/feature_list.h"
+ #include "base/logging.h"
++#include "base/metrics/histogram_functions.h"
+ #include "chrome/browser/enterprise/connectors/connectors_service.h"
++#include "chrome/browser/enterprise/connectors/reporting/extension_actor_attribution_metrics.h"
+ #include "chrome/browser/extensions/api/tabs/tabs_api.h"
+ #include "components/enterprise/connectors/core/features.h"
+ #include "components/enterprise/connectors/core/reporting_constants.h"
+@@ -121,8 +123,7 @@
+     return;
+   }
+   if (auto* tracker = FromWebContents(web_contents)) {
+-    tracker->active_actor_id_.reset();
+-    tracker->is_initial_navigation_ = false;
++    tracker->ResetActiveActor(ExtensionActorClearReason::kExplicit);
+   }
+ }
+ 
+@@ -149,12 +150,7 @@
+       is_extension_reload_or_history) {
+     return;
+   }
+-  if (active_actor_id_) {
+-    DVLOG(1) << "Browser-initiated navigation cleared extension actor "
+-             << *active_actor_id_;
+-  }
+-  active_actor_id_.reset();
+-  is_initial_navigation_ = false;
++  ResetActiveActor(ExtensionActorClearReason::kBrowserInitiatedNavigation);
+ }
+ 
+ void ExtensionActorTracker::DidFinishNavigation(
+@@ -182,7 +178,7 @@
+     return;
+   }
+ 
+-  active_actor_id_.reset();
++  ResetActiveActor(ExtensionActorClearReason::kNonExtensionNavigation);
+ }
+ 
+ void ExtensionActorTracker::DidGetUserInteraction(
+@@ -192,8 +188,7 @@
+       event.GetType() == blink::WebInputEvent::Type::kGestureScrollBegin) {
+     return;
+   }
+-  active_actor_id_.reset();
+-  is_initial_navigation_ = false;
++  ResetActiveActor(ExtensionActorClearReason::kUserInteraction);
+ }
+ 
+ void ExtensionActorTracker::DidOpenRequestedURL(
+@@ -219,6 +214,17 @@
+   }
+ }
+ 
++void ExtensionActorTracker::ResetActiveActor(ExtensionActorClearReason reason) {
++  is_initial_navigation_ = false;
++  if (!active_actor_id_.has_value()) {
++    return;
++  }
++  DVLOG(1) << "Cleared extension actor " << *active_actor_id_ << " (reason "
++           << static_cast<int>(reason) << ")";
++  active_actor_id_.reset();
++  base::UmaHistogramEnumeration(kExtensionActorTrackerClearedHistogram, reason);
++}
++
+ WEB_CONTENTS_USER_DATA_KEY_IMPL(ExtensionActorTracker);
+ 
+ }  // namespace enterprise_connectors
+diff --git a/chrome/browser/enterprise/connectors/reporting/extension_actor_tracker.h b/chrome/browser/enterprise/connectors/reporting/extension_actor_tracker.h
+index 36521af3..d0986ff 100644
+--- a/chrome/browser/enterprise/connectors/reporting/extension_actor_tracker.h
++++ b/chrome/browser/enterprise/connectors/reporting/extension_actor_tracker.h
+@@ -19,6 +19,8 @@
+ 
+ namespace enterprise_connectors {
+ 
++enum class ExtensionActorClearReason;
++
+ // Tracks the extension that most recently acted on this tab, for enterprise
+ // security reporting events.
+ //
+@@ -86,6 +88,9 @@
+       const extensions::ExtensionId& extension_id,
+       bool is_initial_navigation);
+ 
++  // Clears the active actor, recording `reason` if one was set.
++  void ResetActiveActor(ExtensionActorClearReason reason);
++
+   std::optional<extensions::ExtensionId> active_actor_id_;
+   bool is_initial_navigation_ = false;
+ 
+diff --git a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
+index 3f742f23..50a752f 100644
+--- a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
++++ b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
+@@ -294,6 +294,9 @@
+       FILE_PATH_LITERAL(".host"),
+       FILE_PATH_LITERAL("vboxsvr"),
+       FILE_PATH_LITERAL("vboxsrv"),
++      // Remote desktop client-drive redirectors (RDP/Horizon, Citrix HDX).
++      FILE_PATH_LITERAL("tsclient"),
++      FILE_PATH_LITERAL("client"),
+   };
+   for (const auto& candidate : kLocalServers) {
+     if (base::FilePath::CompareEqualIgnoreCase(server, candidate)) {
+@@ -304,8 +307,8 @@
+ }
+ 
+ // Returns true if the path is a Universal Naming Convention (UNC) path pointing
+-// to a local system path, device namespace, WSL loopback redirector, or
+-// hypervisor host-share namespace.
++// to a local system path, device namespace, WSL loopback redirector,
++// hypervisor host-share namespace, or remote-session client drive redirector.
+ bool MaybeIsLocalUNCPath(const base::FilePath& path) {
+   if (!path.IsNetwork()) {
+     return false;
+diff --git a/chrome/browser/glic/service/metrics/glic_instance_metrics.cc b/chrome/browser/glic/service/metrics/glic_instance_metrics.cc
+index 0af058a..5c2aecb7 100644
+--- a/chrome/browser/glic/service/metrics/glic_instance_metrics.cc
++++ b/chrome/browser/glic/service/metrics/glic_instance_metrics.cc
+@@ -1085,6 +1085,8 @@
+       cui_trackers_.push_back(std::move(fre_tracker));
+     }
+     if (native_fre_state_ == NativeFreState::kWaitingForAccept) {
++      base::RecordAction(
++          base::UserMetricsAction("Glic.Fre.NativeFreTriggered"));
+       if (base::FeatureList::IsEnabled(features::kGlicOptInImpressionMetrics) &&
+           !opt_in_impression_recorded_for_current_open_) {
+         RecordOptInImpression();
+diff --git a/chrome/browser/printing/print_job_worker_oop.cc b/chrome/browser/printing/print_job_worker_oop.cc
+index f2e34d3b..1847dd8 100644
+--- a/chrome/browser/printing/print_job_worker_oop.cc
++++ b/chrome/browser/printing/print_job_worker_oop.cc
+@@ -84,7 +84,9 @@
+       print_from_system_dialog_(print_from_system_dialog) {}
+ 
+ PrintJobWorkerOop::~PrintJobWorkerOop() {
+-  CHECK(!service_manager_client_id_.has_value(), base::NotFatalUntil::M162);
++  // TODO(crbug.com/586019434): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(!service_manager_client_id_.has_value());
+ }
+ 
+ void PrintJobWorkerOop::StartPrinting(PrintedDocument* new_document) {
+diff --git a/chrome/browser/renderer_context_menu/render_view_context_menu.cc b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+index 381d236..2da86ef 100644
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+@@ -5049,8 +5049,7 @@
+         render_frame_host->GetMainFrame()->GetLastCommittedURL(),
+         ui::DataTransferEndpointOptions{
+             .notify_if_restricted = notify_if_restricted,
+-            .off_the_record =
+-                render_frame_host->GetBrowserContext()->IsOffTheRecord()});
++            .off_the_record = browser_context_->IsOffTheRecord()});
+   }
+   return nullptr;
+ }
+diff --git a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.css b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.css
+index aa2f3ab..3c978bfe 100644
+--- a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.css
++++ b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.css
+@@ -64,6 +64,12 @@
+   margin-bottom: var(--alignment-inset-bottom);
+ }
+ 
++:host([unbounded-supported_]:not([dropdown-is-visible])) {
++  --cr-searchbox-width: 100%;
++  margin-top: 0;
++  margin-bottom: 0;
++}
++
+ :host(:not([dropdown-is-visible]):not([has-input-selection_]):not([is-logically-focused_])) #inputWrapper:hover:not(:focus-within) {
+   cursor: text;
+   background-color: var(--color-omnibox-results-background-hovered);
+@@ -79,6 +85,13 @@
+       inset 0 0 0 1px var(--cr-focus-outline-color);
+ }
+ 
++/* In the location bar the WebView has the location bar's bounds, so an outset
++ * ring would be clipped. Draw the 2px ring inside instead. */
++:host([unbounded-supported_]:not([dropdown-is-visible])) #inputWrapper:focus-within,
++:host([unbounded-supported_][is-logically-focused_]:not([dropdown-is-visible])) #inputWrapper {
++  box-shadow: inset 0 0 0 2px var(--cr-focus-outline-color);
++}
++
+ /* The compose button takes the focus ring's place while it has focus. With
+  * the dropdown visible there is no focus ring, and #inputWrapper's box-shadow
+  * is the popup's drop shadow, which stays. */
+@@ -98,6 +111,11 @@
+     outline-offset: -1px;
+   }
+ 
++  :host([unbounded-supported_]:not([dropdown-is-visible])) #inputWrapper:focus-within,
++  :host([unbounded-supported_][is-logically-focused_]:not([dropdown-is-visible])) #inputWrapper {
++    outline-offset: -2px;
++  }
++
+   :host(:not([dropdown-is-visible]))
+       #inputWrapper:has(#composeButton:is(:focus-within, [has-virtual-focus])) {
+     outline: none;
+@@ -166,6 +184,20 @@
+   width: 100%;
+ }
+ 
++/* The user agent stylesheet sets visibility: hidden on
++ * [unbounded]:not(:unbounded). Keep #inputWrapper visible in the location bar
++ * while it is not popped out. */
++#inputWrapper[unbounded] {
++  visibility: visible;
++}
++
++:host([dropdown-is-visible]) #inputWrapper[unbounded] {
++  --cr-searchbox-shadow: var(--omnibox-webui-shadow);
++  inset-inline-start: calc(-1 * var(--alignment-inset-horizontal));
++  top: calc(-1 * var(--alignment-inset-top));
++  width: calc(100% + 2 * var(--alignment-inset-horizontal));
++}
++
+ cr-searchbox-input::part(searchbox-input),
+ cr-searchbox-input::part(mirror) {
+   align-self: center;
+diff --git a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.html.ts b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.html.ts
+index e3dfe27c9..24d4fa02 100644
+--- a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.html.ts
++++ b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.html.ts
+@@ -9,10 +9,14 @@
+ export function getHtml(this: OmniboxPopupSearchboxElement) {
+   return html`
+ <div id="inputWrapper" @focusout="${this.onInputWrapperFocusout}"
+-    @keydown="${this.onInputWrapperKeydown}">
++    @keydown="${this.onInputWrapperKeydown}"
++    @keyup="${this.onInputWrapperKeyup_}"
++    ?unbounded="${this.unboundedSupported_}"
++    @beforetoggle="${this.onInputWrapperBeforetoggle_}">
+   <cr-searchbox-input id="input" exportparts="searchbox-input, mirror"
+       url-emphasis-enabled ?dropdown-is-visible="${this.dropdownIsVisible}"
+       ?multi-line-enabled="${this.multiLineEnabled}"
++      ?clip-selection-listbox="${this.unboundedSupported_}"
+       placeholder-text="${this.computeInputPlaceholderText_()}"
+       searchbox-aria-description="${this.searchboxAriaDescription}"
+       searchbox-icon="${this.searchboxIcon_}"
+diff --git a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
+index 9e48614..08efbd26 100644
+--- a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
++++ b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
+@@ -79,6 +79,11 @@
+   icon: string;
+ }
+ 
++interface UnboundedElement extends HTMLElement {
++  showUnboundedElement(): Promise<void>;
++  hideUnboundedElement(): Promise<void>;
++}
++
+ export interface OmniboxPopupSearchboxElement {
+   $: {
+     composeButton: SearchboxComposeButtonElement,
+@@ -241,6 +246,10 @@
+       textInputType_: {
+         type: String,
+       },
++      unboundedSupported_: {
++        type: Boolean,
++        reflect: true,
++      },
+     };
+   }
+ 
+@@ -290,6 +299,9 @@
+       loadTimeData.getBoolean('searchboxDynamicAnimation');
+   protected accessor hasUserInput_: boolean = false;
+   protected accessor aimButtonVisible_: boolean = false;
++  protected accessor unboundedSupported_: boolean =
++      loadTimeData.getBoolean('useUnbounded') &&
++      'showUnboundedElement' in HTMLElement.prototype;
+   protected accessor aimButtonConfig_: AimButtonConfig = {
+     text: '',
+     title: '',
+@@ -325,6 +337,18 @@
+   private popupCallbackRouter_: PopupPageCallbackRouter;
+   private popupPageHandler_: PopupPageHandlerInterface;
+   private listenerIds_: number[] = [];
++  // TODO(b/585608450): Drop this once the Unbounded Element API lets the page
++  // handle Escape before dismissing.
++  // Set when the platform requested an interactive dismissal of the unbounded
++  // window and it was canceled (see `onInputWrapperBeforetoggle_()`): for a
++  // pointer press outside of the unbounded window, which still reaches the
++  // page, or for an Escape key press, whose keydown the unbounded window
++  // consumes, so that it needs to be replayed on keyup.
++  private pendingInteractiveDismissal_: boolean = false;
++  // Whether the trusted keydown of the current Escape key press reached the
++  // searchbox. The keydown is only replayed if it didn't, so that Escape is
++  // never handled twice.
++  private escapeKeydownReceived_: boolean = false;
+   private popupListenerIds_: number[] = [];
+   // Sequence number of the current content state received from C++.
+   private currentSequenceNum_: number = 0;
+@@ -520,6 +544,12 @@
+     this.inputResizeObserver_.observe(this.$.inputWrapper);
+ 
+     this.eventTracker_.add(document, 'mousemove', this.onMouseMove_.bind(this));
++    // A pointer press outside of the unbounded window requests an interactive
++    // dismissal too. Clear the flag once the press reaches the page, so that a
++    // later Escape keyup isn't replayed as a keydown.
++    this.eventTracker_.add(document, 'pointerdown', () => {
++      this.pendingInteractiveDismissal_ = false;
++    }, /*capture=*/ true);
+     this.eventTracker_.add(document, 'mouseup', this.onMouseUp_.bind(this));
+     this.eventTracker_.add(document, 'dragstart', this.onDragStart_.bind(this));
+     this.eventTracker_.add(document, 'dragend', this.onDragEnd_.bind(this));
+@@ -660,6 +690,10 @@
+         changedPrivateProperties.has('aimButtonVisible_')) {
+       this.updateAimButtonCollapse_();
+     }
++
++    if (changedProperties.has('dropdownIsVisible')) {
++      this.updateUnboundedWindow_();
++    }
+   }
+ 
+   override shouldAppendDotComOnCtrlEnter(): boolean {
+@@ -1190,6 +1224,9 @@
+     // affects first.
+     this.updateStateForKeydown(e);
+ 
++    if (e.key === 'Escape' && e.isTrusted) {
++      this.escapeKeydownReceived_ = true;
++    }
+     this.selectAllOnMouseRelease_ = false;
+     this.unelideOnMouseRelease_ = false;
+     this.queryZpsOnMouseRelease_ = false;
+@@ -2055,13 +2092,17 @@
+   }
+ 
+   /**
+-   * Executes deferred focus (`FOCUS` / `FOCUS_AND_SELECT`) when the tab
+-   * transitions from hidden to visible (`document.visibilityState ===
+-   * 'visible'`).
++   * Re-applies the unbounded window state and executes deferred focus (`FOCUS`
++   * / `FOCUS_AND_SELECT`) once the tab transitions from hidden to visible
++   * (`document.visibilityState === 'visible'`).
+    */
+   private onVisibilityChange_() {
+-    if (document.visibilityState === 'visible' &&
+-        this.deferredFocusAction_ !== null) {
++    if (document.visibilityState !== 'visible') {
++      return;
++    }
++    // Re-apply the dropdown state that was skipped while hidden.
++    this.updateUnboundedWindow_();
++    if (this.deferredFocusAction_ !== null) {
+       const action = this.deferredFocusAction_;
+       this.deferredFocusAction_ = null;
+       this.$.input.focus();
+@@ -2071,6 +2112,86 @@
+     }
+   }
+ 
++  // Pops #inputWrapper out of the WebView while the dropdown is visible.
++  private updateUnboundedWindow_() {
++    if (!this.unboundedSupported_) {
++      return;
++    }
++    const wrapper = this.$.inputWrapper as UnboundedElement;
++    if (this.dropdownIsVisible === wrapper.matches(':unbounded')) {
++      return;
++    }
++    // showUnboundedElement() rejects while the document is hidden (its
++    // lifecycle is throttled). Don't call it; visibilitychange re-applies.
++    if (this.dropdownIsVisible && document.visibilityState !== 'visible') {
++      return;
++    }
++    (this.dropdownIsVisible ? wrapper.showUnboundedElement() :
++                              wrapper.hideUnboundedElement())
++        .catch(err => {
++          // AbortError: the dropdown toggled again before this finished.
++          if (!(err instanceof DOMException && err.name === 'AbortError')) {
++            console.warn(err);
++          }
++        });
++  }
++
++  // Copied from `WebuiBrowserSearchboxElement` in
++  // chrome/browser/resources/webui_browser/webui_browser_searchbox.ts.
++  protected onInputWrapperBeforetoggle_(e: ToggleEvent) {
++    if (e.newState !== 'closed') {
++      return;
++    }
++    if (!e.cancelable) {
++      this.pendingInteractiveDismissal_ = false;
++      // The window closes regardless: `hideUnboundedElement()`, called once
++      // the dropdown is already hidden, or the platform (e.g. on window
++      // deactivation). `#inputWrapper` goes back into the WebView, which would
++      // clip the dropdown, so clear matches and hide it if still open.
++      if (this.dropdownIsVisible) {
++        this.clearAutocompleteMatches();
++      }
++      return;
++    }
++    // An interactive dismissal (Escape, or a pointer press outside of the
++    // window). The searchbox owns the dropdown's visibility, so cancel it:
++    // an outside press still reaches the page and closes the dropdown through
++    // focusout if focus leaves the searchbox, and a consumed Escape keydown is
++    // replayed on keyup, so that Escape first reverts to the default match.
++    e.preventDefault();
++    this.pendingInteractiveDismissal_ = true;
++  }
++
++  protected onInputWrapperKeyup_(e: KeyboardEvent) {
++    if (e.key !== 'Escape') {
++      return;
++    }
++    const keydownReceived = this.escapeKeydownReceived_;
++    this.escapeKeydownReceived_ = false;
++    if (!this.pendingInteractiveDismissal_) {
++      return;
++    }
++    this.pendingInteractiveDismissal_ = false;
++    // Don't replay during IME composition: the replayed keydown would bypass
++    // the composition check in `handleKeyNavigation()`.
++    if (keydownReceived || this.isComposing_ || !this.unboundedSupported_ ||
++        !this.$.inputWrapper.matches(':unbounded')) {
++      return;
++    }
++    // Replay the Escape keydown that the unbounded window consumed.
++    this.$.input.inputElement.dispatchEvent(new KeyboardEvent('keydown', {
++      key: 'Escape',
++      code: 'Escape',
++      bubbles: true,
++      cancelable: true,
++      composed: true,
++      shiftKey: e.shiftKey,
++      ctrlKey: e.ctrlKey,
++      altKey: e.altKey,
++      metaKey: e.metaKey,
++    }));
++  }
++
+   /**
+    * Updates `textfieldModel_` with text modifications (insertion, deletion,
+    * replacement) for undo/redo history tracking.
+@@ -2222,6 +2343,8 @@
+   }
+ 
+   override onInputWrapperFocusout(e: FocusEvent) {
++    this.pendingInteractiveDismissal_ = false;
++    this.escapeKeydownReceived_ = false;
+     // When focus leaves the WebUI DOM (e.g. to native window or during ESC key
+     // handling on Linux), `relatedTarget` is null. Focus loss to external
+     // targets is managed by C++ (OmniboxPopupFullPresenter) via
+diff --git a/chrome/browser/task_manager/providers/per_profile_worker_task_tracker.cc b/chrome/browser/task_manager/providers/per_profile_worker_task_tracker.cc
+index 8a712ec..83cd43d 100644
+--- a/chrome/browser/task_manager/providers/per_profile_worker_task_tracker.cc
++++ b/chrome/browser/task_manager/providers/per_profile_worker_task_tracker.cc
+@@ -118,7 +118,9 @@
+     // A matching OnVersionStoppedRunning() call is still expected for this
+     // service worker.
+     const bool inserted = ignored_service_worker_.insert(version_id).second;
+-    CHECK(inserted, base::NotFatalUntil::M162);
++    // TODO(crbug.com/584407421): CHECK-exclusion: Convert to a CHECK once we
++    // are confident it won't be triggered.
++    DCHECK(inserted);
+     return;
+   }
+ 
+diff --git a/chrome/browser/ui/tab_contents/chrome_web_contents_menu_helper.cc b/chrome/browser/ui/tab_contents/chrome_web_contents_menu_helper.cc
+index 4ebf318..7219fa9 100644
+--- a/chrome/browser/ui/tab_contents/chrome_web_contents_menu_helper.cc
++++ b/chrome/browser/ui/tab_contents/chrome_web_contents_menu_helper.cc
+@@ -9,14 +9,17 @@
+ #include "components/prefs/pref_service.h"
+ #include "components/search_engines/search_engines_pref_names.h"
+ #include "content/public/browser/context_menu_params.h"
++#include "content/public/browser/user_browser_context.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/browser/web_contents_view_delegate.h"
+ 
+ content::ContextMenuParams AddContextMenuParamsPropertiesFromPreferences(
+     content::WebContents* web_contents,
+     const content::ContextMenuParams& params) {
+-  Profile* profile =
+-      Profile::FromBrowserContext(web_contents->GetBrowserContext());
++  // Use the prefs of the user that the WebContents is shown for, which differs
++  // from the profile of the WebContents in TopChromeWebUIProfile.
++  Profile* profile = Profile::FromBrowserContext(
++      content::GetUserBrowserContext(*web_contents));
+   PrefService* prefs = profile->GetPrefs();
+ 
+   if (!prefs->GetBoolean(
+diff --git a/chrome/browser/ui/toolbar/back_forward_menu_model.cc b/chrome/browser/ui/toolbar/back_forward_menu_model.cc
+index 82eee00..da99780 100644
+--- a/chrome/browser/ui/toolbar/back_forward_menu_model.cc
++++ b/chrome/browser/ui/toolbar/back_forward_menu_model.cc
+@@ -209,7 +209,9 @@
+ }
+ 
+ void BackForwardMenuModel::ActivatedAt(size_t index, int event_flags) {
+-  CHECK(!IsSeparator(index), base::NotFatalUntil::M162);
++  // TODO(crbug.com/586448594): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(!IsSeparator(index));
+ 
+   std::optional<MenuSection> section = GetSectionForIndex(index);
+   if (!section.has_value()) {
+diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
+index 07e4e77..9b820e4 100644
+--- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
++++ b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
+@@ -80,6 +80,8 @@
+ }  // namespace
+ 
+ DEFINE_USER_DATA(ContextualTasksEphemeralButtonController);
++DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(ContextualTasksEphemeralButtonController,
++                                      kRemoveForTaskMenuItem);
+ 
+ ContextualTasksEphemeralButtonController::
+     ContextualTasksEphemeralButtonController(
+@@ -184,10 +186,8 @@
+                         ? vector_icons::kCloseIcon
+                         : vector_icons::kCloseOldIcon,
+                     ui::kColorIcon, ui::SimpleMenuModel::kDefaultIconSize))
+-                .SetProperty(
+-                    views::kElementIdentifierKey,
+-                    ContextualTasksEphemeralButtonMenuModel::
+-                        kRemoveForTaskMenuItem)
++                .SetProperty(views::kElementIdentifierKey,
++                             kRemoveForTaskMenuItem)
+                 .SetVisible(false)
+                 .SetEnabled(false)
+                 .Build());
+@@ -405,6 +405,18 @@
+ }
+ 
+ void ContextualTasksEphemeralButtonController::OnActionsChanged() {
++  // `MaybeNotifyVisibilityShouldChange()` only syncs the ephemeral state when
++  // the button is or was showing ephemerally. A button that was pinned while
++  // popped out keeps its ephemeral state (see
++  // `UpdateEphemeralStateInToolbar()`) and is no longer tracked as visible, so
++  // sync explicitly when the action is unpinned. Otherwise the stale state
++  // would keep the unpinned button in the toolbar.
++  if (contextual_tasks::IsContextualTasksEphemeralPinButtonRefactorEnabled() &&
++      browser_window_interface_ &&
++      !contextual_tasks::GetEffectivePinState(
++          browser_window_interface_->GetProfile())) {
++    UpdateEphemeralStateInToolbar(ShouldShowEphemeralButton());
++  }
+   MaybeNotifyVisibilityShouldChange();
+ }
+ 
+@@ -1045,6 +1057,18 @@
+           ToolbarButtonProvider::From(browser_window_interface_)) {
+     if (auto* pinned_toolbar_actions =
+             toolbar_button_provider->GetPinnedToolbarActions()) {
++      if (!show && browser_window_interface_->GetProfile() &&
++          contextual_tasks::GetEffectivePinState(
++              browser_window_interface_->GetProfile()) &&
++          !pinned_toolbar_actions->IsActionPinned(
++              kActionSidePanelShowContextualTasks)) {
++        // `OnActionsChanged()` runs before `PinnedToolbarActionsContainer`
++        // processes the pin change; clearing ephemeral state before the
++        // container promotes the popped-out button to `pinned_buttons_` would
++        // queue the popped-out button for removal instead of pinning it in
++        // place.
++        return;
++      }
+       pinned_toolbar_actions->ShowActionEphemerallyInToolbar(
+           kActionSidePanelShowContextualTasks, show);
+     }
+diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.h b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.h
+index b7891392..5d48e9e 100644
+--- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.h
++++ b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.h
+@@ -27,6 +27,7 @@
+ #include "components/prefs/pref_change_registrar.h"
+ #include "components/sessions/core/session_id.h"
+ #include "content/public/browser/web_contents_observer.h"
++#include "ui/base/interaction/element_identifier.h"
+ #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
+ 
+ class BrowserWindowInterface;
+@@ -54,6 +55,7 @@
+       public PinnedToolbarActionsModel::Observer {
+  public:
+   DECLARE_USER_DATA(ContextualTasksEphemeralButtonController);
++  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kRemoveForTaskMenuItem);
+   explicit ContextualTasksEphemeralButtonController(
+       BrowserWindowInterface* browser_window_interface);
+   ~ContextualTasksEphemeralButtonController() override;
+diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_pinned_action_toolbar_button.cc b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_pinned_action_toolbar_button.cc
+index c46bb1fd..a7c5a07 100644
+--- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_pinned_action_toolbar_button.cc
++++ b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_pinned_action_toolbar_button.cc
+@@ -13,7 +13,7 @@
+ #include "base/memory/raw_ref.h"
+ #include "chrome/browser/ui/side_panel/side_panel_action_callback.h"
+ #include "chrome/browser/ui/side_panel/side_panel_enums.h"
+-#include "chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_menu_model.h"
++#include "chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.h"
+ #include "chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_utils.h"
+ #include "chrome/browser/ui/views/toolbar/pinned_action_toolbar_button_menu_model.h"
+ #include "ui/actions/actions.h"
+@@ -110,7 +110,7 @@
+   bool IsCloseSidePanelItemVisible() const {
+     for (size_t i = 0; i < GetItemCount(); ++i) {
+       if (GetElementIdentifierAt(i) ==
+-          ContextualTasksEphemeralButtonMenuModel::kRemoveForTaskMenuItem) {
++          ContextualTasksEphemeralButtonController::kRemoveForTaskMenuItem) {
+         return IsVisibleAt(i);
+       }
+     }
+diff --git a/chrome/browser/ui/views/omnibox/BUILD.gn b/chrome/browser/ui/views/omnibox/BUILD.gn
+index 2aaabe1c..18536a9 100644
+--- a/chrome/browser/ui/views/omnibox/BUILD.gn
++++ b/chrome/browser/ui/views/omnibox/BUILD.gn
+@@ -220,6 +220,19 @@
+       "//ui/views",
+     ]
+   }
++
++  source_set("native_widget_mac_test_util") {
++    testonly = true
++    sources = [
++      "omnibox_popup_native_widget_mac_test_util.h",
++      "omnibox_popup_native_widget_mac_test_util.mm",
++    ]
++    deps = [
++      "//base",
++      "//components/remote_cocoa/app_shim",
++      "//ui/views",
++    ]
++  }
+ }
+ 
+ source_set("unit_tests") {
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
+index 3d58cf7..d0d62a56 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
+@@ -431,7 +431,7 @@
+     refocus_on_activation_ = false;
+     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+         FROM_HERE,
+-        base::BindOnce(&OmniboxPopupFullPresenter::RefocusAfterActivation,
++        base::BindOnce(&OmniboxPopupFullPresenter::RequestFocusIfOmniboxFocused,
+                        weak_factory_.GetWeakPtr()));
+   }
+ 
+@@ -586,7 +586,21 @@
+   SynchronizePopupBounds();
+ }
+ 
+-void OmniboxPopupFullPresenter::RefocusAfterActivation() {
++void OmniboxPopupFullPresenter::OnWidgetVisibilityOnScreenChanged(
++    views::Widget* widget,
++    bool visible) {
++  if (widget != GetWidget() || !visible) {
++    return;
++  }
++  // The popup may have been opened while it couldn't appear on screen, e.g. on
++  // macOS in a new window entering a fullscreen Space before macOS switched to
++  // it. `RequestFocus()` gave up then, as the popup wasn't shown, and the
++  // location bar may have moved since.
++  SynchronizePopupBounds();
++  RequestFocusIfOmniboxFocused();
++}
++
++void OmniboxPopupFullPresenter::RequestFocusIfOmniboxFocused() {
+   // Only refocus if the omnibox is still focused with the popup open. If the
+   // window was deactivated again in the meantime, `RequestFocus()` waits for
+   // the next activation.
+@@ -1314,6 +1328,16 @@
+   UpdatePopupOcclusion();
+ }
+ 
++void OmniboxPopupFullPresenter::OnViewHierarchyChanged(
++    views::View* observed_view,
++    const views::ViewHierarchyChangedDetails& details) {
++  // Immersive fullscreen moves the top container into an overlay and back,
++  // which changes whether the occluding views draw above the location bar.
++  if (details.is_add && details.child == observed_view) {
++    UpdatePopupOcclusion();
++  }
++}
++
+ void OmniboxPopupFullPresenter::OnViewIsDeleting(views::View* observed_view) {
+ #if BUILDFLAG(IS_CHROMEOS)
+   if (top_container_observation_.IsObservingSource(observed_view)) {
+@@ -1334,15 +1358,16 @@
+   }
+   gfx::Rect clip;
+   // Only clip while the popup is collapsed. Once suggestions open, the strip
+-  // collapses and the popup should paint in full. The widget comparison skips
+-  // macOS immersive fullscreen, where the location bar sits in an overlay
+-  // widget above the strip and tray.
+-  if (IsPopupCollapsed()) {
++  // collapses and the popup should paint in full. The occluding views are
++  // children of the browser view, so they only draw above the location bar
++  // while the top container is there too. Immersive fullscreen moves it into
++  // an overlay above them (an overlay view on ChromeOS, an overlay widget on
++  // macOS).
++  if (IsPopupCollapsed() && IsTopContainerInBrowserView()) {
+     const gfx::Rect popup_bounds = GetWidget()->GetWindowBoundsInScreen();
+-    views::Widget* location_bar_widget = delegate().GetLocationBarWidget();
+     gfx::Rect covered;
+     for (views::View* view : occluding_view_observations_.sources()) {
+-      if (view->IsDrawn() && view->GetWidget() == location_bar_widget) {
++      if (view->IsDrawn()) {
+         gfx::Rect intersection = view->GetBoundsInScreen();
+         intersection.Intersect(popup_bounds);
+         covered.Union(intersection);
+@@ -1368,6 +1393,17 @@
+   layer->SetClipRect(clip);
+ }
+ 
++bool OmniboxPopupFullPresenter::IsTopContainerInBrowserView() {
++  views::Widget* browser_widget = GetBrowserWidget();
++  if (!browser_widget) {
++    return false;
++  }
++  BrowserView* browser_view = BrowserView::GetBrowserViewForNativeWindow(
++      browser_widget->GetNativeWindow());
++  return browser_view && browser_view->top_container() &&
++         browser_view->top_container()->parent() == browser_view;
++}
++
+ void OmniboxPopupFullPresenter::KeepBrowserPaintingAsActiveAcrossHandoff() {
+   views::Widget* browser_widget = GetBrowserWidget();
+   if (!browser_widget || !browser_widget->ShouldPaintAsActive()) {
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h
+index 98ae242..f38fc90f 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h
+@@ -145,7 +145,7 @@
+   // activation (Escape handling, macOS key window restoration). The browser or
+   // popup widget deactivating schedules `BlurIfBrowserOrPopupInactive()`.
+   // Either activating while `refocus_on_activation_` is set schedules
+-  // `RefocusAfterActivation()`.
++  // `RequestFocusIfOmniboxFocused()`.
+   void OnWidgetActivationChanged(views::Widget* widget, bool active) override;
+   // Keeps the popup over the location bar when the browser widget moves or
+   // resizes. The popup is its own top-level window, which doesn't always move
+@@ -160,6 +160,13 @@
+   // `OnModalDialogClosed()`.
+   void OnWidgetWindowModalVisibilityChanged(views::Widget* widget,
+                                             bool visible) override;
++  // Gives the popup focus when it appears on screen while the omnibox is
++  // focused. On macOS, a popup opened in a window that isn't on the active
++  // Space only appears once that Space becomes active, which is too late for
++  // the focus request made when the popup opened.
++  void OnWidgetVisibilityOnScreenChanged(views::Widget* widget,
++                                         bool visible) override;
++
+   void StopForwardingEvents();
+ 
+   // Tells this window's popup view that the adopted page's handler is ready,
+@@ -184,6 +191,9 @@
+                                views::View* starting_view,
+                                bool visible) override;
+   void OnViewBoundsChanged(views::View* observed_view) override;
++  void OnViewHierarchyChanged(
++      views::View* observed_view,
++      const views::ViewHierarchyChangedDetails& details) override;
+   void OnViewIsDeleting(views::View* observed_view) override;
+ 
+   // ui::EventObserver:
+@@ -204,10 +214,10 @@
+   // activation, also closes the popup, even if a draft would keep it open, and
+   // even if the omnibox was already blurred. See `OnModalDialogShown()`.
+   void BlurForWindowDeactivation();
+-  // Hands focus to the popup if the omnibox is still focused with the popup
+-  // open. Runs after the browser window or popup is activated while
+-  // `refocus_on_activation_` is set.
+-  void RefocusAfterActivation();
++  // Gives the popup focus if the omnibox is still focused with the popup open.
++  // Runs after the browser window or popup is activated while
++  // `refocus_on_activation_` is set, and when the popup appears on screen.
++  void RequestFocusIfOmniboxFocused();
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+   // Returns whether the system emoji picker is shown, e.g. after picking Emoji
+@@ -226,6 +236,11 @@
+   // beneath.
+   void UpdatePopupOcclusion();
+ 
++  // Returns whether the top container is parented to the browser view, where
++  // the vertical tab strip and the organizer tray draw above it. False in
++  // immersive fullscreen, and if there is no browser view.
++  bool IsTopContainerInBrowserView();
++
+   // Called when a modal dialog, e.g. a native file dialog, is shown over the
+   // browser window or the popup, and when it closes. While it's shown, the
+   // omnibox is blurred, like for any other window taking activation, and the
+@@ -298,7 +313,7 @@
+       occluding_view_observations_{this};
+ #if BUILDFLAG(IS_CHROMEOS)
+   // Observed while shown: the immersive reveal moves the top container
+-  // without resizing the location bar.
++  // without resizing the location bar, and immersive fullscreen reparents it.
+   base::ScopedObservation<views::View, views::ViewObserver>
+       top_container_observation_{this};
+ #endif
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_location_bar_host.h b/chrome/browser/ui/views/omnibox/omnibox_popup_location_bar_host.h
+index 8e5fb8f..e4fc403 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_location_bar_host.h
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_location_bar_host.h
+@@ -27,11 +27,12 @@
+ 
+ // An `OmniboxPopupHost` that hosts `OmniboxFullPopupWebUIContent` (the same
+ // content view the popup widget uses) directly inside `LocationBarView`,
+-// without a popup widget. The content fills the location bar, so the page's
+-// suggestions dropdown is clipped to the location bar.
+-// `OmniboxPopupViewFullWebUI` keeps the input sync, tab state and focus
+-// handling; this host shows, hides, sizes and focuses the content. Gated
+-// behind `omnibox::ShouldHostUnboundedOmniboxInLocationBar()`.
++// without a popup widget. The content fills the location bar, while
++// `#inputWrapper` in the page pops the suggestions dropdown out of it with the
++// Blink Unbounded Element API. `OmniboxPopupViewFullWebUI` keeps the input
++// sync, tab state and focus handling; this host shows, hides, sizes and
++// focuses the content. Gated behind
++// `omnibox::ShouldHostUnboundedOmniboxInLocationBar()`.
+ class OmniboxPopupLocationBarHost : public OmniboxPopupHost,
+                                     public OmniboxPopupContentDelegate,
+                                     public views::ViewObserver {
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_native_widget_mac_test_util.h b/chrome/browser/ui/views/omnibox/omnibox_popup_native_widget_mac_test_util.h
+new file mode 100644
+index 0000000..4d52073
+--- /dev/null
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_native_widget_mac_test_util.h
+@@ -0,0 +1,36 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_VIEWS_OMNIBOX_OMNIBOX_POPUP_NATIVE_WIDGET_MAC_TEST_UTIL_H_
++#define CHROME_BROWSER_UI_VIEWS_OMNIBOX_OMNIBOX_POPUP_NATIVE_WIDGET_MAC_TEST_UTIL_H_
++
++#include <memory>
++
++namespace views {
++class Widget;
++}  // namespace views
++
++// While in scope, makes `browser_widget`'s NSWindow, and the NSWindows attached
++// to it, report that they aren't on the active Space, as when a new window has
++// entered fullscreen but macOS hasn't switched to its Space yet. This makes
++// NativeWidgetNSWindowBridge::OrderChildren() defer attaching child windows,
++// such as the omnibox popup. Destroying it restores the real Space state and
++// posts NSWorkspaceActiveSpaceDidChangeNotification, which attaches them.
++class ScopedSimulateInactiveSpace {
++ public:
++  explicit ScopedSimulateInactiveSpace(views::Widget* browser_widget);
++  ScopedSimulateInactiveSpace(const ScopedSimulateInactiveSpace&) = delete;
++  ScopedSimulateInactiveSpace& operator=(const ScopedSimulateInactiveSpace&) =
++      delete;
++  ~ScopedSimulateInactiveSpace();
++
++ private:
++  struct ObjCStorage;
++  std::unique_ptr<ObjCStorage> storage_;
++};
++
++// Returns true if `popup_widget`'s NSWindow is attached to a parent NSWindow.
++bool IsOmniboxPopupAttachedForTesting(const views::Widget* popup_widget);
++
++#endif  // CHROME_BROWSER_UI_VIEWS_OMNIBOX_OMNIBOX_POPUP_NATIVE_WIDGET_MAC_TEST_UTIL_H_
+diff --git a/chrome/browser/ui/views/profiles/profile_management_flow_controller_impl.cc b/chrome/browser/ui/views/profiles/profile_management_flow_controller_impl.cc
+index 710af61..d87c61c6 100644
+--- a/chrome/browser/ui/views/profiles/profile_management_flow_controller_impl.cc
++++ b/chrome/browser/ui/views/profiles/profile_management_flow_controller_impl.cc
+@@ -115,7 +115,9 @@
+     std::unique_ptr<content::WebContents> contents,
+     StepSwitchFinishedCallback step_switch_finished_callback) {
+   CHECK(signed_in_profile, base::NotFatalUntil::M162);
+-  CHECK_EQ(Step::kAccountSelection, current_step(), base::NotFatalUntil::M162);
++  // TODO(crbug.com/584444895): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK_EQ(Step::kAccountSelection, current_step());
+ 
+   Step step;
+   // SAML with ForceSignin flow is migrated to the regular Profile Picker flow.
+diff --git a/chrome/browser/ui/views/relaunch_notification/relaunch_notification_controller.cc b/chrome/browser/ui/views/relaunch_notification/relaunch_notification_controller.cc
+index 4777ca3..8e467fb 100644
+--- a/chrome/browser/ui/views/relaunch_notification/relaunch_notification_controller.cc
++++ b/chrome/browser/ui/views/relaunch_notification/relaunch_notification_controller.cc
+@@ -325,7 +325,9 @@
+ }
+ 
+ base::Time RelaunchNotificationController::IncreaseRelaunchDeadlineOnShow() {
+-  CHECK(timer_.IsRunning(), base::NotFatalUntil::M162);
++  // TODO(crbug.com/585705001): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(timer_.IsRunning());
+   CHECK(!timer_.desired_run_time().is_null(), base::NotFatalUntil::M162);
+   base::Time relaunch_deadline = timer_.desired_run_time();
+ 
+diff --git a/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views.cc b/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views.cc
+index a3c5c93..59e46af 100644
+--- a/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views.cc
++++ b/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views.cc
+@@ -20,6 +20,7 @@
+ #include "chrome/browser/ui/views/tab_contents/chrome_web_contents_view_focus_helper.h"
+ #include "content/public/browser/browser_context.h"
+ #include "content/public/browser/render_frame_host.h"
++#include "content/public/browser/user_browser_context.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/common/drop_data.h"
+ #include "third_party/blink/public/common/context_menu_data/edit_flags.h"
+@@ -132,8 +133,8 @@
+         params.page_url,
+         ui::DataTransferEndpointOptions{
+             .notify_if_restricted = false,
+-            .off_the_record =
+-                web_contents_->GetBrowserContext()->IsOffTheRecord(),
++            .off_the_record = content::GetUserBrowserContext(*web_contents_)
++                                  ->IsOffTheRecord(),
+         });
+   }
+   ui::Clipboard::GetForCurrentThread()->ReadAvailableTypes(
+diff --git a/chrome/browser/ui/webui/drive_picker_host/BUILD.gn b/chrome/browser/ui/webui/drive_picker_host/BUILD.gn
+index 13fdfef..e272852b 100644
+--- a/chrome/browser/ui/webui/drive_picker_host/BUILD.gn
++++ b/chrome/browser/ui/webui/drive_picker_host/BUILD.gn
+@@ -38,6 +38,7 @@
+     "untrusted",
+     "//chrome/browser/ui/views/drive_picker_host:mojo_bindings",
+     "//chrome/browser/ui/webui/top_chrome",
++    "//components/contextual_search/footprints/public",
+     "//content/public/browser",
+     "//mojo/public/cpp/base:protobuf_support",
+   ]
+@@ -53,7 +54,9 @@
+     "//components/contextual_search:prefs",
+     "//components/contextual_search:public",
+     "//components/contextual_search/consent_kit",
++    "//components/contextual_search/footprints/internal",
+     "//components/omnibox/common",
++    "//net",
+     "//ui/webui",
+   ]
+ }
+@@ -70,8 +73,11 @@
+     "//chrome/test:test_support",
+     "//components/contextual_search:prefs",
+     "//components/contextual_search/consent_kit/proto:privacy_primitive_config_proto",
++    "//components/contextual_search/footprints/public",
++    "//components/contextual_search/footprints/public/proto:footprints_oneplatform_proto",
+     "//components/omnibox/common",
+     "//content/test:test_support",
++    "//net",
+     "//testing/gmock",
+     "//testing/gtest",
+   ]
+diff --git a/chrome/browser/ui/webui/drive_picker_host/drive_picker_host_ui.cc b/chrome/browser/ui/webui/drive_picker_host/drive_picker_host_ui.cc
+index abc5d9bdfa..8c8797f 100644
+--- a/chrome/browser/ui/webui/drive_picker_host/drive_picker_host_ui.cc
++++ b/chrome/browser/ui/webui/drive_picker_host/drive_picker_host_ui.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "chrome/browser/ui/webui/drive_picker_host/drive_picker_host_ui.h"
+ 
++#include "base/metrics/histogram_functions.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/signin/identity_manager_factory.h"
+@@ -14,6 +15,7 @@
+ #include "components/contextual_search/consent_kit/consent_kit_result_parser.h"
+ #include "components/contextual_search/consent_kit/consent_kit_url_builder.h"
+ #include "components/contextual_search/consent_kit/proto/iframe_interface.pb.h"
++#include "components/contextual_search/footprints/public/fpop_service.h"
+ #include "components/contextual_search/input_state_model.h"
+ #include "components/contextual_search/pref_names.h"
+ #include "components/omnibox/common/omnibox_features.h"
+@@ -26,10 +28,13 @@
+ #include "content/public/browser/navigation_controller.h"
+ #include "content/public/browser/navigation_handle.h"
+ #include "content/public/browser/render_frame_host.h"
++#include "content/public/browser/storage_partition.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/browser/web_ui_data_source.h"
+ #include "google_apis/google_api_keys.h"
+ #include "mojo/public/cpp/base/proto_wrapper.h"
++#include "net/base/net_errors.h"
++#include "net/http/http_response_headers.h"
+ #include "services/network/public/mojom/content_security_policy.mojom.h"
+ #include "ui/color/color_id.h"
+ #include "ui/color/color_provider.h"
+@@ -126,6 +131,7 @@
+   if (navigation_handle->HasCommitted()) {
+     MaybeBindUntrustedBridge(navigation_handle->GetRenderFrameHost());
+   }
++  UpdateConsentKitTimeoutResult(navigation_handle);
+ }
+ 
+ void DrivePickerHostUI::MaybeBindUntrustedBridge(
+@@ -149,6 +155,41 @@
+   }
+ }
+ 
++void DrivePickerHostUI::UpdateConsentKitTimeoutResult(
++    content::NavigationHandle* navigation_handle) {
++  // Skip same-document navigations, which load nothing. Match the first URL, so
++  // a ConsentKit redirect that fails, e.g. to sign in, still counts.
++  if (!consent_kit_timeout_result_ || navigation_handle->IsSameDocument() ||
++      !consent_kit_origin_.IsSameOriginWith(
++          navigation_handle->GetRedirectChain().front())) {
++    return;
++  }
++
++  const net::Error net_error = navigation_handle->GetNetErrorCode();
++  // An aborted navigation, e.g. when "Try again" replaces the ConsentKit frame,
++  // doesn't say whether ConsentKit can load.
++  if (net_error == net::ERR_ABORTED) {
++    return;
++  }
++
++  const net::HttpResponseHeaders* headers =
++      navigation_handle->GetResponseHeaders();
++  if (headers && headers->response_code() >= 400) {
++    consent_kit_timeout_result_ = ConsentKitLoadResult::kTimeoutHttpError;
++  } else if (net_error != net::OK) {
++    consent_kit_timeout_result_ = ConsentKitLoadResult::kTimeoutNetError;
++  } else {
++    consent_kit_timeout_result_ = ConsentKitLoadResult::kTimeoutAfterCommit;
++  }
++}
++
++void DrivePickerHostUI::RecordConsentKitLoadResult(
++    ConsentKitLoadResult result) {
++  base::UmaHistogramEnumeration("ContextualSearch.Drive.ConsentKitLoadResult",
++                                result);
++  consent_kit_timeout_result_.reset();
++}
++
+ void DrivePickerHostUI::TriggerDrivePickerHost(
+     std::unique_ptr<drive_picker_host::DrivePickerHostRequest> request) {
+   if (untrusted_bridge_remote_.is_bound() &&
+@@ -188,6 +229,7 @@
+                             kMojoDisconnected);
+         }
+         if (self->consent_result_handler_) {
++          self->consent_verification_weak_factory_.InvalidateWeakPtrs();
+           self->consent_result_handler_->OnError(
+               drive_picker_host::mojom::DrivePickerError::kMojoDisconnected);
+           self->consent_result_handler_.reset();
+@@ -284,6 +326,8 @@
+ void DrivePickerHostUI::LoadConsentKitUrl(const GURL& consent_kit_url) {
+   if (untrusted_bridge_remote_.is_bound() &&
+       untrusted_bridge_remote_.is_connected()) {
++    consent_kit_origin_ = url::Origin::Create(consent_kit_url);
++    consent_kit_timeout_result_ = ConsentKitLoadResult::kTimeoutBeforeResponse;
+     untrusted_bridge_remote_->LoadConsentKitUrl(consent_kit_url);
+   }
+ }
+@@ -304,10 +348,19 @@
+       HandlePrivacyFlowResult(message->privacy_flow_result());
+     }
+   } else if (message->event() == identity_consent::Event::TERMINATE_EVENT) {
+-    if (consent_result_handler_) {
++    // ConsentKit unconditionally sends `TERMINATE_EVENT` right after
++    // `DECISION_RESPONSE_EVENT` once its telemetry flushes. Ignore it while
++    // backend verification of a granted decision is in flight so it does not
++    // cancel the pending transition to the picker.
++    if (consent_result_handler_ &&
++        !consent_verification_weak_factory_.HasWeakPtrs()) {
+       consent_result_handler_->OnCancel();
+       consent_result_handler_.reset();
+     }
++  } else if (message->event() == identity_consent::Event::UI_RENDERED_EVENT) {
++    if (consent_kit_timeout_result_) {
++      RecordConsentKitLoadResult(ConsentKitLoadResult::kRendered);
++    }
+   }
+ }
+ 
+@@ -327,6 +380,7 @@
+ 
+ void DrivePickerHostUI::OnConsentKitError(const std::string& error_message) {
+   DLOG(ERROR) << "ConsentKit error: " << error_message;
++  consent_verification_weak_factory_.InvalidateWeakPtrs();
+   if (consent_result_handler_) {
+     consent_result_handler_->OnError(
+         drive_picker_host::mojom::DrivePickerError::kUnknown);
+@@ -335,12 +389,19 @@
+ }
+ 
+ void DrivePickerHostUI::OnShowErrorDialog() {
++  // The untrusted page shows the error screen when ConsentKit doesn't respond
++  // in time.
++  if (consent_kit_timeout_result_) {
++    RecordConsentKitLoadResult(*consent_kit_timeout_result_);
++  }
+   if (delegate_) {
+     delegate_->OnTransitionToError();
+   }
+ }
+ 
+ void DrivePickerHostUI::OnHideErrorDialog() {
++  // The untrusted page hides the error screen to load ConsentKit again.
++  consent_kit_timeout_result_ = ConsentKitLoadResult::kTimeoutBeforeResponse;
+   if (delegate_) {
+     delegate_->OnTransitionToConsent();
+   }
+@@ -353,9 +414,9 @@
+       << result.has_flow_completed()
+       << ", flow_not_completed: " << result.has_flow_not_completed()
+       << ", decisions: " << result.decision_size();
+-  if (!consent_result_handler_.is_bound()) {
+-    DLOG(WARNING)
+-        << "PrivacyFlowResult received with no outstanding consent flow";
++  if (!consent_result_handler_.is_bound() ||
++      consent_verification_weak_factory_.HasWeakPtrs()) {
++    DLOG(WARNING) << "PrivacyFlowResult received with no awaiting consent flow";
+     return;
+   }
+ 
+@@ -367,21 +428,20 @@
+   }
+ 
+   if (drive::HasGrantedDriveConsent(result)) {
+-    VLOG(1) << "[DrivePickerHostUI] Handling decision consent. "
+-               "Transitioning to Picker.";
+-    Profile* profile = Profile::FromWebUI(web_ui());
+-    profile->GetPrefs()->SetInteger(
+-        contextual_search::kDriveConsentState,
+-        static_cast<int>(contextual_search::DriveConsentState::kConsent));
+-
+-    if (delegate_) {
+-      delegate_->OnTransitionToPicker();
++    // `PrivacyFlowResult` originates from the untrusted renderer, which can
++    // forge it: the expected `flow_id` is a public constant and the
++    // `consent.google.com` origin check only runs in untrusted JS. Confirm with
++    // the Footprints backend (the source of truth for this consent) before
++    // recording consent or minting an OAuth token.
++    drive_picker::DriveDisclaimerController* controller =
++        GetDriveDisclaimerController();
++    if (!controller) {
++      OnConsentKitError("Unable to verify Drive consent");
++      return;
+     }
+-
+-    // Transition straight to the Drive Picker UI.
+-    if (consent_result_handler_) {
+-      FetchTokenAndShowPicker(consent_result_handler_.Unbind());
+-    }
++    controller->CheckDisclaimerStatusAsync(
++        base::BindOnce(&DrivePickerHostUI::OnConsentVerified,
++                       consent_verification_weak_factory_.GetWeakPtr()));
+   } else {
+     if (consent_result_handler_) {
+       consent_result_handler_->OnCancel();
+@@ -390,6 +450,60 @@
+   }
+ }
+ 
++void DrivePickerHostUI::OnConsentVerified(
++    drive_picker::DriveDisclaimerController::DisclaimerStatus status) {
++  consent_verification_weak_factory_.InvalidateWeakPtrs();
++
++  // The flow was cancelled or errored while verification was outstanding.
++  if (!consent_result_handler_.is_bound()) {
++    return;
++  }
++
++  if (status !=
++      drive_picker::DriveDisclaimerController::DisclaimerStatus::kAccepted) {
++    OnConsentKitError("Drive consent not confirmed by backend");
++    return;
++  }
++
++  VLOG(1) << "[DrivePickerHostUI] Handling decision consent. "
++             "Transitioning to Picker.";
++  Profile* profile = Profile::FromWebUI(web_ui());
++  profile->GetPrefs()->SetInteger(
++      contextual_search::kDriveConsentState,
++      static_cast<int>(contextual_search::DriveConsentState::kConsent));
++
++  if (delegate_) {
++    delegate_->OnTransitionToPicker();
++  }
++
++  // Transition straight to the Drive Picker UI.
++  FetchTokenAndShowPicker(consent_result_handler_.Unbind());
++}
++
++drive_picker::DriveDisclaimerController*
++DrivePickerHostUI::GetDriveDisclaimerController() {
++  if (!drive_disclaimer_controller_) {
++    Profile* profile = Profile::FromWebUI(web_ui());
++    signin::IdentityManager* identity_manager =
++        IdentityManagerFactory::GetForProfile(profile);
++    if (!identity_manager) {
++      return nullptr;
++    }
++    drive_disclaimer_controller_ =
++        std::make_unique<drive_picker::DriveDisclaimerController>(
++            contextual_search::FpopService::Create(
++                identity_manager,
++                profile->GetDefaultStoragePartition()
++                    ->GetURLLoaderFactoryForBrowserProcess()));
++  }
++  return drive_disclaimer_controller_.get();
++}
++
++void DrivePickerHostUI::SetDriveDisclaimerControllerForTesting(
++    std::unique_ptr<drive_picker::DriveDisclaimerController> controller) {
++  drive_disclaimer_controller_ = std::move(controller);
++}
++
+ void DrivePickerHostUI::ShowConsentKitDialog(
+     mojo::PendingRemote<drive_picker_host::mojom::DrivePickerResultHandler>
+         result_handler) {
+@@ -418,8 +532,18 @@
+   builder.SetDarkMode(is_dark);
+ 
+   GURL consent_kit_url = builder.Build();
++  consent_verification_weak_factory_.InvalidateWeakPtrs();
+   consent_result_handler_.reset();
+   consent_result_handler_.Bind(std::move(result_handler));
++  consent_result_handler_.set_disconnect_handler(base::BindOnce(
++      [](base::WeakPtr<DrivePickerHostUI> self) {
++        if (!self) {
++          return;
++        }
++        self->consent_verification_weak_factory_.InvalidateWeakPtrs();
++        self->consent_result_handler_.reset();
++      },
++      weak_ptr_factory_.GetWeakPtr()));
+   LoadConsentKitUrl(consent_kit_url);
+ }
+ 
+diff --git a/chrome/browser/ui/webui/drive_picker_host/drive_picker_host_ui.h b/chrome/browser/ui/webui/drive_picker_host/drive_picker_host_ui.h
+index 9f17bbc..6c096ea 100644
+--- a/chrome/browser/ui/webui/drive_picker_host/drive_picker_host_ui.h
++++ b/chrome/browser/ui/webui/drive_picker_host/drive_picker_host_ui.h
+@@ -6,6 +6,7 @@
+ #define CHROME_BROWSER_UI_WEBUI_DRIVE_PICKER_HOST_DRIVE_PICKER_HOST_UI_H_
+ 
+ #include <memory>
++#include <optional>
+ #include <string_view>
+ 
+ #include "base/gtest_prod_util.h"
+@@ -18,6 +19,7 @@
+ #include "chrome/browser/ui/webui/top_chrome/top_chrome_web_ui_controller.h"
+ #include "chrome/browser/ui/webui/top_chrome/top_chrome_webui_config.h"
+ #include "chrome/common/webui_url_constants.h"
++#include "components/contextual_search/footprints/public/drive_disclaimer_controller.h"
+ #include "components/signin/public/identity_manager/access_token_info.h"
+ #include "content/public/browser/web_contents_observer.h"
+ #include "google_apis/gaia/google_service_auth_error.h"
+@@ -26,6 +28,7 @@
+ #include "mojo/public/cpp/bindings/receiver.h"
+ #include "mojo/public/cpp/bindings/remote.h"
+ #include "url/gurl.h"
++#include "url/origin.h"
+ 
+ namespace signin {
+ class PrimaryAccountAccessTokenFetcher;
+@@ -64,6 +67,35 @@
+     virtual void OnTransitionToConsent() = 0;
+   };
+ 
++  // How a ConsentKit load ended. A load is the first one in the consent flow,
++  // or one started by "Try again" on the error screen. Recorded as
++  // ContextualSearch.Drive.ConsentKitLoadResult.
++  //
++  // Any message from ConsentKit stops the untrusted page's timer, so each
++  // timeout means ConsentKit sent nothing in time.
++  //
++  // These values are persisted to logs. Entries should not be renumbered and
++  // numeric values should never be reused.
++  // LINT.IfChange(ConsentKitLoadResult)
++  enum class ConsentKitLoadResult {
++    // ConsentKit sent its `UI_RENDERED_EVENT` message before the untrusted page
++    // timed out.
++    kRendered = 0,
++    // The ConsentKit frame's navigation hadn't committed or failed at the
++    // timeout, e.g. because the server hadn't responded yet.
++    kTimeoutBeforeResponse = 1,
++    // The ConsentKit frame's navigation failed with a network error, e.g. no
++    // connection, or a response or redirect that the page can't frame.
++    kTimeoutNetError = 2,
++    // The ConsentKit frame got an HTTP status of 400 or higher.
++    kTimeoutHttpError = 3,
++    // The ConsentKit page committed, but ConsentKit sent no message before the
++    // timeout, e.g. because its scripts were still loading.
++    kTimeoutAfterCommit = 4,
++    kMaxValue = kTimeoutAfterCommit,
++  };
++  // LINT.ThenChange(//tools/metrics/histograms/metadata/contextual_search/enums.xml:ContextualSearchDriveConsentKitLoadResult)
++
+   void set_delegate(Delegate* delegate) { delegate_ = delegate; }
+ 
+   explicit DrivePickerHostUI(content::WebUI* web_ui);
+@@ -104,6 +136,11 @@
+   void OnHideErrorDialog() override;
+   base::WeakPtr<DrivePickerUntrustedHostUI::Delegate> GetWeakPtr() override;
+ 
++  // Overrides the controller used to verify Drive consent with the Footprints
++  // backend.
++  void SetDriveDisclaimerControllerForTesting(
++      std::unique_ptr<drive_picker::DriveDisclaimerController> controller);
++
+  private:
+   // Callback for the access token fetcher.
+   void OnAccessTokenFetched(
+@@ -122,6 +159,18 @@
+       mojo::PendingRemote<drive_picker_host::mojom::DrivePickerResultHandler>
+           result_handler);
+ 
++  void HandlePrivacyFlowResult(
++      const identity_consent::PrivacyFlowResult& result);
++
++  // Lazily creates the controller that queries the Footprints backend for the
++  // authoritative Drive consent status. Returns nullptr if unavailable.
++  drive_picker::DriveDisclaimerController* GetDriveDisclaimerController();
++
++  // Called with the backend status after the untrusted renderer reported that
++  // ConsentKit granted consent.
++  void OnConsentVerified(
++      drive_picker::DriveDisclaimerController::DisclaimerStatus status);
++
+   // Both RenderFrameCreated and DidFinishNavigation are necessary to establish
+   // the bridge as early as possible. RenderFrameCreated is the earliest signal,
+   // but GetWebUI() may still be null. DidFinishNavigation serves as a reliable
+@@ -138,6 +187,14 @@
+   // reliable fallback where the WebUI is guaranteed to be associated.
+   void MaybeBindUntrustedBridge(content::RenderFrameHost* render_frame_host);
+ 
++  // Updates `consent_kit_timeout_result_` when the ConsentKit frame's
++  // navigation finishes.
++  void UpdateConsentKitTimeoutResult(
++      content::NavigationHandle* navigation_handle);
++
++  // Records `result` for the current ConsentKit load, which ends the load.
++  void RecordConsentKitLoadResult(ConsentKitLoadResult result);
++
+   // Stores a single request that arrived before the untrusted bridge was bound.
+   std::unique_ptr<drive_picker_host::DrivePickerHostRequest> pending_request_;
+ 
+@@ -154,10 +211,22 @@
+ 
+   raw_ptr<Delegate> delegate_ = nullptr;
+ 
+-  base::WeakPtrFactory<DrivePickerHostUI> weak_ptr_factory_{this};
++  std::unique_ptr<drive_picker::DriveDisclaimerController>
++      drive_disclaimer_controller_;
+ 
+-  void HandlePrivacyFlowResult(
+-      const identity_consent::PrivacyFlowResult& result);
++  // The origin of the ConsentKit URL that the untrusted page loads.
++  url::Origin consent_kit_origin_;
++
++  // While a ConsentKit load is in progress, the result to record if the
++  // untrusted page times out now. Empty when no load is in progress.
++  std::optional<ConsentKitLoadResult> consent_kit_timeout_result_;
++
++  // Scoped to a single in-flight `CheckDisclaimerStatusAsync()` call so that
++  // cancelling or restarting the consent flow invalidates any pending backend
++  // reply, and `HasWeakPtrs()` indicates whether verification is in flight.
++  base::WeakPtrFactory<DrivePickerHostUI> consent_verification_weak_factory_{
++      this};
++  base::WeakPtrFactory<DrivePickerHostUI> weak_ptr_factory_{this};
+ 
+   WEB_UI_CONTROLLER_TYPE_DECL();
+ };
+diff --git a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_ui.cc b/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_ui.cc
+index 171b8aad..94d25dc 100644
+--- a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_ui.cc
++++ b/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_ui.cc
+@@ -185,6 +185,8 @@
+                      omnibox::ShouldDrawAimShadowInWebUI());
+   source->AddBoolean("omniboxFullWebUIShadowEnabled",
+                      omnibox::ShouldDrawFullPopupShadowInWebUI());
++  source->AddBoolean("useUnbounded",
++                     omnibox::ShouldHostUnboundedOmniboxInLocationBar());
+   source->AddBoolean("searchboxMultiline",
+                      omnibox::internal::IsWebUIOmniboxFullPopupEnabled() &&
+                          omnibox::kWebUIOmniboxFullPopupMultiline.Get());
+diff --git a/chrome/browser/ui/webui/searchbox/BUILD.gn b/chrome/browser/ui/webui/searchbox/BUILD.gn
+index 079fe91..7fd244c8 100644
+--- a/chrome/browser/ui/webui/searchbox/BUILD.gn
++++ b/chrome/browser/ui/webui/searchbox/BUILD.gn
+@@ -378,6 +378,10 @@
+         "//chrome/browser/ui/views/bubble",
+       ]
+     }
++    if (is_mac) {
++      deps +=
++          [ "//chrome/browser/ui/views/omnibox:native_widget_mac_test_util" ]
++    }
+     if (enable_dice_support && !is_mac) {
+       deps += [
+         "//chrome/browser/profiles:profile",
+diff --git a/chrome/browser/ui/webui/signin/history_sync_optin_helper.cc b/chrome/browser/ui/webui/signin/history_sync_optin_helper.cc
+index b3a559e3..c3412a36 100644
+--- a/chrome/browser/ui/webui/signin/history_sync_optin_helper.cc
++++ b/chrome/browser/ui/webui/signin/history_sync_optin_helper.cc
+@@ -628,29 +628,6 @@
+   MaybeShowSignInCelebration(maybe_managed_account);
+ }
+ 
+-void HistorySyncOptinHelper::MaybeShowSignInCelebration(
+-    signin::Tribool maybe_managed_account) {
+-  if (maybe_managed_account != signin::Tribool::kFalse) {
+-    AwaitSyncStartupAndShowHistorySyncScreen();
+-    return;
+-  }
+-
+-  if (access_point() == signin_metrics::AccessPoint::kForYouFre) {
+-    const bool is_in_search_engine_choice_region =
+-        CHECK_DEREF(regional_capabilities::RegionalCapabilitiesServiceFactory::
+-                        GetForProfile(profile_))
+-            .IsInSearchEngineChoiceScreenRegion();
+-    if (switches::IsFirstRunDesktopRevampEnabled(
+-            is_in_search_engine_choice_region)) {
+-      delegate_->ShowSignInCelebration(base::BindOnce(
+-          &HistorySyncOptinHelper::AwaitSyncStartupAndShowHistorySyncScreen,
+-          weak_ptr_factory_.GetWeakPtr()));
+-      return;
+-    }
+-  }
+-  AwaitSyncStartupAndShowHistorySyncScreen();
+-}
+-
+ void HistorySyncOptinHelper::AwaitSyncStartupAndShowHistorySyncScreen() {
+   // For managed users the polices are fetched when the user accepts
+   // management, which is done as part of
+@@ -790,6 +767,13 @@
+   return base::Seconds(kAwaitSyncServiceStartupInBrowserTimeoutSeconds.Get());
+ }
+ 
++void HistorySyncOptinHelperInBrowser::MaybeShowSignInCelebration(
++    signin::Tribool /*maybe_managed_account*/) {
++  // The sign-in celebration is a profile picker screen: there is none to show
++  // in a browser.
++  AwaitSyncStartupAndShowHistorySyncScreen();
++}
++
+ void HistorySyncOptinHelperInBrowser::OnManagementAccepted(
+     Profile* chosen_profile,
+     bool) {
+@@ -893,6 +877,30 @@
+       kAwaitSyncServiceStartupInProfilePickerTimeoutSeconds.Get());
+ }
+ 
++void HistorySyncOptinHelperInProfilePicker::MaybeShowSignInCelebration(
++    signin::Tribool maybe_managed_account) {
++  if (maybe_managed_account != signin::Tribool::kFalse) {
++    AwaitSyncStartupAndShowHistorySyncScreen();
++    return;
++  }
++
++  if (access_point() == signin_metrics::AccessPoint::kForYouFre) {
++    const bool is_in_search_engine_choice_region =
++        CHECK_DEREF(regional_capabilities::RegionalCapabilitiesServiceFactory::
++                        GetForProfile(profile()))
++            .IsInSearchEngineChoiceScreenRegion();
++    if (switches::IsFirstRunDesktopRevampEnabled(
++            is_in_search_engine_choice_region)) {
++      delegate()->ShowSignInCelebration(
++          base::BindOnce(&HistorySyncOptinHelperInProfilePicker::
++                             AwaitSyncStartupAndShowHistorySyncScreen,
++                         weak_ptr_factory_.GetWeakPtr()));
++      return;
++    }
++  }
++  AwaitSyncStartupAndShowHistorySyncScreen();
++}
++
+ void HistorySyncOptinHelperInProfilePicker::MaybeShowAccountManagementScreen(
+     bool is_managed_account) {
+   if (!is_managed_account) {
+diff --git a/chrome/browser/ui/webui/signin/history_sync_optin_helper.h b/chrome/browser/ui/webui/signin/history_sync_optin_helper.h
+index 0c817b1..930be5b 100644
+--- a/chrome/browser/ui/webui/signin/history_sync_optin_helper.h
++++ b/chrome/browser/ui/webui/signin/history_sync_optin_helper.h
+@@ -239,6 +239,11 @@
+   // Virtual methods for context-specific logic.
+   virtual void DetermineManagementStatusAndShowManagementScreens() = 0;
+   virtual base::TimeDelta GetSyncStartupDelay() = 0;
++  // Shows the sign-in celebration if the context has one for this flow. In all
++  // cases, the flow then continues with
++  // `AwaitSyncStartupAndShowHistorySyncScreen()`.
++  virtual void MaybeShowSignInCelebration(
++      signin::Tribool maybe_managed_account) = 0;
+ 
+   void ShowHistorySyncOptinScreen();
+ 
+@@ -251,8 +256,6 @@
+ 
+   void AwaitSyncStartupAndShowHistorySyncScreen();
+ 
+-  void MaybeShowSignInCelebration(signin::Tribool maybe_managed_account);
+-
+   // Accessors.
+   Profile* profile() { return profile_.get(); }
+   const CoreAccountInfo& account_info() const { return account_info_; }
+@@ -302,6 +305,8 @@
+   // HistorySyncOptinHelper implementation:
+   void DetermineManagementStatusAndShowManagementScreens() override;
+   base::TimeDelta GetSyncStartupDelay() override;
++  void MaybeShowSignInCelebration(
++      signin::Tribool maybe_managed_account) override;
+ 
+   void OnManagementAccepted(Profile* chosen_profile,
+                             bool management_required_by_policy);
+@@ -331,6 +336,8 @@
+   // HistorySyncOptinHelper implementation:
+   void DetermineManagementStatusAndShowManagementScreens() override;
+   base::TimeDelta GetSyncStartupDelay() override;
++  void MaybeShowSignInCelebration(
++      signin::Tribool maybe_managed_account) override;
+ 
+   void MaybeShowAccountManagementScreen(bool is_managed_account);
+   void ShowAccountManagementScreen();
+diff --git a/chrome/common/chrome_features.cc b/chrome/common/chrome_features.cc
+index 108c56d..208db5d 100644
+--- a/chrome/common/chrome_features.cc
++++ b/chrome/common/chrome_features.cc
+@@ -1042,6 +1042,11 @@
+ BASE_FEATURE(kGlicActorAutofillOneTimePassword,
+              base::FEATURE_DISABLED_BY_DEFAULT);
+ 
++// Whether Glic OneTimePassword filling accepts OTPs whose sender domain only
++// matches the OTP frame via the Public Suffix List in non-login flows.
++BASE_FEATURE(kGlicActorAutofillOneTimePasswordPslMatching,
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
+ // Whether to click a field before filling it in Glic actor autofill.
+ // This feature is also gated by |autofill::features::kGlicActorAutofill|.
+ BASE_FEATURE(kGlicActorAutofillPreClick, base::FEATURE_ENABLED_BY_DEFAULT);
+diff --git a/chrome/common/chrome_features.h b/chrome/common/chrome_features.h
+index 8d6f868..4d45fa4 100644
+--- a/chrome/common/chrome_features.h
++++ b/chrome/common/chrome_features.h
+@@ -683,6 +683,9 @@
+ BASE_DECLARE_FEATURE(kGlicActorAutofillOneTimePassword);
+ 
+ COMPONENT_EXPORT(CHROME_FEATURES)
++BASE_DECLARE_FEATURE(kGlicActorAutofillOneTimePasswordPslMatching);
++
++COMPONENT_EXPORT(CHROME_FEATURES)
+ BASE_DECLARE_FEATURE(kGlicActorAutofillPreClick);
+ 
+ COMPONENT_EXPORT(CHROME_FEATURES)
+diff --git a/components/renderer_context_menu/render_view_context_menu_base.cc b/components/renderer_context_menu/render_view_context_menu_base.cc
+index 4cc63d75..301077b4 100644
+--- a/components/renderer_context_menu/render_view_context_menu_base.cc
++++ b/components/renderer_context_menu/render_view_context_menu_base.cc
+@@ -20,6 +20,7 @@
+ #include "content/public/browser/render_process_host.h"
+ #include "content/public/browser/render_view_host.h"
+ #include "content/public/browser/render_widget_host_view.h"
++#include "content/public/browser/user_browser_context.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/common/buildflags.h"
+ #include "third_party/blink/public/mojom/context_menu/context_menu.mojom.h"
+@@ -204,7 +205,7 @@
+     : params_(params),
+       source_web_contents_(
+           WebContents::FromRenderFrameHost(&render_frame_host)),
+-      browser_context_(source_web_contents_->GetBrowserContext()),
++      browser_context_(content::GetUserBrowserContext(render_frame_host)),
+       menu_model_(this),
+       render_frame_id_(render_frame_host.GetRoutingID()),
+       render_frame_token_(render_frame_host.GetFrameToken()),
+diff --git a/components/renderer_context_menu/render_view_context_menu_base.h b/components/renderer_context_menu/render_view_context_menu_base.h
+index fd7239e..9bb548b2 100644
+--- a/components/renderer_context_menu/render_view_context_menu_base.h
++++ b/components/renderer_context_menu/render_view_context_menu_base.h
+@@ -203,6 +203,8 @@
+ 
+   content::ContextMenuParams params_;
+   const raw_ptr<content::WebContents, DanglingUntriaged> source_web_contents_;
++  // The BrowserContext of the user that the frame is shown for, whose prefs and
++  // services apply to the menu. See content::GetUserBrowserContext().
+   const raw_ptr<content::BrowserContext, DanglingUntriaged> browser_context_;
+ 
+   ui::SimpleMenuModel menu_model_;
+diff --git a/content/browser/file_system/browser_file_system_helper.cc b/content/browser/file_system/browser_file_system_helper.cc
+index 06a386d..4520c0c 100644
+--- a/content/browser/file_system/browser_file_system_helper.cc
++++ b/content/browser/file_system/browser_file_system_helper.cc
+@@ -79,6 +79,7 @@
+         security_policy_handle,
+     const base::FilePath& platform_path) {
+   CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
++  CHECK(!platform_path.empty());
+ 
+   // It is only possible to grant new permissions if the RenderProcessHost still
+   // exists by the time this task runs. If it does exist and doesn't yet have
+@@ -104,13 +105,18 @@
+   CHECK(context->default_file_task_runner()->RunsTasksInCurrentSequence(),
+         base::NotFatalUntil::M159);
+ 
+-  if (!can_read_filesystem_file) {
++  if (!can_read_filesystem_file || context->is_incognito()) {
+     std::move(callback).Run(base::FilePath());
+     return;
+   }
+ 
+   base::FilePath platform_path;
+-  context->operation_runner()->SyncGetPlatformPath(url, &platform_path);
++  if (context->operation_runner()->SyncGetPlatformPath(url, &platform_path) !=
++          base::File::FILE_OK ||
++      platform_path.empty()) {
++    std::move(callback).Run(base::FilePath());
++    return;
++  }
+ 
+   GetUIThreadTaskRunner({})->PostTaskAndReply(
+       FROM_HERE,
+diff --git a/content/browser/service_worker/service_worker_version.cc b/content/browser/service_worker/service_worker_version.cc
+index 8889ecb..5ea7280 100644
+--- a/content/browser/service_worker/service_worker_version.cc
++++ b/content/browser/service_worker/service_worker_version.cc
+@@ -66,6 +66,7 @@
+ #include "content/public/common/result_codes.h"
+ #include "crypto/hash.h"
+ #include "mojo/public/c/system/types.h"
++#include "mojo/public/cpp/bindings/callback_helpers.h"
+ #include "net/base/net_errors.h"
+ #include "net/cookies/site_for_cookies.h"
+ #include "net/http/http_response_headers.h"
+@@ -361,6 +362,15 @@
+     std::move(callback).Run(blink::ServiceWorkerStatusCode::kErrorAbort);
+   }
+ 
++  // StartWorker() requests waiting for the network restrictions registration
++  // are not in `start_callbacks_` yet. Running them here aborts them too.
++  std::vector<base::OnceClosure> pending_network_restrictions_callbacks;
++  pending_network_restrictions_callbacks.swap(
++      pending_network_restrictions_callbacks_);
++  for (auto& callback : pending_network_restrictions_callbacks) {
++    std::move(callback).Run();
++  }
++
+   if (context_) {
+     context_->RemoveLiveVersion(version_id_);
+   }
+@@ -2421,7 +2431,8 @@
+ 
+ bool ServiceWorkerVersion::HasWorkInBrowser() const {
+   return !inflight_requests_.IsEmpty() || !start_callbacks_.empty() ||
+-         !warm_up_callbacks_.empty();
++         !warm_up_callbacks_.empty() ||
++         !pending_network_restrictions_callbacks_.empty();
+ }
+ 
+ void ServiceWorkerVersion::OnSimpleEventFinished(
+@@ -2640,6 +2651,47 @@
+         blink::ServiceWorkerStatusCode::kErrorStartWorkerFailed));
+     return;
+   }
++
++  // Network restrictions (like connection allowlists) must be registered with
++  // the network service before a stopped worker is started, so that even the
++  // initial script evaluation is subject to them. The registration is
++  // asynchronous. Wait for it before touching any start state, so that
++  // StartWorker() requests arriving in the meantime queue up behind it rather
++  // than starting the worker themselves.
++  if (running_status() == blink::EmbeddedWorkerStatus::kStopped) {
++    MaybeRegisterNetworkRestrictions(base::BindOnce(
++        [](base::WeakPtr<ServiceWorkerVersion> self,
++           ServiceWorkerMetrics::EventType purpose, Status prestart_status,
++           bool is_browser_startup_complete, StatusCallback callback,
++           scoped_refptr<ServiceWorkerRegistration> protect) {
++          // Abort if the version is being destroyed, as its destructor runs the
++          // waiting requests, or if an earlier waiting request destroyed it
++          // (see StartWorkerInternal()).
++          if (!self || self->in_dtor_) {
++            std::move(callback).Run(
++                blink::ServiceWorkerStatusCode::kErrorAbort);
++            return;
++          }
++          self->StartWorkerAfterNetworkRestrictions(
++              purpose, prestart_status, is_browser_startup_complete,
++              std::move(callback), std::move(protect));
++        },
++        weak_factory_.GetWeakPtr(), purpose, prestart_status,
++        is_browser_startup_complete, std::move(callback), std::move(protect)));
++    return;
++  }
++
++  StartWorkerAfterNetworkRestrictions(purpose, prestart_status,
++                                      is_browser_startup_complete,
++                                      std::move(callback), std::move(protect));
++}
++
++void ServiceWorkerVersion::StartWorkerAfterNetworkRestrictions(
++    ServiceWorkerMetrics::EventType purpose,
++    Status prestart_status,
++    bool is_browser_startup_complete,
++    StatusCallback callback,
++    scoped_refptr<ServiceWorkerRegistration> protect) {
+   if (is_redundant()) {
+     RecordStartWorkerResult(purpose, prestart_status, kInvalidTraceId,
+                             is_browser_startup_complete,
+@@ -2756,13 +2808,7 @@
+   }
+ 
+   if (running_status() == blink::EmbeddedWorkerStatus::kStopped) {
+-    // Ensure that network restrictions (like connection allowlists) are
+-    // registered with the network service before the worker is started. This
+-    // ensures that even the initial script evaluation is subject to these
+-    // restrictions.
+-    MaybeRegisterNetworkRestrictions(
+-        base::BindOnce(&ServiceWorkerVersion::StartWorkerInternal,
+-                       weak_factory_.GetWeakPtr()));
++    StartWorkerInternal();
+   }
+   // Warning: StartWorkerInternal() might have deleted `this` on failure.
+ }
+@@ -3801,13 +3847,36 @@
+     return;
+   }
+ 
+-  network_restrictions_registered_ = true;
++  // `network_restrictions_registered_` is only set once the network service
++  // has replied. Callers arriving before that wait for the registration that
++  // is already in flight.
++  pending_network_restrictions_callbacks_.push_back(std::move(callback));
++  if (pending_network_restrictions_callbacks_.size() > 1) {
++    return;
++  }
++
++  // The reply is dropped if the network context is disconnected first. Proceed
++  // in that case too: StoragePartitionImpl re-sends the restrictions to the
++  // network context it creates next.
+   context_->wrapper()
+       ->storage_partition()
+       ->RestrictNetworkForIdsInNetworkContext(
+           {{network_restrictions_id_,
+             policy_container_host_->policies().connection_allowlists}},
+-          std::move(callback));
++          mojo::WrapCallbackWithDefaultInvokeIfNotRun(base::BindOnce(
++              &ServiceWorkerVersion::OnNetworkRestrictionsRegistered,
++              weak_factory_.GetWeakPtr())));
++}
++
++void ServiceWorkerVersion::OnNetworkRestrictionsRegistered() {
++  network_restrictions_registered_ = true;
++  // The callbacks can call MaybeRegisterNetworkRestrictions() again or delete
++  // `this` (see StartWorkerInternal()), so run them from the stack.
++  std::vector<base::OnceClosure> callbacks;
++  callbacks.swap(pending_network_restrictions_callbacks_);
++  for (auto& callback : callbacks) {
++    std::move(callback).Run();
++  }
+ }
+ 
+ }  // namespace content
+diff --git a/content/browser/service_worker/service_worker_version.h b/content/browser/service_worker/service_worker_version.h
+index 5575112d..a7eccde 100644
+--- a/content/browser/service_worker/service_worker_version.h
++++ b/content/browser/service_worker/service_worker_version.h
+@@ -1072,6 +1072,20 @@
+       StatusCallback callback,
+       blink::ServiceWorkerStatusCode status,
+       scoped_refptr<ServiceWorkerRegistration> registration);
++  // The rest of DidEnsureLiveRegistrationForStartWorker(), with `protect`
++  // being the live registration. A stopped worker first waits for its network
++  // restrictions to be registered (see MaybeRegisterNetworkRestrictions()), so
++  // this can run later and the version can have become redundant by then.
++  void StartWorkerAfterNetworkRestrictions(
++      ServiceWorkerMetrics::EventType purpose,
++      Status prestart_status,
++      bool is_browser_startup_complete,
++      StatusCallback callback,
++      scoped_refptr<ServiceWorkerRegistration> protect);
++  // Called when the network service has registered the network restrictions,
++  // or when the network context was disconnected before replying. Runs
++  // `pending_network_restrictions_callbacks_`.
++  void OnNetworkRestrictionsRegistered();
+   void StartWorkerInternal();
+ 
+   // Returns true if the service worker is known to have work to do because the
+@@ -1478,6 +1492,10 @@
+   // Whether the network restrictions for this worker have been registered with
+   // the network service.
+   bool network_restrictions_registered_ = false;
++  // Callbacks passed to MaybeRegisterNetworkRestrictions() that are waiting
++  // for the registration, which is in flight iff this is non-empty. Run when
++  // the registration is done, or by the destructor.
++  std::vector<base::OnceClosure> pending_network_restrictions_callbacks_;
+ 
+   base::WeakPtrFactory<ServiceWorkerVersion> weak_factory_{this};
+ };
+diff --git a/ios/chrome/browser/private_insights/model/BUILD.gn b/ios/chrome/browser/private_insights/model/BUILD.gn
+index 9a92d580..a1aad8d 100644
+--- a/ios/chrome/browser/private_insights/model/BUILD.gn
++++ b/ios/chrome/browser/private_insights/model/BUILD.gn
+@@ -4,6 +4,8 @@
+ 
+ source_set("model") {
+   sources = [
++    "features.h",
++    "features.mm",
+     "private_insights_service_factory.h",
+     "private_insights_service_factory.mm",
+   ]
+diff --git a/media/base/offloading_audio_encoder.cc b/media/base/offloading_audio_encoder.cc
+index 9667ab2..09eb320 100644
+--- a/media/base/offloading_audio_encoder.cc
++++ b/media/base/offloading_audio_encoder.cc
+@@ -29,11 +29,12 @@
+ }
+ 
+ OffloadingAudioEncoder::OffloadingAudioEncoder(
+-    std::unique_ptr<AudioEncoder> wrapped_encoder)
++    std::unique_ptr<AudioEncoder> wrapped_encoder,
++    scoped_refptr<base::SequencedTaskRunner> callback_runner)
+     : OffloadingAudioEncoder(std::move(wrapped_encoder),
+                              base::ThreadPool::CreateSequencedTaskRunner(
+                                  {base::TaskPriority::USER_BLOCKING}),
+-                             base::SequencedTaskRunner::GetCurrentDefault()) {}
++                             std::move(callback_runner)) {}
+ 
+ void OffloadingAudioEncoder::Initialize(const Options& options,
+                                         OutputCB output_cb,
+diff --git a/media/base/offloading_audio_encoder.h b/media/base/offloading_audio_encoder.h
+index 4c82cd4..c221201 100644
+--- a/media/base/offloading_audio_encoder.h
++++ b/media/base/offloading_audio_encoder.h
+@@ -9,12 +9,9 @@
+ #include <type_traits>
+ 
+ #include "base/sequence_checker.h"
++#include "base/task/sequenced_task_runner.h"
+ #include "media/base/audio_encoder.h"
+ 
+-namespace base {
+-class SequencedTaskRunner;
+-}
+-
+ namespace media {
+ 
+ // A wrapper around audio encoder that offloads all the calls to a dedicated
+@@ -30,10 +27,12 @@
+       scoped_refptr<base::SequencedTaskRunner> work_runner,
+       scoped_refptr<base::SequencedTaskRunner> callback_runner);
+ 
+-  // Uses current task runner for callbacks and asks thread pool for a new task
+-  // runner to do actual encoding work.
++  // Uses `callback_runner` (defaulting to current task runner) for callbacks
++  // and asks thread pool for a new task runner to do actual encoding work.
+   explicit OffloadingAudioEncoder(
+-      std::unique_ptr<AudioEncoder> wrapped_encoder);
++      std::unique_ptr<AudioEncoder> wrapped_encoder,
++      scoped_refptr<base::SequencedTaskRunner> callback_runner =
++          base::SequencedTaskRunner::GetCurrentDefault());
+ 
+   ~OffloadingAudioEncoder() override;
+ 
+diff --git a/media/mojo/clients/mojo_audio_encoder.cc b/media/mojo/clients/mojo_audio_encoder.cc
+index bd5b2f8..09ab92f 100644
+--- a/media/mojo/clients/mojo_audio_encoder.cc
++++ b/media/mojo/clients/mojo_audio_encoder.cc
+@@ -42,10 +42,13 @@
+ }
+ 
+ MojoAudioEncoder::MojoAudioEncoder(
+-    mojo::PendingRemote<mojom::AudioEncoder> remote_encoder)
++    mojo::PendingRemote<mojom::AudioEncoder> remote_encoder,
++    scoped_refptr<base::SequencedTaskRunner> runner)
+     : pending_remote_encoder_(std::move(remote_encoder)),
+       buffer_pool_(base::MakeRefCounted<AudioBufferMemoryPool>()),
+-      runner_(base::SequencedTaskRunner::GetCurrentDefault()) {
++      runner_(std::move(runner)) {
++  DCHECK(runner_);
++  DCHECK(runner_->RunsTasksInCurrentSequence());
+   weak_this_ = weak_factory_.GetWeakPtr();
+ }
+ 
+@@ -73,9 +76,9 @@
+ 
+   output_cb_ = std::move(output_cb);
+   options_ = options;
+-  remote_encoder_->Initialize(client_receiver_.BindNewEndpointAndPassRemote(),
+-                              options,
+-                              WrapCallbackAsPending(std::move(done_cb)));
++  remote_encoder_->Initialize(
++      client_receiver_.BindNewEndpointAndPassRemote(runner_), options,
++      WrapCallbackAsPending(std::move(done_cb)));
+ }
+ 
+ void MojoAudioEncoder::Encode(std::unique_ptr<AudioBus> audio_bus,
+@@ -147,7 +150,7 @@
+ 
+ void MojoAudioEncoder::BindRemote() {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+-  remote_encoder_.Bind(std::move(pending_remote_encoder_));
++  remote_encoder_.Bind(std::move(pending_remote_encoder_), runner_);
+   remote_encoder_.set_disconnect_handler(
+       base::BindOnce(&MojoAudioEncoder::OnConnectionError, weak_this_));
+ }
+diff --git a/media/mojo/clients/mojo_audio_encoder.h b/media/mojo/clients/mojo_audio_encoder.h
+index 99368a7..673f032 100644
+--- a/media/mojo/clients/mojo_audio_encoder.h
++++ b/media/mojo/clients/mojo_audio_encoder.h
+@@ -23,8 +23,12 @@
+ class MojoAudioEncoder final : public AudioEncoder,
+                                public mojom::AudioEncoderClient {
+  public:
++  // `runner` must run tasks on the calling/owning sequence, as Mojo endpoints
++  // and client callbacks are bound directly to it.
+   explicit MojoAudioEncoder(
+-      mojo::PendingRemote<mojom::AudioEncoder> remote_encoder);
++      mojo::PendingRemote<mojom::AudioEncoder> remote_encoder,
++      scoped_refptr<base::SequencedTaskRunner> runner =
++          base::SequencedTaskRunner::GetCurrentDefault());
+ 
+   static bool IsSupported(AudioCodec codec);
+ 
+diff --git a/media/video/offloading_video_encoder.cc b/media/video/offloading_video_encoder.cc
+index d2fecca..96e4367 100644
+--- a/media/video/offloading_video_encoder.cc
++++ b/media/video/offloading_video_encoder.cc
+@@ -32,13 +32,14 @@
+ }
+ 
+ OffloadingVideoEncoder::OffloadingVideoEncoder(
+-    std::unique_ptr<VideoEncoder> wrapped_encoder)
++    std::unique_ptr<VideoEncoder> wrapped_encoder,
++    scoped_refptr<base::SequencedTaskRunner> callback_runner)
+     : OffloadingVideoEncoder(
+           std::move(wrapped_encoder),
+           base::ThreadPool::CreateSequencedTaskRunner(
+               {base::TaskPriority::USER_BLOCKING,
+                base::WithBaseSyncPrimitives(), base::MayBlock()}),
+-          base::SequencedTaskRunner::GetCurrentDefault()) {}
++          std::move(callback_runner)) {}
+ 
+ void OffloadingVideoEncoder::Initialize(VideoCodecProfile profile,
+                                         const Options& options,
+diff --git a/media/video/offloading_video_encoder.h b/media/video/offloading_video_encoder.h
+index 20a0e23..4ec5c9279a 100644
+--- a/media/video/offloading_video_encoder.h
++++ b/media/video/offloading_video_encoder.h
+@@ -9,12 +9,9 @@
+ #include <type_traits>
+ 
+ #include "base/sequence_checker.h"
++#include "base/task/sequenced_task_runner.h"
+ #include "media/base/video_encoder.h"
+ 
+-namespace base {
+-class SequencedTaskRunner;
+-}
+-
+ namespace media {
+ 
+ // A wrapper around video encoder that offloads all the calls to a dedicated
+@@ -30,10 +27,12 @@
+       const scoped_refptr<base::SequencedTaskRunner> work_runner,
+       const scoped_refptr<base::SequencedTaskRunner> callback_runner);
+ 
+-  // Uses current task runner for callbacks and asks thread pool for a new task
+-  // runner to do actual encoding work.
++  // Uses `callback_runner` (defaulting to current task runner) for callbacks
++  // and asks thread pool for a new task runner to do actual encoding work.
+   explicit OffloadingVideoEncoder(
+-      std::unique_ptr<VideoEncoder> wrapped_encoder);
++      std::unique_ptr<VideoEncoder> wrapped_encoder,
++      scoped_refptr<base::SequencedTaskRunner> callback_runner =
++          base::SequencedTaskRunner::GetCurrentDefault());
+ 
+   ~OffloadingVideoEncoder() override;
+ 
+diff --git a/storage/browser/file_system/file_system_operation.h b/storage/browser/file_system/file_system_operation.h
+index 9e23797..fc445a7 100644
+--- a/storage/browser/file_system/file_system_operation.h
++++ b/storage/browser/file_system/file_system_operation.h
+@@ -463,10 +463,10 @@
+                              CopyOrMoveOptionSet options,
+                              StatusCallback callback) = 0;
+ 
+-  // Synchronously gets the platform path for the given |url|.
+-  // This may fail if the given |url|'s filesystem type is neither
+-  // temporary nor persistent.
+-  // In such a case, base::File::FILE_ERROR_INVALID_OPERATION will be
++  // Synchronously gets the platform path for the given `url`.
++  // This may fail if the given `url`'s filesystem type is neither
++  // temporary nor persistent, or if the context is in incognito mode.
++  // In such a case, `base::File::FILE_ERROR_INVALID_OPERATION` will be
+   // returned.
+   virtual base::File::Error SyncGetPlatformPath(
+       const FileSystemURL& url,
+diff --git a/storage/browser/file_system/file_system_operation_impl.cc b/storage/browser/file_system/file_system_operation_impl.cc
+index 87f9dde7..3191f835 100644
+--- a/storage/browser/file_system/file_system_operation_impl.cc
++++ b/storage/browser/file_system/file_system_operation_impl.cc
+@@ -381,12 +381,16 @@
+     const FileSystemURL& url,
+     base::FilePath* platform_path) {
+   CheckOperationType(OperationType::kGetLocalPath);
+-  if (!file_system_context()->IsSandboxFileSystem(url.type()))
++  CHECK(platform_path);
++  *platform_path = base::FilePath();
++  if (!file_system_context()->IsSandboxFileSystem(url.type()) ||
++      file_system_context()->is_incognito()) {
+     return base::File::FILE_ERROR_INVALID_OPERATION;
++  }
+   FileSystemFileUtil* file_util =
+       file_system_context()->sandbox_delegate()->sync_file_util();
+-  file_util->GetLocalFilePath(operation_context_.get(), url, platform_path);
+-  return base::File::FILE_OK;
++  return file_util->GetLocalFilePath(operation_context_.get(), url,
++                                     platform_path);
+ }
+ 
+ FileSystemOperationImpl::FileSystemOperationImpl(
+diff --git a/testing/variations/fieldtrial_testing_config.json b/testing/variations/fieldtrial_testing_config.json
+index b6dfd348..1c6e226 100644
+--- a/testing/variations/fieldtrial_testing_config.json
++++ b/testing/variations/fieldtrial_testing_config.json
+@@ -11401,6 +11401,7 @@
+                         "upload_interval": "30s"
+                     },
+                     "enable_features": [
++                        "IOSPrivateInsightsService",
+                         "PrivateInsightsFeature"
+                     ]
+                 }
+diff --git a/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc b/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc
+index 9775efc..0ff7a609 100644
+--- a/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc
++++ b/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc
+@@ -16,9 +16,6 @@
+ 
+ namespace {
+ 
+-static const V8PrivateProperty::SymbolKey
+-    kByteLengthQueuingStrategySizeFunction;
+-
+ class ByteLengthQueuingStrategySizeFunction final : public ScriptFunction {
+  public:
+   static v8::Local<v8::Function> CreateFunction(ScriptState* script_state) {
+@@ -99,7 +96,7 @@
+   //    Function that represents a reference to F, with callback context equal
+   //    to globalObject’s relevant settings object.
+   return GetCachedSizeFunction(
+-      script_state, kByteLengthQueuingStrategySizeFunction,
++      script_state, QueuingStrategySizeFunctionType::kByteLength,
+       &ByteLengthQueuingStrategySizeFunction::CreateFunction);
+ }
+ 
+diff --git a/third_party/blink/renderer/core/streams/count_queuing_strategy.cc b/third_party/blink/renderer/core/streams/count_queuing_strategy.cc
+index 7e2eea1c..c96c090 100644
+--- a/third_party/blink/renderer/core/streams/count_queuing_strategy.cc
++++ b/third_party/blink/renderer/core/streams/count_queuing_strategy.cc
+@@ -16,8 +16,6 @@
+ 
+ namespace {
+ 
+-static const V8PrivateProperty::SymbolKey kCountQueuingStrategySizeFunction;
+-
+ class CountQueuingStrategySizeFunction final : public ScriptFunction {
+  public:
+   static v8::Local<v8::Function> CreateFunction(ScriptState* script_state) {
+@@ -66,7 +64,7 @@
+   //    that represents a reference to F, with callback context equal to
+   //    globalObject’s relevant settings object.
+   return GetCachedSizeFunction(
+-      script_state, kCountQueuingStrategySizeFunction,
++      script_state, QueuingStrategySizeFunctionType::kCount,
+       &CountQueuingStrategySizeFunction::CreateFunction);
+ }
+ 
+diff --git a/third_party/blink/renderer/core/streams/queuing_strategy_common.cc b/third_party/blink/renderer/core/streams/queuing_strategy_common.cc
+index 76a82d81..00c971d9a 100644
+--- a/third_party/blink/renderer/core/streams/queuing_strategy_common.cc
++++ b/third_party/blink/renderer/core/streams/queuing_strategy_common.cc
+@@ -4,26 +4,81 @@
+ 
+ #include "third_party/blink/renderer/core/streams/queuing_strategy_common.h"
+ 
++#include "base/notreached.h"
+ #include "third_party/blink/renderer/bindings/core/v8/script_value.h"
+-#include "third_party/blink/renderer/bindings/core/v8/v8_queuing_strategy_init.h"
+ #include "third_party/blink/renderer/platform/bindings/script_state.h"
++#include "third_party/blink/renderer/platform/bindings/trace_wrapper_v8_reference.h"
++#include "third_party/blink/renderer/platform/bindings/v8_per_context_data.h"
++#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
++#include "third_party/blink/renderer/platform/heap/visitor.h"
+ 
+ namespace blink {
+ 
+-ScriptValue GetCachedSizeFunction(ScriptState* script_state,
+-                                  const V8PrivateProperty::SymbolKey& key,
+-                                  SizeFunctionFactory factory) {
+-  auto* isolate = script_state->GetIsolate();
+-  auto function_cache = V8PrivateProperty::GetSymbol(isolate, key);
+-  v8::Local<v8::Object> global_proxy = script_state->GetContext()->Global();
+-  v8::Local<v8::Value> function;
+-  if (!function_cache.GetOrUndefined(global_proxy).ToLocal(&function) ||
+-      function->IsUndefined()) {
+-    function = factory(script_state);
+-    bool is_set = function_cache.Set(global_proxy, function);
+-    DCHECK(is_set || isolate->IsExecutionTerminating());
++namespace {
++
++class QueuingStrategySizeFunctionPerContextData final
++    : public GarbageCollected<QueuingStrategySizeFunctionPerContextData>,
++      public V8PerContextData::Data {
++ public:
++  v8::Local<v8::Function> GetOrCreate(ScriptState* script_state,
++                                      QueuingStrategySizeFunctionType type,
++                                      SizeFunctionFactory factory) {
++    TraceWrapperV8Reference<v8::Function>& slot = SlotForType(type);
++    v8::Isolate* const isolate = script_state->GetIsolate();
++    if (slot.IsEmpty()) {
++      const v8::Local<v8::Function> function = factory(script_state);
++      slot.Reset(isolate, function);
++      return function;
++    }
++    return slot.Get(isolate);
+   }
+-  return ScriptValue(isolate, function);
++
++  void Trace(Visitor* visitor) const override {
++    visitor->Trace(byte_length_size_function_);
++    visitor->Trace(count_size_function_);
++    V8PerContextData::Data::Trace(visitor);
++  }
++
++ private:
++  TraceWrapperV8Reference<v8::Function>& SlotForType(
++      QueuingStrategySizeFunctionType type) {
++    switch (type) {
++      case QueuingStrategySizeFunctionType::kByteLength:
++        return byte_length_size_function_;
++      case QueuingStrategySizeFunctionType::kCount:
++        return count_size_function_;
++    }
++    NOTREACHED();
++  }
++
++  TraceWrapperV8Reference<v8::Function> byte_length_size_function_;
++  TraceWrapperV8Reference<v8::Function> count_size_function_;
++};
++
++}  // namespace
++
++ScriptValue GetCachedSizeFunction(ScriptState* script_state,
++                                  QueuingStrategySizeFunctionType type,
++                                  SizeFunctionFactory factory) {
++  v8::Isolate* const isolate = script_state->GetIsolate();
++  V8PerContextData* const per_context_data = script_state->PerContextData();
++  if (!per_context_data) {
++    // When a context is detached, `ScriptState::DisposePerContextData()` clears
++    // `PerContextData()` so per-context references do not keep detached realms
++    // alive. Intentionally deviate slightly from the standard here by returning
++    // a fresh function rather than caching on the detached context (matching
++    // `V8DOMWrapper::CreateWrapper`).
++    return ScriptValue(isolate, factory(script_state));
++  }
++
++  static constexpr char kPerContextDataKey[] = "QueuingStrategySizeFunction";
++  auto* cache = static_cast<QueuingStrategySizeFunctionPerContextData*>(
++      per_context_data->GetData(kPerContextDataKey));
++  if (!cache) {
++    cache = MakeGarbageCollected<QueuingStrategySizeFunctionPerContextData>();
++    per_context_data->AddData(kPerContextDataKey, cache);
++  }
++  return ScriptValue(isolate, cache->GetOrCreate(script_state, type, factory));
+ }
+ 
+ }  // namespace blink
+diff --git a/third_party/blink/renderer/core/streams/queuing_strategy_common.h b/third_party/blink/renderer/core/streams/queuing_strategy_common.h
+index e55a449..5a0769f9 100644
+--- a/third_party/blink/renderer/core/streams/queuing_strategy_common.h
++++ b/third_party/blink/renderer/core/streams/queuing_strategy_common.h
+@@ -5,7 +5,6 @@
+ #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_STREAMS_QUEUING_STRATEGY_COMMON_H_
+ #define THIRD_PARTY_BLINK_RENDERER_CORE_STREAMS_QUEUING_STRATEGY_COMMON_H_
+ 
+-#include "third_party/blink/renderer/platform/bindings/v8_private_property.h"
+ #include "v8/include/v8.h"
+ 
+ namespace blink {
+@@ -13,12 +12,20 @@
+ class ScriptState;
+ class ScriptValue;
+ 
++enum class QueuingStrategySizeFunctionType {
++  kByteLength,
++  kCount,
++};
++
+ using SizeFunctionFactory = v8::Local<v8::Function> (*)(ScriptState*);
+ 
+-// Returns the value cached on the global proxy object under |key|, or, if that
+-// is not set, caches and returns the result of calling |factory|.
+-ScriptValue GetCachedSizeFunction(ScriptState*,
+-                                  const V8PrivateProperty::SymbolKey& key,
++// Returns the size function cached on `script_state`'s per-context data for
++// `type`, or creates and caches it via `factory`. If `script_state`'s context
++// is detached (`PerContextData()` is null), returns a newly created function
++// without caching it; this is a minor intentional deviation from the standard
++// to avoid retaining V8 objects in detached contexts.
++ScriptValue GetCachedSizeFunction(ScriptState* script_state,
++                                  QueuingStrategySizeFunctionType type,
+                                   SizeFunctionFactory factory);
+ 
+ }  // namespace blink
+diff --git a/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc b/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc
+index cce85f0..beb50e36 100644
+--- a/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc
++++ b/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc
+@@ -1022,8 +1022,6 @@
+   // out.
+   if (!fetch_response_callbacks_.Contains(fetch_event_id))
+     return;
+-  mojom::blink::ServiceWorkerFetchResponseCallback* response_callback =
+-      fetch_response_callbacks_.Take(fetch_event_id)->Value().get();
+ 
+   auto timing = mojom::blink::ServiceWorkerFetchEventTiming::New();
+   timing->dispatch_event_time = event_dispatch_time;
+@@ -1035,8 +1033,14 @@
+     pending_streaming_upload_fetch_events_.insert(fetch_event_id, fetch_event);
+   }
+ 
+-  response_callback->OnFallback(std::move(request_body), std::move(timing),
+-                                std::move(errors));
++  // Take and invoke the callback after all Oilpan allocations (such as
++  // `pending_streaming_upload_fetch_events_.insert()`), as a GC triggered
++  // after `Take()` would collect the unrooted `HeapMojoRemote` wrapper and
++  // reset its underlying Mojo proxy before `OnFallback()` is called.
++  fetch_response_callbacks_.Take(fetch_event_id)
++      ->Value()
++      ->OnFallback(std::move(request_body), std::move(timing),
++                   std::move(errors));
+ }
+ void ServiceWorkerGlobalScope::OnStreamingUploadCompletion(int fetch_event_id) {
+   pending_streaming_upload_fetch_events_.erase(fetch_event_id);
+@@ -1059,17 +1063,15 @@
+   if (!fetch_response_callbacks_.Contains(fetch_event_id))
+     return;
+ 
+-  mojom::blink::ServiceWorkerFetchResponseCallback* response_callback =
+-      fetch_response_callbacks_.Take(fetch_event_id)->Value().get();
+-
+   auto timing = mojom::blink::ServiceWorkerFetchEventTiming::New();
+   timing->dispatch_event_time = event_dispatch_time;
+   timing->respond_with_settled_time = respond_with_settled_time;
+ 
+   NoteRespondedToFetchEvent(request_url, range_request);
+ 
+-  response_callback->OnResponse(std::move(response), std::move(timing),
+-                                std::move(errors));
++  fetch_response_callbacks_.Take(fetch_event_id)
++      ->Value()
++      ->OnResponse(std::move(response), std::move(timing), std::move(errors));
+ }
+ 
+ void ServiceWorkerGlobalScope::RespondToFetchEventWithResponseStream(
+@@ -1090,8 +1092,6 @@
+   // out.
+   if (!fetch_response_callbacks_.Contains(fetch_event_id))
+     return;
+-  mojom::blink::ServiceWorkerFetchResponseCallback* response_callback =
+-      fetch_response_callbacks_.Take(fetch_event_id)->Value().get();
+ 
+   auto timing = mojom::blink::ServiceWorkerFetchEventTiming::New();
+   timing->dispatch_event_time = event_dispatch_time;
+@@ -1099,9 +1099,10 @@
+ 
+   NoteRespondedToFetchEvent(request_url, range_request);
+ 
+-  response_callback->OnResponseStream(std::move(response),
+-                                      std::move(body_as_stream),
+-                                      std::move(timing), std::move(errors));
++  fetch_response_callbacks_.Take(fetch_event_id)
++      ->Value()
++      ->OnResponseStream(std::move(response), std::move(body_as_stream),
++                         std::move(timing), std::move(errors));
+ }
+ 
+ void ServiceWorkerGlobalScope::DidHandleFetchEvent(
+@@ -1224,9 +1225,9 @@
+               perfetto::Flow::ProcessScoped(
+                   event_id, kServiceWorkerGlobalScopeTraceScope));
+   DCHECK(abort_payment_result_callbacks_.Contains(event_id));
+-  payments::mojom::blink::PaymentHandlerResponseCallback* result_callback =
+-      abort_payment_result_callbacks_.Take(event_id)->Value().get();
+-  result_callback->OnResponseForAbortPayment(payment_aborted);
++  abort_payment_result_callbacks_.Take(event_id)
++      ->Value()
++      ->OnResponseForAbortPayment(payment_aborted);
+ }
+ 
+ void ServiceWorkerGlobalScope::DidHandleAbortPaymentEvent(
+@@ -1253,9 +1254,9 @@
+               perfetto::Flow::ProcessScoped(
+                   event_id, kServiceWorkerGlobalScopeTraceScope));
+   DCHECK(can_make_payment_result_callbacks_.Contains(event_id));
+-  payments::mojom::blink::PaymentHandlerResponseCallback* result_callback =
+-      can_make_payment_result_callbacks_.Take(event_id)->Value().get();
+-  result_callback->OnResponseForCanMakePayment(std::move(response));
++  can_make_payment_result_callbacks_.Take(event_id)
++      ->Value()
++      ->OnResponseForCanMakePayment(std::move(response));
+ }
+ 
+ void ServiceWorkerGlobalScope::DidHandleCanMakePaymentEvent(
+@@ -1282,9 +1283,9 @@
+               perfetto::Flow::ProcessScoped(
+                   payment_event_id, kServiceWorkerGlobalScopeTraceScope));
+   DCHECK(payment_response_callbacks_.Contains(payment_event_id));
+-  payments::mojom::blink::PaymentHandlerResponseCallback* response_callback =
+-      payment_response_callbacks_.Take(payment_event_id)->Value().get();
+-  response_callback->OnResponseForPaymentRequest(std::move(response));
++  payment_response_callbacks_.Take(payment_event_id)
++      ->Value()
++      ->OnResponseForPaymentRequest(std::move(response));
+ }
+ 
+ void ServiceWorkerGlobalScope::DidHandlePaymentRequestEvent(
+diff --git a/third_party/blink/renderer/modules/webcodecs/audio_encoder.cc b/third_party/blink/renderer/modules/webcodecs/audio_encoder.cc
+index 83f6413..d86705e 100644
+--- a/third_party/blink/renderer/modules/webcodecs/audio_encoder.cc
++++ b/third_party/blink/renderer/modules/webcodecs/audio_encoder.cc
+@@ -402,16 +402,18 @@
+ }
+ 
+ std::unique_ptr<media::AudioEncoder> CreateSoftwareAudioEncoder(
+-    media::AudioCodec codec) {
++    media::AudioCodec codec,
++    scoped_refptr<base::SequencedTaskRunner> callback_runner) {
+   if (codec != media::AudioCodec::kOpus)
+     return nullptr;
+   auto software_encoder = std::make_unique<media::AudioOpusEncoder>();
+   return std::make_unique<media::OffloadingAudioEncoder>(
+-      std::move(software_encoder));
++      std::move(software_encoder), std::move(callback_runner));
+ }
+ 
+ std::unique_ptr<media::AudioEncoder> CreatePlatformAudioEncoder(
+-    media::AudioCodec codec) {
++    media::AudioCodec codec,
++    scoped_refptr<base::SequencedTaskRunner> callback_runner) {
+   if (codec != media::AudioCodec::kAAC)
+     return nullptr;
+ 
+@@ -424,7 +426,8 @@
+   mojo::PendingRemote<media::mojom::AudioEncoder> encoder_remote;
+   interface_factory->CreateAudioEncoder(
+       encoder_remote.InitWithNewPipeAndPassReceiver());
+-  return std::make_unique<media::MojoAudioEncoder>(std::move(encoder_remote));
++  return std::make_unique<media::MojoAudioEncoder>(std::move(encoder_remote),
++                                                   std::move(callback_runner));
+ }
+ 
+ }  // namespace
+@@ -454,12 +457,13 @@
+ 
+ std::unique_ptr<media::AudioEncoder> AudioEncoder::CreateMediaAudioEncoder(
+     const ParsedConfig& config) {
+-  if (auto result = CreatePlatformAudioEncoder(config.options.codec)) {
++  if (auto result =
++          CreatePlatformAudioEncoder(config.options.codec, callback_runner_)) {
+     is_platform_encoder_ = true;
+     return result;
+   }
+   is_platform_encoder_ = false;
+-  return CreateSoftwareAudioEncoder(config.options.codec);
++  return CreateSoftwareAudioEncoder(config.options.codec, callback_runner_);
+ }
+ 
+ void AudioEncoder::ProcessConfigure(Request* request) {
+diff --git a/third_party/blink/renderer/modules/webcodecs/background_readback.h b/third_party/blink/renderer/modules/webcodecs/background_readback.h
+index f9b389b7..81cb34ac 100644
+--- a/third_party/blink/renderer/modules/webcodecs/background_readback.h
++++ b/third_party/blink/renderer/modules/webcodecs/background_readback.h
+@@ -47,6 +47,10 @@
+   static bool CopyMappablePlanes(const media::VideoFrame& src_frame,
+                                  media::VideoFrame& dest_frame);
+ 
++  // Note: `result_cb` and `done_cb` may run on a background worker thread or on
++  // the calling thread's default (unpausable) task runner. Callers that touch
++  // ExecutionContext/V8 state must pre-bind callbacks to an ExecutionContext
++  // task runner via `base::BindPostTask()`.
+   void ReadbackTextureBackedFrameToMemoryFrame(
+       scoped_refptr<media::VideoFrame> txt_frame,
+       ReadbackToFrameDoneCallback result_cb);
+diff --git a/third_party/blink/renderer/modules/webcodecs/decoder_template.cc b/third_party/blink/renderer/modules/webcodecs/decoder_template.cc
+index 3819240..544a7ba8 100644
+--- a/third_party/blink/renderer/modules/webcodecs/decoder_template.cc
++++ b/third_party/blink/renderer/modules/webcodecs/decoder_template.cc
+@@ -12,6 +12,7 @@
+ #include "base/logging.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/metrics/histogram_functions.h"
++#include "base/task/bind_post_task.h"
+ #include "base/trace_event/trace_event.h"
+ #include "media/base/decoder_status.h"
+ #include "media/base/media_util.h"
+@@ -331,10 +332,17 @@
+   if (gpu_factories_.has_value()) {
+     ContinueConfigureWithGpuFactories(request, gpu_factories_.value());
+   } else if (Traits::kNeedsGpuFactories) {
+-    RetrieveGpuFactoriesWithKnownDecoderSupport(CrossThreadBindOnce(
+-        &DecoderTemplate<Traits>::ContinueConfigureWithGpuFactories,
+-        MakeUnwrappingCrossThreadHandle(this),
+-        MakeUnwrappingCrossThreadHandle(request)));
++    // `RetrieveGpuFactoriesWithKnownDecoderSupport()` may reply via
++    // `SequencedTaskRunner::GetCurrentDefault()` or on the media thread, which
++    // are not paused or frozen with the ExecutionContext. Bind explicitly to
++    // `main_thread_task_runner_`.
++    RetrieveGpuFactoriesWithKnownDecoderSupport(
++        blink::OutputCB(base::BindPostTask(
++            main_thread_task_runner_,
++            ConvertToBaseOnceCallback(CrossThreadBindOnce(
++                &DecoderTemplate<Traits>::ContinueConfigureWithGpuFactories,
++                MakeUnwrappingCrossThreadHandle(this),
++                MakeUnwrappingCrossThreadHandle(request))))));
+   } else {
+     ContinueConfigureWithGpuFactories(request, nullptr);
+   }
+diff --git a/third_party/blink/renderer/modules/webcodecs/gpu_factories_retriever.h b/third_party/blink/renderer/modules/webcodecs/gpu_factories_retriever.h
+index 720e2c5..d404deda 100644
+--- a/third_party/blink/renderer/modules/webcodecs/gpu_factories_retriever.h
++++ b/third_party/blink/renderer/modules/webcodecs/gpu_factories_retriever.h
+@@ -13,6 +13,10 @@
+ 
+ namespace blink {
+ 
++// Note: `callback` may be invoked synchronously, on a worker's default
++// (unpausable) task runner, or on the media thread. Callers that touch
++// ExecutionContext/V8 state must pre-bind `callback` to an ExecutionContext
++// task runner via `base::BindPostTask()`.
+ using OutputCB = CrossThreadOnceFunction<void(
+     media::GpuVideoAcceleratorFactories* factories)>;
+ 
+diff --git a/third_party/blink/renderer/modules/webcodecs/image_decoder_external.cc b/third_party/blink/renderer/modules/webcodecs/image_decoder_external.cc
+index c779e75..a744e2a 100644
+--- a/third_party/blink/renderer/modules/webcodecs/image_decoder_external.cc
++++ b/third_party/blink/renderer/modules/webcodecs/image_decoder_external.cc
+@@ -6,9 +6,11 @@
+ 
+ #include "base/logging.h"
+ #include "base/metrics/histogram_functions.h"
++#include "base/task/bind_post_task.h"
+ #include "base/task/thread_pool.h"
+ #include "third_party/blink/public/common/mime_util/mime_util.h"
+ #include "third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom-blink.h"
++#include "third_party/blink/public/platform/task_type.h"
+ #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
+ #include "third_party/blink/renderer/bindings/core/v8/v8_union_arraybufferallowshared_arraybufferviewallowshared_readablestream.h"
+ #include "third_party/blink/renderer/bindings/modules/v8/v8_image_decode_options.h"
+@@ -189,6 +191,8 @@
+   decode_task_runner_ = base::ThreadPool::CreateSequencedTaskRunner(
+       {base::TaskPriority::USER_VISIBLE,
+        base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN});
++  main_task_runner_ =
++      GetExecutionContext()->GetTaskRunner(TaskType::kInternalMedia);
+ 
+   if (init->data()->IsReadableStream()) {
+     if (init->data()->GetAsReadableStream()->IsLocked() ||
+@@ -495,12 +499,26 @@
+     request->bytes_read_index = bytes_read_;
+ 
+     ++num_submitted_decodes_;
+-    decoder_->AsyncCall(&ImageDecoderCore::Decode)
+-        .WithArgs(request->frame_index, request->complete_frames_only,
+-                  CrossThreadUnretained(request->abort_flag.get()))
+-        .Then(CrossThreadBindOnce(&ImageDecoderExternal::OnDecodeReady,
+-                                  MakeUnwrappingCrossThreadHandle(
+-                                      decode_weak_factory_.GetWeakCell())));
++    // We'd like to use `AsyncCall()` here, but `AsyncCall().Then()` replies via
++    // `SequencedTaskRunner::GetCurrentDefault()`, which is not paused or frozen
++    // with the ExecutionContext (and wrapping `Then()` with `BindPostTask()`
++    // would add an extra task hop).
++    decoder_->PostTaskWithThisObject(CrossThreadBindOnce(
++        [](uint32_t frame_index, bool complete_frames_only,
++           const base::AtomicFlag* abort_flag,
++           base::OnceCallback<void(
++               std::unique_ptr<ImageDecoderCore::ImageDecodeResult>)> done_cb,
++           ImageDecoderCore* core) {
++          std::move(done_cb).Run(
++              core->Decode(frame_index, complete_frames_only, abort_flag));
++        },
++        request->frame_index, request->complete_frames_only,
++        CrossThreadUnretained(request->abort_flag.get()),
++        base::BindPostTask(main_task_runner_,
++                           ConvertToBaseOnceCallback(CrossThreadBindOnce(
++                               &ImageDecoderExternal::OnDecodeReady,
++                               MakeUnwrappingCrossThreadHandle(
++                                   decode_weak_factory_.GetWeakCell()))))));
+   }
+ 
+   auto new_end = std::stable_partition(
+@@ -598,10 +616,18 @@
+   ++pending_metadata_requests_;
+   DCHECK_GE(pending_metadata_requests_, 1);
+ 
+-  decoder_->AsyncCall(&ImageDecoderCore::DecodeMetadata)
+-      .Then(CrossThreadBindOnce(
+-          &ImageDecoderExternal::OnMetadata,
+-          MakeUnwrappingCrossThreadHandle(weak_factory_.GetWeakCell())));
++  // See comment in `MaybeSatisfyPendingDecodes()` for why we avoid
++  // `AsyncCall().Then()` here.
++  decoder_->PostTaskWithThisObject(CrossThreadBindOnce(
++      [](base::OnceCallback<void(ImageDecoderCore::ImageMetadata)> done_cb,
++         ImageDecoderCore* core) {
++        std::move(done_cb).Run(core->DecodeMetadata());
++      },
++      base::BindPostTask(
++          main_task_runner_,
++          ConvertToBaseOnceCallback(CrossThreadBindOnce(
++              &ImageDecoderExternal::OnMetadata,
++              MakeUnwrappingCrossThreadHandle(weak_factory_.GetWeakCell()))))));
+ }
+ 
+ void ImageDecoderExternal::OnMetadata(
+diff --git a/third_party/blink/renderer/modules/webcodecs/image_decoder_external.h b/third_party/blink/renderer/modules/webcodecs/image_decoder_external.h
+index d26e4d9..0bf583c 100644
+--- a/third_party/blink/renderer/modules/webcodecs/image_decoder_external.h
++++ b/third_party/blink/renderer/modules/webcodecs/image_decoder_external.h
+@@ -130,6 +130,7 @@
+ 
+   // The workhorse which actually does the decoding. Bound to another sequence.
+   scoped_refptr<base::SequencedTaskRunner> decode_task_runner_;
++  scoped_refptr<base::SequencedTaskRunner> main_task_runner_;
+   std::unique_ptr<SequenceBound<ImageDecoderCore>> decoder_;
+ 
+   // List of tracks in this image. Filled in during OnMetadata().
+diff --git a/third_party/blink/renderer/modules/webcodecs/video_decoder.cc b/third_party/blink/renderer/modules/webcodecs/video_decoder.cc
+index c5a4045e..12a8eaa 100644
+--- a/third_party/blink/renderer/modules/webcodecs/video_decoder.cc
++++ b/third_party/blink/renderer/modules/webcodecs/video_decoder.cc
+@@ -10,6 +10,7 @@
+ 
+ #include "base/containers/span.h"
+ #include "base/metrics/histogram_functions.h"
++#include "base/task/bind_post_task.h"
+ #include "base/time/time.h"
+ #include "media/base/decoder_buffer.h"
+ #include "media/base/limits.h"
+@@ -23,6 +24,7 @@
+ #include "media/media_buildflags.h"
+ #include "third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom-blink.h"
+ #include "third_party/blink/public/platform/platform.h"
++#include "third_party/blink/public/platform/task_type.h"
+ #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
+ #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
+ #include "third_party/blink/renderer/bindings/core/v8/to_v8_traits.h"
+@@ -325,10 +327,18 @@
+         MakeGarbageCollected<ScriptPromiseResolver<VideoDecoderSupport>>(
+             script_state, exception_state.GetContext());
+     auto promise = resolver->Promise();
+-    RetrieveGpuFactoriesWithKnownDecoderSupport(CrossThreadBindOnce(
+-        &DecoderSupport_OnKnown, MakeUnwrappingCrossThreadHandle(support),
+-        std::make_unique<MediaConfigType>(*media_config),
+-        MakeUnwrappingCrossThreadHandle(resolver)));
++    // `RetrieveGpuFactoriesWithKnownDecoderSupport()` may reply via
++    // `SequencedTaskRunner::GetCurrentDefault()` or on the media thread, which
++    // are not paused or frozen with the ExecutionContext. Bind explicitly to an
++    // ExecutionContext task runner.
++    RetrieveGpuFactoriesWithKnownDecoderSupport(blink::OutputCB(
++        base::BindPostTask(ExecutionContext::From(script_state)
++                               ->GetTaskRunner(TaskType::kInternalDefault),
++                           ConvertToBaseOnceCallback(CrossThreadBindOnce(
++                               &DecoderSupport_OnKnown,
++                               MakeUnwrappingCrossThreadHandle(support),
++                               std::make_unique<MediaConfigType>(*media_config),
++                               MakeUnwrappingCrossThreadHandle(resolver))))));
+     return promise;
+   }
+ 
+diff --git a/third_party/blink/renderer/modules/webcodecs/video_encoder.cc b/third_party/blink/renderer/modules/webcodecs/video_encoder.cc
+index 1d41c82..c7eb7d8 100644
+--- a/third_party/blink/renderer/modules/webcodecs/video_encoder.cc
++++ b/third_party/blink/renderer/modules/webcodecs/video_encoder.cc
+@@ -5,6 +5,7 @@
+ #include "third_party/blink/renderer/modules/webcodecs/video_encoder.h"
+ 
+ #include <algorithm>
++#include <optional>
+ #include <string>
+ 
+ #include "base/format_macros.h"
+@@ -15,6 +16,7 @@
+ #include "base/metrics/histogram_functions.h"
+ #include "base/notimplemented.h"
+ #include "base/numerics/clamped_math.h"
++#include "base/task/bind_post_task.h"
+ #include "base/task/single_thread_task_runner.h"
+ #include "base/time/time.h"
+ #include "base/trace_event/common/trace_event_common.h"
+@@ -799,9 +801,9 @@
+ VideoEncoder::CreateSoftwareVideoEncoder(VideoEncoder* self,
+                                          bool fallback,
+                                          media::VideoCodec codec) {
+-  DCHECK_CALLED_ON_VALID_SEQUENCE(self->sequence_checker_);
+   if (!self)
+     return base::unexpected(media::EncoderStatus::Codes::kEncoderIllegalState);
++  DCHECK_CALLED_ON_VALID_SEQUENCE(self->sequence_checker_);
+   std::unique_ptr<media::VideoEncoder> result;
+   switch (codec) {
+     case media::VideoCodec::kAV1:
+@@ -830,7 +832,8 @@
+             media::SVCScalabilityMode::kL1T1));
+   }
+   return std::unique_ptr<media::VideoEncoder>(
+-      std::make_unique<media::OffloadingVideoEncoder>(std::move(result)));
++      std::make_unique<media::OffloadingVideoEncoder>(std::move(result),
++                                                      self->callback_runner_));
+ }
+ 
+ base::expected<std::unique_ptr<media::VideoEncoder>, media::EncoderStatus>
+@@ -869,18 +872,28 @@
+     return;
+   }
+ 
+-  RetrieveGpuFactoriesWithKnownEncoderSupport(
+-      CrossThreadBindOnce(&VideoEncoder::ContinueConfigureWithGpuFactories,
+-                          MakeUnwrappingCrossThreadWeakHandle(this),
+-                          MakeUnwrappingCrossThreadHandle(request)));
++  // `RetrieveGpuFactoriesWithKnownEncoderSupport()` may reply via
++  // `SequencedTaskRunner::GetCurrentDefault()` or on the media thread, which
++  // are not paused or frozen with the ExecutionContext. Bind explicitly to
++  // `callback_runner_`.
++  RetrieveGpuFactoriesWithKnownEncoderSupport(blink::OutputCB(
++      base::BindPostTask(callback_runner_,
++                         ConvertToBaseOnceCallback(CrossThreadBindOnce(
++                             &VideoEncoder::ContinueConfigureWithGpuFactories,
++                             MakeUnwrappingCrossThreadWeakHandle(this),
++                             MakeUnwrappingCrossThreadHandle(request))))));
+ }
+ 
+ void VideoEncoder::ContinueConfigureWithGpuFactories(
+     Request* request,
+     media::GpuVideoAcceleratorFactories* gpu_factories) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (reset_count_ != request->reset_count) {
++    request->EndTracing(/*aborted=*/true);
++    return;
++  }
+   DCHECK(active_config_);
+   DCHECK_EQ(request->type, Request::Type::kConfigure);
+-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   bool is_platform_encoder = false;
+   media_encoder_.reset();
+   auto encoder_or_error = CreateMediaVideoEncoder(
+@@ -1097,6 +1110,10 @@
+     }
+   }
+ 
++  // Frame pool and `BackgroundReadback` callbacks may run on background threads
++  // or via `SequencedTaskRunner::GetCurrentDefault()`; bind explicitly to
++  // `callback_runner_` so completion is deferred while paused or frozen.
++  result_cb = base::BindPostTask(callback_runner_, std::move(result_cb));
+   auto [pool_result_cb, background_result_cb] =
+       base::SplitOnceCallback(std::move(result_cb));
+   if (can_use_gmb && accelerated_frame_pool_) {
+@@ -1253,16 +1270,13 @@
+     // Stall request processing while we wait for the copy to complete. It'd
+     // be nice to not have to do this, but currently the request processing
+     // loop must execute synchronously or flush() will miss frames.
+-    //
+-    // Note: Set this before calling StartReadback() since callbacks could
+-    // resolve synchronously.
+     blocking_request_in_progress_ = request;
+ 
+-    auto readback_done_callback = blink::BindOnce(
++    auto readback_done_callback = ConvertToBaseOnceCallback(CrossThreadBindOnce(
+         &VideoEncoder::OnReadbackDone,
+         MakeUnwrappingCrossThreadWeakHandle(this),
+         MakeUnwrappingCrossThreadHandle(request), frame,
+-        std::move(encode_options), std::move(encode_done_callback));
++        std::move(encode_options), std::move(encode_done_callback)));
+ 
+     if (StartReadback(std::move(frame), std::move(readback_done_callback))) {
+       request->input->close();
+@@ -1494,9 +1508,9 @@
+     self->ContinueConfigureAfterFlush(req);
+   };
+ 
+-  media_encoder_->Flush(BindOnce(flush_done_callback,
+-                                 MakeUnwrappingCrossThreadWeakHandle(this),
+-                                 MakeUnwrappingCrossThreadHandle(request)));
++  media_encoder_->Flush(ConvertToBaseOnceCallback(CrossThreadBindOnce(
++      flush_done_callback, MakeUnwrappingCrossThreadWeakHandle(this),
++      MakeUnwrappingCrossThreadHandle(request))));
+ }
+ 
+ void VideoEncoder::ProcessReconfigure(Request* request) {
+@@ -1584,10 +1598,10 @@
+   };
+ 
+   blocking_request_in_progress_ = request;
+-  media_encoder_->Flush(
+-      BindOnce(flush_done_callback, MakeUnwrappingCrossThreadWeakHandle(this),
+-               MakeUnwrappingCrossThreadHandle(request),
+-               std::move(reconf_done_callback), is_platform_encoder_));
++  media_encoder_->Flush(ConvertToBaseOnceCallback(CrossThreadBindOnce(
++      flush_done_callback, MakeUnwrappingCrossThreadWeakHandle(this),
++      MakeUnwrappingCrossThreadHandle(request), std::move(reconf_done_callback),
++      is_platform_encoder_)));
+ }
+ 
+ void VideoEncoder::OnMediaEncoderInfoChanged(
+@@ -1818,7 +1832,6 @@
+ }
+ 
+ static void isConfigSupportedWithSoftwareOnly(
+-    ScriptState* script_state,
+     base::OnceCallback<void(VideoEncoderSupport*)> callback,
+     VideoEncoderSupport* support,
+     VideoEncoderTraits::ParsedConfig* config) {
+@@ -1843,26 +1856,19 @@
+     return;
+   }
+ 
+-  auto done_callback =
+-      [](std::unique_ptr<media::VideoEncoder> encoder,
+-         CrossThreadOnceFunction<void(blink::VideoEncoderSupport*)> callback,
+-         scoped_refptr<base::SingleThreadTaskRunner> runner,
+-         VideoEncoderSupport* support, media::EncoderStatus status) {
+-        support->setSupported(status.is_ok());
+-        std::move(callback).Run(support);
+-        runner->DeleteSoon(FROM_HERE, std::move(encoder));
+-      };
+-
+-  auto* context = ExecutionContext::From(script_state);
+-  auto runner = context->GetTaskRunner(TaskType::kInternalDefault);
+-  auto* software_encoder_raw = software_encoder.get();
+-  software_encoder_raw->Initialize(
++  std::optional<media::EncoderStatus> status;
++  software_encoder->DisablePostedCallbacks();
++  software_encoder->Initialize(
+       config->profile, config->options, /*info_cb=*/base::DoNothing(),
+       /*output_cb=*/base::DoNothing(),
+-      ConvertToBaseOnceCallback(CrossThreadBindOnce(
+-          done_callback, std::move(software_encoder),
+-          CrossThreadBindOnce(std::move(callback)), std::move(runner),
+-          MakeUnwrappingCrossThreadHandle(support))));
++      blink::BindOnce([](std::optional<media::EncoderStatus>* out,
++                         media::EncoderStatus s) { *out = std::move(s); },
++                      blink::Unretained(&status)));
++  CHECK(status.has_value());
++  software_encoder.reset();
++
++  support->setSupported(status->is_ok());
++  std::move(callback).Run(support);
+ }
+ 
+ static void isConfigSupportedWithHardwareOnly(
+@@ -1917,18 +1923,26 @@
+   auto promise = resolver->Promise();
+   auto find_any_callback = HeapBarrierCallback<VideoEncoderSupport>(
+       num_callbacks,
+-      BindOnce(&FindAnySupported, MakeUnwrappingCrossThreadHandle(resolver)));
++      ConvertToBaseOnceCallback(CrossThreadBindOnce(
++          &FindAnySupported, MakeUnwrappingCrossThreadHandle(resolver))));
+ 
+   if (parsed_config->hw_pref != HardwarePreference::kPreferSoftware ||
+       media::MayHaveAndAllowSelectOSSoftwareEncoder(parsed_config->codec)) {
+     // Hardware support not denied, detect support by hardware encoders.
+     auto* support = VideoEncoderSupport::Create();
+     support->setConfig(config_copy);
+-    auto gpu_retrieved_callback =
+-        CrossThreadBindOnce(isConfigSupportedWithHardwareOnly,
+-                            CrossThreadBindOnce(find_any_callback),
+-                            MakeUnwrappingCrossThreadHandle(support),
+-                            MakeUnwrappingCrossThreadHandle(parsed_config));
++    // `RetrieveGpuFactoriesWithKnownEncoderSupport()` may reply via
++    // `SequencedTaskRunner::GetCurrentDefault()` or on the media thread, which
++    // are not paused or frozen with the ExecutionContext. Bind explicitly to an
++    // ExecutionContext task runner.
++    auto gpu_retrieved_callback = blink::OutputCB(base::BindPostTask(
++        ExecutionContext::From(script_state)
++            ->GetTaskRunner(TaskType::kInternalDefault),
++        ConvertToBaseOnceCallback(CrossThreadBindOnce(
++            isConfigSupportedWithHardwareOnly,
++            CrossThreadBindOnce(find_any_callback),
++            MakeUnwrappingCrossThreadHandle(support),
++            MakeUnwrappingCrossThreadHandle(parsed_config)))));
+     RetrieveGpuFactoriesWithKnownEncoderSupport(
+         std::move(gpu_retrieved_callback));
+   }
+@@ -1937,7 +1951,7 @@
+     // Hardware support not required, detect support by software encoders.
+     auto* support = VideoEncoderSupport::Create();
+     support->setConfig(config_copy);
+-    isConfigSupportedWithSoftwareOnly(script_state, find_any_callback, support,
++    isConfigSupportedWithSoftwareOnly(find_any_callback, support,
+                                       parsed_config);
+   }
+ 
+diff --git a/third_party/blink/renderer/modules/webcodecs/video_frame.cc b/third_party/blink/renderer/modules/webcodecs/video_frame.cc
+index 4db757d..e3d2e85 100644
+--- a/third_party/blink/renderer/modules/webcodecs/video_frame.cc
++++ b/third_party/blink/renderer/modules/webcodecs/video_frame.cc
+@@ -31,6 +31,7 @@
+ #include "third_party/blink/public/mojom/frame/lifecycle.mojom-blink.h"
+ #include "third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom-blink.h"
+ #include "third_party/blink/public/platform/platform.h"
++#include "third_party/blink/public/platform/task_type.h"
+ #include "third_party/blink/public/platform/web_graphics_context_3d_provider.h"
+ #include "third_party/blink/renderer/bindings/core/v8/to_v8_traits.h"
+ #include "third_party/blink/renderer/bindings/modules/v8/v8_background_blur.h"
+@@ -1382,9 +1383,15 @@
+                                            "Failed to read VideoFrame data.");
+         }
+       };
+-  auto done_cb =
+-      BindOnce(readback_done_handler, std::move(contents),
+-               MakeUnwrappingCrossThreadHandle(resolver), dest_layout);
++  // `BackgroundReadback` may invoke `done_cb` on a background worker thread or
++  // via `SequencedTaskRunner::GetCurrentDefault()`, neither of which is paused
++  // or frozen with the ExecutionContext. Bind explicitly to an ExecutionContext
++  // task runner.
++  auto done_cb = base::BindPostTask(
++      context->GetTaskRunner(TaskType::kInternalMedia),
++      ConvertToBaseOnceCallback(CrossThreadBindOnce(
++          readback_done_handler, std::move(contents),
++          MakeUnwrappingCrossThreadHandle(resolver), dest_layout)));
+ 
+   background_readback->ReadbackTextureBackedFrame(
+       std::move(frame), std::move(dest_frame), std::move(done_cb));
+diff --git a/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.cc b/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.cc
+index 0bac72c..a4fb749f 100644
+--- a/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.cc
++++ b/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.cc
+@@ -6,6 +6,7 @@
+ 
+ #include <optional>
+ #include <string>
++#include <utility>
+ 
+ #include "base/byte_size.h"
+ #include "base/check_op.h"
+@@ -176,7 +177,9 @@
+     const net::RedirectInfo& redirect_info,
+     network::mojom::URLResponseHeadPtr head,
+     FollowRedirectCallback follow_redirect_callback) {
+-  DCHECK(!Completed());
++  CHECK(!Completed());
++  CHECK(!follow_redirect_callback_);
++  CHECK(!deferred_completion_status_);
+ 
+   if (has_authorization_header_ &&
+       !url::IsSameOriginWith(response_->url, redirect_info.new_url)) {
+@@ -195,19 +198,29 @@
+ void SyncLoadContext::FollowRedirect(std::vector<std::string> removed_headers,
+                                      net::HttpRequestHeaders modified_headers) {
+   CHECK(follow_redirect_callback_);
++  if (deferred_completion_status_) {
++    follow_redirect_callback_.Reset();
++    response_->redirect_info.reset();
++    *context_for_redirect_ = nullptr;
++    OnCompletedRequest(
++        *std::exchange(deferred_completion_status_, std::nullopt));
++    return;
++  }
+   if (!signals_->RestartAfterRedirect()) {
+     CancelRedirect();
+     return;
+   }
+ 
+-  response_->redirect_info = net::RedirectInfo();
++  response_->redirect_info.reset();
+   *context_for_redirect_ = nullptr;
+   std::move(follow_redirect_callback_)
+       .Run(std::move(removed_headers), std::move(modified_headers));
+ }
+ 
+ void SyncLoadContext::CancelRedirect() {
+-  response_->redirect_info = net::RedirectInfo();
++  follow_redirect_callback_.Reset();
++  deferred_completion_status_.reset();
++  response_->redirect_info.reset();
+   *context_for_redirect_ = nullptr;
+ 
+   response_->error_code = net::ERR_ABORTED;
+@@ -218,7 +231,9 @@
+     network::mojom::URLResponseHeadPtr head,
+     mojo::ScopedDataPipeConsumerHandle body,
+     std::optional<mojo_base::BigBuffer> cached_metadata) {
+-  DCHECK(!Completed());
++  CHECK(!Completed());
++  CHECK(!follow_redirect_callback_);
++  CHECK(!deferred_completion_status_);
+   response_->head = std::move(head);
+ 
+   if (!body) {
+@@ -262,6 +277,24 @@
+     // the response.
+     return;
+   }
++  if (follow_redirect_callback_) {
++    // Defer completion until FollowRedirect() or CancelRedirect() runs so
++    // `response_` is not mutated and `this` is not deleted while the calling
++    // thread is handling the redirect.
++    if (!deferred_completion_status_) {
++      network::URLLoaderCompletionStatus deferred_status = status;
++      // Completing with `net::OK` before the redirect is followed means no
++      // final `OnReceivedResponse()` was received. Coerce it to `ERR_FAILED`
++      // so `URLLoader::LoadSynchronously()` does not treat the unfollowed
++      // redirect's URL and headers as a valid final response in release builds
++      // (where `MojoURLLoaderClient::OnComplete()`'s `DCHECK` is compiled out).
++      if (deferred_status.error_code == net::OK) {
++        deferred_status.error_code = net::ERR_FAILED;
++      }
++      deferred_completion_status_ = std::move(deferred_status);
++    }
++    return;
++  }
+   request_completed_ = true;
+   response_->error_code = status.error_code;
+   response_->extended_error_code = status.extended_error_code;
+@@ -346,6 +379,9 @@
+ void SyncLoadContext::CompleteRequest() {
+   DCHECK(blob_finished_ || (mode_ != Mode::kBlob));
+   DCHECK(!body_handle_.is_valid());
++  CHECK(!follow_redirect_callback_);
++  CHECK(!deferred_completion_status_);
++  CHECK(!*context_for_redirect_);
+   body_watcher_.Cancel();
+   signals_->SignalRedirectOrResponseComplete();
+   signals_ = nullptr;
+diff --git a/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.h b/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.h
+index 3710477..104fc02 100644
+--- a/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.h
++++ b/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.h
+@@ -5,6 +5,7 @@
+ #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_LOADER_FETCH_URL_LOADER_SYNC_LOAD_CONTEXT_H_
+ #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_LOADER_FETCH_URL_LOADER_SYNC_LOAD_CONTEXT_H_
+ 
++#include <optional>
+ #include <vector>
+ 
+ #include "base/byte_size.h"
+@@ -17,6 +18,7 @@
+ #include "mojo/public/cpp/system/simple_watcher.h"
+ #include "net/traffic_annotation/network_traffic_annotation.h"
+ #include "services/network/public/cpp/shared_url_loader_factory.h"
++#include "services/network/public/cpp/url_loader_completion_status.h"
+ #include "third_party/blink/public/mojom/blob/blob_registry.mojom-blink.h"
+ #include "third_party/blink/public/platform/web_common.h"
+ #include "third_party/blink/public/platform/web_string.h"
+@@ -136,6 +138,10 @@
+   // is signaled, which protects it against race condition.
+   raw_ptr<SyncLoadContext*> context_for_redirect_;
+ 
++  // Stores the completion status if OnCompletedRequest() arrives while a
++  // redirect is being handled on the calling thread.
++  std::optional<network::URLLoaderCompletionStatus> deferred_completion_status_;
++
+   enum class Mode { kInitial, kDataPipe, kBlob };
+   Mode mode_ = Mode::kInitial;
+ 
+diff --git a/tools/metrics/actions/actions.xml b/tools/metrics/actions/actions.xml
+index 91e0398..8ad3623 100644
+--- a/tools/metrics/actions/actions.xml
++++ b/tools/metrics/actions/actions.xml
+@@ -13913,6 +13913,18 @@
+   </description>
+ </action>
+ 
++<action name="Glic.Fre.NativeFreTriggered">
++  <owner>alexiswu@google.com</owner>
++  <owner>ritikagup@google.com</owner>
++  <description>
++    Logged each time a Glic panel open is routed to the Android native FRE for a
++    profile that has not consented. Logged once per panel open, not on re-show
++    after a tab switch or peek. Android only. Subtract from
++    Glic.Onboarding.OptInImpression (logged for native and web FRE) to estimate
++    web FRE impressions.
++  </description>
++</action>
++
+ <action name="Glic.Fre.NoThanks">
+   <owner>iwells@google.com</owner>
+   <owner>erikchen@chromium.org</owner>
+diff --git a/tools/metrics/histograms/metadata/contextual_search/histograms.xml b/tools/metrics/histograms/metadata/contextual_search/histograms.xml
+index e33e6a27..b77ee6ee 100644
+--- a/tools/metrics/histograms/metadata/contextual_search/histograms.xml
++++ b/tools/metrics/histograms/metadata/contextual_search/histograms.xml
+@@ -279,6 +279,24 @@
+   <token key="ContextualSearchSource" variants="ContextualSearchSource"/>
+ </histogram>
+ 
++<histogram name="ContextualSearch.Drive.ConsentKitLoadResult"
++    enum="ContextualSearchDriveConsentKitLoadResult" expires_after="2027-05-12">
++  <owner>adamyao@google.com</owner>
++  <owner>chrome-desktop-search@google.com</owner>
++  <summary>
++    How a ConsentKit load ended in the Drive picker on desktop. ConsentKit is
++    the Drive consent dialog. Recorded once per load, when it ends. A load
++    starts when the consent flow opens ConsentKit, or when the user clicks
++    &quot;Try again&quot; on the error screen. It ends when ConsentKit sends
++    UI_RENDERED_EVENT, or when the dialog stops waiting after 5 seconds and
++    shows the error screen. Any message from ConsentKit stops the wait, so a
++    timeout means ConsentKit sent nothing. In its postMessage mode, which is
++    ConsentKit's default for Chrome, UI_RENDERED_EVENT is its first message;
++    loads where ConsentKit replies without it aren't recorded. Neither are loads
++    cut short by closing the dialog.
++  </summary>
++</histogram>
++
+ <histogram
+     name="ContextualSearch.DuplicateTabTitlesShownCount.{ContextualSearchSource}"
+     units="count" expires_after="2027-04-11">
+diff --git a/tools/metrics/histograms/metadata/enterprise/histograms.xml b/tools/metrics/histograms/metadata/enterprise/histograms.xml
+index 99d890f..96f3e87 100644
+--- a/tools/metrics/histograms/metadata/enterprise/histograms.xml
++++ b/tools/metrics/histograms/metadata/enterprise/histograms.xml
+@@ -3450,6 +3450,57 @@
+   </token>
+ </histogram>
+ 
++<histogram name="Enterprise.ExtensionActorAttribution.Lookup.Download.Result"
++    enum="ExtensionDownloadAttributionSignal" expires_after="2027-11-10">
++  <owner>mingyil@google.com</owner>
++  <owner>haihan@google.com</owner>
++  <owner>cbe-cep-eng@google.com</owner>
++  <summary>
++    The strongest signal identifying the extension behind a download, checked in
++    order: the chrome.downloads API, a chrome-extension:// request initiator,
++    then an active extension actor on the originating tab. Only the
++    chrome.downloads signal is currently used to attribute the download; the
++    other two size the downloads that bypass that API. Recorded each time Chrome
++    looks up the extension behind a download for an enterprise security event or
++    a content analysis request, while the kEnterpriseExtensionActorAttribution
++    feature is enabled. The tab's actor is read at lookup time, so it can differ
++    from the actor when the download started. A single download can be looked up
++    more than once, and lookups are recorded for every profile, including
++    profiles where enterprise reporting is off.
++  </summary>
++</histogram>
++
++<histogram
++    name="Enterprise.ExtensionActorAttribution.Lookup.WebContents.Result"
++    enum="ExtensionActorAttributionResult" expires_after="2027-11-10">
++  <owner>mingyil@google.com</owner>
++  <owner>haihan@google.com</owner>
++  <owner>cbe-cep-eng@google.com</owner>
++  <summary>
++    Whether an extension was acting on a tab when Chrome looked up the tab's
++    extension actor for an enterprise security event or a real-time URL lookup
++    request. Recorded once per lookup while the
++    kEnterpriseExtensionActorAttribution feature is enabled. &quot;No active
++    extension actor&quot; is also recorded for every lookup in a profile where
++    neither enterprise security event reporting nor real-time URL checking is
++    enabled, because no actor is tracked there.
++  </summary>
++</histogram>
++
++<histogram name="Enterprise.ExtensionActorAttribution.Tracker.Cleared"
++    enum="ExtensionActorClearReason" expires_after="2027-11-10">
++  <owner>mingyil@google.com</owner>
++  <owner>haihan@google.com</owner>
++  <owner>cbe-cep-eng@google.com</owner>
++  <summary>
++    Why ExtensionActorTracker stopped attributing a tab to an extension: user
++    input, a browser-initiated (e.g. omnibox) navigation starting, a
++    cross-document navigation not initiated by an extension committing, or an
++    explicit ClearActiveActor() call. Recorded only when an active extension
++    actor was set on the tab; not recorded when one extension replaces another.
++  </summary>
++</histogram>
++
+ <histogram name="Enterprise.FileAnalysisRequest.FileSize" units="KB"
+     expires_after="2027-04-04">
+   <owner>eliashomsi@google.com</owner>
+diff --git a/ui/accessibility/ax_node.cc b/ui/accessibility/ax_node.cc
+index 2a43287..8e0b9d9 100644
+--- a/ui/accessibility/ax_node.cc
++++ b/ui/accessibility/ax_node.cc
+@@ -182,7 +182,9 @@
+ }
+ 
+ AXNode* AXNode::GetParent() const {
+-  CHECK(!tree_->GetTreeUpdateInProgressState(), base::NotFatalUntil::M163);
++  // TODO(crbug.com/585935998): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(!tree_->GetTreeUpdateInProgressState());
+   return parent_;
+ }
+ 
+diff --git a/ui/accessibility/ax_position.h b/ui/accessibility/ax_position.h
+index 74927845..c4d1896 100644
+--- a/ui/accessibility/ax_position.h
++++ b/ui/accessibility/ax_position.h
+@@ -1853,7 +1853,9 @@
+       }
+     }
+     text_position = text_position->AsTextPosition();
+-    CHECK(!text_position->IsNullPosition(), base::NotFatalUntil::M163);
++    // TODO(crbug.com/584451866): CHECK-exclusion: Convert to a CHECK once we
++    // are confident it won't be triggered.
++    DCHECK(!text_position->IsNullPosition());
+ 
+     int offset_in_parent = text_position->text_offset_;
+     // Determine the anchor and text offset of the leaf equivalent position by
+diff --git a/ui/aura/window_occlusion_tracker.cc b/ui/aura/window_occlusion_tracker.cc
+index 6b4623c..7f480b7 100644
+--- a/ui/aura/window_occlusion_tracker.cc
++++ b/ui/aura/window_occlusion_tracker.cc
+@@ -885,8 +885,9 @@
+     CHECK(window_observations_.IsObservingSource(window),
+           base::NotFatalUntil::M163);
+   } else {
+-    CHECK(!window_observations_.IsObservingSource(window),
+-          base::NotFatalUntil::M163);
++    // TODO(crbug.com/586507442): CHECK-exclusion: Convert to a CHECK once we
++    // are confident it won't be triggered.
++    DCHECK(!window_observations_.IsObservingSource(window));
+     window_observations_.AddObservation(window);
+   }
+   for (Window* child_window : window->children())
+diff --git a/ui/views/controls/menu/menu_controller.cc b/ui/views/controls/menu/menu_controller.cc
+index 588d406e..eda46c8 100644
+--- a/ui/views/controls/menu/menu_controller.cc
++++ b/ui/views/controls/menu/menu_controller.cc
+@@ -1775,7 +1775,9 @@
+ 
+ void MenuController::OnDragDropCompleted(bool should_close) {
+   ScopedDeletionGuard guard(AsWeakPtr());
+-  CHECK(drag_in_progress_, base::NotFatalUntil::M163);
++  // TODO(crbug.com/585718788): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(drag_in_progress_);
+   drag_in_progress_ = false;
+   // During a drag, mouse events are processed directly by the widget, and not
+   // sent to the MenuController. At drag completion, reset pressed state and
+diff --git a/ui/views/controls/styled_label.cc b/ui/views/controls/styled_label.cc
+index 88f9c521..a209036 100644
+--- a/ui/views/controls/styled_label.cc
++++ b/ui/views/controls/styled_label.cc
+@@ -481,7 +481,9 @@
+           CHECK(custom_view->GetProperty(kStyledLabelCustomViewKey),
+                 base::NotFatalUntil::M163);
+           // Do not allow wrap in custom view.
+-          CHECK_EQ(position, range.start(), base::NotFatalUntil::M163);
++          // TODO(crbug.com/586449447): CHECK-exclusion: Convert to a CHECK
++          // once we are confident it won't be triggered.
++          DCHECK_EQ(position, range.start());
+           chunk = remaining_string.substr(0, range.end() - position);
+         } else {
+           chunk = substrings[0];
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_input.css b/ui/webui/resources/cr_components/searchbox/searchbox_input.css
+index ae38ba0..1d6ef93 100644
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_input.css
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_input.css
+@@ -327,3 +327,15 @@
+   left: -10000px;
+   position: absolute;
+ }
++
++/* Clip in place instead of moving offscreen, because an offscreen listbox
++   stretches a surface that sizes itself to its content (such as an unbounded
++   element). */
++:host([clip-selection-listbox]) #selectionListbox {
++  clip-path: inset(50%);
++  height: 1px;
++  left: auto;
++  overflow: hidden;
++  white-space: nowrap;
++  width: 1px;
++}
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_input.ts b/ui/webui/resources/cr_components/searchbox/searchbox_input.ts
+index 701d8f5..eced8811 100644
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_input.ts
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_input.ts
+@@ -80,6 +80,8 @@
+     return {
+       dropdownIsVisible: {type: Boolean, reflect: true},
+       multiLineEnabled: {type: Boolean, reflect: true},
++      clipSelectionListbox:
++          {type: Boolean, reflect: true, attribute: 'clip-selection-listbox'},
+       singleLineOnInlineAutocomplete: {type: Boolean},
+       forceSingleLine_:
+           {type: Boolean, reflect: true, attribute: 'force-single-line'},
+@@ -113,6 +115,7 @@
+ 
+   accessor dropdownIsVisible: boolean = false;
+   accessor multiLineEnabled: boolean = false;
++  accessor clipSelectionListbox: boolean = false;
+   accessor singleLineOnInlineAutocomplete: boolean = false;
+   accessor forceSingleLine_: boolean = false;
+   accessor showEllipsis_: boolean = false;
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts b/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts
+index 2bda71f..9c3a664 100644
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts
+@@ -117,7 +117,7 @@
+       // An 'Enter' pressed before the active query's results arrived waits for
+       // them. Starting a new query, or abandoning the active one should abort
+       // the pending navigate.
+-      this.lastIgnoredEnterEvent_ = null;
++      this.pendingKeydownEvent_ = null;
+     }
+ 
+     lastQueriedInput: string|null = null;
+@@ -182,7 +182,10 @@
+     // `control_key_state_`.
+     controlKeyState: ControlKeyState = ControlKeyState.UP;
+ 
+-    private lastIgnoredEnterEvent_: KeyboardEvent|null = null;
++    // A key press that needs the sync results for the latest input, pressed
++    // before they arrived. It's handled once they arrive. Only one key press
++    // waits at a time; later ones that would also wait are ignored.
++    private pendingKeydownEvent_: KeyboardEvent|null = null;
+     // The line of the match the backend was last asked to delete, while
+     // waiting for the post-deletion result. Null if no match was selected at
+     // the time. See `shouldPreserveSelectionOnMatchDeletion()`.
+@@ -490,8 +493,8 @@
+       this.pendingDeletionLine_ = null;
+       // Likewise, an 'Enter' pressed before this query's results arrived waits
+       // for its first results only, so it can't navigate on a later update.
+-      const ignoredEnterEvent = this.lastIgnoredEnterEvent_;
+-      this.lastIgnoredEnterEvent_ = null;
++      const pendingKeydownEvent = this.pendingKeydownEvent_;
++      this.pendingKeydownEvent_ = null;
+ 
+       this.result = result;
+       const hasMatches = this.hasMatches();
+@@ -517,8 +520,8 @@
+ 
+         // Navigate to the default up-to-date match if the user typed and
+         // pressed 'Enter' too fast.
+-        if (ignoredEnterEvent) {
+-          this.navigateToMatch(0, ignoredEnterEvent);
++        if (pendingKeydownEvent?.key === 'Enter') {
++          this.navigateToMatch(0, pendingKeydownEvent);
+         }
+ 
+       } else {
+@@ -698,14 +701,13 @@
+       // On user interaction, freeze the current results to avoid result updates
+       // potentially erasing user changes like cursor position. Freezing on
+       // 'enter' would break the fast-enter navigations via
+-      // `lastIgnoredEnterEvent_`. It'd cause the searchbox to discard the
+-      // pending results the navigation is waiting for, causing the navigation
+-      // to never occur. But this is a hack; comparing `e.key !=== 'Enter'` is
+-      // only a semi-accurate heuristic for whether a navigation is about to
+-      // occur. Pressing a modifier key by itself (e.g. the 'Shift' of
+-      // 'Shift+Enter') doesn't change the input, so it doesn't freeze the
+-      // results either; otherwise, fast modified-Enter navigations would use
+-      // stale results.
++      // `pendingKeydownEvent_`. It'd cause the searchbox to discard the pending
++      // results the navigation is waiting for, causing the navigation to never
++      // occur. But this is a hack; comparing `e.key !== 'Enter'` is only a
++      // semi-accurate heuristic for whether a navigation is about to occur.
++      // Pressing a modifier key by itself (e.g. the 'Shift' of 'Shift+Enter')
++      // doesn't change the input, so it doesn't freeze the results either;
++      // otherwise, fast modified-Enter navigations would use stale results.
+       if (e.key !== 'Enter' && !MODIFIER_KEYS.includes(e.key)) {
+         this.activeQueryId = -1;
+       }
+@@ -1004,8 +1006,7 @@
+       if (this.handleVirtualFocusEnter(e)) {
+         return;
+       }
+-      const resultsPending = this.activeQueryId !== -1 &&
+-          this.result?.queryId !== this.activeQueryId;
++      const resultsPending = this.areResultsPending_();
+       if (isPureCtrlEnter) {
+         // Ctrl+Enter adds 'www.' and '.com' to the previewed match or the
+         // input, but not to the default match. If new results are pending, the
+@@ -1019,17 +1020,27 @@
+         if (this.selectedMatch) {
+           this.navigateToMatch(this.matchIndex, e);
+         }
+-      } else {
++      } else if (!this.pendingKeydownEvent_) {
+         // User typed and pressed 'Enter' too quickly. Ignore this for now
+-        // because the matches are stale. Navigate to the default match (if
+-        // one exists) once the up-to-date matches arrive. Unfreeze
+-        // `activeQueryId` so pending query results are accepted. This must come
+-        // first, since setting it clears `lastIgnoredEnterEvent_`.
++        // because the matches are stale. Navigate to the default match (if one
++        // exists) once the up-to-date matches arrive. Only queue events if
++        // there is no already queued event; we don't want a later
++        // <shift><enter> to replace the first <enter>. Unfreeze `activeQueryId`
++        // so pending query results are accepted. This must come first, since
++        // setting it clears `pendingKeydownEvent_`.
+         this.activeQueryId = this.nextQueryId_ - 1;
+-        this.lastIgnoredEnterEvent_ = e;
++        this.pendingKeydownEvent_ = e;
+       }
+     }
+ 
++    /**
++     * Whether the sync results for the current input haven't arrived yet.
++     */
++    private areResultsPending_(): boolean {
++      return this.activeQueryId !== -1 &&
++          this.result?.queryId !== this.activeQueryId;
++    }
++
+     async handleKeyNavigation(e: KeyboardEvent) {
+       if (e.key === 'Backspace') {
+         const inputEl = this.getInputElement().inputElement;
+diff --git a/third_party/angle/src/compiler/translator/ParseContext.cpp b/third_party/angle/src/compiler/translator/ParseContext.cpp
+index 84e5486..4b21bef 100644
+--- a/third_party/angle/src/compiler/translator/ParseContext.cpp
++++ b/third_party/angle/src/compiler/translator/ParseContext.cpp
+@@ -366,6 +366,28 @@
+     return block->getQualifier() == EvqPerVertexIn;
+ }
+ 
++// Returns true if the type of a redeclared gl_PerVertex member matches the built-in's type.
++bool IsValidPerVertexMemberType(const ImmutableString &name, const TType &type)
++{
++    if (type.getBasicType() != EbtFloat || type.getSecondarySize() != 1)
++    {
++        return false;
++    }
++    if (name == "gl_Position")
++    {
++        return type.getNominalSize() == 4 && !type.isArray();
++    }
++    if (name == "gl_PointSize")
++    {
++        return type.getNominalSize() == 1 && !type.isArray();
++    }
++    if (name == "gl_ClipDistance" || name == "gl_CullDistance")
++    {
++        return type.getNominalSize() == 1 && type.isArray() && !type.isArrayOfArrays();
++    }
++    return false;
++}
++
+ void ValidateFragColorAndFragData(GLenum shaderType,
+                                   int shaderVersion,
+                                   const TSymbolTable &symbolTable,
+@@ -7370,6 +7392,11 @@
+                       "gl_ClipDistance and gl_CullDistance may be redeclared",
+                       field->name());
+             }
++            else if (!IsValidPerVertexMemberType(field->name(), *field->type()))
++            {
++                error(field->line(), "redeclaration of built-in with a different type",
++                      field->name());
++            }
+             if (field->name() == "gl_Position")
+             {
+                 fieldType->setQualifier(EvqPosition);
+@@ -7381,32 +7408,38 @@
+             if (field->name() == "gl_ClipDistance")
+             {
+                 fieldType->setQualifier(EvqClipDistance);
+-                if (static_cast<int>(field->type()->getOutermostArraySize()) >
+-                    mResources.MaxClipDistances)
++                if (field->type()->isArray())
+                 {
+-                    error(field->line(),
+-                          "array index out of range, redeclaration of gl_ClipDistance with size > "
+-                          "gl_MaxClipDistances",
+-                          field->name());
++                    if (static_cast<int>(field->type()->getOutermostArraySize()) >
++                        mResources.MaxClipDistances)
++                    {
++                        error(field->line(),
++                              "array index out of range, redeclaration of gl_ClipDistance with "
++                              "size > gl_MaxClipDistances",
++                              field->name());
++                    }
++                    MarkClipCullRedeclaredSize(
++                        field->line(), field->type()->getOutermostArraySize(),
++                        isPerVertexIn ? &mInputClipDistanceInfo : &mClipDistanceInfo);
+                 }
+-                MarkClipCullRedeclaredSize(
+-                    field->line(), field->type()->getOutermostArraySize(),
+-                    isPerVertexIn ? &mInputClipDistanceInfo : &mClipDistanceInfo);
+             }
+             if (field->name() == "gl_CullDistance")
+             {
+                 fieldType->setQualifier(EvqCullDistance);
+-                if (static_cast<int>(field->type()->getOutermostArraySize()) >
+-                    mResources.MaxCullDistances)
++                if (field->type()->isArray())
+                 {
+-                    error(field->line(),
+-                          "array index out of range, redeclaration of gl_CullDistance with size > "
+-                          "gl_MaxCullDistances",
+-                          field->name());
++                    if (static_cast<int>(field->type()->getOutermostArraySize()) >
++                        mResources.MaxCullDistances)
++                    {
++                        error(field->line(),
++                              "array index out of range, redeclaration of gl_CullDistance with "
++                              "size > gl_MaxCullDistances",
++                              field->name());
++                    }
++                    MarkClipCullRedeclaredSize(
++                        field->line(), field->type()->getOutermostArraySize(),
++                        isPerVertexIn ? &mInputCullDistanceInfo : &mCullDistanceInfo);
+                 }
+-                MarkClipCullRedeclaredSize(
+-                    field->line(), field->type()->getOutermostArraySize(),
+-                    isPerVertexIn ? &mInputCullDistanceInfo : &mCullDistanceInfo);
+             }
+         }
+     }
+diff --git a/build/util/LASTCHANGE b/build/util/LASTCHANGE
+--- a/build/util/LASTCHANGE
++++ b/build/util/LASTCHANGE
+@@ -1,2 +1,2 @@
+-LASTCHANGE=ee456dcc432646f3d9941126a2c0730fa223e098-refs/branch-heads/8154@{#871}
++LASTCHANGE=da5159d1f39fb6b3b0735b968df4aae0902e148e-refs/branch-heads/8154@{#953}
+ LASTCHANGE_YEAR=2026
+diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
+--- a/build/util/LASTCHANGE.committime
++++ b/build/util/LASTCHANGE.committime
+@@ -1 +1 @@
+-1794957825
+\ No newline at end of file
++1795001284
+\ No newline at end of file
+diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
+--- a/gpu/config/gpu_lists_version.h
++++ b/gpu/config/gpu_lists_version.h
+@@ -3,6 +3,6 @@
+ #ifndef GPU_CONFIG_GPU_LISTS_VERSION_H_
+ #define GPU_CONFIG_GPU_LISTS_VERSION_H_
+ 
+-#define GPU_LISTS_VERSION "ee456dcc432646f3d9941126a2c0730fa223e098"
++#define GPU_LISTS_VERSION "da5159d1f39fb6b3b0735b968df4aae0902e148e"
+ 
+ #endif  // GPU_CONFIG_GPU_LISTS_VERSION_H_
+diff --git a/gpu/webgpu/DAWN_VERSION b/gpu/webgpu/DAWN_VERSION
+--- a/gpu/webgpu/DAWN_VERSION
++++ b/gpu/webgpu/DAWN_VERSION
+@@ -1 +1 @@
+-69bfa246b5d7369f73c807d37648e25370f4db40
+\ No newline at end of file
++e8069b445d6e8d5a3aaba2a7a864159bec173ecd
+\ No newline at end of file
+diff --git a/gpu/webgpu/dawn_commit_hash.h b/gpu/webgpu/dawn_commit_hash.h
+--- a/gpu/webgpu/dawn_commit_hash.h
++++ b/gpu/webgpu/dawn_commit_hash.h
+@@ -3,6 +3,6 @@
+ #ifndef GPU_WEBGPU_DAWN_COMMIT_HASH_H_
+ #define GPU_WEBGPU_DAWN_COMMIT_HASH_H_
+ 
+-#define DAWN_COMMIT_HASH "69bfa246b5d7369f73c807d37648e25370f4db40"
++#define DAWN_COMMIT_HASH "e8069b445d6e8d5a3aaba2a7a864159bec173ecd"
+ 
+ #endif  // GPU_WEBGPU_DAWN_COMMIT_HASH_H_
