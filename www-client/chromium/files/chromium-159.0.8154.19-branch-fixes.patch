@@ -1,9 +1,9 @@
 Chromium 159.0.8154.19 + the later changes of its release branch, up to
-3cf62f22d3a4dec15edddabe6182b0815b326f42 (refs/branch-heads/8154@{#921}), for the
+96eab7b7d548400afea596a272c6be04d3131edf (refs/branch-heads/8154@{#941}), for the
 159.0.8154.19 tree that chromium-159.0.8154.6-to-159.0.8154.19.patch makes.
 
 Generated from the upstream diff chromium/src
-refs/tags/159.0.8154.19..3cf62f22d3a4dec15edddabe6182b0815b326f42, and from its roll
+refs/tags/159.0.8154.19..96eab7b7d548400afea596a272c6be04d3131edf, and from its roll
 of angle 0f0b90f0b5bf61cc630870d5d4bf0c07d906e975..525fbae78ff28982cb5c6d1c94cd331bdbfc42f9
 (under third_party/angle/), as served by Gitiles, with
 scripts/chromium-delta --branch-fixes (against the .19 tree's files): left out are
@@ -29,14 +29,105 @@ Commits contributing to it (oldest first):
   d91115ba3774 [M159] Defer SyncLoadContext completion while handling redirects
   ec9bb4aa5097 [M159] Revert CHECK back to DCHECK in AXPosition::AsLeafTextPosition
   3912f18323ed [M159] [ServiceWorker] Invoke fetch response callbacks directly from Take()
-  3cf62f22d3a4 [M159] Fix caching for built-in strategy size functions
+  96eab7b7d548 [M159] Fix caching for built-in strategy size functions
+  df92ff69fde7 [M159] Revert CHECK to DCHECK in BackForwardMenuModel::ActivatedAt
+  5e8fb7e29a9b [M159] Revert CHECK to DCHECK in WindowOcclusionTracker observer addition
+  564ca4023df8 [M159] Convert CHECK to DCHECK in IncreaseRelaunchDeadlineOnShow
+  022f6897576a [M159] [Webium] Don't bind Live Caption interfaces in TopChromeWebUIProfile
+  01df0b92e9dc [M159] FSA: block remote desktop client-drive UNC paths on Windows
+  032908730576 [M159] FSA: disallow platform path resolution in incognito
+  aa12292cc49e [M159] Revert CHECK to DCHECK in AXNode::GetParent()
+  d84c49fbd5cb [M159] [ServiceWorker] Queue startup during network restriction registration
 
 Checked: applies to the 159.0.8154.19 tree (the .6 tarball with
 chromium-159.0.8154.6-to-159.0.8154.19.patch); every patched source file is
-byte-identical to its version at 3cf62f22d3a4 (or its dependency's DEPS revision).
+byte-identical to its version at 96eab7b7d548 (or its dependency's DEPS revision).
 
 Apply with git apply.
 
+
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index 668ab11f..5386c52 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -5225,6 +5225,7 @@
+     sources = [
+       "browser_encoding_browsertest.cc",
+       "chained_back_navigation_tracker_browsertest.cc",
++      "chrome_browser_interface_binders_browsertest.cc",
+       "chrome_content_browser_client_browsertest.cc",
+       "chrome_data_use_measurement_browsertest.cc",
+       "chrome_do_not_track_browsertest.cc",
+@@ -5282,12 +5283,15 @@
+       "//chrome/browser/ui:ui_features",
+       "//chrome/browser/ui/login",
+       "//chrome/browser/ui/search:test_support_ui",
++      "//chrome/browser/ui/webui/top_chrome",
++      "//chrome/services/speech/buildflags",
+       "//chrome/test/base:profile_lifecycle_test_utils",
+       "//chrome/test/base:test_launcher_utils",
+       "//chrome/test/base:testing_browser_process",
+       "//components/embedder_support",
+       "//components/enterprise/data_controls/core/browser:test_support",
+       "//components/javascript_dialogs",
++      "//components/live_caption:utils",
+       "//components/prefs",
+       "//components/privacy_sandbox/privacy_sandbox_attestations:test_support",
+       "//components/site_isolation",
+diff --git a/chrome/browser/chrome_browser_interface_binders.cc b/chrome/browser/chrome_browser_interface_binders.cc
+index 3a62cda..d2299aa6 100644
+--- a/chrome/browser/chrome_browser_interface_binders.cc
++++ b/chrome/browser/chrome_browser_interface_binders.cc
+@@ -27,6 +27,7 @@
+ #include "chrome/browser/preloading/prefetch/no_state_prefetch/chrome_no_state_prefetch_processor_impl_delegate.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/profiles/profile_manager.h"
++#include "chrome/browser/profiles/profile_selections.h"
+ #include "chrome/browser/pwc/pwc_api_binder.h"
+ #include "chrome/browser/reader_mode/reader_mode_service_factory.h"
+ #include "chrome/browser/signin/identity_manager_factory.h"
+@@ -357,10 +358,13 @@
+     content::RenderFrameHost* frame_host,
+     mojo::PendingReceiver<media::mojom::SpeechRecognitionClientBrowserInterface>
+         receiver) {
+-  if (captions::IsLiveCaptionFeatureSupported()) {
++  Profile* profile = Profile::FromBrowserContext(
++      frame_host->GetProcess()->GetBrowserContext());
++  // A profile with keyed services disabled by default, e.g.
++  // TopChromeWebUIProfile, has no SpeechRecognitionClientBrowserInterface.
++  if (captions::IsLiveCaptionFeatureSupported() &&
++      !AreKeyedServicesDisabledForProfileByDefault(profile)) {
+     // Bind in this process.
+-    Profile* profile = Profile::FromBrowserContext(
+-        frame_host->GetProcess()->GetBrowserContext());
+     SpeechRecognitionClientBrowserInterfaceFactory::GetForProfile(profile)
+         ->BindReceiver(std::move(receiver), frame_host->GetGlobalId());
+   }
+diff --git a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
+index 3f742f23..50a752f 100644
+--- a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
++++ b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
+@@ -294,6 +294,9 @@
+       FILE_PATH_LITERAL(".host"),
+       FILE_PATH_LITERAL("vboxsvr"),
+       FILE_PATH_LITERAL("vboxsrv"),
++      // Remote desktop client-drive redirectors (RDP/Horizon, Citrix HDX).
++      FILE_PATH_LITERAL("tsclient"),
++      FILE_PATH_LITERAL("client"),
+   };
+   for (const auto& candidate : kLocalServers) {
+     if (base::FilePath::CompareEqualIgnoreCase(server, candidate)) {
+@@ -304,8 +307,8 @@
+ }
+ 
+ // Returns true if the path is a Universal Naming Convention (UNC) path pointing
+-// to a local system path, device namespace, WSL loopback redirector, or
+-// hypervisor host-share namespace.
++// to a local system path, device namespace, WSL loopback redirector,
++// hypervisor host-share namespace, or remote-session client drive redirector.
+ bool MaybeIsLocalUNCPath(const base::FilePath& path) {
+   if (!path.IsNetwork()) {
+     return false;
 diff --git a/chrome/browser/glic/service/metrics/glic_instance_metrics.cc b/chrome/browser/glic/service/metrics/glic_instance_metrics.cc
 index 0af058a..5c2aecb7 100644
 --- a/chrome/browser/glic/service/metrics/glic_instance_metrics.cc
@@ -118,6 +209,21 @@ index 4ebf318..7219fa9 100644
    PrefService* prefs = profile->GetPrefs();
  
    if (!prefs->GetBoolean(
+diff --git a/chrome/browser/ui/toolbar/back_forward_menu_model.cc b/chrome/browser/ui/toolbar/back_forward_menu_model.cc
+index 82eee00..da99780 100644
+--- a/chrome/browser/ui/toolbar/back_forward_menu_model.cc
++++ b/chrome/browser/ui/toolbar/back_forward_menu_model.cc
+@@ -209,7 +209,9 @@
+ }
+ 
+ void BackForwardMenuModel::ActivatedAt(size_t index, int event_flags) {
+-  CHECK(!IsSeparator(index), base::NotFatalUntil::M162);
++  // TODO(crbug.com/586448594): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(!IsSeparator(index));
+ 
+   std::optional<MenuSection> section = GetSectionForIndex(index);
+   if (!section.has_value()) {
 diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
 index 0f509c5..9b820e4 100644
 --- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
@@ -319,6 +425,21 @@ index 710af61..d87c61c6 100644
  
    Step step;
    // SAML with ForceSignin flow is migrated to the regular Profile Picker flow.
+diff --git a/chrome/browser/ui/views/relaunch_notification/relaunch_notification_controller.cc b/chrome/browser/ui/views/relaunch_notification/relaunch_notification_controller.cc
+index 4777ca3..8e467fb 100644
+--- a/chrome/browser/ui/views/relaunch_notification/relaunch_notification_controller.cc
++++ b/chrome/browser/ui/views/relaunch_notification/relaunch_notification_controller.cc
+@@ -325,7 +325,9 @@
+ }
+ 
+ base::Time RelaunchNotificationController::IncreaseRelaunchDeadlineOnShow() {
+-  CHECK(timer_.IsRunning(), base::NotFatalUntil::M162);
++  // TODO(crbug.com/585705001): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(timer_.IsRunning());
+   CHECK(!timer_.desired_run_time().is_null(), base::NotFatalUntil::M162);
+   base::Time relaunch_deadline = timer_.desired_run_time();
+ 
 diff --git a/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views.cc b/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views.cc
 index a3c5c93..59e46af 100644
 --- a/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views.cc
@@ -391,6 +512,258 @@ index fd7239e..9bb548b2 100644
    const raw_ptr<content::BrowserContext, DanglingUntriaged> browser_context_;
  
    ui::SimpleMenuModel menu_model_;
+diff --git a/content/browser/file_system/browser_file_system_helper.cc b/content/browser/file_system/browser_file_system_helper.cc
+index 06a386d..4520c0c 100644
+--- a/content/browser/file_system/browser_file_system_helper.cc
++++ b/content/browser/file_system/browser_file_system_helper.cc
+@@ -79,6 +79,7 @@
+         security_policy_handle,
+     const base::FilePath& platform_path) {
+   CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
++  CHECK(!platform_path.empty());
+ 
+   // It is only possible to grant new permissions if the RenderProcessHost still
+   // exists by the time this task runs. If it does exist and doesn't yet have
+@@ -104,13 +105,18 @@
+   CHECK(context->default_file_task_runner()->RunsTasksInCurrentSequence(),
+         base::NotFatalUntil::M159);
+ 
+-  if (!can_read_filesystem_file) {
++  if (!can_read_filesystem_file || context->is_incognito()) {
+     std::move(callback).Run(base::FilePath());
+     return;
+   }
+ 
+   base::FilePath platform_path;
+-  context->operation_runner()->SyncGetPlatformPath(url, &platform_path);
++  if (context->operation_runner()->SyncGetPlatformPath(url, &platform_path) !=
++          base::File::FILE_OK ||
++      platform_path.empty()) {
++    std::move(callback).Run(base::FilePath());
++    return;
++  }
+ 
+   GetUIThreadTaskRunner({})->PostTaskAndReply(
+       FROM_HERE,
+diff --git a/content/browser/service_worker/service_worker_version.cc b/content/browser/service_worker/service_worker_version.cc
+index 8889ecb..5ea7280 100644
+--- a/content/browser/service_worker/service_worker_version.cc
++++ b/content/browser/service_worker/service_worker_version.cc
+@@ -66,6 +66,7 @@
+ #include "content/public/common/result_codes.h"
+ #include "crypto/hash.h"
+ #include "mojo/public/c/system/types.h"
++#include "mojo/public/cpp/bindings/callback_helpers.h"
+ #include "net/base/net_errors.h"
+ #include "net/cookies/site_for_cookies.h"
+ #include "net/http/http_response_headers.h"
+@@ -361,6 +362,15 @@
+     std::move(callback).Run(blink::ServiceWorkerStatusCode::kErrorAbort);
+   }
+ 
++  // StartWorker() requests waiting for the network restrictions registration
++  // are not in `start_callbacks_` yet. Running them here aborts them too.
++  std::vector<base::OnceClosure> pending_network_restrictions_callbacks;
++  pending_network_restrictions_callbacks.swap(
++      pending_network_restrictions_callbacks_);
++  for (auto& callback : pending_network_restrictions_callbacks) {
++    std::move(callback).Run();
++  }
++
+   if (context_) {
+     context_->RemoveLiveVersion(version_id_);
+   }
+@@ -2421,7 +2431,8 @@
+ 
+ bool ServiceWorkerVersion::HasWorkInBrowser() const {
+   return !inflight_requests_.IsEmpty() || !start_callbacks_.empty() ||
+-         !warm_up_callbacks_.empty();
++         !warm_up_callbacks_.empty() ||
++         !pending_network_restrictions_callbacks_.empty();
+ }
+ 
+ void ServiceWorkerVersion::OnSimpleEventFinished(
+@@ -2640,6 +2651,47 @@
+         blink::ServiceWorkerStatusCode::kErrorStartWorkerFailed));
+     return;
+   }
++
++  // Network restrictions (like connection allowlists) must be registered with
++  // the network service before a stopped worker is started, so that even the
++  // initial script evaluation is subject to them. The registration is
++  // asynchronous. Wait for it before touching any start state, so that
++  // StartWorker() requests arriving in the meantime queue up behind it rather
++  // than starting the worker themselves.
++  if (running_status() == blink::EmbeddedWorkerStatus::kStopped) {
++    MaybeRegisterNetworkRestrictions(base::BindOnce(
++        [](base::WeakPtr<ServiceWorkerVersion> self,
++           ServiceWorkerMetrics::EventType purpose, Status prestart_status,
++           bool is_browser_startup_complete, StatusCallback callback,
++           scoped_refptr<ServiceWorkerRegistration> protect) {
++          // Abort if the version is being destroyed, as its destructor runs the
++          // waiting requests, or if an earlier waiting request destroyed it
++          // (see StartWorkerInternal()).
++          if (!self || self->in_dtor_) {
++            std::move(callback).Run(
++                blink::ServiceWorkerStatusCode::kErrorAbort);
++            return;
++          }
++          self->StartWorkerAfterNetworkRestrictions(
++              purpose, prestart_status, is_browser_startup_complete,
++              std::move(callback), std::move(protect));
++        },
++        weak_factory_.GetWeakPtr(), purpose, prestart_status,
++        is_browser_startup_complete, std::move(callback), std::move(protect)));
++    return;
++  }
++
++  StartWorkerAfterNetworkRestrictions(purpose, prestart_status,
++                                      is_browser_startup_complete,
++                                      std::move(callback), std::move(protect));
++}
++
++void ServiceWorkerVersion::StartWorkerAfterNetworkRestrictions(
++    ServiceWorkerMetrics::EventType purpose,
++    Status prestart_status,
++    bool is_browser_startup_complete,
++    StatusCallback callback,
++    scoped_refptr<ServiceWorkerRegistration> protect) {
+   if (is_redundant()) {
+     RecordStartWorkerResult(purpose, prestart_status, kInvalidTraceId,
+                             is_browser_startup_complete,
+@@ -2756,13 +2808,7 @@
+   }
+ 
+   if (running_status() == blink::EmbeddedWorkerStatus::kStopped) {
+-    // Ensure that network restrictions (like connection allowlists) are
+-    // registered with the network service before the worker is started. This
+-    // ensures that even the initial script evaluation is subject to these
+-    // restrictions.
+-    MaybeRegisterNetworkRestrictions(
+-        base::BindOnce(&ServiceWorkerVersion::StartWorkerInternal,
+-                       weak_factory_.GetWeakPtr()));
++    StartWorkerInternal();
+   }
+   // Warning: StartWorkerInternal() might have deleted `this` on failure.
+ }
+@@ -3801,13 +3847,36 @@
+     return;
+   }
+ 
+-  network_restrictions_registered_ = true;
++  // `network_restrictions_registered_` is only set once the network service
++  // has replied. Callers arriving before that wait for the registration that
++  // is already in flight.
++  pending_network_restrictions_callbacks_.push_back(std::move(callback));
++  if (pending_network_restrictions_callbacks_.size() > 1) {
++    return;
++  }
++
++  // The reply is dropped if the network context is disconnected first. Proceed
++  // in that case too: StoragePartitionImpl re-sends the restrictions to the
++  // network context it creates next.
+   context_->wrapper()
+       ->storage_partition()
+       ->RestrictNetworkForIdsInNetworkContext(
+           {{network_restrictions_id_,
+             policy_container_host_->policies().connection_allowlists}},
+-          std::move(callback));
++          mojo::WrapCallbackWithDefaultInvokeIfNotRun(base::BindOnce(
++              &ServiceWorkerVersion::OnNetworkRestrictionsRegistered,
++              weak_factory_.GetWeakPtr())));
++}
++
++void ServiceWorkerVersion::OnNetworkRestrictionsRegistered() {
++  network_restrictions_registered_ = true;
++  // The callbacks can call MaybeRegisterNetworkRestrictions() again or delete
++  // `this` (see StartWorkerInternal()), so run them from the stack.
++  std::vector<base::OnceClosure> callbacks;
++  callbacks.swap(pending_network_restrictions_callbacks_);
++  for (auto& callback : callbacks) {
++    std::move(callback).Run();
++  }
+ }
+ 
+ }  // namespace content
+diff --git a/content/browser/service_worker/service_worker_version.h b/content/browser/service_worker/service_worker_version.h
+index 5575112d..a7eccde 100644
+--- a/content/browser/service_worker/service_worker_version.h
++++ b/content/browser/service_worker/service_worker_version.h
+@@ -1072,6 +1072,20 @@
+       StatusCallback callback,
+       blink::ServiceWorkerStatusCode status,
+       scoped_refptr<ServiceWorkerRegistration> registration);
++  // The rest of DidEnsureLiveRegistrationForStartWorker(), with `protect`
++  // being the live registration. A stopped worker first waits for its network
++  // restrictions to be registered (see MaybeRegisterNetworkRestrictions()), so
++  // this can run later and the version can have become redundant by then.
++  void StartWorkerAfterNetworkRestrictions(
++      ServiceWorkerMetrics::EventType purpose,
++      Status prestart_status,
++      bool is_browser_startup_complete,
++      StatusCallback callback,
++      scoped_refptr<ServiceWorkerRegistration> protect);
++  // Called when the network service has registered the network restrictions,
++  // or when the network context was disconnected before replying. Runs
++  // `pending_network_restrictions_callbacks_`.
++  void OnNetworkRestrictionsRegistered();
+   void StartWorkerInternal();
+ 
+   // Returns true if the service worker is known to have work to do because the
+@@ -1478,6 +1492,10 @@
+   // Whether the network restrictions for this worker have been registered with
+   // the network service.
+   bool network_restrictions_registered_ = false;
++  // Callbacks passed to MaybeRegisterNetworkRestrictions() that are waiting
++  // for the registration, which is in flight iff this is non-empty. Run when
++  // the registration is done, or by the destructor.
++  std::vector<base::OnceClosure> pending_network_restrictions_callbacks_;
+ 
+   base::WeakPtrFactory<ServiceWorkerVersion> weak_factory_{this};
+ };
+diff --git a/storage/browser/file_system/file_system_operation.h b/storage/browser/file_system/file_system_operation.h
+index 9e23797..fc445a7 100644
+--- a/storage/browser/file_system/file_system_operation.h
++++ b/storage/browser/file_system/file_system_operation.h
+@@ -463,10 +463,10 @@
+                              CopyOrMoveOptionSet options,
+                              StatusCallback callback) = 0;
+ 
+-  // Synchronously gets the platform path for the given |url|.
+-  // This may fail if the given |url|'s filesystem type is neither
+-  // temporary nor persistent.
+-  // In such a case, base::File::FILE_ERROR_INVALID_OPERATION will be
++  // Synchronously gets the platform path for the given `url`.
++  // This may fail if the given `url`'s filesystem type is neither
++  // temporary nor persistent, or if the context is in incognito mode.
++  // In such a case, `base::File::FILE_ERROR_INVALID_OPERATION` will be
+   // returned.
+   virtual base::File::Error SyncGetPlatformPath(
+       const FileSystemURL& url,
+diff --git a/storage/browser/file_system/file_system_operation_impl.cc b/storage/browser/file_system/file_system_operation_impl.cc
+index 87f9dde7..3191f835 100644
+--- a/storage/browser/file_system/file_system_operation_impl.cc
++++ b/storage/browser/file_system/file_system_operation_impl.cc
+@@ -381,12 +381,16 @@
+     const FileSystemURL& url,
+     base::FilePath* platform_path) {
+   CheckOperationType(OperationType::kGetLocalPath);
+-  if (!file_system_context()->IsSandboxFileSystem(url.type()))
++  CHECK(platform_path);
++  *platform_path = base::FilePath();
++  if (!file_system_context()->IsSandboxFileSystem(url.type()) ||
++      file_system_context()->is_incognito()) {
+     return base::File::FILE_ERROR_INVALID_OPERATION;
++  }
+   FileSystemFileUtil* file_util =
+       file_system_context()->sandbox_delegate()->sync_file_util();
+-  file_util->GetLocalFilePath(operation_context_.get(), url, platform_path);
+-  return base::File::FILE_OK;
++  return file_util->GetLocalFilePath(operation_context_.get(), url,
++                                     platform_path);
+ }
+ 
+ FileSystemOperationImpl::FileSystemOperationImpl(
 diff --git a/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc b/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc
 index 9775efc..0ff7a609 100644
 --- a/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc
@@ -841,6 +1214,21 @@ index 91e0398..8ad3623 100644
  <action name="Glic.Fre.NoThanks">
    <owner>iwells@google.com</owner>
    <owner>erikchen@chromium.org</owner>
+diff --git a/ui/accessibility/ax_node.cc b/ui/accessibility/ax_node.cc
+index 2a43287..8e0b9d9 100644
+--- a/ui/accessibility/ax_node.cc
++++ b/ui/accessibility/ax_node.cc
+@@ -182,7 +182,9 @@
+ }
+ 
+ AXNode* AXNode::GetParent() const {
+-  CHECK(!tree_->GetTreeUpdateInProgressState(), base::NotFatalUntil::M163);
++  // TODO(crbug.com/585935998): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(!tree_->GetTreeUpdateInProgressState());
+   return parent_;
+ }
+ 
 diff --git a/ui/accessibility/ax_position.h b/ui/accessibility/ax_position.h
 index 74927845..c4d1896 100644
 --- a/ui/accessibility/ax_position.h
@@ -856,6 +1244,22 @@ index 74927845..c4d1896 100644
  
      int offset_in_parent = text_position->text_offset_;
      // Determine the anchor and text offset of the leaf equivalent position by
+diff --git a/ui/aura/window_occlusion_tracker.cc b/ui/aura/window_occlusion_tracker.cc
+index 6b4623c..7f480b7 100644
+--- a/ui/aura/window_occlusion_tracker.cc
++++ b/ui/aura/window_occlusion_tracker.cc
+@@ -885,8 +885,9 @@
+     CHECK(window_observations_.IsObservingSource(window),
+           base::NotFatalUntil::M163);
+   } else {
+-    CHECK(!window_observations_.IsObservingSource(window),
+-          base::NotFatalUntil::M163);
++    // TODO(crbug.com/586507442): CHECK-exclusion: Convert to a CHECK once we
++    // are confident it won't be triggered.
++    DCHECK(!window_observations_.IsObservingSource(window));
+     window_observations_.AddObservation(window);
+   }
+   for (Window* child_window : window->children())
 diff --git a/ui/views/controls/menu/menu_controller.cc b/ui/views/controls/menu/menu_controller.cc
 index 588d406e..eda46c8 100644
 --- a/ui/views/controls/menu/menu_controller.cc

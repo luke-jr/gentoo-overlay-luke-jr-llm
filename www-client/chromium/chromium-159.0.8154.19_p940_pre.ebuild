@@ -192,7 +192,7 @@ SLOT="beta/fixes"
 # Linux Beta: no keywords (accept it with "**"); ~amd64 once it is Early Stable.
 KEYWORDS=""
 
-# The 159 branch's changes after the 159.0.8154.19 tag, up to #921 (see its header).
+# The 159 branch's changes after the 159.0.8154.19 tag, up to #940 (see its header).
 CHROMIUM_FIXES=(
 	chromium-159.0.8154.19-branch-fixes.patch
 )
