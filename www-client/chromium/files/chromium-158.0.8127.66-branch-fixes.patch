@@ -1,8 +1,9 @@
 Chromium 158.0.8127.66 + the later changes of its release branch, up to
-7b03812ef8d77bde1d56fedb3ffe9a8b9fac5464 (refs/branch-heads/8127@{#1930}), for the
+1ed4f35e8ade0874c5275e04cd3f3d8f02137a05 (refs/branch-heads/8127@{#1934}), for the
 158.0.8127.66 tree that chromium-158.0.8127.37-to-158.0.8127.66.patch makes.
+The newest change it carries is 8127@{#1933}; #1934 is an orderfile pointer roll (left out).
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.66..7b03812ef8d77bde1d56fedb3ffe9a8b9fac5464
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.66..1ed4f35e8ade0874c5275e04cd3f3d8f02137a05
 and from its roll of angle 1069527181b8d4cf55f604d06557381a2a09b2ea..cb3a38f37525831914266bfc8964eb39c675c5ee (under third_party/angle/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .66 tree's files): left out are files not in the release tarball,
@@ -19,6 +20,7 @@ Commits contributing to it (oldest first):
   4871aef3ac0a [M158] Fix caching for built-in strategy size functions
   3be7232af1e1 [M158] FSA: block remote desktop client-drive UNC paths on Windows
   7b03812ef8d7 [M158] [ServiceWorker] Queue startup during network restriction registration
+  cf4f060fd986 [M158] [webgpu] Make DawnWireServices::lock_ unconditional
 
 diff --git a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
 index 8472814..ca3299c 100644
@@ -221,6 +223,164 @@ index 41737c6b..17ad39d 100644
  
    base::WeakPtrFactory<ServiceWorkerVersion> weak_factory_{this};
  };
+diff --git a/gpu/command_buffer/client/webgpu_implementation.cc b/gpu/command_buffer/client/webgpu_implementation.cc
+index cc11a52c..2cf1c71a 100644
+--- a/gpu/command_buffer/client/webgpu_implementation.cc
++++ b/gpu/command_buffer/client/webgpu_implementation.cc
+@@ -15,7 +15,6 @@
+ #include "base/numerics/checked_math.h"
+ #include "base/run_loop.h"
+ #include "base/trace_event/trace_event.h"
+-#include "base/types/optional_util.h"
+ #include "gpu/command_buffer/client/dawn_client_memory_transfer_service.h"
+ #include "gpu/command_buffer/client/dawn_client_serializer.h"
+ #include "gpu/command_buffer/client/gpu_control.h"
+@@ -38,10 +37,8 @@
+     WebGPUImplementation* webgpu_implementation,
+     WebGPUCmdHelper* helper,
+     MappedMemoryManager* mapped_memory,
+-    std::unique_ptr<TransferBuffer> transfer_buffer,
+-    bool support_locking)
+-    : lock_(support_locking ? std::make_optional<base::Lock>() : std::nullopt),
+-      memory_transfer_service_(
++    std::unique_ptr<TransferBuffer> transfer_buffer)
++    : memory_transfer_service_(
+           mapped_memory,
+           base::FeatureList::IsEnabled(
+               features::kWebGPUUseDedicatedTransferBuffer)),
+@@ -72,7 +69,7 @@
+ 
+ void DawnWireServices::Disconnect() {
+   {
+-    base::AutoLockMaybe lock(OptionalToPtr(lock_));
++    base::AutoLock lock(lock_);
+     disconnected_ = true;
+   }
+   wire_client_.Disconnect();
+@@ -86,7 +83,7 @@
+   TRACE_EVENT(TRACE_DISABLED_BY_DEFAULT("gpu.dawn"), "DawnReturnCommands",
+               perfetto::TerminatingFlow::Global(trace_id));
+ 
+-  base::AutoLockMaybe lock(OptionalToPtr(lock_));
++  base::AutoLock lock(lock_);
+   if (disconnected_) {
+     return;
+   }
+@@ -102,29 +99,29 @@
+ dawn::wire::ReservedBuffer DawnWireServices::ReserveBuffer(
+     WGPUDevice device,
+     const WGPUBufferDescriptor* desc) {
+-  base::AutoLockMaybe lock(OptionalToPtr(lock_));
++  base::AutoLock lock(lock_);
+   return wire_client_.ReserveBuffer(device, desc);
+ }
+ 
+ dawn::wire::ReservedTexture DawnWireServices::ReserveTexture(
+     WGPUDevice device,
+     const WGPUTextureDescriptor* desc) {
+-  base::AutoLockMaybe lock(OptionalToPtr(lock_));
++  base::AutoLock lock(lock_);
+   return wire_client_.ReserveTexture(device, desc);
+ }
+ 
+ void DawnWireServices::Commit() {
+-  base::AutoLockMaybe lock(OptionalToPtr(lock_));
++  base::AutoLock lock(lock_);
+   serializer_.Commit();
+ }
+ 
+ void DawnWireServices::SetAwaitingFlush(bool awaiting_flush) {
+-  base::AutoLockMaybe lock(OptionalToPtr(lock_));
++  base::AutoLock lock(lock_);
+   serializer_.SetAwaitingFlush(awaiting_flush);
+ }
+ 
+ bool DawnWireServices::EnsureAwaitingFlush() {
+-  base::AutoLockMaybe lock(OptionalToPtr(lock_));
++  base::AutoLock lock(lock_);
+   // If there is already a flush waiting, we don't need to flush.
+   // We only want to ask for a flush on state transition from
+   // false -> true.
+@@ -138,7 +135,7 @@
+ }
+ 
+ void DawnWireServices::FreeMappedResources(WebGPUCmdHelper* helper) {
+-  base::AutoLockMaybe lock(OptionalToPtr(lock_));
++  base::AutoLock lock(lock_);
+   memory_transfer_service_.FreeHandles(helper);
+ }
+ #endif
+@@ -151,8 +148,7 @@
+ WebGPUImplementation::WebGPUImplementation(
+     WebGPUCmdHelper* helper,
+     TransferBufferInterface* transfer_buffer,
+-    GpuControl* gpu_control,
+-    bool support_locking)
++    GpuControl* gpu_control)
+     : ImplementationBase(helper, transfer_buffer, gpu_control),
+       helper_(helper),
+       main_task_runner_(base::SequencedTaskRunner::GetCurrentDefault()) {}
+@@ -208,8 +204,7 @@
+ 
+ #if BUILDFLAG(USE_DAWN)
+   dawn_wire_ = base::MakeRefCounted<DawnWireServices>(
+-      this, helper_, mapped_memory_.get(), std::move(transfer_buffer),
+-      main_task_runner_ != nullptr);
++      this, helper_, mapped_memory_.get(), std::move(transfer_buffer));
+ #endif
+ 
+   return gpu::ContextResult::kSuccess;
+diff --git a/gpu/command_buffer/client/webgpu_implementation.h b/gpu/command_buffer/client/webgpu_implementation.h
+index 6c80ac7..5ad19329 100644
+--- a/gpu/command_buffer/client/webgpu_implementation.h
++++ b/gpu/command_buffer/client/webgpu_implementation.h
+@@ -9,12 +9,13 @@
+ #include <dawn/wire/WireClient.h>
+ 
+ #include <memory>
+-#include <optional>
+ #include <utility>
+ #include <vector>
+ 
+ #include "base/memory/raw_ptr.h"
++#include "base/synchronization/lock.h"
+ #include "base/task/sequenced_task_runner.h"
++#include "base/thread_annotations.h"
+ #include "gpu/command_buffer/client/dawn_client_memory_transfer_service.h"
+ #include "gpu/command_buffer/client/dawn_client_serializer.h"
+ #include "gpu/command_buffer/client/dawn_wire_client.h"
+@@ -40,8 +41,7 @@
+   DawnWireServices(WebGPUImplementation* webgpu_implementation,
+                    WebGPUCmdHelper* helper,
+                    MappedMemoryManager* mapped_memory,
+-                   std::unique_ptr<TransferBuffer> transfer_buffer,
+-                   bool support_locking = false);
++                   std::unique_ptr<TransferBuffer> transfer_buffer);
+ 
+   base::WeakPtr<DawnWireServices> AsWeakPtr();
+ 
+@@ -65,9 +65,9 @@
+ 
+  private:
+   // Lock to access internal Dawn wire related state.
+-  mutable std::optional<base::Lock> lock_ = std::nullopt;
++  mutable base::Lock lock_;
+ 
+-  bool disconnected_ = false;
++  bool disconnected_ GUARDED_BY(lock_) = false;
+   DawnClientMemoryTransferService memory_transfer_service_;
+   DawnClientSerializer serializer_;
+   DawnWireClient wire_client_;
+@@ -81,8 +81,7 @@
+  public:
+   explicit WebGPUImplementation(WebGPUCmdHelper* helper,
+                                 TransferBufferInterface* transfer_buffer,
+-                                GpuControl* gpu_control,
+-                                bool support_locking = false);
++                                GpuControl* gpu_control);
+ 
+   WebGPUImplementation(const WebGPUImplementation&) = delete;
+   WebGPUImplementation& operator=(const WebGPUImplementation&) = delete;
 diff --git a/media/base/offloading_audio_encoder.cc b/media/base/offloading_audio_encoder.cc
 index 9667ab2..09eb320 100644
 --- a/media/base/offloading_audio_encoder.cc
@@ -389,6 +549,20 @@ index 20a0e23..4ec5c9279a 100644
  
    ~OffloadingVideoEncoder() override;
  
+diff --git a/services/viz/public/cpp/gpu/context_provider_command_buffer.cc b/services/viz/public/cpp/gpu/context_provider_command_buffer.cc
+index 0610e43..51885c0 100644
+--- a/services/viz/public/cpp/gpu/context_provider_command_buffer.cc
++++ b/services/viz/public/cpp/gpu/context_provider_command_buffer.cc
+@@ -284,8 +284,7 @@
+       // The WebGPUImplementation exposes the WebGPUInterface, as well as the
+       // gpu::ContextSupport interface.
+       auto webgpu_impl = std::make_unique<gpu::webgpu::WebGPUImplementation>(
+-          webgpu_helper.get(), transfer_buffer.get(), command_buffer_.get(),
+-          default_task_runner_ != reply_task_runner_);
++          webgpu_helper.get(), transfer_buffer.get(), command_buffer_.get());
+       bind_result_ = webgpu_impl->Initialize(memory_limits_);
+       if (bind_result_ != gpu::ContextResult::kSuccess) {
+         DLOG(ERROR) << "Failed to initialize WebGPUImplementation.";
 diff --git a/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc b/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc
 index 9775efc..0ff7a609 100644
 --- a/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc
