@@ -1,9 +1,9 @@
 Chromium 158.0.8127.66 + the later changes of its release branch, up to
-fa975a210344f49691e885ef28c1014f880badc3 (refs/branch-heads/8127@{#1951}), for the
+638b98bca00fa5ce6a6199bd80cf957906d847f8 (refs/branch-heads/8127@{#1960}), for the
 158.0.8127.66 tree that chromium-158.0.8127.37-to-158.0.8127.66.patch makes.
-The newest change it carries is 8127@{#1951}; the orderfile, PGO profile and AFDO pointer rolls between are left out.
+The newest change it carries is 8127@{#1956}; the orderfile, PGO profile and AFDO pointer rolls and the VERSION increments between are left out.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.66..fa975a210344f49691e885ef28c1014f880badc3,
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.66..638b98bca00fa5ce6a6199bd80cf957906d847f8,
 from its roll of v8/v8 98b95638c50152f0585529494bbcbe8caa81aed8..b831e95e6ea87ae276d9159daed3c72837ae6739 (under v8/),
 from its roll of skia 9f8fb9da7e434d74187003c2431f13d0f11641f7..9028e95e8f4a1bffdc99854795b25ddc9a3cacb4 (under third_party/skia/),
 and from its roll of angle 1069527181b8d4cf55f604d06557381a2a09b2ea..cb3a38f37525831914266bfc8964eb39c675c5ee (under third_party/angle/),
@@ -41,6 +41,7 @@ Commits contributing to it (oldest first):
   9f20a5927d9d [M158] [webgpu] Defer DawnWireServices::Disconnect() on GPU context loss
   fa975a210344 Roll commits from side projects in M158
     skia 203b98b0d81b [M158] [ganesh] Fix image filtering mipmap bug
+  022cc2fcb9e8 [M158] Avoid mutating TopLayerElements while iterating in DisplayLockContext
 
 diff --git a/base/allocator/partition_allocator/src/partition_alloc/scheduler_loop_quarantine.cc b/base/allocator/partition_allocator/src/partition_alloc/scheduler_loop_quarantine.cc
 index ed0bc3ed..6c091b08 100644
@@ -893,6 +894,57 @@ index 0610e43..51885c0 100644
        bind_result_ = webgpu_impl->Initialize(memory_limits_);
        if (bind_result_ != gpu::ContextResult::kSuccess) {
          DLOG(ERROR) << "Failed to initialize WebGPUImplementation.";
+diff --git a/third_party/blink/renderer/core/display_lock/display_lock_context.cc b/third_party/blink/renderer/core/display_lock/display_lock_context.cc
+index 36fc7115..cdd28702 100644
+--- a/third_party/blink/renderer/core/display_lock/display_lock_context.cc
++++ b/third_party/blink/renderer/core/display_lock/display_lock_context.cc
+@@ -18,6 +18,7 @@
+ #include "third_party/blink/renderer/core/dom/document.h"
+ #include "third_party/blink/renderer/core/dom/dom_exception.h"
+ #include "third_party/blink/renderer/core/dom/element.h"
++#include "third_party/blink/renderer/core/dom/slot_assignment_engine.h"
+ #include "third_party/blink/renderer/core/editing/frame_selection.h"
+ #include "third_party/blink/renderer/core/editing/selection_template.h"
+ #include "third_party/blink/renderer/core/execution_context/agent.h"
+@@ -1157,6 +1158,26 @@
+   if (!ConnectedToView())
+     return;
+ 
++  if (document_->IsFlatTreeTraversalForbidden() ||
++      document_->IsInSlotAssignmentRecalc()) {
++    ScheduleTopLayerCheck();
++    return;
++  }
++
++  // FlatTreeTraversal::ParentElement() below can trigger a pending slot
++  // assignment recalc, which may mutate Document::TopLayerElements() (for
++  // example by detaching a newly unslotted top-layer element's layout tree and
++  // removing its ::backdrop, or by forcing a style recalc that inserts pending
++  // ::backdrop pseudo-elements and reallocates the vector backing). Resolve
++  // pending slot assignments up front before iterating over TopLayerElements().
++  document_->GetSlotAssignmentEngine().RecalcSlotAssignments();
++  // RecalcSlotAssignments() can synchronously dispatch blur/focusout events
++  // when clearing an input's suggested value in a canvas subtree
++  // (crbug.com/574469802), which may disconnect |element_|.
++  if (!ConnectedToView()) {
++    return;
++  }
++
+   ClearHasTopLayerElement();
+ 
+   // Iterate up the ancestor chain from each top layer element.
+@@ -1236,6 +1257,11 @@
+       document_->TopLayerElements();
+ 
+   for (Member<Element>& top_layer_element : top_layer_elements) {
++    // Detaching an outer top-layer element in an earlier iteration can dispose
++    // a nested top-layer element's ::backdrop and remove it from the top layer.
++    if (!top_layer_element->IsInTopLayer()) {
++      continue;
++    }
+     if (top_layer_element->IsBackdropPseudoElement() &&
+         top_layer_element->parentElement() == element_) {
+       // Keep rendering the ::backdrop for a content-visibility:hidden element.
 diff --git a/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc b/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc
 index 9775efc..0ff7a609 100644
 --- a/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc
