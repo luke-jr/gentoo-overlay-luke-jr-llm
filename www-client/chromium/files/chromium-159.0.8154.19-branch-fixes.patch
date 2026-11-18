@@ -1,0 +1,127 @@
+Chromium 159.0.8154.19 + the later changes of its release branch, up to
+be3e2d2353fd17a8fe11ff21f8a44a55920649e7 (refs/branch-heads/8154@{#895}), for the
+159.0.8154.19 tree that chromium-159.0.8154.6-to-159.0.8154.19.patch makes.
+
+Generated from the upstream diff chromium/src
+refs/tags/159.0.8154.19..be3e2d2353fd17a8fe11ff21f8a44a55920649e7, and from its roll
+of angle 0f0b90f0b5bf61cc630870d5d4bf0c07d906e975..525fbae78ff28982cb5c6d1c94cd331bdbfc42f9
+(under third_party/angle/), as served by Gitiles, with
+scripts/chromium-delta --branch-fixes (against the .19 tree's files): left out are
+files not in the release tarball, iOS/Android/ChromeOS/Mac/Windows-only files,
+tests and docs, translations other than en-GB, PGO/orderfile pointers, submodule
+pointer updates (GN files are kept even for tests: gn gen reads test targets'
+BUILD.gn too). chrome/VERSION, the DEPS files and the stamp files stay at
+159.0.8154.19.
+
+Commits contributing to it (oldest first):
+  be3e2d2353fd Roll commits from side projects in M159
+    angle 525fbae78ff2 [M159] Translator: Validate gl_PerVertex member types
+
+Checked: applies to the 159.0.8154.19 tree (the .6 tarball with
+chromium-159.0.8154.6-to-159.0.8154.19.patch); every patched source file is
+byte-identical to its version at the dependency's DEPS revision.
+
+Apply with git apply.
+
+diff --git a/third_party/angle/src/compiler/translator/ParseContext.cpp b/third_party/angle/src/compiler/translator/ParseContext.cpp
+index 84e5486..4b21bef 100644
+--- a/third_party/angle/src/compiler/translator/ParseContext.cpp
++++ b/third_party/angle/src/compiler/translator/ParseContext.cpp
+@@ -366,6 +366,28 @@
+     return block->getQualifier() == EvqPerVertexIn;
+ }
+ 
++// Returns true if the type of a redeclared gl_PerVertex member matches the built-in's type.
++bool IsValidPerVertexMemberType(const ImmutableString &name, const TType &type)
++{
++    if (type.getBasicType() != EbtFloat || type.getSecondarySize() != 1)
++    {
++        return false;
++    }
++    if (name == "gl_Position")
++    {
++        return type.getNominalSize() == 4 && !type.isArray();
++    }
++    if (name == "gl_PointSize")
++    {
++        return type.getNominalSize() == 1 && !type.isArray();
++    }
++    if (name == "gl_ClipDistance" || name == "gl_CullDistance")
++    {
++        return type.getNominalSize() == 1 && type.isArray() && !type.isArrayOfArrays();
++    }
++    return false;
++}
++
+ void ValidateFragColorAndFragData(GLenum shaderType,
+                                   int shaderVersion,
+                                   const TSymbolTable &symbolTable,
+@@ -7370,6 +7392,11 @@
+                       "gl_ClipDistance and gl_CullDistance may be redeclared",
+                       field->name());
+             }
++            else if (!IsValidPerVertexMemberType(field->name(), *field->type()))
++            {
++                error(field->line(), "redeclaration of built-in with a different type",
++                      field->name());
++            }
+             if (field->name() == "gl_Position")
+             {
+                 fieldType->setQualifier(EvqPosition);
+@@ -7381,32 +7408,38 @@
+             if (field->name() == "gl_ClipDistance")
+             {
+                 fieldType->setQualifier(EvqClipDistance);
+-                if (static_cast<int>(field->type()->getOutermostArraySize()) >
+-                    mResources.MaxClipDistances)
++                if (field->type()->isArray())
+                 {
+-                    error(field->line(),
+-                          "array index out of range, redeclaration of gl_ClipDistance with size > "
+-                          "gl_MaxClipDistances",
+-                          field->name());
++                    if (static_cast<int>(field->type()->getOutermostArraySize()) >
++                        mResources.MaxClipDistances)
++                    {
++                        error(field->line(),
++                              "array index out of range, redeclaration of gl_ClipDistance with "
++                              "size > gl_MaxClipDistances",
++                              field->name());
++                    }
++                    MarkClipCullRedeclaredSize(
++                        field->line(), field->type()->getOutermostArraySize(),
++                        isPerVertexIn ? &mInputClipDistanceInfo : &mClipDistanceInfo);
+                 }
+-                MarkClipCullRedeclaredSize(
+-                    field->line(), field->type()->getOutermostArraySize(),
+-                    isPerVertexIn ? &mInputClipDistanceInfo : &mClipDistanceInfo);
+             }
+             if (field->name() == "gl_CullDistance")
+             {
+                 fieldType->setQualifier(EvqCullDistance);
+-                if (static_cast<int>(field->type()->getOutermostArraySize()) >
+-                    mResources.MaxCullDistances)
++                if (field->type()->isArray())
+                 {
+-                    error(field->line(),
+-                          "array index out of range, redeclaration of gl_CullDistance with size > "
+-                          "gl_MaxCullDistances",
+-                          field->name());
++                    if (static_cast<int>(field->type()->getOutermostArraySize()) >
++                        mResources.MaxCullDistances)
++                    {
++                        error(field->line(),
++                              "array index out of range, redeclaration of gl_CullDistance with "
++                              "size > gl_MaxCullDistances",
++                              field->name());
++                    }
++                    MarkClipCullRedeclaredSize(
++                        field->line(), field->type()->getOutermostArraySize(),
++                        isPerVertexIn ? &mInputCullDistanceInfo : &mCullDistanceInfo);
+                 }
+-                MarkClipCullRedeclaredSize(
+-                    field->line(), field->type()->getOutermostArraySize(),
+-                    isPerVertexIn ? &mInputCullDistanceInfo : &mCullDistanceInfo);
+             }
+         }
+     }
