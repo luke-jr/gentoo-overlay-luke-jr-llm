@@ -1,0 +1,505 @@
+Carried fix for V8 crbugs 582863246 and 587226188 "[compiler] Prevent
+MapRef instance_type TOCTOU and offset overflow": MapRef::instance_type() and the
+MapRef::Is*Map() predicates use the instance type cached in MapData while the broker
+serializes, and the compiler's and Maglev's callers query MapRef predicates instead of
+reading live Map objects in the sandbox. Also: ElementAccessInfo::elements_kind_ starts
+at NO_ELEMENTS for prototype-proxy element accesses, the is_proxy_on_prototype() check
+comes before the TypedArray ones, and escape analysis guards its element offset
+calculations against signed 32-bit overflow.
+
+From V8's 15.8 branch commit 1db26676c2c375e2c4d246a024343fc55c982629
+(refs/branch-heads/15.8@{#97}, cherry-picked from main 3b7df01dbd59), whose parent is
+27793d23b4b3 (15.8.62.47), the V8 that 158's DEPS pins at 8127@{#1936}. It is in
+15.8.62.48 (805ebcf86730); 158 hasn't rolled V8 past 15.8.62.47 yet. Drop this patch
+once 158's V8 roll includes it. This commit has no tests.
+
+diff --git a/v8/src/compiler/access-info.cc b/v8/src/compiler/access-info.cc
+index 35025fb..7845db5 100644
+--- a/v8/src/compiler/access-info.cc
++++ b/v8/src/compiler/access-info.cc
+@@ -9,7 +9,6 @@
+ #include <ostream>
+ 
+ #include "src/base/logging.h"
+-#include "src/builtins/accessors.h"
+ #include "src/common/globals.h"
+ #include "src/compiler/compilation-dependencies.h"
+ #include "src/compiler/heap-refs.h"
+@@ -24,6 +23,7 @@
+ #include "src/objects/field-index-inl.h"
+ #include "src/objects/field-type.h"
+ #include "src/objects/instance-type-inl.h"
++#include "src/objects/js-array.h"
+ #include "src/objects/module-inl.h"
+ #include "src/objects/objects-inl.h"
+ #include "src/objects/property-details.h"
+@@ -53,7 +53,7 @@
+   static_assert(ODDBALL_TYPE == LAST_PRIMITIVE_HEAP_OBJECT_TYPE);
+   if (IsBooleanMap(*map.object())) return true;
+   if (map.instance_type() < LAST_PRIMITIVE_HEAP_OBJECT_TYPE) return true;
+-  if (IsJSObjectMap(*map.object())) {
++  if (map.IsJSObjectMap()) {
+     if (map.is_dictionary_map()) {
+       if (!V8_DICT_PROPERTY_CONST_TRACKING_BOOL) return false;
+       return access_mode == AccessMode::kLoad && map.is_prototype_map();
+@@ -63,7 +63,7 @@
+            !map.is_access_check_needed();
+   }
+ #if V8_ENABLE_WEBASSEMBLY
+-  if (IsAnyWasmObjectMap(*map.object())) {
++  if (map.IsAnyWasmObjectMap()) {
+     DCHECK(!map.has_named_interceptor());
+     DCHECK(!map.is_access_check_needed());
+     // Accesses to Wasm objects all go through the prototype chain, but
+@@ -118,7 +118,7 @@
+ ElementAccessInfo::ElementAccessInfo(MapRef map, ObjectRef accessor,
+                                      ObjectRef target, bool string_keys,
+                                      Zone* zone)
+-    : elements_kind_(map.elements_kind()),
++    : elements_kind_(NO_ELEMENTS),
+       string_keys_(string_keys),
+       lookup_start_object_maps_({map}, zone),
+       transition_sources_(zone),
+@@ -1020,7 +1020,7 @@
+   // Receiver map must be a standard JSObject without access checks or
+   // interceptors.
+   if (!map.is_dictionary_map() || !map.IsJSObjectMap() ||
+-      IsJSGlobalObjectMap(*map.object()) || map.is_access_check_needed() ||
++      map.IsJSGlobalObjectMap() || map.is_access_check_needed() ||
+       map.has_named_interceptor()) {
+     return PropertyAccessInfo::Invalid(zone);
+   }
+@@ -1061,7 +1061,7 @@
+     }
+   }
+ 
+-  if (access_mode == AccessMode::kHas && !IsJSReceiverMap(*map.object())) {
++  if (access_mode == AccessMode::kHas && !map.IsJSReceiverMap()) {
+     return Invalid();
+   }
+ 
+@@ -1198,7 +1198,7 @@
+ 
+     // Don't search on the prototype chain for special indices in case of
+     // integer indexed exotic objects (see ES6 section 9.4.5).
+-    if (IsJSTypedArrayMap(*map.object()) && name.IsString()) {
++    if (map.IsJSTypedArrayMap() && name.IsString()) {
+       StringRef name_str = name.AsString();
+       SharedStringAccessGuardIfNeeded access_guard(
+           *name_str.object(), broker()->local_isolate_or_isolate());
+@@ -1240,11 +1240,11 @@
+     HeapObjectRef prototype = map.prototype(broker());
+ 
+     MapRef map_prototype_map = prototype.map(broker());
+-    if (!IsJSObjectMap(*map_prototype_map.object())) {
++    if (!map_prototype_map.IsJSObjectMap()) {
+       // Don't allow proxies on the prototype chain.
+       if (!prototype.IsNull()) {
+-        DCHECK(IsJSProxy(*prototype.object()) ||
+-               IsWasmObject(*prototype.object()));
++        DCHECK(map_prototype_map.IsJSProxyMap() ||
++               map_prototype_map.IsAnyWasmObjectMap());
+         return Invalid();
+       }
+ 
+@@ -1403,14 +1403,14 @@
+ PropertyAccessInfo AccessInfoFactory::LookupSpecialFieldAccessor(
+     MapRef map, NameRef name) const {
+   // Check for String::length field accessor.
+-  if (IsStringMap(*map.object())) {
++  if (map.IsStringMap()) {
+     if (Name::Equals(isolate(), name.object(),
+                      isolate()->factory()->length_string())) {
+       return PropertyAccessInfo::StringLength(zone(), map);
+     }
+     return Invalid();
+   }
+-  if (IsJSPrimitiveWrapperMap(*map.object()) &&
++  if (map.IsJSPrimitiveWrapperMap() &&
+       (map.elements_kind() == FAST_STRING_WRAPPER_ELEMENTS ||
+        map.elements_kind() == SLOW_STRING_WRAPPER_ELEMENTS)) {
+     if (Name::Equals(isolate(), name.object(),
+@@ -1418,29 +1418,29 @@
+       return PropertyAccessInfo::StringWrapperLength(zone(), map);
+     }
+   }
+-  // Check for special JSObject field accessors.
+-  FieldIndex field_index;
+-  if (Accessors::IsJSObjectFieldAccessor(isolate(), map.object(), name.object(),
+-                                         &field_index)) {
++  // Check for special JSObject field accessors. Mirrors
++  // Accessors::IsJSObjectFieldAccessor, inlined here to use the snapshotted
++  // MapRef instance type rather than reading the live Map.
++  if (map.IsJSArrayMap() && !map.is_dictionary_map() &&
++      Name::Equals(isolate(), name.object(),
++                   isolate()->factory()->length_string())) {
++    FieldIndex field_index = FieldIndex::ForInObjectOffset(
++        offsetof(JSArray, length_), FieldIndex::kTagged);
+     Type field_type = Type::NonInternal();
+     Representation field_representation = Representation::Tagged();
+-    if (IsJSArrayMap(*map.object())) {
+-      DCHECK(Name::Equals(isolate(), isolate()->factory()->length_string(),
+-                          name.object()));
+-      // The JSArray::length property is a smi in the range
+-      // [0, FixedDoubleArray::kMaxLength] in case of fast double
+-      // elements, a smi in the range [0, FixedArray::kMaxLength]
+-      // in case of other fast elements, and [0, kMaxUInt32] in
+-      // case of other arrays.
+-      if (IsDoubleElementsKind(map.elements_kind())) {
+-        field_type = type_cache_->kFixedDoubleArrayLengthType;
+-        field_representation = Representation::Smi();
+-      } else if (IsFastElementsKind(map.elements_kind())) {
+-        field_type = type_cache_->kFixedArrayLengthType;
+-        field_representation = Representation::Smi();
+-      } else {
+-        field_type = type_cache_->kJSArrayLengthType;
+-      }
++    // The JSArray::length property is a smi in the range
++    // [0, FixedDoubleArray::kMaxLength] in case of fast double
++    // elements, a smi in the range [0, FixedArray::kMaxLength]
++    // in case of other fast elements, and [0, kMaxUInt32] in
++    // case of other arrays.
++    if (IsDoubleElementsKind(map.elements_kind())) {
++      field_type = type_cache_->kFixedDoubleArrayLengthType;
++      field_representation = Representation::Smi();
++    } else if (IsFastElementsKind(map.elements_kind())) {
++      field_type = type_cache_->kFixedArrayLengthType;
++      field_representation = Representation::Smi();
++    } else {
++      field_type = type_cache_->kJSArrayLengthType;
+     }
+     // Special fields are always mutable.
+     return PropertyAccessInfo::DataField(broker(), zone(), map, {{}, zone()},
+@@ -1455,9 +1455,8 @@
+     PropertyDetails details, InternalIndex index) const {
+   // Check whether we're accessing the `length` property in a TypedArray
+   // prototype.
+-  if (v8_flags.typed_array_length_loading &&
+-      IsJSTypedArrayMap(*receiver_map.object()) &&
+-      !IsJSDetachedTypedArrayMap(*receiver_map.object()) &&
++  if (v8_flags.typed_array_length_loading && receiver_map.IsJSTypedArrayMap() &&
++      !receiver_map.IsJSDetachedTypedArrayMap() &&
+       !IsRabGsabTypedArrayElementsKind(receiver_map.elements_kind()) &&
+       Name::Equals(isolate(), name.object(),
+                    isolate()->factory()->length_string()) &&
+diff --git a/v8/src/compiler/access-info.h b/v8/src/compiler/access-info.h
+index 7402929..7cf8383 100644
+--- a/v8/src/compiler/access-info.h
++++ b/v8/src/compiler/access-info.h
+@@ -48,6 +48,7 @@
+ 
+   void AddTransitionSource(MapRef map) {
+     CHECK_EQ(lookup_start_object_maps_.size(), 1);
++    CHECK(!is_proxy_on_prototype());
+     transition_sources_.push_back(map);
+   }
+ 
+diff --git a/v8/src/compiler/escape-analysis.cc b/v8/src/compiler/escape-analysis.cc
+index 87757ff..0e2bc17 100644
+--- a/v8/src/compiler/escape-analysis.cc
++++ b/v8/src/compiler/escape-analysis.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "src/compiler/escape-analysis.h"
+ 
++#include "src/base/numerics/checked_math.h"
+ #include "src/codegen/tick-counter.h"
+ #include "src/compiler/frame-states.h"
+ #include "src/compiler/node-matchers.h"
+@@ -560,8 +561,12 @@
+ 
+   DCHECK_GE(index, 0);
+   DCHECK_GE(ElementSizeLog2Of(representation), kTaggedSizeLog2);
+-  return Just(access.header_size +
+-              (index << ElementSizeLog2Of(representation)));
++  base::CheckedNumeric<int> byte_index = base::CheckedNumeric<int>(index)
++                                         << ElementSizeLog2Of(representation);
++  base::CheckedNumeric<int> offset = byte_index + access.header_size;
++  int result;
++  if (!offset.AssignIfValid(&result)) return Nothing<int>();
++  return Just(result);
+ }
+ 
+ Maybe<int> OffsetOfElementsAccess(const Operator* op, Node* index_node) {
+@@ -571,8 +576,11 @@
+   if (!index_type.Is(Type::OrderedNumber())) return Nothing<int>();
+   double max = index_type.Max();
+   double min = index_type.Min();
++  if (min < 0 || min != max || !base::IsValueInRangeForNumericType<int>(min)) {
++    return Nothing<int>();
++  }
+   int index = static_cast<int>(min);
+-  if (index < 0 || index != min || index != max) return Nothing<int>();
++  if (index != min) return Nothing<int>();
+   return OffsetOfElementAt(ElementAccessOf(op), index);
+ }
+ 
+diff --git a/v8/src/compiler/escape-analysis.h b/v8/src/compiler/escape-analysis.h
+index c2650e7..d950e97 100644
+--- a/v8/src/compiler/escape-analysis.h
++++ b/v8/src/compiler/escape-analysis.h
+@@ -130,7 +130,7 @@
+   Maybe<Variable> FieldAt(int offset) const {
+     CHECK(IsAligned(offset, kTaggedSize));
+     CHECK(!HasEscaped());
+-    if (offset >= size()) {
++    if (offset < 0 || offset >= size()) {
+       // TODO(turbofan): Reading out-of-bounds can only happen in unreachable
+       // code. In this case, we have to mark the object as escaping to avoid
+       // dead nodes in the graph. This is a workaround that should be removed
+diff --git a/v8/src/compiler/heap-refs.cc b/v8/src/compiler/heap-refs.cc
+index 1c14ba6..c1405e4 100644
+--- a/v8/src/compiler/heap-refs.cc
++++ b/v8/src/compiler/heap-refs.cc
+@@ -664,6 +664,19 @@
+     CHECK(InstanceTypeChecker::IsJSObject(instance_type()));
+     return in_object_properties_;
+   }
++  uint8_t GetInObjectPropertiesStartInWords() const {
++    DCHECK(InstanceTypeChecker::IsJSObject(instance_type()));
++    return inobject_properties_start_or_constructor_function_index_;
++  }
++  int GetConstructorFunctionIndex() const {
++#if V8_ENABLE_WEBASSEMBLY
++    DCHECK(instance_type() <= LAST_PRIMITIVE_HEAP_OBJECT_TYPE ||
++           instance_type() == WASM_NULL_TYPE);
++#else
++    DCHECK(instance_type() <= LAST_PRIMITIVE_HEAP_OBJECT_TYPE);
++#endif
++    return inobject_properties_start_or_constructor_function_index_;
++  }
+   int UnusedPropertyFields() const { return unused_property_fields_; }
+   bool is_abandoned_prototype_map() const {
+     return is_abandoned_prototype_map_;
+@@ -676,6 +689,7 @@
+ 
+   InstanceType instance_type_;
+   int instance_size_;
++  uint8_t inobject_properties_start_or_constructor_function_index_;
+   Map::Bits2 bit_field2_;
+   Map::Bits3 bit_field3_;
+   int unused_property_fields_;
+@@ -1014,12 +1028,11 @@
+   JSHeapBroker::MapUpdaterGuardIfNeeded mumd_scope(broker);
+ 
+   // When background serializing the map, we can perform a lite serialization
+-  // since the MapRef will read some of the Map's fields can be read directly.
+-
+-  // Even though MapRefs can read {instance_type} directly, other classes depend
+-  // on {instance_type} being serialized.
++  // since the MapRef will read some of the Map's fields directly.
+   instance_type_ = object->instance_type();
+   instance_size_ = object->instance_size();
++  inobject_properties_start_or_constructor_function_index_ =
++      object->inobject_properties_start_or_constructor_function_index();
+ 
+   bit_field2_ = object->bit_field2();
+ 
+@@ -1033,9 +1046,11 @@
+   // lock in more places.
+   bit_field3_ = object->relaxed_bit_field3();
+   is_abandoned_prototype_map_ = object->is_abandoned_prototype_map();
+-  if (IsJSObjectMap(*object)) {
++  if (InstanceTypeChecker::IsJSObject(instance_type_)) {
+     unused_property_fields_ = object->UnusedPropertyFields();
+-    in_object_properties_ = object->GetInObjectProperties();
++    in_object_properties_ =
++        (instance_size_ >> kTaggedSizeLog2) -
++        inobject_properties_start_or_constructor_function_index_;
+   } else {
+     unused_property_fields_ = 0;
+     in_object_properties_ = 0;
+@@ -1335,11 +1350,11 @@
+ }
+ 
+ bool MapRef::IsOneByteStringMap() const {
+-  return InstanceTypeChecker::IsOneByteString(*object());
++  return InstanceTypeChecker::IsOneByteString(instance_type());
+ }
+ 
+ bool MapRef::IsTwoByteStringMap() const {
+-  return InstanceTypeChecker::IsTwoByteString(*object());
++  return InstanceTypeChecker::IsTwoByteString(instance_type());
+ }
+ 
+ bool MapRef::CanInlineElementAccess() const {
+@@ -1532,7 +1547,7 @@
+ }
+ 
+ int MapRef::GetInObjectPropertyOffset(int i) const {
+-  return object()->GetInObjectPropertyOffset(i);
++  return (GetInObjectPropertiesStartInWords() + i) * kTaggedSize;
+ }
+ 
+ PropertyDetails MapRef::GetPropertyDetails(
+@@ -2114,7 +2129,8 @@
+ }
+ 
+ int MapRef::constructor_function_index() const {
+-  return object()->GetConstructorFunctionIndex();
++  IF_ACCESS_FROM_HEAP_C(GetConstructorFunctionIndex);
++  return data()->AsMap()->GetConstructorFunctionIndex();
+ }
+ 
+ bool MapRef::is_stable() const {
+@@ -2124,10 +2140,15 @@
+ 
+ bool MapRef::CanBeDeprecated() const { return object()->CanBeDeprecated(); }
+ 
+-bool MapRef::CanTransition() const { return object()->CanTransition(); }
++bool MapRef::CanTransition() const {
++  const InstanceType type = instance_type();
++  return InstanceTypeChecker::IsJSObject(type) &&
++         !InstanceTypeChecker::IsMaybeReadOnlyJSObject(type);
++}
+ 
+ uint8_t MapRef::GetInObjectPropertiesStartInWords() const {
+-  return object()->GetInObjectPropertiesStartInWords();
++  IF_ACCESS_FROM_HEAP_C(GetInObjectPropertiesStartInWords);
++  return data()->AsMap()->GetInObjectPropertiesStartInWords();
+ }
+ 
+ int MapRef::GetInObjectProperties() const {
+diff --git a/v8/src/compiler/js-native-context-specialization.cc b/v8/src/compiler/js-native-context-specialization.cc
+index f538046..229cc56 100644
+--- a/v8/src/compiler/js-native-context-specialization.cc
++++ b/v8/src/compiler/js-native-context-specialization.cc
+@@ -2348,10 +2348,7 @@
+         // need to guard against changes to that below).
+         if ((IsHoleyOrDictionaryElementsKind(receiver_map.elements_kind()) ||
+              StoreModeCanGrow(feedback.keyed_mode().store_mode())) &&
+-#if V8_ENABLE_WEBASSEMBLY
+-            !(receiver_map.IsAnyWasmObjectMap() &&
+-              access_info.is_proxy_on_prototype()) &&
+-#endif  // V8_ENABLE_WEBASSEMBLY
++            !access_info.is_proxy_on_prototype() &&
+             !receiver_map.PrototypesElementsDoNotHaveAccessorsOrThrow(
+                 broker(), &prototype_maps)) {
+           return NoChange();
+@@ -3593,6 +3590,17 @@
+   ZoneVector<MapRef> const& receiver_maps =
+       access_info.lookup_start_object_maps();
+ 
++#if V8_ENABLE_WEBASSEMBLY
++  if (access_info.is_proxy_on_prototype()) {
++    DCHECK_EQ(receiver_maps.size(), 1);
++    DCHECK(receiver_maps.front().IsAnyWasmObjectMap());
++    return BuildPrototypeProxyElementAccess(
++        receiver, index, value, effect, control, context, access_info,
++        language_mode, keyed_mode, if_exceptions, frame_state);
++  }
++#endif  // V8_ENABLE_WEBASSEMBLY
++
++  DCHECK_NE(elements_kind, NO_ELEMENTS);
+   if (IsTypedArrayElementsKind(elements_kind) ||
+       IsRabGsabTypedArrayElementsKind(elements_kind)) {
+     return BuildElementAccessForTypedArrayOrRabGsabTypedArray(
+@@ -3600,15 +3608,6 @@
+         keyed_mode);
+   }
+ 
+-#if V8_ENABLE_WEBASSEMBLY
+-  if (receiver_maps.size() == 1 && receiver_maps.front().IsAnyWasmObjectMap() &&
+-      access_info.is_proxy_on_prototype()) {
+-    return BuildPrototypeProxyElementAccess(
+-        receiver, index, value, effect, control, context, access_info,
+-        language_mode, keyed_mode, if_exceptions, frame_state);
+-  }
+-#endif  // V8_ENABLE_WEBASSEMBLY
+-
+   // Load the elements for the {receiver}.
+   Node* elements = effect = graph()->NewNode(
+       simplified()->LoadField(AccessBuilder::ForJSObjectElements()), receiver,
+diff --git a/v8/src/compiler/property-access-builder.cc b/v8/src/compiler/property-access-builder.cc
+index a3d2a8b..1199895 100644
+--- a/v8/src/compiler/property-access-builder.cc
++++ b/v8/src/compiler/property-access-builder.cc
+@@ -216,20 +216,17 @@
+   if (!value) return {};
+ 
+   for (MapRef map : access_info.lookup_start_object_maps()) {
+-    DirectHandle<Map> map_handle = map.object();
+     // Non-JSReceivers that passed AccessInfoFactory::ComputePropertyAccessInfo
+     // must have different lookup start map.
+-    if (!IsJSReceiverMap(*map_handle)) {
++    if (!map.IsJSReceiverMap()) {
+       // Perform the implicit ToObject for primitives here.
+       // Implemented according to ES6 section 7.3.2 GetV (V, P).
+-      Tagged<JSFunction> constructor =
+-          Map::GetConstructorFunction(
+-              *map_handle, *broker()->target_native_context().object())
+-              .value();
+-      // {constructor.initial_map()} is loaded/stored with acquire-release
+-      // semantics for constructors.
+-      map = MakeRefAssumeMemoryFence(broker(), constructor->initial_map());
+-      DCHECK(IsJSObjectMap(*map.object()));
++      OptionalJSFunctionRef constructor =
++          broker()->target_native_context().GetConstructorFunction(broker(),
++                                                                   map);
++      if (!constructor.has_value()) return {};
++      map = constructor->initial_map(broker());
++      DCHECK(map.IsJSObjectMap());
+     }
+     dependencies()->DependOnConstantInDictionaryPrototypeChain(
+         map, access_info.name(), value.value(), PropertyKind::kData);
+diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
+index 18149e3..427ba01 100644
+--- a/v8/src/maglev/maglev-graph-builder.cc
++++ b/v8/src/maglev/maglev-graph-builder.cc
+@@ -4189,20 +4189,17 @@
+   if (!constant.has_value()) return {};
+ 
+   for (compiler::MapRef map : access_info.lookup_start_object_maps()) {
+-    DirectHandle<Map> map_handle = map.object();
+     // Non-JSReceivers that passed AccessInfoFactory::ComputePropertyAccessInfo
+     // must have different lookup start map.
+-    if (!IsJSReceiverMap(*map_handle)) {
++    if (!map.IsJSReceiverMap()) {
+       // Perform the implicit ToObject for primitives here.
+       // Implemented according to ES6 section 7.3.2 GetV (V, P).
+-      Tagged<JSFunction> constructor =
+-          Map::GetConstructorFunction(
+-              *map_handle, *broker()->target_native_context().object())
+-              .value();
+-      // {constructor.initial_map()} is loaded/stored with acquire-release
+-      // semantics for constructors.
+-      map = MakeRefAssumeMemoryFence(broker(), constructor->initial_map());
+-      DCHECK(IsJSObjectMap(*map.object()));
++      compiler::OptionalJSFunctionRef constructor =
++          broker()->target_native_context().GetConstructorFunction(broker(),
++                                                                   map);
++      if (!constructor.has_value()) return {};
++      map = constructor->initial_map(broker());
++      DCHECK(map.IsJSObjectMap());
+     }
+     broker()->dependencies()->DependOnConstantInDictionaryPrototypeChain(
+         map, access_info.name(), constant.value(), PropertyKind::kData);
+@@ -5641,13 +5638,10 @@
+     ValueNode* object, ValueNode* index_object,
+     const compiler::ElementAccessInfo& access_info,
+     compiler::KeyedAccessMode const& keyed_mode) {
++  DCHECK(!access_info.is_proxy_on_prototype());
+   if (!IsFastElementsKind(access_info.elements_kind())) {
+     return {};
+   }
+-  if (access_info.is_proxy_on_prototype()) {
+-    // TODO(jkummerow): Implement support.
+-    return {};
+-  }
+   switch (keyed_mode.access_mode()) {
+     case compiler::AccessMode::kLoad:
+       return BuildElementLoadOnJSArrayOrJSObject(
+@@ -5710,6 +5704,13 @@
+     return {};
+   }
+ 
++  for (const compiler::ElementAccessInfo& access_info : access_infos) {
++    if (access_info.is_proxy_on_prototype()) {
++      // TODO(jkummerow): Implement support.
++      return {};
++    }
++  }
++
+   // TODO(leszeks): This is copied without changes from TurboFan's native
+   // context specialization. We should figure out a way to share this code.
+   //
