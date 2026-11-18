@@ -1,10 +1,10 @@
 Chromium 158.0.8127.66 + the later changes of its release branch, up to
-390ad6bd0eacc545c235ed58cc2e53cecaade10a (refs/branch-heads/8127@{#1936}), for the
+9f20a5927d9d04a6a48c3017598fef69bd1e51be (refs/branch-heads/8127@{#1950}), for the
 158.0.8127.66 tree that chromium-158.0.8127.37-to-158.0.8127.66.patch makes.
-The newest change it carries is 8127@{#1936}; #1934 and #1935 are orderfile pointer rolls (left out).
+The newest change it carries is 8127@{#1950}; the orderfile, PGO profile and AFDO pointer rolls between are left out.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.66..390ad6bd0eacc545c235ed58cc2e53cecaade10a,
-from its roll of v8/v8 98b95638c50152f0585529494bbcbe8caa81aed8..27793d23b4b3ab9e5ac210aa4cbee24a85158f9d (under v8/)
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.66..9f20a5927d9d04a6a48c3017598fef69bd1e51be,
+from its roll of v8/v8 98b95638c50152f0585529494bbcbe8caa81aed8..b831e95e6ea87ae276d9159daed3c72837ae6739 (under v8/)
 and from its roll of angle 1069527181b8d4cf55f604d06557381a2a09b2ea..cb3a38f37525831914266bfc8964eb39c675c5ee (under third_party/angle/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .66 tree's files): left out are files not in the release tarball,
@@ -27,7 +27,107 @@ Commits contributing to it (oldest first):
     v8 c935a11767b6 Version 15.8.62.46
     v8 50a6430b9d1f [M158] [maglev] Reset Float64BinaryNode static range on partial truncation
     v8 27793d23b4b3 Version 15.8.62.47
+  0bd098845bd6 [M158] [ServiceWorker] Invoke fetch response callbacks directly from Take()
+  4672f0a0340f Roll commits from side projects in M158
+    v8 1db26676c2c3 [M158] [compiler] Prevent MapRef instance_type TOCTOU and offset overflow
+    v8 805ebcf86730 Version 15.8.62.48
+  efa636fb7c5d [M158] [PA] Add zap-max option to SchedulerLoopQuarantine
+  c61a7b163a56 Roll commits from side projects in M158
+    v8 2a8b6bb2a348 [M158] [compiler] Forbid JumpThreading across frame transitions
+    v8 89a37af8ca34 Version 15.8.62.49
+    v8 852c0eff3f9d [M158] [regexp] Clear padding after trimming in replace
+    v8 b831e95e6ea8 Version 15.8.62.50
+  9f20a5927d9d [M158] [webgpu] Defer DawnWireServices::Disconnect() on GPU context loss
 
+diff --git a/base/allocator/partition_allocator/src/partition_alloc/scheduler_loop_quarantine.cc b/base/allocator/partition_allocator/src/partition_alloc/scheduler_loop_quarantine.cc
+index ed0bc3ed..6c091b08 100644
+--- a/base/allocator/partition_allocator/src/partition_alloc/scheduler_loop_quarantine.cc
++++ b/base/allocator/partition_allocator/src/partition_alloc/scheduler_loop_quarantine.cc
+@@ -266,6 +266,7 @@
+   root_ = &root;
+   enable_quarantine_ = config.enable_quarantine;
+   enable_zapping_ = config.enable_zapping;
++  zap_max_ = config.zap_max;
+   leak_on_destruction_ = config.leak_on_destruction;
+   purge_headroom_percent_ = static_cast<uint8_t>(
+       std::min(config.purge_headroom_percent, kMaxPurgeHeadroomPercent));
+@@ -418,7 +419,8 @@
+     if (enable_zapping_) {
+       internal::SecureMemset(
+           slot_start.ToObject(), internal::kFreedByte,
+-          allocator_root_->GetSlotUsableSize(size_details, slot_span));
++          std::min(allocator_root_->GetSlotUsableSize(size_details, slot_span),
++                   zap_max_));
+     }
+   };
+ 
+diff --git a/base/allocator/partition_allocator/src/partition_alloc/scheduler_loop_quarantine.h b/base/allocator/partition_allocator/src/partition_alloc/scheduler_loop_quarantine.h
+index a733eb0..8cb7826 100644
+--- a/base/allocator/partition_allocator/src/partition_alloc/scheduler_loop_quarantine.h
++++ b/base/allocator/partition_allocator/src/partition_alloc/scheduler_loop_quarantine.h
+@@ -101,6 +101,9 @@
+   // Accepts allocations up to this bucket size. If the given number does not
+   // match bucket size, it is rounded up to next bucket size.
+   size_t max_quarantine_size = BucketIndexLookup::kMaxBucketSize;
++  // Upper bound for the zapped region in bytes. If an object's usable size
++  // exceeds this value, only the first `zap_max` bytes are zapped.
++  size_t zap_max = BucketIndexLookup::kMaxBucketSize;
+   // When the branch is full, dequarantine enough entries to free up this
+   // percentage of the capacity (in addition to the space needed by the
+   // incoming entry), instead of just enough to fit the incoming entry. This
+@@ -358,12 +361,16 @@
+   bool pause_in_between_tasks_ = false;
+   bool exclude_non_ipc_tasks_ = false;
+   bool capacity_unlimited_ = false;
++#if PA_BUILDFLAG(DCHECKS_ARE_ON)
++  std::atomic_bool being_destructed_ = false;
++#endif  // PA_BUILDFLAG(DCHECKS_ARE_ON)
+   int task_nesting_depth_ = 0;
+   bool is_outermost_task_mojo_ipc_ = false;
+   // See `SchedulerLoopQuarantineConfig::purge_headroom_percent`.
+   uint8_t purge_headroom_percent_ = 0;
+ 
+   uint16_t largest_bucket_index_ = BucketIndexLookup::kNumBuckets - 1;
++  size_t zap_max_ = BucketIndexLookup::kMaxBucketSize;
+ 
+   // When non-zero, this branch temporarily stops accepting incoming quarantine
+   // requests.
+@@ -404,11 +411,6 @@
+     size_t dequarantined_size_in_bytes = 0;
+   };
+   UnpublishedStats unpublished_stats_ PA_GUARDED_BY(lock_);
+-
+-  // Debug and testing data.
+-#if PA_BUILDFLAG(DCHECKS_ARE_ON)
+-  std::atomic_bool being_destructed_ = false;
+-#endif  // PA_BUILDFLAG(DCHECKS_ARE_ON)
+ };
+ 
+ using SanitizedObjectSchedulerLoopQuarantineBranch =
+diff --git a/base/allocator/scheduler_loop_quarantine_config.cc b/base/allocator/scheduler_loop_quarantine_config.cc
+index 036bc7a..22176c5d 100644
+--- a/base/allocator/scheduler_loop_quarantine_config.cc
++++ b/base/allocator/scheduler_loop_quarantine_config.cc
+@@ -71,6 +71,7 @@
+ constexpr char kKeyCapacityUnlimited[] = "capacity-unlimited";
+ constexpr char kKeyBranchCapacityInBytes[] = "branch-capacity-in-bytes";
+ constexpr char kKeyMaxQuarantineSize[] = "max-quarantine-size";
++constexpr char kKeyZapMax[] = "zap-max";
+ constexpr char kKeyPurgeHeadroomPercent[] = "purge-headroom-percent";
+ 
+ struct Match {
+@@ -233,6 +234,11 @@
+     config.max_quarantine_size = static_cast<size_t>(max_quarantine_size);
+   }
+ 
++  int zap_max = config_entry->FindInt(kKeyZapMax).value_or(-1);
++  if (0 < zap_max) {
++    config.zap_max = static_cast<size_t>(zap_max);
++  }
++
+   int purge_headroom_percent =
+       config_entry->FindInt(kKeyPurgeHeadroomPercent).value_or(0);
+   if (0 < purge_headroom_percent) {
 diff --git a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc b/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
 index 8472814..ca3299c 100644
 --- a/chrome/browser/file_system_access/chrome_file_system_access_permission_context.cc
@@ -229,8 +329,118 @@ index 41737c6b..17ad39d 100644
  
    base::WeakPtrFactory<ServiceWorkerVersion> weak_factory_{this};
  };
+diff --git a/gpu/BUILD.gn b/gpu/BUILD.gn
+index cef365bf..35ab1db6 100644
+--- a/gpu/BUILD.gn
++++ b/gpu/BUILD.gn
+@@ -430,8 +430,6 @@
+     "command_buffer/client/transfer_buffer_cmd_copy_helpers_unittest.cc",
+     "command_buffer/client/transfer_buffer_unittest.cc",
+     "command_buffer/client/vertex_array_object_manager_unittest.cc",
+-    "command_buffer/client/webgpu_implementation_unittest.cc",
+-    "command_buffer/client/webgpu_implementation_unittest_autogen.h",
+     "command_buffer/common/buffer_unittest.cc",
+     "command_buffer/common/command_buffer_shared_test.cc",
+     "command_buffer/common/debug_marker_manager_unittest.cc",
+@@ -610,6 +608,8 @@
+ 
+   if (use_dawn) {
+     sources += [
++      "command_buffer/client/webgpu_implementation_unittest.cc",
++      "command_buffer/client/webgpu_implementation_unittest_autogen.h",
+       "command_buffer/service/dawn_caching_interface_unittest.cc",
+       "command_buffer/service/dawn_platform_unittest.cc",
+       "command_buffer/service/gpu_persistent_cache_unittest.cc",
+@@ -685,6 +685,7 @@
+       "//third_party/dawn/src/dawn:cpp",
+       "//third_party/dawn/src/dawn:proc",
+       "//third_party/dawn/src/dawn/native",
++      "//third_party/dawn/src/dawn/wire",
+     ]
+   }
+ 
+diff --git a/gpu/command_buffer/client/dawn_client_serializer.cc b/gpu/command_buffer/client/dawn_client_serializer.cc
+index 52d5bf0..6b6005f5e 100644
+--- a/gpu/command_buffer/client/dawn_client_serializer.cc
++++ b/gpu/command_buffer/client/dawn_client_serializer.cc
+@@ -38,10 +38,6 @@
+ 
+ std::optional<std::span<volatile std::byte>>
+ DawnClientSerializer::GetCommandSpace(size_t size) {
+-  // Note: Dawn will never call this function with |size| >
+-  // GetMaximumAllocationSize().
+-  DCHECK_LE(size, GetMaximumAllocationSize());
+-
+   // The buffer size must be initialized before any commands are serialized.
+   DCHECK_NE(buffer_initial_size_, 0u);
+ 
+@@ -59,10 +55,14 @@
+   }
+ 
+   if (!transfer_buffer_) {
+-    // The serializer hit a fatal error and was disconnected.
++    // The serializer was disconnected.
+     return std::nullopt;
+   }
+ 
++  // Note: Dawn will never call this function with |size| >
++  // GetMaximumAllocationSize().
++  DCHECK_LE(size, GetMaximumAllocationSize());
++
+   // Otherwise, flush and reset the command stream.
+   Flush();
+ 
+@@ -75,8 +75,8 @@
+ 
+   if (!buffer_.valid() || buffer_.size() < size) {
+     DLOG(ERROR) << "Dawn wire transfer buffer allocation failed";
+-    Disconnect();
+     client_->OnGpuControlLostContextMaybeReentrant();
++    Disconnect();
+     return std::nullopt;
+   }
+ 
+@@ -132,6 +132,8 @@
+     helper_->Finish();
+     transfer_buffer = nullptr;
+   }
++  client_ = nullptr;
++  helper_ = nullptr;
+ }
+ 
+ bool DawnClientSerializer::Flush() {
+diff --git a/gpu/command_buffer/client/dawn_client_serializer.h b/gpu/command_buffer/client/dawn_client_serializer.h
+index f911f37..f1baad6d 100644
+--- a/gpu/command_buffer/client/dawn_client_serializer.h
++++ b/gpu/command_buffer/client/dawn_client_serializer.h
+@@ -59,11 +59,8 @@
+   // dawn::wire::CommandSerializer implementation
+   bool Flush() final;
+ 
+-  // Found dangling on `linux-rel` in
+-  // `gpu_tests.context_lost_integration_test.ContextLostIntegrationTest.
+-  // ContextLost_WebGPUStressRequestDeviceAndRemoveLoop`
+-  raw_ptr<WebGPUImplementation, DanglingUntriaged> client_;
+-  raw_ptr<WebGPUCmdHelper, DanglingUntriaged> helper_;
++  raw_ptr<WebGPUImplementation> client_;
++  raw_ptr<WebGPUCmdHelper> helper_;
+ 
+   raw_ptr<DawnClientMemoryTransferService> memory_transfer_service_;
+   uint32_t put_offset_ = 0;
+diff --git a/gpu/command_buffer/client/implementation_base.cc b/gpu/command_buffer/client/implementation_base.cc
+index 834a687..fa25906 100644
+--- a/gpu/command_buffer/client/implementation_base.cc
++++ b/gpu/command_buffer/client/implementation_base.cc
+@@ -23,6 +23,7 @@
+ 
+ const uint32_t ImplementationBase::kMaxSizeOfSimpleResult;
+ const uint32_t ImplementationBase::kStartingOffset;
++const unsigned int ImplementationBase::kAlignment;
+ 
+ ImplementationBase::ImplementationBase(CommandBufferHelper* helper,
+                                        TransferBufferInterface* transfer_buffer,
 diff --git a/gpu/command_buffer/client/webgpu_implementation.cc b/gpu/command_buffer/client/webgpu_implementation.cc
-index cc11a52c..2cf1c71a 100644
+index cc11a52c..2a92ba3c 100644
 --- a/gpu/command_buffer/client/webgpu_implementation.cc
 +++ b/gpu/command_buffer/client/webgpu_implementation.cc
 @@ -15,7 +15,6 @@
@@ -254,16 +464,28 @@ index cc11a52c..2cf1c71a 100644
            mapped_memory,
            base::FeatureList::IsEnabled(
                features::kWebGPUUseDedicatedTransferBuffer)),
-@@ -72,7 +69,7 @@
+@@ -72,12 +69,18 @@
  
  void DawnWireServices::Disconnect() {
    {
 -    base::AutoLockMaybe lock(OptionalToPtr(lock_));
 +    base::AutoLock lock(lock_);
++    if (disconnected_) {
++      return;
++    }
      disconnected_ = true;
    }
-   wire_client_.Disconnect();
-@@ -86,7 +83,7 @@
+-  wire_client_.Disconnect();
++  // Disconnect command-buffer-backed services before `wire_client_` because
++  // `wire_client_.Disconnect()` synchronously invokes callbacks that may tear
++  // down `WebGPUImplementation` and `WebGPUCmdHelper`.
+   serializer_.Disconnect();
+   memory_transfer_service_.Disconnect();
++  wire_client_.Disconnect();
+ }
+ 
+ void DawnWireServices::HandleCommands(
+@@ -86,7 +89,7 @@
    TRACE_EVENT(TRACE_DISABLED_BY_DEFAULT("gpu.dawn"), "DawnReturnCommands",
                perfetto::TerminatingFlow::Global(trace_id));
  
@@ -272,7 +494,7 @@ index cc11a52c..2cf1c71a 100644
    if (disconnected_) {
      return;
    }
-@@ -102,29 +99,29 @@
+@@ -102,29 +105,29 @@
  dawn::wire::ReservedBuffer DawnWireServices::ReserveBuffer(
      WGPUDevice device,
      const WGPUBufferDescriptor* desc) {
@@ -307,7 +529,7 @@ index cc11a52c..2cf1c71a 100644
    // If there is already a flush waiting, we don't need to flush.
    // We only want to ask for a flush on state transition from
    // false -> true.
-@@ -138,7 +135,7 @@
+@@ -138,7 +141,7 @@
  }
  
  void DawnWireServices::FreeMappedResources(WebGPUCmdHelper* helper) {
@@ -316,19 +538,60 @@ index cc11a52c..2cf1c71a 100644
    memory_transfer_service_.FreeHandles(helper);
  }
  #endif
-@@ -151,8 +148,7 @@
- WebGPUImplementation::WebGPUImplementation(
+@@ -152,13 +155,13 @@
      WebGPUCmdHelper* helper,
      TransferBufferInterface* transfer_buffer,
--    GpuControl* gpu_control,
+     GpuControl* gpu_control,
 -    bool support_locking)
-+    GpuControl* gpu_control)
++    scoped_refptr<base::SequencedTaskRunner> main_task_runner)
      : ImplementationBase(helper, transfer_buffer, gpu_control),
        helper_(helper),
-       main_task_runner_(base::SequencedTaskRunner::GetCurrentDefault()) {}
-@@ -208,8 +204,7 @@
+-      main_task_runner_(base::SequencedTaskRunner::GetCurrentDefault()) {}
++      main_task_runner_(std::move(main_task_runner)) {}
  
+ WebGPUImplementation::~WebGPUImplementation() {
+-  LoseContext();
++  lost_ = true;
+ 
+   // Before destroying WebGPUImplementation, all mappable buffers
+   // must be destroyed first. This means that all shared memory mappings are
+@@ -168,6 +171,7 @@
+   // blocks that are no longer in use as free.
  #if BUILDFLAG(USE_DAWN)
+   if (dawn_wire_) {
++    dawn_wire_->Disconnect();
+     dawn_wire_->FreeMappedResources(helper_);
+     dawn_wire_.reset();
+   }
+@@ -180,15 +184,6 @@
+   helper_->Finish();
+ }
+ 
+-void WebGPUImplementation::LoseContext() {
+-  lost_ = true;
+-#if BUILDFLAG(USE_DAWN)
+-  if (dawn_wire_) {
+-    dawn_wire_->Disconnect();
+-  }
+-#endif
+-}
+-
+ gpu::ContextResult WebGPUImplementation::Initialize(
+     const SharedMemoryLimits& limits) {
+   TRACE_EVENT0("gpu", "WebGPUImplementation::Initialize");
+@@ -197,6 +192,7 @@
+     return result;
+   }
+ 
++#if BUILDFLAG(USE_DAWN)
+   std::unique_ptr<TransferBuffer> transfer_buffer =
+       std::make_unique<TransferBuffer>(helper_);
+   if (!transfer_buffer->Initialize(
+@@ -206,10 +202,8 @@
+     return gpu::ContextResult::kFatalFailure;
+   }
+ 
+-#if BUILDFLAG(USE_DAWN)
    dawn_wire_ = base::MakeRefCounted<DawnWireServices>(
 -      this, helper_, mapped_memory_.get(), std::move(transfer_buffer),
 -      main_task_runner_ != nullptr);
@@ -336,8 +599,27 @@ index cc11a52c..2cf1c71a 100644
  #endif
  
    return gpu::ContextResult::kSuccess;
+@@ -297,7 +291,17 @@
+ 
+ // GpuControlClient implementation.
+ void WebGPUImplementation::OnGpuControlLostContext() {
+-  LoseContext();
++  lost_ = true;
++#if BUILDFLAG(USE_DAWN)
++  if (dawn_wire_) {
++    // Post `Disconnect` to `main_task_runner_` so Dawn callbacks (such as
++    // `device.lost`) run in a fresh call stack and cannot re-entrantly destroy
++    // `this`.
++    CHECK(main_task_runner_);
++    main_task_runner_->PostTask(
++        FROM_HERE, base::BindOnce(&DawnWireServices::Disconnect, dawn_wire_));
++  }
++#endif
+ 
+   // This should never occur more than once.
+   DCHECK(!lost_context_callback_run_);
 diff --git a/gpu/command_buffer/client/webgpu_implementation.h b/gpu/command_buffer/client/webgpu_implementation.h
-index 6c80ac7..5ad19329 100644
+index 6c80ac7..51a70b4d 100644
 --- a/gpu/command_buffer/client/webgpu_implementation.h
 +++ b/gpu/command_buffer/client/webgpu_implementation.h
 @@ -9,12 +9,13 @@
@@ -377,16 +659,55 @@ index 6c80ac7..5ad19329 100644
    DawnClientMemoryTransferService memory_transfer_service_;
    DawnClientSerializer serializer_;
    DawnWireClient wire_client_;
-@@ -81,8 +81,7 @@
+@@ -79,10 +79,12 @@
+ class WEBGPU_EXPORT WebGPUImplementation final : public WebGPUInterface,
+                                                  public ImplementationBase {
   public:
-   explicit WebGPUImplementation(WebGPUCmdHelper* helper,
-                                 TransferBufferInterface* transfer_buffer,
+-  explicit WebGPUImplementation(WebGPUCmdHelper* helper,
+-                                TransferBufferInterface* transfer_buffer,
 -                                GpuControl* gpu_control,
 -                                bool support_locking = false);
-+                                GpuControl* gpu_control);
++  explicit WebGPUImplementation(
++      WebGPUCmdHelper* helper,
++      TransferBufferInterface* transfer_buffer,
++      GpuControl* gpu_control,
++      scoped_refptr<base::SequencedTaskRunner> main_task_runner =
++          base::SequencedTaskRunner::GetCurrentDefault());
  
    WebGPUImplementation(const WebGPUImplementation&) = delete;
    WebGPUImplementation& operator=(const WebGPUImplementation&) = delete;
+@@ -161,14 +163,12 @@
+  private:
+   const char* GetLogPrefix() const { return "webgpu"; }
+   void CheckGLError() {}
+-  void LoseContext();
+ 
+   raw_ptr<WebGPUCmdHelper> helper_;
+ 
+-  // If set, this is the task runner that any ProcessEvent calls should be
+-  // proxied to. Otherwise, the default behaviour does not call ProcessEvent's
+-  // at all since the callbacks are expected to be AllowSpontaneous in that
+-  // case.
++  // Client-thread task runner used to run Dawn wire callbacks (`ProcessEvents`
++  // and `Disconnect`) in a fresh call stack so they cannot re-entrantly enter
++  // or destroy `this` during `GpuControlClient` notifications.
+   scoped_refptr<base::SequencedTaskRunner> main_task_runner_;
+ 
+ #if BUILDFLAG(USE_DAWN)
+diff --git a/gpu/ipc/webgpu_in_process_context.cc b/gpu/ipc/webgpu_in_process_context.cc
+index 021687f..9dfaad8 100644
+--- a/gpu/ipc/webgpu_in_process_context.cc
++++ b/gpu/ipc/webgpu_in_process_context.cc
+@@ -69,7 +69,8 @@
+   transfer_buffer_ = std::make_unique<TransferBuffer>(webgpu_helper.get());
+ 
+   webgpu_implementation_ = std::make_unique<webgpu::WebGPUImplementation>(
+-      webgpu_helper.get(), transfer_buffer_.get(), command_buffer_.get());
++      webgpu_helper.get(), transfer_buffer_.get(), command_buffer_.get(),
++      client_task_runner_);
+   helper_ = std::move(webgpu_helper);
+   webgpu_implementation_->Initialize(memory_limits);
+   return result;
 diff --git a/media/base/offloading_audio_encoder.cc b/media/base/offloading_audio_encoder.cc
 index 9667ab2..09eb320 100644
 --- a/media/base/offloading_audio_encoder.cc
@@ -751,6 +1072,119 @@ index e55a449..5a0769f9 100644
                                    SizeFunctionFactory factory);
  
  }  // namespace blink
+diff --git a/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc b/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc
+index 9ec99aee..1d6e490 100644
+--- a/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc
++++ b/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc
+@@ -994,8 +994,6 @@
+   // out.
+   if (!fetch_response_callbacks_.Contains(fetch_event_id))
+     return;
+-  mojom::blink::ServiceWorkerFetchResponseCallback* response_callback =
+-      fetch_response_callbacks_.Take(fetch_event_id)->Value().get();
+ 
+   auto timing = mojom::blink::ServiceWorkerFetchEventTiming::New();
+   timing->dispatch_event_time = event_dispatch_time;
+@@ -1007,8 +1005,14 @@
+     pending_streaming_upload_fetch_events_.insert(fetch_event_id, fetch_event);
+   }
+ 
+-  response_callback->OnFallback(std::move(request_body), std::move(timing),
+-                                std::move(errors));
++  // Take and invoke the callback after all Oilpan allocations (such as
++  // `pending_streaming_upload_fetch_events_.insert()`), as a GC triggered
++  // after `Take()` would collect the unrooted `HeapMojoRemote` wrapper and
++  // reset its underlying Mojo proxy before `OnFallback()` is called.
++  fetch_response_callbacks_.Take(fetch_event_id)
++      ->Value()
++      ->OnFallback(std::move(request_body), std::move(timing),
++                   std::move(errors));
+ }
+ void ServiceWorkerGlobalScope::OnStreamingUploadCompletion(int fetch_event_id) {
+   pending_streaming_upload_fetch_events_.erase(fetch_event_id);
+@@ -1031,17 +1035,15 @@
+   if (!fetch_response_callbacks_.Contains(fetch_event_id))
+     return;
+ 
+-  mojom::blink::ServiceWorkerFetchResponseCallback* response_callback =
+-      fetch_response_callbacks_.Take(fetch_event_id)->Value().get();
+-
+   auto timing = mojom::blink::ServiceWorkerFetchEventTiming::New();
+   timing->dispatch_event_time = event_dispatch_time;
+   timing->respond_with_settled_time = respond_with_settled_time;
+ 
+   NoteRespondedToFetchEvent(request_url, range_request);
+ 
+-  response_callback->OnResponse(std::move(response), std::move(timing),
+-                                std::move(errors));
++  fetch_response_callbacks_.Take(fetch_event_id)
++      ->Value()
++      ->OnResponse(std::move(response), std::move(timing), std::move(errors));
+ }
+ 
+ void ServiceWorkerGlobalScope::RespondToFetchEventWithResponseStream(
+@@ -1062,8 +1064,6 @@
+   // out.
+   if (!fetch_response_callbacks_.Contains(fetch_event_id))
+     return;
+-  mojom::blink::ServiceWorkerFetchResponseCallback* response_callback =
+-      fetch_response_callbacks_.Take(fetch_event_id)->Value().get();
+ 
+   auto timing = mojom::blink::ServiceWorkerFetchEventTiming::New();
+   timing->dispatch_event_time = event_dispatch_time;
+@@ -1071,9 +1071,10 @@
+ 
+   NoteRespondedToFetchEvent(request_url, range_request);
+ 
+-  response_callback->OnResponseStream(std::move(response),
+-                                      std::move(body_as_stream),
+-                                      std::move(timing), std::move(errors));
++  fetch_response_callbacks_.Take(fetch_event_id)
++      ->Value()
++      ->OnResponseStream(std::move(response), std::move(body_as_stream),
++                         std::move(timing), std::move(errors));
+ }
+ 
+ void ServiceWorkerGlobalScope::DidHandleFetchEvent(
+@@ -1196,9 +1197,9 @@
+               perfetto::Flow::ProcessScoped(
+                   event_id, kServiceWorkerGlobalScopeTraceScope));
+   DCHECK(abort_payment_result_callbacks_.Contains(event_id));
+-  payments::mojom::blink::PaymentHandlerResponseCallback* result_callback =
+-      abort_payment_result_callbacks_.Take(event_id)->Value().get();
+-  result_callback->OnResponseForAbortPayment(payment_aborted);
++  abort_payment_result_callbacks_.Take(event_id)
++      ->Value()
++      ->OnResponseForAbortPayment(payment_aborted);
+ }
+ 
+ void ServiceWorkerGlobalScope::DidHandleAbortPaymentEvent(
+@@ -1225,9 +1226,9 @@
+               perfetto::Flow::ProcessScoped(
+                   event_id, kServiceWorkerGlobalScopeTraceScope));
+   DCHECK(can_make_payment_result_callbacks_.Contains(event_id));
+-  payments::mojom::blink::PaymentHandlerResponseCallback* result_callback =
+-      can_make_payment_result_callbacks_.Take(event_id)->Value().get();
+-  result_callback->OnResponseForCanMakePayment(std::move(response));
++  can_make_payment_result_callbacks_.Take(event_id)
++      ->Value()
++      ->OnResponseForCanMakePayment(std::move(response));
+ }
+ 
+ void ServiceWorkerGlobalScope::DidHandleCanMakePaymentEvent(
+@@ -1254,9 +1255,9 @@
+               perfetto::Flow::ProcessScoped(
+                   payment_event_id, kServiceWorkerGlobalScopeTraceScope));
+   DCHECK(payment_response_callbacks_.Contains(payment_event_id));
+-  payments::mojom::blink::PaymentHandlerResponseCallback* response_callback =
+-      payment_response_callbacks_.Take(payment_event_id)->Value().get();
+-  response_callback->OnResponseForPaymentRequest(std::move(response));
++  payment_response_callbacks_.Take(payment_event_id)
++      ->Value()
++      ->OnResponseForPaymentRequest(std::move(response));
+ }
+ 
+ void ServiceWorkerGlobalScope::DidHandlePaymentRequestEvent(
 diff --git a/third_party/blink/renderer/modules/webcodecs/audio_encoder.cc b/third_party/blink/renderer/modules/webcodecs/audio_encoder.cc
 index 83f6413..d86705e 100644
 --- a/third_party/blink/renderer/modules/webcodecs/audio_encoder.cc
@@ -1258,6 +1692,57 @@ index 6088f87d3..b35a428 100644
  
    background_readback->ReadbackTextureBackedFrame(
        std::move(frame), std::move(dest_frame), std::move(done_cb));
+diff --git a/third_party/blink/renderer/platform/graphics/gpu/dawn_control_client_holder.cc b/third_party/blink/renderer/platform/graphics/gpu/dawn_control_client_holder.cc
+index 86c8829..2a61fe4 100644
+--- a/third_party/blink/renderer/platform/graphics/gpu/dawn_control_client_holder.cc
++++ b/third_party/blink/renderer/platform/graphics/gpu/dawn_control_client_holder.cc
+@@ -68,6 +68,13 @@
+     }
+   }
+   DestroyMappableBuffers();
++
++  // Disconnect the wire client synchronously so any trailing JavaScript that
++  // executes after `ContextDestroyed()` (e.g. in a frame that just removed
++  // itself) becomes a no-op and cannot allocate shared memory. This cannot
++  // re-enter page script because `ExecutionContext` destruction has already
++  // started, so Blink WebGPU callbacks early-out.
++  api_channel_->Disconnect();
+   MarkContextLost();
+ 
+   // Destroy the WebGPU context.
+@@ -103,10 +110,8 @@
+ }
+ 
+ void DawnControlClientHolder::MarkContextLost() {
+-  if (context_lost_) {
+-    return;
+-  }
+-  api_channel_->Disconnect();
++  // Disconnecting `api_channel_` on GPU context loss is handled by
++  // `WebGPUImplementation::OnGpuControlLostContext()`.
+   context_lost_ = true;
+ }
+ 
+diff --git a/third_party/blink/renderer/platform/graphics/gpu/dawn_control_client_holder.h b/third_party/blink/renderer/platform/graphics/gpu/dawn_control_client_holder.h
+index 697ba79..9cb8b059 100644
+--- a/third_party/blink/renderer/platform/graphics/gpu/dawn_control_client_holder.h
++++ b/third_party/blink/renderer/platform/graphics/gpu/dawn_control_client_holder.h
+@@ -73,7 +73,6 @@
+   base::WeakPtr<WebGraphicsContext3DProviderWrapper> GetContextProviderWeakPtr()
+       const;
+   wgpu::Instance GetWGPUInstance() const;
+-  void MarkContextLost();
+   bool IsContextLost() const;
+   std::unique_ptr<WebGpuSharedImageLease> LeaseSharedImage(
+       viz::SharedImageFormat format,
+@@ -96,6 +95,7 @@
+   friend class RefCounted<DawnControlClientHolder>;
+   ~DawnControlClientHolder();
+ 
++  void MarkContextLost();
+   void DestroyMappableBuffers();
+ 
+   bool context_lost_ = false;
 diff --git a/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.cc b/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.cc
 index 0bac72c..a4fb749f 100644
 --- a/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.cc
@@ -1391,7 +1876,7 @@ index 3710477..104fc02 100644
    Mode mode_ = Mode::kInitial;
  
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index 3c24587..4706cbb 100644
+index 3c24587..513af1a 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -1399,10 +1884,418 @@ index 3c24587..4706cbb 100644
  #define V8_MINOR_VERSION 8
  #define V8_BUILD_NUMBER 62
 -#define V8_PATCH_LEVEL 45
-+#define V8_PATCH_LEVEL 47
++#define V8_PATCH_LEVEL 50
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/compiler/access-info.cc b/v8/src/compiler/access-info.cc
+index 35025fb..7845db5 100644
+--- a/v8/src/compiler/access-info.cc
++++ b/v8/src/compiler/access-info.cc
+@@ -9,7 +9,6 @@
+ #include <ostream>
+ 
+ #include "src/base/logging.h"
+-#include "src/builtins/accessors.h"
+ #include "src/common/globals.h"
+ #include "src/compiler/compilation-dependencies.h"
+ #include "src/compiler/heap-refs.h"
+@@ -24,6 +23,7 @@
+ #include "src/objects/field-index-inl.h"
+ #include "src/objects/field-type.h"
+ #include "src/objects/instance-type-inl.h"
++#include "src/objects/js-array.h"
+ #include "src/objects/module-inl.h"
+ #include "src/objects/objects-inl.h"
+ #include "src/objects/property-details.h"
+@@ -53,7 +53,7 @@
+   static_assert(ODDBALL_TYPE == LAST_PRIMITIVE_HEAP_OBJECT_TYPE);
+   if (IsBooleanMap(*map.object())) return true;
+   if (map.instance_type() < LAST_PRIMITIVE_HEAP_OBJECT_TYPE) return true;
+-  if (IsJSObjectMap(*map.object())) {
++  if (map.IsJSObjectMap()) {
+     if (map.is_dictionary_map()) {
+       if (!V8_DICT_PROPERTY_CONST_TRACKING_BOOL) return false;
+       return access_mode == AccessMode::kLoad && map.is_prototype_map();
+@@ -63,7 +63,7 @@
+            !map.is_access_check_needed();
+   }
+ #if V8_ENABLE_WEBASSEMBLY
+-  if (IsAnyWasmObjectMap(*map.object())) {
++  if (map.IsAnyWasmObjectMap()) {
+     DCHECK(!map.has_named_interceptor());
+     DCHECK(!map.is_access_check_needed());
+     // Accesses to Wasm objects all go through the prototype chain, but
+@@ -118,7 +118,7 @@
+ ElementAccessInfo::ElementAccessInfo(MapRef map, ObjectRef accessor,
+                                      ObjectRef target, bool string_keys,
+                                      Zone* zone)
+-    : elements_kind_(map.elements_kind()),
++    : elements_kind_(NO_ELEMENTS),
+       string_keys_(string_keys),
+       lookup_start_object_maps_({map}, zone),
+       transition_sources_(zone),
+@@ -1020,7 +1020,7 @@
+   // Receiver map must be a standard JSObject without access checks or
+   // interceptors.
+   if (!map.is_dictionary_map() || !map.IsJSObjectMap() ||
+-      IsJSGlobalObjectMap(*map.object()) || map.is_access_check_needed() ||
++      map.IsJSGlobalObjectMap() || map.is_access_check_needed() ||
+       map.has_named_interceptor()) {
+     return PropertyAccessInfo::Invalid(zone);
+   }
+@@ -1061,7 +1061,7 @@
+     }
+   }
+ 
+-  if (access_mode == AccessMode::kHas && !IsJSReceiverMap(*map.object())) {
++  if (access_mode == AccessMode::kHas && !map.IsJSReceiverMap()) {
+     return Invalid();
+   }
+ 
+@@ -1198,7 +1198,7 @@
+ 
+     // Don't search on the prototype chain for special indices in case of
+     // integer indexed exotic objects (see ES6 section 9.4.5).
+-    if (IsJSTypedArrayMap(*map.object()) && name.IsString()) {
++    if (map.IsJSTypedArrayMap() && name.IsString()) {
+       StringRef name_str = name.AsString();
+       SharedStringAccessGuardIfNeeded access_guard(
+           *name_str.object(), broker()->local_isolate_or_isolate());
+@@ -1240,11 +1240,11 @@
+     HeapObjectRef prototype = map.prototype(broker());
+ 
+     MapRef map_prototype_map = prototype.map(broker());
+-    if (!IsJSObjectMap(*map_prototype_map.object())) {
++    if (!map_prototype_map.IsJSObjectMap()) {
+       // Don't allow proxies on the prototype chain.
+       if (!prototype.IsNull()) {
+-        DCHECK(IsJSProxy(*prototype.object()) ||
+-               IsWasmObject(*prototype.object()));
++        DCHECK(map_prototype_map.IsJSProxyMap() ||
++               map_prototype_map.IsAnyWasmObjectMap());
+         return Invalid();
+       }
+ 
+@@ -1403,14 +1403,14 @@
+ PropertyAccessInfo AccessInfoFactory::LookupSpecialFieldAccessor(
+     MapRef map, NameRef name) const {
+   // Check for String::length field accessor.
+-  if (IsStringMap(*map.object())) {
++  if (map.IsStringMap()) {
+     if (Name::Equals(isolate(), name.object(),
+                      isolate()->factory()->length_string())) {
+       return PropertyAccessInfo::StringLength(zone(), map);
+     }
+     return Invalid();
+   }
+-  if (IsJSPrimitiveWrapperMap(*map.object()) &&
++  if (map.IsJSPrimitiveWrapperMap() &&
+       (map.elements_kind() == FAST_STRING_WRAPPER_ELEMENTS ||
+        map.elements_kind() == SLOW_STRING_WRAPPER_ELEMENTS)) {
+     if (Name::Equals(isolate(), name.object(),
+@@ -1418,29 +1418,29 @@
+       return PropertyAccessInfo::StringWrapperLength(zone(), map);
+     }
+   }
+-  // Check for special JSObject field accessors.
+-  FieldIndex field_index;
+-  if (Accessors::IsJSObjectFieldAccessor(isolate(), map.object(), name.object(),
+-                                         &field_index)) {
++  // Check for special JSObject field accessors. Mirrors
++  // Accessors::IsJSObjectFieldAccessor, inlined here to use the snapshotted
++  // MapRef instance type rather than reading the live Map.
++  if (map.IsJSArrayMap() && !map.is_dictionary_map() &&
++      Name::Equals(isolate(), name.object(),
++                   isolate()->factory()->length_string())) {
++    FieldIndex field_index = FieldIndex::ForInObjectOffset(
++        offsetof(JSArray, length_), FieldIndex::kTagged);
+     Type field_type = Type::NonInternal();
+     Representation field_representation = Representation::Tagged();
+-    if (IsJSArrayMap(*map.object())) {
+-      DCHECK(Name::Equals(isolate(), isolate()->factory()->length_string(),
+-                          name.object()));
+-      // The JSArray::length property is a smi in the range
+-      // [0, FixedDoubleArray::kMaxLength] in case of fast double
+-      // elements, a smi in the range [0, FixedArray::kMaxLength]
+-      // in case of other fast elements, and [0, kMaxUInt32] in
+-      // case of other arrays.
+-      if (IsDoubleElementsKind(map.elements_kind())) {
+-        field_type = type_cache_->kFixedDoubleArrayLengthType;
+-        field_representation = Representation::Smi();
+-      } else if (IsFastElementsKind(map.elements_kind())) {
+-        field_type = type_cache_->kFixedArrayLengthType;
+-        field_representation = Representation::Smi();
+-      } else {
+-        field_type = type_cache_->kJSArrayLengthType;
+-      }
++    // The JSArray::length property is a smi in the range
++    // [0, FixedDoubleArray::kMaxLength] in case of fast double
++    // elements, a smi in the range [0, FixedArray::kMaxLength]
++    // in case of other fast elements, and [0, kMaxUInt32] in
++    // case of other arrays.
++    if (IsDoubleElementsKind(map.elements_kind())) {
++      field_type = type_cache_->kFixedDoubleArrayLengthType;
++      field_representation = Representation::Smi();
++    } else if (IsFastElementsKind(map.elements_kind())) {
++      field_type = type_cache_->kFixedArrayLengthType;
++      field_representation = Representation::Smi();
++    } else {
++      field_type = type_cache_->kJSArrayLengthType;
+     }
+     // Special fields are always mutable.
+     return PropertyAccessInfo::DataField(broker(), zone(), map, {{}, zone()},
+@@ -1455,9 +1455,8 @@
+     PropertyDetails details, InternalIndex index) const {
+   // Check whether we're accessing the `length` property in a TypedArray
+   // prototype.
+-  if (v8_flags.typed_array_length_loading &&
+-      IsJSTypedArrayMap(*receiver_map.object()) &&
+-      !IsJSDetachedTypedArrayMap(*receiver_map.object()) &&
++  if (v8_flags.typed_array_length_loading && receiver_map.IsJSTypedArrayMap() &&
++      !receiver_map.IsJSDetachedTypedArrayMap() &&
+       !IsRabGsabTypedArrayElementsKind(receiver_map.elements_kind()) &&
+       Name::Equals(isolate(), name.object(),
+                    isolate()->factory()->length_string()) &&
+diff --git a/v8/src/compiler/access-info.h b/v8/src/compiler/access-info.h
+index 7402929..7cf8383 100644
+--- a/v8/src/compiler/access-info.h
++++ b/v8/src/compiler/access-info.h
+@@ -48,6 +48,7 @@
+ 
+   void AddTransitionSource(MapRef map) {
+     CHECK_EQ(lookup_start_object_maps_.size(), 1);
++    CHECK(!is_proxy_on_prototype());
+     transition_sources_.push_back(map);
+   }
+ 
+diff --git a/v8/src/compiler/backend/jump-threading.cc b/v8/src/compiler/backend/jump-threading.cc
+index efd6328..394b77b 100644
+--- a/v8/src/compiler/backend/jump-threading.cc
++++ b/v8/src/compiler/backend/jump-threading.cc
+@@ -125,8 +125,7 @@
+ 
+ bool JumpThreading::ComputeForwarding(Zone* local_zone,
+                                       ZoneVector<RpoNumber>* result,
+-                                      InstructionSequence* code,
+-                                      bool frame_at_start) {
++                                      InstructionSequence* code) {
+   ZoneStack<RpoNumber> stack(local_zone);
+   JumpThreadingState state = {false, *result, stack};
+   state.Clear(code->InstructionBlockCount());
+@@ -156,9 +155,13 @@
+           // can forward to a block with identical gap-moves.
+           if (instr->arch_opcode() == kArchJmp) {
+             TRACE(" jmp");
++            // Never record or forward a block that constructs or deconstructs a
++            // frame: skipping it drops the frame transition, and forwarding
++            // another block into it (e.g. a loop backedge into B0) re-executes
++            // frame construction.
+             RpoNumber forward_to;
+-            if ((frame_at_start || !(block->must_deconstruct_frame() ||
+-                                     block->must_construct_frame())) &&
++            if (!(block->must_deconstruct_frame() ||
++                  block->must_construct_frame()) &&
+                 record.CanForwardGapJump(instr, block->rpo_number(),
+                                          code->InputRpo(instr, 0),
+                                          &forward_to)) {
+@@ -179,13 +182,10 @@
+         } else if (instr->arch_opcode() == kArchJmp) {
+           // try to forward the jump instruction.
+           TRACE("  jmp\n");
+-          // if this block deconstructs the frame, we can't forward it.
+-          // TODO(mtrofin): we can still forward if we end up building
+-          // the frame at start. So we should move the decision of whether
+-          // to build a frame or not in the register allocator, and trickle it
+-          // here and to the code generator.
+-          if (frame_at_start || !(block->must_deconstruct_frame() ||
+-                                  block->must_construct_frame())) {
++          // If this block constructs or deconstructs the frame, we can't
++          // forward it.
++          if (!(block->must_deconstruct_frame() ||
++                block->must_construct_frame())) {
+             fw = code->InputRpo(instr, 0);
+           }
+         } else if (instr->IsRet()) {
+diff --git a/v8/src/compiler/backend/jump-threading.h b/v8/src/compiler/backend/jump-threading.h
+index ce9e394..755990c 100644
+--- a/v8/src/compiler/backend/jump-threading.h
++++ b/v8/src/compiler/backend/jump-threading.h
+@@ -18,7 +18,7 @@
+   // Compute the forwarding map of basic blocks to their ultimate destination.
+   // Returns {true} if there is at least one block that is forwarded.
+   static bool ComputeForwarding(Zone* local_zone, ZoneVector<RpoNumber>* result,
+-                                InstructionSequence* code, bool frame_at_start);
++                                InstructionSequence* code);
+ 
+   // Rewrite the instructions to forward jumps and branches.
+   // May also negate some branches.
+diff --git a/v8/src/compiler/escape-analysis.cc b/v8/src/compiler/escape-analysis.cc
+index 87757ff..0e2bc17 100644
+--- a/v8/src/compiler/escape-analysis.cc
++++ b/v8/src/compiler/escape-analysis.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "src/compiler/escape-analysis.h"
+ 
++#include "src/base/numerics/checked_math.h"
+ #include "src/codegen/tick-counter.h"
+ #include "src/compiler/frame-states.h"
+ #include "src/compiler/node-matchers.h"
+@@ -560,8 +561,12 @@
+ 
+   DCHECK_GE(index, 0);
+   DCHECK_GE(ElementSizeLog2Of(representation), kTaggedSizeLog2);
+-  return Just(access.header_size +
+-              (index << ElementSizeLog2Of(representation)));
++  base::CheckedNumeric<int> byte_index = base::CheckedNumeric<int>(index)
++                                         << ElementSizeLog2Of(representation);
++  base::CheckedNumeric<int> offset = byte_index + access.header_size;
++  int result;
++  if (!offset.AssignIfValid(&result)) return Nothing<int>();
++  return Just(result);
+ }
+ 
+ Maybe<int> OffsetOfElementsAccess(const Operator* op, Node* index_node) {
+@@ -571,8 +576,11 @@
+   if (!index_type.Is(Type::OrderedNumber())) return Nothing<int>();
+   double max = index_type.Max();
+   double min = index_type.Min();
++  if (min < 0 || min != max || !base::IsValueInRangeForNumericType<int>(min)) {
++    return Nothing<int>();
++  }
+   int index = static_cast<int>(min);
+-  if (index < 0 || index != min || index != max) return Nothing<int>();
++  if (index != min) return Nothing<int>();
+   return OffsetOfElementAt(ElementAccessOf(op), index);
+ }
+ 
+diff --git a/v8/src/compiler/escape-analysis.h b/v8/src/compiler/escape-analysis.h
+index c2650e7..d950e97 100644
+--- a/v8/src/compiler/escape-analysis.h
++++ b/v8/src/compiler/escape-analysis.h
+@@ -130,7 +130,7 @@
+   Maybe<Variable> FieldAt(int offset) const {
+     CHECK(IsAligned(offset, kTaggedSize));
+     CHECK(!HasEscaped());
+-    if (offset >= size()) {
++    if (offset < 0 || offset >= size()) {
+       // TODO(turbofan): Reading out-of-bounds can only happen in unreachable
+       // code. In this case, we have to mark the object as escaping to avoid
+       // dead nodes in the graph. This is a workaround that should be removed
+diff --git a/v8/src/compiler/heap-refs.cc b/v8/src/compiler/heap-refs.cc
+index 1c14ba6..c1405e4 100644
+--- a/v8/src/compiler/heap-refs.cc
++++ b/v8/src/compiler/heap-refs.cc
+@@ -664,6 +664,19 @@
+     CHECK(InstanceTypeChecker::IsJSObject(instance_type()));
+     return in_object_properties_;
+   }
++  uint8_t GetInObjectPropertiesStartInWords() const {
++    DCHECK(InstanceTypeChecker::IsJSObject(instance_type()));
++    return inobject_properties_start_or_constructor_function_index_;
++  }
++  int GetConstructorFunctionIndex() const {
++#if V8_ENABLE_WEBASSEMBLY
++    DCHECK(instance_type() <= LAST_PRIMITIVE_HEAP_OBJECT_TYPE ||
++           instance_type() == WASM_NULL_TYPE);
++#else
++    DCHECK(instance_type() <= LAST_PRIMITIVE_HEAP_OBJECT_TYPE);
++#endif
++    return inobject_properties_start_or_constructor_function_index_;
++  }
+   int UnusedPropertyFields() const { return unused_property_fields_; }
+   bool is_abandoned_prototype_map() const {
+     return is_abandoned_prototype_map_;
+@@ -676,6 +689,7 @@
+ 
+   InstanceType instance_type_;
+   int instance_size_;
++  uint8_t inobject_properties_start_or_constructor_function_index_;
+   Map::Bits2 bit_field2_;
+   Map::Bits3 bit_field3_;
+   int unused_property_fields_;
+@@ -1014,12 +1028,11 @@
+   JSHeapBroker::MapUpdaterGuardIfNeeded mumd_scope(broker);
+ 
+   // When background serializing the map, we can perform a lite serialization
+-  // since the MapRef will read some of the Map's fields can be read directly.
+-
+-  // Even though MapRefs can read {instance_type} directly, other classes depend
+-  // on {instance_type} being serialized.
++  // since the MapRef will read some of the Map's fields directly.
+   instance_type_ = object->instance_type();
+   instance_size_ = object->instance_size();
++  inobject_properties_start_or_constructor_function_index_ =
++      object->inobject_properties_start_or_constructor_function_index();
+ 
+   bit_field2_ = object->bit_field2();
+ 
+@@ -1033,9 +1046,11 @@
+   // lock in more places.
+   bit_field3_ = object->relaxed_bit_field3();
+   is_abandoned_prototype_map_ = object->is_abandoned_prototype_map();
+-  if (IsJSObjectMap(*object)) {
++  if (InstanceTypeChecker::IsJSObject(instance_type_)) {
+     unused_property_fields_ = object->UnusedPropertyFields();
+-    in_object_properties_ = object->GetInObjectProperties();
++    in_object_properties_ =
++        (instance_size_ >> kTaggedSizeLog2) -
++        inobject_properties_start_or_constructor_function_index_;
+   } else {
+     unused_property_fields_ = 0;
+     in_object_properties_ = 0;
+@@ -1335,11 +1350,11 @@
+ }
+ 
+ bool MapRef::IsOneByteStringMap() const {
+-  return InstanceTypeChecker::IsOneByteString(*object());
++  return InstanceTypeChecker::IsOneByteString(instance_type());
+ }
+ 
+ bool MapRef::IsTwoByteStringMap() const {
+-  return InstanceTypeChecker::IsTwoByteString(*object());
++  return InstanceTypeChecker::IsTwoByteString(instance_type());
+ }
+ 
+ bool MapRef::CanInlineElementAccess() const {
+@@ -1532,7 +1547,7 @@
+ }
+ 
+ int MapRef::GetInObjectPropertyOffset(int i) const {
+-  return object()->GetInObjectPropertyOffset(i);
++  return (GetInObjectPropertiesStartInWords() + i) * kTaggedSize;
+ }
+ 
+ PropertyDetails MapRef::GetPropertyDetails(
+@@ -2114,7 +2129,8 @@
+ }
+ 
+ int MapRef::constructor_function_index() const {
+-  return object()->GetConstructorFunctionIndex();
++  IF_ACCESS_FROM_HEAP_C(GetConstructorFunctionIndex);
++  return data()->AsMap()->GetConstructorFunctionIndex();
+ }
+ 
+ bool MapRef::is_stable() const {
+@@ -2124,10 +2140,15 @@
+ 
+ bool MapRef::CanBeDeprecated() const { return object()->CanBeDeprecated(); }
+ 
+-bool MapRef::CanTransition() const { return object()->CanTransition(); }
++bool MapRef::CanTransition() const {
++  const InstanceType type = instance_type();
++  return InstanceTypeChecker::IsJSObject(type) &&
++         !InstanceTypeChecker::IsMaybeReadOnlyJSObject(type);
++}
+ 
+ uint8_t MapRef::GetInObjectPropertiesStartInWords() const {
+-  return object()->GetInObjectPropertiesStartInWords();
++  IF_ACCESS_FROM_HEAP_C(GetInObjectPropertiesStartInWords);
++  return data()->AsMap()->GetInObjectPropertiesStartInWords();
+ }
+ 
+ int MapRef::GetInObjectProperties() const {
 diff --git a/v8/src/compiler/js-call-reducer.cc b/v8/src/compiler/js-call-reducer.cc
 index 9c18c8c..080e06f 100644
 --- a/v8/src/compiler/js-call-reducer.cc
@@ -1418,6 +2311,185 @@ index 9c18c8c..080e06f 100644
            Replace(node, replacement, max_id);
          }
        }
+diff --git a/v8/src/compiler/js-native-context-specialization.cc b/v8/src/compiler/js-native-context-specialization.cc
+index f538046..229cc56 100644
+--- a/v8/src/compiler/js-native-context-specialization.cc
++++ b/v8/src/compiler/js-native-context-specialization.cc
+@@ -2348,10 +2348,7 @@
+         // need to guard against changes to that below).
+         if ((IsHoleyOrDictionaryElementsKind(receiver_map.elements_kind()) ||
+              StoreModeCanGrow(feedback.keyed_mode().store_mode())) &&
+-#if V8_ENABLE_WEBASSEMBLY
+-            !(receiver_map.IsAnyWasmObjectMap() &&
+-              access_info.is_proxy_on_prototype()) &&
+-#endif  // V8_ENABLE_WEBASSEMBLY
++            !access_info.is_proxy_on_prototype() &&
+             !receiver_map.PrototypesElementsDoNotHaveAccessorsOrThrow(
+                 broker(), &prototype_maps)) {
+           return NoChange();
+@@ -3593,6 +3590,17 @@
+   ZoneVector<MapRef> const& receiver_maps =
+       access_info.lookup_start_object_maps();
+ 
++#if V8_ENABLE_WEBASSEMBLY
++  if (access_info.is_proxy_on_prototype()) {
++    DCHECK_EQ(receiver_maps.size(), 1);
++    DCHECK(receiver_maps.front().IsAnyWasmObjectMap());
++    return BuildPrototypeProxyElementAccess(
++        receiver, index, value, effect, control, context, access_info,
++        language_mode, keyed_mode, if_exceptions, frame_state);
++  }
++#endif  // V8_ENABLE_WEBASSEMBLY
++
++  DCHECK_NE(elements_kind, NO_ELEMENTS);
+   if (IsTypedArrayElementsKind(elements_kind) ||
+       IsRabGsabTypedArrayElementsKind(elements_kind)) {
+     return BuildElementAccessForTypedArrayOrRabGsabTypedArray(
+@@ -3600,15 +3608,6 @@
+         keyed_mode);
+   }
+ 
+-#if V8_ENABLE_WEBASSEMBLY
+-  if (receiver_maps.size() == 1 && receiver_maps.front().IsAnyWasmObjectMap() &&
+-      access_info.is_proxy_on_prototype()) {
+-    return BuildPrototypeProxyElementAccess(
+-        receiver, index, value, effect, control, context, access_info,
+-        language_mode, keyed_mode, if_exceptions, frame_state);
+-  }
+-#endif  // V8_ENABLE_WEBASSEMBLY
+-
+   // Load the elements for the {receiver}.
+   Node* elements = effect = graph()->NewNode(
+       simplified()->LoadField(AccessBuilder::ForJSObjectElements()), receiver,
+diff --git a/v8/src/compiler/property-access-builder.cc b/v8/src/compiler/property-access-builder.cc
+index a3d2a8b..1199895 100644
+--- a/v8/src/compiler/property-access-builder.cc
++++ b/v8/src/compiler/property-access-builder.cc
+@@ -216,20 +216,17 @@
+   if (!value) return {};
+ 
+   for (MapRef map : access_info.lookup_start_object_maps()) {
+-    DirectHandle<Map> map_handle = map.object();
+     // Non-JSReceivers that passed AccessInfoFactory::ComputePropertyAccessInfo
+     // must have different lookup start map.
+-    if (!IsJSReceiverMap(*map_handle)) {
++    if (!map.IsJSReceiverMap()) {
+       // Perform the implicit ToObject for primitives here.
+       // Implemented according to ES6 section 7.3.2 GetV (V, P).
+-      Tagged<JSFunction> constructor =
+-          Map::GetConstructorFunction(
+-              *map_handle, *broker()->target_native_context().object())
+-              .value();
+-      // {constructor.initial_map()} is loaded/stored with acquire-release
+-      // semantics for constructors.
+-      map = MakeRefAssumeMemoryFence(broker(), constructor->initial_map());
+-      DCHECK(IsJSObjectMap(*map.object()));
++      OptionalJSFunctionRef constructor =
++          broker()->target_native_context().GetConstructorFunction(broker(),
++                                                                   map);
++      if (!constructor.has_value()) return {};
++      map = constructor->initial_map(broker());
++      DCHECK(map.IsJSObjectMap());
+     }
+     dependencies()->DependOnConstantInDictionaryPrototypeChain(
+         map, access_info.name(), value.value(), PropertyKind::kData);
+diff --git a/v8/src/compiler/turboshaft/pipelines.h b/v8/src/compiler/turboshaft/pipelines.h
+index 7e8f799..8fb0974 100644
+--- a/v8/src/compiler/turboshaft/pipelines.h
++++ b/v8/src/compiler/turboshaft/pipelines.h
+@@ -406,12 +406,9 @@
+ 
+     RUN_MAYBE_ABORT(FrameElisionPhase);
+ 
+-    // TODO(mtrofin): move this off to the register allocator.
+-    bool generate_frame_at_start =
+-        data_->sequence()->instruction_blocks().front()->must_construct_frame();
+     // Optimimize jumps.
+     if (v8_flags.turbo_jt) {
+-      RUN_MAYBE_ABORT(JumpThreadingPhase, generate_frame_at_start);
++      RUN_MAYBE_ABORT(JumpThreadingPhase);
+     }
+ 
+     EndPhaseKind();
+diff --git a/v8/src/compiler/turboshaft/register-allocation-phase.h b/v8/src/compiler/turboshaft/register-allocation-phase.h
+index 09c7283..2e3cecb 100644
+--- a/v8/src/compiler/turboshaft/register-allocation-phase.h
++++ b/v8/src/compiler/turboshaft/register-allocation-phase.h
+@@ -200,10 +200,10 @@
+   DECL_TURBOSHAFT_PHASE_CONSTANTS_WITH_LEGACY_NAME(JumpThreading)
+   static constexpr bool kOutputIsTraceableGraph = false;
+ 
+-  void Run(PipelineData* data, Zone* temp_zone, bool frame_at_start) {
++  void Run(PipelineData* data, Zone* temp_zone) {
+     ZoneVector<RpoNumber> result(temp_zone);
+-    if (JumpThreading::ComputeForwarding(temp_zone, &result, data->sequence(),
+-                                         frame_at_start)) {
++    if (JumpThreading::ComputeForwarding(temp_zone, &result,
++                                         data->sequence())) {
+       JumpThreading::ApplyForwarding(temp_zone, result, data->sequence());
+     }
+   }
+diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
+index 18149e3..427ba01 100644
+--- a/v8/src/maglev/maglev-graph-builder.cc
++++ b/v8/src/maglev/maglev-graph-builder.cc
+@@ -4189,20 +4189,17 @@
+   if (!constant.has_value()) return {};
+ 
+   for (compiler::MapRef map : access_info.lookup_start_object_maps()) {
+-    DirectHandle<Map> map_handle = map.object();
+     // Non-JSReceivers that passed AccessInfoFactory::ComputePropertyAccessInfo
+     // must have different lookup start map.
+-    if (!IsJSReceiverMap(*map_handle)) {
++    if (!map.IsJSReceiverMap()) {
+       // Perform the implicit ToObject for primitives here.
+       // Implemented according to ES6 section 7.3.2 GetV (V, P).
+-      Tagged<JSFunction> constructor =
+-          Map::GetConstructorFunction(
+-              *map_handle, *broker()->target_native_context().object())
+-              .value();
+-      // {constructor.initial_map()} is loaded/stored with acquire-release
+-      // semantics for constructors.
+-      map = MakeRefAssumeMemoryFence(broker(), constructor->initial_map());
+-      DCHECK(IsJSObjectMap(*map.object()));
++      compiler::OptionalJSFunctionRef constructor =
++          broker()->target_native_context().GetConstructorFunction(broker(),
++                                                                   map);
++      if (!constructor.has_value()) return {};
++      map = constructor->initial_map(broker());
++      DCHECK(map.IsJSObjectMap());
+     }
+     broker()->dependencies()->DependOnConstantInDictionaryPrototypeChain(
+         map, access_info.name(), constant.value(), PropertyKind::kData);
+@@ -5641,13 +5638,10 @@
+     ValueNode* object, ValueNode* index_object,
+     const compiler::ElementAccessInfo& access_info,
+     compiler::KeyedAccessMode const& keyed_mode) {
++  DCHECK(!access_info.is_proxy_on_prototype());
+   if (!IsFastElementsKind(access_info.elements_kind())) {
+     return {};
+   }
+-  if (access_info.is_proxy_on_prototype()) {
+-    // TODO(jkummerow): Implement support.
+-    return {};
+-  }
+   switch (keyed_mode.access_mode()) {
+     case compiler::AccessMode::kLoad:
+       return BuildElementLoadOnJSArrayOrJSObject(
+@@ -5710,6 +5704,13 @@
+     return {};
+   }
+ 
++  for (const compiler::ElementAccessInfo& access_info : access_infos) {
++    if (access_info.is_proxy_on_prototype()) {
++      // TODO(jkummerow): Implement support.
++      return {};
++    }
++  }
++
+   // TODO(leszeks): This is copied without changes from TurboFan's native
+   // context specialization. We should figure out a way to share this code.
+   //
 diff --git a/v8/src/maglev/maglev-truncation.h b/v8/src/maglev/maglev-truncation.h
 index a13adb7..47c7c01 100644
 --- a/v8/src/maglev/maglev-truncation.h
@@ -1458,6 +2530,18 @@ index a13adb7..47c7c01 100644
          break;
        default:
          UNREACHABLE();
+diff --git a/v8/src/runtime/runtime-regexp.cc b/v8/src/runtime/runtime-regexp.cc
+index ec17453..41060a3 100644
+--- a/v8/src/runtime/runtime-regexp.cc
++++ b/v8/src/runtime/runtime-regexp.cc
+@@ -832,6 +832,7 @@
+   int delta = allocated_string_size - string_size;
+ 
+   answer->set_length(position);
++  answer->ClearPadding();
+   if (delta == 0) return *answer;
+ 
+   Address end_of_string = answer->address() + string_size;
 diff --git a/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h b/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
 index 82151a3..2f8d5bb 100644
 --- a/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
