@@ -1,10 +1,11 @@
 Chromium 158.0.8127.66 + the later changes of its release branch, up to
-9f20a5927d9d04a6a48c3017598fef69bd1e51be (refs/branch-heads/8127@{#1950}), for the
+fa975a210344f49691e885ef28c1014f880badc3 (refs/branch-heads/8127@{#1951}), for the
 158.0.8127.66 tree that chromium-158.0.8127.37-to-158.0.8127.66.patch makes.
-The newest change it carries is 8127@{#1950}; the orderfile, PGO profile and AFDO pointer rolls between are left out.
+The newest change it carries is 8127@{#1951}; the orderfile, PGO profile and AFDO pointer rolls between are left out.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.66..9f20a5927d9d04a6a48c3017598fef69bd1e51be,
-from its roll of v8/v8 98b95638c50152f0585529494bbcbe8caa81aed8..b831e95e6ea87ae276d9159daed3c72837ae6739 (under v8/)
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.66..fa975a210344f49691e885ef28c1014f880badc3,
+from its roll of v8/v8 98b95638c50152f0585529494bbcbe8caa81aed8..b831e95e6ea87ae276d9159daed3c72837ae6739 (under v8/),
+from its roll of skia 9f8fb9da7e434d74187003c2431f13d0f11641f7..9028e95e8f4a1bffdc99854795b25ddc9a3cacb4 (under third_party/skia/),
 and from its roll of angle 1069527181b8d4cf55f604d06557381a2a09b2ea..cb3a38f37525831914266bfc8964eb39c675c5ee (under third_party/angle/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .66 tree's files): left out are files not in the release tarball,
@@ -38,6 +39,8 @@ Commits contributing to it (oldest first):
     v8 852c0eff3f9d [M158] [regexp] Clear padding after trimming in replace
     v8 b831e95e6ea8 Version 15.8.62.50
   9f20a5927d9d [M158] [webgpu] Defer DawnWireServices::Disconnect() on GPU context loss
+  fa975a210344 Roll commits from side projects in M158
+    skia 203b98b0d81b [M158] [ganesh] Fix image filtering mipmap bug
 
 diff --git a/base/allocator/partition_allocator/src/partition_alloc/scheduler_loop_quarantine.cc b/base/allocator/partition_allocator/src/partition_alloc/scheduler_loop_quarantine.cc
 index ed0bc3ed..6c091b08 100644
@@ -2542,6 +2545,124 @@ index ec17453..41060a3 100644
    if (delta == 0) return *answer;
  
    Address end_of_string = answer->address() + string_size;
+diff --git a/third_party/skia/src/core/SkSpecialImage.cpp b/third_party/skia/src/core/SkSpecialImage.cpp
+index 5c52e7e..58c2ed2 100644
+--- a/third_party/skia/src/core/SkSpecialImage.cpp
++++ b/third_party/skia/src/core/SkSpecialImage.cpp
+@@ -39,12 +39,27 @@
+                                                   : SkCanvas::kFast_SrcRectConstraint);
+ }
+ 
++SkSamplingOptions SkSpecialImage::ganeshSafeSampling(const SkSamplingOptions& sampling) const {
++    if (this->isExactFit()) {
++        return sampling;
++    }
++    if (sampling.isAniso() || sampling.useCubic || sampling.mipmap != SkMipmapMode::kNone) {
++        // if we were "fancier" than just bilerp, only do bilerp
++        return SkSamplingOptions(SkFilterMode::kLinear);
++    }
++    return sampling;
++}
++
+ // TODO(skbug.com/40043877): Once bitmap images work with SkImageShader::MakeSubset(), this does not
+ // need to be virtual anymore.
+ sk_sp<SkShader> SkSpecialImage::asShader(SkTileMode tileMode,
+                                          const SkSamplingOptions& sampling,
+                                          const SkMatrix& lm,
+                                          bool strict) const {
++    const SkSamplingOptions safeSampling = this->isGaneshBacked()
++            ? this->ganeshSafeSampling(sampling)
++            : sampling;
++
+     // The special image's logical (0,0) is at its subset's topLeft() so we need to account for
+     // that in the local matrix used when sampling.
+     SkMatrix subsetOrigin = SkMatrix::Translate(-this->subset().topLeft());
+@@ -58,10 +73,10 @@
+         // asImage() w/o a subset makes no copy; create the SkImageShader directly to remember
+         // the subset used to access the image.
+         return SkImageShader::MakeSubset(
+-                this->asImage(), subset, tileMode, tileMode, sampling, &subsetOrigin);
++                this->asImage(), subset, tileMode, tileMode, safeSampling, &subsetOrigin);
+     } else {
+         // Ignore 'subset' other than its origin translation applied to the local matrix.
+-        return this->asImage()->makeShader(tileMode, tileMode, sampling, subsetOrigin);
++        return this->asImage()->makeShader(tileMode, tileMode, safeSampling, subsetOrigin);
+     }
+ }
+ 
+diff --git a/third_party/skia/src/core/SkSpecialImage.h b/third_party/skia/src/core/SkSpecialImage.h
+index 3d55bb6..6189877ce 100644
+--- a/third_party/skia/src/core/SkSpecialImage.h
++++ b/third_party/skia/src/core/SkSpecialImage.h
+@@ -41,7 +41,7 @@
+  *      - it can only be backed by raster or gpu (no generators)
+  *      - it can be backed by a GrTextureProxy larger than its nominal bounds
+  *      - it can't be drawn tiled
+- *      - it can't be drawn with MIPMAPs
++ *      - [Ganesh] it can't be drawn with MIPMAPs unless its subset covers its entire backing store
+  * It is similar to SkImage in that it abstracts how the pixels are stored/represented.
+  *
+  * Note: the contents of the backing storage outside of the subset rect are undefined.
+@@ -66,6 +66,17 @@
+ 
+     bool isExactFit() const { return fSubset == SkIRect::MakeSize(this->backingStoreDimensions()); }
+ 
++    /**
++     * Returns 'sampling' adjusted so that it is safe to use when drawing or sampling this special
++     * image. Mipmapped and anisotropic sampling build the mip chain from the entire backing store,
++     * and the texels outside of subset() may never have been written (e.g., an approx-fit texture
++     * reused from the scratch pool). So, unless the subset covers the entire backing store (i.e.,
++     * isExactFit()), those are downgraded to bilinear filtering of the base level. Note that the
++     * fit of the underlying texture can't be used for this since it may be shared with other
++     * special images and may already have been exactified by an earlier use.
++     */
++    SkSamplingOptions ganeshSafeSampling(const SkSamplingOptions& sampling) const;
++
+     const SkColorInfo& colorInfo() const { return fColorInfo; }
+     SkAlphaType alphaType() const { return fColorInfo.alphaType(); }
+     SkColorType colorType() const { return fColorInfo.colorType(); }
+diff --git a/third_party/skia/src/gpu/ganesh/Device_drawTexture.cpp b/third_party/skia/src/gpu/ganesh/Device_drawTexture.cpp
+index 208c71d..d956bc6 100644
+--- a/third_party/skia/src/gpu/ganesh/Device_drawTexture.cpp
++++ b/third_party/skia/src/gpu/ganesh/Device_drawTexture.cpp
+@@ -237,18 +237,8 @@
+     }
+ }
+ 
+-SkFilterMode downgrade_to_filter(const SkSamplingOptions& sampling) {
+-    SkFilterMode filter = sampling.filter;
+-    if (sampling.isAniso() || sampling.useCubic || sampling.mipmap != SkMipmapMode::kNone) {
+-        // if we were "fancier" than just bilerp, only do bilerp
+-        filter = SkFilterMode::kLinear;
+-    }
+-    return filter;
+-}
+-
+ } // anonymous namespace
+ 
+-
+ //////////////////////////////////////////////////////////////////////////////
+ 
+ namespace skgpu::ganesh {
+@@ -425,7 +415,8 @@
+     SkRect dst = SkRect::MakeWH(special->width(), special->height());
+     SkMatrix srcToDst = SkMatrix::RectToRectOrIdentity(src, dst);
+ 
+-    SkSamplingOptions sampling = SkSamplingOptions(downgrade_to_filter(origSampling));
++    const SkSamplingOptions safeSampling = special->ganeshSafeSampling(origSampling);
++
+     GrAA aa = fSurfaceDrawContext->chooseAA(paint);
+     SkCanvas::QuadAAFlags aaFlags = (aa == GrAA::kYes) ? SkCanvas::kAll_QuadAAFlags
+                                                        : SkCanvas::kNone_QuadAAFlags;
+@@ -458,7 +449,7 @@
+                           /* dstClip= */nullptr,
+                           aaFlags,
+                           localToDevice,
+-                          sampling,
++                          safeSampling,
+                           paint,
+                           constraint,
+                           srcToDst,
 diff --git a/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h b/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
 index 82151a3..2f8d5bb 100644
 --- a/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
