@@ -186,7 +186,8 @@ KEYWORDS="~amd64 ~arm64"
 # struct varying counting (crbug 535344406; merged to ANGLE's 159 branch), ResourceFetcher's
 # iteration over its image resource sets (crbug 576850257; merged to 159),
 # WebMediaPlayerMS's frame copy outliving the player (crbug 580847195; merged to 159) and
-# ANGLE's GL texture storage size limit (crbug 577359061; merged to ANGLE's 159 branch).
+# ANGLE's GL texture storage size limit (crbug 577359061; merged to ANGLE's 159 branch) and
+# the ServiceWorker's fetch response callbacks (crbug 565681452; merged to 159).
 CHROMIUM_FIXES=(
 	chromium-158.0.8127.66-branch-fixes.patch
 	chromium-158-page-popup-dangling-opener.patch
@@ -194,6 +195,7 @@ CHROMIUM_FIXES=(
 	chromium-158-resource-fetcher-image-set-snapshot.patch
 	chromium-158-webmediaplayerms-copyframe-player-check.patch
 	chromium-158-angle-gl-max-texture-bytes.patch
+	chromium-158-sw-fetch-response-callbacks-take.patch
 )
 
 # The overlay's patches, after the Gentoo patchset's common ones.

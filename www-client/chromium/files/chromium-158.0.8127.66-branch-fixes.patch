@@ -1,8 +1,8 @@
 Chromium 158.0.8127.66 + the later changes of its release branch, up to
-14ac3ad02fff5e382f61a8e1feb533cfe7d141e4 (refs/branch-heads/8127@{#1919}), for the
+4871aef3ac0a048f5bc482e7cc092bedc79a8fdd (refs/branch-heads/8127@{#1921}), for the
 158.0.8127.66 tree that chromium-158.0.8127.37-to-158.0.8127.66.patch makes.
 
-Generated from the upstream diff chromium/src refs/tags/158.0.8127.66..14ac3ad02fff5e382f61a8e1feb533cfe7d141e4
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.66..4871aef3ac0a048f5bc482e7cc092bedc79a8fdd
 and from its roll of angle 1069527181b8d4cf55f604d06557381a2a09b2ea..cb3a38f37525831914266bfc8964eb39c675c5ee (under third_party/angle/),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .66 tree's files): left out are files not in the release tarball,
@@ -16,6 +16,7 @@ Commits contributing to it (oldest first):
     angle cb3a38f37525 [M158] GL: Read pixels via scratch FBO for MRT
   970d67884a52 [M158] [webcodecs] Route callbacks to execution context task runners
   f212a2999125 [M158] Defer SyncLoadContext completion while handling redirects
+  4871aef3ac0a [M158] Fix caching for built-in strategy size functions
 
 diff --git a/media/base/offloading_audio_encoder.cc b/media/base/offloading_audio_encoder.cc
 index 9667ab2..09eb320 100644
@@ -185,6 +186,188 @@ index 20a0e23..4ec5c9279a 100644
  
    ~OffloadingVideoEncoder() override;
  
+diff --git a/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc b/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc
+index 9775efc..0ff7a609 100644
+--- a/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc
++++ b/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc
+@@ -16,9 +16,6 @@
+ 
+ namespace {
+ 
+-static const V8PrivateProperty::SymbolKey
+-    kByteLengthQueuingStrategySizeFunction;
+-
+ class ByteLengthQueuingStrategySizeFunction final : public ScriptFunction {
+  public:
+   static v8::Local<v8::Function> CreateFunction(ScriptState* script_state) {
+@@ -99,7 +96,7 @@
+   //    Function that represents a reference to F, with callback context equal
+   //    to globalObject’s relevant settings object.
+   return GetCachedSizeFunction(
+-      script_state, kByteLengthQueuingStrategySizeFunction,
++      script_state, QueuingStrategySizeFunctionType::kByteLength,
+       &ByteLengthQueuingStrategySizeFunction::CreateFunction);
+ }
+ 
+diff --git a/third_party/blink/renderer/core/streams/count_queuing_strategy.cc b/third_party/blink/renderer/core/streams/count_queuing_strategy.cc
+index 7e2eea1c..c96c090 100644
+--- a/third_party/blink/renderer/core/streams/count_queuing_strategy.cc
++++ b/third_party/blink/renderer/core/streams/count_queuing_strategy.cc
+@@ -16,8 +16,6 @@
+ 
+ namespace {
+ 
+-static const V8PrivateProperty::SymbolKey kCountQueuingStrategySizeFunction;
+-
+ class CountQueuingStrategySizeFunction final : public ScriptFunction {
+  public:
+   static v8::Local<v8::Function> CreateFunction(ScriptState* script_state) {
+@@ -66,7 +64,7 @@
+   //    that represents a reference to F, with callback context equal to
+   //    globalObject’s relevant settings object.
+   return GetCachedSizeFunction(
+-      script_state, kCountQueuingStrategySizeFunction,
++      script_state, QueuingStrategySizeFunctionType::kCount,
+       &CountQueuingStrategySizeFunction::CreateFunction);
+ }
+ 
+diff --git a/third_party/blink/renderer/core/streams/queuing_strategy_common.cc b/third_party/blink/renderer/core/streams/queuing_strategy_common.cc
+index 76a82d81..00c971d9a 100644
+--- a/third_party/blink/renderer/core/streams/queuing_strategy_common.cc
++++ b/third_party/blink/renderer/core/streams/queuing_strategy_common.cc
+@@ -4,26 +4,81 @@
+ 
+ #include "third_party/blink/renderer/core/streams/queuing_strategy_common.h"
+ 
++#include "base/notreached.h"
+ #include "third_party/blink/renderer/bindings/core/v8/script_value.h"
+-#include "third_party/blink/renderer/bindings/core/v8/v8_queuing_strategy_init.h"
+ #include "third_party/blink/renderer/platform/bindings/script_state.h"
++#include "third_party/blink/renderer/platform/bindings/trace_wrapper_v8_reference.h"
++#include "third_party/blink/renderer/platform/bindings/v8_per_context_data.h"
++#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
++#include "third_party/blink/renderer/platform/heap/visitor.h"
+ 
+ namespace blink {
+ 
+-ScriptValue GetCachedSizeFunction(ScriptState* script_state,
+-                                  const V8PrivateProperty::SymbolKey& key,
+-                                  SizeFunctionFactory factory) {
+-  auto* isolate = script_state->GetIsolate();
+-  auto function_cache = V8PrivateProperty::GetSymbol(isolate, key);
+-  v8::Local<v8::Object> global_proxy = script_state->GetContext()->Global();
+-  v8::Local<v8::Value> function;
+-  if (!function_cache.GetOrUndefined(global_proxy).ToLocal(&function) ||
+-      function->IsUndefined()) {
+-    function = factory(script_state);
+-    bool is_set = function_cache.Set(global_proxy, function);
+-    DCHECK(is_set || isolate->IsExecutionTerminating());
++namespace {
++
++class QueuingStrategySizeFunctionPerContextData final
++    : public GarbageCollected<QueuingStrategySizeFunctionPerContextData>,
++      public V8PerContextData::Data {
++ public:
++  v8::Local<v8::Function> GetOrCreate(ScriptState* script_state,
++                                      QueuingStrategySizeFunctionType type,
++                                      SizeFunctionFactory factory) {
++    TraceWrapperV8Reference<v8::Function>& slot = SlotForType(type);
++    v8::Isolate* const isolate = script_state->GetIsolate();
++    if (slot.IsEmpty()) {
++      const v8::Local<v8::Function> function = factory(script_state);
++      slot.Reset(isolate, function);
++      return function;
++    }
++    return slot.Get(isolate);
+   }
+-  return ScriptValue(isolate, function);
++
++  void Trace(Visitor* visitor) const override {
++    visitor->Trace(byte_length_size_function_);
++    visitor->Trace(count_size_function_);
++    V8PerContextData::Data::Trace(visitor);
++  }
++
++ private:
++  TraceWrapperV8Reference<v8::Function>& SlotForType(
++      QueuingStrategySizeFunctionType type) {
++    switch (type) {
++      case QueuingStrategySizeFunctionType::kByteLength:
++        return byte_length_size_function_;
++      case QueuingStrategySizeFunctionType::kCount:
++        return count_size_function_;
++    }
++    NOTREACHED();
++  }
++
++  TraceWrapperV8Reference<v8::Function> byte_length_size_function_;
++  TraceWrapperV8Reference<v8::Function> count_size_function_;
++};
++
++}  // namespace
++
++ScriptValue GetCachedSizeFunction(ScriptState* script_state,
++                                  QueuingStrategySizeFunctionType type,
++                                  SizeFunctionFactory factory) {
++  v8::Isolate* const isolate = script_state->GetIsolate();
++  V8PerContextData* const per_context_data = script_state->PerContextData();
++  if (!per_context_data) {
++    // When a context is detached, `ScriptState::DisposePerContextData()` clears
++    // `PerContextData()` so per-context references do not keep detached realms
++    // alive. Intentionally deviate slightly from the standard here by returning
++    // a fresh function rather than caching on the detached context (matching
++    // `V8DOMWrapper::CreateWrapper`).
++    return ScriptValue(isolate, factory(script_state));
++  }
++
++  static constexpr char kPerContextDataKey[] = "QueuingStrategySizeFunction";
++  auto* cache = static_cast<QueuingStrategySizeFunctionPerContextData*>(
++      per_context_data->GetData(kPerContextDataKey));
++  if (!cache) {
++    cache = MakeGarbageCollected<QueuingStrategySizeFunctionPerContextData>();
++    per_context_data->AddData(kPerContextDataKey, cache);
++  }
++  return ScriptValue(isolate, cache->GetOrCreate(script_state, type, factory));
+ }
+ 
+ }  // namespace blink
+diff --git a/third_party/blink/renderer/core/streams/queuing_strategy_common.h b/third_party/blink/renderer/core/streams/queuing_strategy_common.h
+index e55a449..5a0769f9 100644
+--- a/third_party/blink/renderer/core/streams/queuing_strategy_common.h
++++ b/third_party/blink/renderer/core/streams/queuing_strategy_common.h
+@@ -5,7 +5,6 @@
+ #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_STREAMS_QUEUING_STRATEGY_COMMON_H_
+ #define THIRD_PARTY_BLINK_RENDERER_CORE_STREAMS_QUEUING_STRATEGY_COMMON_H_
+ 
+-#include "third_party/blink/renderer/platform/bindings/v8_private_property.h"
+ #include "v8/include/v8.h"
+ 
+ namespace blink {
+@@ -13,12 +12,20 @@
+ class ScriptState;
+ class ScriptValue;
+ 
++enum class QueuingStrategySizeFunctionType {
++  kByteLength,
++  kCount,
++};
++
+ using SizeFunctionFactory = v8::Local<v8::Function> (*)(ScriptState*);
+ 
+-// Returns the value cached on the global proxy object under |key|, or, if that
+-// is not set, caches and returns the result of calling |factory|.
+-ScriptValue GetCachedSizeFunction(ScriptState*,
+-                                  const V8PrivateProperty::SymbolKey& key,
++// Returns the size function cached on `script_state`'s per-context data for
++// `type`, or creates and caches it via `factory`. If `script_state`'s context
++// is detached (`PerContextData()` is null), returns a newly created function
++// without caching it; this is a minor intentional deviation from the standard
++// to avoid retaining V8 objects in detached contexts.
++ScriptValue GetCachedSizeFunction(ScriptState* script_state,
++                                  QueuingStrategySizeFunctionType type,
+                                   SizeFunctionFactory factory);
+ 
+ }  // namespace blink
 diff --git a/third_party/blink/renderer/modules/webcodecs/audio_encoder.cc b/third_party/blink/renderer/modules/webcodecs/audio_encoder.cc
 index 83f6413..d86705e 100644
 --- a/third_party/blink/renderer/modules/webcodecs/audio_encoder.cc
