@@ -31,6 +31,15 @@
 # files/chromium-${CHROMIUM_TARBALL_PV}-to-<tag>.patch (scripts/chromium-delta).
 # Defaults to the tag.
 
+# @ECLASS_VARIABLE: CHROMIUM_TARBALL_SOURCE
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# Where the source tarball comes from, set before inherit. Unset (all older ebuilds): Google's
+# official "lite" tarball, chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz. "linux-tarballs": the
+# chromium-linux-tarballs project's chromium-${CHROMIUM_TARBALL_PV}-linux.tar.xz (the release
+# ::gentoo uses, on GitHub), for a version Google has no lite tarball of. Its top directory is
+# chromium-${CHROMIUM_TARBALL_PV}/, like the lite one's.
+
 # @ECLASS_VARIABLE: CHROMIUM_FIXES
 # @DEFAULT_UNSET
 # @DESCRIPTION:
@@ -239,10 +248,16 @@ if [[ -n ${CHROMIUM_BUILD_DIR} ]]; then
 	unset -f _chromium_build_tree
 	S="${CHROMIUM_BUILD_TREE}/src"
 fi
-# Google's official "lite" source tarball (as for 156, whose 156.0.8078.47 had none at
+# Google's official "lite" source tarball, or the chromium-linux-tarballs one with
+# CHROMIUM_TARBALL_SOURCE=linux-tarballs (as for 156, whose 156.0.8078.47 had none at
 # chromium-linux-tarballs, which ::gentoo uses). For 156.0.8078.12, the two have the same content,
 # apart from one empty test file (chrome/test/data/webui/i18n_process_css_test.html).
-SRC_URI="https://commondatastorage.googleapis.com/chromium-browser-official/chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz
+if [[ ${CHROMIUM_TARBALL_SOURCE} == linux-tarballs ]]; then
+	_chromium_tarball_uri="https://github.com/chromium-linux-tarballs/chromium-tarballs/releases/download/${CHROMIUM_TARBALL_PV}/chromium-${CHROMIUM_TARBALL_PV}-linux.tar.xz"
+else
+	_chromium_tarball_uri="https://commondatastorage.googleapis.com/chromium-browser-official/chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz"
+fi
+SRC_URI="${_chromium_tarball_uri}
 	https://github.com/Polymer/polymer/archive/refs/tags/v${POLYMER_VER}.tar.gz
 		-> polymer-${POLYMER_VER}.gh.tar.gz
 	https://github.com/webcomponents/shadycss/archive/${SHADYCSS_COMMIT}.tar.gz
@@ -264,6 +279,7 @@ SRC_URI="https://commondatastorage.googleapis.com/chromium-browser-official/chro
 		https://gitlab.raptorengineering.com/raptor-engineering-public/chromium/openpower-patches/-/archive/${PPC64_HASH}/openpower-patches-${PPC64_HASH}.tar.bz2 -> chromium-openpower-${PPC64_HASH:0:10}.tar.bz2
 	)
 	pgo? ( https://github.com/elkablo/chromium-profiler/releases/download/v0.2/chromium-profiler-0.2.tar )"
+unset _chromium_tarball_uri
 
 # The inputs of the regenerated files; the ebuild's pins say what each is.
 SRC_URI+="
@@ -924,9 +940,11 @@ chromium-llm_src_unpack() {
 	fi
 	# The tarball's chromium-<version>/ is S (src/).
 	mkdir -p "${S}" || die
-	einfo "Unpacking chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz to ${S} ..."
-	tar -xf "${DISTDIR}/chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz" --strip-components=1 -C "${S}" ||
-		die "Failed to unpack chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz"
+	local tarball=chromium-${CHROMIUM_TARBALL_PV}-lite.tar.xz
+	[[ ${CHROMIUM_TARBALL_SOURCE} == linux-tarballs ]] && tarball=chromium-${CHROMIUM_TARBALL_PV}-linux.tar.xz
+	einfo "Unpacking ${tarball} to ${S} ..."
+	tar -xf "${DISTDIR}/${tarball}" --strip-components=1 -C "${S}" ||
+		die "Failed to unpack ${tarball}"
 	unpack polymer-${POLYMER_VER}.gh.tar.gz shadycss-${SHADYCSS_COMMIT}.gh.tar.gz
 	unpack perfect-hash-${ANGLE_PERFECT_HASH_VER}.tar.gz
 	unpack Vulkan-Headers-${SWS_VULKAN_HEADERS_COMMIT}.gh.tar.gz Vulkan-Headers-${SWS_VIDEO_HEADERS_COMMIT}.gh.tar.gz \
