@@ -1,10 +1,10 @@
 Chromium 159.0.8154.27 + the later changes of its release branch, up to
-7f8ea462123d72121a0e31ab188360600b7af2f5 (refs/branch-heads/8154@{#1003}), for the
+a4178d088e56cdbeaeeb99c56ae92633a90b615d (refs/branch-heads/8154@{#1021}), for the
 159.0.8154.27 tree that chromium-159.0.8154.18-to-159.0.8154.27.patch makes.
-The newest change it carries is 8154@{#1003}.
+The newest change it carries is 8154@{#1021}.
 
 Generated from the upstream diff chromium/src
-refs/tags/159.0.8154.27..7f8ea462123d72121a0e31ab188360600b7af2f5, from its roll of
+refs/tags/159.0.8154.27..a4178d088e56cdbeaeeb99c56ae92633a90b615d, from its roll of
 v8/v8 4593f4dc1e9b7c400645778417f394ba6d52f64b..ff20afeabcd530241fc453537e74b54a9fb674ce (under v8/),
 from its roll of skia 8a65fa27c104d1bb5a58df5ec3e0c1655053fcf6..458e1f1ab81efa067ec5ad78eb768740d74f6913
 (under third_party/skia/; its range's second commit, 458e1f1ab81e, changes only a test),
@@ -36,7 +36,6 @@ Commits contributing to it (oldest first):
     skia 06cc2dbb68c3 [M159] [ganesh] Fix image filtering mipmap bug
     v8 5db0199ca673 [M159] [sandbox] Fix parameter count race in JSDispatchEntry initialization
     v8 16be2fadbb92 Version 15.9.128.15
-  a2955fd8f621 Roll commits from side projects in M159
   01b5919d175e [M159] Revert CHECK back to DCHECK in MenuItemView::PrepareForRun
   7d458078192c [M159] [GTK] Fix dangling Asset reference in WindowFrameProviderGtk
   5f24e2519aab [M159] Convert CHECK to DCHECK in GestureProvider::OnShortPress
@@ -53,13 +52,35 @@ Commits contributing to it (oldest first):
     v8 f001c30185c0 [M159] [cfi] Enforce JitAllocationType in StartOfAllocationAt
     v8 ff20afeabcd5 Version 15.9.128.16
   7f8ea462123d [M159] [Magic Stack] Use 16dp thumbnail and 8dp badge corner radii
+  5fdb86badd9f [M159] [TabSearch] Revert chrome.histograms migration to restore metrics
+  c0a82e4b4388 [M159] [Organizer] Use chrome.metricsPrivate for WebUI metrics
+  dc26b4f63910 [M159] [Unified Tabstrip] Fix crash when painting closing tab with custom theme
+  72e529a77d51 [M159] [Omnibox] Switch UrlBar IME between URL and natural text for AI Mode
+  bf58e872d7f1 [M159] media/gpu: D3D12 video persistently map upload buffers on Intel
+  a4178d088e56 [M159] Check for popup closure after user activation in WebPagePopupImpl
 
 Checked: applies to the 159.0.8154.27 tree (the .18 tarball with
 chromium-159.0.8154.18-to-159.0.8154.27.patch); every patched source file is
-byte-identical to its version at 7f8ea462123d (or its dependency's DEPS revision).
+byte-identical to its version at a4178d088e56 (or its dependency's DEPS revision).
 
 Apply with git apply.
 
+diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
+index ac9ff09a..61d13a3 100644
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -7055,6 +7055,11 @@
+      kOsAndroid,
+      FEATURE_VALUE_TYPE(omnibox::kOmniboxDebounceKeyboardVisibility)},
+ 
++    {"omnibox-url-bar-aim-natural-text-ime",
++     flag_descriptions::kOmniboxUrlBarAimNaturalTextImeName,
++     flag_descriptions::kOmniboxUrlBarAimNaturalTextImeDescription, kOsAndroid,
++     FEATURE_VALUE_TYPE(omnibox::kOmniboxUrlBarAimNaturalTextIme)},
++
+     {"omnibox-fusebox-async-inflation",
+      flag_descriptions::kOmniboxFuseboxAsyncInflationName,
+      flag_descriptions::kOmniboxFuseboxAsyncInflationDescription, kOsAndroid,
 diff --git a/chrome/browser/educational_tip/java/res/layout/educational_tip_module_layout.xml b/chrome/browser/educational_tip/java/res/layout/educational_tip_module_layout.xml
 index de5dbbf1..dcb56970 100644
 --- a/chrome/browser/educational_tip/java/res/layout/educational_tip_module_layout.xml
@@ -92,6 +113,331 @@ index a26d8973..65c281f 100644
    <dimen name="educational_tip_module_content_image_size">72dp</dimen>
    <dimen name="educational_tip_module_content_info_padding_start">16dp</dimen>
    <!-- go/keep-sorted end -->
+diff --git a/chrome/browser/flag-metadata.json b/chrome/browser/flag-metadata.json
+index 0ba0de9d..5a238c9d 100644
+--- a/chrome/browser/flag-metadata.json
++++ b/chrome/browser/flag-metadata.json
+@@ -7902,6 +7902,11 @@
+     "expiry_milestone": 120
+   },
+   {
++    "name": "omnibox-url-bar-aim-natural-text-ime",
++    "owners": [ "ender@google.com", "chrome-mobile-search@google.com" ],
++    "expiry_milestone": 160
++  },
++  {
+     "name": "omnibox-url-suggestions-on-focus",
+     "owners": ["niharm@google.com", "khalidpeer@chromium.org",  "mahmadi@chromium.org", "chrome-desktop-search@google.com" ],
+     "expiry_milestone": 150
+diff --git a/chrome/browser/flag_descriptions.h b/chrome/browser/flag_descriptions.h
+index 9c521986..c14d47da 100644
+--- a/chrome/browser/flag_descriptions.h
++++ b/chrome/browser/flag_descriptions.h
+@@ -3652,6 +3652,12 @@
+     "Enables debouncing of show and hide transitions for the soft keyboard in "
+     "the Omnibox.";
+ 
++inline constexpr char kOmniboxUrlBarAimNaturalTextImeName[] =
++    "Omnibox UrlBar AI Mode Natural Text IME";
++inline constexpr char kOmniboxUrlBarAimNaturalTextImeDescription[] =
++    "Switches the UrlBar IME configuration between URL entry for conventional "
++    "requests and natural text composition for AI Mode requests.";
++
+ inline constexpr char kOmniboxDiagnosticsName[] =
+     "Omnibox Diagnostics (restart twice)";
+ inline constexpr char kOmniboxDiagnosticsDescription[] =
+diff --git a/chrome/browser/resources/organizer_panel/BUILD.gn b/chrome/browser/resources/organizer_panel/BUILD.gn
+index 964e6848..e3e8632 100644
+--- a/chrome/browser/resources/organizer_panel/BUILD.gn
++++ b/chrome/browser/resources/organizer_panel/BUILD.gn
+@@ -76,8 +76,8 @@
+   webui_context_type = "trusted"
+   ts_composite = true
+   ts_definitions = [
+-    "//tools/typescript/definitions/chrome_histograms.d.ts",
+     "//tools/typescript/definitions/chrome_send.d.ts",
++    "//tools/typescript/definitions/metrics_private.d.ts",
+   ]
+ 
+   ts_deps = [
+diff --git a/chrome/browser/resources/organizer_panel/delegates/foreign_tabs_delegate.ts b/chrome/browser/resources/organizer_panel/delegates/foreign_tabs_delegate.ts
+index e33df75..fa34309 100644
+--- a/chrome/browser/resources/organizer_panel/delegates/foreign_tabs_delegate.ts
++++ b/chrome/browser/resources/organizer_panel/delegates/foreign_tabs_delegate.ts
+@@ -97,7 +97,8 @@
+   }
+ 
+   onItemClick(item: OrganizerListSectionItem<ForeignTab>) {
+-    chrome.histograms?.recordUserAction?.('OrganizerPanel.OpenCrossDeviceTab');
++    chrome.metricsPrivate?.recordUserAction?.(
++        'OrganizerPanel.OpenCrossDeviceTab');
+     setCloseAction(OrganizerPanelCloseAction.OPEN_CROSS_DEVICE_TAB);
+     const data = item.data;
+     assert(data);
+diff --git a/chrome/browser/resources/organizer_panel/delegates/open_tabs_delegate.ts b/chrome/browser/resources/organizer_panel/delegates/open_tabs_delegate.ts
+index c9aefc3..66ac1e6d 100644
+--- a/chrome/browser/resources/organizer_panel/delegates/open_tabs_delegate.ts
++++ b/chrome/browser/resources/organizer_panel/delegates/open_tabs_delegate.ts
+@@ -128,7 +128,7 @@
+   }
+ 
+   onItemClick(item: OrganizerListSectionItem<OpenTabsItem>) {
+-    chrome.histograms?.recordUserAction?.('OrganizerPanel.SwitchToTab');
++    chrome.metricsPrivate?.recordUserAction?.('OrganizerPanel.SwitchToTab');
+     setCloseAction(OrganizerPanelCloseAction.SWITCH_TO_TAB);
+     const data = item.data;
+     assert(data);
+@@ -141,7 +141,7 @@
+   }
+ 
+   onItemActionButtonClicked(item: OrganizerListSectionItem<OpenTabsItem>) {
+-    chrome.histograms?.recordUserAction?.('OrganizerPanel.CloseTab');
++    chrome.metricsPrivate?.recordUserAction?.('OrganizerPanel.CloseTab');
+     setCloseAction(OrganizerPanelCloseAction.CLOSED_TAB);
+     const data = item.data;
+     assert(data);
+diff --git a/chrome/browser/resources/organizer_panel/delegates/recent_tabs_delegate.ts b/chrome/browser/resources/organizer_panel/delegates/recent_tabs_delegate.ts
+index 811d408..4483d02 100644
+--- a/chrome/browser/resources/organizer_panel/delegates/recent_tabs_delegate.ts
++++ b/chrome/browser/resources/organizer_panel/delegates/recent_tabs_delegate.ts
+@@ -83,13 +83,13 @@
+     const data = item.data;
+     assert(data);
+     if (isTabGroup(data)) {
+-      chrome.histograms?.recordUserAction?.(
++      chrome.metricsPrivate?.recordUserAction?.(
+           'OrganizerPanel.OpenRecentlyClosedTabGroup');
+     } else if (isSplitView(data)) {
+-      chrome.histograms?.recordUserAction?.(
++      chrome.metricsPrivate?.recordUserAction?.(
+           'OrganizerPanel.OpenRecentlyClosedSplitView');
+     } else {
+-      chrome.histograms?.recordUserAction?.(
++      chrome.metricsPrivate?.recordUserAction?.(
+           'OrganizerPanel.OpenRecentlyClosedTab');
+     }
+     setCloseAction(OrganizerPanelCloseAction.OPEN_RECENTLY_CLOSED);
+diff --git a/chrome/browser/resources/organizer_panel/delegates/tab_groups_delegate.ts b/chrome/browser/resources/organizer_panel/delegates/tab_groups_delegate.ts
+index a398514..8dec572 100644
+--- a/chrome/browser/resources/organizer_panel/delegates/tab_groups_delegate.ts
++++ b/chrome/browser/resources/organizer_panel/delegates/tab_groups_delegate.ts
+@@ -86,14 +86,14 @@
+   }
+ 
+   private onCreateTabGroupClick_() {
+-    chrome.histograms?.recordUserAction?.('OrganizerPanel.CreateTabGroup');
++    chrome.metricsPrivate?.recordUserAction?.('OrganizerPanel.CreateTabGroup');
+     setCloseAction(OrganizerPanelCloseAction.CREATE_TAB_GROUP);
+     this.organizerPanelBrowserProxy_.handler.closePanel();
+     this.browserProxy_.handler.createNewTabGroup();
+   }
+ 
+   onItemClick(item: OrganizerListSectionItem<TabGroup>) {
+-    chrome.histograms?.recordUserAction?.('OrganizerPanel.OpenTabGroup');
++    chrome.metricsPrivate?.recordUserAction?.('OrganizerPanel.OpenTabGroup');
+     setCloseAction(OrganizerPanelCloseAction.OPEN_TAB_GROUP);
+     const data = item.data;
+     assert(data);
+diff --git a/chrome/browser/resources/organizer_panel/organizer_list_section.ts b/chrome/browser/resources/organizer_panel/organizer_list_section.ts
+index 511c572..fd5d98e 100644
+--- a/chrome/browser/resources/organizer_panel/organizer_list_section.ts
++++ b/chrome/browser/resources/organizer_panel/organizer_list_section.ts
+@@ -273,7 +273,7 @@
+ 
+   protected onToggleAction_(e: CustomEvent<{expanded: boolean}>) {
+     assert(this.delegate);
+-    chrome.histograms.recordEnumerationValue(
++    chrome.metricsPrivate.recordEnumerationValue(
+         `Tabs.Organizer.Section.${
+             this.delegate.getHistogramSectionName()}.ToggleAction`,
+         e.detail.expanded ? OrganizerSectionToggleAction.EXPAND :
+@@ -288,7 +288,7 @@
+     if (this.showAll_ === showAll) {
+       return;
+     }
+-    chrome.histograms.recordEnumerationValue(
++    chrome.metricsPrivate.recordEnumerationValue(
+         `Tabs.Organizer.Section.${
+             this.delegate.getHistogramSectionName()}.MenuAction`,
+         e.detail.option, OrganizerSectionMenuOption.COUNT);
+@@ -317,9 +317,9 @@
+ 
+   private recordActionMetrics_(action: OrganizerAction, index: number) {
+     const state = this.isSearching_() ? 'Filtered' : 'Unfiltered';
+-    chrome.histograms.recordSmallCount(
++    chrome.metricsPrivate.recordSmallCount(
+         `Tabs.Organizer.WebUI.IndexOf${action}In${state}List`, index);
+-    chrome.histograms.recordMediumTime(
++    chrome.metricsPrivate.recordMediumTime(
+         `Tabs.Organizer.WebUI.TimeTo${action}In${state}List`,
+         Math.round(performance.now() - this.windowShownTimestamp_));
+   }
+diff --git a/chrome/browser/resources/organizer_panel/organizer_list_section_delegate.ts b/chrome/browser/resources/organizer_panel/organizer_list_section_delegate.ts
+index 5c72cdb..77e30a27 100644
+--- a/chrome/browser/resources/organizer_panel/organizer_list_section_delegate.ts
++++ b/chrome/browser/resources/organizer_panel/organizer_list_section_delegate.ts
+@@ -43,10 +43,10 @@
+ }
+ 
+ export function recordCloseMetrics() {
+-  chrome.histograms.recordEnumerationValue(
++  chrome.metricsPrivate.recordEnumerationValue(
+       'Tabs.Organizer.CloseAction', pendingCloseAction,
+       OrganizerPanelCloseAction.COUNT);
+-  chrome.histograms.recordSmallCount(
++  chrome.metricsPrivate.recordSmallCount(
+       'Tabs.Organizer.NumTabsClosedPerInstance', numTabsClosed);
+   resetCloseMetrics();
+ }
+diff --git a/chrome/browser/resources/organizer_panel/organizer_list_section_header.ts b/chrome/browser/resources/organizer_panel/organizer_list_section_header.ts
+index 2595ff6..72c1057 100644
+--- a/chrome/browser/resources/organizer_panel/organizer_list_section_header.ts
++++ b/chrome/browser/resources/organizer_panel/organizer_list_section_header.ts
+@@ -196,7 +196,7 @@
+ 
+   private setExpandedFromUser_(expanded: boolean) {
+     this.expanded = expanded;
+-    chrome.histograms.recordUserAction(
++    chrome.metricsPrivate.recordUserAction(
+         expanded ? 'OrganizerPanel.ExpandSection' :
+                    'OrganizerPanel.CollapseSection');
+     this.fire('toggle-action', {expanded});
+diff --git a/chrome/browser/resources/tab_group_shared/BUILD.gn b/chrome/browser/resources/tab_group_shared/BUILD.gn
+index 778b7eaf..88b757e 100644
+--- a/chrome/browser/resources/tab_group_shared/BUILD.gn
++++ b/chrome/browser/resources/tab_group_shared/BUILD.gn
+@@ -23,7 +23,7 @@
+   ]
+ 
+   ts_composite = true
+-  ts_definitions = [ "//tools/typescript/definitions/chrome_histograms.d.ts" ]
++  ts_definitions = [ "//tools/typescript/definitions/metrics_private.d.ts" ]
+   ts_deps = [
+     "//third_party/lit/v3_0:build_ts",
+     "//ui/webui/resources/cr_elements:build_ts",
+diff --git a/chrome/browser/resources/tab_group_shared/search.ts b/chrome/browser/resources/tab_group_shared/search.ts
+index 6f25114..9462065 100644
+--- a/chrome/browser/resources/tab_group_shared/search.ts
++++ b/chrome/browser/resources/tab_group_shared/search.ts
+@@ -49,7 +49,7 @@
+   }
+   const searchStartTime = Date.now();
+   const result = await exactSearch(input, records, options);
+-  chrome.histograms?.recordTime?.(
++  chrome.metricsPrivate?.recordTime?.(
+       'Tabs.TabSearch.WebUI.SearchAlgorithmDuration',
+       Math.round(Date.now() - searchStartTime));
+   return result;
+diff --git a/chrome/browser/resources/tab_search/BUILD.gn b/chrome/browser/resources/tab_search/BUILD.gn
+index f13812c6..1d85b91 100644
+--- a/chrome/browser/resources/tab_search/BUILD.gn
++++ b/chrome/browser/resources/tab_search/BUILD.gn
+@@ -70,7 +70,7 @@
+ 
+   ts_composite = true
+   ts_definitions = [
+-    "//tools/typescript/definitions/chrome_histograms.d.ts",
++    "//tools/typescript/definitions/metrics_private.d.ts",
+     "//tools/typescript/definitions/pending.d.ts",
+   ]
+   ts_deps = [
+diff --git a/chrome/browser/resources/tab_search/tab_search_api_proxy.ts b/chrome/browser/resources/tab_search/tab_search_api_proxy.ts
+index bf95d237..3ffc918 100644
+--- a/chrome/browser/resources/tab_search/tab_search_api_proxy.ts
++++ b/chrome/browser/resources/tab_search/tab_search_api_proxy.ts
+@@ -24,7 +24,7 @@
+ 
+ export class TabSearchApiProxyImpl implements TabSearchApiProxy {
+   recordRecentlyClosedItemOpenAction(withSearch: boolean, isTab: boolean) {
+-    chrome.histograms.recordEnumerationValue(
++    chrome.metricsPrivate.recordEnumerationValue(
+         isTab ? 'Tabs.TabSearch.WebUI.RecentlyClosedTabOpenAction' :
+                 'Tabs.TabSearch.WebUI.RecentlyClosedGroupOpenAction',
+         withSearch ? RecentlyClosedItemOpenAction.WITH_SEARCH :
+diff --git a/chrome/browser/resources/tab_search/tab_search_page.ts b/chrome/browser/resources/tab_search/tab_search_page.ts
+index 26c5bdf..ae9f71c 100644
+--- a/chrome/browser/resources/tab_search/tab_search_page.ts
++++ b/chrome/browser/resources/tab_search/tab_search_page.ts
+@@ -327,7 +327,7 @@
+   private updateTabs_() {
+     const isMarkOverlap =
+         this.metricsReporter.hasLocalMark('TabListDataReceived');
+-    chrome.histograms.recordBoolean(
++    chrome.metricsPrivate.recordBoolean(
+         'Tabs.TabSearch.WebUI.TabListDataReceived2.IsOverlap', isMarkOverlap);
+     if (!isMarkOverlap) {
+       this.metricsReporter.mark('TabListDataReceived');
+@@ -529,7 +529,7 @@
+   private recordMetricsForAction(action: TabSearchAction, tabIndex: number) {
+     const withSearch = !!this.searchText_;
+     if (action === 'SwitchTab' || action === 'SwitchTabOtherWindow') {
+-      chrome.histograms.recordEnumerationValue(
++      chrome.metricsPrivate.recordEnumerationValue(
+           'Tabs.TabSearch.WebUI.TabSwitchAction',
+           withSearch ? TabSwitchAction.WITH_SEARCH :
+                        TabSwitchAction.WITHOUT_SEARCH,
+@@ -538,7 +538,7 @@
+ 
+     switch (action) {
+       case 'OpenRecentlyClosedEntry':
+-        chrome.histograms.recordEnumerationValue(
++        chrome.metricsPrivate.recordEnumerationValue(
+             'Tabs.TabSearch.WebUI.Action',
+             withSearch ?
+                 TabSearchUserAction.IN_FILTERED_LIST_OPEN_RECENTLY_CLOSED :
+@@ -546,14 +546,14 @@
+             8);
+         break;
+       case 'SwitchTab':
+-        chrome.histograms.recordEnumerationValue(
++        chrome.metricsPrivate.recordEnumerationValue(
+             'Tabs.TabSearch.WebUI.Action',
+             withSearch ? TabSearchUserAction.IN_FILTERED_LIST_SWITCHED_TAB :
+                          TabSearchUserAction.IN_UNFILTERED_LIST_SWITCHED_TAB,
+             8);
+         break;
+       case 'SwitchTabOtherWindow':
+-        chrome.histograms.recordEnumerationValue(
++        chrome.metricsPrivate.recordEnumerationValue(
+             'Tabs.TabSearch.WebUI.Action',
+             withSearch ?
+                 TabSearchUserAction.IN_FILTERED_LIST_SWITCHED_OTHER_WINDOW_TAB :
+@@ -562,7 +562,7 @@
+             8);
+         break;
+       case 'CloseTab':
+-        chrome.histograms.recordEnumerationValue(
++        chrome.metricsPrivate.recordEnumerationValue(
+             'Tabs.TabSearch.WebUI.Action',
+             withSearch ? TabSearchUserAction.IN_FILTERED_LIST_CLOSED_TAB :
+                          TabSearchUserAction.IN_UNFILTERED_LIST_CLOSED_TAB,
+@@ -575,7 +575,7 @@
+     if (action === 'SwitchTabOtherWindow') {
+       action = 'SwitchTab';
+     }
+-    chrome.histograms.recordSmallCount(
++    chrome.metricsPrivate.recordSmallCount(
+         withSearch ? `Tabs.TabSearch.WebUI.IndexOf${action}InFilteredList` :
+                      `Tabs.TabSearch.WebUI.IndexOf${action}InUnfilteredList`,
+         tabIndex);
+@@ -590,7 +590,7 @@
+     switch (itemData.type) {
+       case TabItemType.OPEN_TAB:
+         const isMarkOverlap = this.metricsReporter.hasLocalMark('SwitchToTab');
+-        chrome.histograms.recordBoolean(
++        chrome.metricsPrivate.recordBoolean(
+             'Tabs.TabSearch.Mojo.SwitchToTab.IsOverlap', isMarkOverlap);
+         if (!isMarkOverlap) {
+           this.metricsReporter.mark('SwitchToTab');
+@@ -635,7 +635,7 @@
+       default:
+         throw new Error('ItemData is of invalid type.');
+     }
+-    chrome.histograms.recordTime(
++    chrome.metricsPrivate.recordTime(
+         `Tabs.TabSearch.WebUI.TimeTo${action}In${state}List`,
+         Math.round(Date.now() - this.windowShownTimestamp_));
+   }
 diff --git a/chrome/browser/task_manager/sampling/task_manager_impl.cc b/chrome/browser/task_manager/sampling/task_manager_impl.cc
 index 6426bd77..e51d7b2 100644
 --- a/chrome/browser/task_manager/sampling/task_manager_impl.cc
@@ -107,6 +453,18 @@ index 6426bd77..e51d7b2 100644
    }
  
    return sorted_task_ids_;
+diff --git a/chrome/browser/themes/theme_service.h b/chrome/browser/themes/theme_service.h
+index a7aec1a5..c8861015 100644
+--- a/chrome/browser/themes/theme_service.h
++++ b/chrome/browser/themes/theme_service.h
+@@ -373,6 +373,7 @@
+   friend class theme_service_internal::ThemeServiceTestBase;
+   friend class ThemeServiceBrowserTest;
+   friend class BrowserWidgetColorProviderTest;
++  friend class TabViewTest;
+   friend class waap::PrewarmHelper;
+ 
+   // Returns a ColorProviderKey configured with Profile-scoped state. The
 diff --git a/chrome/browser/ui/thumbnails/thumbnail_scheduler_impl.cc b/chrome/browser/ui/thumbnails/thumbnail_scheduler_impl.cc
 index 516d522..2b5553dc 100644
 --- a/chrome/browser/ui/thumbnails/thumbnail_scheduler_impl.cc
@@ -205,6 +563,233 @@ index 33257641..160654ff 100644
  };
  
  #endif  // CHROME_BROWSER_UI_THUMBNAILS_THUMBNAIL_SCHEDULER_IMPL_H_
+diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.cc b/chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.cc
+index c1b99cfc..23d8023 100644
+--- a/chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.cc
+@@ -1055,6 +1055,11 @@
+                 contents_string));
+ }
+ 
++BrowserWindowInterface*
++TabStripCollectionController::GetBrowserWindowInterface() const {
++  return browser_view_->browser();
++}
++
+ BrowserFrameView* TabStripCollectionController::GetBrowserFrameView() const {
+   return browser_view_->browser_widget()
+              ? browser_view_->browser_widget()->GetFrameView()
+diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.h b/chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.h
+index e17c56ca..d1b81c21 100644
+--- a/chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.h
++++ b/chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.h
+@@ -26,6 +26,7 @@
+ class BrowserAnimationController;
+ class BrowserFrameView;
+ class BrowserView;
++class BrowserWindowInterface;
+ class ExpandOnHoverLock;
+ class HorizontalTabClosingHelper;
+ class RootTabCollectionNode;
+@@ -121,6 +122,7 @@
+   }
+ 
+   BrowserView* GetBrowserView() const { return browser_view_; }
++  BrowserWindowInterface* GetBrowserWindowInterface() const;
+   BrowserFrameView* GetBrowserFrameView() const;
+   BrowserAnimationController* GetBrowserAnimationController() const;
+   bool IsGlassFrame() const { return is_glass_frame_; }
+diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_utils.cc b/chrome/browser/ui/views/tabs/common/tab_strip_utils.cc
+index 88167770..68b45de 100644
+--- a/chrome/browser/ui/views/tabs/common/tab_strip_utils.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_strip_utils.cc
+@@ -41,15 +41,20 @@
+   return view_layout ? view_layout->bounds : view->bounds();
+ }
+ 
+-TabStripView* GetTabStripView(views::View* view) {
+-  for (views::View* v = view->parent(); v; v = v->parent()) {
+-    if (auto* tab_strip = views::AsViewClass<TabStripView>(v)) {
++const TabStripView* GetTabStripView(const views::View* view) {
++  for (const views::View* v = view->parent(); v; v = v->parent()) {
++    if (const auto* tab_strip = views::AsViewClass<TabStripView>(v)) {
+       return tab_strip;
+     }
+   }
+   return nullptr;
+ }
+ 
++TabStripView* GetTabStripView(views::View* view) {
++  return const_cast<TabStripView*>(
++      GetTabStripView(static_cast<const views::View*>(view)));
++}
++
+ bool CanScrollAlongAxis(const views::View* view,
+                         TabStripOrientation orientation,
+                         const ui::GestureEvent& event) {
+diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_utils.h b/chrome/browser/ui/views/tabs/common/tab_strip_utils.h
+index 0772d943..f0b8e43b 100644
+--- a/chrome/browser/ui/views/tabs/common/tab_strip_utils.h
++++ b/chrome/browser/ui/views/tabs/common/tab_strip_utils.h
+@@ -26,6 +26,7 @@
+ 
+ // Returns the tab strip view for the provided `view`. Iterates
+ // through the parent hierarchy until a `TabStripView` is found.
++const TabStripView* GetTabStripView(const views::View* view);
+ TabStripView* GetTabStripView(views::View* view);
+ 
+ // Returns true if the `ScrollView` ancestor of `view` is scrollable along the
+diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_view.cc b/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
+index 1d9433d5..3fb79f4 100644
+--- a/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
+@@ -309,6 +309,10 @@
+   }
+ }
+ 
++const TabStripCollectionController* TabStripView::GetController() const {
++  return collection_node_ ? collection_node_->GetController() : nullptr;
++}
++
+ void TabStripView::Layout(PassKey) {
+   LayoutSuperclass<views::View>(this);
+   UpdateScrollViewLayers();
+diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_view.h b/chrome/browser/ui/views/tabs/common/tab_strip_view.h
+index ea9fb75c..b3adde4c 100644
+--- a/chrome/browser/ui/views/tabs/common/tab_strip_view.h
++++ b/chrome/browser/ui/views/tabs/common/tab_strip_view.h
+@@ -18,6 +18,7 @@
+ class HorizontalTabStripOverflowIndicatorView;
+ class PrefService;
+ class TabCollectionNode;
++class TabStripCollectionController;
+ class PinnedTabContainerView;
+ class UnpinnedTabContainerView;
+ class TabScrollButtonContainer;
+@@ -46,6 +47,8 @@
+   TabStripView& operator=(const TabStripView&) = delete;
+   ~TabStripView() override;
+ 
++  const TabStripCollectionController* GetController() const;
++
+   views::Separator* GetTabsSeparator() const { return tabs_separator_; }
+ 
+   PinnedTabContainerView* GetPinnedTabsContainer() const;
+diff --git a/chrome/browser/ui/views/tabs/common/tab_view.cc b/chrome/browser/ui/views/tabs/common/tab_view.cc
+index 954e9a51..a8339eda 100644
+--- a/chrome/browser/ui/views/tabs/common/tab_view.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_view.cc
+@@ -271,29 +271,22 @@
+   }
+ 
+   BrowserFrameView* GetBrowserFrameView() const override {
+-    const auto* controller = tab_view_->collection_node()
+-                                 ? tab_view_->collection_node()->GetController()
+-                                 : nullptr;
++    const auto* controller = GetController();
+     return controller ? controller->GetBrowserFrameView() : nullptr;
+   }
+ 
+   BrowserWindowInterface* GetBrowserWindowInterface() const override {
+-    tabs::TabInterface* tab_interface =
+-        const_cast<tabs::TabInterface*>(tab_view_->GetTabInterface());
+-    return tab_interface ? tab_interface->GetBrowserWindowInterface() : nullptr;
++    const auto* controller = GetController();
++    return controller ? controller->GetBrowserWindowInterface() : nullptr;
+   }
+ 
+   int GetTabCount() const override {
+-    const auto* controller = tab_view_->collection_node()
+-                                 ? tab_view_->collection_node()->GetController()
+-                                 : nullptr;
++    const auto* controller = GetController();
+     return controller ? controller->GetTabCount() : 0;
+   }
+ 
+   bool IsGlassFrame() const override {
+-    const auto* controller = tab_view_->collection_node()
+-                                 ? tab_view_->collection_node()->GetController()
+-                                 : nullptr;
++    const auto* controller = GetController();
+     return controller ? controller->IsGlassFrame() : false;
+   }
+ 
+@@ -304,13 +297,19 @@
+   }
+ 
+   int GetStrokeThickness() const override {
+-    const auto* controller = tab_view_->collection_node()
+-                                 ? tab_view_->collection_node()->GetController()
+-                                 : nullptr;
++    const auto* controller = GetController();
+     return controller ? controller->GetStrokeThickness() : 0;
+   }
+ 
+  private:
++  const TabStripCollectionController* GetController() const {
++    if (tab_view_->collection_node()) {
++      return tab_view_->collection_node()->GetController();
++    }
++    const TabStripView* tab_strip_view = GetTabStripView(tab_view_.get());
++    return tab_strip_view ? tab_strip_view->GetController() : nullptr;
++  }
++
+   const raw_ptr<const TabView> tab_view_;
+ };
+ 
+@@ -1123,7 +1122,7 @@
+                                            HoverCardUpdateType::kTabRemoved);
+   }
+ 
+-  // Reset the active/selected/hovered states so the tab animates out without a
++  // Reset the active/selected states so the tab animates out without an active
+   // background.
+   active_ = false;
+   selected_ = false;
+diff --git a/chrome/browser/ui/webui/organizer_panel/organizer_panel_ui.cc b/chrome/browser/ui/webui/organizer_panel/organizer_panel_ui.cc
+index b0f32d4..d7d149e 100644
+--- a/chrome/browser/ui/webui/organizer_panel/organizer_panel_ui.cc
++++ b/chrome/browser/ui/webui/organizer_panel/organizer_panel_ui.cc
+@@ -77,8 +77,7 @@
+     // chrome.send().
+     : TopChromeWebUIController(
+           web_ui,
+-          /*enable_chrome_send=*/webui::IsWebUIDataSourceShared(web_ui),
+-          /*enable_chrome_histograms=*/true) {
++          /*enable_chrome_send=*/webui::IsWebUIDataSourceShared(web_ui)) {
+   content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
+       Profile::FromWebUI(web_ui), chrome::kChromeUIOrganizerPanelHost);
+ 
+diff --git a/chrome/browser/ui/webui/tab_search/BUILD.gn b/chrome/browser/ui/webui/tab_search/BUILD.gn
+index 92982ef5..94d0c33 100644
+--- a/chrome/browser/ui/webui/tab_search/BUILD.gn
++++ b/chrome/browser/ui/webui/tab_search/BUILD.gn
+@@ -126,8 +126,6 @@
+     "//components/os_crypt/browser:test_support",
+     "//components/variations:test_support",
+     "//content/test:test_support",
+-    "//extensions:test_support",
+-    "//extensions/browser",
+     "//testing/gmock",
+     "//testing/gtest",
+     "//ui/webui:buildflags",
+diff --git a/chrome/browser/ui/webui/tab_search/tab_search_ui.cc b/chrome/browser/ui/webui/tab_search/tab_search_ui.cc
+index ee7a347..9a408b57 100644
+--- a/chrome/browser/ui/webui/tab_search/tab_search_ui.cc
++++ b/chrome/browser/ui/webui/tab_search/tab_search_ui.cc
+@@ -57,10 +57,8 @@
+ }
+ 
+ TabSearchUI::TabSearchUI(content::WebUI* web_ui)
+-    : TopChromeWebUIController(
+-          web_ui,
+-          /*enable_chrome_send=*/true /* Needed for webui browser tests */,
+-          /*enable_chrome_histograms=*/true),
++    : TopChromeWebUIController(web_ui,
++                               true /* Needed for webui browser tests */),
+       webui_load_timer_(web_ui->GetWebContents(),
+                         "Tabs.TabSearch.WebUI.LoadDocumentTime",
+                         "Tabs.TabSearch.WebUI.LoadCompletedTime") {
 diff --git a/components/browser_ui/widget/android/BUILD.gn b/components/browser_ui/widget/android/BUILD.gn
 index 68d509e..f50f055 100644
 --- a/components/browser_ui/widget/android/BUILD.gn
@@ -220,6 +805,42 @@ index 68d509e..f50f055 100644
      "java/res/layout/action_confirmation_dialog.xml",
      "java/res/layout/app_menu_layout.xml",
      "java/res/layout/automotive_layout_with_horizontal_back_button_toolbar.xml",
+diff --git a/components/omnibox/common/omnibox_features.cc b/components/omnibox/common/omnibox_features.cc
+index ffb7de3..809e80c2 100644
+--- a/components/omnibox/common/omnibox_features.cc
++++ b/components/omnibox/common/omnibox_features.cc
+@@ -701,6 +701,11 @@
+ // the omnibox instead (b/514550853).
+ BASE_FEATURE(kUrlBarNoHandwritingBoundsAbove, ENABLED);
+ 
++// When enabled, the UrlBar switches IME input type between URL entry
++// (TYPE_TEXT_VARIATION_URI) for conventional requests and natural text
++// composition for AI Mode requests, restarting input on transitions.
++BASE_FEATURE(kOmniboxUrlBarAimNaturalTextIme, DISABLED);
++
+ // If enabled, Java-cached ZPS will be served.
+ // The cached ZPS made sense on sub-4GB Android Go devices
+ BASE_FEATURE(kServeJavaCachedZeroSuggest, ENABLED);
+@@ -750,6 +755,7 @@
+       &kRichAutocompletion,
+       &kUrlBarWithoutLigatures,
+       &kUrlBarNoHandwritingBoundsAbove,
++      &kOmniboxUrlBarAimNaturalTextIme,
+       &kPostDelayedTaskFocusTab,
+       &kOmniboxMobileParityUpdateV2,
+       &kOmniboxXGeoFailClosedOnPreciseLeak,
+diff --git a/components/omnibox/common/omnibox_features.h b/components/omnibox/common/omnibox_features.h
+index efd50eee..1bf9243 100644
+--- a/components/omnibox/common/omnibox_features.h
++++ b/components/omnibox/common/omnibox_features.h
+@@ -162,6 +162,7 @@
+ extern const base::FeatureParam<bool> kShowRhsAimHint;
+ BASE_DECLARE_FEATURE(kOmniboxMultimodalInput);
+ BASE_DECLARE_FEATURE(kOmniboxDebounceKeyboardVisibility);
++BASE_DECLARE_FEATURE(kOmniboxUrlBarAimNaturalTextIme);
+ BASE_DECLARE_FEATURE(kOmniboxSkipRedundantLocationBarUpdates);
+ BASE_DECLARE_FEATURE(kOmniboxDisableTabsForCanvas);
+ BASE_DECLARE_FEATURE(kOmniboxAimOpenInNewTab);
 diff --git a/components/safe_browsing/core/browser/password_protection/password_protection_request.cc b/components/safe_browsing/core/browser/password_protection/password_protection_request.cc
 index 148ed6a..7ca496e8 100644
 --- a/components/safe_browsing/core/browser/password_protection/password_protection_request.cc
@@ -293,6 +914,18 @@ index 8a8c5b6..cad0d4d 100644
    }
  
    ResumeDeferredNavigationsIfNeeded(request);
+diff --git a/extensions/common/api/_api_features.json b/extensions/common/api/_api_features.json
+index 46b9cd0..95403ad 100644
+--- a/extensions/common/api/_api_features.json
++++ b/extensions/common/api/_api_features.json
+@@ -418,6 +418,7 @@
+       "chrome://newtab-footer/*",
+       "chrome://omnibox-popup.top-chrome/*",
+       "chrome://oobe/*",
++      "chrome://organizer-panel.top-chrome/*",
+       "chrome://os-settings/*",
+       "chrome://password-manager/*",
+       "chrome://personalization/*",
 diff --git a/gpu/BUILD.gn b/gpu/BUILD.gn
 index cef365bf..35ab1db6 100644
 --- a/gpu/BUILD.gn
@@ -658,6 +1291,42 @@ index 6c80ac7..51a70b4d 100644
    scoped_refptr<base::SequencedTaskRunner> main_task_runner_;
  
  #if BUILDFLAG(USE_DAWN)
+diff --git a/gpu/config/gpu_driver_bug_list.json b/gpu/config/gpu_driver_bug_list.json
+index a9baafa..b3b09f1 100644
+--- a/gpu/config/gpu_driver_bug_list.json
++++ b/gpu/config/gpu_driver_bug_list.json
+@@ -3572,6 +3572,19 @@
+       "features": [
+         "max_num_hw_video_decoders_15"
+       ]
++    },
++    {
++      "id": 510,
++      "cr_bugs": [583539379, 585798267],
++      "description": "Work around an Intel D3D12 driver issue by keeping the video upload buffers mapped and clearing them before release.",
++      "os": {
++        "type": "win"
++      },
++      "vendor_id": "0x8086",
++      "multi_gpu_category": "active",
++      "features": [
++        "d3d12_persistent_upload_buffer_map"
++      ]
+     }
+   ]
+ }
+diff --git a/gpu/config/gpu_workaround_list.txt b/gpu/config/gpu_workaround_list.txt
+index 80fee843..6e90372 100644
+--- a/gpu/config/gpu_workaround_list.txt
++++ b/gpu/config/gpu_workaround_list.txt
+@@ -5,6 +5,7 @@
+ check_graphics_reset_status_after_readback
+ check_ycbcr_studio_g22_left_p709_for_nv12_support
+ d3d12_encode_packed_format_dpb_sizing
++d3d12_persistent_upload_buffer_map
+ disable_accelerated_av1_decode
+ disable_accelerated_h264_decode
+ disable_accelerated_h264_encode
 diff --git a/gpu/ipc/webgpu_in_process_context.cc b/gpu/ipc/webgpu_in_process_context.cc
 index 021687f..9dfaad8 100644
 --- a/gpu/ipc/webgpu_in_process_context.cc
@@ -672,6 +1341,546 @@ index 021687f..9dfaad8 100644
    helper_ = std::move(webgpu_helper);
    webgpu_implementation_->Initialize(memory_limits);
    return result;
+diff --git a/media/gpu/windows/d3d11_video_decoder_backend.cc b/media/gpu/windows/d3d11_video_decoder_backend.cc
+index 5bf0cdd..e3d87c3 100644
+--- a/media/gpu/windows/d3d11_video_decoder_backend.cc
++++ b/media/gpu/windows/d3d11_video_decoder_backend.cc
+@@ -233,6 +233,7 @@
+     uint8_t bit_depth,
+     VideoChromaSampling chroma_sampling,
+     int max_decode_requests,
++    const gpu::GpuDriverBugWorkarounds& gpu_workarounds,
+     MediaLog* media_log) {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   CHECK(decoder_configurator);
+@@ -271,7 +272,7 @@
+     std::unique_ptr<D3DVideoDecoderWrapper> video_decoder_wrapper =
+         D3D12VideoDecoderWrapper::Create(media_log, d3d12_video_device, config,
+                                          bit_depth, chroma_sampling,
+-                                         max_decode_requests);
++                                         max_decode_requests, gpu_workarounds);
+     return video_decoder_wrapper;
+   }
+ 
+diff --git a/media/gpu/windows/d3d11_video_decoder_backend.h b/media/gpu/windows/d3d11_video_decoder_backend.h
+index fd2a95f..8571f7b 100644
+--- a/media/gpu/windows/d3d11_video_decoder_backend.h
++++ b/media/gpu/windows/d3d11_video_decoder_backend.h
+@@ -53,6 +53,7 @@
+                             uint8_t bit_depth,
+                             VideoChromaSampling chroma_sampling,
+                             int max_decode_requests,
++                            const gpu::GpuDriverBugWorkarounds& gpu_workarounds,
+                             MediaLog* media_log) override;
+   std::unique_ptr<D3DTextureWrapper> CreateOutputTextureWrapper(
+       TextureSelector* texture_selector,
+diff --git a/media/gpu/windows/d3d12_helpers.cc b/media/gpu/windows/d3d12_helpers.cc
+index 7b44bd0a..5967eaf2d 100644
+--- a/media/gpu/windows/d3d12_helpers.cc
++++ b/media/gpu/windows/d3d12_helpers.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "media/gpu/windows/d3d12_helpers.h"
+ 
++#include <algorithm>
++
+ #include "base/check_is_test.h"
+ #include "base/containers/span.h"
+ #include "base/logging.h"
+@@ -136,6 +138,17 @@
+   }
+ }
+ 
++ScopedD3D12PersistentResourceMap::ScopedD3D12PersistentResourceMap() = default;
++
++ScopedD3D12PersistentResourceMap::~ScopedD3D12PersistentResourceMap() {
++  constexpr size_t kD3D12PersistentMapClearBytes = 16;
++  base::span<uint8_t> data = map_.data();
++  std::ranges::fill(
++      data.first(std::min(kD3D12PersistentMapClearBytes, data.size())),
++      uint8_t{0});
++  // |map_| is destroyed next, which unmaps the buffer.
++}
++
+ ComD3D12Device CreateD3D12Device(IDXGIAdapter* adapter) {
+   if (!adapter) {
+     // We've had at least a couple of scenarios where two calls to EnumAdapters
+diff --git a/media/gpu/windows/d3d12_helpers.h b/media/gpu/windows/d3d12_helpers.h
+index 3fd8d38..bab9078 100644
+--- a/media/gpu/windows/d3d12_helpers.h
++++ b/media/gpu/windows/d3d12_helpers.h
+@@ -143,6 +143,27 @@
+   base::raw_span<uint8_t> data_;
+ };
+ 
++// Keeps a buffer mapped until destruction, then zeroes its first 16 bytes
++// before unmapping it, to work around an Intel driver issue
++// (crbug.com/583539379). The GPU must no longer access the buffer when this is
++// destroyed.
++class MEDIA_GPU_EXPORT ScopedD3D12PersistentResourceMap {
++ public:
++  ScopedD3D12PersistentResourceMap();
++  ~ScopedD3D12PersistentResourceMap();
++
++  ScopedD3D12PersistentResourceMap(
++      const ScopedD3D12PersistentResourceMap& other) = delete;
++  ScopedD3D12PersistentResourceMap& operator=(
++      const ScopedD3D12PersistentResourceMap& other) = delete;
++
++  bool Map(ID3D12Resource* resource) { return map_.Map(resource); }
++  base::span<uint8_t> data() const { return map_.data(); }
++
++ private:
++  ScopedD3D12ResourceMap map_;
++};
++
+ MEDIA_GPU_EXPORT ComD3D12Device CreateD3D12Device(IDXGIAdapter* adapter);
+ 
+ // In D3D12 resource barriers, subresource id is not only being composed of mip
+diff --git a/media/gpu/windows/d3d12_video_decode_task.cc b/media/gpu/windows/d3d12_video_decode_task.cc
+index 6636ac6..2d6308e 100644
+--- a/media/gpu/windows/d3d12_video_decode_task.cc
++++ b/media/gpu/windows/d3d12_video_decode_task.cc
+@@ -4,8 +4,13 @@
+ 
+ #include "media/gpu/windows/d3d12_video_decode_task.h"
+ 
++#include <algorithm>
++#include <cstdint>
++#include <memory>
++
+ #include "base/task/thread_pool.h"
+ #include "media/base/win/mf_helpers.h"
++#include "media/gpu/windows/d3d12_helpers.h"
+ #include "media/gpu/windows/d3d_picture_buffer.h"
+ #include "third_party/microsoft_dxheaders/src/include/directx/d3dx12_core.h"
+ 
+@@ -91,6 +96,7 @@
+   CHECK(!fence_and_value_.first);
+   // The compressed_bitstream_ is reused if it's large enough.
+   if (!compressed_bitstream_ || compressed_bitstream_->GetDesc().Width < size) {
++    bitstream_buffer_map_.reset();
+     // Double the size of the buffer if it's too small, to avoid frequent
+     // reallocations.
+     size_t new_size = std::max(
+@@ -111,4 +117,17 @@
+   return compressed_bitstream_;
+ }
+ 
++base::span<uint8_t> D3D12VideoDecoderTask::GetBitstreamBufferMappedData() {
++  CHECK(!fence_and_value_.first);
++  if (!bitstream_buffer_map_) {
++    CHECK(compressed_bitstream_);
++    auto map = std::make_unique<ScopedD3D12PersistentResourceMap>();
++    if (!map->Map(compressed_bitstream_.Get())) {
++      return {};
++    }
++    bitstream_buffer_map_ = std::move(map);
++  }
++  return bitstream_buffer_map_->data();
++}
++
+ }  // namespace media
+diff --git a/media/gpu/windows/d3d12_video_decode_task.h b/media/gpu/windows/d3d12_video_decode_task.h
+index aa50c8b..d7b6dc1 100644
+--- a/media/gpu/windows/d3d12_video_decode_task.h
++++ b/media/gpu/windows/d3d12_video_decode_task.h
+@@ -10,6 +10,7 @@
+ 
+ #include <wrl.h>
+ 
++#include <memory>
+ #include <utility>
+ #include <vector>
+ 
+@@ -18,6 +19,8 @@
+ 
+ namespace media {
+ 
++class ScopedD3D12PersistentResourceMap;
++
+ // Stores the referenced memory and fence event of a submitted D3D12 video
+ // decode task.
+ class D3D12VideoDecoderTask {
+@@ -25,6 +28,9 @@
+   D3D12VideoDecoderTask();
+   ~D3D12VideoDecoderTask();
+ 
++  D3D12VideoDecoderTask(const D3D12VideoDecoderTask&) = delete;
++  D3D12VideoDecoderTask& operator=(const D3D12VideoDecoderTask&) = delete;
++
+   void SetFenceAndValue(scoped_refptr<D3D12Fence> fence, uint64_t value);
+ 
+   // Wait for previous task to complete. After |SetFenceAndValue()| is called,
+@@ -48,12 +54,19 @@
+       ID3D12Device* device,
+       size_t size);
+ 
++  // Returns the mapped span of the bitstream buffer, mapping it on first use.
++  // The mapping is kept until |GetBitstreamBuffer()| reallocates the buffer or
++  // the task is destroyed. Only valid after a successful
++  // |GetBitstreamBuffer()| call.
++  base::span<uint8_t> GetBitstreamBufferMappedData();
++
+  private:
+   Microsoft::WRL::ComPtr<ID3D12CommandAllocator> command_allocator_;
+   std::vector<uint8_t> picture_parameters_buffer_;
+   std::vector<uint8_t> inverse_quantization_matrix_buffer_;
+   std::vector<uint8_t> slice_control_buffer_;
+   Microsoft::WRL::ComPtr<ID3D12Resource> compressed_bitstream_;
++  std::unique_ptr<ScopedD3D12PersistentResourceMap> bitstream_buffer_map_;
+   std::pair<scoped_refptr<D3D12Fence>, uint64_t> fence_and_value_;
+ };
+ 
+diff --git a/media/gpu/windows/d3d12_video_decoder_wrapper.cc b/media/gpu/windows/d3d12_video_decoder_wrapper.cc
+index bbbf8d1..71cc19f8 100644
+--- a/media/gpu/windows/d3d12_video_decoder_wrapper.cc
++++ b/media/gpu/windows/d3d12_video_decoder_wrapper.cc
+@@ -18,6 +18,7 @@
+ #include "base/notreached.h"
+ #include "base/trace_event/trace_event.h"
+ #include "base/win/scoped_handle.h"
++#include "gpu/config/gpu_driver_bug_workarounds.h"
+ #include "media/gpu/windows/d3d12_fence.h"
+ #include "media/gpu/windows/d3d12_helpers.h"
+ #include "media/gpu/windows/d3d12_video_decode_task.h"
+@@ -57,7 +58,8 @@
+                                ComD3D12VideoDecoder video_decoder,
+                                ComD3D12VideoDecoderHeap video_decoder_heap,
+                                scoped_refptr<D3D12Fence> fence,
+-                               int max_decode_requests)
++                               int max_decode_requests,
++                               bool use_persistent_bitstream_map)
+       : D3D12VideoDecoderWrapper(media_log),
+         device_(std::move(device)),
+         video_device_(std::move(video_device)),
+@@ -66,11 +68,16 @@
+         video_decoder_heap_(std::move(video_decoder_heap)),
+         reference_frame_list_(std::move(video_decoder_heap)),
+         fence_(std::move(fence)),
+-        tasks_(max_decode_requests) {
++        tasks_(max_decode_requests),
++        use_persistent_bitstream_map_(use_persistent_bitstream_map) {
+     input_stream_arguments_.pHeap = video_decoder_heap_.Get();
+   }
+ 
+-  ~D3D12VideoDecoderWrapperImpl() override = default;
++  ~D3D12VideoDecoderWrapperImpl() override {
++    // |bitstream_buffer_| may point into a mapping owned by |tasks_|, which is
++    // destroyed before the base class members.
++    bitstream_buffer_.reset();
++  }
+ 
+   std::optional<bool> UseSingleTexture() const override { return true; }
+ 
+@@ -258,6 +265,10 @@
+   // The task pool for multiple ongoing decode requests.
+   std::vector<D3D12VideoDecoderTask> tasks_;
+   uint32_t current_task_index_ = 0;
++
++  // Whether each task keeps its bitstream buffer mapped instead of mapping it
++  // per submission.
++  const bool use_persistent_bitstream_map_;
+ };
+ 
+ class ScopedD3D12MemoryBuffer : public ScopedD3DBuffer {
+@@ -297,6 +308,8 @@
+ 
+ class ScopedD3D12ResourceBuffer : public ScopedD3DBuffer {
+  public:
++  // Maps the resource for the lifetime of this buffer and unmaps it in
++  // Commit().
+   ScopedD3D12ResourceBuffer(D3D12VideoDecoderWrapperImpl* decoder,
+                             ComD3D12Resource resource,
+                             MediaLog* media_log)
+@@ -312,20 +325,26 @@
+         base::span(reinterpret_cast<uint8_t*>(mapped_data),
+                    static_cast<size_t>(resource_->GetDesc().Width)));
+   }
++  // Wraps an already-mapped span whose mapping is owned elsewhere. |resource_|
++  // stays empty and Commit() does not unmap.
++  explicit ScopedD3D12ResourceBuffer(base::span<uint8_t> mapped_data)
++      : ScopedD3DBuffer(mapped_data) {}
+   ~ScopedD3D12ResourceBuffer() override { ScopedD3D12ResourceBuffer::Commit(); }
+ 
+   ScopedD3D12ResourceBuffer(ScopedD3D12ResourceBuffer&) = delete;
+   ScopedD3D12ResourceBuffer& operator=(ScopedD3D12ResourceBuffer&) = delete;
+ 
+-  bool Commit() override { return Commit(resource_->GetDesc().Width); }
++  bool Commit() override { return Commit(data_.size()); }
+ 
+   bool Commit(uint32_t written_size) override {
+     if (data_.empty()) {
+       return false;
+     }
+     CHECK_LE(written_size, data_.size());
+-    D3D12_RANGE range{0, written_size};
+-    resource_->Unmap(0, &range);
++    if (resource_) {
++      D3D12_RANGE range{0, written_size};
++      resource_->Unmap(0, &range);
++    }
+     data_ = base::span<uint8_t>();
+     return true;
+   }
+@@ -374,6 +393,16 @@
+           .Offset = 0,
+           .Size = 0,  // Will be correctly populated in SubmitSlice().
+       };
++      if (use_persistent_bitstream_map_) {
++        base::span<uint8_t> mapped_data = task.GetBitstreamBufferMappedData();
++        if (mapped_data.empty()) {
++          MEDIA_LOG(ERROR, media_log_)
++              << "Failed to map the compressed bitstream buffer";
++          return std::make_unique<ScopedD3D12MemoryBuffer>(
++              this, D3D12_VIDEO_DECODE_ARGUMENT_TYPE{}, base::span<uint8_t>{});
++        }
++        return std::make_unique<ScopedD3D12ResourceBuffer>(mapped_data);
++      }
+       return std::make_unique<ScopedD3D12ResourceBuffer>(this, bitstream_buffer,
+                                                          media_log_.get());
+   }
+@@ -389,7 +418,8 @@
+     VideoDecoderConfig config,
+     uint8_t bit_depth,
+     VideoChromaSampling chroma_sampling,
+-    int max_decode_requests) {
++    int max_decode_requests,
++    const gpu::GpuDriverBugWorkarounds& gpu_workarounds) {
+   GUID guid =
+       GetD3D12VideoDecodeGUID(config.profile(), bit_depth, chroma_sampling);
+   DXGI_FORMAT decode_format = GetOutputDXGIFormat(bit_depth, chroma_sampling);
+@@ -472,7 +502,8 @@
+   return std::make_unique<D3D12VideoDecoderWrapperImpl>(
+       media_log, std::move(device), std::move(command_queue),
+       std::move(video_device), std::move(video_decoder),
+-      std::move(video_decoder_heap), std::move(fence), max_decode_requests);
++      std::move(video_decoder_heap), std::move(fence), max_decode_requests,
++      gpu_workarounds.d3d12_persistent_upload_buffer_map);
+ }
+ 
+ D3D12VideoDecoderWrapper::D3D12VideoDecoderWrapper(MediaLog* media_log)
+diff --git a/media/gpu/windows/d3d12_video_decoder_wrapper.h b/media/gpu/windows/d3d12_video_decoder_wrapper.h
+index a300d1b..46a23c1e 100644
+--- a/media/gpu/windows/d3d12_video_decoder_wrapper.h
++++ b/media/gpu/windows/d3d12_video_decoder_wrapper.h
+@@ -12,6 +12,10 @@
+ #include "media/gpu/windows/d3d_com_defs.h"
+ #include "media/gpu/windows/d3d_video_decoder_wrapper.h"
+ 
++namespace gpu {
++class GpuDriverBugWorkarounds;
++}  // namespace gpu
++
+ namespace media {
+ 
+ // A wrapper class for API calls around ID3D12VideoDecoder.
+@@ -23,7 +27,8 @@
+       VideoDecoderConfig config,
+       uint8_t bit_depth,
+       VideoChromaSampling chroma_sampling,
+-      int max_decode_requests);
++      int max_decode_requests,
++      const gpu::GpuDriverBugWorkarounds& gpu_workarounds);
+ 
+  protected:
+   explicit D3D12VideoDecoderWrapper(MediaLog* media_log);
+diff --git a/media/gpu/windows/d3d12_video_encode_accelerator.cc b/media/gpu/windows/d3d12_video_encode_accelerator.cc
+index 14b43d94..65af6a12 100644
+--- a/media/gpu/windows/d3d12_video_encode_accelerator.cc
++++ b/media/gpu/windows/d3d12_video_encode_accelerator.cc
+@@ -12,6 +12,7 @@
+ 
+ #include "base/bits.h"
+ #include "base/check_is_test.h"
++#include "base/containers/span.h"
+ #include "base/logging.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/no_destructor.h"
+@@ -38,6 +39,7 @@
+ #include "media/gpu/command_buffer_helper.h"
+ #include "media/gpu/gpu_video_encode_accelerator_helpers.h"
+ #include "media/gpu/macros.h"
++#include "media/gpu/windows/d3d12_helpers.h"
+ #include "media/gpu/windows/d3d12_video_encode_av1_delegate.h"
+ #include "media/gpu/windows/d3d12_video_encode_delegate.h"
+ #include "media/gpu/windows/d3d12_video_encode_h264_delegate.h"
+@@ -466,6 +468,8 @@
+           {base::MayBlock(), base::TaskPriority::USER_VISIBLE})),
+       encoder_factory_(
+           std::make_unique<VideoEncodeDelegateFactory>(gpu_workarounds)),
++      use_persistent_upload_buffer_map_(
++          gpu_workarounds.d3d12_persistent_upload_buffer_map),
+       // VCM on Windows allocates 10 slots for MappableSI frames. Typically 3 of
+       // them are being actively used. Set cache size to 5 to leave some room
+       // for frames in the rendering and encoding pipelines.
+@@ -883,6 +887,12 @@
+       upload_buffer_->GetDesc().Width >= upload_buffer_desc.Width) {
+     return true;
+   }
++  // Wait for the GPU to finish copying from the buffer being replaced before
++  // unmapping it.
++  if (upload_buffer_map_) {
++    copy_command_queue_->WaitSync();
++    upload_buffer_map_.reset();
++  }
+   HRESULT hr = device_->CreateCommittedResource(
+       &D3D12HeapProperties::kUpload, D3D12_HEAP_FLAG_NONE, &upload_buffer_desc,
+       D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+@@ -895,6 +905,17 @@
+       "D3D12VEA upload_buffer_ %dx%d", config_.input_visible_size.width(),
+       config_.input_visible_size.height()));
+   CHECK_EQ(upload_buffer_->SetName(debug_name.c_str()), S_OK);
++  // Map once and keep the buffer mapped for its lifetime if the persistent
++  // mapping is required.
++  if (use_persistent_upload_buffer_map_) {
++    auto map = std::make_unique<ScopedD3D12PersistentResourceMap>();
++    if (!map->Map(upload_buffer_.Get())) {
++      LOG(ERROR) << "Failed to map upload_buffer";
++      upload_buffer_.Reset();
++      return false;
++    }
++    upload_buffer_map_ = std::move(map);
++  }
+   return true;
+ }
+ 
+@@ -914,25 +935,29 @@
+     return false;
+   }
+ 
+-  {
+-    ScopedD3D12ResourceMap map;
+-    if (!map.Map(upload_buffer_.Get())) {
++  base::span<uint8_t> upload_data;
++  ScopedD3D12ResourceMap per_frame_map;
++  if (use_persistent_upload_buffer_map_) {
++    CHECK(upload_buffer_map_);
++    upload_data = upload_buffer_map_->data();
++  } else {
++    if (!per_frame_map.Map(upload_buffer_.Get())) {
+       LOG(ERROR) << "Failed to map upload_buffer";
+       return false;
+     }
+-    scoped_refptr<VideoFrame> upload_frame = VideoFrame::WrapExternalYuvData(
+-        pixel_format, config_.input_visible_size,
+-        gfx::Rect(config_.input_visible_size), config_.input_visible_size,
+-        base::checked_cast<int>(layout.y_pitch),
+-        base::checked_cast<int>(layout.uv_pitch),
+-        map.data().first(layout.uv_offset),
+-        map.data().subspan(layout.uv_offset), frame.timestamp());
+-    EncoderStatus result =
+-        frame_converter_.ConvertAndScale(frame, *upload_frame);
+-    if (!result.is_ok()) {
+-      LOG(ERROR) << "Failed to ConvertAndScale frame: " << result.message();
+-      return false;
+-    }
++    upload_data = per_frame_map.data();
++  }
++  scoped_refptr<VideoFrame> upload_frame = VideoFrame::WrapExternalYuvData(
++      pixel_format, config_.input_visible_size,
++      gfx::Rect(config_.input_visible_size), config_.input_visible_size,
++      base::checked_cast<int>(layout.y_pitch),
++      base::checked_cast<int>(layout.uv_pitch),
++      upload_data.first(layout.uv_offset),
++      upload_data.subspan(layout.uv_offset), frame.timestamp());
++  EncoderStatus result = frame_converter_.ConvertAndScale(frame, *upload_frame);
++  if (!result.is_ok()) {
++    LOG(ERROR) << "Failed to ConvertAndScale frame: " << result.message();
++    return false;
+   }
+ 
+   if (!copy_command_queue_->CopyBufferToBiPlanarTexture(
+@@ -1011,17 +1036,22 @@
+     pack_source_frame = packing_source_frame_.get();
+   }
+ 
+-  {
+-    ScopedD3D12ResourceMap map;
+-    if (!map.Map(upload_buffer_.Get())) {
++  base::span<uint8_t> upload_data;
++  ScopedD3D12ResourceMap per_frame_map;
++  if (use_persistent_upload_buffer_map_) {
++    CHECK(upload_buffer_map_);
++    upload_data = upload_buffer_map_->data();
++  } else {
++    if (!per_frame_map.Map(upload_buffer_.Get())) {
+       LOG(ERROR) << "Failed to map upload_buffer";
+       return false;
+     }
+-    if (!packed_dxgi_packer_.Pack(*pack_source_frame, dxgi_format, map.data(),
+-                                  row_pitch)) {
+-      LOG(ERROR) << "Failed to pack frame into the encoder input format";
+-      return false;
+-    }
++    upload_data = per_frame_map.data();
++  }
++  if (!packed_dxgi_packer_.Pack(*pack_source_frame, dxgi_format, upload_data,
++                                row_pitch)) {
++    LOG(ERROR) << "Failed to pack frame into the encoder input format";
++    return false;
+   }
+ 
+   if (!copy_command_queue_->CopyTextureRegion(
+diff --git a/media/gpu/windows/d3d12_video_encode_accelerator.h b/media/gpu/windows/d3d12_video_encode_accelerator.h
+index 2dba5d1..71eaf3a 100644
+--- a/media/gpu/windows/d3d12_video_encode_accelerator.h
++++ b/media/gpu/windows/d3d12_video_encode_accelerator.h
+@@ -12,6 +12,7 @@
+ #include <wrl.h>
+ 
+ #include <atomic>
++#include <memory>
+ #include <vector>
+ 
+ #include "base/containers/circular_deque.h"
+@@ -36,6 +37,7 @@
+ namespace media {
+ 
+ class CommandBufferHelper;
++class ScopedD3D12PersistentResourceMap;
+ class VEAEncodingLatencyMetricsHelper;
+ 
+ // The upload buffer layout for the bi-planar path, computed in bytes: the
+@@ -273,6 +275,12 @@
+   // shared memory.
+   Microsoft::WRL::ComPtr<ID3D12Resource> upload_buffer_
+       GUARDED_BY_CONTEXT(encoder_sequence_checker_);
++  // Keeps |upload_buffer_| mapped until it is replaced or destroyed, when the
++  // d3d12_persistent_upload_buffer_map workaround is enabled. Otherwise the
++  // upload functions map it per frame.
++  std::unique_ptr<ScopedD3D12PersistentResourceMap> upload_buffer_map_
++      GUARDED_BY_CONTEXT(encoder_sequence_checker_);
++  const bool use_persistent_upload_buffer_map_;
+   Microsoft::WRL::ComPtr<ID3D12Resource> input_texture_
+       GUARDED_BY_CONTEXT(encoder_sequence_checker_);
+ 
+diff --git a/media/gpu/windows/d3d_video_decoder.cc b/media/gpu/windows/d3d_video_decoder.cc
+index f33cbb5b..24921cb7 100644
+--- a/media/gpu/windows/d3d_video_decoder.cc
++++ b/media/gpu/windows/d3d_video_decoder.cc
+@@ -261,7 +261,8 @@
+ 
+   auto video_decoder_wrapper_result = backend_->CreateVideoDecoderWrapper(
+       get_d3d_device_cb_, decoder_configurator.get(), config_, bit_depth,
+-      chroma_sampling_, GetMaxDecodeRequests(), media_log_.get());
++      chroma_sampling_, GetMaxDecodeRequests(), gpu_workarounds_,
++      media_log_.get());
+   if (!video_decoder_wrapper_result.has_value()) {
+     NotifyError(std::move(video_decoder_wrapper_result).error().AddHere());
+     return false;
+diff --git a/media/gpu/windows/d3d_video_decoder_backend.h b/media/gpu/windows/d3d_video_decoder_backend.h
+index ec3894c6..b2ffbc1 100644
+--- a/media/gpu/windows/d3d_video_decoder_backend.h
++++ b/media/gpu/windows/d3d_video_decoder_backend.h
+@@ -85,6 +85,7 @@
+                             uint8_t bit_depth,
+                             VideoChromaSampling chroma_sampling,
+                             int max_decode_requests,
++                            const gpu::GpuDriverBugWorkarounds& gpu_workarounds,
+                             MediaLog* media_log) = 0;
+ 
+   virtual std::unique_ptr<D3DTextureWrapper> CreateOutputTextureWrapper(
 diff --git a/services/viz/public/cpp/gpu/context_provider_command_buffer.cc b/services/viz/public/cpp/gpu/context_provider_command_buffer.cc
 index a140b5c..a36c0ff4 100644
 --- a/services/viz/public/cpp/gpu/context_provider_command_buffer.cc
@@ -737,6 +1946,84 @@ index 8568cad..0853a692 100644
      if (top_layer_element->IsBackdropPseudoElement() &&
          top_layer_element->parentElement() == element_) {
        // Keep rendering the ::backdrop for a content-visibility:hidden element.
+diff --git a/third_party/blink/renderer/core/exported/web_page_popup_impl.cc b/third_party/blink/renderer/core/exported/web_page_popup_impl.cc
+index db468d49..dec12576 100644
+--- a/third_party/blink/renderer/core/exported/web_page_popup_impl.cc
++++ b/third_party/blink/renderer/core/exported/web_page_popup_impl.cc
+@@ -33,6 +33,7 @@
+ 
+ #include "base/functional/callback_helpers.h"
+ #include "base/memory/raw_ptr.h"
++#include "base/memory/scoped_refptr.h"
+ #include "cc/animation/animation_host.h"
+ #include "cc/animation/animation_timeline.h"
+ #include "cc/base/features.h"
+@@ -797,6 +798,10 @@
+   LocalFrame::NotifyUserActivation(
+       popup_client_->OwnerElement().GetDocument().GetFrame(),
+       mojom::blink::UserActivationNotificationType::kInteraction);
++  // User-activation handlers may synchronously close the popup.
++  if (closing_) {
++    return WebInputEventResult::kNotHandled;
++  }
+   return MainFrame().GetEventHandler().KeyEvent(event);
+ }
+ 
+@@ -856,6 +861,9 @@
+     LocalFrame::NotifyUserActivation(
+         popup_client_->OwnerElement().GetDocument().GetFrame(),
+         mojom::blink::UserActivationNotificationType::kInteraction);
++    if (closing_) {
++      return WebInputEventResult::kNotHandled;
++    }
+     CheckScreenPointInOwnerWindowAndCount(
+         event.PositionInScreen(),
+         WebFeature::kPopupGestureTapExceedsOwnerWindowBounds);
+@@ -913,11 +921,18 @@
+ 
+ void WebPagePopupImpl::HandleMouseDown(LocalFrame& main_frame,
+                                        const WebMouseEvent& event) {
++  if (closing_) {
++    return;
++  }
+   if (IsViewportPointInWindow(event.PositionInWidget().x(),
+                               event.PositionInWidget().y())) {
+     LocalFrame::NotifyUserActivation(
+         popup_client_->OwnerElement().GetDocument().GetFrame(),
+         mojom::blink::UserActivationNotificationType::kInteraction);
++    // User-activation handlers may synchronously close the popup.
++    if (closing_) {
++      return;
++    }
+     CheckScreenPointInOwnerWindowAndCount(
+         event.PositionInScreen(),
+         WebFeature::kPopupMouseDownExceedsOwnerWindowBounds);
+@@ -930,6 +945,9 @@
+ WebInputEventResult WebPagePopupImpl::HandleMouseWheel(
+     LocalFrame& main_frame,
+     const WebMouseWheelEvent& event) {
++  if (closing_) {
++    return WebInputEventResult::kNotHandled;
++  }
+   if (IsViewportPointInWindow(event.PositionInWidget().x(),
+                               event.PositionInWidget().y())) {
+     CheckScreenPointInOwnerWindowAndCount(
+@@ -1011,6 +1029,7 @@
+   if (closing_) {
+     return WebInputEventResult::kNotHandled;
+   }
++  scoped_refptr<WebPagePopupImpl> protector(this);
+   return MainFrame().GetEventHandler().DispatchBufferedTouchEvents();
+ }
+ 
+@@ -1020,6 +1039,7 @@
+     return WebInputEventResult::kNotHandled;
+   }
+   DCHECK(!WebInputEvent::IsTouchEventType(event.Event().GetType()));
++  scoped_refptr<WebPagePopupImpl> protector(this);
+   return WidgetEventHandler::HandleInputEvent(event, &MainFrame());
+ }
+ 
 diff --git a/third_party/blink/renderer/modules/speech/speech_recognition_result_list.h b/third_party/blink/renderer/modules/speech/speech_recognition_result_list.h
 index 481878d..90636dd 100644
 --- a/third_party/blink/renderer/modules/speech/speech_recognition_result_list.h
