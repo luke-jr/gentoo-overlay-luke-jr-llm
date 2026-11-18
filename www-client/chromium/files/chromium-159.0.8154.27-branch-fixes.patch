@@ -1,18 +1,22 @@
 Chromium 159.0.8154.27 + the later changes of its release branch, up to
-01b5919d175e10767008931b74c640d66ffa9884 (refs/branch-heads/8154@{#976}), for the
+7f8ea462123d72121a0e31ab188360600b7af2f5 (refs/branch-heads/8154@{#1003}), for the
 159.0.8154.27 tree that chromium-159.0.8154.18-to-159.0.8154.27.patch makes.
-The newest change it carries is 8154@{#976}.
+The newest change it carries is 8154@{#1003}.
 
 Generated from the upstream diff chromium/src
-refs/tags/159.0.8154.27..01b5919d175e10767008931b74c640d66ffa9884, from its roll of
-v8/v8 4593f4dc1e9b7c400645778417f394ba6d52f64b..16be2fadbb92e747ba85f1f6f1d56a2b4b0f41c3 (under v8/),
-and from its roll of skia 8a65fa27c104d1bb5a58df5ec3e0c1655053fcf6..458e1f1ab81efa067ec5ad78eb768740d74f6913
+refs/tags/159.0.8154.27..7f8ea462123d72121a0e31ab188360600b7af2f5, from its roll of
+v8/v8 4593f4dc1e9b7c400645778417f394ba6d52f64b..ff20afeabcd530241fc453537e74b54a9fb674ce (under v8/),
+from its roll of skia 8a65fa27c104d1bb5a58df5ec3e0c1655053fcf6..458e1f1ab81efa067ec5ad78eb768740d74f6913
 (under third_party/skia/; its range's second commit, 458e1f1ab81e, changes only a test),
+and from its roll of angle/angle 525fbae78ff28982cb5c6d1c94cd331bdbfc42f9..b49535777c51fae4a8809ba9f7505b51325e57f4
+(under third_party/angle/); its roll of dawn e8069b445d6e8d5a3aaba2a7a864159bec173ecd..16b69da1f131fbae9e03877635281ebcf7a0f4a0
+changes nothing this patch carries (its DEPS and a submodule pointer),
 as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
 .27 tree's files): left out are files not in the release tarball,
 iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs (GN files kept),
 translations other than en-GB, PGO/orderfile/AFDO pointers, submodule pointer
-updates. chrome/VERSION, the DEPS files and the stamp files stay at
+updates. chrome/VERSION (the branch's "Incrementing VERSION to 159.0.8154.28"
+commit, bacfa8ae1f18, is not a tag yet), the DEPS files and the stamp files stay at
 159.0.8154.27.
 
 Commits contributing to it (oldest first):
@@ -29,17 +33,65 @@ Commits contributing to it (oldest first):
   2b83b72e38ee [M159] Revert CHECK_EQ to DCHECK_EQ in TaskManagerImpl::GetTaskIdsList
   c765465d8411 [M159] [webgpu] Defer DawnWireServices::Disconnect() on GPU context loss
   cef9884c783e Roll commits from side projects in M159
+    skia 06cc2dbb68c3 [M159] [ganesh] Fix image filtering mipmap bug
     v8 5db0199ca673 [M159] [sandbox] Fix parameter count race in JSDispatchEntry initialization
     v8 16be2fadbb92 Version 15.9.128.15
-    skia 06cc2dbb68c3 [M159] [ganesh] Fix image filtering mipmap bug
+  a2955fd8f621 Roll commits from side projects in M159
   01b5919d175e [M159] Revert CHECK back to DCHECK in MenuItemView::PrepareForRun
+  7d458078192c [M159] [GTK] Fix dangling Asset reference in WindowFrameProviderGtk
+  5f24e2519aab [M159] Convert CHECK to DCHECK in GestureProvider::OnShortPress
+  456cd7a3b0e0 Roll commits from side projects in M159
+    angle b49535777c51 [M159] GL: Read pixels via scratch FBO for MRT
+  a43a862fda02 [M159] Revert CHECK to DCHECK in LayerAnimationSequence::Start
+  8bff1a69ee97 [M159] Revert CHECK back to DCHECK in LayerAnimationElement::RequestEffectiveStart
+  fda2abf2a9f3 [M159] Avoid mutating TopLayerElements while iterating in DisplayLockContext
+  48d01e38d10f [M159] [OTP] Run PhishGuard OTP callback on CSD allowlist match
+  fc9af3dd2a03 [M159] [Thumbnails] Prevent re-entrancy that leads to data corruption
+  001f6a3dfe06 [159] Web Speech API: Add unit tests for SpeechRecognitionResult timestamps
+  f3851c870019 [M159] Reland "[NTP Aurora V2] Use 16dp favicon background for MVT tiles in Aurora V2"
+  c3f5f5648bdd Roll commits from side projects in M159
+    v8 f001c30185c0 [M159] [cfi] Enforce JitAllocationType in StartOfAllocationAt
+    v8 ff20afeabcd5 Version 15.9.128.16
+  7f8ea462123d [M159] [Magic Stack] Use 16dp thumbnail and 8dp badge corner radii
 
 Checked: applies to the 159.0.8154.27 tree (the .18 tarball with
 chromium-159.0.8154.18-to-159.0.8154.27.patch); every patched source file is
-byte-identical to its version at 01b5919d175e (or its dependency's DEPS revision).
+byte-identical to its version at 7f8ea462123d (or its dependency's DEPS revision).
 
 Apply with git apply.
 
+diff --git a/chrome/browser/educational_tip/java/res/layout/educational_tip_module_layout.xml b/chrome/browser/educational_tip/java/res/layout/educational_tip_module_layout.xml
+index de5dbbf1..dcb56970 100644
+--- a/chrome/browser/educational_tip/java/res/layout/educational_tip_module_layout.xml
++++ b/chrome/browser/educational_tip/java/res/layout/educational_tip_module_layout.xml
+@@ -58,10 +58,10 @@
+             android:layout_height="wrap_content">
+             <org.chromium.components.browser_ui.widget.RoundedCornerImageView
+                 android:id="@+id/educational_tip_module_content_image"
+-                app:cornerRadiusBottomEnd="@dimen/single_tab_thumbnail_radius"
+-                app:cornerRadiusBottomStart="@dimen/single_tab_thumbnail_radius"
+-                app:cornerRadiusTopEnd="@dimen/single_tab_thumbnail_radius"
+-                app:cornerRadiusTopStart="@dimen/single_tab_thumbnail_radius"
++                app:cornerRadiusBottomEnd="@dimen/educational_tip_module_content_image_radius"
++                app:cornerRadiusBottomStart="@dimen/educational_tip_module_content_image_radius"
++                app:cornerRadiusTopEnd="@dimen/educational_tip_module_content_image_radius"
++                app:cornerRadiusTopStart="@dimen/educational_tip_module_content_image_radius"
+                 android:layout_height="@dimen/educational_tip_module_content_image_size"
+                 android:layout_width="@dimen/educational_tip_module_content_image_size"
+                 android:scaleType="centerCrop"
+diff --git a/chrome/browser/educational_tip/java/res/values/dimens.xml b/chrome/browser/educational_tip/java/res/values/dimens.xml
+index a26d8973..65c281f 100644
+--- a/chrome/browser/educational_tip/java/res/values/dimens.xml
++++ b/chrome/browser/educational_tip/java/res/values/dimens.xml
+@@ -11,7 +11,7 @@
+   <!-- go/keep-sorted start -->
+   <dimen name="educational_tip_module_button_height">48dp</dimen>
+   <dimen name="educational_tip_module_button_padding_start">14dp</dimen>
+-  <dimen name="educational_tip_module_content_image_radius">12dp</dimen>
++  <dimen name="educational_tip_module_content_image_radius">16dp</dimen>
+   <dimen name="educational_tip_module_content_image_size">72dp</dimen>
+   <dimen name="educational_tip_module_content_info_padding_start">16dp</dimen>
+   <!-- go/keep-sorted end -->
 diff --git a/chrome/browser/task_manager/sampling/task_manager_impl.cc b/chrome/browser/task_manager/sampling/task_manager_impl.cc
 index 6426bd77..e51d7b2 100644
 --- a/chrome/browser/task_manager/sampling/task_manager_impl.cc
@@ -55,6 +107,192 @@ index 6426bd77..e51d7b2 100644
    }
  
    return sorted_task_ids_;
+diff --git a/chrome/browser/ui/thumbnails/thumbnail_scheduler_impl.cc b/chrome/browser/ui/thumbnails/thumbnail_scheduler_impl.cc
+index 516d522..2b5553dc 100644
+--- a/chrome/browser/ui/thumbnails/thumbnail_scheduler_impl.cc
++++ b/chrome/browser/ui/thumbnails/thumbnail_scheduler_impl.cc
+@@ -6,6 +6,7 @@
+ 
+ #include <algorithm>
+ 
++#include "base/auto_reset.h"
+ #include "base/check.h"
+ #include "base/check_op.h"
+ #include "base/memory/raw_ptr.h"
+@@ -76,13 +77,17 @@
+ 
+ void ThumbnailSchedulerImpl::Schedule(TabNode* tab_node,
+                                       const TabSchedulingData& old_data) {
++  CHECK(!reentrancy_guard_, base::NotFatalUntil::M165);
++  std::optional<base::AutoReset<bool>> reentrancy_guard;
++  reentrancy_guard.emplace(&reentrancy_guard_, true);
++
+   // Scheduling is run after each tab priority change. So, at most one
+   // tab may be scheduled, at most one tab may be descheduled, or both.
+   TabNode* scheduled_tab = nullptr;
+   TabNode* descheduled_tab = nullptr;
+ 
+-  // First, move the tab node to the correct list and update the
+-  // capturing counts.
++  // First, move the tab node to the correct list and update the capturing
++  // counts.
+ 
+   if (tab_node->next()) {
+     tab_node->RemoveFromList();
+@@ -127,13 +132,13 @@
+       break;
+   }
+ 
+-  // First schedule a high priority tab if any are waiting, subject to
+-  // the maximum. Note that at most one may be schedulable. Prior to
+-  // this scheduling update, all possible high priority tabs were
+-  // scheduled. The only conditions leading to scheduling a new one are:
++  // Next, schedule a high priority tab if any are waiting, subject to the
++  // maximum. Note that at most one may be scheduled. Prior to this scheduling
++  // update, all possible high priority tabs were scheduled. The only conditions
++  // leading to scheduling a new one are:
+   //
+-  // 1. |tab| was newly prioritized and less than |max_total_captures_|
+-  //    tabs are capturing, or
++  // 1. |tab| was newly prioritized and less than |max_total_captures_| tabs are
++  //    capturing, or
+   //
+   // 2. |tab| was deprioritized and other tabs are waiting in
+   //    |high_priority_wait_queue_|.
+@@ -183,14 +188,30 @@
+     lo_prio_capture_count_ += 1;
+   }
+ 
++  // Note: in the following sections, it's critical that `is_capturing` needs
++  // to be set before changing the capturer state, because there are cases where
++  // this can trigger additional readiness changes causing this function to
++  // re-enter; setting capture needs to be the last thing done.
++
+   if (descheduled_tab) {
+-    descheduled_tab->capturer->SetCapturePermittedByScheduler(false);
+     descheduled_tab->is_capturing = false;
+   }
++  if (scheduled_tab) {
++    scheduled_tab->is_capturing = true;
++  }
++
++  // Stopping capture is much less likely to be re-entrant than starting it, so
++  // make that change first.
++
++  if (descheduled_tab) {
++    descheduled_tab->capturer->SetCapturePermittedByScheduler(false);
++  }
++
++  // At this point it's okay if we're re-entrant.
++  reentrancy_guard.reset();
+ 
+   if (scheduled_tab) {
+     scheduled_tab->capturer->SetCapturePermittedByScheduler(true);
+-    scheduled_tab->is_capturing = true;
+   }
+ }
+ 
+diff --git a/chrome/browser/ui/thumbnails/thumbnail_scheduler_impl.h b/chrome/browser/ui/thumbnails/thumbnail_scheduler_impl.h
+index 33257641..160654ff 100644
+--- a/chrome/browser/ui/thumbnails/thumbnail_scheduler_impl.h
++++ b/chrome/browser/ui/thumbnails/thumbnail_scheduler_impl.h
+@@ -72,6 +72,8 @@
+   // track its size).
+   int hi_prio_capture_count_ = 0;
+   int lo_prio_capture_count_ = 0;
++
++  bool reentrancy_guard_ = false;
+ };
+ 
+ #endif  // CHROME_BROWSER_UI_THUMBNAILS_THUMBNAIL_SCHEDULER_IMPL_H_
+diff --git a/components/browser_ui/widget/android/BUILD.gn b/components/browser_ui/widget/android/BUILD.gn
+index 68d509e..f50f055 100644
+--- a/components/browser_ui/widget/android/BUILD.gn
++++ b/components/browser_ui/widget/android/BUILD.gn
+@@ -317,7 +317,10 @@
+     "java/res/drawable/tile_view_background_selector.xml",
+     "java/res/drawable/tile_view_highlight.xml",
+     "java/res/drawable/tile_view_highlight_mask.xml",
++    "java/res/drawable/tile_view_highlight_mask_rounded.xml",
++    "java/res/drawable/tile_view_highlight_rounded.xml",
+     "java/res/drawable/tile_view_icon_background_modern.xml",
++    "java/res/drawable/tile_view_icon_background_modern_rounded.xml",
+     "java/res/layout/action_confirmation_dialog.xml",
+     "java/res/layout/app_menu_layout.xml",
+     "java/res/layout/automotive_layout_with_horizontal_back_button_toolbar.xml",
+diff --git a/components/safe_browsing/core/browser/password_protection/password_protection_request.cc b/components/safe_browsing/core/browser/password_protection/password_protection_request.cc
+index 148ed6a..7ca496e8 100644
+--- a/components/safe_browsing/core/browser/password_protection/password_protection_request.cc
++++ b/components/safe_browsing/core/browser/password_protection/password_protection_request.cc
+@@ -466,6 +466,22 @@
+                                    response->verdict_type());
+     }
+   }
++
++  // A CSD allowlist match means the site is trusted. Other outcomes without a
++  // response are not reported: a bool cannot tell a failed check from phishing.
++  if (otp_phishing_verdict_callback_ &&
++      (response || outcome == RequestOutcome::MATCHED_ALLOWLIST)) {
++    bool is_phishing =
++        response &&
++        (response->verdict_type() == LoginReputationClientResponse::PHISHING ||
++         response->verdict_type() ==
++             LoginReputationClientResponse::LOW_REPUTATION);
++    OtpPhishingVerdictCallback callback =
++        std::move(*otp_phishing_verdict_callback_);
++    otp_phishing_verdict_callback_.reset();
++    std::move(callback).Run(is_phishing);
++  }
++
+   password_protection_service_->RequestFinished(this, outcome,
+                                                 std::move(response));
+ }
+diff --git a/components/safe_browsing/core/browser/password_protection/password_protection_request.h b/components/safe_browsing/core/browser/password_protection/password_protection_request.h
+index cf85cd8..a3c7a33 100644
+--- a/components/safe_browsing/core/browser/password_protection/password_protection_request.h
++++ b/components/safe_browsing/core/browser/password_protection/password_protection_request.h
+@@ -120,21 +120,6 @@
+ 
+   virtual base::WeakPtr<PasswordProtectionRequest> AsWeakPtr() = 0;
+ 
+-  // Returns true if this request has an OTP phishing verdict callback.
+-  bool HasOtpPhishingVerdictCallback() const {
+-    return otp_phishing_verdict_callback_.has_value();
+-  }
+-
+-  // Moves and returns the OTP phishing verdict callback.
+-  // HasOtpPhishingVerdictCallback should be called before this to ensure
+-  // callback is valid.
+-  OtpPhishingVerdictCallback TakeOtpPhishingVerdictCallback() {
+-    CHECK(otp_phishing_verdict_callback_.has_value());
+-    auto callback = std::move(otp_phishing_verdict_callback_.value());
+-    otp_phishing_verdict_callback_.reset();
+-    return callback;
+-  }
+-
+  protected:
+   friend class base::RefCountedThreadSafe<PasswordProtectionRequest>;
+ 
+diff --git a/components/safe_browsing/core/browser/password_protection/password_protection_service_base.cc b/components/safe_browsing/core/browser/password_protection/password_protection_service_base.cc
+index 8a8c5b6..cad0d4d 100644
+--- a/components/safe_browsing/core/browser/password_protection/password_protection_service_base.cc
++++ b/components/safe_browsing/core/browser/password_protection/password_protection_service_base.cc
+@@ -183,15 +183,6 @@
+       request->set_is_modal_warning_showing(true);
+       warning_shown = true;
+     }
+-
+-    if (request->trigger_type() ==
+-            LoginReputationClientRequest::ONE_TIME_PASSWORD_FIELD_DETECTED &&
+-        request->HasOtpPhishingVerdictCallback()) {
+-      request->TakeOtpPhishingVerdictCallback().Run(
+-          response->verdict_type() == LoginReputationClientResponse::PHISHING ||
+-          response->verdict_type() ==
+-              LoginReputationClientResponse::LOW_REPUTATION);
+-    }
+   }
+ 
+   ResumeDeferredNavigationsIfNeeded(request);
 diff --git a/gpu/BUILD.gn b/gpu/BUILD.gn
 index cef365bf..35ab1db6 100644
 --- a/gpu/BUILD.gn
@@ -448,6 +686,78 @@ index a140b5c..a36c0ff4 100644
        bind_result_ = webgpu_impl->Initialize(memory_limits_);
        if (bind_result_ != gpu::ContextResult::kSuccess) {
          DLOG(ERROR) << "Failed to initialize WebGPUImplementation.";
+diff --git a/third_party/blink/renderer/core/display_lock/display_lock_context.cc b/third_party/blink/renderer/core/display_lock/display_lock_context.cc
+index 8568cad..0853a692 100644
+--- a/third_party/blink/renderer/core/display_lock/display_lock_context.cc
++++ b/third_party/blink/renderer/core/display_lock/display_lock_context.cc
+@@ -18,6 +18,7 @@
+ #include "third_party/blink/renderer/core/dom/document.h"
+ #include "third_party/blink/renderer/core/dom/dom_exception.h"
+ #include "third_party/blink/renderer/core/dom/element.h"
++#include "third_party/blink/renderer/core/dom/slot_assignment_engine.h"
+ #include "third_party/blink/renderer/core/editing/frame_selection.h"
+ #include "third_party/blink/renderer/core/editing/selection_template.h"
+ #include "third_party/blink/renderer/core/execution_context/agent.h"
+@@ -1169,6 +1170,26 @@
+   if (!ConnectedToView())
+     return;
+ 
++  if (document_->IsFlatTreeTraversalForbidden() ||
++      document_->IsInSlotAssignmentRecalc()) {
++    ScheduleTopLayerCheck();
++    return;
++  }
++
++  // FlatTreeTraversal::ParentElement() below can trigger a pending slot
++  // assignment recalc, which may mutate Document::TopLayerElements() (for
++  // example by detaching a newly unslotted top-layer element's layout tree and
++  // removing its ::backdrop, or by forcing a style recalc that inserts pending
++  // ::backdrop pseudo-elements and reallocates the vector backing). Resolve
++  // pending slot assignments up front before iterating over TopLayerElements().
++  document_->GetSlotAssignmentEngine().RecalcSlotAssignments();
++  // RecalcSlotAssignments() can synchronously dispatch blur/focusout events
++  // when clearing an input's suggested value in a canvas subtree
++  // (crbug.com/574469802), which may disconnect |element_|.
++  if (!ConnectedToView()) {
++    return;
++  }
++
+   ClearHasTopLayerElement();
+ 
+   // Iterate up the ancestor chain from each top layer element.
+@@ -1248,6 +1269,11 @@
+       document_->TopLayerElements();
+ 
+   for (Member<Element>& top_layer_element : top_layer_elements) {
++    // Detaching an outer top-layer element in an earlier iteration can dispose
++    // a nested top-layer element's ::backdrop and remove it from the top layer.
++    if (!top_layer_element->IsInTopLayer()) {
++      continue;
++    }
+     if (top_layer_element->IsBackdropPseudoElement() &&
+         top_layer_element->parentElement() == element_) {
+       // Keep rendering the ::backdrop for a content-visibility:hidden element.
+diff --git a/third_party/blink/renderer/modules/speech/speech_recognition_result_list.h b/third_party/blink/renderer/modules/speech/speech_recognition_result_list.h
+index 481878d..90636dd 100644
+--- a/third_party/blink/renderer/modules/speech/speech_recognition_result_list.h
++++ b/third_party/blink/renderer/modules/speech/speech_recognition_result_list.h
+@@ -26,6 +26,7 @@
+ #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_SPEECH_SPEECH_RECOGNITION_RESULT_LIST_H_
+ #define THIRD_PARTY_BLINK_RENDERER_MODULES_SPEECH_SPEECH_RECOGNITION_RESULT_LIST_H_
+ 
++#include "third_party/blink/renderer/modules/modules_export.h"
+ #include "third_party/blink/renderer/modules/speech/speech_recognition_result.h"
+ #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
+ #include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
+@@ -33,7 +34,7 @@
+ 
+ namespace blink {
+ 
+-class SpeechRecognitionResultList : public ScriptWrappable {
++class MODULES_EXPORT SpeechRecognitionResultList : public ScriptWrappable {
+   DEFINE_WRAPPERTYPEINFO();
+ 
+  public:
 diff --git a/third_party/blink/renderer/platform/graphics/gpu/dawn_control_client_holder.cc b/third_party/blink/renderer/platform/graphics/gpu/dawn_control_client_holder.cc
 index 86c8829..2a61fe4 100644
 --- a/third_party/blink/renderer/platform/graphics/gpu/dawn_control_client_holder.cc
@@ -499,6 +809,148 @@ index 697ba79..9cb8b059 100644
    void DestroyMappableBuffers();
  
    bool context_lost_ = false;
+diff --git a/ui/compositor/layer_animation_element.cc b/ui/compositor/layer_animation_element.cc
+index 94832d7..21c7979 100644
+--- a/ui/compositor/layer_animation_element.cc
++++ b/ui/compositor/layer_animation_element.cc
+@@ -760,7 +760,9 @@
+ 
+ void LayerAnimationElement::RequestEffectiveStart(
+     LayerAnimationDelegate* delegate) {
+-  CHECK(requested_start_time_ != base::TimeTicks(), base::NotFatalUntil::M163);
++  // TODO(crbug.com/586133358): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(requested_start_time_ != base::TimeTicks());
+   effective_start_time_ = requested_start_time_;
+ }
+ 
+diff --git a/ui/compositor/layer_animation_sequence.cc b/ui/compositor/layer_animation_sequence.cc
+index f089b65..ec3d66f 100644
+--- a/ui/compositor/layer_animation_sequence.cc
++++ b/ui/compositor/layer_animation_sequence.cc
+@@ -42,7 +42,9 @@
+ }
+ 
+ void LayerAnimationSequence::Start(LayerAnimationDelegate* delegate) {
+-  CHECK(start_time_ != base::TimeTicks(), base::NotFatalUntil::M163);
++  // TODO(crbug.com/586133398): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(start_time_ != base::TimeTicks());
+ 
+   last_progressed_fraction_ = 0.0;
+   if (elements_.empty())
+diff --git a/ui/events/gesture_detection/gesture_provider.cc b/ui/events/gesture_detection/gesture_provider.cc
+index 6902d848..110b0e4 100644
+--- a/ui/events/gesture_detection/gesture_provider.cc
++++ b/ui/events/gesture_detection/gesture_provider.cc
+@@ -638,7 +638,9 @@
+   }
+ 
+   void OnShortPress(const MotionEvent& e) override {
+-    CHECK(!IsDoubleTapInProgress(), base::NotFatalUntil::M163);
++    // TODO(crbug.com/585929232): CHECK-exclusion: Convert to a CHECK once we
++    // are confident it won't be triggered.
++    DCHECK(!IsDoubleTapInProgress());
+     GestureEventDetails short_press_details =
+         CreateTouchGestureDetails(EventType::kGestureShortPress);
+     Send(CreateGesture(short_press_details, e));
+diff --git a/ui/gtk/BUILD.gn b/ui/gtk/BUILD.gn
+index b49ec625..ad2a6177 100644
+--- a/ui/gtk/BUILD.gn
++++ b/ui/gtk/BUILD.gn
+@@ -86,6 +86,7 @@
+     "nav_button_provider_gtk.h",
+     "os_settings_provider_gtk.h",
+     "select_file_dialog_linux_gtk.h",
++    "window_frame_provider_gtk.h",
+   ]
+ 
+   sources = [
+@@ -115,7 +116,6 @@
+     "settings_provider_gtk.cc",
+     "settings_provider_gtk.h",
+     "window_frame_provider_gtk.cc",
+-    "window_frame_provider_gtk.h",
+   ]
+ 
+   if (enable_printing) {
+@@ -213,6 +213,7 @@
+       "nav_button_provider_gtk_unittest.cc",
+       "run_all_unittests.cc",
+       "select_file_dialog_linux_gtk_unittest.cc",
++      "window_frame_provider_gtk_unittest.cc",
+     ]
+ 
+     deps = [
+diff --git a/ui/gtk/window_frame_provider_gtk.cc b/ui/gtk/window_frame_provider_gtk.cc
+index cf47657..54d0cb74 100644
+--- a/ui/gtk/window_frame_provider_gtk.cc
++++ b/ui/gtk/window_frame_provider_gtk.cc
+@@ -307,11 +307,14 @@
+   gfx::ScopedCanvas scoped_canvas(canvas);
+   float scale = canvas->UndoDeviceScaleFactor();
+ 
++  // GetFrameThicknessDip() may add an entry to `assets_`, so call it before
++  // taking a reference to the asset for `scale`.
++  const gfx::Insets frame_thickness_dip = GetFrameThicknessDip();
+   const auto& asset = GetOrCreateAsset(scale);
+ 
+   const auto input_insets_px = gfx::ScaleToRoundedInsets(input_insets, scale);
+   auto effective_frame_thickness_px =
+-      gfx::ScaleToRoundedInsets(GetFrameThicknessDip(), scale);
++      gfx::ScaleToRoundedInsets(frame_thickness_dip, scale);
+   effective_frame_thickness_px.SetToMax(input_insets_px);
+ 
+   auto client_bounds_px = gfx::ScaleToRoundedRect(rect_dip, scale);
+diff --git a/ui/gtk/window_frame_provider_gtk.h b/ui/gtk/window_frame_provider_gtk.h
+index bac15be5..f6af766 100644
+--- a/ui/gtk/window_frame_provider_gtk.h
++++ b/ui/gtk/window_frame_provider_gtk.h
+@@ -5,9 +5,11 @@
+ #ifndef UI_GTK_WINDOW_FRAME_PROVIDER_GTK_H_
+ #define UI_GTK_WINDOW_FRAME_PROVIDER_GTK_H_
+ 
++#include <map>
+ #include <optional>
+ 
+-#include "base/containers/flat_map.h"
++#include "base/component_export.h"
++#include "base/gtest_prod_util.h"
+ #include "third_party/skia/include/core/SkBitmap.h"
+ #include "ui/base/glib/scoped_gsignal.h"
+ #include "ui/gfx/geometry/insets.h"
+@@ -18,7 +20,8 @@
+ 
+ namespace gtk {
+ 
+-class WindowFrameProviderGtk : public ui::WindowFrameProvider {
++class COMPONENT_EXPORT(GTK) WindowFrameProviderGtk
++    : public ui::WindowFrameProvider {
+  public:
+   WindowFrameProviderGtk(ui::FrameType type,
+                          bool solid_frame,
+@@ -44,6 +47,9 @@
+                         const gfx::Insets& input_insets) override;
+ 
+  private:
++  FRIEND_TEST_ALL_PREFIXES(WindowFrameProviderGtkTest,
++                           AssetReferencesStayValid);
++
+   // Data and metrics that depend on the scale.
+   struct Asset {
+     Asset();
+@@ -82,8 +88,9 @@
+   std::optional<gfx::Insets> top_area_padding_dip_;
+   std::optional<gfx::Insets> top_area_border_dip_;
+ 
+-  // Cached bitmaps and metrics.
+-  base::flat_map<float, Asset> assets_;
++  // Cached bitmaps and metrics. A node-based map keeps references returned by
++  // GetOrCreateAsset() valid when other scales are added.
++  std::map<float, Asset> assets_;
+ 
+   // These signals invalidate the cache on change.
+   ScopedGSignal theme_name_signal_;
 diff --git a/ui/views/controls/menu/menu_item_view.cc b/ui/views/controls/menu/menu_item_view.cc
 index c4f089ba..2d366c2 100644
 --- a/ui/views/controls/menu/menu_item_view.cc
@@ -514,6 +966,213 @@ index c4f089ba..2d366c2 100644
  
    // Force us to have a submenu.
    CreateSubmenu();
+diff --git a/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h b/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
+index cc20bfa..68a27bd 100644
+--- a/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
++++ b/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
+@@ -842,6 +842,12 @@
+         &members,
+     };
+ 
++    FeatureInfo readPixelsViaSingleAttachmentFramebuffer = {
++        "readPixelsViaSingleAttachmentFramebuffer",
++        FeatureCategory::OpenGLWorkarounds,
++        &members,
++    };
++
+ };
+ 
+ inline FeaturesGL::FeaturesGL()  = default;
+diff --git a/third_party/angle/include/platform/gl_features.json b/third_party/angle/include/platform/gl_features.json
+index 096805c..81a89a0 100644
+--- a/third_party/angle/include/platform/gl_features.json
++++ b/third_party/angle/include/platform/gl_features.json
+@@ -1122,6 +1122,16 @@
+                 "avoid stale cross-framebuffer state in PowerVR drivers."
+             ],
+             "issue": "https://crbug.com/584036299"
++        },
++        {
++            "name": "read_pixels_via_single_attachment_framebuffer",
++            "category": "Workarounds",
++            "description": [
++                "Some drivers return incorrect data when reading pixels back from a framebuffer ",
++                "that has multiple color attachments. Read through a temporary framebuffer with ",
++                "only the read attachment bound."
++            ],
++            "issue": "https://crbug.com/549347571"
+         }
+     ]
+ }
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
+index cfd0206..4669abf 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
+@@ -838,7 +838,6 @@
+     const FunctionsGL *functions      = GetFunctionsGL(context);
+     StateManagerGL *stateManager      = GetStateManagerGL(context);
+     const angle::FeaturesGL &features = GetFeaturesGL(context);
+-    gl::PixelPackState packState      = pack;
+ 
+     // Clip read area to framebuffer.
+     const auto *readAttachment = mState.getReadPixelsAttachment(format);
+@@ -866,15 +865,58 @@
+                     GL_INVALID_OPERATION);
+     }
+ 
+-    GLenum framebufferTarget =
+-        stateManager->getHasSeparateFramebufferBindings() ? GL_READ_FRAMEBUFFER : GL_FRAMEBUFFER;
+-    stateManager->bindFramebuffer(framebufferTarget, mFramebufferID);
++    GLuint scratchFramebuffer = 0;
++    angle::Result result      = angle::Result::Continue;
++    if (features.readPixelsViaSingleAttachmentFramebuffer.enabled &&
++        readAttachment == mState.getReadAttachment() &&
++        (mState.getColorAttachmentsMask().count() > 1 || mState.getReadIndex() != 0))
++    {
++        // Read through a temporary framebuffer that has only the read attachment bound.
++        functions->genFramebuffers(1, &scratchFramebuffer);
++        stateManager->bindFramebuffer(GL_FRAMEBUFFER, scratchFramebuffer);
++        result = BindFramebufferAttachment(context, functions, GL_COLOR_ATTACHMENT0, readAttachment,
++                                           features);
++    }
++    else
++    {
++        GLenum framebufferTarget = stateManager->getHasSeparateFramebufferBindings()
++                                       ? GL_READ_FRAMEBUFFER
++                                       : GL_FRAMEBUFFER;
++        stateManager->bindFramebuffer(framebufferTarget, mFramebufferID);
++    }
+ 
+-    const gl::InternalFormat &glFormat = gl::GetInternalFormatInfo(readFormat, readType);
++    if (result == angle::Result::Continue)
++    {
++        result = readPixelsImpl(context, area, clippedArea, format, readFormat, readType, pack,
++                                packBuffer, pixels);
++    }
++
++    if (scratchFramebuffer != 0)
++    {
++        stateManager->deleteFramebuffer(scratchFramebuffer);
++    }
++
++    return result;
++}
++
++angle::Result FramebufferGL::readPixelsImpl(const gl::Context *context,
++                                            const gl::Rectangle &area,
++                                            const gl::Rectangle &clippedArea,
++                                            GLenum originalReadFormat,
++                                            GLenum format,
++                                            GLenum type,
++                                            const gl::PixelPackState &pack,
++                                            gl::Buffer *packBuffer,
++                                            void *pixels) const
++{
++    ContextGL *contextGL              = GetImplAs<ContextGL>(context);
++    const angle::FeaturesGL &features = GetFeaturesGL(context);
++    gl::PixelPackState packState      = pack;
++
++    const gl::InternalFormat &glFormat = gl::GetInternalFormatInfo(format, type);
+     GLuint rowBytes                    = 0;
+-    ANGLE_CHECK_GL_MATH(contextGL,
+-                        glFormat.computeRowPitch(readType, area.width, packState.alignment,
+-                                                 packState.rowLength, &rowBytes));
++    ANGLE_CHECK_GL_MATH(contextGL, glFormat.computeRowPitch(type, area.width, packState.alignment,
++                                                            packState.rowLength, &rowBytes));
+ 
+     bool useOverlappingRowsWorkaround = features.packOverlappingRowsSeparatelyPackBuffer.enabled &&
+                                         packBuffer && packState.rowLength != 0 &&
+@@ -902,7 +944,7 @@
+ 
+     // We want to use rowLength, but that might not be supported.
+     bool cannotSetDesiredRowLength =
+-        packState.rowLength && !GetImplAs<ContextGL>(context)->getNativeExtensions().packSubimageNV;
++        packState.rowLength && !contextGL->getNativeExtensions().packSubimageNV;
+ 
+     bool usePackSkipWorkaround = features.emulatePackSkipRowsAndPackSkipPixels.enabled &&
+                                  (packState.skipRows != 0 || packState.skipPixels != 0);
+@@ -910,7 +952,7 @@
+     if (cannotSetDesiredRowLength || useOverlappingRowsWorkaround || useLargeRowLengthWorkaround ||
+         usePackSkipWorkaround)
+     {
+-        return readPixelsRowByRow(context, clippedArea, format, readFormat, readType, packState,
++        return readPixelsRowByRow(context, clippedArea, originalReadFormat, format, type, packState,
+                                   outPtr);
+     }
+ 
+@@ -919,10 +961,10 @@
+     {
+         ANGLE_TRY(ShouldApplyLastRowPaddingWorkaround(
+             contextGL, gl::Extents(clippedArea.width, clippedArea.height, 1), packState, packBuffer,
+-            readFormat, readType, false, outPtr, &useLastRowPaddingWorkaround));
++            format, type, false, outPtr, &useLastRowPaddingWorkaround));
+     }
+ 
+-    return readPixelsAllAtOnce(context, clippedArea, format, readFormat, readType, packState,
++    return readPixelsAllAtOnce(context, clippedArea, originalReadFormat, format, type, packState,
+                                outPtr, useLastRowPaddingWorkaround);
+ }
+ 
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.h b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.h
+index 055755d..0c6f4d7 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.h
++++ b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.h
+@@ -123,6 +123,16 @@
+         const GLenum *attachments,
+         std::vector<GLenum> *modifiedAttachments) const;
+ 
++    angle::Result readPixelsImpl(const gl::Context *context,
++                                 const gl::Rectangle &area,
++                                 const gl::Rectangle &clippedArea,
++                                 GLenum originalReadFormat,
++                                 GLenum format,
++                                 GLenum type,
++                                 const gl::PixelPackState &pack,
++                                 gl::Buffer *packBuffer,
++                                 void *pixels) const;
++
+     angle::Result readPixelsRowByRow(const gl::Context *context,
+                                      const gl::Rectangle &area,
+                                      GLenum originalReadFormat,
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp b/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp
+index 6101677..d72f628 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp
+@@ -2829,6 +2829,10 @@
+     // https://crbug.com/577781532
+     ANGLE_FEATURE_CONDITION(features, limitMaxTextureImageUnitsTo13, isPowerVR);
+ 
++    // https://crbug.com/549347571 -- IMG drivers may return incorrect data when reading pixels back
++    // from a framebuffer that has multiple color attachments.
++    ANGLE_FEATURE_CONDITION(features, readPixelsViaSingleAttachmentFramebuffer, isPowerVR);
++
+     // Mac Intel drivers are unable to allocate buffers larger than ~1gb
+     ANGLE_FEATURE_CONDITION(features, limitMaxBufferSizeTo1gb, isApple && isIntel);
+ 
+diff --git a/third_party/angle/util/autogen/angle_features_autogen.cpp b/third_party/angle/util/autogen/angle_features_autogen.cpp
+index 31f99ad..0c1d6ab 100644
+--- a/third_party/angle/util/autogen/angle_features_autogen.cpp
++++ b/third_party/angle/util/autogen/angle_features_autogen.cpp
+@@ -315,6 +315,7 @@
+     {Feature::QueryCounterBitsGeneratesErrors, "queryCounterBitsGeneratesErrors"},
+     {Feature::Readback3DDepthStencilPbosDuringUpload, "readback3DDepthStencilPbosDuringUpload"},
+     {Feature::ReadPixelsUsingImplementationColorReadFormatForNorm16, "readPixelsUsingImplementationColorReadFormatForNorm16"},
++    {Feature::ReadPixelsViaSingleAttachmentFramebuffer, "readPixelsViaSingleAttachmentFramebuffer"},
+     {Feature::ReapplyUBOBindingsAfterUsingBinaryProgram, "reapplyUBOBindingsAfterUsingBinaryProgram"},
+     {Feature::ReattachFboDepthStencilOnReallocation, "reattachFboDepthStencilOnReallocation"},
+     {Feature::ReattachTextureToFboAfterLayerIncrease, "reattachTextureToFboAfterLayerIncrease"},
+diff --git a/third_party/angle/util/autogen/angle_features_autogen.h b/third_party/angle/util/autogen/angle_features_autogen.h
+index 9585fc8..6f49759 100644
+--- a/third_party/angle/util/autogen/angle_features_autogen.h
++++ b/third_party/angle/util/autogen/angle_features_autogen.h
+@@ -315,6 +315,7 @@
+     QueryCounterBitsGeneratesErrors,
+     Readback3DDepthStencilPbosDuringUpload,
+     ReadPixelsUsingImplementationColorReadFormatForNorm16,
++    ReadPixelsViaSingleAttachmentFramebuffer,
+     ReapplyUBOBindingsAfterUsingBinaryProgram,
+     ReattachFboDepthStencilOnReallocation,
+     ReattachTextureToFboAfterLayerIncrease,
 diff --git a/third_party/skia/src/core/SkSpecialImage.cpp b/third_party/skia/src/core/SkSpecialImage.cpp
 index 5c52e7e..58c2ed2 100644
 --- a/third_party/skia/src/core/SkSpecialImage.cpp
@@ -633,7 +1292,7 @@ index 208c71d..d956bc6 100644
                            constraint,
                            srcToDst,
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index a0dca67..50204de 100644
+index a0dca67..39e021c 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -641,10 +1300,111 @@ index a0dca67..50204de 100644
  #define V8_MINOR_VERSION 9
  #define V8_BUILD_NUMBER 128
 -#define V8_PATCH_LEVEL 11
-+#define V8_PATCH_LEVEL 15
++#define V8_PATCH_LEVEL 16
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/common/code-memory-access.cc b/v8/src/common/code-memory-access.cc
+index 1ac339a..135d389 100644
+--- a/v8/src/common/code-memory-access.cc
++++ b/v8/src/common/code-memory-access.cc
+@@ -472,14 +472,14 @@
+ 
+ std::optional<base::Address>
+ ThreadIsolation::JitPageReference::StartOfAllocationAt(
+-    base::Address inner_pointer) {
++    base::Address inner_pointer, JitAllocationType type) {
+   auto it = jit_page_->allocations_.upper_bound(inner_pointer);
+   if (it == jit_page_->allocations_.begin()) {
+     return {};
+   }
+   it--;
+   size_t offset = inner_pointer - it->first;
+-  if (it->second.Size() <= offset) {
++  if (it->second.Size() <= offset || it->second.Type() != type) {
+     return {};
+   }
+   return it->first;
+@@ -617,9 +617,9 @@
+   }
+ }
+ 
+-void ThreadIsolation::RegisterJitAllocationForTesting(Address obj,
+-                                                      size_t size) {
+-  RegisterJitAllocation(obj, size, JitAllocationType::kInstructionStream);
++void ThreadIsolation::RegisterJitAllocationForTesting(Address obj, size_t size,
++                                                      JitAllocationType type) {
++  RegisterJitAllocation(obj, size, type);
+ }
+ 
+ // static
+@@ -685,13 +685,13 @@
+ 
+ // static
+ std::optional<Address> ThreadIsolation::StartOfJitAllocationAt(
+-    Address inner_pointer) {
++    Address inner_pointer, JitAllocationType type) {
+   CFIMetadataWriteScope write_scope("StartOfJitAllocationAt");
+   std::optional<JitPageReference> page = TryLookupJitPage(inner_pointer, 1);
+   if (!page) {
+     return {};
+   }
+-  return page->StartOfAllocationAt(inner_pointer);
++  return page->StartOfAllocationAt(inner_pointer, type);
+ }
+ 
+ // static
+@@ -711,14 +711,14 @@
+ 
+ // static
+ std::optional<Address> ThreadIsolation::TryLookupStartOfJitAllocationAt(
+-    Address inner_pointer) {
++    Address inner_pointer, JitAllocationType type) {
+   CFIMetadataWriteScope write_scope("TryLookupStartOfJitAllocationAt");
+   std::optional<JitPageReference> page =
+       TryLookupJitPageWithoutBlocking(inner_pointer);
+   if (!page) {
+     return {};
+   }
+-  return page->StartOfAllocationAt(inner_pointer);
++  return page->StartOfAllocationAt(inner_pointer, type);
+ }
+ 
+ // static
+diff --git a/v8/src/common/code-memory-access.h b/v8/src/common/code-memory-access.h
+index ca042b6..7dbaa89 100644
+--- a/v8/src/common/code-memory-access.h
++++ b/v8/src/common/code-memory-access.h
+@@ -197,15 +197,17 @@
+   // Try to lookup the start of a jit allocation from inside a signal handler,
+   // returning std::nullopt if a required lock is already held.
+   static std::optional<Address> TryLookupStartOfJitAllocationAt(
+-      Address inner_pointer);
+-  static std::optional<Address> StartOfJitAllocationAt(Address inner_pointer);
++      Address inner_pointer, JitAllocationType type);
++  static std::optional<Address> StartOfJitAllocationAt(Address inner_pointer,
++                                                       JitAllocationType type);
+ 
+   // Write-protect a given range of memory. Address and size need to be page
+   // aligned.
+   V8_NODISCARD static bool WriteProtectMemory(
+       Address addr, size_t size, PageAllocator::Permission page_permissions);
+ 
+-  static void RegisterJitAllocationForTesting(Address obj, size_t size);
++  static void RegisterJitAllocationForTesting(Address obj, size_t size,
++                                              JitAllocationType type);
+   static void UnregisterJitAllocationForTesting(Address addr, size_t size);
+ 
+ #if V8_HAS_PKU_JIT_WRITE_PROTECT
+@@ -285,7 +287,7 @@
+     void UnregisterRange(base::Address addr, size_t size);
+ 
+     std::optional<base::Address> StartOfAllocationAt(
+-        base::Address inner_pointer);
++        base::Address inner_pointer, JitAllocationType type);
+     std::pair<base::Address, JitAllocation&> AllocationContaining(
+         base::Address addr);
+     base::Address EndOfLastAllocation();
 diff --git a/v8/src/compiler/access-info.cc b/v8/src/compiler/access-info.cc
 index dbd79a8..9909b8a 100644
 --- a/v8/src/compiler/access-info.cc
@@ -1202,6 +1962,35 @@ index 1015766..969eed3 100644
    }
  };
  
+diff --git a/v8/src/execution/frames.cc b/v8/src/execution/frames.cc
+index e6d4a5b..83b8b34 100644
+--- a/v8/src/execution/frames.cc
++++ b/v8/src/execution/frames.cc
+@@ -473,7 +473,8 @@
+       return false;
+     }
+     std::optional<Address> istream_address =
+-        ThreadIsolation::TryLookupStartOfJitAllocationAt(pc);
++        ThreadIsolation::TryLookupStartOfJitAllocationAt(
++            pc, ThreadIsolation::JitAllocationType::kInstructionStream);
+     if (!istream_address.has_value()) {
+       return {};
+     }
+diff --git a/v8/src/heap/heap.cc b/v8/src/heap/heap.cc
+index 14f2bf8..49a20f2 100644
+--- a/v8/src/heap/heap.cc
++++ b/v8/src/heap/heap.cc
+@@ -7361,8 +7361,8 @@
+ 
+ std::optional<Tagged<InstructionStream>>
+ Heap::GcSafeTryFindInstructionStreamForInnerPointer(Address inner_pointer) {
+-  std::optional<Address> start =
+-      ThreadIsolation::StartOfJitAllocationAt(inner_pointer);
++  std::optional<Address> start = ThreadIsolation::StartOfJitAllocationAt(
++      inner_pointer, ThreadIsolation::JitAllocationType::kInstructionStream);
+   if (start.has_value()) {
+     return UncheckedCast<InstructionStream>(HeapObject::FromAddress(*start));
+   }
 diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
 index 5002743..bf4a967 100644
 --- a/v8/src/maglev/maglev-graph-builder.cc

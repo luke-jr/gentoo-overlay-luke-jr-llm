@@ -186,13 +186,12 @@ LICENSE+=" IJG ISC LGPL-2 LGPL-2.1 MIT MPL-1.1 MPL-2.0 Ms-PL Old-MIT PSF-2 SGI-B
 LICENSE+=" Unicode-DFS-2015 Unlicense UoI-NCSA ZLIB libtiff openssl"
 LICENSE+=" rar? ( unRAR )"
 
-# Sub-slot "fixes": upstream changes from after Google's release (mask www-client/chromium:beta/fixes
-# to leave them out).
-SLOT="beta/fixes"
-# Linux Beta: no keywords (accept it with "**"); ~amd64 once it is Early Stable.
-KEYWORDS=""
+# Sub-slot "fixes": upstream changes from after Google's release (the branch's and carried fixes).
+# Masking www-client/chromium:stable/fixes keeps only the builds of Google's releases in this slot.
+SLOT="stable/fixes"
+KEYWORDS="~amd64 ~arm64"
 
-# The 159 branch's changes after the 159.0.8154.27 tag, up to #976 (see its header).
+# The 159 branch's changes after the 159.0.8154.27 tag, up to #1003 (see its header).
 CHROMIUM_FIXES=(
 	chromium-159.0.8154.27-branch-fixes.patch
 )

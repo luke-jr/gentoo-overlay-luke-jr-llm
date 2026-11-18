@@ -31,7 +31,14 @@ was added with (and 156 updated from .12 to .47).
     next major is ported before it reaches Early Stable. It replaces the previous Beta, and gets
     `~amd64 ~arm64` when it becomes Early Stable. When the Linux Beta is the same version as
     Google's Early Stable (e.g. 158.0.8127.18), there is one plain ebuild, as Early Stable
-    (`SLOT="stable"`), and no Beta one until the Linux Beta moves to another version.
+    (`SLOT="stable"`), and no Beta one until the Linux Beta moves to another version
+    (159.0.8154.13 is both, since 2026-11-18: no Beta ebuild until 160).
+  - The bleeding edge (`<tag>_p<N>[_pre]`, sub-slot `fixes`): one only, of the Early Stable's
+    major, `SLOT="stable/fixes"`, `~amd64 ~arm64`. The old major's bleeding edge is dropped
+    when the next major becomes Early Stable (the newer branch gets every fix first; the old
+    one relies on backports and never gets main-only fixes): 158's (158.0.8127.70_p1961_pre)
+    went when 159.0.8154.13/.14 became Early Stable, and 159's, until then the Beta's
+    (`beta/fixes`, unkeyworded), moved to `stable/fixes`.
   `arm64` stays `~arm64`: nobody has built or run it.
 - **Vulnerable releases:** an official release kept as a plain ebuild that lacks security fixes a
   newer Google release has (e.g. Early Stable after a Stable update of the previous major) is
