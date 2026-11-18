@@ -24,8 +24,9 @@ was added with (and 156 updated from .12 to .47).
     releases the major for Linux Stable, the Linux release's ebuild (from its tarball) gets `amd64`;
     when Linux's version differs from the Early Stable's (158.0.8127.36 for Linux, 158.0.8127.37
     for Windows and Mac), the Linux one is added with `amd64` and the Early Stable's stays,
-    `~amd64`, so that its users aren't pushed to downgrade, until a newer Linux Stable
-    (e.g. 159) replaces it; it stays when the next Early Stable (159.0.8154.14) is added. Same slot, so installed copies keep their profile;
+    `~amd64`, so that its users aren't pushed to downgrade, until a newer Linux Stable or the
+    next Early Stable replaces it (159.0.8154.14 replaced 158.0.8127.37-r2: its users upgrade
+    instead). Same slot, so installed copies keep their profile;
   - Beta for Linux: `SLOT="beta"`, no `KEYWORDS` (it is accepted only explicitly, with `**`):
     the newest Linux Beta, as a bleeding-edge build of its branch (since 2026-11-04), so that the
     next major is ported before it reaches Early Stable. It replaces the previous Beta, and gets
@@ -34,8 +35,7 @@ was added with (and 156 updated from .12 to .47).
     (`SLOT="stable"`), and no Beta one until the Linux Beta moves to another version
     (159.0.8154.13 is both, since 2026-11-18: no Beta ebuild until 160).
   - The line-up (2026-11-18): Stable 158.0.8127.36 (`amd64`); Early Stable 159.0.8154.14
-    (`159.0.8154.14_pre`, official, `~amd64`) plus the kept 158.0.8127.37-r2 until 159 is Linux
-    Stable; the bleeding edge 159.0.8154.27_p1003_pre (`stable/fixes`); no Beta until 160.
+    (`159.0.8154.14_pre`, official, `~amd64`), which replaced 158.0.8127.37-r2; the bleeding edge 159.0.8154.27_p1003_pre (`stable/fixes`); no Beta until 160.
   - A tarball Google's bucket lacks: chromium-linux-tarballs' (the one `::gentoo` uses,
     `chromium-<version>-linux.tar.xz` on GitHub, with a `.hashes` file) is the same content;
     an ebuild sets `CHROMIUM_TARBALL_SOURCE="linux-tarballs"` for it (159.0.8154.13 is the
