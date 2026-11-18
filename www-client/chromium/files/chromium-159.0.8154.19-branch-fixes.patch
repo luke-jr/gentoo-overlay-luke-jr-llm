@@ -1,9 +1,9 @@
 Chromium 159.0.8154.19 + the later changes of its release branch, up to
-be3e2d2353fd17a8fe11ff21f8a44a55920649e7 (refs/branch-heads/8154@{#895}), for the
+3cf62f22d3a4dec15edddabe6182b0815b326f42 (refs/branch-heads/8154@{#921}), for the
 159.0.8154.19 tree that chromium-159.0.8154.6-to-159.0.8154.19.patch makes.
 
 Generated from the upstream diff chromium/src
-refs/tags/159.0.8154.19..be3e2d2353fd17a8fe11ff21f8a44a55920649e7, and from its roll
+refs/tags/159.0.8154.19..3cf62f22d3a4dec15edddabe6182b0815b326f42, and from its roll
 of angle 0f0b90f0b5bf61cc630870d5d4bf0c07d906e975..525fbae78ff28982cb5c6d1c94cd331bdbfc42f9
 (under third_party/angle/), as served by Gitiles, with
 scripts/chromium-delta --branch-fixes (against the .19 tree's files): left out are
@@ -16,13 +16,989 @@ BUILD.gn too). chrome/VERSION, the DEPS files and the stamp files stay at
 Commits contributing to it (oldest first):
   be3e2d2353fd Roll commits from side projects in M159
     angle 525fbae78ff2 [M159] Translator: Validate gl_PerVertex member types
+  2d544055eef0 [M159] Revert CHECK back to DCHECK in MenuController::OnDragDropCompleted
+  65cbdf5fd3bb [M159] [omnibox][webui] Ignore extra fast enters while one waits for results
+  1d0881946d46 [M159] [ContextualTasks] Keep ephemeral state in sync on pin and unpin
+  6754fb9dcd1d [M159] [omnibox] Focus deferred popup when fullscreen Space activates on Mac
+  8ba871085218 [M159] [Webium] Use the user profile for the context menu
+  0951986d0294 [M159] Revert CHECK to DCHECK in PerProfileWorkerTaskTracker
+  d68ad1602ebc [M159] Revert CHECK to DCHECK in PrintJobWorkerOop destructor
+  51258f992e37 [M159] Revert CHECK_EQ to DCHECK_EQ in HandleSignInCompleted
+  62c9df5301a0 [M159] [Glic][Android] Record user action when native FRE is triggered
+  4ef0030d1c66 [M159] Revert CHECK_EQ to DCHECK_EQ for custom view position in StyledLabel
+  d91115ba3774 [M159] Defer SyncLoadContext completion while handling redirects
+  ec9bb4aa5097 [M159] Revert CHECK back to DCHECK in AXPosition::AsLeafTextPosition
+  3912f18323ed [M159] [ServiceWorker] Invoke fetch response callbacks directly from Take()
+  3cf62f22d3a4 [M159] Fix caching for built-in strategy size functions
 
 Checked: applies to the 159.0.8154.19 tree (the .6 tarball with
 chromium-159.0.8154.6-to-159.0.8154.19.patch); every patched source file is
-byte-identical to its version at the dependency's DEPS revision.
+byte-identical to its version at 3cf62f22d3a4 (or its dependency's DEPS revision).
 
 Apply with git apply.
 
+diff --git a/chrome/browser/glic/service/metrics/glic_instance_metrics.cc b/chrome/browser/glic/service/metrics/glic_instance_metrics.cc
+index 0af058a..5c2aecb7 100644
+--- a/chrome/browser/glic/service/metrics/glic_instance_metrics.cc
++++ b/chrome/browser/glic/service/metrics/glic_instance_metrics.cc
+@@ -1085,6 +1085,8 @@
+       cui_trackers_.push_back(std::move(fre_tracker));
+     }
+     if (native_fre_state_ == NativeFreState::kWaitingForAccept) {
++      base::RecordAction(
++          base::UserMetricsAction("Glic.Fre.NativeFreTriggered"));
+       if (base::FeatureList::IsEnabled(features::kGlicOptInImpressionMetrics) &&
+           !opt_in_impression_recorded_for_current_open_) {
+         RecordOptInImpression();
+diff --git a/chrome/browser/printing/print_job_worker_oop.cc b/chrome/browser/printing/print_job_worker_oop.cc
+index f2e34d3b..1847dd8 100644
+--- a/chrome/browser/printing/print_job_worker_oop.cc
++++ b/chrome/browser/printing/print_job_worker_oop.cc
+@@ -84,7 +84,9 @@
+       print_from_system_dialog_(print_from_system_dialog) {}
+ 
+ PrintJobWorkerOop::~PrintJobWorkerOop() {
+-  CHECK(!service_manager_client_id_.has_value(), base::NotFatalUntil::M162);
++  // TODO(crbug.com/586019434): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(!service_manager_client_id_.has_value());
+ }
+ 
+ void PrintJobWorkerOop::StartPrinting(PrintedDocument* new_document) {
+diff --git a/chrome/browser/renderer_context_menu/render_view_context_menu.cc b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+index 381d236..2da86ef 100644
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+@@ -5049,8 +5049,7 @@
+         render_frame_host->GetMainFrame()->GetLastCommittedURL(),
+         ui::DataTransferEndpointOptions{
+             .notify_if_restricted = notify_if_restricted,
+-            .off_the_record =
+-                render_frame_host->GetBrowserContext()->IsOffTheRecord()});
++            .off_the_record = browser_context_->IsOffTheRecord()});
+   }
+   return nullptr;
+ }
+diff --git a/chrome/browser/task_manager/providers/per_profile_worker_task_tracker.cc b/chrome/browser/task_manager/providers/per_profile_worker_task_tracker.cc
+index 8a712ec..83cd43d 100644
+--- a/chrome/browser/task_manager/providers/per_profile_worker_task_tracker.cc
++++ b/chrome/browser/task_manager/providers/per_profile_worker_task_tracker.cc
+@@ -118,7 +118,9 @@
+     // A matching OnVersionStoppedRunning() call is still expected for this
+     // service worker.
+     const bool inserted = ignored_service_worker_.insert(version_id).second;
+-    CHECK(inserted, base::NotFatalUntil::M162);
++    // TODO(crbug.com/584407421): CHECK-exclusion: Convert to a CHECK once we
++    // are confident it won't be triggered.
++    DCHECK(inserted);
+     return;
+   }
+ 
+diff --git a/chrome/browser/ui/tab_contents/chrome_web_contents_menu_helper.cc b/chrome/browser/ui/tab_contents/chrome_web_contents_menu_helper.cc
+index 4ebf318..7219fa9 100644
+--- a/chrome/browser/ui/tab_contents/chrome_web_contents_menu_helper.cc
++++ b/chrome/browser/ui/tab_contents/chrome_web_contents_menu_helper.cc
+@@ -9,14 +9,17 @@
+ #include "components/prefs/pref_service.h"
+ #include "components/search_engines/search_engines_pref_names.h"
+ #include "content/public/browser/context_menu_params.h"
++#include "content/public/browser/user_browser_context.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/browser/web_contents_view_delegate.h"
+ 
+ content::ContextMenuParams AddContextMenuParamsPropertiesFromPreferences(
+     content::WebContents* web_contents,
+     const content::ContextMenuParams& params) {
+-  Profile* profile =
+-      Profile::FromBrowserContext(web_contents->GetBrowserContext());
++  // Use the prefs of the user that the WebContents is shown for, which differs
++  // from the profile of the WebContents in TopChromeWebUIProfile.
++  Profile* profile = Profile::FromBrowserContext(
++      content::GetUserBrowserContext(*web_contents));
+   PrefService* prefs = profile->GetPrefs();
+ 
+   if (!prefs->GetBoolean(
+diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
+index 0f509c5..9b820e4 100644
+--- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
++++ b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
+@@ -405,6 +405,18 @@
+ }
+ 
+ void ContextualTasksEphemeralButtonController::OnActionsChanged() {
++  // `MaybeNotifyVisibilityShouldChange()` only syncs the ephemeral state when
++  // the button is or was showing ephemerally. A button that was pinned while
++  // popped out keeps its ephemeral state (see
++  // `UpdateEphemeralStateInToolbar()`) and is no longer tracked as visible, so
++  // sync explicitly when the action is unpinned. Otherwise the stale state
++  // would keep the unpinned button in the toolbar.
++  if (contextual_tasks::IsContextualTasksEphemeralPinButtonRefactorEnabled() &&
++      browser_window_interface_ &&
++      !contextual_tasks::GetEffectivePinState(
++          browser_window_interface_->GetProfile())) {
++    UpdateEphemeralStateInToolbar(ShouldShowEphemeralButton());
++  }
+   MaybeNotifyVisibilityShouldChange();
+ }
+ 
+@@ -1045,6 +1057,18 @@
+           ToolbarButtonProvider::From(browser_window_interface_)) {
+     if (auto* pinned_toolbar_actions =
+             toolbar_button_provider->GetPinnedToolbarActions()) {
++      if (!show && browser_window_interface_->GetProfile() &&
++          contextual_tasks::GetEffectivePinState(
++              browser_window_interface_->GetProfile()) &&
++          !pinned_toolbar_actions->IsActionPinned(
++              kActionSidePanelShowContextualTasks)) {
++        // `OnActionsChanged()` runs before `PinnedToolbarActionsContainer`
++        // processes the pin change; clearing ephemeral state before the
++        // container promotes the popped-out button to `pinned_buttons_` would
++        // queue the popped-out button for removal instead of pinning it in
++        // place.
++        return;
++      }
+       pinned_toolbar_actions->ShowActionEphemerallyInToolbar(
+           kActionSidePanelShowContextualTasks, show);
+     }
+diff --git a/chrome/browser/ui/views/omnibox/BUILD.gn b/chrome/browser/ui/views/omnibox/BUILD.gn
+index 2aaabe1c..18536a9 100644
+--- a/chrome/browser/ui/views/omnibox/BUILD.gn
++++ b/chrome/browser/ui/views/omnibox/BUILD.gn
+@@ -220,6 +220,19 @@
+       "//ui/views",
+     ]
+   }
++
++  source_set("native_widget_mac_test_util") {
++    testonly = true
++    sources = [
++      "omnibox_popup_native_widget_mac_test_util.h",
++      "omnibox_popup_native_widget_mac_test_util.mm",
++    ]
++    deps = [
++      "//base",
++      "//components/remote_cocoa/app_shim",
++      "//ui/views",
++    ]
++  }
+ }
+ 
+ source_set("unit_tests") {
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
+index 685ca9b..d0d62a56 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
+@@ -431,7 +431,7 @@
+     refocus_on_activation_ = false;
+     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+         FROM_HERE,
+-        base::BindOnce(&OmniboxPopupFullPresenter::RefocusAfterActivation,
++        base::BindOnce(&OmniboxPopupFullPresenter::RequestFocusIfOmniboxFocused,
+                        weak_factory_.GetWeakPtr()));
+   }
+ 
+@@ -586,7 +586,21 @@
+   SynchronizePopupBounds();
+ }
+ 
+-void OmniboxPopupFullPresenter::RefocusAfterActivation() {
++void OmniboxPopupFullPresenter::OnWidgetVisibilityOnScreenChanged(
++    views::Widget* widget,
++    bool visible) {
++  if (widget != GetWidget() || !visible) {
++    return;
++  }
++  // The popup may have been opened while it couldn't appear on screen, e.g. on
++  // macOS in a new window entering a fullscreen Space before macOS switched to
++  // it. `RequestFocus()` gave up then, as the popup wasn't shown, and the
++  // location bar may have moved since.
++  SynchronizePopupBounds();
++  RequestFocusIfOmniboxFocused();
++}
++
++void OmniboxPopupFullPresenter::RequestFocusIfOmniboxFocused() {
+   // Only refocus if the omnibox is still focused with the popup open. If the
+   // window was deactivated again in the meantime, `RequestFocus()` waits for
+   // the next activation.
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h
+index 5ef11c82..f38fc90f 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h
+@@ -145,7 +145,7 @@
+   // activation (Escape handling, macOS key window restoration). The browser or
+   // popup widget deactivating schedules `BlurIfBrowserOrPopupInactive()`.
+   // Either activating while `refocus_on_activation_` is set schedules
+-  // `RefocusAfterActivation()`.
++  // `RequestFocusIfOmniboxFocused()`.
+   void OnWidgetActivationChanged(views::Widget* widget, bool active) override;
+   // Keeps the popup over the location bar when the browser widget moves or
+   // resizes. The popup is its own top-level window, which doesn't always move
+@@ -160,6 +160,13 @@
+   // `OnModalDialogClosed()`.
+   void OnWidgetWindowModalVisibilityChanged(views::Widget* widget,
+                                             bool visible) override;
++  // Gives the popup focus when it appears on screen while the omnibox is
++  // focused. On macOS, a popup opened in a window that isn't on the active
++  // Space only appears once that Space becomes active, which is too late for
++  // the focus request made when the popup opened.
++  void OnWidgetVisibilityOnScreenChanged(views::Widget* widget,
++                                         bool visible) override;
++
+   void StopForwardingEvents();
+ 
+   // Tells this window's popup view that the adopted page's handler is ready,
+@@ -207,10 +214,10 @@
+   // activation, also closes the popup, even if a draft would keep it open, and
+   // even if the omnibox was already blurred. See `OnModalDialogShown()`.
+   void BlurForWindowDeactivation();
+-  // Hands focus to the popup if the omnibox is still focused with the popup
+-  // open. Runs after the browser window or popup is activated while
+-  // `refocus_on_activation_` is set.
+-  void RefocusAfterActivation();
++  // Gives the popup focus if the omnibox is still focused with the popup open.
++  // Runs after the browser window or popup is activated while
++  // `refocus_on_activation_` is set, and when the popup appears on screen.
++  void RequestFocusIfOmniboxFocused();
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+   // Returns whether the system emoji picker is shown, e.g. after picking Emoji
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_native_widget_mac_test_util.h b/chrome/browser/ui/views/omnibox/omnibox_popup_native_widget_mac_test_util.h
+new file mode 100644
+index 0000000..4d52073
+--- /dev/null
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_native_widget_mac_test_util.h
+@@ -0,0 +1,36 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_VIEWS_OMNIBOX_OMNIBOX_POPUP_NATIVE_WIDGET_MAC_TEST_UTIL_H_
++#define CHROME_BROWSER_UI_VIEWS_OMNIBOX_OMNIBOX_POPUP_NATIVE_WIDGET_MAC_TEST_UTIL_H_
++
++#include <memory>
++
++namespace views {
++class Widget;
++}  // namespace views
++
++// While in scope, makes `browser_widget`'s NSWindow, and the NSWindows attached
++// to it, report that they aren't on the active Space, as when a new window has
++// entered fullscreen but macOS hasn't switched to its Space yet. This makes
++// NativeWidgetNSWindowBridge::OrderChildren() defer attaching child windows,
++// such as the omnibox popup. Destroying it restores the real Space state and
++// posts NSWorkspaceActiveSpaceDidChangeNotification, which attaches them.
++class ScopedSimulateInactiveSpace {
++ public:
++  explicit ScopedSimulateInactiveSpace(views::Widget* browser_widget);
++  ScopedSimulateInactiveSpace(const ScopedSimulateInactiveSpace&) = delete;
++  ScopedSimulateInactiveSpace& operator=(const ScopedSimulateInactiveSpace&) =
++      delete;
++  ~ScopedSimulateInactiveSpace();
++
++ private:
++  struct ObjCStorage;
++  std::unique_ptr<ObjCStorage> storage_;
++};
++
++// Returns true if `popup_widget`'s NSWindow is attached to a parent NSWindow.
++bool IsOmniboxPopupAttachedForTesting(const views::Widget* popup_widget);
++
++#endif  // CHROME_BROWSER_UI_VIEWS_OMNIBOX_OMNIBOX_POPUP_NATIVE_WIDGET_MAC_TEST_UTIL_H_
+diff --git a/chrome/browser/ui/views/profiles/profile_management_flow_controller_impl.cc b/chrome/browser/ui/views/profiles/profile_management_flow_controller_impl.cc
+index 710af61..d87c61c6 100644
+--- a/chrome/browser/ui/views/profiles/profile_management_flow_controller_impl.cc
++++ b/chrome/browser/ui/views/profiles/profile_management_flow_controller_impl.cc
+@@ -115,7 +115,9 @@
+     std::unique_ptr<content::WebContents> contents,
+     StepSwitchFinishedCallback step_switch_finished_callback) {
+   CHECK(signed_in_profile, base::NotFatalUntil::M162);
+-  CHECK_EQ(Step::kAccountSelection, current_step(), base::NotFatalUntil::M162);
++  // TODO(crbug.com/584444895): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK_EQ(Step::kAccountSelection, current_step());
+ 
+   Step step;
+   // SAML with ForceSignin flow is migrated to the regular Profile Picker flow.
+diff --git a/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views.cc b/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views.cc
+index a3c5c93..59e46af 100644
+--- a/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views.cc
++++ b/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views.cc
+@@ -20,6 +20,7 @@
+ #include "chrome/browser/ui/views/tab_contents/chrome_web_contents_view_focus_helper.h"
+ #include "content/public/browser/browser_context.h"
+ #include "content/public/browser/render_frame_host.h"
++#include "content/public/browser/user_browser_context.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/common/drop_data.h"
+ #include "third_party/blink/public/common/context_menu_data/edit_flags.h"
+@@ -132,8 +133,8 @@
+         params.page_url,
+         ui::DataTransferEndpointOptions{
+             .notify_if_restricted = false,
+-            .off_the_record =
+-                web_contents_->GetBrowserContext()->IsOffTheRecord(),
++            .off_the_record = content::GetUserBrowserContext(*web_contents_)
++                                  ->IsOffTheRecord(),
+         });
+   }
+   ui::Clipboard::GetForCurrentThread()->ReadAvailableTypes(
+diff --git a/chrome/browser/ui/webui/searchbox/BUILD.gn b/chrome/browser/ui/webui/searchbox/BUILD.gn
+index 079fe91..7fd244c8 100644
+--- a/chrome/browser/ui/webui/searchbox/BUILD.gn
++++ b/chrome/browser/ui/webui/searchbox/BUILD.gn
+@@ -378,6 +378,10 @@
+         "//chrome/browser/ui/views/bubble",
+       ]
+     }
++    if (is_mac) {
++      deps +=
++          [ "//chrome/browser/ui/views/omnibox:native_widget_mac_test_util" ]
++    }
+     if (enable_dice_support && !is_mac) {
+       deps += [
+         "//chrome/browser/profiles:profile",
+diff --git a/components/renderer_context_menu/render_view_context_menu_base.cc b/components/renderer_context_menu/render_view_context_menu_base.cc
+index 4cc63d75..301077b4 100644
+--- a/components/renderer_context_menu/render_view_context_menu_base.cc
++++ b/components/renderer_context_menu/render_view_context_menu_base.cc
+@@ -20,6 +20,7 @@
+ #include "content/public/browser/render_process_host.h"
+ #include "content/public/browser/render_view_host.h"
+ #include "content/public/browser/render_widget_host_view.h"
++#include "content/public/browser/user_browser_context.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/common/buildflags.h"
+ #include "third_party/blink/public/mojom/context_menu/context_menu.mojom.h"
+@@ -204,7 +205,7 @@
+     : params_(params),
+       source_web_contents_(
+           WebContents::FromRenderFrameHost(&render_frame_host)),
+-      browser_context_(source_web_contents_->GetBrowserContext()),
++      browser_context_(content::GetUserBrowserContext(render_frame_host)),
+       menu_model_(this),
+       render_frame_id_(render_frame_host.GetRoutingID()),
+       render_frame_token_(render_frame_host.GetFrameToken()),
+diff --git a/components/renderer_context_menu/render_view_context_menu_base.h b/components/renderer_context_menu/render_view_context_menu_base.h
+index fd7239e..9bb548b2 100644
+--- a/components/renderer_context_menu/render_view_context_menu_base.h
++++ b/components/renderer_context_menu/render_view_context_menu_base.h
+@@ -203,6 +203,8 @@
+ 
+   content::ContextMenuParams params_;
+   const raw_ptr<content::WebContents, DanglingUntriaged> source_web_contents_;
++  // The BrowserContext of the user that the frame is shown for, whose prefs and
++  // services apply to the menu. See content::GetUserBrowserContext().
+   const raw_ptr<content::BrowserContext, DanglingUntriaged> browser_context_;
+ 
+   ui::SimpleMenuModel menu_model_;
+diff --git a/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc b/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc
+index 9775efc..0ff7a609 100644
+--- a/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc
++++ b/third_party/blink/renderer/core/streams/byte_length_queuing_strategy.cc
+@@ -16,9 +16,6 @@
+ 
+ namespace {
+ 
+-static const V8PrivateProperty::SymbolKey
+-    kByteLengthQueuingStrategySizeFunction;
+-
+ class ByteLengthQueuingStrategySizeFunction final : public ScriptFunction {
+  public:
+   static v8::Local<v8::Function> CreateFunction(ScriptState* script_state) {
+@@ -99,7 +96,7 @@
+   //    Function that represents a reference to F, with callback context equal
+   //    to globalObject’s relevant settings object.
+   return GetCachedSizeFunction(
+-      script_state, kByteLengthQueuingStrategySizeFunction,
++      script_state, QueuingStrategySizeFunctionType::kByteLength,
+       &ByteLengthQueuingStrategySizeFunction::CreateFunction);
+ }
+ 
+diff --git a/third_party/blink/renderer/core/streams/count_queuing_strategy.cc b/third_party/blink/renderer/core/streams/count_queuing_strategy.cc
+index 7e2eea1c..c96c090 100644
+--- a/third_party/blink/renderer/core/streams/count_queuing_strategy.cc
++++ b/third_party/blink/renderer/core/streams/count_queuing_strategy.cc
+@@ -16,8 +16,6 @@
+ 
+ namespace {
+ 
+-static const V8PrivateProperty::SymbolKey kCountQueuingStrategySizeFunction;
+-
+ class CountQueuingStrategySizeFunction final : public ScriptFunction {
+  public:
+   static v8::Local<v8::Function> CreateFunction(ScriptState* script_state) {
+@@ -66,7 +64,7 @@
+   //    that represents a reference to F, with callback context equal to
+   //    globalObject’s relevant settings object.
+   return GetCachedSizeFunction(
+-      script_state, kCountQueuingStrategySizeFunction,
++      script_state, QueuingStrategySizeFunctionType::kCount,
+       &CountQueuingStrategySizeFunction::CreateFunction);
+ }
+ 
+diff --git a/third_party/blink/renderer/core/streams/queuing_strategy_common.cc b/third_party/blink/renderer/core/streams/queuing_strategy_common.cc
+index 76a82d81..00c971d9a 100644
+--- a/third_party/blink/renderer/core/streams/queuing_strategy_common.cc
++++ b/third_party/blink/renderer/core/streams/queuing_strategy_common.cc
+@@ -4,26 +4,81 @@
+ 
+ #include "third_party/blink/renderer/core/streams/queuing_strategy_common.h"
+ 
++#include "base/notreached.h"
+ #include "third_party/blink/renderer/bindings/core/v8/script_value.h"
+-#include "third_party/blink/renderer/bindings/core/v8/v8_queuing_strategy_init.h"
+ #include "third_party/blink/renderer/platform/bindings/script_state.h"
++#include "third_party/blink/renderer/platform/bindings/trace_wrapper_v8_reference.h"
++#include "third_party/blink/renderer/platform/bindings/v8_per_context_data.h"
++#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
++#include "third_party/blink/renderer/platform/heap/visitor.h"
+ 
+ namespace blink {
+ 
+-ScriptValue GetCachedSizeFunction(ScriptState* script_state,
+-                                  const V8PrivateProperty::SymbolKey& key,
+-                                  SizeFunctionFactory factory) {
+-  auto* isolate = script_state->GetIsolate();
+-  auto function_cache = V8PrivateProperty::GetSymbol(isolate, key);
+-  v8::Local<v8::Object> global_proxy = script_state->GetContext()->Global();
+-  v8::Local<v8::Value> function;
+-  if (!function_cache.GetOrUndefined(global_proxy).ToLocal(&function) ||
+-      function->IsUndefined()) {
+-    function = factory(script_state);
+-    bool is_set = function_cache.Set(global_proxy, function);
+-    DCHECK(is_set || isolate->IsExecutionTerminating());
++namespace {
++
++class QueuingStrategySizeFunctionPerContextData final
++    : public GarbageCollected<QueuingStrategySizeFunctionPerContextData>,
++      public V8PerContextData::Data {
++ public:
++  v8::Local<v8::Function> GetOrCreate(ScriptState* script_state,
++                                      QueuingStrategySizeFunctionType type,
++                                      SizeFunctionFactory factory) {
++    TraceWrapperV8Reference<v8::Function>& slot = SlotForType(type);
++    v8::Isolate* const isolate = script_state->GetIsolate();
++    if (slot.IsEmpty()) {
++      const v8::Local<v8::Function> function = factory(script_state);
++      slot.Reset(isolate, function);
++      return function;
++    }
++    return slot.Get(isolate);
+   }
+-  return ScriptValue(isolate, function);
++
++  void Trace(Visitor* visitor) const override {
++    visitor->Trace(byte_length_size_function_);
++    visitor->Trace(count_size_function_);
++    V8PerContextData::Data::Trace(visitor);
++  }
++
++ private:
++  TraceWrapperV8Reference<v8::Function>& SlotForType(
++      QueuingStrategySizeFunctionType type) {
++    switch (type) {
++      case QueuingStrategySizeFunctionType::kByteLength:
++        return byte_length_size_function_;
++      case QueuingStrategySizeFunctionType::kCount:
++        return count_size_function_;
++    }
++    NOTREACHED();
++  }
++
++  TraceWrapperV8Reference<v8::Function> byte_length_size_function_;
++  TraceWrapperV8Reference<v8::Function> count_size_function_;
++};
++
++}  // namespace
++
++ScriptValue GetCachedSizeFunction(ScriptState* script_state,
++                                  QueuingStrategySizeFunctionType type,
++                                  SizeFunctionFactory factory) {
++  v8::Isolate* const isolate = script_state->GetIsolate();
++  V8PerContextData* const per_context_data = script_state->PerContextData();
++  if (!per_context_data) {
++    // When a context is detached, `ScriptState::DisposePerContextData()` clears
++    // `PerContextData()` so per-context references do not keep detached realms
++    // alive. Intentionally deviate slightly from the standard here by returning
++    // a fresh function rather than caching on the detached context (matching
++    // `V8DOMWrapper::CreateWrapper`).
++    return ScriptValue(isolate, factory(script_state));
++  }
++
++  static constexpr char kPerContextDataKey[] = "QueuingStrategySizeFunction";
++  auto* cache = static_cast<QueuingStrategySizeFunctionPerContextData*>(
++      per_context_data->GetData(kPerContextDataKey));
++  if (!cache) {
++    cache = MakeGarbageCollected<QueuingStrategySizeFunctionPerContextData>();
++    per_context_data->AddData(kPerContextDataKey, cache);
++  }
++  return ScriptValue(isolate, cache->GetOrCreate(script_state, type, factory));
+ }
+ 
+ }  // namespace blink
+diff --git a/third_party/blink/renderer/core/streams/queuing_strategy_common.h b/third_party/blink/renderer/core/streams/queuing_strategy_common.h
+index e55a449..5a0769f9 100644
+--- a/third_party/blink/renderer/core/streams/queuing_strategy_common.h
++++ b/third_party/blink/renderer/core/streams/queuing_strategy_common.h
+@@ -5,7 +5,6 @@
+ #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_STREAMS_QUEUING_STRATEGY_COMMON_H_
+ #define THIRD_PARTY_BLINK_RENDERER_CORE_STREAMS_QUEUING_STRATEGY_COMMON_H_
+ 
+-#include "third_party/blink/renderer/platform/bindings/v8_private_property.h"
+ #include "v8/include/v8.h"
+ 
+ namespace blink {
+@@ -13,12 +12,20 @@
+ class ScriptState;
+ class ScriptValue;
+ 
++enum class QueuingStrategySizeFunctionType {
++  kByteLength,
++  kCount,
++};
++
+ using SizeFunctionFactory = v8::Local<v8::Function> (*)(ScriptState*);
+ 
+-// Returns the value cached on the global proxy object under |key|, or, if that
+-// is not set, caches and returns the result of calling |factory|.
+-ScriptValue GetCachedSizeFunction(ScriptState*,
+-                                  const V8PrivateProperty::SymbolKey& key,
++// Returns the size function cached on `script_state`'s per-context data for
++// `type`, or creates and caches it via `factory`. If `script_state`'s context
++// is detached (`PerContextData()` is null), returns a newly created function
++// without caching it; this is a minor intentional deviation from the standard
++// to avoid retaining V8 objects in detached contexts.
++ScriptValue GetCachedSizeFunction(ScriptState* script_state,
++                                  QueuingStrategySizeFunctionType type,
+                                   SizeFunctionFactory factory);
+ 
+ }  // namespace blink
+diff --git a/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc b/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc
+index cce85f0..beb50e36 100644
+--- a/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc
++++ b/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc
+@@ -1022,8 +1022,6 @@
+   // out.
+   if (!fetch_response_callbacks_.Contains(fetch_event_id))
+     return;
+-  mojom::blink::ServiceWorkerFetchResponseCallback* response_callback =
+-      fetch_response_callbacks_.Take(fetch_event_id)->Value().get();
+ 
+   auto timing = mojom::blink::ServiceWorkerFetchEventTiming::New();
+   timing->dispatch_event_time = event_dispatch_time;
+@@ -1035,8 +1033,14 @@
+     pending_streaming_upload_fetch_events_.insert(fetch_event_id, fetch_event);
+   }
+ 
+-  response_callback->OnFallback(std::move(request_body), std::move(timing),
+-                                std::move(errors));
++  // Take and invoke the callback after all Oilpan allocations (such as
++  // `pending_streaming_upload_fetch_events_.insert()`), as a GC triggered
++  // after `Take()` would collect the unrooted `HeapMojoRemote` wrapper and
++  // reset its underlying Mojo proxy before `OnFallback()` is called.
++  fetch_response_callbacks_.Take(fetch_event_id)
++      ->Value()
++      ->OnFallback(std::move(request_body), std::move(timing),
++                   std::move(errors));
+ }
+ void ServiceWorkerGlobalScope::OnStreamingUploadCompletion(int fetch_event_id) {
+   pending_streaming_upload_fetch_events_.erase(fetch_event_id);
+@@ -1059,17 +1063,15 @@
+   if (!fetch_response_callbacks_.Contains(fetch_event_id))
+     return;
+ 
+-  mojom::blink::ServiceWorkerFetchResponseCallback* response_callback =
+-      fetch_response_callbacks_.Take(fetch_event_id)->Value().get();
+-
+   auto timing = mojom::blink::ServiceWorkerFetchEventTiming::New();
+   timing->dispatch_event_time = event_dispatch_time;
+   timing->respond_with_settled_time = respond_with_settled_time;
+ 
+   NoteRespondedToFetchEvent(request_url, range_request);
+ 
+-  response_callback->OnResponse(std::move(response), std::move(timing),
+-                                std::move(errors));
++  fetch_response_callbacks_.Take(fetch_event_id)
++      ->Value()
++      ->OnResponse(std::move(response), std::move(timing), std::move(errors));
+ }
+ 
+ void ServiceWorkerGlobalScope::RespondToFetchEventWithResponseStream(
+@@ -1090,8 +1092,6 @@
+   // out.
+   if (!fetch_response_callbacks_.Contains(fetch_event_id))
+     return;
+-  mojom::blink::ServiceWorkerFetchResponseCallback* response_callback =
+-      fetch_response_callbacks_.Take(fetch_event_id)->Value().get();
+ 
+   auto timing = mojom::blink::ServiceWorkerFetchEventTiming::New();
+   timing->dispatch_event_time = event_dispatch_time;
+@@ -1099,9 +1099,10 @@
+ 
+   NoteRespondedToFetchEvent(request_url, range_request);
+ 
+-  response_callback->OnResponseStream(std::move(response),
+-                                      std::move(body_as_stream),
+-                                      std::move(timing), std::move(errors));
++  fetch_response_callbacks_.Take(fetch_event_id)
++      ->Value()
++      ->OnResponseStream(std::move(response), std::move(body_as_stream),
++                         std::move(timing), std::move(errors));
+ }
+ 
+ void ServiceWorkerGlobalScope::DidHandleFetchEvent(
+@@ -1224,9 +1225,9 @@
+               perfetto::Flow::ProcessScoped(
+                   event_id, kServiceWorkerGlobalScopeTraceScope));
+   DCHECK(abort_payment_result_callbacks_.Contains(event_id));
+-  payments::mojom::blink::PaymentHandlerResponseCallback* result_callback =
+-      abort_payment_result_callbacks_.Take(event_id)->Value().get();
+-  result_callback->OnResponseForAbortPayment(payment_aborted);
++  abort_payment_result_callbacks_.Take(event_id)
++      ->Value()
++      ->OnResponseForAbortPayment(payment_aborted);
+ }
+ 
+ void ServiceWorkerGlobalScope::DidHandleAbortPaymentEvent(
+@@ -1253,9 +1254,9 @@
+               perfetto::Flow::ProcessScoped(
+                   event_id, kServiceWorkerGlobalScopeTraceScope));
+   DCHECK(can_make_payment_result_callbacks_.Contains(event_id));
+-  payments::mojom::blink::PaymentHandlerResponseCallback* result_callback =
+-      can_make_payment_result_callbacks_.Take(event_id)->Value().get();
+-  result_callback->OnResponseForCanMakePayment(std::move(response));
++  can_make_payment_result_callbacks_.Take(event_id)
++      ->Value()
++      ->OnResponseForCanMakePayment(std::move(response));
+ }
+ 
+ void ServiceWorkerGlobalScope::DidHandleCanMakePaymentEvent(
+@@ -1282,9 +1283,9 @@
+               perfetto::Flow::ProcessScoped(
+                   payment_event_id, kServiceWorkerGlobalScopeTraceScope));
+   DCHECK(payment_response_callbacks_.Contains(payment_event_id));
+-  payments::mojom::blink::PaymentHandlerResponseCallback* response_callback =
+-      payment_response_callbacks_.Take(payment_event_id)->Value().get();
+-  response_callback->OnResponseForPaymentRequest(std::move(response));
++  payment_response_callbacks_.Take(payment_event_id)
++      ->Value()
++      ->OnResponseForPaymentRequest(std::move(response));
+ }
+ 
+ void ServiceWorkerGlobalScope::DidHandlePaymentRequestEvent(
+diff --git a/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.cc b/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.cc
+index 0bac72c..a4fb749f 100644
+--- a/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.cc
++++ b/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.cc
+@@ -6,6 +6,7 @@
+ 
+ #include <optional>
+ #include <string>
++#include <utility>
+ 
+ #include "base/byte_size.h"
+ #include "base/check_op.h"
+@@ -176,7 +177,9 @@
+     const net::RedirectInfo& redirect_info,
+     network::mojom::URLResponseHeadPtr head,
+     FollowRedirectCallback follow_redirect_callback) {
+-  DCHECK(!Completed());
++  CHECK(!Completed());
++  CHECK(!follow_redirect_callback_);
++  CHECK(!deferred_completion_status_);
+ 
+   if (has_authorization_header_ &&
+       !url::IsSameOriginWith(response_->url, redirect_info.new_url)) {
+@@ -195,19 +198,29 @@
+ void SyncLoadContext::FollowRedirect(std::vector<std::string> removed_headers,
+                                      net::HttpRequestHeaders modified_headers) {
+   CHECK(follow_redirect_callback_);
++  if (deferred_completion_status_) {
++    follow_redirect_callback_.Reset();
++    response_->redirect_info.reset();
++    *context_for_redirect_ = nullptr;
++    OnCompletedRequest(
++        *std::exchange(deferred_completion_status_, std::nullopt));
++    return;
++  }
+   if (!signals_->RestartAfterRedirect()) {
+     CancelRedirect();
+     return;
+   }
+ 
+-  response_->redirect_info = net::RedirectInfo();
++  response_->redirect_info.reset();
+   *context_for_redirect_ = nullptr;
+   std::move(follow_redirect_callback_)
+       .Run(std::move(removed_headers), std::move(modified_headers));
+ }
+ 
+ void SyncLoadContext::CancelRedirect() {
+-  response_->redirect_info = net::RedirectInfo();
++  follow_redirect_callback_.Reset();
++  deferred_completion_status_.reset();
++  response_->redirect_info.reset();
+   *context_for_redirect_ = nullptr;
+ 
+   response_->error_code = net::ERR_ABORTED;
+@@ -218,7 +231,9 @@
+     network::mojom::URLResponseHeadPtr head,
+     mojo::ScopedDataPipeConsumerHandle body,
+     std::optional<mojo_base::BigBuffer> cached_metadata) {
+-  DCHECK(!Completed());
++  CHECK(!Completed());
++  CHECK(!follow_redirect_callback_);
++  CHECK(!deferred_completion_status_);
+   response_->head = std::move(head);
+ 
+   if (!body) {
+@@ -262,6 +277,24 @@
+     // the response.
+     return;
+   }
++  if (follow_redirect_callback_) {
++    // Defer completion until FollowRedirect() or CancelRedirect() runs so
++    // `response_` is not mutated and `this` is not deleted while the calling
++    // thread is handling the redirect.
++    if (!deferred_completion_status_) {
++      network::URLLoaderCompletionStatus deferred_status = status;
++      // Completing with `net::OK` before the redirect is followed means no
++      // final `OnReceivedResponse()` was received. Coerce it to `ERR_FAILED`
++      // so `URLLoader::LoadSynchronously()` does not treat the unfollowed
++      // redirect's URL and headers as a valid final response in release builds
++      // (where `MojoURLLoaderClient::OnComplete()`'s `DCHECK` is compiled out).
++      if (deferred_status.error_code == net::OK) {
++        deferred_status.error_code = net::ERR_FAILED;
++      }
++      deferred_completion_status_ = std::move(deferred_status);
++    }
++    return;
++  }
+   request_completed_ = true;
+   response_->error_code = status.error_code;
+   response_->extended_error_code = status.extended_error_code;
+@@ -346,6 +379,9 @@
+ void SyncLoadContext::CompleteRequest() {
+   DCHECK(blob_finished_ || (mode_ != Mode::kBlob));
+   DCHECK(!body_handle_.is_valid());
++  CHECK(!follow_redirect_callback_);
++  CHECK(!deferred_completion_status_);
++  CHECK(!*context_for_redirect_);
+   body_watcher_.Cancel();
+   signals_->SignalRedirectOrResponseComplete();
+   signals_ = nullptr;
+diff --git a/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.h b/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.h
+index 3710477..104fc02 100644
+--- a/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.h
++++ b/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.h
+@@ -5,6 +5,7 @@
+ #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_LOADER_FETCH_URL_LOADER_SYNC_LOAD_CONTEXT_H_
+ #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_LOADER_FETCH_URL_LOADER_SYNC_LOAD_CONTEXT_H_
+ 
++#include <optional>
+ #include <vector>
+ 
+ #include "base/byte_size.h"
+@@ -17,6 +18,7 @@
+ #include "mojo/public/cpp/system/simple_watcher.h"
+ #include "net/traffic_annotation/network_traffic_annotation.h"
+ #include "services/network/public/cpp/shared_url_loader_factory.h"
++#include "services/network/public/cpp/url_loader_completion_status.h"
+ #include "third_party/blink/public/mojom/blob/blob_registry.mojom-blink.h"
+ #include "third_party/blink/public/platform/web_common.h"
+ #include "third_party/blink/public/platform/web_string.h"
+@@ -136,6 +138,10 @@
+   // is signaled, which protects it against race condition.
+   raw_ptr<SyncLoadContext*> context_for_redirect_;
+ 
++  // Stores the completion status if OnCompletedRequest() arrives while a
++  // redirect is being handled on the calling thread.
++  std::optional<network::URLLoaderCompletionStatus> deferred_completion_status_;
++
+   enum class Mode { kInitial, kDataPipe, kBlob };
+   Mode mode_ = Mode::kInitial;
+ 
+diff --git a/tools/metrics/actions/actions.xml b/tools/metrics/actions/actions.xml
+index 91e0398..8ad3623 100644
+--- a/tools/metrics/actions/actions.xml
++++ b/tools/metrics/actions/actions.xml
+@@ -13913,6 +13913,18 @@
+   </description>
+ </action>
+ 
++<action name="Glic.Fre.NativeFreTriggered">
++  <owner>alexiswu@google.com</owner>
++  <owner>ritikagup@google.com</owner>
++  <description>
++    Logged each time a Glic panel open is routed to the Android native FRE for a
++    profile that has not consented. Logged once per panel open, not on re-show
++    after a tab switch or peek. Android only. Subtract from
++    Glic.Onboarding.OptInImpression (logged for native and web FRE) to estimate
++    web FRE impressions.
++  </description>
++</action>
++
+ <action name="Glic.Fre.NoThanks">
+   <owner>iwells@google.com</owner>
+   <owner>erikchen@chromium.org</owner>
+diff --git a/ui/accessibility/ax_position.h b/ui/accessibility/ax_position.h
+index 74927845..c4d1896 100644
+--- a/ui/accessibility/ax_position.h
++++ b/ui/accessibility/ax_position.h
+@@ -1853,7 +1853,9 @@
+       }
+     }
+     text_position = text_position->AsTextPosition();
+-    CHECK(!text_position->IsNullPosition(), base::NotFatalUntil::M163);
++    // TODO(crbug.com/584451866): CHECK-exclusion: Convert to a CHECK once we
++    // are confident it won't be triggered.
++    DCHECK(!text_position->IsNullPosition());
+ 
+     int offset_in_parent = text_position->text_offset_;
+     // Determine the anchor and text offset of the leaf equivalent position by
+diff --git a/ui/views/controls/menu/menu_controller.cc b/ui/views/controls/menu/menu_controller.cc
+index 588d406e..eda46c8 100644
+--- a/ui/views/controls/menu/menu_controller.cc
++++ b/ui/views/controls/menu/menu_controller.cc
+@@ -1775,7 +1775,9 @@
+ 
+ void MenuController::OnDragDropCompleted(bool should_close) {
+   ScopedDeletionGuard guard(AsWeakPtr());
+-  CHECK(drag_in_progress_, base::NotFatalUntil::M163);
++  // TODO(crbug.com/585718788): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(drag_in_progress_);
+   drag_in_progress_ = false;
+   // During a drag, mouse events are processed directly by the widget, and not
+   // sent to the MenuController. At drag completion, reset pressed state and
+diff --git a/ui/views/controls/styled_label.cc b/ui/views/controls/styled_label.cc
+index 88f9c521..a209036 100644
+--- a/ui/views/controls/styled_label.cc
++++ b/ui/views/controls/styled_label.cc
+@@ -481,7 +481,9 @@
+           CHECK(custom_view->GetProperty(kStyledLabelCustomViewKey),
+                 base::NotFatalUntil::M163);
+           // Do not allow wrap in custom view.
+-          CHECK_EQ(position, range.start(), base::NotFatalUntil::M163);
++          // TODO(crbug.com/586449447): CHECK-exclusion: Convert to a CHECK
++          // once we are confident it won't be triggered.
++          DCHECK_EQ(position, range.start());
+           chunk = remaining_string.substr(0, range.end() - position);
+         } else {
+           chunk = substrings[0];
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts b/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts
+index 2bda71f..9c3a664 100644
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts
+@@ -117,7 +117,7 @@
+       // An 'Enter' pressed before the active query's results arrived waits for
+       // them. Starting a new query, or abandoning the active one should abort
+       // the pending navigate.
+-      this.lastIgnoredEnterEvent_ = null;
++      this.pendingKeydownEvent_ = null;
+     }
+ 
+     lastQueriedInput: string|null = null;
+@@ -182,7 +182,10 @@
+     // `control_key_state_`.
+     controlKeyState: ControlKeyState = ControlKeyState.UP;
+ 
+-    private lastIgnoredEnterEvent_: KeyboardEvent|null = null;
++    // A key press that needs the sync results for the latest input, pressed
++    // before they arrived. It's handled once they arrive. Only one key press
++    // waits at a time; later ones that would also wait are ignored.
++    private pendingKeydownEvent_: KeyboardEvent|null = null;
+     // The line of the match the backend was last asked to delete, while
+     // waiting for the post-deletion result. Null if no match was selected at
+     // the time. See `shouldPreserveSelectionOnMatchDeletion()`.
+@@ -490,8 +493,8 @@
+       this.pendingDeletionLine_ = null;
+       // Likewise, an 'Enter' pressed before this query's results arrived waits
+       // for its first results only, so it can't navigate on a later update.
+-      const ignoredEnterEvent = this.lastIgnoredEnterEvent_;
+-      this.lastIgnoredEnterEvent_ = null;
++      const pendingKeydownEvent = this.pendingKeydownEvent_;
++      this.pendingKeydownEvent_ = null;
+ 
+       this.result = result;
+       const hasMatches = this.hasMatches();
+@@ -517,8 +520,8 @@
+ 
+         // Navigate to the default up-to-date match if the user typed and
+         // pressed 'Enter' too fast.
+-        if (ignoredEnterEvent) {
+-          this.navigateToMatch(0, ignoredEnterEvent);
++        if (pendingKeydownEvent?.key === 'Enter') {
++          this.navigateToMatch(0, pendingKeydownEvent);
+         }
+ 
+       } else {
+@@ -698,14 +701,13 @@
+       // On user interaction, freeze the current results to avoid result updates
+       // potentially erasing user changes like cursor position. Freezing on
+       // 'enter' would break the fast-enter navigations via
+-      // `lastIgnoredEnterEvent_`. It'd cause the searchbox to discard the
+-      // pending results the navigation is waiting for, causing the navigation
+-      // to never occur. But this is a hack; comparing `e.key !=== 'Enter'` is
+-      // only a semi-accurate heuristic for whether a navigation is about to
+-      // occur. Pressing a modifier key by itself (e.g. the 'Shift' of
+-      // 'Shift+Enter') doesn't change the input, so it doesn't freeze the
+-      // results either; otherwise, fast modified-Enter navigations would use
+-      // stale results.
++      // `pendingKeydownEvent_`. It'd cause the searchbox to discard the pending
++      // results the navigation is waiting for, causing the navigation to never
++      // occur. But this is a hack; comparing `e.key !== 'Enter'` is only a
++      // semi-accurate heuristic for whether a navigation is about to occur.
++      // Pressing a modifier key by itself (e.g. the 'Shift' of 'Shift+Enter')
++      // doesn't change the input, so it doesn't freeze the results either;
++      // otherwise, fast modified-Enter navigations would use stale results.
+       if (e.key !== 'Enter' && !MODIFIER_KEYS.includes(e.key)) {
+         this.activeQueryId = -1;
+       }
+@@ -1004,8 +1006,7 @@
+       if (this.handleVirtualFocusEnter(e)) {
+         return;
+       }
+-      const resultsPending = this.activeQueryId !== -1 &&
+-          this.result?.queryId !== this.activeQueryId;
++      const resultsPending = this.areResultsPending_();
+       if (isPureCtrlEnter) {
+         // Ctrl+Enter adds 'www.' and '.com' to the previewed match or the
+         // input, but not to the default match. If new results are pending, the
+@@ -1019,17 +1020,27 @@
+         if (this.selectedMatch) {
+           this.navigateToMatch(this.matchIndex, e);
+         }
+-      } else {
++      } else if (!this.pendingKeydownEvent_) {
+         // User typed and pressed 'Enter' too quickly. Ignore this for now
+-        // because the matches are stale. Navigate to the default match (if
+-        // one exists) once the up-to-date matches arrive. Unfreeze
+-        // `activeQueryId` so pending query results are accepted. This must come
+-        // first, since setting it clears `lastIgnoredEnterEvent_`.
++        // because the matches are stale. Navigate to the default match (if one
++        // exists) once the up-to-date matches arrive. Only queue events if
++        // there is no already queued event; we don't want a later
++        // <shift><enter> to replace the first <enter>. Unfreeze `activeQueryId`
++        // so pending query results are accepted. This must come first, since
++        // setting it clears `pendingKeydownEvent_`.
+         this.activeQueryId = this.nextQueryId_ - 1;
+-        this.lastIgnoredEnterEvent_ = e;
++        this.pendingKeydownEvent_ = e;
+       }
+     }
+ 
++    /**
++     * Whether the sync results for the current input haven't arrived yet.
++     */
++    private areResultsPending_(): boolean {
++      return this.activeQueryId !== -1 &&
++          this.result?.queryId !== this.activeQueryId;
++    }
++
+     async handleKeyNavigation(e: KeyboardEvent) {
+       if (e.key === 'Backspace') {
+         const inputEl = this.getInputElement().inputElement;
 diff --git a/third_party/angle/src/compiler/translator/ParseContext.cpp b/third_party/angle/src/compiler/translator/ParseContext.cpp
 index 84e5486..4b21bef 100644
 --- a/third_party/angle/src/compiler/translator/ParseContext.cpp
