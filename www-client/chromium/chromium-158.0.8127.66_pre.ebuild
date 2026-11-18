@@ -43,8 +43,8 @@ RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit build (rustc driver, ti
 CRUBIT_DATE="20261015"
 PPC64_HASH="7aae8a84e327fc2078ce1625c9c70bfda77d626f"
 COPIUM_COMMIT="84aa29c73d11981f56eb9a9fbbf35ec993f9d7ff"
-# 158.0.8127.65 is a tag without a tarball: built from the 158.0.8127.37 tarball plus
-# files/chromium-158.0.8127.37-to-158.0.8127.65.patch (see its header).
+# 158.0.8127.66 is a tag without a tarball: built from the 158.0.8127.37 tarball plus
+# files/chromium-158.0.8127.37-to-158.0.8127.66.patch (see its header).
 CHROMIUM_TARBALL_PV="158.0.8127.37"
 # Inputs of ANGLE's code generators that the tarball lacks (files/chromium-angle-regen.py):
 # Khronos' registries at ANGLE's (and, for Vulkan, Chromium's) DEPS revisions; perfect-hash,
@@ -180,9 +180,7 @@ LICENSE+=" rar? ( unRAR )"
 SLOT="stable/fixes"
 KEYWORDS="~amd64 ~arm64"
 
-# The 158 branch's changes after the 158.0.8127.65 tag, up to #1899 (see its header), and
-# fixes 158 hasn't got yet (their headers say where they come from): Blink's script
-# revalidation with a background streamer (crbug 574605993; merged to 159), page popups'
+# Fixes 158 hasn't got yet (their headers say where they come from): page popups'
 # dangling opener (crbugs 580868681, 580866198; merged to 159), ANGLE's transform feedback
 # struct varying counting (crbug 535344406; merged to ANGLE's 159 branch), ResourceFetcher's
 # iteration over its image resource sets (crbug 576850257; merged to 159),
@@ -190,8 +188,6 @@ KEYWORDS="~amd64 ~arm64"
 # ANGLE's GL texture storage size limit (crbug 577359061; merged to ANGLE's 159 branch) and
 # WebCodecs' callbacks while the page is paused (crbug 576082223; merged to 159).
 CHROMIUM_FIXES=(
-	chromium-158.0.8127.65-branch-fixes.patch
-	chromium-158-blink-script-revalidation-streamer.patch
 	chromium-158-page-popup-dangling-opener.patch
 	chromium-158-angle-tf-struct-varyings.patch
 	chromium-158-resource-fetcher-image-set-snapshot.patch
