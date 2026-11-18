@@ -1,24 +1,24 @@
-The fix for crbugs 576082223, 580866733 and 578659916 (restricted: "[webcodecs]
-Route callbacks to execution context task runners"): chromium/src main commit
-bd724a5bc5a82b247f6b3ec086f039e4325e08e9 (main@{#1743484}), merged to the 159
-branch as 032ab31330. Its 158 merge (Gerrit 8828129) is pending, as of
-8127@{#1899}: its patchset 2 still has a conflict in video_encoder.cc.
+Chromium 158.0.8127.66 + the later changes of its release branch, up to
+14ac3ad02fff5e382f61a8e1feb533cfe7d141e4 (refs/branch-heads/8127@{#1919}), for the
+158.0.8127.66 tree that chromium-158.0.8127.37-to-158.0.8127.66.patch makes.
 
-WebCodecs' encoder, readback, GPU factory retrieval and ImageDecoderExternal
-callbacks were posted to SequencedTaskRunner::GetCurrentDefault(), so they ran
-while a page or worker was paused or frozen (e.g. in a nested loop): a renderer
-memory-safety risk reachable from a page. The fix routes them through the
-execution context's task runners.
+Generated from the upstream diff chromium/src refs/tags/158.0.8127.66..14ac3ad02fff5e382f61a8e1feb533cfe7d141e4
+and from its roll of angle 1069527181b8d4cf55f604d06557381a2a09b2ea..cb3a38f37525831914266bfc8964eb39c675c5ee (under third_party/angle/),
+as served by Gitiles, with scripts/chromium-delta --branch-fixes (against the
+.66 tree's files): left out are files not in the release tarball,
+iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs (GN files kept),
+translations other than en-GB, PGO/orderfile/AFDO pointers, submodule pointer
+updates. chrome/VERSION, the DEPS files and the stamp files stay at
+158.0.8127.66.
 
-This is the main commit's change without its tests, regenerated against 158's
-files (8127@{#1899}, which the pending 158 merge's parent matches). 14 of its 15
-files are byte-identical to the pending 158 merge's. In video_encoder.cc, the
-one hunk that conflicts is resolved as main's change without the
-`encode_options` argument, which 158's OnReadbackDone call doesn't have; the rest
-of that file matches the 158 merge too. Drop this once 158 gets the fix (check
-that the merged change is the same).
+Commits contributing to it (oldest first):
+  b76211599133 Roll commits from side projects in M158
+    angle cb3a38f37525 [M158] GL: Read pixels via scratch FBO for MRT
+  970d67884a52 [M158] [webcodecs] Route callbacks to execution context task runners
+  f212a2999125 [M158] Defer SyncLoadContext completion while handling redirects
 
 diff --git a/media/base/offloading_audio_encoder.cc b/media/base/offloading_audio_encoder.cc
+index 9667ab2..09eb320 100644
 --- a/media/base/offloading_audio_encoder.cc
 +++ b/media/base/offloading_audio_encoder.cc
 @@ -29,11 +29,12 @@
@@ -37,6 +37,7 @@ diff --git a/media/base/offloading_audio_encoder.cc b/media/base/offloading_audi
  void OffloadingAudioEncoder::Initialize(const Options& options,
                                          OutputCB output_cb,
 diff --git a/media/base/offloading_audio_encoder.h b/media/base/offloading_audio_encoder.h
+index 4c82cd4..c221201 100644
 --- a/media/base/offloading_audio_encoder.h
 +++ b/media/base/offloading_audio_encoder.h
 @@ -9,12 +9,9 @@
@@ -70,6 +71,7 @@ diff --git a/media/base/offloading_audio_encoder.h b/media/base/offloading_audio
    ~OffloadingAudioEncoder() override;
  
 diff --git a/media/mojo/clients/mojo_audio_encoder.cc b/media/mojo/clients/mojo_audio_encoder.cc
+index bd5b2f8..09ab92f 100644
 --- a/media/mojo/clients/mojo_audio_encoder.cc
 +++ b/media/mojo/clients/mojo_audio_encoder.cc
 @@ -42,10 +42,13 @@
@@ -111,6 +113,7 @@ diff --git a/media/mojo/clients/mojo_audio_encoder.cc b/media/mojo/clients/mojo_
        base::BindOnce(&MojoAudioEncoder::OnConnectionError, weak_this_));
  }
 diff --git a/media/mojo/clients/mojo_audio_encoder.h b/media/mojo/clients/mojo_audio_encoder.h
+index 99368a7..673f032 100644
 --- a/media/mojo/clients/mojo_audio_encoder.h
 +++ b/media/mojo/clients/mojo_audio_encoder.h
 @@ -23,8 +23,12 @@
@@ -128,6 +131,7 @@ diff --git a/media/mojo/clients/mojo_audio_encoder.h b/media/mojo/clients/mojo_a
    static bool IsSupported(AudioCodec codec);
  
 diff --git a/media/video/offloading_video_encoder.cc b/media/video/offloading_video_encoder.cc
+index d2fecca..96e4367 100644
 --- a/media/video/offloading_video_encoder.cc
 +++ b/media/video/offloading_video_encoder.cc
 @@ -32,13 +32,14 @@
@@ -148,6 +152,7 @@ diff --git a/media/video/offloading_video_encoder.cc b/media/video/offloading_vi
  void OffloadingVideoEncoder::Initialize(VideoCodecProfile profile,
                                          const Options& options,
 diff --git a/media/video/offloading_video_encoder.h b/media/video/offloading_video_encoder.h
+index 20a0e23..4ec5c9279a 100644
 --- a/media/video/offloading_video_encoder.h
 +++ b/media/video/offloading_video_encoder.h
 @@ -9,12 +9,9 @@
@@ -181,6 +186,7 @@ diff --git a/media/video/offloading_video_encoder.h b/media/video/offloading_vid
    ~OffloadingVideoEncoder() override;
  
 diff --git a/third_party/blink/renderer/modules/webcodecs/audio_encoder.cc b/third_party/blink/renderer/modules/webcodecs/audio_encoder.cc
+index 83f6413..d86705e 100644
 --- a/third_party/blink/renderer/modules/webcodecs/audio_encoder.cc
 +++ b/third_party/blink/renderer/modules/webcodecs/audio_encoder.cc
 @@ -402,16 +402,18 @@
@@ -232,6 +238,7 @@ diff --git a/third_party/blink/renderer/modules/webcodecs/audio_encoder.cc b/thi
  
  void AudioEncoder::ProcessConfigure(Request* request) {
 diff --git a/third_party/blink/renderer/modules/webcodecs/background_readback.h b/third_party/blink/renderer/modules/webcodecs/background_readback.h
+index f9b389b7..81cb34ac 100644
 --- a/third_party/blink/renderer/modules/webcodecs/background_readback.h
 +++ b/third_party/blink/renderer/modules/webcodecs/background_readback.h
 @@ -47,6 +47,10 @@
@@ -246,6 +253,7 @@ diff --git a/third_party/blink/renderer/modules/webcodecs/background_readback.h 
        scoped_refptr<media::VideoFrame> txt_frame,
        ReadbackToFrameDoneCallback result_cb);
 diff --git a/third_party/blink/renderer/modules/webcodecs/decoder_template.cc b/third_party/blink/renderer/modules/webcodecs/decoder_template.cc
+index 3819240..544a7ba8 100644
 --- a/third_party/blink/renderer/modules/webcodecs/decoder_template.cc
 +++ b/third_party/blink/renderer/modules/webcodecs/decoder_template.cc
 @@ -12,6 +12,7 @@
@@ -279,6 +287,7 @@ diff --git a/third_party/blink/renderer/modules/webcodecs/decoder_template.cc b/
      ContinueConfigureWithGpuFactories(request, nullptr);
    }
 diff --git a/third_party/blink/renderer/modules/webcodecs/gpu_factories_retriever.h b/third_party/blink/renderer/modules/webcodecs/gpu_factories_retriever.h
+index 720e2c5..d404deda 100644
 --- a/third_party/blink/renderer/modules/webcodecs/gpu_factories_retriever.h
 +++ b/third_party/blink/renderer/modules/webcodecs/gpu_factories_retriever.h
 @@ -13,6 +13,10 @@
@@ -293,6 +302,7 @@ diff --git a/third_party/blink/renderer/modules/webcodecs/gpu_factories_retrieve
      media::GpuVideoAcceleratorFactories* factories)>;
  
 diff --git a/third_party/blink/renderer/modules/webcodecs/image_decoder_external.cc b/third_party/blink/renderer/modules/webcodecs/image_decoder_external.cc
+index 36d2b94..249d114 100644
 --- a/third_party/blink/renderer/modules/webcodecs/image_decoder_external.cc
 +++ b/third_party/blink/renderer/modules/webcodecs/image_decoder_external.cc
 @@ -6,9 +6,11 @@
@@ -373,6 +383,7 @@ diff --git a/third_party/blink/renderer/modules/webcodecs/image_decoder_external
  
  void ImageDecoderExternal::OnMetadata(
 diff --git a/third_party/blink/renderer/modules/webcodecs/image_decoder_external.h b/third_party/blink/renderer/modules/webcodecs/image_decoder_external.h
+index d26e4d9..0bf583c 100644
 --- a/third_party/blink/renderer/modules/webcodecs/image_decoder_external.h
 +++ b/third_party/blink/renderer/modules/webcodecs/image_decoder_external.h
 @@ -130,6 +130,7 @@
@@ -384,6 +395,7 @@ diff --git a/third_party/blink/renderer/modules/webcodecs/image_decoder_external
  
    // List of tracks in this image. Filled in during OnMetadata().
 diff --git a/third_party/blink/renderer/modules/webcodecs/video_decoder.cc b/third_party/blink/renderer/modules/webcodecs/video_decoder.cc
+index c5a4045e..12a8eaa 100644
 --- a/third_party/blink/renderer/modules/webcodecs/video_decoder.cc
 +++ b/third_party/blink/renderer/modules/webcodecs/video_decoder.cc
 @@ -10,6 +10,7 @@
@@ -426,6 +438,7 @@ diff --git a/third_party/blink/renderer/modules/webcodecs/video_decoder.cc b/thi
    }
  
 diff --git a/third_party/blink/renderer/modules/webcodecs/video_encoder.cc b/third_party/blink/renderer/modules/webcodecs/video_encoder.cc
+index bd68aae..acd514d 100644
 --- a/third_party/blink/renderer/modules/webcodecs/video_encoder.cc
 +++ b/third_party/blink/renderer/modules/webcodecs/video_encoder.cc
 @@ -5,6 +5,7 @@
@@ -524,11 +537,11 @@ diff --git a/third_party/blink/renderer/modules/webcodecs/video_encoder.cc b/thi
 -                        MakeUnwrappingCrossThreadWeakHandle(this),
 -                        MakeUnwrappingCrossThreadHandle(request), frame,
 -                        std::move(encode_done_callback));
-+    auto readback_done_callback = ConvertToBaseOnceCallback(CrossThreadBindOnce(
-+        &VideoEncoder::OnReadbackDone,
-+        MakeUnwrappingCrossThreadWeakHandle(this),
-+        MakeUnwrappingCrossThreadHandle(request), frame,
-+        std::move(encode_done_callback)));
++    auto readback_done_callback = ConvertToBaseOnceCallback(
++        CrossThreadBindOnce(&VideoEncoder::OnReadbackDone,
++                            MakeUnwrappingCrossThreadWeakHandle(this),
++                            MakeUnwrappingCrossThreadHandle(request), frame,
++                            std::move(encode_done_callback)));
  
      if (StartReadback(std::move(frame), std::move(readback_done_callback))) {
        request->input->close();
@@ -649,6 +662,7 @@ diff --git a/third_party/blink/renderer/modules/webcodecs/video_encoder.cc b/thi
    }
  
 diff --git a/third_party/blink/renderer/modules/webcodecs/video_frame.cc b/third_party/blink/renderer/modules/webcodecs/video_frame.cc
+index 6088f87d3..b35a428 100644
 --- a/third_party/blink/renderer/modules/webcodecs/video_frame.cc
 +++ b/third_party/blink/renderer/modules/webcodecs/video_frame.cc
 @@ -31,6 +31,7 @@
@@ -678,3 +692,342 @@ diff --git a/third_party/blink/renderer/modules/webcodecs/video_frame.cc b/third
  
    background_readback->ReadbackTextureBackedFrame(
        std::move(frame), std::move(dest_frame), std::move(done_cb));
+diff --git a/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.cc b/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.cc
+index 0bac72c..a4fb749f 100644
+--- a/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.cc
++++ b/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.cc
+@@ -6,6 +6,7 @@
+ 
+ #include <optional>
+ #include <string>
++#include <utility>
+ 
+ #include "base/byte_size.h"
+ #include "base/check_op.h"
+@@ -176,7 +177,9 @@
+     const net::RedirectInfo& redirect_info,
+     network::mojom::URLResponseHeadPtr head,
+     FollowRedirectCallback follow_redirect_callback) {
+-  DCHECK(!Completed());
++  CHECK(!Completed());
++  CHECK(!follow_redirect_callback_);
++  CHECK(!deferred_completion_status_);
+ 
+   if (has_authorization_header_ &&
+       !url::IsSameOriginWith(response_->url, redirect_info.new_url)) {
+@@ -195,19 +198,29 @@
+ void SyncLoadContext::FollowRedirect(std::vector<std::string> removed_headers,
+                                      net::HttpRequestHeaders modified_headers) {
+   CHECK(follow_redirect_callback_);
++  if (deferred_completion_status_) {
++    follow_redirect_callback_.Reset();
++    response_->redirect_info.reset();
++    *context_for_redirect_ = nullptr;
++    OnCompletedRequest(
++        *std::exchange(deferred_completion_status_, std::nullopt));
++    return;
++  }
+   if (!signals_->RestartAfterRedirect()) {
+     CancelRedirect();
+     return;
+   }
+ 
+-  response_->redirect_info = net::RedirectInfo();
++  response_->redirect_info.reset();
+   *context_for_redirect_ = nullptr;
+   std::move(follow_redirect_callback_)
+       .Run(std::move(removed_headers), std::move(modified_headers));
+ }
+ 
+ void SyncLoadContext::CancelRedirect() {
+-  response_->redirect_info = net::RedirectInfo();
++  follow_redirect_callback_.Reset();
++  deferred_completion_status_.reset();
++  response_->redirect_info.reset();
+   *context_for_redirect_ = nullptr;
+ 
+   response_->error_code = net::ERR_ABORTED;
+@@ -218,7 +231,9 @@
+     network::mojom::URLResponseHeadPtr head,
+     mojo::ScopedDataPipeConsumerHandle body,
+     std::optional<mojo_base::BigBuffer> cached_metadata) {
+-  DCHECK(!Completed());
++  CHECK(!Completed());
++  CHECK(!follow_redirect_callback_);
++  CHECK(!deferred_completion_status_);
+   response_->head = std::move(head);
+ 
+   if (!body) {
+@@ -262,6 +277,24 @@
+     // the response.
+     return;
+   }
++  if (follow_redirect_callback_) {
++    // Defer completion until FollowRedirect() or CancelRedirect() runs so
++    // `response_` is not mutated and `this` is not deleted while the calling
++    // thread is handling the redirect.
++    if (!deferred_completion_status_) {
++      network::URLLoaderCompletionStatus deferred_status = status;
++      // Completing with `net::OK` before the redirect is followed means no
++      // final `OnReceivedResponse()` was received. Coerce it to `ERR_FAILED`
++      // so `URLLoader::LoadSynchronously()` does not treat the unfollowed
++      // redirect's URL and headers as a valid final response in release builds
++      // (where `MojoURLLoaderClient::OnComplete()`'s `DCHECK` is compiled out).
++      if (deferred_status.error_code == net::OK) {
++        deferred_status.error_code = net::ERR_FAILED;
++      }
++      deferred_completion_status_ = std::move(deferred_status);
++    }
++    return;
++  }
+   request_completed_ = true;
+   response_->error_code = status.error_code;
+   response_->extended_error_code = status.extended_error_code;
+@@ -346,6 +379,9 @@
+ void SyncLoadContext::CompleteRequest() {
+   DCHECK(blob_finished_ || (mode_ != Mode::kBlob));
+   DCHECK(!body_handle_.is_valid());
++  CHECK(!follow_redirect_callback_);
++  CHECK(!deferred_completion_status_);
++  CHECK(!*context_for_redirect_);
+   body_watcher_.Cancel();
+   signals_->SignalRedirectOrResponseComplete();
+   signals_ = nullptr;
+diff --git a/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.h b/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.h
+index 3710477..104fc02 100644
+--- a/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.h
++++ b/third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.h
+@@ -5,6 +5,7 @@
+ #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_LOADER_FETCH_URL_LOADER_SYNC_LOAD_CONTEXT_H_
+ #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_LOADER_FETCH_URL_LOADER_SYNC_LOAD_CONTEXT_H_
+ 
++#include <optional>
+ #include <vector>
+ 
+ #include "base/byte_size.h"
+@@ -17,6 +18,7 @@
+ #include "mojo/public/cpp/system/simple_watcher.h"
+ #include "net/traffic_annotation/network_traffic_annotation.h"
+ #include "services/network/public/cpp/shared_url_loader_factory.h"
++#include "services/network/public/cpp/url_loader_completion_status.h"
+ #include "third_party/blink/public/mojom/blob/blob_registry.mojom-blink.h"
+ #include "third_party/blink/public/platform/web_common.h"
+ #include "third_party/blink/public/platform/web_string.h"
+@@ -136,6 +138,10 @@
+   // is signaled, which protects it against race condition.
+   raw_ptr<SyncLoadContext*> context_for_redirect_;
+ 
++  // Stores the completion status if OnCompletedRequest() arrives while a
++  // redirect is being handled on the calling thread.
++  std::optional<network::URLLoaderCompletionStatus> deferred_completion_status_;
++
+   enum class Mode { kInitial, kDataPipe, kBlob };
+   Mode mode_ = Mode::kInitial;
+ 
+diff --git a/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h b/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
+index 82151a3..2f8d5bb 100644
+--- a/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
++++ b/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
+@@ -836,6 +836,12 @@
+         &members,
+     };
+ 
++    FeatureInfo readPixelsViaSingleAttachmentFramebuffer = {
++        "readPixelsViaSingleAttachmentFramebuffer",
++        FeatureCategory::OpenGLWorkarounds,
++        &members,
++    };
++
+ };
+ 
+ inline FeaturesGL::FeaturesGL()  = default;
+diff --git a/third_party/angle/include/platform/gl_features.json b/third_party/angle/include/platform/gl_features.json
+index e6064b6..c436de6 100644
+--- a/third_party/angle/include/platform/gl_features.json
++++ b/third_party/angle/include/platform/gl_features.json
+@@ -1111,6 +1111,16 @@
+                 "avoid stale cross-framebuffer state in PowerVR drivers."
+             ],
+             "issue": "https://crbug.com/584036299"
++        },
++        {
++            "name": "read_pixels_via_single_attachment_framebuffer",
++            "category": "Workarounds",
++            "description": [
++                "Some drivers return incorrect data when reading pixels back from a framebuffer ",
++                "that has multiple color attachments. Read through a temporary framebuffer with ",
++                "only the read attachment bound."
++            ],
++            "issue": "https://crbug.com/549347571"
+         }
+     ]
+ }
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
+index d9a5353..8e9dbba 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
+@@ -838,7 +838,6 @@
+     const FunctionsGL *functions      = GetFunctionsGL(context);
+     StateManagerGL *stateManager      = GetStateManagerGL(context);
+     const angle::FeaturesGL &features = GetFeaturesGL(context);
+-    gl::PixelPackState packState      = pack;
+ 
+     // Clip read area to framebuffer.
+     const auto *readAttachment = mState.getReadPixelsAttachment(format);
+@@ -866,15 +865,58 @@
+                     GL_INVALID_OPERATION);
+     }
+ 
+-    GLenum framebufferTarget =
+-        stateManager->getHasSeparateFramebufferBindings() ? GL_READ_FRAMEBUFFER : GL_FRAMEBUFFER;
+-    stateManager->bindFramebuffer(framebufferTarget, mFramebufferID);
++    GLuint scratchFramebuffer = 0;
++    angle::Result result      = angle::Result::Continue;
++    if (features.readPixelsViaSingleAttachmentFramebuffer.enabled &&
++        readAttachment == mState.getReadAttachment() &&
++        (mState.getColorAttachmentsMask().count() > 1 || mState.getReadIndex() != 0))
++    {
++        // Read through a temporary framebuffer that has only the read attachment bound.
++        functions->genFramebuffers(1, &scratchFramebuffer);
++        stateManager->bindFramebuffer(GL_FRAMEBUFFER, scratchFramebuffer);
++        result = BindFramebufferAttachment(context, functions, GL_COLOR_ATTACHMENT0, readAttachment,
++                                           features);
++    }
++    else
++    {
++        GLenum framebufferTarget = stateManager->getHasSeparateFramebufferBindings()
++                                       ? GL_READ_FRAMEBUFFER
++                                       : GL_FRAMEBUFFER;
++        stateManager->bindFramebuffer(framebufferTarget, mFramebufferID);
++    }
+ 
+-    const gl::InternalFormat &glFormat = gl::GetInternalFormatInfo(readFormat, readType);
++    if (result == angle::Result::Continue)
++    {
++        result = readPixelsImpl(context, area, clippedArea, format, readFormat, readType, pack,
++                                packBuffer, pixels);
++    }
++
++    if (scratchFramebuffer != 0)
++    {
++        stateManager->deleteFramebuffer(scratchFramebuffer);
++    }
++
++    return result;
++}
++
++angle::Result FramebufferGL::readPixelsImpl(const gl::Context *context,
++                                            const gl::Rectangle &area,
++                                            const gl::Rectangle &clippedArea,
++                                            GLenum originalReadFormat,
++                                            GLenum format,
++                                            GLenum type,
++                                            const gl::PixelPackState &pack,
++                                            gl::Buffer *packBuffer,
++                                            void *pixels) const
++{
++    ContextGL *contextGL              = GetImplAs<ContextGL>(context);
++    const angle::FeaturesGL &features = GetFeaturesGL(context);
++    gl::PixelPackState packState      = pack;
++
++    const gl::InternalFormat &glFormat = gl::GetInternalFormatInfo(format, type);
+     GLuint rowBytes                    = 0;
+-    ANGLE_CHECK_GL_MATH(contextGL,
+-                        glFormat.computeRowPitch(readType, area.width, packState.alignment,
+-                                                 packState.rowLength, &rowBytes));
++    ANGLE_CHECK_GL_MATH(contextGL, glFormat.computeRowPitch(type, area.width, packState.alignment,
++                                                            packState.rowLength, &rowBytes));
+ 
+     bool useOverlappingRowsWorkaround = features.packOverlappingRowsSeparatelyPackBuffer.enabled &&
+                                         packBuffer && packState.rowLength != 0 &&
+@@ -902,7 +944,7 @@
+ 
+     // We want to use rowLength, but that might not be supported.
+     bool cannotSetDesiredRowLength =
+-        packState.rowLength && !GetImplAs<ContextGL>(context)->getNativeExtensions().packSubimageNV;
++        packState.rowLength && !contextGL->getNativeExtensions().packSubimageNV;
+ 
+     bool usePackSkipWorkaround = features.emulatePackSkipRowsAndPackSkipPixels.enabled &&
+                                  (packState.skipRows != 0 || packState.skipPixels != 0);
+@@ -910,7 +952,7 @@
+     if (cannotSetDesiredRowLength || useOverlappingRowsWorkaround || useLargeRowLengthWorkaround ||
+         usePackSkipWorkaround)
+     {
+-        return readPixelsRowByRow(context, clippedArea, format, readFormat, readType, packState,
++        return readPixelsRowByRow(context, clippedArea, originalReadFormat, format, type, packState,
+                                   outPtr);
+     }
+ 
+@@ -919,10 +961,10 @@
+     {
+         ANGLE_TRY(ShouldApplyLastRowPaddingWorkaround(
+             contextGL, gl::Extents(clippedArea.width, clippedArea.height, 1), packState, packBuffer,
+-            readFormat, readType, false, outPtr, &useLastRowPaddingWorkaround));
++            format, type, false, outPtr, &useLastRowPaddingWorkaround));
+     }
+ 
+-    return readPixelsAllAtOnce(context, clippedArea, format, readFormat, readType, packState,
++    return readPixelsAllAtOnce(context, clippedArea, originalReadFormat, format, type, packState,
+                                outPtr, useLastRowPaddingWorkaround);
+ }
+ 
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.h b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.h
+index 055755d..0c6f4d7 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.h
++++ b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.h
+@@ -123,6 +123,16 @@
+         const GLenum *attachments,
+         std::vector<GLenum> *modifiedAttachments) const;
+ 
++    angle::Result readPixelsImpl(const gl::Context *context,
++                                 const gl::Rectangle &area,
++                                 const gl::Rectangle &clippedArea,
++                                 GLenum originalReadFormat,
++                                 GLenum format,
++                                 GLenum type,
++                                 const gl::PixelPackState &pack,
++                                 gl::Buffer *packBuffer,
++                                 void *pixels) const;
++
+     angle::Result readPixelsRowByRow(const gl::Context *context,
+                                      const gl::Rectangle &area,
+                                      GLenum originalReadFormat,
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp b/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp
+index 7b007b3..c134e97 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp
+@@ -2826,6 +2826,10 @@
+     // https://crbug.com/577781532
+     ANGLE_FEATURE_CONDITION(features, limitMaxTextureImageUnitsTo13, isPowerVR);
+ 
++    // https://crbug.com/549347571 -- IMG drivers may return incorrect data when reading pixels back
++    // from a framebuffer that has multiple color attachments.
++    ANGLE_FEATURE_CONDITION(features, readPixelsViaSingleAttachmentFramebuffer, isPowerVR);
++
+     // Mac Intel drivers are unable to allocate buffers larger than ~1gb
+     ANGLE_FEATURE_CONDITION(features, limitMaxBufferSizeTo1gb, isApple && isIntel);
+ 
+diff --git a/third_party/angle/util/autogen/angle_features_autogen.cpp b/third_party/angle/util/autogen/angle_features_autogen.cpp
+index d7da6da..b273d13 100644
+--- a/third_party/angle/util/autogen/angle_features_autogen.cpp
++++ b/third_party/angle/util/autogen/angle_features_autogen.cpp
+@@ -314,6 +314,7 @@
+     {Feature::QueryCounterBitsGeneratesErrors, "queryCounterBitsGeneratesErrors"},
+     {Feature::Readback3DDepthStencilPbosDuringUpload, "readback3DDepthStencilPbosDuringUpload"},
+     {Feature::ReadPixelsUsingImplementationColorReadFormatForNorm16, "readPixelsUsingImplementationColorReadFormatForNorm16"},
++    {Feature::ReadPixelsViaSingleAttachmentFramebuffer, "readPixelsViaSingleAttachmentFramebuffer"},
+     {Feature::ReapplyUBOBindingsAfterUsingBinaryProgram, "reapplyUBOBindingsAfterUsingBinaryProgram"},
+     {Feature::ReattachFboDepthStencilOnReallocation, "reattachFboDepthStencilOnReallocation"},
+     {Feature::ReattachTextureToFboAfterLayerIncrease, "reattachTextureToFboAfterLayerIncrease"},
+diff --git a/third_party/angle/util/autogen/angle_features_autogen.h b/third_party/angle/util/autogen/angle_features_autogen.h
+index 9b821c9..e47729a 100644
+--- a/third_party/angle/util/autogen/angle_features_autogen.h
++++ b/third_party/angle/util/autogen/angle_features_autogen.h
+@@ -314,6 +314,7 @@
+     QueryCounterBitsGeneratesErrors,
+     Readback3DDepthStencilPbosDuringUpload,
+     ReadPixelsUsingImplementationColorReadFormatForNorm16,
++    ReadPixelsViaSingleAttachmentFramebuffer,
+     ReapplyUBOBindingsAfterUsingBinaryProgram,
+     ReattachFboDepthStencilOnReallocation,
+     ReattachTextureToFboAfterLayerIncrease,
