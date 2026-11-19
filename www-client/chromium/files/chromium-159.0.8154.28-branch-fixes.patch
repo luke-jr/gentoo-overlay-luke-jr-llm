@@ -1,0 +1,788 @@
+Chromium 159.0.8154.28 + the later changes of its release branch, up to
+ddd689ab1c097c1a672c19d1aafaad5629b82e37 (refs/branch-heads/8154@{#1065}), for the
+159.0.8154.28 tree that chromium-159.0.8154.18-to-159.0.8154.28.patch makes.
+The newest change it carries is 8154@{#1065}.
+
+Generated from the upstream diff chromium/src
+refs/tags/159.0.8154.28..ddd689ab1c097c1a672c19d1aafaad5629b82e37, as served by
+Gitiles, with scripts/chromium-delta --branch-fixes (against the .28 tree's
+files). The branch's DEPS doesn't change after .28 (no dependency roll in this
+range). Left out are files not in the release tarball,
+iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs (GN files kept),
+translations other than en-GB, PGO/orderfile/AFDO pointers, submodule pointer
+updates. chrome/VERSION (the branch's "Incrementing VERSION to 159.0.8154.29"
+commit, 7a9308ac3451, is not a tag yet), the DEPS files and the stamp files stay at
+159.0.8154.28.
+
+Commits contributing to it (oldest first):
+  ecbe9f78fcca [M159] [ContextualTasks] Add ContextualTasksEntryPoints feature flag
+  f4236d29b216 [M159] [ContextualTasks] Add Ask Google side panel launcher and eligibility
+  63b660223193 [M159] [Omnibox] Add Android bridge for ContextualSearchFulfillmentAction
+  b4945d5c5cf9 [159] Web Speech API: Ship SpeechRecognitionResult timestamps on desktop
+  0ff88d8f570e [M159] [ContextualTasks] Add Desktop Android omnibox contextual query helper
+  d36fde35382c [M159] [ContextualTasks] Add Ask Google to page context menu
+  a9650dcabc12 [M159] [ContextualTasks] Add Ask Google to 3-dot app menu
+  28a8736caf24 [M159] Revert CHECK_NE in FullscreenController::IsFullscreenWithinTab
+  48065b24e104 [M159] Revert CHECK_EQ to DCHECK_EQ in GetWin2xAvatarIconAsSquare
+  ac94dd7df41e [M159] Revert CHECK_EQ back to DCHECK_EQ in ProcessInterceptionOrWait
+  015ef70865f0 [M159] Revert CHECK_EQ to DCHECK_EQ in WebAppIconManager::EncodeAndWriteIcon
+  f77f5b009c2a [M159] Demote waiting_for_preview CHECK in TabHoverCardController to DCHECK
+  7e9199540cd4 [M159] Revert CHECK_EQ on permission status in site settings to DCHECK_EQ
+  d9c06bcfc42e [M159] Revert CHECK_EQ to DCHECK_EQ in ConstrainedDialogWebView
+  8945509db6fd [M159] Revert CHECK_EQ to DCHECK_EQ in background tab loading policy
+  4cf21c7d5eb6 [M159] Revert CHECK for requested_start_time_ in LayerAnimationElement::Start
+  af569a131c8c [M159] Revert CHECK_EQ to DCHECK_EQ in Window::StackChildRelativeTo
+  1c1307a407c5 [M159] Fix synchronous completion in LocalFileStreamReader
+  3b96d08e69ba [M159] [OTP] Exempt proactive Gmail OTP popup from mouse-outside-bounds check
+
+Checked: applies to the 159.0.8154.28 tree (the .18 tarball with
+chromium-159.0.8154.18-to-159.0.8154.28.patch); every patched source file is
+byte-identical to its version at ddd689ab1c09.
+
+Apply with git apply.
+
+diff --git a/chrome/android/junit/BUILD.gn b/chrome/android/junit/BUILD.gn
+index ed6c3bc..dfb1f2f 100644
+--- a/chrome/android/junit/BUILD.gn
++++ b/chrome/android/junit/BUILD.gn
+@@ -111,6 +111,7 @@
+       "//chrome/browser/commerce/subscriptions/android:subscriptions_java",
+       "//chrome/browser/content_extraction/android:java",
+       "//chrome/browser/contextmenu:java",
++      "//chrome/browser/contextual_tasks:utils_java",
+       "//chrome/browser/data_sharing:data_sharing_public_java",
+       "//chrome/browser/data_sharing:factory_java",
+       "//chrome/browser/data_sharing:favicon_java",
+diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
+index 61d13a3..43a8446 100644
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -4777,6 +4777,14 @@
+          kContextualTasksUpdatedEntryPointsOmniboxRouting, nullptr},
+         {"with submenu", kContextualTasksUpdatedEntryPointsSubmenu, nullptr}};
+ 
++const FeatureEntry::FeatureParam
++    kContextualTasksEntryPointsWithOmniboxContextualSuggestions[] = {
++        {"omnibox_contextual_suggestions", "true"}};
++
++const FeatureEntry::FeatureVariation kContextualTasksEntryPointsVariations[] = {
++    {"with omnibox contextual suggestions",
++     kContextualTasksEntryPointsWithOmniboxContextualSuggestions, nullptr}};
++
+ #if BUILDFLAG(IS_ANDROID)
+ const FeatureEntry::FeatureParam kAnimatedProgressBar30FpsCap[] = {
+     {"fps_cap", "30"}};
+@@ -12334,6 +12342,16 @@
+      kOsAndroid,
+      FEATURE_VALUE_TYPE(contextual_tasks::kAllowSignedOutUserInDesktopAndroid)},
+ 
++    {"contextual-tasks-entry-points",
++     contextual_tasks::flag_descriptions::kContextualTasksEntryPointsName,
++     contextual_tasks::flag_descriptions::
++         kContextualTasksEntryPointsDescription,
++     kOsAndroid,
++     FEATURE_WITH_PARAMS_VALUE_TYPE(
++         contextual_tasks::kContextualTasksEntryPoints,
++         kContextualTasksEntryPointsVariations,
++         "ContextualTasksEntryPoints")},
++
+     {"omnibox-debug-logs", omnibox::flag_descriptions::kOmniboxDebugLogsName,
+      omnibox::flag_descriptions::kOmniboxDebugLogsDescription, kOsDesktop,
+      FEATURE_VALUE_TYPE(omnibox::kOmniboxDebugLogs)},
+diff --git a/chrome/browser/contextual_tasks/BUILD.gn b/chrome/browser/contextual_tasks/BUILD.gn
+index e747eb8..68e386f 100644
+--- a/chrome/browser/contextual_tasks/BUILD.gn
++++ b/chrome/browser/contextual_tasks/BUILD.gn
+@@ -161,7 +161,6 @@
+   if (is_android) {
+     sources += [
+       "android/contextual_tasks_bridge.cc",
+-      "android/contextual_tasks_bridge.h",
+       "android/contextual_tasks_ui_service_delegate_android.cc",
+       "android/contextual_tasks_ui_service_delegate_android.h",
+       "android/contextual_tasks_utils_android.cc",
+@@ -243,6 +242,7 @@
+       ":jni_headers",
+       ":utils_jni_headers",
+       "//chrome/browser/ui/webui:webui_util",
++      "//components/browser_ui/util/android",
+       "//ui/android",
+     ]
+   } else {
+@@ -285,6 +285,8 @@
+ 
+   if (is_android) {
+     sources += [
++      "android/contextual_tasks_bridge.h",
++      "android/contextual_tasks_omnibox_query_helper.h",
+       "android/contextual_tasks_panel_host_android.h",
+       "android/contextual_tasks_panel_host_desktop_android.h",
+       "android/contextual_tasks_toast.h",
+@@ -542,6 +544,7 @@
+     sources += [
+       "android/contextual_tasks_control_coordinator_android.cc",
+       "android/contextual_tasks_control_coordinator_android.h",
++      "android/contextual_tasks_omnibox_query_helper.cc",
+       "android/contextual_tasks_panel_host_android.cc",
+       "android/contextual_tasks_panel_host_desktop_android.cc",
+       "android/contextual_tasks_toast.cc",
+@@ -827,7 +830,10 @@
+   ]
+ 
+   if (is_android) {
+-    sources += [ "android/contextual_tasks_bridge_unittest.cc" ]
++    sources += [
++      "android/contextual_tasks_bridge_unittest.cc",
++      "android/contextual_tasks_omnibox_query_helper_unittest.cc",
++    ]
+   } else {
+     sources += [
+       "contextual_tasks_onboarding_tooltip_controller_unittest.cc",
+@@ -1157,10 +1163,14 @@
+     srcjar_deps = [ ":utils_jni_headers" ]
+     sources = [ "android/java/src/org/chromium/chrome/browser/contextual_tasks/ContextualTasksUtils.java" ]
+     deps = [
++      "//base:base_java",
+       "//base:build_info_java",
+       "//base:features_java",
+       "//chrome/browser/flags:java",
++      "//chrome/browser/tab:java",
++      "//chrome/browser/ui/android/lens:java",
+       "//components/embedder_support/android:util_java",
++      "//content/public/android:content_java",
+       "//third_party/jni_zero:jni_zero_java",
+       "//url:gurl_java",
+     ]
+@@ -1243,6 +1253,7 @@
+       "//chrome/browser/profiles/android:java",
+       "//chrome/browser/tab:java",
+       "//chrome/browser/tabmodel:java",
++      "//chrome/browser/ui/android/lens:java",
+       "//chrome/browser/ui/android/omnibox:java",
+       "//chrome/browser/ui/browser_window/public/android:java",
+       "//chrome/browser/ui/messages/android:java",
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_eligibility_manager.cc b/chrome/browser/contextual_tasks/contextual_tasks_eligibility_manager.cc
+index 60acf27..a99badbe 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_eligibility_manager.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_eligibility_manager.cc
+@@ -154,7 +154,8 @@
+     return true;
+   }
+ 
+-  return lens::features::IsLensSidePanelUnificationAllowSignedOut();
++  return lens::features::IsLensSidePanelUnificationAllowSignedOut() ||
++         IsAllowSignedOutUserInDesktopAndroidEnabled();
+ }
+ 
+ base::CallbackListSubscription
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui.cc
+index 75f7d98c..c13998d6 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui.cc
+@@ -1084,9 +1084,13 @@
+   }
+ 
+   // Sync the initial auto-suggestion state.
+-  if (composebox_handler_ && auto_suggestion_manager_->GetCurrentSuggestion()) {
+-    composebox_handler_->UpdateSuggestedTabContext(
+-        auto_suggestion_manager_->GetCurrentSuggestion());
++  if (composebox_handler_) {
++    if (auto_suggestion_manager_->GetCurrentSuggestion()) {
++      composebox_handler_->UpdateSuggestedTabContext(
++          auto_suggestion_manager_->GetCurrentSuggestion());
++    } else if (!IsShownInTab()) {
++      OnActiveTabContextStatusChanged();
++    }
+   }
+ }
+ 
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
+index 78824bf..9d0dc19 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
+@@ -252,19 +252,20 @@
+   }
+ }
+ 
+-#if !BUILDFLAG(IS_ANDROID)
+ bool ShouldResetZeroStateForAskGoogleEntryPoint(
+     const GURL& url,
+     ContextualTasksUiService* service,
+     omnibox::ChromeAimEntryPoint entry_point) {
+   const bool is_omnibox_action =
+-      base::FeatureList::IsEnabled(omnibox::kWebUIOmniboxAskGAboutThisPage) &&
++      (base::FeatureList::IsEnabled(omnibox::kWebUIOmniboxAskGAboutThisPage) ||
++       contextual_tasks::IsContextualTasksEntryPointsEnabled()) &&
+       entry_point ==
+           omnibox::ChromeAimEntryPoint::DESKTOP_CHROME_COBROWSE_OMNIBOX_ACTION;
+ 
+   const bool is_updated_entry_point =
+-      contextual_tasks::AreContextualTasksUpdatedEntryPointsEnabled(
+-          service->profile()) &&
++      (contextual_tasks::AreContextualTasksUpdatedEntryPointsEnabled(
++           service->profile()) ||
++       contextual_tasks::IsContextualTasksEntryPointsEnabled()) &&
+       (entry_point == omnibox::ChromeAimEntryPoint::
+                           DESKTOP_CHROME_PAGE_CONTEXT_MENU_ASK_GOOGLE ||
+        entry_point ==
+@@ -275,14 +276,6 @@
+   return (is_omnibox_action || is_updated_entry_point) &&
+          ContextualTasksUI::IsZeroState(url, service);
+ }
+-#else
+-bool ShouldResetZeroStateForAskGoogleEntryPoint(
+-    const GURL& url,
+-    ContextualTasksUiService* service,
+-    omnibox::ChromeAimEntryPoint entry_point) {
+-  return false;
+-}
+-#endif
+ 
+ void LoadUrlInSidePanel(content::WebContents* web_contents, const GURL& url) {
+   GURL new_url = ContextualTasksUiService::AddRequiredSidePanelUrlChanges(
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_utils.cc b/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
+index 052a518..51c2bfb 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
+@@ -337,7 +337,7 @@
+     contextual_search::ContextualSearchMetricsRecorder* metrics_recorder,
+     bool is_tab_suggestion_chip,
+     BrowserWindowInterface* browser_window_interface) {
+-  if (!metrics_recorder || !tab) {
++  if (!metrics_recorder || !tab || !tab->GetContents()) {
+     return;
+   }
+   if (!browser_window_interface) {
+@@ -363,6 +363,9 @@
+   auto all_tabs = tab_list->GetAllTabs();
+   for (size_t i = 0; i < all_tabs.size(); i++) {
+     tabs::TabInterface* tab_interface = all_tabs[i];
++    if (!tab_interface || !tab_interface->GetContents()) {
++      continue;
++    }
+ 
+     const std::u16string& tab_title = tab_interface->GetContents()->GetTitle();
+     if (tab_title == current_title) {
+diff --git a/chrome/browser/flag-metadata.json b/chrome/browser/flag-metadata.json
+index 5a238c9d..75899c38 100644
+--- a/chrome/browser/flag-metadata.json
++++ b/chrome/browser/flag-metadata.json
+@@ -2518,6 +2518,11 @@
+     "expiry_milestone": 160
+   },
+   {
++    "name": "contextual-tasks-entry-points",
++    "owners": [ "ender@google.com", "chrome-contextual-tasks-eng@google.com" ],
++    "expiry_milestone": 165
++  },
++  {
+     "name": "contextual-tasks-ephemeral-branded-entry-point",
+     "owners": ["mercerd@google.com", "chrome-contextual-tasks-eng@google.com"],
+     "expiry_milestone": 160
+diff --git a/chrome/browser/performance_manager/policies/background_tab_loading_policy.cc b/chrome/browser/performance_manager/policies/background_tab_loading_policy.cc
+index 5a85b4eb..4feb0778 100644
+--- a/chrome/browser/performance_manager/policies/background_tab_loading_policy.cc
++++ b/chrome/browser/performance_manager/policies/background_tab_loading_policy.cc
+@@ -125,8 +125,9 @@
+     // Cannot use GetPermissionStatusForCurrentDocument() because the navigation
+     // hasn't been committed in the RenderFrameHost yet, as evidenced by the
+     // DCHECK below.
+-    CHECK_EQ(content->GetPrimaryMainFrame()->GetLastCommittedURL(), GURL(),
+-             base::NotFatalUntil::M163);
++    // TODO(crbug.com/583678251): CHECK-exclusion: Convert to a CHECK once we
++    // are confident it won't be triggered.
++    DCHECK_EQ(content->GetPrimaryMainFrame()->GetLastCommittedURL(), GURL());
+     CHECK_NE(content->GetLastCommittedURL(), GURL(), base::NotFatalUntil::M163);
+ 
+     auto permission_descriptor = content::PermissionDescriptorUtil::
+diff --git a/chrome/browser/profiles/profile_avatar_icon_util.cc b/chrome/browser/profiles/profile_avatar_icon_util.cc
+index 90e331d..2341b1b 100644
+--- a/chrome/browser/profiles/profile_avatar_icon_util.cc
++++ b/chrome/browser/profiles/profile_avatar_icon_util.cc
+@@ -1139,8 +1139,9 @@
+   if ((source_bitmap.width() != kIconScaleFactor * kOldAvatarIconWidth) ||
+       (source_bitmap.height() != kIconScaleFactor * kOldAvatarIconHeight)) {
+     // It's not an old avatar icon, the image should be square.
+-    CHECK_EQ(source_bitmap.width(), source_bitmap.height(),
+-             base::NotFatalUntil::M162);
++    // TODO(crbug.com/579578807): CHECK-exclusion: Convert to a CHECK once we
++    // are confident it won't be triggered.
++    DCHECK_EQ(source_bitmap.width(), source_bitmap.height());
+     return source_bitmap;
+   }
+ 
+diff --git a/chrome/browser/resources/contextual_tasks/app.ts b/chrome/browser/resources/contextual_tasks/app.ts
+index 96f109a..a2d9102 100644
+--- a/chrome/browser/resources/contextual_tasks/app.ts
++++ b/chrome/browser/resources/contextual_tasks/app.ts
+@@ -577,9 +577,10 @@
+         // If we just changed to zero state, that means
+         // it is a new thread or new AIM page. Otherwise,
+         // we are not in zero state anymore, or not in an AIM URL. In
+-        // both thread/AIM cases for zero state, we clear input.
++        // both thread/AIM cases we clear input when entering zero state,
++        // but keep it (e.g. pre-staged image context) when already there.
+         if (isZeroState) {
+-          this.forceComposeboxFocus();
++          this.forceComposeboxFocus(/*clearInput=*/ !wasZeroState);
+           // Reset the forced composebox bounds since the zero state position
+           if (!this.shouldSetForceComposeboxBounds_()) {
+             this.forcedComposeboxBounds_ = null;
+@@ -700,7 +701,8 @@
+         // and focus the composebox.
+         if (this.isZeroState_ && this.isShownInTab_) {
+           this.playZeroStateAnimations_();
+-          this.forceComposeboxFocus();
++          this.forceComposeboxFocus(
++              /*clearInput=*/ this.isLoadingZeroStateFromResults_);
+         }
+       }
+     });
+@@ -778,10 +780,10 @@
+     // it now!
+     if (this.isZeroState_ && this.isDomContentLoaded_ && this.isShownInTab_) {
+       this.playZeroStateAnimations_();
+-      this.forceComposeboxFocus();
++      this.forceComposeboxFocus(/*clearInput=*/ false);
+     } else if (this.isZeroState_ && !this.isShownInTab_) {
+       this.playZeroStateAnimations_();
+-      this.forceComposeboxFocus();
++      this.forceComposeboxFocus(/*clearInput=*/ false);
+     }
+ 
+     // The thread URL is considered pending (not loaded immediately in the
+@@ -1409,8 +1411,12 @@
+   }
+ 
+   // Helper to focus the composebox, even if it is transitioning from hidden.
+-  private forceComposeboxFocus() {
+-    this.composebox_?.clearInputAndFocus();
++  private forceComposeboxFocus(clearInput: boolean = true) {
++    if (clearInput) {
++      this.composebox_?.clearInputAndFocus();
++    } else {
++      this.composebox_?.focus();
++    }
+     this.updateComplete.then(() => {
+       this.composebox_?.tryFocus();
+     });
+diff --git a/chrome/browser/signin/dice_web_signin_interceptor.cc b/chrome/browser/signin/dice_web_signin_interceptor.cc
+index 272c30d..a4754aa 100644
+--- a/chrome/browser/signin/dice_web_signin_interceptor.cc
++++ b/chrome/browser/signin/dice_web_signin_interceptor.cc
+@@ -1163,7 +1163,9 @@
+ void DiceWebSigninInterceptor::ProcessInterceptionOrWait(
+     const AccountInfo& info,
+     bool timed_out) {
+-  CHECK_EQ(info.GetAccountId(), state_->account_id_, base::NotFatalUntil::M162);
++  // TODO(crbug.com/580836376): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK_EQ(info.GetAccountId(), state_->account_id_);
+ 
+   if (!IsRequiredExtendedAccountInfoAvailable(info)) {
+     // We can't process the interception with the information currently
+diff --git a/chrome/browser/ui/android/omnibox/BUILD.gn b/chrome/browser/ui/android/omnibox/BUILD.gn
+index 5bee92ff..085963f 100644
+--- a/chrome/browser/ui/android/omnibox/BUILD.gn
++++ b/chrome/browser/ui/android/omnibox/BUILD.gn
+@@ -100,8 +100,8 @@
+     "java/src/org/chromium/chrome/browser/omnibox/fusebox/FuseboxAttachmentProperties.java",
+     "java/src/org/chromium/chrome/browser/omnibox/fusebox/FuseboxAttachmentRecyclerView.java",
+     "java/src/org/chromium/chrome/browser/omnibox/fusebox/FuseboxAttachmentRecyclerViewAdapter.java",
+-    "java/src/org/chromium/chrome/browser/omnibox/fusebox/FuseboxAttachmentViewBinder.java",
+     "java/src/org/chromium/chrome/browser/omnibox/fusebox/FuseboxAttachmentView.java",
++    "java/src/org/chromium/chrome/browser/omnibox/fusebox/FuseboxAttachmentViewBinder.java",
+     "java/src/org/chromium/chrome/browser/omnibox/fusebox/FuseboxControls.java",
+     "java/src/org/chromium/chrome/browser/omnibox/fusebox/FuseboxCoordinator.java",
+     "java/src/org/chromium/chrome/browser/omnibox/fusebox/FuseboxFeatureUtils.java",
+@@ -181,6 +181,7 @@
+     "java/src/org/chromium/chrome/browser/omnibox/suggestions/action/OmniboxActionDelegateImpl.java",
+     "java/src/org/chromium/chrome/browser/omnibox/suggestions/action/OmniboxActionFactory.java",
+     "java/src/org/chromium/chrome/browser/omnibox/suggestions/action/OmniboxActionInSuggest.java",
++    "java/src/org/chromium/chrome/browser/omnibox/suggestions/action/OmniboxContextualSearchFulfillmentAction.java",
+     "java/src/org/chromium/chrome/browser/omnibox/suggestions/action/OmniboxLensOverlayAction.java",
+     "java/src/org/chromium/chrome/browser/omnibox/suggestions/action/OmniboxPedal.java",
+     "java/src/org/chromium/chrome/browser/omnibox/suggestions/action/SiteSearchAction.java",
+@@ -648,6 +649,7 @@
+     "java/src/org/chromium/chrome/browser/omnibox/suggestions/action/OmniboxActionDelegateImplUnitTest.java",
+     "java/src/org/chromium/chrome/browser/omnibox/suggestions/action/OmniboxActionFactoryUnitTest.java",
+     "java/src/org/chromium/chrome/browser/omnibox/suggestions/action/OmniboxActionInSuggestUnitTest.java",
++    "java/src/org/chromium/chrome/browser/omnibox/suggestions/action/OmniboxContextualSearchFulfillmentActionUnitTest.java",
+     "java/src/org/chromium/chrome/browser/omnibox/suggestions/action/OmniboxLensOverlayActionUnitTest.java",
+     "java/src/org/chromium/chrome/browser/omnibox/suggestions/action/OmniboxPedalUnitTest.java",
+     "java/src/org/chromium/chrome/browser/omnibox/suggestions/answer/AnswerSuggestionProcessorUnitTest.java",
+diff --git a/chrome/browser/ui/autofill/autofill_popup_controller_impl.cc b/chrome/browser/ui/autofill/autofill_popup_controller_impl.cc
+index f3fe695..89b1dcb 100644
+--- a/chrome/browser/ui/autofill/autofill_popup_controller_impl.cc
++++ b/chrome/browser/ui/autofill/autofill_popup_controller_impl.cc
+@@ -83,6 +83,11 @@
+     case AutofillSuggestionTriggerSource::kAtMemoryDoubleCtrl:
+     case AutofillSuggestionTriggerSource::kAtMemoryInactivityNudge:
+     case AutofillSuggestionTriggerSource::kAtMemoryKeyboardShortcut:
++    // Proactive Gmail OTP suggestions open asynchronously upon email arrival
++    // without a direct click on the field, so the user's stationary cursor
++    // frequently rests where the row first paints. Gmail OTP suggestions are
++    // already restricted to sender-affiliated, PhishGuard-verified origins.
++    case AutofillSuggestionTriggerSource::kGmailOneTimePasswordAvailable:
+       return false;
+     case AutofillSuggestionTriggerSource::kUnspecified:
+     case AutofillSuggestionTriggerSource::kFormControlElementClicked:
+@@ -98,7 +103,6 @@
+     case AutofillSuggestionTriggerSource::kComposeDelayedProactiveNudge:
+     case AutofillSuggestionTriggerSource::kPasswordManagerProcessedFocusedField:
+     case AutofillSuggestionTriggerSource::kProactivePasswordRecovery:
+-    case AutofillSuggestionTriggerSource::kGmailOneTimePasswordAvailable:
+     case AutofillSuggestionTriggerSource::kGlic:
+       return true;
+   }
+diff --git a/chrome/browser/ui/exclusive_access/fullscreen_controller.cc b/chrome/browser/ui/exclusive_access/fullscreen_controller.cc
+index 2b9a22a1..1675ed7f 100644
+--- a/chrome/browser/ui/exclusive_access/fullscreen_controller.cc
++++ b/chrome/browser/ui/exclusive_access/fullscreen_controller.cc
+@@ -742,7 +742,9 @@
+       web_contents ? FullscreenWithinTabHelper::FromWebContents(web_contents)
+                    : nullptr;
+   if (helper && helper->is_fullscreen_within_tab()) {
+-    CHECK_NE(exclusive_access_tab(), web_contents, base::NotFatalUntil::M162);
++    // TODO(crbug.com/581005180): CHECK-exclusion: Convert to a CHECK once we
++    // are confident it won't be triggered.
++    DCHECK_NE(exclusive_access_tab(), web_contents);
+     return true;
+   }
+   return false;
+diff --git a/chrome/browser/ui/views/constrained_web_dialog_delegate_views.cc b/chrome/browser/ui/views/constrained_web_dialog_delegate_views.cc
+index 9517e28a..b26f55f6 100644
+--- a/chrome/browser/ui/views/constrained_web_dialog_delegate_views.cc
++++ b/chrome/browser/ui/views/constrained_web_dialog_delegate_views.cc
+@@ -475,7 +475,9 @@
+ bool ConstrainedDialogWebView::AcceleratorPressed(
+     const ui::Accelerator& accelerator) {
+   // Pressing ESC closes the dialog.
+-  CHECK_EQ(ui::VKEY_ESCAPE, accelerator.key_code(), base::NotFatalUntil::M162);
++  // TODO(crbug.com/581594522): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK_EQ(ui::VKEY_ESCAPE, accelerator.key_code());
+   GetWebDialogDelegate()->OnDialogClosingFromKeyEvent();
+   GetWidget()->CloseWithReason(views::Widget::ClosedReason::kEscKeyPressed);
+   return true;
+diff --git a/chrome/browser/ui/views/tabs/hovercard/tab_hover_card_controller.cc b/chrome/browser/ui/views/tabs/hovercard/tab_hover_card_controller.cc
+index 5b912008..b62b65e 100644
+--- a/chrome/browser/ui/views/tabs/hovercard/tab_hover_card_controller.cc
++++ b/chrome/browser/ui/views/tabs/hovercard/tab_hover_card_controller.cc
+@@ -590,7 +590,9 @@
+ 
+   CHECK(anchor_target, base::NotFatalUntil::M162);
+   CHECK(hover_card_, base::NotFatalUntil::M162);
+-  CHECK(waiting_for_preview(), base::NotFatalUntil::M162);
++  // TODO(crbug.com/584203133): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(waiting_for_preview());
+ 
+   const TabCardData& card_data = std::get<TabCardData>(anchor_target->data());
+   auto thumbnail = card_data.thumbnail;
+diff --git a/chrome/browser/ui/webui/settings/site_settings_helper.cc b/chrome/browser/ui/webui/settings/site_settings_helper.cc
+index f8014a7..2e912c6e 100644
+--- a/chrome/browser/ui/webui/settings/site_settings_helper.cc
++++ b/chrome/browser/ui/webui/settings/site_settings_helper.cc
+@@ -1281,8 +1281,9 @@
+       content_settings::mojom::SessionModel::ONE_TIME) {
+     CHECK(permissions::PermissionUtil::DoesSupportTemporaryGrants(content_type),
+           base::NotFatalUntil::M162);
+-    CHECK_EQ(result.status, PermissionStatus::GRANTED,
+-             base::NotFatalUntil::M162);
++    // TODO(crbug.com/579245368): CHECK-exclusion: Convert to a CHECK once we
++    // are confident it won't be triggered.
++    DCHECK_EQ(result.status, PermissionStatus::GRANTED);
+     return CONTENT_SETTING_DEFAULT;
+   }
+   return permissions::PermissionUtil::PermissionStatusToContentSetting(
+diff --git a/chrome/browser/web_applications/web_app_icon_manager.cc b/chrome/browser/web_applications/web_app_icon_manager.cc
+index 996bdd6..c8a6fd9 100644
+--- a/chrome/browser/web_applications/web_app_icon_manager.cc
++++ b/chrome/browser/web_applications/web_app_icon_manager.cc
+@@ -1293,7 +1293,9 @@
+                  "web_app_icon_manager::WriteIconsJob::EncodeAndWriteIcon");
+     CHECK_NE(bitmap.colorType(), kUnknown_SkColorType,
+              base::NotFatalUntil::M162);
+-    CHECK_EQ(bitmap.width(), bitmap.height(), base::NotFatalUntil::M162);
++    // TODO(crbug.com/580255013): CHECK-exclusion: Convert to a CHECK once we
++    // are confident it won't be triggered.
++    DCHECK_EQ(bitmap.width(), bitmap.height());
+     base::FilePath icon_file =
+         icons_dir.AppendASCII(base::StringPrintf("%i.png", bitmap.width()));
+ 
+diff --git a/components/contextual_tasks/public/features.cc b/components/contextual_tasks/public/features.cc
+index c3f4f6d..7c8cc06 100644
+--- a/components/contextual_tasks/public/features.cc
++++ b/components/contextual_tasks/public/features.cc
+@@ -515,6 +515,48 @@
+ #endif
+ }
+ 
++BASE_FEATURE(kContextualTasksEntryPoints, base::FEATURE_DISABLED_BY_DEFAULT);
++
++const base::FeatureParam<bool> kContextualTasksEntryPointsPageContextMenu(
++    &kContextualTasksEntryPoints,
++    "page_context_menu",
++    true);
++
++const base::FeatureParam<bool> kContextualTasksEntryPointsAppMenu(
++    &kContextualTasksEntryPoints,
++    "app_menu",
++    true);
++
++const base::FeatureParam<bool> kContextualTasksEntryPointsImageContextMenu(
++    &kContextualTasksEntryPoints,
++    "image_context_menu",
++    true);
++
++const base::FeatureParam<bool> kContextualTasksEntryPointsToolbarButton(
++    &kContextualTasksEntryPoints,
++    "toolbar_button",
++    true);
++
++const base::FeatureParam<bool> kContextualTasksEntryPointsOmnibox(
++    &kContextualTasksEntryPoints,
++    "omnibox",
++    true);
++
++const base::FeatureParam<bool>
++    kContextualTasksEntryPointsOmniboxContextualSuggestions(
++        &kContextualTasksEntryPoints,
++        "omnibox_contextual_suggestions",
++        false);
++
++bool IsContextualTasksEntryPointsEnabled() {
++#if BUILDFLAG(IS_ANDROID)
++  return base::FeatureList::IsEnabled(kContextualTasksEntryPoints) &&
++         ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_DESKTOP;
++#else
++  return false;
++#endif
++}
++
+ bool GetIsContextualTasksPdfCitationsEnabled() {
+   return base::FeatureList::IsEnabled(kContextualTasksPdfCitations);
+ }
+@@ -1491,6 +1533,13 @@
+ const char kAllowSignedOutUserInDesktopAndroidDescription[] =
+     "Allows signed-out users to use side panel cobrowse on Desktop Android.";
+ 
++const char kContextualTasksEntryPointsName[] =
++    "Contextual Tasks Entry Points on Desktop Android";
++const char kContextualTasksEntryPointsDescription[] =
++    "Enables Contextual Search (Ask Google) entry points in the page context "
++    "menu, app menu, image context menu, toolbar button, and omnibox on "
++    "Desktop Android.";
++
+ }  // namespace flag_descriptions
+ 
+ }  // namespace contextual_tasks
+diff --git a/components/contextual_tasks/public/features.h b/components/contextual_tasks/public/features.h
+index 91e1bd4..920ab9e 100644
+--- a/components/contextual_tasks/public/features.h
++++ b/components/contextual_tasks/public/features.h
+@@ -211,6 +211,28 @@
+ // Desktop Android.
+ bool IsAllowSignedOutUserInDesktopAndroidEnabled();
+ 
++// Enables Contextual Search ("Ask Google") entry points on Desktop Android,
++// including page context menu, app menu, image context menu, toolbar button,
++// and omnibox suggestions.
++BASE_DECLARE_FEATURE(kContextualTasksEntryPoints);
++
++extern const base::FeatureParam<bool>
++    kContextualTasksEntryPointsPageContextMenu;
++extern const base::FeatureParam<bool> kContextualTasksEntryPointsAppMenu;
++extern const base::FeatureParam<bool>
++    kContextualTasksEntryPointsImageContextMenu;
++extern const base::FeatureParam<bool> kContextualTasksEntryPointsToolbarButton;
++extern const base::FeatureParam<bool> kContextualTasksEntryPointsOmnibox;
++// Whether contextual zero-prefix suggestions are requested without Lens and
++// fulfilled in the Contextual Tasks side panel. Separate from `omnibox`, which
++// controls the static "Ask Google about this page" action.
++extern const base::FeatureParam<bool>
++    kContextualTasksEntryPointsOmniboxContextualSuggestions;
++
++// Returns whether Contextual Search entry points are enabled on Desktop
++// Android.
++bool IsContextualTasksEntryPointsEnabled();
++
+ // When enabled, tracks cross-tab ABA search journeys (Tab A -> Search in Tab B
+ // -> Return to Tab A) to trigger an in-product help promo for Contextual Tasks.
+ BASE_DECLARE_FEATURE(kABASearchJourneys);
+@@ -808,6 +830,8 @@
+ extern const char kABASearchJourneysDescription[];
+ extern const char kAllowSignedOutUserInDesktopAndroidName[];
+ extern const char kAllowSignedOutUserInDesktopAndroidDescription[];
++extern const char kContextualTasksEntryPointsName[];
++extern const char kContextualTasksEntryPointsDescription[];
+ 
+ }  // namespace flag_descriptions
+ 
+diff --git a/components/omnibox/browser/actions/contextual_search_action.cc b/components/omnibox/browser/actions/contextual_search_action.cc
+index 7dffb3a1..68b366b 100644
+--- a/components/omnibox/browser/actions/contextual_search_action.cc
++++ b/components/omnibox/browser/actions/contextual_search_action.cc
+@@ -4,10 +4,10 @@
+ 
+ #include "components/omnibox/browser/actions/contextual_search_action.h"
+ 
+-#include "components/omnibox/common/omnibox_features.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "components/omnibox/browser/actions/omnibox_action_concepts.h"
+ #include "components/omnibox/common/omnibox_feature_configs.h"
++#include "components/omnibox/common/omnibox_features.h"
+ #include "components/search_engines/template_url_starter_pack_data.h"
+ #include "components/strings/grit/components_strings.h"
+ #include "ui/base/l10n/l10n_util.h"
+@@ -85,6 +85,19 @@
+   }
+   return nullptr;
+ }
++
++#if BUILDFLAG(IS_ANDROID)
++base::android::ScopedJavaLocalRef<jobject>
++ContextualSearchFulfillmentAction::GetOrCreateJavaObject(JNIEnv* env) const {
++  if (!j_omnibox_action_) {
++    j_omnibox_action_.Reset(BuildOmniboxContextualSearchFulfillmentAction(
++        env, reinterpret_cast<intptr_t>(this), strings_.hint,
++        strings_.accessibility_hint,
++        fulfillment_url_.is_valid() ? fulfillment_url_ : url_));
++  }
++  return base::android::ScopedJavaLocalRef<jobject>(j_omnibox_action_);
++}
++#endif  // BUILDFLAG(IS_ANDROID)
+ #if defined(SUPPORT_PEDALS_VECTOR_ICONS)
+ const gfx::VectorIcon& ContextualSearchFulfillmentAction::GetVectorIcon()
+     const {
+diff --git a/components/omnibox/browser/actions/contextual_search_action.h b/components/omnibox/browser/actions/contextual_search_action.h
+index ace7ab1d2..9c1d7b5d 100644
+--- a/components/omnibox/browser/actions/contextual_search_action.h
++++ b/components/omnibox/browser/actions/contextual_search_action.h
+@@ -22,6 +22,10 @@
+   OmniboxActionId ActionId() const override;
+   void RecordActionShown(size_t position, bool executed) const override;
+   void Execute(ExecutionContext& context) const override;
++#if BUILDFLAG(IS_ANDROID)
++  base::android::ScopedJavaLocalRef<jobject> GetOrCreateJavaObject(
++      JNIEnv* env) const override;
++#endif
+ #if defined(SUPPORT_PEDALS_VECTOR_ICONS)
+   const gfx::VectorIcon& GetVectorIcon() const override;
+ #endif
+diff --git a/components/omnibox_strings.grdp b/components/omnibox_strings.grdp
+index 872d304..cce082f 100644
+--- a/components/omnibox_strings.grdp
++++ b/components/omnibox_strings.grdp
+@@ -25,7 +25,7 @@
+     Ask <ph name="ENGINE">$1<ex>AI Mode</ex></ph>
+   </message>
+ 
+-  <message name="IDS_CONTEXTUAL_SEARCH_OPEN_LENS_ACTION_LABEL" desc="Label text for the action match that opens lens.">
++  <message name="IDS_CONTEXTUAL_SEARCH_OPEN_LENS_ACTION_LABEL" desc="Label text for the action match that opens lens. Also used for the 'Ask Google about this page' context menu and app menu items on Desktop Android." formatter_data="android_java">
+     Ask Google about this page
+   </message>
+   <message name="IDS_CONTEXTUAL_SEARCH_OPEN_LENS_ACTION_LABEL_ALT" desc="Alternative label text for the action match that opens lens.">
+diff --git a/storage/browser/file_system/local_file_stream_reader.cc b/storage/browser/file_system/local_file_stream_reader.cc
+index 1f05ac7..6e43f72 100644
+--- a/storage/browser/file_system/local_file_stream_reader.cc
++++ b/storage/browser/file_system/local_file_stream_reader.cc
+@@ -70,7 +70,6 @@
+   DCHECK(!has_pending_open_);
+ 
+   if (stream_impl_) {
+-    callback_ = std::move(callback);
+     const auto result =
+         stream_impl_->Read(buf.get(), buf_len,
+                            base::BindOnce(&LocalFileStreamReader::OnRead,
+@@ -78,8 +77,8 @@
+     const int read_result = result.has_value()
+                                 ? base::checked_cast<int>(result->InBytes())
+                                 : result.error();
+-    if (read_result != net::ERR_IO_PENDING) {
+-      std::move(callback_).Run(read_result);
++    if (read_result == net::ERR_IO_PENDING) {
++      callback_ = std::move(callback);
+     }
+     return read_result;
+   }
+@@ -135,7 +134,10 @@
+     net::CompletionOnceCallback callback,
+     file_access::ScopedFileAccess scoped_file_access) {
+   if (!scoped_file_access.is_allowed()) {
+-    std::move(callback).Run(net::ERR_ACCESS_DENIED);
++    // Post asynchronously so `Read()` never invokes its completion callback
++    // synchronously before returning `net::ERR_IO_PENDING`.
++    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++        FROM_HERE, base::BindOnce(std::move(callback), net::ERR_ACCESS_DENIED));
+     return;
+   }
+ 
+diff --git a/third_party/blink/renderer/platform/runtime_enabled_features.json5 b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+index 62c811f..7770b3c4 100644
+--- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
++++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+@@ -7891,7 +7891,12 @@
+     },
+     {
+       name: "WebSpeechTimestamps",
+-      status: "experimental",
++      status: {
++        "Win": "stable",
++        "Mac": "stable",
++        "Linux": "stable",
++        "default": "",
++      },
+     },
+     {
+       name: "WebSpeechUnspokenPunctuation",
+diff --git a/tools/metrics/actions/actions.xml b/tools/metrics/actions/actions.xml
+index 8ad3623..6f406447 100644
+--- a/tools/metrics/actions/actions.xml
++++ b/tools/metrics/actions/actions.xml
+@@ -22069,6 +22069,14 @@
+   </description>
+ </action>
+ 
++<action name="MobileMenuAskGoogleAboutThisPage">
++  <owner>ender@google.com</owner>
++  <owner>chrome-omnibox-team@google.com</owner>
++  <description>
++    User pressed 'Ask Google about this page' in the app menu.
++  </description>
++</action>
++
+ <action name="MobileMenuBack">
+   <owner>aurimas@chromium.org</owner>
+   <description>User pressed the back icon in the app menu.</description>
+diff --git a/ui/aura/window.cc b/ui/aura/window.cc
+index 75a33fb..53abd53 100644
+--- a/ui/aura/window.cc
++++ b/ui/aura/window.cc
+@@ -1471,7 +1471,9 @@
+   CHECK_NE(child, target, base::NotFatalUntil::M163);
+   CHECK(child, base::NotFatalUntil::M163);
+   CHECK(target, base::NotFatalUntil::M163);
+-  CHECK_EQ(this, child->parent(), base::NotFatalUntil::M163);
++  // TODO(crbug.com/586118968): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK_EQ(this, child->parent());
+   CHECK_EQ(this, target->parent(), base::NotFatalUntil::M163);
+ 
+   WindowOcclusionTracker::ScopedPause pause_occlusion_tracking;
+diff --git a/ui/compositor/layer_animation_element.cc b/ui/compositor/layer_animation_element.cc
+index 21c7979..bc9da945 100644
+--- a/ui/compositor/layer_animation_element.cc
++++ b/ui/compositor/layer_animation_element.cc
+@@ -674,7 +674,9 @@
+ 
+ void LayerAnimationElement::Start(LayerAnimationDelegate* delegate,
+                                   int animation_group_id) {
+-  CHECK(requested_start_time_ != base::TimeTicks(), base::NotFatalUntil::M163);
++  // TODO(crbug.com/586144204): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(requested_start_time_ != base::TimeTicks());
+   CHECK(first_frame_, base::NotFatalUntil::M163);
+   animation_group_id_ = animation_group_id;
+   last_progressed_fraction_ = 0.0;
