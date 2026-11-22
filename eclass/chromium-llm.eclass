@@ -103,6 +103,13 @@
 # HarfBuzz's Unicode data, file by file (from unicodetools), for a Unicode version whose zipped
 # UCD isn't published. Unset: the zipped UCD.
 
+# @ECLASS_VARIABLE: CHROMIUM_CRUBIT_RUST
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# For each slot of LLVM_COMPAT, "<LLVM slot>:<dev-lang/rust version>": the Rust that uses that
+# LLVM, whose dev-util/crubit-<Rust version>_p${CRUBIT_DATE} the build then needs (Crubit is
+# tied to one Rust build). Unset: the one for RUST_MIN_VER, whatever the LLVM slot.
+
 # @ECLASS_VARIABLE: CHROMIUM_UPSTREAM_CRUBIT
 # @DEFAULT_UNSET
 # @DESCRIPTION:
@@ -552,6 +559,24 @@ DEPEND="${COMMON_DEPEND}
 	)
 "
 
+# The dev-util/crubit for the selected Rust (see CHROMIUM_CRUBIT_RUST).
+_chromium_crubit_dep() {
+	if [[ ${#CHROMIUM_CRUBIT_RUST[@]} -eq 0 ]]; then
+		echo "~dev-util/crubit-${RUST_MIN_VER}_p${CRUBIT_DATE}"
+		return
+	fi
+	local slot e found
+	for slot in "${LLVM_COMPAT[@]}"; do
+		found=
+		for e in "${CHROMIUM_CRUBIT_RUST[@]}"; do
+			[[ ${e%%:*} == "${slot}" ]] || continue
+			echo "llvm_slot_${slot}? ( ~dev-util/crubit-${e#*:}_p${CRUBIT_DATE} )"
+			found=1
+		done
+		[[ -n ${found} ]] || die "CHROMIUM_CRUBIT_RUST has no Rust for LLVM ${slot}"
+	done
+}
+
 BDEPEND="
 	${COMMON_SNAPSHOT_DEPEND}
 	${PYTHON_DEPS}
@@ -574,7 +599,7 @@ BDEPEND="
 			!ppc64? ( llvm-runtimes/compiler-rt-sanitizers:${LLVM_SLOT}[cfi] )
 		) ')
 		${RUST_DEPEND}
-		~dev-util/crubit-${RUST_MIN_VER}_p${CRUBIT_DATE}
+		$(_chromium_crubit_dep)
 	)
 	pgo? (
 		>=dev-python/selenium-3.141.0
