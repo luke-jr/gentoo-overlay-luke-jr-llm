@@ -192,7 +192,7 @@ LICENSE+=" rar? ( unRAR )"
 SLOT="stable/fixes"
 KEYWORDS="~amd64 ~arm64"
 
-# The 159 branch's changes after the 159.0.8154.31 tag, up to #1325 (see its header).
+# The 159 branch's changes after the 159.0.8154.31 tag, up to #1400 (see its header).
 CHROMIUM_FIXES=(
 	chromium-159.0.8154.31-branch-fixes.patch
 )
