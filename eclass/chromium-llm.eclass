@@ -156,10 +156,12 @@
 # @DEFAULT_UNSET
 # @DESCRIPTION:
 # Opt-in (e.g. in make.conf): keep the build tree in this directory between builds, so that the
-# next build of the same major version only rebuilds what changed. It is expanded with MAJOR set
-# to the major version. Portage expands variables in make.conf even single-quoted, so escape
-# the $, e.g.
+# next build of the same major version only rebuilds what changed. It is expanded in pkg_setup,
+# with MAJOR set to the major version, and the toolchain's LLVM_SLOT and RUST_SLOT (both empty
+# with USE=bundled-toolchain). Portage expands variables in make.conf even single-quoted, so
+# escape the $, e.g.
 #   CHROMIUM_BUILD_DIR="/var/tmp/portage/chromium-build/\${MAJOR}"
+#   CHROMIUM_BUILD_DIR="/var/tmp/portage/chromium-build/\${MAJOR}-llvm\${LLVM_SLOT:-bundled}"
 # The sources are unpacked to its src/ (S), replacing the last build's, and the checked-in
 # generated files the build regenerates are moved aside to its upstream-generated/ (the same
 # filesystem as src/: a rename each); everything else is in its build/, which stays: the build directory (build/Release), and the tree's records (state,
@@ -244,17 +246,9 @@ inherit python-any-r1 readme.gentoo-r1 rust systemd toolchain-funcs virtualx xdg
 # The sources are in src/ and everything built from them in build/ (WORKDIR's, or the kept build
 # tree's): the build directory (gn gen, ninja) is build/Release, outside the sources, here
 # relative to S.
+# With a kept build tree (CHROMIUM_BUILD_DIR), S is its src/ (set in pkg_setup).
 S="${WORKDIR}/src"
 CHROMIUM_OUT=../build/Release
-if [[ -n ${CHROMIUM_BUILD_DIR} ]]; then
-	_chromium_build_tree() {
-		local MAJOR=${PV%%.*}
-		eval "CHROMIUM_BUILD_TREE=\"${CHROMIUM_BUILD_DIR}\""
-	}
-	_chromium_build_tree
-	unset -f _chromium_build_tree
-	S="${CHROMIUM_BUILD_TREE}/src"
-fi
 # Google's official "lite" source tarball, or the chromium-linux-tarballs one with
 # CHROMIUM_TARBALL_SOURCE=linux-tarballs (as for 156, whose 156.0.8078.47 had none at
 # chromium-linux-tarballs, which ::gentoo uses). For 156.0.8078.12, the two have the same content,
@@ -764,17 +758,6 @@ chromium-llm_pkg_pretend() {
 	if [[ ${MERGE_TYPE} != binary ]]; then
 		# The pre_build_checks are all about compilation resources, no need to run it for a binpkg
 		pre_build_checks
-		if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
-			local tree_owner=
-			[[ -f ${CHROMIUM_BUILD_TREE}/build/owner ]] && tree_owner=$(<"${CHROMIUM_BUILD_TREE}/build/owner")
-			if [[ -d ${CHROMIUM_BUILD_TREE}/build/Release ]]; then
-				einfo "Building in the kept build tree ${CHROMIUM_BUILD_TREE} (CHROMIUM_BUILD_DIR):"
-				einfo "reusing what ${tree_owner:+${tree_owner##*/} }built there, rebuilding only what changed."
-			else
-				einfo "Building in a new kept build tree ${CHROMIUM_BUILD_TREE} (CHROMIUM_BUILD_DIR):"
-				einfo "a full build, kept for the next build of ${PV%%.*}."
-			fi
-		fi
 	fi
 
 	if use headless; then
@@ -908,15 +891,28 @@ chromium-llm_pkg_setup() {
 			fi
 		fi
 
+		# The kept build tree (CHROMIUM_BUILD_DIR), now that the toolchain's slots are known.
+		if [[ -n ${CHROMIUM_BUILD_DIR} ]]; then
+			local MAJOR=${PV%%.*}
+			eval "CHROMIUM_BUILD_TREE=\"${CHROMIUM_BUILD_DIR}\""
+			S="${CHROMIUM_BUILD_TREE}/src"
+		fi
 		if [[ -n ${CHROMIUM_BUILD_TREE} ]]; then
+			local tree_owner=
+			[[ -f ${CHROMIUM_BUILD_TREE}/build/owner ]] && tree_owner=$(<"${CHROMIUM_BUILD_TREE}/build/owner")
+			if [[ -d ${CHROMIUM_BUILD_TREE}/build/Release ]]; then
+				einfo "Building in the kept build tree ${CHROMIUM_BUILD_TREE} (CHROMIUM_BUILD_DIR):"
+				einfo "reusing what ${tree_owner:+${tree_owner##*/} }built there, rebuilding only what changed."
+			else
+				einfo "Building in a new kept build tree ${CHROMIUM_BUILD_TREE} (CHROMIUM_BUILD_DIR):"
+				einfo "a full build, kept for the next build of ${PV%%.*}."
+			fi
 			addwrite "${CHROMIUM_BUILD_TREE}"
 			mkdir -p "${CHROMIUM_BUILD_TREE}" || die
 			# The phases after pkg_setup run as the build user (FEATURES=userpriv).
 			if [[ ${EUID} == 0 ]] && has userpriv ${FEATURES}; then
 				chown "${PORTAGE_BUILD_USER:-portage}:${PORTAGE_BUILD_GROUP:-portage}" "${CHROMIUM_BUILD_TREE}" || die
 			fi
-			local tree_owner=
-			[[ -f ${CHROMIUM_BUILD_TREE}/build/owner ]] && tree_owner=$(<"${CHROMIUM_BUILD_TREE}/build/owner")
 			# Another build using it (Portage still locks its build directory; see claim in
 			# files/chromium-build-tree.py, which isn't there yet in pkg_setup)?
 			if [[ -n ${tree_owner} && ${tree_owner} != "${PORTAGE_BUILDDIR}" ]]; then
