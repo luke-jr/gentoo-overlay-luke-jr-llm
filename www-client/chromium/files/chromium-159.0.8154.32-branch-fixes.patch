@@ -1,17 +1,17 @@
 Chromium 159.0.8154.32 + the later changes of its release branch, up to
-0615604cbe5a807a142bfd34eaa420ce04be2bdc (refs/branch-heads/8154@{#1460}), for the
-159.0.8154.32 tree that chromium-159.0.8154.28-to-159.0.8154.32.patch makes.
-The newest change it carries is 8154@{#1458}.
+b6203eb846244ba5f7e190cc5d8f5333fb41dade (refs/branch-heads/8154@{#1475}), for the
+159.0.8154.32 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
+chromium-159.0.8154.28-to-159.0.8154.32.patch). The newest change it carries is
+8154@{#1473}.
 
-Generated from the upstream diffs chromium/src
-refs/tags/159.0.8154.32..0615604cbe5a807a142bfd34eaa420ce04be2bdc and the dependency
-whose DEPS revision changed: V8 264c6cfa2279..dbed2497793f (under v8/), as served by
-Gitiles, with scripts/chromium-delta --branch-fixes (against the .32 tree's files):
-left out are files not in the release tarball, iOS/Android/ChromeOS/Mac/Windows-only
-files, tests and docs (GN files kept), translations other than en-GB, PGO/orderfile/AFDO
-pointers, submodule pointer updates. chrome/VERSION (the branch's "Incrementing VERSION"
-commits after the .32 tag are not tags yet), the DEPS files and the stamp files stay at
-159.0.8154.32. No other dependency's DEPS revision changes after .32.
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.32..b6203eb84624 and the
+dependency whose DEPS revision changed: V8 264c6cfa2279..ab5a3c3751bd (under v8/), as served
+by Gitiles, with scripts/chromium-delta/branch-fixes.py (filter.py --branch-fixes, against
+the 159.0.8154.32 tree's files): left out are files not in the release tarball,
+iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs (GN files kept), translations
+other than en-GB, PGO/orderfile/AFDO pointers, submodule pointer updates. chrome/VERSION
+(the branch's "Incrementing VERSION" commits after the 159.0.8154.32 tag are not tags yet),
+the DEPS files and the stamp files stay at 159.0.8154.32.
 
 Commits contributing to it (oldest first):
   e8043286ff9d Roll commits from side projects in M159 (V8 264c6cfa2279..3f63936945bb, 8154@{#1417})
@@ -19,19 +19,92 @@ Commits contributing to it (oldest first):
   fa11c84abc87 Roll commits from side projects in M159 (V8 3f63936945bb..27a5c765b634, 8154@{#1442})
   6494f9be3483 Roll commits from side projects in M159 (V8 27a5c765b634..dbed2497793f, 8154@{#1448})
   06450631d5c8 [M159] Fix for potential UAF in PermissionRequestManager selectors logic (8154@{#1458})
-V8 commits of those rolls that touch kept files:
-  a38f990ac808 [M159] [turbolev] Remap replaced header phis in peeled loop backedge KNA
-  a92c222bcaff [M159] [turboshaft] Check Load rep when folding map loads
-  e0b94eeddc62 [M159] [maglev] Keep single-input Phis tagged in phi untagging
-  bbbff2b74966 [M159] [turbofan] Check FrameState and locals for DeadValue in TryReuseDispatch
-  dbed2497793f Version 15.9.128.31 (include/v8-version.h)
+  19e641b3c91b [M159] Guard against transfer buffer ID wraparound (8154@{#1464})
+  e663ddf8f955 [M159] [iOS][Gemini] Defer container presentation until page context loads (8154@{#1465})
+  353cb8e7678c [M159] [macOS] Exit Chrome-launched app shim cleanly if Chrome exits (8154@{#1469})
+  c4dd84c063c4 [M159] [Extensions] Start ExtensionUpdater before CheckManagementPolicy (8154@{#1470})
+  7e1d0ccdd115 Roll commits from side projects in M159 (V8 dbed2497793f..ab5a3c3751bd, 8154@{#1471})
+  7487a94525d9 [M159] [FedCM] Return early in ShowErrorDialog() if the view destroys it (8154@{#1473})
+Dependency commits of those rolls that touch kept files:
+  a38f990ac808 [M159] [turbolev] Remap replaced header phis in peeled loop backedge KNA (V8: src/maglev/maglev-known-node-aspects.cc, src/maglev/maglev-known-node-aspects.h, src/maglev/maglev-loop-peeler.cc)
+  3f63936945bb Version 15.9.128.28 (V8: include/v8-version.h)
+  a92c222bcaff [M159] [turboshaft] Check Load rep when folding map loads (V8: src/compiler/turboshaft/machine-optimization-reducer.h)
+  27a5c765b634 Version 15.9.128.29 (V8: include/v8-version.h)
+  e0b94eeddc62 [M159] [maglev] Keep single-input Phis tagged in phi untagging (V8: src/maglev/maglev-phi-representation-selector.cc)
+  8ddc2387fc7f Version 15.9.128.30 (V8: include/v8-version.h)
+  bbbff2b74966 [M159] [turbofan] Check FrameState and locals for DeadValue in TryReuseDispatch (V8: src/compiler/common-operator.h, src/compiler/js-inlining-heuristic.cc)
+  dbed2497793f Version 15.9.128.31 (V8: include/v8-version.h)
+  fa009c9f676c [M159] [compiler] Preserve 64-bit GP sources in mixed-width move cycles (V8: src/compiler/backend/gap-resolver.cc, src/compiler/backend/instruction.h, src/compiler/backend/loong64/code-generator-loong64.cc, src/compiler/backend/mips64/code-generator-mips64.cc, src/compiler/backend/riscv/code-generator-riscv.cc, src/compiler/backend/x64/code-generator-x64.cc)
+  ab5a3c3751bd Version 15.9.128.32 (V8: include/v8-version.h)
 
-Checked: applies to the 159.0.8154.32 tree (the .28 tarball with
-chromium-159.0.8154.28-to-159.0.8154.32.patch); every patched source file is
-byte-identical to its version at 0615604cbe5a (or V8's dbed2497793f).
+Checked: applies to the 159.0.8154.32 tree; every patched file is byte-identical to its
+version at b6203eb84624 (or V8's ab5a3c3751bd).
 
 Apply with git apply.
 
+diff --git a/chrome/app_shim/app_shim_controller.h b/chrome/app_shim/app_shim_controller.h
+index fb9531e5..8e691f5 100644
+--- a/chrome/app_shim/app_shim_controller.h
++++ b/chrome/app_shim/app_shim_controller.h
+@@ -6,7 +6,9 @@
+ #define CHROME_APP_SHIM_APP_SHIM_CONTROLLER_H_
+ 
+ #import <AppKit/AppKit.h>
++#include <sys/types.h>
+ 
++#include <optional>
+ #include <vector>
+ 
+ #include "base/cancelable_callback.h"
+@@ -49,6 +51,8 @@
+    public:
+     virtual ~TestDelegate() = default;
+     virtual void PopulateChromeCommandLine(base::CommandLine& command_line) = 0;
++    // Called when PollForChromeReady() is about to schedule a retry.
++    virtual void OnPollForChromeReady() {}
+   };
+ 
+   static void SetDelegateForTesting(TestDelegate* delegate);
+@@ -303,6 +307,10 @@
+   // - The pid specified in the chrome::kSingletonLockFilename file.
+   NSRunningApplication* __strong chrome_to_connect_to_;
+ 
++  // The validated PID from `app_mode::kLaunchedByChromeProcessId`, if this shim
++  // was launched by Chrome.
++  std::optional<pid_t> launched_by_chrome_pid_;
++
+   // The Chrome process that was launched by this app in FindOrLaunchChrome.
+   // Note that the app is not compelled to connect to this process (consider the
+   // case where multiple apps launch at the same time, and all launch their own
+diff --git a/chrome/browser/extensions/extension_service.cc b/chrome/browser/extensions/extension_service.cc
+index bbfff3d..10fe5fde 100644
+--- a/chrome/browser/extensions/extension_service.cc
++++ b/chrome/browser/extensions/extension_service.cc
+@@ -367,6 +367,13 @@
+     InstalledLoader(profile_).LoadAllExtensions();
+   }
+ 
++  // Start the updater before CheckManagementPolicy(), which can call
++  // ExtensionUpdater::CheckNow() for extensions that are disabled only because
++  // they fail minimum_version_required.
++  if (updater_ && updater_->enabled()) {
++    updater_->Start();
++  }
++
+   CheckManagementPolicy();
+   OnInstalledExtensionsLoaded();
+ 
+@@ -934,10 +941,6 @@
+ }
+ 
+ void ExtensionService::OnInstalledExtensionsLoaded() {
+-  if (updater_ && updater_->enabled()) {
+-    updater_->Start();
+-  }
+-
+   // Enable any Shared Modules that incorrectly got disabled previously.
+   // This is temporary code to fix incorrect behavior from previous versions of
+   // Chrome and can be removed after several releases (perhaps M60).
 diff --git a/chrome/browser/ui/content_settings/BUILD.gn b/chrome/browser/ui/content_settings/BUILD.gn
 index 5ba1eb8..83955f4 100644
 --- a/chrome/browser/ui/content_settings/BUILD.gn
@@ -113,6 +186,28 @@ index f9efaf9e..49978228 100644
  
   private:
    ListItem CreateListItem(const GURL& url);
+diff --git a/chrome/browser/ui/webid/identity_dialog_controller.cc b/chrome/browser/ui/webid/identity_dialog_controller.cc
+index 476c466..d9c83dc 100644
+--- a/chrome/browser/ui/webid/identity_dialog_controller.cc
++++ b/chrome/browser/ui/webid/identity_dialog_controller.cc
+@@ -455,10 +455,14 @@
+     return false;
+   }
+ 
+-  // Do not modify any member variables if the error dialog is not shown
+-  // because the caller may have destroyed this object.
++  // Do not access any member variables if the error dialog is not shown or if
++  // showing it destroyed this object, e.g. because the dialog was dismissed
++  // right away.
++  base::WeakPtr<IdentityDialogController> weak_this =
++      weak_ptr_factory_.GetWeakPtr();
+   if (account_view_->ShowErrorDialog(rp_data, idp_for_display, rp_context,
+-                                     rp_mode, idp_metadata, error)) {
++                                     rp_mode, idp_metadata, error) &&
++      weak_this) {
+     DidInvokeShowUi();
+     NotifyEmbedderOfResult(FederatedLoginResult::kIdpReturnedError);
+     return true;
 diff --git a/components/blocked_content/BUILD.gn b/components/blocked_content/BUILD.gn
 index f9b40fe..13149a2a 100644
 --- a/components/blocked_content/BUILD.gn
@@ -203,8 +298,57 @@ index 1eb6d7a..070b8fd8 100644
    }
  }
  
+diff --git a/gpu/command_buffer/common/buffer.cc b/gpu/command_buffer/common/buffer.cc
+index 933f9b46..2d4ddd51 100644
+--- a/gpu/command_buffer/common/buffer.cc
++++ b/gpu/command_buffer/common/buffer.cc
+@@ -7,6 +7,7 @@
+ #include <stddef.h>
+ #include <stdint.h>
+ 
++#include <limits>
+ #include <ostream>
+ 
+ #include "base/atomic_sequence_num.h"
+@@ -126,7 +127,9 @@
+ 
+ int32_t GetNextBufferId() {
+   // 0 is a reserved value.
+-  return g_next_buffer_id.GetNext() + 1;
++  int32_t id = g_next_buffer_id.GetNext() + 1;
++  CHECK_NE(id, std::numeric_limits<int32_t>::max());
++  return id;
+ }
+ 
+ base::trace_event::MemoryAllocatorDumpGuid GetBufferGUIDForTracing(
+diff --git a/gpu/command_buffer/common/buffer.h b/gpu/command_buffer/common/buffer.h
+index 4dba192b..0f9b326 100644
+--- a/gpu/command_buffer/common/buffer.h
++++ b/gpu/command_buffer/common/buffer.h
+@@ -136,7 +136,8 @@
+ }
+ 
+ // Generates a process unique buffer ID which can be safely used with
+-// GetBufferGUIDForTracing.
++// GetBufferGUIDForTracing. The return ID will be a positive non-zero integer.
++// The process will terminate if the positive ID space is exhausted.
+ GPU_COMMAND_BUFFER_COMMON_EXPORT int32_t GetNextBufferId();
+ 
+ // Generates GUID which can be used to trace buffer using an Id.
+diff --git a/ios/chrome/browser/intelligence/bwg/coordinator/BUILD.gn b/ios/chrome/browser/intelligence/bwg/coordinator/BUILD.gn
+index f39209569..a8b7bb0 100644
+--- a/ios/chrome/browser/intelligence/bwg/coordinator/BUILD.gn
++++ b/ios/chrome/browser/intelligence/bwg/coordinator/BUILD.gn
+@@ -255,6 +255,7 @@
+     "//ios/chrome/browser/sync/model:test_support",
+     "//ios/chrome/browser/url_loading/model",
+     "//ios/chrome/browser/url_loading/model:test_support",
++    "//ios/chrome/browser/web/model/web_view_proxy",
+     "//ios/chrome/test:test_support",
+     "//ios/public/provider/chrome/browser/bwg:gemini_api",
+     "//ios/web/public",
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index 71f1405..9914647 100644
+index 71f1405..fd198cc 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -212,10 +356,198 @@ index 71f1405..9914647 100644
  #define V8_MINOR_VERSION 9
  #define V8_BUILD_NUMBER 128
 -#define V8_PATCH_LEVEL 27
-+#define V8_PATCH_LEVEL 31
++#define V8_PATCH_LEVEL 32
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/compiler/backend/gap-resolver.cc b/v8/src/compiler/backend/gap-resolver.cc
+index dd7ab75..af940a7 100644
+--- a/v8/src/compiler/backend/gap-resolver.cc
++++ b/v8/src/compiler/backend/gap-resolver.cc
+@@ -25,6 +25,19 @@
+   return IsFloatingPoint(loc_op.representation()) ? kFpReg : kGpReg;
+ }
+ 
++// Returns the wider in-register GP representation (matching Is32BitOperand in
++// 64-bit backends' Use32BitMove helpers).
++MachineRepresentation WiderGpRepresentation(const InstructionOperand& src,
++                                            const InstructionOperand& dst) {
++  MachineRepresentation src_rep = LocationOperand::cast(src).representation();
++  if constexpr (kSystemPointerSize == 8) {
++    if (Is32BitOperand(src)) {
++      return LocationOperand::cast(dst).representation();
++    }
++  }
++  return src_rep;
++}
++
+ }  // namespace
+ 
+ void GapResolver::Resolve(ParallelMove* moves) {
+@@ -116,15 +129,26 @@
+   // {MoveToTempLocation} will then choose the location accordingly.
+   MachineRepresentation src_rep =
+       LocationOperand::cast(move1->source()).representation();
+-  MachineRepresentation dst_rep =
+-      LocationOperand::cast(move1->destination()).representation();
+-  // Floating-point moves may have mixed representations (e.g. from same-as-
+-  // input SIMD splat/extract instructions or identity moves). Size the
+-  // temporary by the source representation so that Push and Pop agree on the
+-  // number of stack slots and wider sources preserve upper lanes in registers.
+-  // General-purpose moves keep the destination representation because 32-bit
+-  // sources may hold 64-bit values due to virtual register renaming.
+-  MachineRepresentation rep = IsFloatingPoint(src_rep) ? src_rep : dst_rep;
++  // Splitting {source -> destination} into {source -> temp[rep]} followed by
++  // {temp[rep] -> destination} must preserve all live bits of {source} in
++  // {temp} and match the width behavior of a direct {source -> destination}
++  // move:
++  // - For FP/SIMD, {source} never holds valid bits wider than {src_rep} (and
++  //   {Push} sizes stack temporaries from {src_rep}), so {rep = src_rep}
++  //   preserves all bits in {temp}, makes {temp[src_rep] -> destination} match
++  //   a direct move, and keeps {Push} and {Pop} balanced.
++  // - For GP on 64-bit targets, virtual register renaming allows a 32-bit
++  //   source to hold a zero-extended 64-bit value when {dst_rep} is 64-bit (so
++  //   {source -> temp[rep]} needs a 64-bit {rep}), while same-as-input
++  //   instructions such as x64 64-bit shifts with a 32-bit output require a
++  //   64-bit source to keep its upper bits into a 32-bit destination (so
++  //   {temp[rep] -> destination} also needs a 64-bit {rep}). Choosing the wider
++  //   GP representation satisfies both legs and matches {Use32BitMove(source,
++  //   destination)}.
++  MachineRepresentation rep =
++      IsFloatingPoint(src_rep)
++          ? src_rep
++          : WiderGpRepresentation(move1->source(), move1->destination());
+   DCHECK_EQ(ElementSizeInPointers(src_rep), ElementSizeInPointers(rep));
+   for (size_t i = 0; i < cycle.size() - 1; ++i) {
+     assembler_->SetPendingMove(cycle[i]);
+diff --git a/v8/src/compiler/backend/instruction.h b/v8/src/compiler/backend/instruction.h
+index 57fa5cb..adf7394 100644
+--- a/v8/src/compiler/backend/instruction.h
++++ b/v8/src/compiler/backend/instruction.h
+@@ -796,6 +796,24 @@
+   return this->value_;
+ }
+ 
++// Returns whether a general-purpose {LocationOperand} (register or stack slot)
++// has a 32-bit representation. Note that {ElementSizeInBytes} cannot be used
++// here because under pointer compression {kTagged*} and {kProtectedPointer}
++// have 4-byte on-heap size but occupy full 64-bit registers and stack slots on
++// 64-bit targets.
++inline bool Is32BitOperand(const InstructionOperand& operand) {
++  DCHECK(operand.IsLocationOperand());
++  MachineRepresentation rep = LocationOperand::cast(operand).representation();
++  if constexpr (kSystemPointerSize == 4) {
++    return rep != MachineRepresentation::kWord64;
++  }
++  return rep == MachineRepresentation::kWord32 || IsAnyCompressed(rep);
++}
++
++inline bool Is32BitOperand(const InstructionOperand* operand) {
++  return Is32BitOperand(*operand);
++}
++
+ // Required for maps that don't care about machine type.
+ struct CompareOperandModuloType {
+   bool operator()(const InstructionOperand& a,
+diff --git a/v8/src/compiler/backend/loong64/code-generator-loong64.cc b/v8/src/compiler/backend/loong64/code-generator-loong64.cc
+index 76b7f67..98084b6 100644
+--- a/v8/src/compiler/backend/loong64/code-generator-loong64.cc
++++ b/v8/src/compiler/backend/loong64/code-generator-loong64.cc
+@@ -2228,10 +2228,7 @@
+           __ Vld(i.OutputSimd128Register(), MemOperand(fp, offset));
+         }
+       } else {
+-        LocationOperand* op = LocationOperand::cast(instr->OutputAt(0));
+-        if (op->representation() == MachineRepresentation::kWord32 ||
+-            op->representation() == MachineRepresentation::kCompressed ||
+-            op->representation() == MachineRepresentation::kCompressedPointer) {
++        if (Is32BitOperand(instr->OutputAt(0))) {
+           // Like AssembleMove, use a sign-extending load for 32-bit slots so
+           // that the register keeps the loong64 sign-extension invariant.
+           __ Ld_w(i.OutputRegister(0), MemOperand(fp, offset));
+@@ -5551,14 +5548,6 @@
+ 
+ namespace {
+ 
+-bool Is32BitOperand(InstructionOperand* operand) {
+-  DCHECK(operand->IsStackSlot() || operand->IsRegister());
+-  MachineRepresentation mr = LocationOperand::cast(operand)->representation();
+-  return mr == MachineRepresentation::kWord32 ||
+-         mr == MachineRepresentation::kCompressed ||
+-         mr == MachineRepresentation::kCompressedPointer;
+-}
+-
+ // When we need only 32 bits, move only 32 bits, otherwise the destination
+ // register' upper 32 bits may contain dirty data.
+ bool Use32BitMove(InstructionOperand* source, InstructionOperand* destination) {
+diff --git a/v8/src/compiler/backend/mips64/code-generator-mips64.cc b/v8/src/compiler/backend/mips64/code-generator-mips64.cc
+index 98ede01..80d9530 100644
+--- a/v8/src/compiler/backend/mips64/code-generator-mips64.cc
++++ b/v8/src/compiler/backend/mips64/code-generator-mips64.cc
+@@ -4648,14 +4648,6 @@
+ 
+ namespace {
+ 
+-bool Is32BitOperand(InstructionOperand* operand) {
+-  DCHECK(operand->IsStackSlot() || operand->IsRegister());
+-  MachineRepresentation mr = LocationOperand::cast(operand)->representation();
+-  return mr == MachineRepresentation::kWord32 ||
+-         mr == MachineRepresentation::kCompressed ||
+-         mr == MachineRepresentation::kCompressedPointer;
+-}
+-
+ // When we need only 32 bits, move only 32 bits, otherwise the destination
+ // register' upper 32 bits may contain dirty data.
+ bool Use32BitMove(InstructionOperand* source, InstructionOperand* destination) {
+diff --git a/v8/src/compiler/backend/riscv/code-generator-riscv.cc b/v8/src/compiler/backend/riscv/code-generator-riscv.cc
+index 92a6f31..7f5a8c2 100644
+--- a/v8/src/compiler/backend/riscv/code-generator-riscv.cc
++++ b/v8/src/compiler/backend/riscv/code-generator-riscv.cc
+@@ -2353,10 +2353,7 @@
+           __ vl(i.OutputSimd128Register(), src, 0, E8);
+         }
+       } else {
+-        LocationOperand* op = LocationOperand::cast(instr->OutputAt(0));
+-        if (op->representation() == MachineRepresentation::kWord32 ||
+-            op->representation() == MachineRepresentation::kCompressed ||
+-            op->representation() == MachineRepresentation::kCompressedPointer) {
++        if (Is32BitOperand(instr->OutputAt(0))) {
+           // Like AssembleMove, use a sign-extending load for 32-bit slots so
+           // that the register keeps the riscv64 sign-extension invariant.
+           __ Lw(i.OutputRegister(0), MemOperand(fp, offset));
+@@ -5821,13 +5818,6 @@
+ }
+ 
+ namespace {
+-bool Is32BitOperand(InstructionOperand* operand) {
+-  DCHECK(operand->IsStackSlot() || operand->IsRegister());
+-  MachineRepresentation mr = LocationOperand::cast(operand)->representation();
+-  return mr == MachineRepresentation::kWord32 ||
+-         mr == MachineRepresentation::kCompressed ||
+-         mr == MachineRepresentation::kCompressedPointer;
+-}
+ 
+ // When we need only 32 bits, move only 32 bits, otherwise the destination
+ // register' upper 32 bits may contain dirty data.
+diff --git a/v8/src/compiler/backend/x64/code-generator-x64.cc b/v8/src/compiler/backend/x64/code-generator-x64.cc
+index a2c64ff..8d6ba69 100644
+--- a/v8/src/compiler/backend/x64/code-generator-x64.cc
++++ b/v8/src/compiler/backend/x64/code-generator-x64.cc
+@@ -9040,14 +9040,6 @@
+ 
+ namespace {
+ 
+-bool Is32BitOperand(InstructionOperand* operand) {
+-  DCHECK(operand->IsStackSlot() || operand->IsRegister());
+-  MachineRepresentation mr = LocationOperand::cast(operand)->representation();
+-  return mr == MachineRepresentation::kWord32 ||
+-         mr == MachineRepresentation::kCompressed ||
+-         mr == MachineRepresentation::kCompressedPointer;
+-}
+-
+ // When we need only 32 bits, move only 32 bits. Benefits:
+ // - Save a byte here and there (depending on the destination
+ //   register; "movl eax, ..." is smaller than "movq rax, ...").
 diff --git a/v8/src/compiler/common-operator.h b/v8/src/compiler/common-operator.h
 index 1a0abe5..d03d410 100644
 --- a/v8/src/compiler/common-operator.h
@@ -505,4 +837,3 @@ index 5b44744..1e67273 100644
    TRACE_UNTAGGING("Considering for untagging: " << PrintNodeLabel(node));
  
    // {input_mask} represents the ValueRepresentation that {node} could have,
-
