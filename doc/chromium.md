@@ -99,6 +99,28 @@ of the sites it has host permissions for, and MV2 extensions may run remotely ho
 only ones you trust. It lasts only as long as upstream keeps the MV2 extension platform's code.
 MV2 extensions are no longer in the Chrome Web Store: load them unpacked (developer mode).
 
+### Bluetooth (recommended: block it)
+
+Chromium's browser process connects to BlueZ over the system D-Bus at startup
+(`BluezDBusManager::Initialize` in `chrome/browser/chrome_browser_main_linux.cc`),
+unconditionally: no build option short of an untested `use_bluez=false` plus a patch, and
+no command-line switch, feature or policy turns it off. If `bluetoothd` is running and
+Chromium can reach it, Chromium follows BlueZ's objects, so data from nearby radio devices
+(names, manufacturer and service data, UUIDs) reaches the privileged browser process
+whenever the system scans, even if no web page asks for Bluetooth. Web Bluetooth itself is
+off by default on Linux (`WebBluetooth` feature); phone passkeys ("hybrid" sign-in with
+the QR code) use Bluetooth only while signing in. The ebuilds have no `bluetooth` USE flag
+for this: block it at runtime instead, either way:
+- don't run `bluetoothd` (then Chromium's first call to `org.bluez` fails and it sets up
+  nothing), or
+- run Chromium without access to `org.bluez` on the system bus: a sandbox that doesn't
+  give it the system bus, or one that filters it (e.g. `xdg-dbus-proxy` without
+  `org.bluez`). A D-Bus policy rule can't single out Chromium: it would also block your
+  desktop's own Bluetooth tools, which run as the same user.
+
+Either way, Web Bluetooth and passkeys from a phone stop working; USB security keys don't
+need Bluetooth.
+
 ## Notable ebuild changes vs. 151
 
 - **Gentoo patchset:** forked from `chromium-patches` tag 152 into
