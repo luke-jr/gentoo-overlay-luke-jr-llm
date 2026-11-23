@@ -134,6 +134,13 @@
 # ICU4X_DATAGEN_LSTM_VER (the segmenter's LSTM models). The data is regenerated with
 # dev-util/chromium-icu4x-datagen. Unset: no such data.
 
+# @ECLASS_VARIABLE: CHROMIUM_ICU4X_DATAGEN_SLOT
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# With ICU4X_DATAGEN_CLDR_VER: the dev-util/chromium-icu4x-datagen slot (an older major's) when
+# this version's tools/crates/icu4x_datagen is the same as that major's (160: 159's). Unset: the
+# major version's own.
+
 # @ECLASS_VARIABLE: CHROMIUM_BUILD_DIR
 # @USER_VARIABLE
 # @DEFAULT_UNSET
@@ -615,7 +622,8 @@ BDEPEND="
 
 
 
-[[ -n ${ICU4X_DATAGEN_CLDR_VER} ]] && BDEPEND+=" dev-util/chromium-icu4x-datagen:${PV%%.*}"
+[[ -n ${ICU4X_DATAGEN_CLDR_VER} ]] &&
+	BDEPEND+=" dev-util/chromium-icu4x-datagen:${CHROMIUM_ICU4X_DATAGEN_SLOT:-${PV%%.*}}"
 
 if ! has chromium_pkg_die ${EBUILD_DEATH_HOOKS}; then
 	EBUILD_DEATH_HOOKS+=" chromium_pkg_die";
@@ -1843,7 +1851,7 @@ chromium_regen_icu4x_data() {
 		ICU4X_ICUEXPORT_DIR="${DISTDIR}/icu4x-icuexportdata-${ICU4X_DATAGEN_ICUEXPORT_VER}.zip" \
 		ICU4X_UNICODE_DIR="${d}/unicode" ICU4X_TZDB_DIR="${d}/tzdb" \
 		ICU4X_SEGMENTER_LSTM_DIR="${DISTDIR}/lstm_word_segmentation-${ICU4X_DATAGEN_LSTM_VER}-models.zip" \
-		"${BROOT}/usr/lib/chromium-icu4x-datagen/${PV%%.*}/icu4x_datagen" generate --platforms common \
+		"${BROOT}/usr/lib/chromium-icu4x-datagen/${CHROMIUM_ICU4X_DATAGEN_SLOT:-${PV%%.*}}/icu4x_datagen" generate --platforms common \
 		> "${T}/icu4x_datagen.log" 2>&1 || die "icu4x_datagen failed (see ${T}/icu4x_datagen.log)"
 	if [[ ! -e third_party/rust-toolchain/bin/rustfmt ]]; then
 		# As icu4x_datagen formats them (its mod.rs starts with @generated, which rustfmt skips
