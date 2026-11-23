@@ -1,11 +1,11 @@
 Chromium 159.0.8154.32 + the later changes of its release branch, up to
-0750c01c21ff5830cc363c4fd558e21032447611 (refs/branch-heads/8154@{#1441}), for the
+0615604cbe5a807a142bfd34eaa420ce04be2bdc (refs/branch-heads/8154@{#1460}), for the
 159.0.8154.32 tree that chromium-159.0.8154.28-to-159.0.8154.32.patch makes.
-The newest change it carries is 8154@{#1441}.
+The newest change it carries is 8154@{#1458}.
 
 Generated from the upstream diffs chromium/src
-refs/tags/159.0.8154.32..0750c01c21ff5830cc363c4fd558e21032447611 and the dependency
-whose DEPS revision changed: V8 264c6cfa2279..3f63936945bb (under v8/), as served by
+refs/tags/159.0.8154.32..0615604cbe5a807a142bfd34eaa420ce04be2bdc and the dependency
+whose DEPS revision changed: V8 264c6cfa2279..dbed2497793f (under v8/), as served by
 Gitiles, with scripts/chromium-delta --branch-fixes (against the .32 tree's files):
 left out are files not in the release tarball, iOS/Android/ChromeOS/Mac/Windows-only
 files, tests and docs (GN files kept), translations other than en-GB, PGO/orderfile/AFDO
@@ -16,13 +16,19 @@ commits after the .32 tag are not tags yet), the DEPS files and the stamp files 
 Commits contributing to it (oldest first):
   e8043286ff9d Roll commits from side projects in M159 (V8 264c6cfa2279..3f63936945bb, 8154@{#1417})
   0750c01c21ff [M159] Notify UrlListManager observers on destruction (8154@{#1441})
-V8 commits of that roll that touch kept files:
+  fa11c84abc87 Roll commits from side projects in M159 (V8 3f63936945bb..27a5c765b634, 8154@{#1442})
+  6494f9be3483 Roll commits from side projects in M159 (V8 27a5c765b634..dbed2497793f, 8154@{#1448})
+  06450631d5c8 [M159] Fix for potential UAF in PermissionRequestManager selectors logic (8154@{#1458})
+V8 commits of those rolls that touch kept files:
   a38f990ac808 [M159] [turbolev] Remap replaced header phis in peeled loop backedge KNA
-  3f63936945bb Version 15.9.128.28 (include/v8-version.h)
+  a92c222bcaff [M159] [turboshaft] Check Load rep when folding map loads
+  e0b94eeddc62 [M159] [maglev] Keep single-input Phis tagged in phi untagging
+  bbbff2b74966 [M159] [turbofan] Check FrameState and locals for DeadValue in TryReuseDispatch
+  dbed2497793f Version 15.9.128.31 (include/v8-version.h)
 
 Checked: applies to the 159.0.8154.32 tree (the .28 tarball with
 chromium-159.0.8154.28-to-159.0.8154.32.patch); every patched source file is
-byte-identical to its version at 0750c01c21ff (or V8's 3f63936945bb).
+byte-identical to its version at 0615604cbe5a (or V8's dbed2497793f).
 
 Apply with git apply.
 
@@ -162,8 +168,43 @@ index 0abc30e4..161d0cc2 100644
    };
  
    UrlListManager();
+diff --git a/components/permissions/permission_request_manager.cc b/components/permissions/permission_request_manager.cc
+index 1eb6d7a..070b8fd8 100644
+--- a/components/permissions/permission_request_manager.cc
++++ b/components/permissions/permission_request_manager.cc
+@@ -1227,19 +1227,24 @@
+       break;
+     }
+ 
++    base::WeakPtr<PermissionRequestManager> weak_this =
++        weak_factory_.GetWeakPtr();
++
+     if (!requests_.front()->IsEmbeddedPermissionElementInitiated() &&
+         permission_ui_selectors_[selector_index]->IsPermissionRequestSupported(
+             requests_.front()->request_type())) {
+       permission_ui_selectors_[selector_index]->SelectUiToUse(
+           web_contents(), requests_.front().get(),
+           base::BindOnce(&PermissionRequestManager::OnPermissionUiSelectorDone,
+-                         weak_factory_.GetWeakPtr(), selector_index));
+-      continue;
++                         weak_this, selector_index));
++    } else {
++      OnPermissionUiSelectorDone(
++          selector_index,
++          PermissionUiSelector::Decision::UseNormalUiAndShowNoWarning());
+     }
+-
+-    OnPermissionUiSelectorDone(
+-        selector_index,
+-        PermissionUiSelector::Decision::UseNormalUiAndShowNoWarning());
++    if (!weak_this) {
++      return;
++    }
+   }
+ }
+ 
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index 71f1405..83c1578 100644
+index 71f1405..9914647 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -171,10 +212,116 @@ index 71f1405..83c1578 100644
  #define V8_MINOR_VERSION 9
  #define V8_BUILD_NUMBER 128
 -#define V8_PATCH_LEVEL 27
-+#define V8_PATCH_LEVEL 28
++#define V8_PATCH_LEVEL 31
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/compiler/common-operator.h b/v8/src/compiler/common-operator.h
+index 1a0abe5..d03d410 100644
+--- a/v8/src/compiler/common-operator.h
++++ b/v8/src/compiler/common-operator.h
+@@ -755,7 +755,8 @@
+   Node* locals() const {
+     Node* n = node()->InputAt(kFrameStateLocalsInput);
+     DCHECK(n->opcode() == IrOpcode::kStateValues ||
+-           n->opcode() == IrOpcode::kTypedStateValues);
++           n->opcode() == IrOpcode::kTypedStateValues ||
++           n->opcode() == IrOpcode::kDeadValue);
+     return n;
+   }
+   // TODO(jgruber): Consider renaming this to the more meaningful
+diff --git a/v8/src/compiler/js-inlining-heuristic.cc b/v8/src/compiler/js-inlining-heuristic.cc
+index 33680c2..db11796 100644
+--- a/v8/src/compiler/js-inlining-heuristic.cc
++++ b/v8/src/compiler/js-inlining-heuristic.cc
+@@ -398,6 +398,7 @@
+ bool CollectStateValuesOwnedUses(Node* node, Node* state_values,
+                                  NodeAndIndex* uses_buffer, size_t* use_count,
+                                  size_t max_uses) {
++  if (state_values->opcode() == IrOpcode::kDeadValue) return false;
+   // Only accumulate states that are not shared with other users.
+   if (state_values->UseCount() > 1) return true;
+   for (int i = 0; i < state_values->InputCount(); i++) {
+@@ -423,6 +424,7 @@
+                                                          StateCloneMode mode) {
+   // Only rename in states that are not shared with other users. This needs to
+   // be in sync with the condition in {CollectStateValuesOwnedUses}.
++  DCHECK_NE(state_values->opcode(), IrOpcode::kDeadValue);
+   Node* copy = (mode == kChangeInPlace && state_values->UseCount() <= 1)
+                    ? state_values
+                    : nullptr;
+@@ -649,7 +651,10 @@
+   // Collect the uses to check case 2.
+   Node* checkpoint_state = nullptr;
+   if (checkpoint) {
+-    checkpoint_state = checkpoint->InputAt(0);
++    checkpoint_state = NodeProperties::GetFrameStateInput(checkpoint);
++    // {checkpoint} may still be on the GraphReducer stack while its FrameState
++    // input has already been replaced with DeadValue by DeadCodeElimination.
++    if (checkpoint_state->opcode() != IrOpcode::kFrameState) return false;
+     if (!CollectFrameStateUniqueUses(callee, FrameState{checkpoint_state},
+                                      replaceable_uses, &replaceable_uses_count,
+                                      kMaxUses)) {
+diff --git a/v8/src/compiler/turboshaft/machine-optimization-reducer.h b/v8/src/compiler/turboshaft/machine-optimization-reducer.h
+index 221b261..cdad667 100644
+--- a/v8/src/compiler/turboshaft/machine-optimization-reducer.h
++++ b/v8/src/compiler/turboshaft/machine-optimization-reducer.h
+@@ -2335,11 +2335,15 @@
+       break;
+     }
+ 
+-    if (!index.valid() && matcher_.Is<ConstantOp>(base_idx)) {
+-      const ConstantOp& base = matcher_.Cast<ConstantOp>(base_idx);
+-      if (base.kind == any_of(ConstantOp::Kind::kHeapObject,
+-                              ConstantOp::Kind::kCompressedHeapObject)) {
+-        if (offset == offsetof(HeapObject, map_)) {
++    if (kind.tagged_base && !kind.is_atomic && !index.valid()) {
++      if (const ConstantOp* base = matcher_.TryCast<ConstantOp>(base_idx);
++          base != nullptr &&
++          base->kind == any_of(ConstantOp::Kind::kHeapObject,
++                               ConstantOp::Kind::kCompressedHeapObject)) {
++        if (offset == offsetof(HeapObject, map_) &&
++            loaded_rep == any_of(MemoryRepresentation::TaggedPointer(),
++                                 MemoryRepresentation::AnyTagged())) {
++          DCHECK_EQ(result_rep, RegisterRepresentation::Tagged());
+           // Only few loads should be loading the map from a ConstantOp
+           // HeapObject, so unparking the JSHeapBroker here rather than before
+           // the optimization pass itself it probably more efficient.
+@@ -2352,7 +2356,7 @@
+           if (broker != nullptr) {
+             UnparkedScopeIfNeeded scope(broker);
+             AllowHandleDereference allow_handle_dereference;
+-            OptionalMapRef map = TryMakeRef(broker, base.handle()->map());
++            OptionalMapRef map = TryMakeRef(broker, base->handle()->map());
+             if (MapLoadCanBeConstantFolded(map)) {
+               return __ HeapConstant(map->object());
+             }
+@@ -2360,6 +2364,7 @@
+         }
+         if (offset == offsetof(String, length_) &&
+             loaded_rep == MemoryRepresentation::Uint32()) {
++          DCHECK_EQ(result_rep, RegisterRepresentation::Word32());
+           TurboshaftPipelineKind pkind = __ data() -> pipeline_kind();
+           USE(pkind);
+           DCHECK_IMPLIES(pkind != TurboshaftPipelineKind::kCSA &&
+@@ -2368,7 +2373,7 @@
+           if (broker != nullptr) {
+             UnparkedScopeIfNeeded scope(broker);
+             AllowHandleDereference allow_handle_dereference;
+-            OptionalHeapObjectRef ref = TryMakeRef(broker, base.handle());
++            OptionalHeapObjectRef ref = TryMakeRef(broker, base->handle());
+             if (ref.has_value() && ref->IsString()) {
+               return __ Word32Constant(ref->AsString().length());
+             }
+@@ -2376,7 +2381,7 @@
+         }
+         // TODO(dmercadier): consider constant-folding other accesses, in
+         // particular for constant objects (ie, if
+-        // base.handle()->InReadOnlySpace() is true). We have to be a bit
++        // base->handle()->InReadOnlySpace() is true). We have to be a bit
+         // careful though, because loading could be invalid (since we could
+         // be in unreachable code). (all objects have a map, so loading the map
+         // should always be safe, regardless of whether we are generating
 diff --git a/v8/src/maglev/maglev-known-node-aspects.cc b/v8/src/maglev/maglev-known-node-aspects.cc
 index 9ca76c8..a74598a 100644
 --- a/v8/src/maglev/maglev-known-node-aspects.cc
@@ -339,4 +486,23 @@ index f6cde18..d2517e1 100644
    // Rewrite all references inside the loop body blocks from the old header
    // phis to their loop phis in a single walk. Body blocks are never dead:
    // CloneBodySubgraph and CloneLoopBodyControl already clone every body block
+diff --git a/v8/src/maglev/maglev-phi-representation-selector.cc b/v8/src/maglev/maglev-phi-representation-selector.cc
+index 5b44744..1e67273 100644
+--- a/v8/src/maglev/maglev-phi-representation-selector.cc
++++ b/v8/src/maglev/maglev-phi-representation-selector.cc
+@@ -143,6 +143,14 @@
+     return ProcessPhiResult::kNone;
+   }
+ 
++  if (node->input_count() == 1) {
++    // Later passes unwrap single-input Phis to their input, so uses/deopt
++    // frames may already bypass this Phi while earlier uses still point to it.
++    // Keep it tagged so its representation cannot diverge from its input's.
++    EnsurePhiInputsTagged(node);
++    return ProcessPhiResult::kNone;
++  }
++
+   TRACE_UNTAGGING("Considering for untagging: " << PrintNodeLabel(node));
+ 
+   // {input_mask} represents the ValueRepresentation that {node} could have,
 
