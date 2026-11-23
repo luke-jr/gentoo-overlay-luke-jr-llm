@@ -1,10 +1,10 @@
 Chromium 159.0.8154.31 + the later changes of its release branch, up to
-c2fc341b85d6772a3147d86caa785b367566ac57 (refs/branch-heads/8154@{#1362}), for the
+ce5896ca0a29cf53ed8908e79960ec7a9ad74135 (refs/branch-heads/8154@{#1400}), for the
 159.0.8154.31 tree that chromium-159.0.8154.28-to-159.0.8154.31.patch makes.
-The newest change it carries is 8154@{#1325}.
+The newest change it carries is 8154@{#1400}.
 
 Generated from the upstream diff chromium/src
-refs/tags/159.0.8154.31..c2fc341b85d6772a3147d86caa785b367566ac57, as served by
+refs/tags/159.0.8154.31..ce5896ca0a29cf53ed8908e79960ec7a9ad74135, as served by
 Gitiles, with scripts/chromium-delta --branch-fixes (against the .31 tree's files):
 left out are files not in the release tarball, iOS/Android/ChromeOS/Mac/Windows-only
 files, tests and docs (GN files kept), translations other than en-GB, PGO/orderfile/AFDO
@@ -14,13 +14,50 @@ commits after the .31 tag are not tags yet), the DEPS files and the stamp files 
 
 Commits contributing to it (oldest first):
   47731bddd61b [M159] Successfully deserialize older FSA handles stored in IDB (8154@{#1325})
+  ce5896ca0a29 [M159] [security] Disable SendEarlyFinalBeginMainFrame (8154@{#1400})
 
 Checked: applies to the 159.0.8154.31 tree (the .28 tarball with
 chromium-159.0.8154.28-to-159.0.8154.31.patch); every patched source file is
-byte-identical to its version at c2fc341b85d6.
+byte-identical to its version at ce5896ca0a29.
 
 Apply with git apply.
 
+diff --git a/cc/base/features.cc b/cc/base/features.cc
+index 864c59f..97f409d 100644
+--- a/cc/base/features.cc
++++ b/cc/base/features.cc
+@@ -341,7 +341,7 @@
+              base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ // Killswitch for disabling SendEarlyBeginMainFrame function in cc/scheduler.
+-BASE_FEATURE(kSendEarlyFinalBeginMainFrame, base::FEATURE_ENABLED_BY_DEFAULT);
++BASE_FEATURE(kSendEarlyFinalBeginMainFrame, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ bool SendEarlyFinalBeginMainFrameIsEnabled() {
+   return base::FeatureList::IsEnabled(kSendEarlyFinalBeginMainFrame);
+diff --git a/cc/trees/layer_tree_host_unittest_proxy.cc b/cc/trees/layer_tree_host_unittest_proxy.cc
+index dcfe817..3db77ab2 100644
+--- a/cc/trees/layer_tree_host_unittest_proxy.cc
++++ b/cc/trees/layer_tree_host_unittest_proxy.cc
+@@ -708,7 +708,9 @@
+ class LayerTreeHostProxyTestRequestImmediateBeginMainFrame
+     : public LayerTreeHostProxyTest {
+  protected:
+-  LayerTreeHostProxyTestRequestImmediateBeginMainFrame() = default;
++  LayerTreeHostProxyTestRequestImmediateBeginMainFrame() {
++    feature_list_.InitAndEnableFeature(features::kSendEarlyFinalBeginMainFrame);
++  }
+   ~LayerTreeHostProxyTestRequestImmediateBeginMainFrame() override = default;
+ 
+   void BeginTest() override { PostSetNeedsCommitToMainThread(); }
+@@ -737,6 +739,7 @@
+   void AfterTest() override { EXPECT_TRUE(received_); }
+ 
+  private:
++  base::test::ScopedFeatureList feature_list_;
+   bool requested_ = false;
+   bool received_ = false;
+ };
 diff --git a/content/browser/file_system_access/file_system_access.proto b/content/browser/file_system_access/file_system_access.proto
 index 7931610..eea20fce 100644
 --- a/content/browser/file_system_access/file_system_access.proto
