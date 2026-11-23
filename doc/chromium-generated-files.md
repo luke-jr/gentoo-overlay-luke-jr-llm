@@ -78,6 +78,9 @@ deliberately:
   The other platforms' data (Android, ChromeOS, iOS, …) isn't built.
 - OpenH264rs' `sources.gni` (since 159) is regenerated with its `tools/gen_sources_gni.rs`:
   byte-identical.
+- Blink's emoji property table (`third_party/blink/renderer/platform/text/character_emoji_data.h`,
+  since 160) is regenerated with its `generate_character_emoji_data.py` from Unicode's
+  `emoji-data.txt` of the version it names (18.0.0): byte-identical.
 - The Babel passes that lower code for old browsers are left out (axe-core, and Puppeteer's
   `es5-iife` bundle, which nothing loads); Chromium runs the modern code. axe-core's polyfills stay
   in, but only apply where a feature is missing.
@@ -190,8 +193,12 @@ deliberately:
 - chromium-bidi's protocol types and Zod schemas (`src/protocol{,-parser}/generated`) are
   regenerated with its `tools/update_bidi_types.py` and `dev-util/cddlconv` from the CDDL in the
   WebDriver BiDi specs, extracted with the spec's `generate.js` and parse5 (6, not compiled), at
-  the spec commits current when the checked-in types were made. Upstream's prettier/eslint
-  formatting pass is left out; with it, the output is byte-identical.
+  the spec commits current when the checked-in types were made (160: Web Bluetooth's from its
+  pull request #672, whose `bluetooth.simulateGattMtuChange` chromium-bidi added to its types
+  ahead of the spec), and its own `goog:` extensions from the CDDL it keeps (160). Upstream's
+  prettier/eslint formatting pass is left out; with it, the output is byte-identical (but for
+  the Zod schema of `browsingContext.Info` in `webdriver-bidi.ts`, named `BaseInfoSchema`
+  upstream).
 - Skia's generated files are regenerated with its generators: the GL interface code
   (`*Autogen.cpp`) with `tools/ganesh/gl/interface` (Go, offline), the SkSL lexer with `sksllex`,
   and the minified SkSL modules with `sksl-minify`, built with Skia's standalone GN build (only
@@ -291,7 +298,8 @@ These are not, by kind:
   (`celt/static_modes_float.h`: window and twiddle constants, which Opus keeps fixed; regenerating
   them changes the codec's arithmetic in the last digit).
 - *Published data, used as input.* Unicode's release data (UCD, CLDR's JSON, ICU's
-  `icuexportdata`, ICU4C's locale data `.txt`; their converters are Java tools needing ICU4J), the
+  `icuexportdata`, ICU4C's locale data `.txt`; their converters are Java tools needing ICU4J),
+  Brotli's static dictionary (RFC 7932; also in the Rust `brotli-decompressor`, since 160), the
   Public Suffix List, Chrome UX Report's top domain list, Chromium's root store definitions, and
   `.proto` files (including copies exported from Google's internal repository).
 - *No public generator.* abseil's Gaussian distribution tables (its generator was never
