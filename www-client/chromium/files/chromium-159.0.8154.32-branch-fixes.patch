@@ -1,17 +1,18 @@
 Chromium 159.0.8154.32 + the later changes of its release branch, up to
-b6203eb846244ba5f7e190cc5d8f5333fb41dade (refs/branch-heads/8154@{#1475}), for the
+9279dc5f1f0b6479a4a980f48dfc8a98f3b0ee2c (refs/branch-heads/8154@{#1493}), for the
 159.0.8154.32 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.32.patch). The newest change it carries is
-8154@{#1473}.
+8154@{#1490}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.32..b6203eb84624 and the
-dependency whose DEPS revision changed: V8 264c6cfa2279..ab5a3c3751bd (under v8/), as served
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.32..9279dc5f1f0b and the
+dependency whose DEPS revision changed: V8 264c6cfa2279..17a110108190 (under v8/), as served
 by Gitiles, with scripts/chromium-delta/branch-fixes.py (filter.py --branch-fixes, against
 the 159.0.8154.32 tree's files): left out are files not in the release tarball,
 iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs (GN files kept), translations
 other than en-GB, PGO/orderfile/AFDO pointers, submodule pointer updates. chrome/VERSION
 (the branch's "Incrementing VERSION" commits after the 159.0.8154.32 tag are not tags yet),
-the DEPS files and the stamp files stay at 159.0.8154.32.
+the DEPS files and the stamp files stay at 159.0.8154.32. Dependencies whose revision
+changed with nothing kept: Dawn.
 
 Commits contributing to it (oldest first):
   e8043286ff9d Roll commits from side projects in M159 (V8 264c6cfa2279..3f63936945bb, 8154@{#1417})
@@ -25,6 +26,10 @@ Commits contributing to it (oldest first):
   c4dd84c063c4 [M159] [Extensions] Start ExtensionUpdater before CheckManagementPolicy (8154@{#1470})
   7e1d0ccdd115 Roll commits from side projects in M159 (V8 dbed2497793f..ab5a3c3751bd, 8154@{#1471})
   7487a94525d9 [M159] [FedCM] Return early in ShowErrorDialog() if the view destroys it (8154@{#1473})
+  4dc458f05461 [M159] [Unified tabstrip] Support TabView in JAWS window activation selection (8154@{#1479})
+  58744737be8a [M159] [animation-trigger] Fix crash with @starting-style and timeline-trigger (8154@{#1485})
+  69866b4af479 Roll commits from side projects in M159 (V8 ab5a3c3751bd..17a110108190, 8154@{#1488})
+  11d7cebfdf4c [M159] [blink] Pin parkable script text across threads (8154@{#1490})
 Dependency commits of those rolls that touch kept files:
   a38f990ac808 [M159] [turbolev] Remap replaced header phis in peeled loop backedge KNA (V8: src/maglev/maglev-known-node-aspects.cc, src/maglev/maglev-known-node-aspects.h, src/maglev/maglev-loop-peeler.cc)
   3f63936945bb Version 15.9.128.28 (V8: include/v8-version.h)
@@ -36,9 +41,11 @@ Dependency commits of those rolls that touch kept files:
   dbed2497793f Version 15.9.128.31 (V8: include/v8-version.h)
   fa009c9f676c [M159] [compiler] Preserve 64-bit GP sources in mixed-width move cycles (V8: src/compiler/backend/gap-resolver.cc, src/compiler/backend/instruction.h, src/compiler/backend/loong64/code-generator-loong64.cc, src/compiler/backend/mips64/code-generator-mips64.cc, src/compiler/backend/riscv/code-generator-riscv.cc, src/compiler/backend/x64/code-generator-x64.cc)
   ab5a3c3751bd Version 15.9.128.32 (V8: include/v8-version.h)
+  ad9e9b150af4 [M159] [regalloc] Handle multi-slot stack aliasing in move optimization (V8: src/compiler/backend/instruction.cc, src/compiler/backend/instruction.h, src/compiler/backend/move-optimizer.cc, src/compiler/backend/register-allocator-verifier.cc, src/compiler/backend/register-allocator-verifier.h)
+  17a110108190 Version 15.9.128.33 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.32 tree; every patched file is byte-identical to its
-version at b6203eb84624 (or V8's ab5a3c3751bd).
+version at 9279dc5f1f0b (or V8's 17a110108190).
 
 Apply with git apply.
 
@@ -186,6 +193,20 @@ index f9efaf9e..49978228 100644
  
   private:
    ListItem CreateListItem(const GURL& url);
+diff --git a/chrome/browser/ui/views/accessibility/BUILD.gn b/chrome/browser/ui/views/accessibility/BUILD.gn
+index abfd820..9eaca24 100644
+--- a/chrome/browser/ui/views/accessibility/BUILD.gn
++++ b/chrome/browser/ui/views/accessibility/BUILD.gn
+@@ -169,8 +169,7 @@
+       sources += [ "tab_strip_dump_accessibility_events_browsertest.cc" ]
+       deps += [
+         "//chrome/browser/ui:browser_tabstrip",
+-        "//chrome/browser/ui/views/tabs:tab",
+-        "//chrome/browser/ui/views/tabs:tab_strip",
++        "//chrome/browser/ui/tabs:features",
+       ]
+     }
+   }
 diff --git a/chrome/browser/ui/webid/identity_dialog_controller.cc b/chrome/browser/ui/webid/identity_dialog_controller.cc
 index 476c466..d9c83dc 100644
 --- a/chrome/browser/ui/webid/identity_dialog_controller.cc
@@ -347,8 +368,555 @@ index f39209569..a8b7bb0 100644
      "//ios/chrome/test:test_support",
      "//ios/public/provider/chrome/browser/bwg:gemini_api",
      "//ios/web/public",
+diff --git a/third_party/blink/renderer/core/animation/css/css_animations.cc b/third_party/blink/renderer/core/animation/css/css_animations.cc
+index ffa6362..e33ee38d 100644
+--- a/third_party/blink/renderer/core/animation/css/css_animations.cc
++++ b/third_party/blink/renderer/core/animation/css/css_animations.cc
+@@ -35,6 +35,7 @@
+ #include <ranges>
+ #include <tuple>
+ 
++#include "base/memory/values_equivalent.h"
+ #include "third_party/blink/public/platform/platform.h"
+ #include "third_party/blink/renderer/bindings/core/v8/v8_computed_effect_timing.h"
+ #include "third_party/blink/renderer/bindings/core/v8/v8_timeline_range_offset.h"
+@@ -1675,6 +1676,58 @@
+                                         new_active_range_end);
+ }
+ 
++namespace {
++
++// Holds the range boundaries declared by the timeline-trigger at |index| in
++// |data|, for comparing an existing trigger with its CSS declaration (and for
++// creating a replacement trigger when they differ).
++struct TimelineTriggerBoundaries {
++  STACK_ALLOCATED();
++
++ public:
++  TimelineTriggerBoundaries(const CSSAnimationData& data,
++                            wtf_size_t index,
++                            float zoom)
++      : activation_start(Animation::ToRangeBoundary(
++            CSSAnimationData::GetRepeated(
++                data.TimelineTriggerActivationRangeStartList(),
++                index),
++            zoom)),
++        activation_end(Animation::ToRangeBoundary(
++            CSSAnimationData::GetRepeated(
++                data.TimelineTriggerActivationRangeEndList(),
++                index),
++            zoom)),
++        active_start(Animation::ToRangeBoundary(
++            CSSAnimationData::GetRepeated(
++                data.TimelineTriggerActiveRangeStartList(),
++                index),
++            zoom)),
++        active_end(Animation::ToRangeBoundary(
++            CSSAnimationData::GetRepeated(
++                data.TimelineTriggerActiveRangeEndList(),
++                index),
++            zoom)) {}
++
++  Animation::RangeBoundary* activation_start;
++  Animation::RangeBoundary* activation_end;
++  Animation::RangeBoundary* active_start;
++  Animation::RangeBoundary* active_end;
++};
++
++// Returns true if |trigger| uses |timeline| and |boundaries|, i.e. it still
++// matches its CSS declaration.
++bool TimelineTriggerMatches(TimelineTrigger& trigger,
++                            AnimationTimeline* timeline,
++                            const TimelineTriggerBoundaries& boundaries) {
++  return trigger.GetTimelineInternal() == timeline &&
++         TimelineTriggerRangeBoundariesUnchanged(
++             &trigger, boundaries.activation_start, boundaries.activation_end,
++             boundaries.active_start, boundaries.active_end);
++}
++
++}  // namespace
++
+ // TODO(crbug.com/473568234): This function constructs only a single
+ // TimelineTriggerRange for a TimelineTrigger object. When we support multiple
+ // timelines, it should construct more than one TimelineTriggerRange.
+@@ -1690,51 +1743,74 @@
+   AnimationTimeline* new_timeline =
+       ComputeTimeline(element, data->GetTimelineTriggerSource(animation_index),
+                       update, existing_timeline);
++  TimelineTriggerBoundaries boundaries(*data, animation_index, zoom);
+ 
+-  const std::optional<TimelineOffset>& new_activation_start_offset =
+-      CSSAnimationData::GetRepeated(
+-          data->TimelineTriggerActivationRangeStartList(), animation_index);
+-  const std::optional<TimelineOffset>& new_activation_end_offset =
+-      CSSAnimationData::GetRepeated(
+-          data->TimelineTriggerActivationRangeEndList(), animation_index);
+-  const TimelineOffsetOrAuto& new_active_start_offset =
+-      CSSAnimationData::GetRepeated(data->TimelineTriggerActiveRangeStartList(),
+-                                    animation_index);
+-  const TimelineOffsetOrAuto& new_active_end_offset =
+-      CSSAnimationData::GetRepeated(data->TimelineTriggerActiveRangeEndList(),
+-                                    animation_index);
+-
+-  Animation::RangeBoundary* new_activation_range_start =
+-      Animation::ToRangeBoundary(new_activation_start_offset, zoom);
+-  Animation::RangeBoundary* new_activation_range_end =
+-      Animation::ToRangeBoundary(new_activation_end_offset, zoom);
+-  Animation::RangeBoundary* new_active_range_start =
+-      Animation::ToRangeBoundary(new_active_start_offset, zoom);
+-  Animation::RangeBoundary* new_active_range_end =
+-      Animation::ToRangeBoundary(new_active_end_offset, zoom);
+-
+-  bool need_new_trigger = !existing_trigger ||
+-                          existing_timeline != new_timeline ||
+-                          !TimelineTriggerRangeBoundariesUnchanged(
+-                              existing_trigger, new_activation_range_start,
+-                              new_activation_range_end, new_active_range_start,
+-                              new_active_range_end);
+-
+-  if (need_new_trigger) {
+-    TimelineTriggerRange* range = MakeGarbageCollected<TimelineTriggerRange>(
+-        new_timeline, new_activation_range_start, new_activation_range_end,
+-        new_active_range_start, new_active_range_end);
+-
+-    HeapVector<Member<TimelineTriggerRange>> ranges;
+-    ranges.push_back(range);
+-
+-    TimelineTriggerRangeList* range_list =
+-        MakeGarbageCollected<TimelineTriggerRangeList>(ranges);
+-
+-    return MakeGarbageCollected<TimelineTrigger>(range_list);
++  if (existing_trigger &&
++      TimelineTriggerMatches(*existing_trigger, new_timeline, boundaries)) {
++    return existing_trigger;
+   }
+ 
+-  return existing_trigger;
++  TimelineTriggerRange* range = MakeGarbageCollected<TimelineTriggerRange>(
++      new_timeline, boundaries.activation_start, boundaries.activation_end,
++      boundaries.active_start, boundaries.active_end);
++
++  HeapVector<Member<TimelineTriggerRange>> ranges;
++  ranges.push_back(range);
++
++  TimelineTriggerRangeList* range_list =
++      MakeGarbageCollected<TimelineTriggerRangeList>(ranges);
++
++  return MakeGarbageCollected<TimelineTrigger>(range_list);
++}
++
++// static
++void CSSAnimations::CalculateNamedTriggerUpdate(
++    CSSAnimationUpdate& update,
++    Element& animating_element,
++    const ComputedStyleBuilder& style_builder) {
++  // Check for declared names that don't have a matching existing trigger.
++  const CSSAnimationData* data = style_builder.Animations();
++  if (data) {
++    const HeapVector<Member<const ScopedCSSName>>& names =
++        data->TimelineTriggerNameList();
++    for (wtf_size_t i = 0; i < names.size(); i++) {
++      if (!names[i]) {
++        continue;
++      }
++      auto* trigger =
++          DynamicTo<TimelineTrigger>(animating_element.NamedTrigger(names[i]));
++      if (trigger &&
++          TimelineTriggerMatches(
++              *trigger,
++              ComputeTimeline(&animating_element,
++                              data->GetTimelineTriggerSource(i), update,
++                              trigger->GetTimelineInternal()),
++              TimelineTriggerBoundaries(*data, i,
++                                        style_builder.EffectiveZoom()))) {
++        continue;
++      }
++      update.SetNeedsNamedTriggerUpdate();
++      return;
++    }
++  }
++
++  // Check for existing triggers that no longer match a declared name.
++  if (const NamedAnimationTriggerMap* existing_triggers =
++          animating_element.NamedTriggers()) {
++    if (!existing_triggers->empty() && !data) {
++      update.SetNeedsNamedTriggerUpdate();
++      return;
++    }
++    for (const auto& entry : *existing_triggers) {
++      if (std::ranges::none_of(data->TimelineTriggerNameList(),
++                               [&](const Member<const ScopedCSSName>& name) {
++                                 return base::ValuesEquivalent(name, entry.key);
++                               })) {
++        update.SetNeedsNamedTriggerUpdate();
++        return;
++      }
++    }
++  }
+ }
+ 
+ CSSAnimations::CSSAnimations() = default;
+@@ -2144,13 +2220,6 @@
+   }
+ 
+   CalculateAnimationActiveInterpolations(update, animating_element);
+-
+-  CSSAnimationData* old_animations =
+-      old_style ? old_style->Animations() : nullptr;
+-  if (CSSAnimationData::TimelineTriggerDataChanged(old_animations,
+-                                                   animation_data)) {
+-    update.SetNeedsNamedTriggerUpdate();
+-  }
+ }
+ 
+ AnimationEffect::EventDelegate* CSSAnimations::CreateEventDelegate(
+diff --git a/third_party/blink/renderer/core/animation/css/css_animations.h b/third_party/blink/renderer/core/animation/css/css_animations.h
+index 17d6729..2c4b0b3 100644
+--- a/third_party/blink/renderer/core/animation/css/css_animations.h
++++ b/third_party/blink/renderer/core/animation/css/css_animations.h
+@@ -93,6 +93,12 @@
+   static void CalculateTimelineUpdate(CSSAnimationUpdate&,
+                                       Element& animating_element,
+                                       const ComputedStyleBuilder&);
++  // Sets NeedsNamedTriggerUpdate() on the update if the triggers declared by
++  // trigger-instantiating properties (e.g. timeline-trigger) don't match the
++  // triggers |animating_element| currently has. See UpdateNamedTriggers().
++  static void CalculateNamedTriggerUpdate(CSSAnimationUpdate&,
++                                          Element& animating_element,
++                                          const ComputedStyleBuilder&);
+   static void CalculateAnimationUpdate(CSSAnimationUpdate&,
+                                        Element& animating_element,
+                                        Element&,
+diff --git a/third_party/blink/renderer/core/css/resolver/style_resolver.cc b/third_party/blink/renderer/core/css/resolver/style_resolver.cc
+index 3c7e67c..a9256afd 100644
+--- a/third_party/blink/renderer/core/css/resolver/style_resolver.cc
++++ b/third_party/blink/renderer/core/css/resolver/style_resolver.cc
+@@ -30,6 +30,7 @@
+ 
+ #include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
+ 
++#include <algorithm>
+ #include <optional>
+ #include <ranges>
+ 
+@@ -39,6 +40,7 @@
+ #include "third_party/blink/public/web/web_print_page_description.h"
+ #include "third_party/blink/public/web/web_print_params.h"
+ #include "third_party/blink/renderer/core/animation/css/compositor_keyframe_value_factory.h"
++#include "third_party/blink/renderer/core/animation/css/css_animation_data.h"
+ #include "third_party/blink/renderer/core/animation/css/css_animations.h"
+ #include "third_party/blink/renderer/core/animation/document_animations.h"
+ #include "third_party/blink/renderer/core/animation/element_animations.h"
+@@ -94,6 +96,7 @@
+ #include "third_party/blink/renderer/core/dom/first_letter_pseudo_element.h"
+ #include "third_party/blink/renderer/core/dom/flat_tree_traversal.h"
+ #include "third_party/blink/renderer/core/dom/layout_tree_builder_traversal.h"
++#include "third_party/blink/renderer/core/dom/named_animation_trigger_map.h"
+ #include "third_party/blink/renderer/core/dom/node-inl.h"
+ #include "third_party/blink/renderer/core/dom/shadow_root.h"
+ #include "third_party/blink/renderer/core/dom/space_split_string.h"
+@@ -129,6 +132,7 @@
+ #include "third_party/blink/renderer/core/page/scrolling/snap_coordinator.h"
+ #include "third_party/blink/renderer/core/probe/core_probes.h"
+ #include "third_party/blink/renderer/core/style/computed_style_constants.h"
++#include "third_party/blink/renderer/core/style/scoped_css_name.h"
+ #include "third_party/blink/renderer/core/style/style_initial_data.h"
+ #include "third_party/blink/renderer/core/style_property_shorthand.h"
+ #include "third_party/blink/renderer/core/svg/svg_element.h"
+@@ -320,6 +324,22 @@
+   return false;
+ }
+ 
++// Whether the element declares named triggers (e.g. via timeline-trigger) or
++// still has triggers from a previous style.
++bool HasNamedTriggers(const StyleResolverState& state) {
++  if (const CSSAnimationData* data = state.StyleBuilder().Animations()) {
++    if (std::ranges::any_of(
++            data->TimelineTriggerNameList(),
++            [](const Member<const ScopedCSSName>& name) { return !!name; })) {
++      return true;
++    }
++  }
++  const NamedAnimationTriggerMap* triggers =
++      state.GetAnimatingElement() ? state.GetAnimatingElement()->NamedTriggers()
++                                  : nullptr;
++  return triggers && !triggers->empty();
++}
++
+ #if DCHECK_IS_ON()
+ // Compare the base computed style with the one we compute to validate that the
+ // optimization is sound. A return value of g_null_atom means the diff was
+@@ -2811,6 +2831,15 @@
+         state.AnimationUpdate(), *animating_element, state.StyleBuilder());
+   }
+ 
++  // Animation style changes reuse the base style, so they can't change the
++  // declared triggers.
++  if (RuntimeEnabledFeatures::AnimationTriggerEnabled() &&
++      state.CanTriggerAnimations() &&
++      !IsAnimationStyleChange(*animating_element) && HasNamedTriggers(state)) {
++    CSSAnimations::CalculateNamedTriggerUpdate(
++        state.AnimationUpdate(), *animating_element, state.StyleBuilder());
++  }
++
+   if (!HasAnimationsOrTransitions(state)) {
+     return false;
+   }
+diff --git a/third_party/blink/renderer/core/loader/modulescript/module_script_creation_params.cc b/third_party/blink/renderer/core/loader/modulescript/module_script_creation_params.cc
+index e0c0984..74ab079 100644
+--- a/third_party/blink/renderer/core/loader/modulescript/module_script_creation_params.cc
++++ b/third_party/blink/renderer/core/loader/modulescript/module_script_creation_params.cc
+@@ -27,7 +27,13 @@
+   if (module_type_ == ResolvedModuleType::kWasm) {
+     return base::HeapArray<uint8_t>::CopiedFrom(GetWasmSource());
+   }
+-  return GetSourceText();
++  // Parkable ParkableStrings and V8 uncached external strings rely on
++  // main-thread task serialization to keep character buffers alive during
++  // access. Wrap the shared StringImpl in a non-parkable ParkableStringImpl
++  // when copying across threads so its reference count pins the buffer while
++  // off-thread references exist and allows main-thread parking again once they
++  // are released.
++  return GetSourceText().CreateNonParkableCopy();
+ }
+ 
+ }  // namespace blink
+diff --git a/third_party/blink/renderer/core/loader/modulescript/module_script_creation_params.h b/third_party/blink/renderer/core/loader/modulescript/module_script_creation_params.h
+index 69902835..a9b3f5f5 100644
+--- a/third_party/blink/renderer/core/loader/modulescript/module_script_creation_params.h
++++ b/third_party/blink/renderer/core/loader/modulescript/module_script_creation_params.h
+@@ -134,7 +134,9 @@
+   ScriptCacheConsumer* CacheConsumer() const { return cache_consumer_; }
+ 
+   bool IsSafeToSendToAnotherThread() const {
+-    return !script_streamer_ && !cache_handler_ && !cache_consumer_;
++    return !script_streamer_ && !cache_handler_ && !cache_consumer_ &&
++           (module_type_ == ResolvedModuleType::kWasm ||
++            !GetSourceText().may_be_parked());
+   }
+ 
+   ScriptStreamer* GetScriptStreamer() const { return script_streamer_; }
+diff --git a/third_party/blink/renderer/core/workers/worklet_module_responses_map.cc b/third_party/blink/renderer/core/workers/worklet_module_responses_map.cc
+index 4fb9dce95..b5f520c 100644
+--- a/third_party/blink/renderer/core/workers/worklet_module_responses_map.cc
++++ b/third_party/blink/renderer/core/workers/worklet_module_responses_map.cc
+@@ -48,7 +48,7 @@
+     PostCrossThreadTask(
+         *it.value, FROM_HERE,
+         CrossThreadBindOnce(&ModuleScriptFetcher::Client::OnFetched, it.key,
+-                            params.IsolatedCopy()));
++                            GetParams()));
+   }
+ 
+   clients_.clear();
+diff --git a/third_party/blink/renderer/platform/bindings/parkable_string.cc b/third_party/blink/renderer/platform/bindings/parkable_string.cc
+index ab63f3f7..991949e44 100644
+--- a/third_party/blink/renderer/platform/bindings/parkable_string.cc
++++ b/third_party/blink/renderer/platform/bindings/parkable_string.cc
+@@ -45,6 +45,7 @@
+ #include "third_party/blink/renderer/platform/wtf/functional.h"
+ #include "third_party/blink/renderer/platform/wtf/thread_specific.h"
+ #include "third_party/blink/renderer/platform/wtf/vector.h"
++#include "third_party/blink/renderer/platform/wtf/wtf.h"
+ #include "third_party/zlib/google/compression_utils.h"
+ 
+ #if BUILDFLAG(HAS_ZSTD_COMPRESSION)
+@@ -428,7 +429,6 @@
+ 
+ ParkableStringImpl::MemoryUsage ParkableStringImpl::MemoryUsageForSnapshot()
+     const {
+-  AssertOnValidThread();
+   MemoryUsage result = {0, nullptr, 0};
+   result.this_size = sizeof(ParkableStringImpl);
+ 
+@@ -437,6 +437,7 @@
+     return result;
+   }
+ 
++  AssertOnValidThread();
+   result.this_size += sizeof(ParkableMetadata);
+ 
+   base::AutoLock locker(metadata_->lock_);
+@@ -1028,8 +1029,21 @@
+   }
+ }
+ 
++ParkableString::ParkableString(scoped_refptr<ParkableStringImpl>&& impl)
++    : impl_(std::move(impl)) {}
++
+ ParkableString::~ParkableString() = default;
+ 
++ParkableString ParkableString::CreateNonParkableCopy() const {
++  if (!may_be_parked()) {
++    return *this;
++  }
++  CHECK(IsMainThread());
++  const String& unparked = ToString();
++  return ParkableString(ParkableStringImpl::MakeNonParkable(
++      scoped_refptr<StringImpl>(unparked.Impl())));
++}
++
+ void ParkableString::Lock() const {
+   if (impl_)
+     impl_->Lock();
+diff --git a/third_party/blink/renderer/platform/bindings/parkable_string.h b/third_party/blink/renderer/platform/bindings/parkable_string.h
+index 22367bd..8c284d6 100644
+--- a/third_party/blink/renderer/platform/bindings/parkable_string.h
++++ b/third_party/blink/renderer/platform/bindings/parkable_string.h
+@@ -10,6 +10,7 @@
+ #include <utility>
+ #include <variant>
+ 
++#include "base/check.h"
+ #include "base/check_op.h"
+ #include "base/compiler_specific.h"
+ #include "base/dcheck_is_on.h"
+@@ -33,9 +34,13 @@
+ // |ToString()| method.
+ // As a consequence, the inner pointer should never be cached, and only touched
+ // through a string returned by the |ToString()| method.
+-// It is safe to call `ToString()` and destroy ParkableStrings from any thread,
+-// although the interactions with the ParkableStringManager must always be
+-// performed on the main thread.
++// Non-parkable ParkableStrings (`!may_be_parked()`) never discard or replace
++// their underlying StringImpl and may be read and destroyed from any thread.
++// Parkable ones (`may_be_parked()`) are bound to the main thread for
++// `ToString()`, uncached access, destruction, and ParkableStringManager
++// interactions; only `Lock()`/`Unlock()` and copying handles
++// (`CreateNonParkableCopy()` when pinning for another thread) are safe across
++// threads.
+ namespace blink {
+ 
+ class Digestor;
+@@ -376,6 +381,12 @@
+   ParkableString(const ParkableString&) = default;
+   ~ParkableString();
+ 
++  // Returns a non-parkable copy sharing the underlying StringImpl. If `this`
++  // string is parkable, must be called on the main thread (unparking first if
++  // needed); the shared StringImpl reference keeps the buffer pinned until all
++  // copies are released.
++  ParkableString CreateNonParkableCopy() const;
++
+   // Locks a string. A string is unlocked when the number of Lock()/Unlock()
+   // calls match. A locked string cannot be parked.
+   // Can be called from any thread.
+@@ -440,6 +451,8 @@
+   }
+ 
+  private:
++  explicit ParkableString(scoped_refptr<ParkableStringImpl>&& impl);
++
+   scoped_refptr<ParkableStringImpl> impl_;
+ };
+ 
+diff --git a/third_party/blink/renderer/platform/bindings/string_resource.h b/third_party/blink/renderer/platform/bindings/string_resource.h
+index 04ba7c0..0418876 100644
+--- a/third_party/blink/renderer/platform/bindings/string_resource.h
++++ b/third_party/blink/renderer/platform/bindings/string_resource.h
+@@ -8,6 +8,7 @@
+ #include <atomic>
+ #include <type_traits>
+ 
++#include "base/check.h"
+ #include "base/compiler_specific.h"
+ #include "base/dcheck_is_on.h"
+ #include "third_party/blink/renderer/platform/bindings/parkable_string.h"
+@@ -15,6 +16,7 @@
+ #include "third_party/blink/renderer/platform/platform_export.h"
+ #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
+ #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
++#include "third_party/blink/renderer/platform/wtf/wtf.h"
+ #include "v8/include/v8.h"
+ 
+ namespace blink {
+@@ -41,10 +43,13 @@
+     memory_accounter_.Increase(isolate, atomic_string_.CharactersSizeInBytes());
+   }
+ 
++  // Only valid for `may_be_parked()` ParkableStrings on the main thread;
++  // non-parkable strings should use StringResource8/StringResource16.
+   explicit StringResourceBase(v8::Isolate* isolate, ParkableString string)
+-      : parkable_string_(string) {
++      : parkable_string_(std::move(string)) {
+     // TODO(lizeb): This is only true without compression.
+     DCHECK(!parkable_string_.IsNull());
++    CHECK(IsMainThread() && parkable_string_.may_be_parked());
+     memory_accounter_.Increase(isolate,
+                                parkable_string_.CharactersSizeInBytes());
+   }
+@@ -234,6 +239,8 @@
+   }
+ };
+ 
++// Only used for `may_be_parked()` ParkableStrings on the main thread (enforced
++// in StringResourceBase). Non-parkable strings use StringResource16.
+ class ParkableStringResource16 final : public StringResource16Base {
+  public:
+   explicit ParkableStringResource16(v8::Isolate* isolate, ParkableString string)
+@@ -243,7 +250,9 @@
+   ParkableStringResource16& operator=(const ParkableStringResource16&) = delete;
+ 
+   bool IsCacheable() const override {
+-    return !GetParkableString().may_be_parked();
++    // `may_be_parked()` is enforced at construction time in StringResourceBase.
++    DCHECK(GetParkableString().may_be_parked());
++    return false;
+   }
+ 
+   void Lock() const override {
+@@ -313,6 +322,8 @@
+   }
+ };
+ 
++// Only used for `may_be_parked()` ParkableStrings on the main thread (enforced
++// in StringResourceBase). Non-parkable strings use StringResource8.
+ class ParkableStringResource8 final : public StringResource8Base {
+  public:
+   explicit ParkableStringResource8(v8::Isolate* isolate, ParkableString string)
+@@ -322,7 +333,9 @@
+   ParkableStringResource8& operator=(const ParkableStringResource8&) = delete;
+ 
+   bool IsCacheable() const override {
+-    return !GetParkableString().may_be_parked();
++    // `may_be_parked()` is enforced at construction time in StringResourceBase.
++    DCHECK(GetParkableString().may_be_parked());
++    return false;
+   }
+ 
+   void Lock() const override {
+diff --git a/third_party/blink/renderer/platform/bindings/v8_value_cache.cc b/third_party/blink/renderer/platform/bindings/v8_value_cache.cc
+index 6049967..6d5b1466 100644
+--- a/third_party/blink/renderer/platform/bindings/v8_value_cache.cc
++++ b/third_party/blink/renderer/platform/bindings/v8_value_cache.cc
+@@ -26,10 +26,13 @@
+ #include "third_party/blink/renderer/platform/bindings/v8_value_cache.h"
+ 
+ #include <utility>
++
++#include "base/check.h"
+ #include "third_party/blink/renderer/platform/bindings/runtime_call_stats.h"
+ #include "third_party/blink/renderer/platform/bindings/string_resource.h"
+ #include "third_party/blink/renderer/platform/bindings/v8_binding.h"
+ #include "third_party/blink/renderer/platform/wtf/text/string_hash.h"
++#include "third_party/blink/renderer/platform/wtf/wtf.h"
+ 
+ namespace blink {
+ 
+@@ -157,6 +160,11 @@
+   if (!string.length())
+     return v8::String::Empty(isolate);
+ 
++  if (!string.may_be_parked()) {
++    return V8ExternalString(isolate, string.ToString().Impl());
++  }
++  CHECK(IsMainThread());
++
+   ParkableStringCacheMapTraits::MapType::PersistentValueReference
+       cached_v8_string = parkable_string_cache_.GetReference(string.Impl());
+   if (!cached_v8_string.IsEmpty()) {
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index 71f1405..fd198cc 100644
+index 71f1405..241ccfd 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -356,7 +924,7 @@ index 71f1405..fd198cc 100644
  #define V8_MINOR_VERSION 9
  #define V8_BUILD_NUMBER 128
 -#define V8_PATCH_LEVEL 27
-+#define V8_PATCH_LEVEL 32
++#define V8_PATCH_LEVEL 33
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
@@ -420,14 +988,172 @@ index dd7ab75..af940a7 100644
    DCHECK_EQ(ElementSizeInPointers(src_rep), ElementSizeInPointers(rep));
    for (size_t i = 0; i < cycle.size() - 1; ++i) {
      assembler_->SetPendingMove(cycle[i]);
+diff --git a/v8/src/compiler/backend/instruction.cc b/v8/src/compiler/backend/instruction.cc
+index 5390a91..eb28b78 100644
+--- a/v8/src/compiler/backend/instruction.cc
++++ b/v8/src/compiler/backend/instruction.cc
+@@ -9,7 +9,6 @@
+ 
+ #include "src/base/iterator.h"
+ #include "src/base/logging.h"
+-#include "src/codegen/aligned-slot-allocator.h"
+ #include "src/codegen/interface-descriptors.h"
+ #include "src/codegen/machine-type.h"
+ #include "src/codegen/register-configuration.h"
+@@ -90,55 +89,34 @@
+   UNREACHABLE();
+ }
+ 
+-bool InstructionOperand::InterferesWith(const InstructionOperand& other) const {
+-  const bool combine_fp_aliasing = kFPAliasing == AliasingKind::kCombine &&
+-                                   this->IsFPLocationOperand() &&
+-                                   other.IsFPLocationOperand();
+-  const bool stack_slots = this->IsAnyStackSlot() && other.IsAnyStackSlot();
+-  if (!combine_fp_aliasing && !stack_slots) {
+-    return EqualsCanonicalized(other);
+-  }
+-  const LocationOperand& loc = *LocationOperand::cast(this);
+-  const LocationOperand& other_loc = LocationOperand::cast(other);
+-  MachineRepresentation rep = loc.representation();
+-  MachineRepresentation other_rep = other_loc.representation();
+-  LocationOperand::LocationKind kind = loc.location_kind();
+-  LocationOperand::LocationKind other_kind = other_loc.location_kind();
+-  if (kind != other_kind) return false;
+-
+-  if (combine_fp_aliasing && !stack_slots) {
++bool InstructionOperand::InterferesWithSlow(
++    const InstructionOperand& other) const {
++  DCHECK(HasComplexAliasing() || other.HasComplexAliasing());
++  if (kFPAliasing == AliasingKind::kCombine && IsFPRegister() &&
++      other.IsFPRegister()) {
++    const LocationOperand& loc = *LocationOperand::cast(this);
++    const LocationOperand& other_loc = LocationOperand::cast(other);
++    MachineRepresentation rep = loc.representation();
++    MachineRepresentation other_rep = other_loc.representation();
+     if (rep == other_rep) return EqualsCanonicalized(other);
+-    DCHECK_EQ(kind, LocationOperand::REGISTER);
+     // FP register-register interference.
+     return GetRegConfig()->AreAliases(rep, loc.register_code(), other_rep,
+                                       other_loc.register_code());
+   }
+-
+-  DCHECK(stack_slots);
+-  int num_slots =
+-      AlignedSlotAllocator::NumSlotsForWidth(ElementSizeInBytes(rep));
+-  int num_slots_other =
+-      AlignedSlotAllocator::NumSlotsForWidth(ElementSizeInBytes(other_rep));
+-  const bool complex_stack_slot_interference =
+-      (num_slots > 1 || num_slots_other > 1);
+-  if (!complex_stack_slot_interference) {
+-    return EqualsCanonicalized(other);
++  if (IsAnyStackSlot() && other.IsAnyStackSlot()) {
++    // Complex multi-slot operand interference:
++    // - slots of different FP reps can alias because the gap resolver may break
++    //   a move into 2 or 4 equivalent smaller moves,
++    // - stack layout can be rearranged for tail calls.
++    const LocationOperand& loc = *LocationOperand::cast(this);
++    const LocationOperand& other_loc = LocationOperand::cast(other);
++    int index_hi = loc.index();
++    int index_lo = index_hi - loc.NumStackSlots() + 1;
++    int other_index_hi = other_loc.index();
++    int other_index_lo = other_index_hi - other_loc.NumStackSlots() + 1;
++    return other_index_hi >= index_lo && index_hi >= other_index_lo;
+   }
+-
+-  // Complex multi-slot operand interference:
+-  // - slots of different FP reps can alias because the gap resolver may break a
+-  // move into 2 or 4 equivalent smaller moves,
+-  // - stack layout can be rearranged for tail calls
+-  DCHECK_EQ(LocationOperand::STACK_SLOT, kind);
+-  int index_hi = loc.index();
+-  int index_lo =
+-      index_hi -
+-      AlignedSlotAllocator::NumSlotsForWidth(ElementSizeInBytes(rep)) + 1;
+-  int other_index_hi = other_loc.index();
+-  int other_index_lo =
+-      other_index_hi -
+-      AlignedSlotAllocator::NumSlotsForWidth(ElementSizeInBytes(other_rep)) + 1;
+-  return other_index_hi >= index_lo && index_hi >= other_index_lo;
++  return false;
+ }
+ 
+ bool LocationOperand::IsCompatible(LocationOperand* op) {
+@@ -337,8 +315,8 @@
+ 
+ void ParallelMove::PrepareInsertAfter(
+     MoveOperands* move, ZoneVector<MoveOperands*>* to_eliminate) const {
+-  bool no_aliasing = kFPAliasing != AliasingKind::kCombine ||
+-                     !move->destination().IsFPLocationOperand();
++  if (move->IsRedundant()) return;
++  bool no_aliasing = !move->destination().HasComplexAliasing();
+   MoveOperands* replacement = nullptr;
+   MoveOperands* eliminated = nullptr;
+   for (MoveOperands* curr : *this) {
+@@ -349,7 +327,11 @@
+       DCHECK(!replacement);
+       replacement = curr;
+       if (no_aliasing && eliminated != nullptr) break;
+-    } else if (curr->destination().InterferesWith(move->destination())) {
++    }
++    // Not `else if`: a multi-slot stack operand can both match `move`'s source
++    // and interfere with `move`'s destination if `move` shifts it by a partial
++    // width (e.g., `[fp_stack:2|s128] = [fp_stack:1|s128]` overlaps on slot 1).
++    if (curr->destination().InterferesWith(move->destination())) {
+       // We can eliminate curr, since move overwrites at least a part of its
+       // destination, implying its value is no longer live.
+       eliminated = curr;
 diff --git a/v8/src/compiler/backend/instruction.h b/v8/src/compiler/backend/instruction.h
-index 57fa5cb..adf7394 100644
+index 57fa5cb..37354d0 100644
 --- a/v8/src/compiler/backend/instruction.h
 +++ b/v8/src/compiler/backend/instruction.h
-@@ -796,6 +796,24 @@
+@@ -148,7 +148,8 @@
+     return this->GetCanonicalizedValue() < that.GetCanonicalizedValue();
+   }
+ 
+-  bool InterferesWith(const InstructionOperand& other) const;
++  inline bool HasComplexAliasing() const;
++  inline bool InterferesWith(const InstructionOperand& other) const;
+ 
+   // APIs to aid debugging. For general-stream APIs, use operator<<.
+   void Print() const;
+@@ -168,6 +169,9 @@
+   using KindField = base::BitField64<Kind, 0, 3>;
+ 
+   uint64_t value_;
++
++ private:
++  bool InterferesWithSlow(const InstructionOperand& other) const;
+ };
+ 
+ using InstructionOperandVector = ZoneVector<InstructionOperand>;
+@@ -574,6 +578,11 @@
+     return RepresentationField::decode(value_);
+   }
+ 
++  int NumStackSlots() const {
++    DCHECK(IsAnyStackSlot());
++    return ElementSizeInPointers(representation());
++  }
++
+   static bool IsSupportedRepresentation(MachineRepresentation rep) {
+     switch (rep) {
+       case MachineRepresentation::kWord32:
+@@ -796,6 +805,36 @@
    return this->value_;
  }
  
++bool InstructionOperand::HasComplexAliasing() const {
++  return (kFPAliasing == AliasingKind::kCombine && IsFPRegister()) ||
++         (IsAnyStackSlot() && LocationOperand::cast(*this).NumStackSlots() > 1);
++}
++
++bool InstructionOperand::InterferesWith(const InstructionOperand& other) const {
++  if (V8_LIKELY(!HasComplexAliasing() && !other.HasComplexAliasing())) {
++    return EqualsCanonicalized(other);
++  }
++  return InterferesWithSlow(other);
++}
++
 +// Returns whether a general-purpose {LocationOperand} (register or stack slot)
 +// has a 32-bit representation. Note that {ElementSizeInBytes} cannot be used
 +// here because under pointer compression {kTagged*} and {kProtectedPointer}
@@ -449,6 +1175,21 @@ index 57fa5cb..adf7394 100644
  // Required for maps that don't care about machine type.
  struct CompareOperandModuloType {
    bool operator()(const InstructionOperand& a,
+@@ -1845,10 +1884,10 @@
+   uint64_t pgo_execution_count_ = 0;
+ #endif
+   RpoNumber dominator_;
+-  int32_t code_start_;       // start index of arch-specific code.
+-  int32_t code_end_ = -1;    // end index of arch-specific code.
+-  const bool deferred_ : 1;  // Block contains deferred code.
+-  bool handler_ : 1;         // Block is a handler entry point.
++  int32_t code_start_;            // start index of arch-specific code.
++  int32_t code_end_ = -1;         // end index of arch-specific code.
++  const bool deferred_ : 1;       // Block contains deferred code.
++  bool handler_ : 1;              // Block is a handler entry point.
+   bool table_switch_target_ : 1;  // Block is a table switch target, implying an
+                                   //  indirect jump.
+   bool align_switch_targets_ : 1;  // insert switch target alignment before
 diff --git a/v8/src/compiler/backend/loong64/code-generator-loong64.cc b/v8/src/compiler/backend/loong64/code-generator-loong64.cc
 index 76b7f67..98084b6 100644
 --- a/v8/src/compiler/backend/loong64/code-generator-loong64.cc
@@ -499,6 +1240,287 @@ index 98ede01..80d9530 100644
  // When we need only 32 bits, move only 32 bits, otherwise the destination
  // register' upper 32 bits may contain dirty data.
  bool Use32BitMove(InstructionOperand* source, InstructionOperand* destination) {
+diff --git a/v8/src/compiler/backend/move-optimizer.cc b/v8/src/compiler/backend/move-optimizer.cc
+index f80c453..f3d6400 100644
+--- a/v8/src/compiler/backend/move-optimizer.cc
++++ b/v8/src/compiler/backend/move-optimizer.cc
+@@ -4,8 +4,6 @@
+ 
+ #include "src/compiler/backend/move-optimizer.h"
+ 
+-#include "src/codegen/register-configuration.h"
+-
+ #if V8_TARGET_ARCH_ARM64
+ #include "src/codegen/macro-assembler.h"
+ #endif
+@@ -33,84 +31,21 @@
+ 
+ class OperandSet {
+  public:
+-  explicit OperandSet(ZoneVector<InstructionOperand>* buffer)
+-      : set_(buffer), fp_reps_(0) {
++  explicit OperandSet(ZoneVector<InstructionOperand>* buffer) : set_(buffer) {
+     buffer->clear();
+   }
+ 
+-  void InsertOp(const InstructionOperand& op) {
+-    set_->push_back(op);
+-
+-    if (kFPAliasing == AliasingKind::kCombine && op.IsFPRegister()) {
+-      fp_reps_ |= RepresentationBit(LocationOperand::cast(op).representation());
+-    }
+-  }
+-
+-  bool Contains(const InstructionOperand& op) const {
+-    for (const InstructionOperand& elem : *set_) {
+-      if (elem.EqualsCanonicalized(op)) return true;
+-    }
+-    return false;
+-  }
++  void InsertOp(const InstructionOperand& op) { set_->push_back(op); }
+ 
+   bool ContainsOpOrAlias(const InstructionOperand& op) const {
+-    if (Contains(op)) return true;
+-
+-    if (kFPAliasing == AliasingKind::kCombine && op.IsFPRegister()) {
+-      // Platforms where FP registers have complex aliasing need extra checks.
+-      const LocationOperand& loc = LocationOperand::cast(op);
+-      MachineRepresentation rep = loc.representation();
+-      // If haven't encountered mixed rep FP registers, skip the extra checks.
+-      if (!HasMixedFPReps(fp_reps_ | RepresentationBit(rep))) return false;
+-
+-      // Check register against aliasing registers of other FP representations.
+-      MachineRepresentation other_rep1, other_rep2;
+-      switch (rep) {
+-        case MachineRepresentation::kFloat32:
+-          other_rep1 = MachineRepresentation::kFloat64;
+-          other_rep2 = MachineRepresentation::kSimd128;
+-          break;
+-        case MachineRepresentation::kFloat64:
+-          other_rep1 = MachineRepresentation::kFloat32;
+-          other_rep2 = MachineRepresentation::kSimd128;
+-          break;
+-        case MachineRepresentation::kSimd128:
+-          other_rep1 = MachineRepresentation::kFloat32;
+-          other_rep2 = MachineRepresentation::kFloat64;
+-          break;
+-        default:
+-          UNREACHABLE();
+-      }
+-      const RegisterConfiguration* config = RegisterConfiguration::Default();
+-      int base = -1;
+-      int aliases =
+-          config->GetAliases(rep, loc.register_code(), other_rep1, &base);
+-      DCHECK(aliases > 0 || (aliases == 0 && base == -1));
+-      while (aliases--) {
+-        if (Contains(AllocatedOperand(LocationOperand::REGISTER, other_rep1,
+-                                      base + aliases))) {
+-          return true;
+-        }
+-      }
+-      aliases = config->GetAliases(rep, loc.register_code(), other_rep2, &base);
+-      DCHECK(aliases > 0 || (aliases == 0 && base == -1));
+-      while (aliases--) {
+-        if (Contains(AllocatedOperand(LocationOperand::REGISTER, other_rep2,
+-                                      base + aliases))) {
+-          return true;
+-        }
+-      }
++    for (const InstructionOperand& elem : *set_) {
++      if (elem.InterferesWith(op)) return true;
+     }
+     return false;
+   }
+ 
+  private:
+-  static bool HasMixedFPReps(int reps) {
+-    return reps && !base::bits::IsPowerOfTwo(reps);
+-  }
+-
+   ZoneVector<InstructionOperand>* set_;
+-  int fp_reps_;
+ };
+ 
+ int FindFirstNonEmptySlot(const Instruction* instr) {
+diff --git a/v8/src/compiler/backend/register-allocator-verifier.cc b/v8/src/compiler/backend/register-allocator-verifier.cc
+index e607dc7..7655185 100644
+--- a/v8/src/compiler/backend/register-allocator-verifier.cc
++++ b/v8/src/compiler/backend/register-allocator-verifier.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "src/compiler/backend/register-allocator-verifier.h"
+ 
++#include <algorithm>
+ #include <optional>
+ 
+ #include "src/compiler/backend/instruction.h"
+@@ -276,6 +277,33 @@
+   UNREACHABLE();
+ }
+ 
++void BlockAssessments::DropInterferingStackSlots(InstructionOperand op) {
++  DCHECK(op.IsAnyStackSlot());
++  const LocationOperand& loc = LocationOperand::cast(op);
++  int num_slots = loc.NumStackSlots();
++  max_stack_slot_width_ = std::max(max_stack_slot_width_, num_slots);
++  int index = loc.index();
++  map_.erase(op);
++  stale_ref_stack_slots_.erase(op);
++  // Erase any stack slots at lower indices covered by `op`.
++  for (int i = index - num_slots + 1; i < index; ++i) {
++    AllocatedOperand probe(LocationOperand::STACK_SLOT,
++                           MachineRepresentation::kWord32, i);
++    map_.erase(probe);
++    stale_ref_stack_slots_.erase(probe);
++  }
++  // Erase any wider stack slots anchored at higher indices that overlap `op`.
++  for (int i = index + 1; i < index + max_stack_slot_width_; ++i) {
++    AllocatedOperand probe(LocationOperand::STACK_SLOT,
++                           MachineRepresentation::kWord32, i);
++    auto it = map_.find(probe);
++    if (it != map_.end() && it->first.InterferesWith(op)) {
++      stale_ref_stack_slots_.erase(it->first);
++      map_.erase(it);
++    }
++  }
++}
++
+ void BlockAssessments::PerformMoves(const Instruction* instruction) {
+   const ParallelMove* first =
+       instruction->GetParallelMove(Instruction::GapPosition::START);
+@@ -289,28 +317,36 @@
+   if (moves == nullptr) return;
+ 
+   CHECK(map_for_moves_.empty());
++  bool has_complex_dest = false;
+   for (MoveOperands* move : *moves) {
+     if (move->IsEliminated() || move->IsRedundant()) continue;
+     auto it = map_.find(move->source());
+     // The RHS of a parallel move should have been already assessed.
+     CHECK(it != map_.end());
+     // The LHS of a parallel move should not have been assigned in this
+-    // parallel move.
+-    CHECK(map_for_moves_.find(move->destination()) == map_for_moves_.end());
++    // parallel move, nor interfere with any other destination in this parallel
++    // move.
++    const InstructionOperand& dest = move->destination();
++    CHECK(map_for_moves_.find(dest) == map_for_moves_.end());
++    has_complex_dest = has_complex_dest || dest.HasComplexAliasing();
++    if (has_complex_dest) {
++      for (const auto& prev : map_for_moves_) {
++        CHECK(!prev.first.InterferesWith(dest));
++      }
++    }
+     // The RHS of a parallel move should not be a stale reference.
+     CHECK(!IsStaleReferenceStackSlot(move->source()));
+     // Copy the assessment to the destination.
+-    map_for_moves_[move->destination()] = it->second;
++    map_for_moves_[dest] = it->second;
+   }
+-  for (auto pair : map_for_moves_) {
++  for (const auto& pair : map_for_moves_) {
++    Drop(pair.first);
++  }
++  for (const auto& pair : map_for_moves_) {
+     // Re-insert the existing key for the new assignment so that it has the
+     // correct representation (which is ignored by the canonicalizing map
+     // comparator).
+-    InstructionOperand op = pair.first;
+-    map_.erase(op);
+     map_.insert(pair);
+-    // Destination is no longer a stale reference.
+-    stale_ref_stack_slots().erase(op);
+   }
+   map_for_moves_.clear();
+ }
+@@ -414,11 +450,19 @@
+       }
+       const BlockAssessments* pred_assessments = iterator->second;
+       CHECK_NOT_NULL(pred_assessments);
++      ret->UpdateMaxStackSlotWidth(pred_assessments->max_stack_slot_width());
+       for (auto pair : pred_assessments->map()) {
+         InstructionOperand operand = pair.first;
+-        if (ret->map().find(operand) == ret->map().end()) {
++        auto existing = ret->map().find(operand);
++        if (existing == ret->map().end()) {
+           ret->map().insert(std::make_pair(
+               operand, zone()->New<PendingAssessment>(zone(), block, operand)));
++        } else if (operand.IsAnyStackSlot() &&
++                   LocationOperand::cast(operand).NumStackSlots() >
++                       LocationOperand::cast(existing->first).NumStackSlots()) {
++          Assessment* assessment = existing->second;
++          ret->map().erase(existing);
++          ret->map().insert(std::make_pair(operand, assessment));
+         }
+       }
+ 
+diff --git a/v8/src/compiler/backend/register-allocator-verifier.h b/v8/src/compiler/backend/register-allocator-verifier.h
+index a7684d8..072d531 100644
+--- a/v8/src/compiler/backend/register-allocator-verifier.h
++++ b/v8/src/compiler/backend/register-allocator-verifier.h
+@@ -133,7 +133,8 @@
+ };
+ 
+ // Assessments associated with a basic block.
+-class BlockAssessments : public ZoneObject {
++class V8_EXPORT_PRIVATE BlockAssessments
++    : public NON_EXPORTED_BASE(ZoneObject) {
+  public:
+   using OperandMap = ZoneMap<InstructionOperand, Assessment*, OperandAsKeyLess>;
+   using OperandSet = ZoneSet<InstructionOperand, OperandAsKeyLess>;
+@@ -149,17 +150,26 @@
+   BlockAssessments& operator=(const BlockAssessments&) = delete;
+ 
+   void Drop(InstructionOperand operand) {
++    if (operand.IsAnyStackSlot()) {
++      DropInterferingStackSlots(operand);
++      return;
++    }
+     map_.erase(operand);
+     stale_ref_stack_slots_.erase(operand);
+   }
++  void DropInterferingStackSlots(InstructionOperand operand);
+   void DropRegisters();
+   void AddDefinition(InstructionOperand operand, int virtual_register) {
+-    auto existent = map_.find(operand);
+-    if (existent != map_.end()) {
+-      // Drop the assignment
+-      map_.erase(existent);
+-      // Destination operand is no longer a stale reference.
+-      stale_ref_stack_slots_.erase(operand);
++    if (operand.IsAnyStackSlot()) {
++      DropInterferingStackSlots(operand);
++    } else {
++      auto existent = map_.find(operand);
++      if (existent != map_.end()) {
++        // Drop the assignment
++        map_.erase(existent);
++        // Destination operand is no longer a stale reference.
++        stale_ref_stack_slots_.erase(operand);
++      }
+     }
+     map_.insert(
+         std::make_pair(operand, zone_->New<FinalAssessment>(virtual_register)));
+@@ -174,6 +184,11 @@
+     map_.insert(other->map_.begin(), other->map_.end());
+     stale_ref_stack_slots_.insert(other->stale_ref_stack_slots_.begin(),
+                                   other->stale_ref_stack_slots_.end());
++    max_stack_slot_width_ = other->max_stack_slot_width_;
++  }
++  int max_stack_slot_width() const { return max_stack_slot_width_; }
++  void UpdateMaxStackSlotWidth(int width) {
++    max_stack_slot_width_ = std::max(max_stack_slot_width_, width);
+   }
+   void CheckReferenceMap(const ReferenceMap* reference_map);
+   bool IsStaleReferenceStackSlot(InstructionOperand op,
+@@ -198,6 +213,7 @@
+   // implications of a stack slot being stale?
+   OperandSet stale_ref_stack_slots_;
+   int spill_slot_delta_;
++  int max_stack_slot_width_ = 1;
+   Zone* zone_;
+   const InstructionSequence* sequence_;
+ };
 diff --git a/v8/src/compiler/backend/riscv/code-generator-riscv.cc b/v8/src/compiler/backend/riscv/code-generator-riscv.cc
 index 92a6f31..7f5a8c2 100644
 --- a/v8/src/compiler/backend/riscv/code-generator-riscv.cc
