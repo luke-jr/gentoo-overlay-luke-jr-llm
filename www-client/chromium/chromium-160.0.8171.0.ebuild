@@ -158,6 +158,10 @@ HB_UCD_FILES="ArabicShaping Blocks DerivedCoreProperties IndicPositionalCategory
 	Scripts UnicodeData emoji/emoji-data"
 HB_PACKTAB_VER="1.9.0"
 
+# The Unicode version of Blink's emoji property table (character_emoji_data.h, made from
+# emoji-data.txt; see the eclass's chromium_regen_blink_emoji).
+BLINK_EMOJI_UNICODE_VER="18.0.0"
+
 # Selenium's sources at the revision chromedriver's atoms (third_party/selenium-atoms) are built
 # from (its README.chromium), for building them without Closure Compiler (see the eclass's src_prepare).
 SELENIUM_COMMIT="c0b8ff6451419542dcecc53c922e1a79e4dc3940"
