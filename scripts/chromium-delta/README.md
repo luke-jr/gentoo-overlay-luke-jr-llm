@@ -49,6 +49,14 @@ Work in a directory outside the overlay, e.g. `upstream/diff<NEW>`.
      is the blob id in `repo-NAME`'s tree at `refs/x/new` (`git rev-parse
      refs/x/new:PATH`, nothing downloaded).
 
+A **branch fixes** patch (a release's branch after its tag) is made and checked by one
+command, `branch-fixes.py WORK_DIR TAG TARBALL TREE_FILES BUILD_INPUTS [UPGRADE_PATCH...]`
+(see its usage). It does steps 1, 2, 5, 7 and 8 for the branch's head (or `--head REV`),
+writes the header (with every commit behind a kept file, and the dependency rolls), and
+prints N for `<TAG>_p<N>_pre`. It stops where a decision is needed: a CIPD/GCS dependency
+or gclient_args.gni changed, a git dependency was added or removed, or nothing is kept.
+TREE_FILES (step 3) is made once per tag.
+
 When the real tarball comes out:
 
 - run `compare-tarball.py` on a tree that has only the upgrade patches applied;
