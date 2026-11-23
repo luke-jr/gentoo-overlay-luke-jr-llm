@@ -8,7 +8,8 @@
 #
 # Usage: chromium-bidi-types.py BIDI_DIR CDDL_DIR [OLD_BIDI_DIR]
 #   BIDI_DIR      third_party/chromium-bidi
-#   CDDL_DIR      holds NAME/all.cddl for each spec NAME in update_bidi_types.SPECS
+#   CDDL_DIR      holds NAME/all.cddl for each spec NAME in update_bidi_types.SPECS (but those
+#                 with a "local_cddl" in BIDI_DIR)
 #   OLD_BIDI_DIR  where the files being replaced are, if not in BIDI_DIR
 #
 # Like upstream's full update without its formatting step (prettier and eslint
@@ -28,7 +29,8 @@ ubt = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ubt)
 
 for s in ubt.SPECS:
-    cddl = cddl_dir / s["name"] / "all.cddl"
+    # A spec maintained in chromium-bidi itself (160's "goog" extensions) has its CDDL there.
+    cddl = bidi / s["local_cddl"] if "local_cddl" in s else cddl_dir / s["name"] / "all.cddl"
     if not cddl.is_file():
         sys.exit(f"{cddl} is missing")
     for key, fmt in (("ts_file", "ts"), ("zod_file", "zod")):
