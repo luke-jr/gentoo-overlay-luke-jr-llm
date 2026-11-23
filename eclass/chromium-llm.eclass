@@ -141,6 +141,14 @@
 # this version's tools/crates/icu4x_datagen is the same as that major's (160: 159's). Unset: the
 # major version's own.
 
+# @ECLASS_VARIABLE: BLINK_EMOJI_UNICODE_VER
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# Set (160 and later) when Blink checks in its emoji property table
+# (third_party/blink/renderer/platform/text/character_emoji_data.h, made by
+# generate_character_emoji_data.py from Unicode's emoji-data.txt): the Unicode version it names.
+# The table is regenerated from that version's emoji-data.txt. Unset: no such table.
+
 # @ECLASS_VARIABLE: CHROMIUM_BUILD_DIR
 # @USER_VARIABLE
 # @DEFAULT_UNSET
@@ -409,6 +417,13 @@ for _f in ${HB_UCD_FILES}; do
 done
 unset _f
 SRC_URI+=" )"
+
+# Blink's emoji property table (BLINK_EMOJI_UNICODE_VER, see chromium_regen_blink_emoji); the same
+# file as HarfBuzz's emoji/emoji-data with HB_UCD_FILES.
+[[ -n ${BLINK_EMOJI_UNICODE_VER} ]] && SRC_URI+="
+	${UNICODETOOLS_DATA}/ucd/${BLINK_EMOJI_UNICODE_VER}/emoji/emoji-data.txt
+		-> unicode-${BLINK_EMOJI_UNICODE_VER}-emoji-data.txt
+"
 
 SRC_URI+=" !prebuilt-chromedriver-atoms? (
 	https://github.com/SeleniumHQ/selenium/archive/${SELENIUM_COMMIT}.tar.gz -> selenium-${SELENIUM_COMMIT}.gh.tar.gz
@@ -1652,6 +1667,8 @@ chromium_regenerated_outputs() {
 	echo third_party/ipcz/src/ipcz/{node,test}_messages.{cc,h} ui/base/ime/character_composer_data.h \
 		third_party/zxcvbn-cpp/native-src/zxcvbn/adjacency_graphs.{cpp,hpp} third_party/libzip/src/zip_err_str.c
 	use wayland && echo third_party/wayland/include/config.h
+	# Blink's emoji property table (160 and later)
+	[[ -n ${BLINK_EMOJI_UNICODE_VER} ]] && echo third_party/blink/renderer/platform/text/character_emoji_data.h
 	# Extension API TypeScript declarations, Glic's API enums
 	echo $(_chromium_ts_definitions) chrome/browser/resources/glic/glic_api/glic_api_generated.ts
 	if use !system-harfbuzz; then
@@ -2464,6 +2481,25 @@ chromium_regen_ipcz() {
 		> "${T}/ipcz-messages.log" 2>&1 || die "Failed to regenerate ipcz's messages (see ${T}/ipcz-messages.log)"
 }
 
+chromium_regen_blink_emoji() {
+	# Blink's emoji property table (third_party/blink/renderer/platform/text/
+	# character_emoji_data.h, 160 and later) is made from Unicode's emoji-data.txt by
+	# generate_character_emoji_data.py, which downloads it: regenerate it from the file
+	# (BLINK_EMOJI_UNICODE_VER), naming the versioned URL it is published at as the source, as the
+	# generator does for a download.
+	einfo "Regenerating Blink's emoji property table ..."
+	"${EPYTHON}" -B - third_party/blink/renderer/platform/text \
+		"${DISTDIR}/unicode-${BLINK_EMOJI_UNICODE_VER}-emoji-data.txt" "${BLINK_EMOJI_UNICODE_VER}" <<-EOF ||
+		import sys
+		sys.path.insert(0, sys.argv[1])
+		import generate_character_emoji_data as g
+		text = open(sys.argv[2], encoding="utf-8").read()
+		header = g.generate_header(text, source_comment=g.VERSIONED_URL_TEMPLATE.format(version=sys.argv[3]))
+		open(sys.argv[1] + "/character_emoji_data.h", "w", encoding="utf-8").write(header)
+	EOF
+		die "Failed to regenerate character_emoji_data.h"
+}
+
 chromium_regen_composer() {
 	# The IME character composer's table (ui/base/ime/character_composer_data.h) is made from
 	# character_composer_sequences.txt by generate_character_composer_data.py: regenerate it.
@@ -3181,7 +3217,8 @@ chromium_regenerate() {
 		vulkan_headers devtools_generated ffmpeg libaom dav1d bidi pdfium_tables libcxx v8_keywords \
 		sqlite wuffs simdutf re2 bison_ragel harfbuzz_tables ipcz composer zxcvbn libzip wayland \
 		ts_definitions selenium_atoms root_stores libutf metrics openxr polymer devtools_lit \
-		devtools_codemirror web_vitals third_party_web client_variations
+		devtools_codemirror web_vitals third_party_web client_variations \
+		${BLINK_EMOJI_UNICODE_VER:+blink_emoji}
 
 	chromium_unbundle
 }
