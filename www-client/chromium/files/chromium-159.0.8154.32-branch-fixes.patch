@@ -1,0 +1,205 @@
+Chromium 159.0.8154.32 + the later changes of its release branch, up to
+132ead472a42d3bd88dbf4f8896db25a7bd3c0de (refs/branch-heads/8154@{#1431}), for the
+159.0.8154.32 tree that chromium-159.0.8154.28-to-159.0.8154.32.patch makes.
+The newest change it carries is 8154@{#1417}.
+
+Generated from the upstream diffs chromium/src
+refs/tags/159.0.8154.32..132ead472a42d3bd88dbf4f8896db25a7bd3c0de and the dependency
+whose DEPS revision changed: V8 264c6cfa2279..3f63936945bb (under v8/), as served by
+Gitiles, with scripts/chromium-delta --branch-fixes (against the .32 tree's files):
+left out are files not in the release tarball, iOS/Android/ChromeOS/Mac/Windows-only
+files, tests and docs (GN files kept), translations other than en-GB, PGO/orderfile/AFDO
+pointers, submodule pointer updates. chrome/VERSION (the branch's "Incrementing VERSION"
+commits after the .32 tag are not tags yet), the DEPS files and the stamp files stay at
+159.0.8154.32. No other dependency's DEPS revision changes after .32.
+
+Commits contributing to it (oldest first):
+  e8043286ff9d Roll commits from side projects in M159 (V8 264c6cfa2279..3f63936945bb, 8154@{#1417})
+V8 commits of that roll that touch kept files:
+  a38f990ac808 [M159] [turbolev] Remap replaced header phis in peeled loop backedge KNA
+  3f63936945bb Version 15.9.128.28 (include/v8-version.h)
+
+Checked: applies to the 159.0.8154.32 tree (the .28 tarball with
+chromium-159.0.8154.28-to-159.0.8154.32.patch); every patched source file is
+byte-identical to its version at 132ead472a42 (or V8's 3f63936945bb).
+
+Apply with git apply.
+
+diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
+index 71f1405..83c1578 100644
+--- a/v8/include/v8-version.h
++++ b/v8/include/v8-version.h
+@@ -11,7 +11,7 @@
+ #define V8_MAJOR_VERSION 15
+ #define V8_MINOR_VERSION 9
+ #define V8_BUILD_NUMBER 128
+-#define V8_PATCH_LEVEL 27
++#define V8_PATCH_LEVEL 28
+ 
+ // Use 1 for candidates and 0 otherwise.
+ // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/maglev/maglev-known-node-aspects.cc b/v8/src/maglev/maglev-known-node-aspects.cc
+index 9ca76c8..a74598a 100644
+--- a/v8/src/maglev/maglev-known-node-aspects.cc
++++ b/v8/src/maglev/maglev-known-node-aspects.cc
+@@ -433,24 +433,16 @@
+       });
+ }
+ 
+-void KnownNodeAspects::UnwrapIdentitiesAndPhisInKeys() {
+-  auto unwrap = [](ValueNode* node) -> ValueNode* {
+-    return node == nullptr ? nullptr : node->UnwrapIdentitiesAndPhis();
++template <bool kRemapValues, typename RemapFn>
++void KnownNodeAspects::RemapPropertyAndContextNodes(RemapFn&& remap) {
++  auto remap_value = [&](const auto&, ValueNode*& value) {
++    value = remap(value);
+   };
+ 
+-  // node_infos_ is keyed by value node.
+-  node_infos_.RemapKeys(unwrap, [](NodeInfo& dst, const NodeInfo& src) {
+-    // A phi and its single input normalize to the same node; both entries
+-    // then describe the same value, so combine their facts.
+-    dst.CombineSameValueFrom(src);
+-  });
+-
+-  // Cached property loads: key -> object -> value. Only the object is a node
+-  // key; values are left as-is (the merge already unwraps identities on value
+-  // comparison, and available_expressions_ is not remapped at all).
+   auto remap_loaded_properties = [&](LoadedPropertyMap& map) {
+     map.MutateValues([&](PropertyKey, PropertyObjectMap& objects) {
+-      objects.RemapKeys(unwrap);
++      objects.RemapKeys(remap);
++      if constexpr (kRemapValues) objects.MutateValues(remap_value);
+     });
+   };
+   remap_loaded_properties(loaded_properties_);
+@@ -458,20 +450,60 @@
+ 
+   loaded_tagged_keyed_properties_.RemapKeys(
+       [&](std::pair<ValueNode*, ValueNode*> key) {
+-        return std::make_pair(unwrap(key.first), unwrap(key.second));
++        return std::make_pair(remap(key.first), remap(key.second));
+       });
++  if constexpr (kRemapValues) {
++    loaded_tagged_keyed_properties_.MutateValues(remap_value);
++  }
+ 
+-  // Context slot loads: (context node, offset) -> value. Only the context node
+-  // in the key is remapped.
+   auto remap_context_slots = [&](LoadedContextSlots& m) {
+     m.RemapKeys([&](const LoadedContextSlotsKey& key) {
+-      return LoadedContextSlotsKey{unwrap(std::get<0>(key)), std::get<1>(key)};
++      return LoadedContextSlotsKey{remap(std::get<0>(key)), std::get<1>(key)};
+     });
++    if constexpr (kRemapValues) m.MutateValues(remap_value);
+   };
+   remap_context_slots(loaded_context_constants_);
+   remap_context_slots(loaded_context_slots_);
+ }
+ 
++void KnownNodeAspects::UnwrapIdentitiesAndPhisInKeys() {
++  auto unwrap = [](ValueNode* node) -> ValueNode* {
++    return node == nullptr ? nullptr : node->UnwrapIdentitiesAndPhis();
++  };
++
++  // node_infos_ is keyed by value node.
++  // TODO(victorgomes): MergeForLoop no longer reads backedge node_infos_.
++  // Remove this in a follow-up along with an invariant check (e.g. drop
++  // node_infos_ and available_expressions_ from the saved backedge KNA and
++  // DCHECK it in MergeForLoop).
++  node_infos_.RemapKeys(unwrap, [](NodeInfo& dst, const NodeInfo& src) {
++    // A phi and its single input normalize to the same node; both entries
++    // then describe the same value, so combine their facts.
++    dst.CombineSameValueFrom(src);
++  });
++
++  // Values are left as-is (the merge already unwraps identities on value
++  // comparison, and available_expressions_ is not remapped at all).
++  RemapPropertyAndContextNodes</*kRemapValues=*/false>(unwrap);
++}
++
++void KnownNodeAspects::RemapLoopHeaderPhis(
++    const ZoneAbslFlatHashMap<Phi*, Phi*>& replacements) {
++  if (replacements.empty()) return;
++  auto remap = [&](ValueNode* node) -> ValueNode* {
++    if (node == nullptr) return nullptr;
++    ValueNode* unwrapped = node->UnwrapIdentitiesAndPhis();
++    if (Phi* phi = unwrapped->TryCast<Phi>()) {
++      auto it = replacements.find(phi);
++      if (it != replacements.end()) return it->second;
++    }
++    return node;
++  };
++  // MergeForLoop only reads the property and context maps from the saved
++  // backedge KNA (not node_infos_ or available_expressions_).
++  RemapPropertyAndContextNodes</*kRemapValues=*/true>(remap);
++}
++
+ void KnownNodeAspects::UpdateMayHaveAliasingContexts(
+     compiler::JSHeapBroker* broker, LocalIsolate* local_isolate,
+     ValueNode* context) {
+diff --git a/v8/src/maglev/maglev-known-node-aspects.h b/v8/src/maglev/maglev-known-node-aspects.h
+index 388b108..7df89ee 100644
+--- a/v8/src/maglev/maglev-known-node-aspects.h
++++ b/v8/src/maglev/maglev-known-node-aspects.h
+@@ -15,6 +15,7 @@
+ #include "src/maglev/maglev-kna-map.h"
+ #include "src/maglev/maglev-node-type.h"
+ #include "src/objects/contexts.h"
++#include "src/zone/zone-containers.h"
+ 
+ namespace v8 {
+ namespace internal {
+@@ -406,6 +407,11 @@
+   // KNA before merging it into the forward KNA.
+   void UnwrapIdentitiesAndPhisInKeys();
+ 
++  // Rewrites references to replaced loop-header phis (keys and cached values)
++  // in a peeled loop's saved backedge KNA before the old phis are overwritten
++  // with identities to the peel-exit-merge phis.
++  void RemapLoopHeaderPhis(const ZoneAbslFlatHashMap<Phi*, Phi*>& replacements);
++
+   // Loop headers can safely clone the node types, since those won't be
+   // invalidated in the loop body, and similarly stable maps will have
+   // dependencies installed. Unstable maps however might be invalidated by
+@@ -955,6 +961,9 @@
+ 
+   bool MarkSingleMapAsStale(ValueNode* node, bool is_tracing_enabled);
+ 
++  template <bool kRemapValues, typename RemapFn>
++  void RemapPropertyAndContextNodes(RemapFn&& remap);
++
+   static constexpr uint32_t kEffectEpochForPureInstructions =
+       std::numeric_limits<uint32_t>::max();
+   static constexpr uint32_t kEffectEpochOverflow =
+diff --git a/v8/src/maglev/maglev-loop-peeler.cc b/v8/src/maglev/maglev-loop-peeler.cc
+index f6cde18..d2517e1 100644
+--- a/v8/src/maglev/maglev-loop-peeler.cc
++++ b/v8/src/maglev/maglev-loop-peeler.cc
+@@ -1245,6 +1245,10 @@
+ //     │  pem_phi = Phi(pre_val, loop_phi) ◄┼─ Merges peeled and loop values
+ //     │  old_phi = Identity(pem_phi)      ◄┼─── Satisfies all downstream
+ //     └────────────────────────────────────┘    uses of old_phi.
++//
++// TODO(victorgomes): Investigate whether we might want to change Maglev (or
++// loop peeling) to use LCSSA, which would avoid downstream uses of loop phis
++// and body values and eliminate this in-place Identity/KNA rewiring.
+ void MaglevLoopPeeler::RewireDownstreamPhiRefs(PeelContext& ctx) {
+   if (ctx.header_phi_to_pem_phi.empty()) return;
+ 
+@@ -1285,6 +1289,14 @@
+     RewireNodeInputs(r.loop_phi, replacements);
+   }
+ 
++  // Rewrite references to the old header phis in the loop's saved backedge KNA
++  // before the old phis are overwritten with identities to the PEM phis.
++  ctx.loop.header()
++      ->state()
++      ->AsLoopHeader()
++      ->backedge_known_node_aspects()
++      ->RemapLoopHeaderPhis(replacements);
++
+   // Rewrite all references inside the loop body blocks from the old header
+   // phis to their loop phis in a single walk. Body blocks are never dead:
+   // CloneBodySubgraph and CloneLoopBodyControl already clone every body block
+
