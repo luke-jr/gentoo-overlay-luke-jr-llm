@@ -109,8 +109,15 @@ Chromium can reach it, Chromium follows BlueZ's objects, so data from nearby rad
 (names, manufacturer and service data, UUIDs) reaches the privileged browser process
 whenever the system scans, even if no web page asks for Bluetooth. Web Bluetooth itself is
 off by default on Linux (`WebBluetooth` feature); phone passkeys ("hybrid" sign-in with
-the QR code) use Bluetooth only while signing in. The ebuilds have no `bluetooth` USE flag
-for this: block it at runtime instead, either way:
+the QR code) use Bluetooth only while signing in.
+
+Why no `bluetooth` USE flag: the risk is that Chromium *can* reach `bluetoothd` at all.
+Compiling Chromium's BlueZ code out would remove one way it talks to BlueZ, but not the
+access: a compromised browser process could still call `org.bluez` over the system bus
+itself. Only blocking the access removes the risk, and it works the same for every build
+(including Google's and other distributions'). A USE flag would also mean an untested
+configuration (`use_bluez=false` on desktop Linux isn't one Google builds) plus a patch to
+carry, for a weaker result. So block it at runtime, either way:
 - don't run `bluetoothd` (then Chromium's first call to `org.bluez` fails and it sets up
   nothing), or
 - run Chromium without access to `org.bluez` on the system bus: a sandbox that doesn't
