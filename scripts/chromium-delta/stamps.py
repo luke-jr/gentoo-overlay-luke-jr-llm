@@ -7,9 +7,13 @@ Usage: stamps.py BASE_DIR REF DEPS > stamps.diff
   REF       the new chromium/src tag or commit (e.g. refs/tags/156.0.8078.47)
   DEPS      the new commit's DEPS (for Skia's and Dawn's revisions)
 
-The commit's hash, branch position (Cr-Commit-Position) and commit time come from Gitiles.
-generated.conf lists these files as "stamp".
+The commit's hash, branch position (Cr-Commit-Position), commit time and chrome/VERSION come
+from Gitiles. generated.conf lists these files as "stamp". A release from a minibranch (position
+refs/branch-heads/<build>_<patch>@{#N}, cut from <major>.<minor>.<build>.<patch>) gets that
+version in build/util/MINIBRANCH, as lastchange.py --minibranch-out writes it (its
+ParseMinibranchBaseVersion); other releases leave it empty.
 """
+import base64
 import calendar
 import difflib
 import json
@@ -40,6 +44,19 @@ def gitiles(ref):
     sys.exit(f"Gitiles: no answer for {ref}")
 
 
+def version(ref):
+    """chrome/VERSION at REF, as a dict."""
+    for i in range(6):
+        try:
+            data = urllib.request.urlopen(f"{GITILES}{ref}/chrome/VERSION?format=TEXT",
+                                          timeout=60).read()
+            text = base64.b64decode(data).decode()
+            return dict(line.split("=", 1) for line in text.split() if "=" in line)
+        except OSError:
+            time.sleep(5 * (i + 1))
+    sys.exit(f"Gitiles: no chrome/VERSION at {ref}")
+
+
 def main():
     if len(sys.argv) != 4:
         sys.exit(__doc__)
@@ -62,12 +79,20 @@ def main():
         "gpu/webgpu/dawn_commit_hash.h":
             header("GPU_WEBGPU_DAWN_COMMIT_HASH_H_", "DAWN_COMMIT_HASH", dawn),
     }
+    m = re.match(r"refs/branch-heads/(\d+)_(\d+)@", pos)
+    v = version(c["commit"]) if m else {}
+    minibranch = f"{v['MAJOR']}.{v['MINOR']}.{m.group(1)}.{m.group(2)}" if m else ""
+    if os.path.exists(os.path.join(base, "build/util/MINIBRANCH")):
+        stamps["build/util/MINIBRANCH"] = f"MINIBRANCH_BASE_VERSION={minibranch}\n"
     for path, new in stamps.items():
         old = open(os.path.join(base, path)).read()
         if old == new:
             continue
         # Check the format against the base's: only the values may differ.
-        if re.sub(r"[0-9a-f]{40}|\d+", "#", old) != re.sub(r"[0-9a-f]{40}|\d+", "#", new):
+        # A version (MINIBRANCH's, empty or not) and a position's branch (8127 or 8127_36) count
+        # as values.
+        fmt = r"[0-9a-f]{40}|=[0-9.]*$|\d+(?:_\d+)?"
+        if re.sub(fmt, "#", old, flags=re.M) != re.sub(fmt, "#", new, flags=re.M):
             sys.exit(f"{path}: the base's format differs from what this writes:\n{old}")
         sys.stdout.write(f"diff --git a/{path} b/{path}\n")
         lines = difflib.unified_diff(old.splitlines(True), new.splitlines(True),

@@ -157,6 +157,15 @@ downloaded every changed file's old and new contents, one request each: over 10 
 for chromium/src's 59 files. Fix: the script takes Gitiles' diff instead, and fetches only
 trees. The byte checks use the trees' blob ids, so they download nothing either.
 
+### 158.0.8127.88 (patch 158.0.8127.36 → .88): a minibranch release
+
+**Wrong:** .88 was cut on a minibranch of .36 (position `refs/branch-heads/8127_36@{#32}`).
+`stamps.py`'s format check took only digits for the branch, so it stopped on `LASTCHANGE`; and
+it didn't write `build/util/MINIBRANCH`, which `lastchange.py --minibranch-out` sets to the
+version a minibranch was cut from (`MINIBRANCH_BASE_VERSION=158.0.8127.36`; empty otherwise).
+- Fix: `stamps.py` accepts `<build>_<patch>` positions and writes MINIBRANCH like upstream's
+  `ParseMinibranchBaseVersion` (MAJOR.MINOR from the release's `chrome/VERSION`).
+
 ### 158.0.8127.33_p1707 (branch fixes up to 8127@{#1707})
 
 **Intentional:** a dependency's own `DEPS` (at its root: `third_party/dawn/DEPS`, `v8/DEPS`,
