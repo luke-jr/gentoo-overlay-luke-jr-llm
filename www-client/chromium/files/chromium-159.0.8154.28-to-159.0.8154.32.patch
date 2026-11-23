@@ -1,32 +1,34 @@
-Chromium 159.0.8154.28 -> 159.0.8154.31, for the 159.0.8154.28 tarball.
+Chromium 159.0.8154.28 -> 159.0.8154.32, for the 159.0.8154.28 tarball.
 
-159.0.8154.31 is a tag on the 159 branch (refs/branch-heads/8154@{#1317}) that
-has no source tarball (as of 2026-11-22: Google's lite bucket's newest 159 is .28,
-chromium-linux-tarballs' is .13). It adds 291 branch commits to
-159.0.8154.28 (#1026), the newest tag with a tarball, among them 193 PGO/orderfile
+159.0.8154.32 is a tag on the 159 branch (refs/branch-heads/8154@{#1409}) that
+has no source tarball (as of 2026-11-23: Google's lite bucket's newest 159 is .28,
+chromium-linux-tarballs' is .13). It adds 383 branch commits to
+159.0.8154.28 (#1026), the newest tag with a tarball, among them PGO/orderfile
 rolls, translation updates, ChromeOS LKGM uprevs and VERSION increments. It adds,
 among many CHECKs turned back into DCHECKs, Contextual Tasks ("Ask Google" entry
 points, Omnibox fulfilment) and Cobrowse tab tracking: Web Speech API's
 SpeechRecognitionResult timestamps on desktop, ServiceWorker clients' worker script
 origin check, SimpleCache's doomed entries, CacheStorage's empty puts, a
 use-after-free in optimization guide's SetInput() callbacks, in FOR_DROP menu drag and
-drop and in ExplainSuggestion::AskGemini, WebPagePopup's initialization crashes,
-Blink's pseudo-elements no longer exposed as Event.target, actor/WebMCP changes
-(ExecuteJsTool's console capture, script tool token validation), MHTML only for
-allowed schemes, SchemeHostPort rejecting an empty host, the VariationsService HTTP
-fallback off by default, hybrid post-quantum variations seed signatures with key
-rotation, the GPU process' OzoneImageBacking copies; in the dependency rolls: ANGLE's
-D3D11 fixes (Windows only), Skia's Ganesh flush failures abandoning the context,
-GrBufferAllocPool's overflow guard, LCD16 bounds hardening, scissor restricted by
-dst-read bounds, predrawNotify on source-free saveLayer draws and Graphite's depth
-reset, V8 15.9.128.16 to .27 (among them the debugger's kNotAssigned assumptions, the
-compiler's control inputs on non-cell context operations and TruncateFloat64ToInt64
-for minus zero, the interpreter's optional-chain call receiver, String::ToStdString's
-bound, the WebAssembly streaming and code pointer table fixes) and Dawn's oversized
-strides in Queue::WriteTexture and its DXC pin (DEPS only).
+drop, in ExplainSuggestion::AskGemini and in ImageProcessor's get_pixels callback,
+WebPagePopup's initialization crashes, Blink's pseudo-elements no longer exposed as
+Event.target, actor/WebMCP changes (ExecuteJsTool's console capture, script tool token
+validation), MHTML only for allowed schemes, SchemeHostPort rejecting an empty host,
+the VariationsService HTTP fallback off by default, hybrid post-quantum variations seed
+signatures with key rotation, deserialization of older File System Access handles
+stored in IDB, cc's kSendEarlyFinalBeginMainFrame off by default (security), the GPU
+process' OzoneImageBacking copies; in the dependency rolls: ANGLE's D3D11 fixes
+(Windows only), Skia's Ganesh flush failures abandoning the context, GrBufferAllocPool's
+overflow guard, LCD16 bounds hardening, scissor restricted by dst-read bounds,
+predrawNotify on source-free saveLayer draws and Graphite's depth reset, V8 15.9.128.16
+to .27 (among them the debugger's kNotAssigned assumptions, the compiler's control
+inputs on non-cell context operations and TruncateFloat64ToInt64 for minus zero, the
+interpreter's optional-chain call receiver, String::ToStdString's bound, the
+WebAssembly streaming and code pointer table fixes) and Dawn's oversized strides in
+Queue::WriteTexture and its DXC pin (DEPS only).
 
 Generated from the upstream diffs between the tags: chromium/src
-refs/tags/159.0.8154.28..refs/tags/159.0.8154.31 and the dependencies whose
+refs/tags/159.0.8154.28..refs/tags/159.0.8154.32 and the dependencies whose
 DEPS revision changed (ANGLE b49535777c51..3fe66f897d8c, Skia
 458e1f1ab81e..b809e72312b0, V8 ff20afeabcd5..264c6cfa2279, Dawn
 16b69da1f131..76994457bcf6), as served by Gitiles, with scripts/chromium-delta.
@@ -42,17 +44,30 @@ Added: the tarball's stamp files for the new commit (stamps.py:
 build/util/LASTCHANGE{,.committime}, gpu/config/gpu_lists_version.h,
 skia/ext/skia_commit_hash.h, gpu/webgpu/DAWN_VERSION and
 gpu/webgpu/dawn_commit_hash.h; commit
-355cf772fc402c4d92c3716ea48392b34da703e6, refs/branch-heads/8154@{#1317}).
+1ecef263a08472ecbb36647113806f857d1496ed, refs/branch-heads/8154@{#1409}).
 build/util/MINIBRANCH doesn't change.
 
 Checked: applies to the 159.0.8154.28 tarball; chrome/VERSION becomes
-159.0.8154.31; every patched source file is byte-identical to its version
+159.0.8154.32; every patched source file is byte-identical to its version
 at the tag (or its dependency's DEPS revision); it adds 4 files and deletes
 none; the 159.0.8154.28 tarball's non-git files are all classified
 (tarball-generated.py with generated.conf).
 
 Apply with git apply.
 
+diff --git a/cc/base/features.cc b/cc/base/features.cc
+index 864c59f..97f409d 100644
+--- a/cc/base/features.cc
++++ b/cc/base/features.cc
+@@ -341,7 +341,7 @@
+              base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ // Killswitch for disabling SendEarlyBeginMainFrame function in cc/scheduler.
+-BASE_FEATURE(kSendEarlyFinalBeginMainFrame, base::FEATURE_ENABLED_BY_DEFAULT);
++BASE_FEATURE(kSendEarlyFinalBeginMainFrame, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ bool SendEarlyFinalBeginMainFrameIsEnabled() {
+   return base::FeatureList::IsEnabled(kSendEarlyFinalBeginMainFrame);
 diff --git a/cc/trees/layer_tree_host.cc b/cc/trees/layer_tree_host.cc
 index ca21dd25..c8e94dc 100644
 --- a/cc/trees/layer_tree_host.cc
@@ -85,8 +100,31 @@ index 1e6c78b..5598eb9f 100644
    virtual void WillCommit(const CommitState&) = 0;
    // Report that a commit to the impl thread has completed. The
    // commit_start_time is the time that the impl thread began processing the
+diff --git a/cc/trees/layer_tree_host_unittest_proxy.cc b/cc/trees/layer_tree_host_unittest_proxy.cc
+index dcfe817..3db77ab2 100644
+--- a/cc/trees/layer_tree_host_unittest_proxy.cc
++++ b/cc/trees/layer_tree_host_unittest_proxy.cc
+@@ -708,7 +708,9 @@
+ class LayerTreeHostProxyTestRequestImmediateBeginMainFrame
+     : public LayerTreeHostProxyTest {
+  protected:
+-  LayerTreeHostProxyTestRequestImmediateBeginMainFrame() = default;
++  LayerTreeHostProxyTestRequestImmediateBeginMainFrame() {
++    feature_list_.InitAndEnableFeature(features::kSendEarlyFinalBeginMainFrame);
++  }
+   ~LayerTreeHostProxyTestRequestImmediateBeginMainFrame() override = default;
+ 
+   void BeginTest() override { PostSetNeedsCommitToMainThread(); }
+@@ -737,6 +739,7 @@
+   void AfterTest() override { EXPECT_TRUE(received_); }
+ 
+  private:
++  base::test::ScopedFeatureList feature_list_;
+   bool requested_ = false;
+   bool received_ = false;
+ };
 diff --git a/chrome/VERSION b/chrome/VERSION
-index 3c230d6d..222ff03 100644
+index 3c230d6d..60d1ef09 100644
 --- a/chrome/VERSION
 +++ b/chrome/VERSION
 @@ -1,4 +1,4 @@
@@ -94,7 +132,7 @@ index 3c230d6d..222ff03 100644
  MINOR=0
  BUILD=8154
 -PATCH=28
-+PATCH=31
++PATCH=32
 diff --git a/chrome/android/junit/BUILD.gn b/chrome/android/junit/BUILD.gn
 index ed6c3bc..dfb1f2f 100644
 --- a/chrome/android/junit/BUILD.gn
@@ -6062,6 +6100,94 @@ index 325c791..825eeef 100644
        std::move(clear_callback).Run(net::OK);
        return;
      }
+diff --git a/content/browser/file_system_access/file_system_access.proto b/content/browser/file_system_access/file_system_access.proto
+index 7931610..eea20fce 100644
+--- a/content/browser/file_system_access/file_system_access.proto
++++ b/content/browser/file_system_access/file_system_access.proto
+@@ -38,7 +38,8 @@
+   // of the file path is used.
+   optional bytes display_name = 3;
+ 
+-  // The serialized `url::Origin` associated with the handle.
++  // The serialized `url::Origin` associated with the handle. Absent in legacy
++  // handles persisted before origin binding was added.
+   optional string origin = 4;
+ }
+ 
+diff --git a/content/browser/file_system_access/file_system_access_file_handle_impl.cc b/content/browser/file_system_access/file_system_access_file_handle_impl.cc
+index 3d78813..ac59f93 100644
+--- a/content/browser/file_system_access/file_system_access_file_handle_impl.cc
++++ b/content/browser/file_system_access/file_system_access_file_handle_impl.cc
+@@ -521,10 +521,10 @@
+   }
+ 
+   // The two handles are the same if they serialize to the same value.
+-  auto serialization = manager()->SerializeURL(
++  std::string serialization = manager()->SerializeURLForEqualityComparison(
+       url(), FileSystemAccessPermissionContext::HandleType::kFile);
+-  auto other_serialization =
+-      manager()->SerializeURL(other->url(), other->type());
++  std::string other_serialization =
++      manager()->SerializeURLForEqualityComparison(other->url(), other->type());
+   std::move(callback).Run(file_system_access_error::Ok(),
+                           serialization == other_serialization);
+ }
+diff --git a/content/browser/file_system_access/file_system_access_manager_impl.cc b/content/browser/file_system_access/file_system_access_manager_impl.cc
+index 494de82..a8e4895 100644
+--- a/content/browser/file_system_access/file_system_access_manager_impl.cc
++++ b/content/browser/file_system_access/file_system_access_manager_impl.cc
+@@ -1317,7 +1317,7 @@
+ 
+ }  // namespace
+ 
+-std::string FileSystemAccessManagerImpl::SerializeURL(
++std::string FileSystemAccessManagerImpl::SerializeURLForEqualityComparison(
+     const storage::FileSystemURL& url,
+     HandleType type) {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+@@ -1333,6 +1333,9 @@
+     const base::FilePath& root_permission_path,
+     const std::string& display_name) {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  // URLs should not be serialized for disk storage on opaque origins because
++  // IndexedDB is blocked on opaque origins.
++  CHECK(!origin.opaque());
+   return SerializeURLImpl(url, origin, type, root_permission_path,
+                           display_name);
+ }
+@@ -1443,8 +1446,11 @@
+               ? data.local()
+               : data.external();
+ 
+-      if (storage_key.origin().opaque() || !file_data.has_origin() ||
+-          file_data.origin() != storage_key.origin().Serialize()) {
++      // Handles persisted before origin binding was added validly have no
++      // origin. See crbug.com/588328253
++      if (storage_key.origin().opaque() ||
++          (file_data.has_origin() &&
++           file_data.origin() != storage_key.origin().Serialize())) {
+         // Drop `token`, and directly return.
+         return;
+       }
+diff --git a/content/browser/file_system_access/file_system_access_manager_impl.h b/content/browser/file_system_access/file_system_access_manager_impl.h
+index 55f87c4c..3552859 100644
+--- a/content/browser/file_system_access/file_system_access_manager_impl.h
++++ b/content/browser/file_system_access/file_system_access_manager_impl.h
+@@ -321,9 +321,11 @@
+       ResolvedTokenCallback callback);
+ 
+   // Generates a unique serialization of a URL, which can be used to check
+-  // handles for equality. This is not cryptographically secure.
+-  std::string SerializeURL(const storage::FileSystemURL& url,
+-                           FileSystemAccessPermissionContext::HandleType type);
++  // handles for equality. This is not cryptographically secure and the result
++  // must not be persisted.
++  std::string SerializeURLForEqualityComparison(
++      const storage::FileSystemURL& url,
++      FileSystemAccessPermissionContext::HandleType type);
+ 
+   base::WeakPtr<FileSystemAccessManagerImpl> AsWeakPtr();
+ 
 diff --git a/content/browser/renderer_host/model_context_user_data.cc b/content/browser/renderer_host/model_context_user_data.cc
 index f46b5d1..9ec93c6 100644
 --- a/content/browser/renderer_host/model_context_user_data.cc
@@ -6472,6 +6598,18 @@ index bbd02f77..e79a05ed 100644
    // Handles a single request. Set to a new instance on redirects.
    std::unique_ptr<ServiceWorkerControlleeRequestHandler> request_handler_;
  };
+diff --git a/content/test/BUILD.gn b/content/test/BUILD.gn
+index 045d7fcc..503267e 100644
+--- a/content/test/BUILD.gn
++++ b/content/test/BUILD.gn
+@@ -1954,6 +1954,7 @@
+     "//content/app:for_content_tests",
+     "//content/browser:for_content_tests",
+     "//content/browser/background_sync:background_sync_proto",
++    "//content/browser/file_system_access:proto",
+     "//content/browser/tracing/traces_internals:mojo_bindings",
+     "//content/child:for_content_tests",
+     "//content/gpu",
 diff --git a/gpu/command_buffer/service/shared_image/ozone_image_backing.cc b/gpu/command_buffer/service/shared_image/ozone_image_backing.cc
 index 6855b869..5570552e 100644
 --- a/gpu/command_buffer/service/shared_image/ozone_image_backing.cc
@@ -6690,6 +6828,70 @@ index 21b3305..2c69a861 100644
        in_results->estimated_trailer_prefetch_size > 0 && backend_.get() &&
        backend_->index()) {
      backend_->index()->SetTrailerPrefetchSize(
+diff --git a/services/image_annotation/public/cpp/BUILD.gn b/services/image_annotation/public/cpp/BUILD.gn
+index 9e9b462..b504100 100644
+--- a/services/image_annotation/public/cpp/BUILD.gn
++++ b/services/image_annotation/public/cpp/BUILD.gn
+@@ -26,6 +26,7 @@
+     ":cpp",
+     "//base",
+     "//base/test:test_support",
++    "//mojo/public/cpp/bindings",
+     "//services/image_annotation:lib",
+     "//testing/gmock",
+     "//testing/gtest",
+diff --git a/services/image_annotation/public/cpp/image_processor.cc b/services/image_annotation/public/cpp/image_processor.cc
+index 1d70ea16..0f2df463 100644
+--- a/services/image_annotation/public/cpp/image_processor.cc
++++ b/services/image_annotation/public/cpp/image_processor.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "services/image_annotation/public/cpp/image_processor.h"
+ 
++#include <utility>
++
+ #include "base/functional/bind.h"
+ #include "base/task/sequenced_task_runner.h"
+ #include "base/task/thread_pool.h"
+@@ -94,10 +96,16 @@
+ void ImageProcessor::GetJpgImageData(GetJpgImageDataCallback callback) {
+   DCHECK(base::SequencedTaskRunner::HasCurrentDefault());
+ 
++  base::WeakPtr<ImageProcessor> weak_this = weak_factory_.GetWeakPtr();
++  SkBitmap pixels = get_pixels_.Run();
++  if (!weak_this) {
++    return;
++  }
++
+   background_task_runner_->PostTask(
+       FROM_HERE, base::BindOnce(&ScaleAndEncodeImage,
+                                 base::SequencedTaskRunner::GetCurrentDefault(),
+-                                std::move(callback), get_pixels_.Run(),
++                                std::move(callback), std::move(pixels),
+                                 kMaxPixels, kJpgQuality));
+ }
+ 
+diff --git a/services/image_annotation/public/cpp/image_processor.h b/services/image_annotation/public/cpp/image_processor.h
+index 0f24b0f..92f445c 100644
+--- a/services/image_annotation/public/cpp/image_processor.h
++++ b/services/image_annotation/public/cpp/image_processor.h
+@@ -8,6 +8,7 @@
+ #include "base/functional/callback.h"
+ #include "base/gtest_prod_util.h"
+ #include "base/memory/scoped_refptr.h"
++#include "base/memory/weak_ptr.h"
+ #include "base/task/sequenced_task_runner.h"
+ #include "mojo/public/cpp/bindings/pending_remote.h"
+ #include "mojo/public/cpp/bindings/receiver_set.h"
+@@ -52,6 +53,8 @@
+ 
+   mojo::ReceiverSet<mojom::ImageProcessor> receivers_;
+ 
++  base::WeakPtrFactory<ImageProcessor> weak_factory_{this};
++
+   FRIEND_TEST_ALL_PREFIXES(ImageProcessorTest, ImageContent);
+ };
+ 
 diff --git a/storage/browser/file_system/local_file_stream_reader.cc b/storage/browser/file_system/local_file_stream_reader.cc
 index 1f05ac7..6e43f72 100644
 --- a/storage/browser/file_system/local_file_stream_reader.cc
@@ -9411,6 +9613,7 @@ index db04c73..f63531f 100644
  
    // If the serialized string is passed to GURL for parsing, it will append an
    // empty path "/" for standard URLs but only if they are special. Add that
+
 diff --git a/third_party/angle/src/libANGLE/Texture.cpp b/third_party/angle/src/libANGLE/Texture.cpp
 index 69ac3cf..738522b 100644
 --- a/third_party/angle/src/libANGLE/Texture.cpp
@@ -9479,6 +9682,7 @@ index 8423888..07a56d9 100644
      ImageD3D *image = mImageArray[faceIndex][level].get();
  
      if (image->isDirty())
+
 diff --git a/third_party/dawn/src/dawn/native/BufferTextureCopyOversizedRow.cpp b/third_party/dawn/src/dawn/native/BufferTextureCopyOversizedRow.cpp
 index 076e0b6..44ea551 100644
 --- a/third_party/dawn/src/dawn/native/BufferTextureCopyOversizedRow.cpp
@@ -9756,6 +9960,7 @@ index 5044e4e..61c3e05 100644
      Queue(Device* device, const QueueDescriptor* descriptor);
      MaybeError SubmitImpl(Span<CommandBufferBase* const> commands) override;
      MaybeError WriteBufferImpl(BufferBase* buffer,
+
 diff --git a/third_party/skia/BUILD.gn b/third_party/skia/BUILD.gn
 index 7859fd7..0633793 100644
 --- a/third_party/skia/BUILD.gn
@@ -16174,6 +16379,7 @@ index 0b2aea2..eb4cb3f 100644
      }
  
      const SkPath fPath;
+
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
 index 39e021c..71f1405 100644
 --- a/v8/include/v8-version.h
@@ -18317,12 +18523,13 @@ index 715ef66..ce27abf 100644
      canonical = module->canonical_type(unsafe_expected_type);
    } else {
      // Some code paths did check this before, but to be on the safe side we
+
 diff --git a/build/util/LASTCHANGE b/build/util/LASTCHANGE
 --- a/build/util/LASTCHANGE
 +++ b/build/util/LASTCHANGE
 @@ -1,2 +1,2 @@
 -LASTCHANGE=6667d1ef5cc7735c59c67adf7e03ccbc07f499e7-refs/branch-heads/8154@{#1026}
-+LASTCHANGE=355cf772fc402c4d92c3716ea48392b34da703e6-refs/branch-heads/8154@{#1317}
++LASTCHANGE=1ecef263a08472ecbb36647113806f857d1496ed-refs/branch-heads/8154@{#1409}
  LASTCHANGE_YEAR=2026
 diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 --- a/build/util/LASTCHANGE.committime
@@ -18330,7 +18537,7 @@ diff --git a/build/util/LASTCHANGE.committime b/build/util/LASTCHANGE.committime
 @@ -1 +1 @@
 -1795050920
 \ No newline at end of file
-+1795310886
++1795397460
 \ No newline at end of file
 diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
 --- a/gpu/config/gpu_lists_version.h
@@ -18340,7 +18547,7 @@ diff --git a/gpu/config/gpu_lists_version.h b/gpu/config/gpu_lists_version.h
  #define GPU_CONFIG_GPU_LISTS_VERSION_H_
  
 -#define GPU_LISTS_VERSION "6667d1ef5cc7735c59c67adf7e03ccbc07f499e7"
-+#define GPU_LISTS_VERSION "355cf772fc402c4d92c3716ea48392b34da703e6"
++#define GPU_LISTS_VERSION "1ecef263a08472ecbb36647113806f857d1496ed"
  
  #endif  // GPU_CONFIG_GPU_LISTS_VERSION_H_
 diff --git a/skia/ext/skia_commit_hash.h b/skia/ext/skia_commit_hash.h

@@ -1,0 +1,342 @@
+Chromium 159.0.8154.32 + the later changes of its release branch, up to
+0750c01c21ff5830cc363c4fd558e21032447611 (refs/branch-heads/8154@{#1441}), for the
+159.0.8154.32 tree that chromium-159.0.8154.28-to-159.0.8154.32.patch makes.
+The newest change it carries is 8154@{#1441}.
+
+Generated from the upstream diffs chromium/src
+refs/tags/159.0.8154.32..0750c01c21ff5830cc363c4fd558e21032447611 and the dependency
+whose DEPS revision changed: V8 264c6cfa2279..3f63936945bb (under v8/), as served by
+Gitiles, with scripts/chromium-delta --branch-fixes (against the .32 tree's files):
+left out are files not in the release tarball, iOS/Android/ChromeOS/Mac/Windows-only
+files, tests and docs (GN files kept), translations other than en-GB, PGO/orderfile/AFDO
+pointers, submodule pointer updates. chrome/VERSION (the branch's "Incrementing VERSION"
+commits after the .32 tag are not tags yet), the DEPS files and the stamp files stay at
+159.0.8154.32. No other dependency's DEPS revision changes after .32.
+
+Commits contributing to it (oldest first):
+  e8043286ff9d Roll commits from side projects in M159 (V8 264c6cfa2279..3f63936945bb, 8154@{#1417})
+  0750c01c21ff [M159] Notify UrlListManager observers on destruction (8154@{#1441})
+V8 commits of that roll that touch kept files:
+  a38f990ac808 [M159] [turbolev] Remap replaced header phis in peeled loop backedge KNA
+  3f63936945bb Version 15.9.128.28 (include/v8-version.h)
+
+Checked: applies to the 159.0.8154.32 tree (the .28 tarball with
+chromium-159.0.8154.28-to-159.0.8154.32.patch); every patched source file is
+byte-identical to its version at 0750c01c21ff (or V8's 3f63936945bb).
+
+Apply with git apply.
+
+diff --git a/chrome/browser/ui/content_settings/BUILD.gn b/chrome/browser/ui/content_settings/BUILD.gn
+index 5ba1eb8..83955f4 100644
+--- a/chrome/browser/ui/content_settings/BUILD.gn
++++ b/chrome/browser/ui/content_settings/BUILD.gn
+@@ -118,6 +118,7 @@
+     "//components/subresource_filter/core/browser",
+     "//components/tabs:public",
+     "//ui/events:test_support",
++    "//ui/views:test_support",
+   ]
+ }
+ 
+diff --git a/chrome/browser/ui/content_settings/content_setting_bubble_model.cc b/chrome/browser/ui/content_settings/content_setting_bubble_model.cc
+index 44c1d0d..dcfe5f85 100644
+--- a/chrome/browser/ui/content_settings/content_setting_bubble_model.cc
++++ b/chrome/browser/ui/content_settings/content_setting_bubble_model.cc
+@@ -942,8 +942,10 @@
+   // ContentSettingBubbleModel:
+   void CommitChanges() override;
+ 
+-  // PopupBlockerTabHelper::Observer:
++  // UrlListManager::Observer:
+   void BlockedUrlAdded(int32_t id, const GURL& url) override;
++  void OnUrlListManagerDestroying(
++      blocked_content::UrlListManager* manager) override;
+ 
+  private:
+   void OnListItemClicked(int index, const ui::Event& event) override;
+@@ -983,10 +985,18 @@
+   AddListItem(CreateUrlListItem(id, url));
+ }
+ 
++void ContentSettingPopupBubbleModel::OnUrlListManagerDestroying(
++    blocked_content::UrlListManager* manager) {
++  url_list_observation_.Reset();
++}
++
+ void ContentSettingPopupBubbleModel::OnListItemClicked(int index,
+                                                        const ui::Event& event) {
+   auto* helper =
+       blocked_content::PopupBlockerTabHelper::FromWebContents(web_contents());
++  if (!helper) {
++    return;
++  }
+   helper->ShowBlockedPopup(item_id_from_item_index(index),
+                            ui::DispositionFromEventFlags(event.flags()));
+   RemoveListItem(index);
+@@ -1782,9 +1792,17 @@
+ void ContentSettingFramebustBlockBubbleModel::OnListItemClicked(
+     int index,
+     const ui::Event& event) {
+-  FramebustBlockTabHelper::From(
+-      tabs::TabInterface::GetFromContents(web_contents()))
+-      ->OnBlockedUrlClicked(index);
++  auto* tab = tabs::TabInterface::MaybeGetFromContents(web_contents());
++  auto* helper = tab ? FramebustBlockTabHelper::From(tab) : nullptr;
++  if (!helper) {
++    return;
++  }
++  helper->OnBlockedUrlClicked(index);
++}
++
++void ContentSettingFramebustBlockBubbleModel::OnUrlListManagerDestroying(
++    blocked_content::UrlListManager* manager) {
++  url_list_observation_.Reset();
+ }
+ 
+ ContentSettingFramebustBlockBubbleModel*
+diff --git a/chrome/browser/ui/content_settings/content_setting_bubble_model.h b/chrome/browser/ui/content_settings/content_setting_bubble_model.h
+index f9efaf9e..49978228 100644
+--- a/chrome/browser/ui/content_settings/content_setting_bubble_model.h
++++ b/chrome/browser/ui/content_settings/content_setting_bubble_model.h
+@@ -696,6 +696,8 @@
+ 
+   // UrlListManager::Observer:
+   void BlockedUrlAdded(int32_t id, const GURL& blocked_url) override;
++  void OnUrlListManagerDestroying(
++      blocked_content::UrlListManager* manager) override;
+ 
+  private:
+   ListItem CreateListItem(const GURL& url);
+diff --git a/components/blocked_content/BUILD.gn b/components/blocked_content/BUILD.gn
+index f9b40fe..13149a2a 100644
+--- a/components/blocked_content/BUILD.gn
++++ b/components/blocked_content/BUILD.gn
+@@ -79,6 +79,7 @@
+     "popup_blocker_tab_helper_unittest.cc",
+     "safe_browsing_triggered_popup_blocker_unittest.cc",
+     "subresource_filter_abusive_unittest.cc",
++    "url_list_manager_unittest.cc",
+   ]
+   deps = [
+     ":blocked_content",
+@@ -100,6 +101,7 @@
+     "//net:test_support",
+     "//testing/gmock",
+     "//testing/gtest",
++    "//url",
+   ]
+   if (is_android) {
+     sources += [ "android/popup_blocked_message_delegate_unittest.cc" ]
+diff --git a/components/blocked_content/url_list_manager.cc b/components/blocked_content/url_list_manager.cc
+index f2d998d..5e5dce4 100644
+--- a/components/blocked_content/url_list_manager.cc
++++ b/components/blocked_content/url_list_manager.cc
+@@ -9,7 +9,11 @@
+ 
+ UrlListManager::UrlListManager() = default;
+ 
+-UrlListManager::~UrlListManager() = default;
++UrlListManager::~UrlListManager() {
++  for (auto& observer : observers_) {
++    observer.OnUrlListManagerDestroying(this);
++  }
++}
+ 
+ void UrlListManager::AddObserver(Observer* observer) {
+   observers_.AddObserver(observer);
+diff --git a/components/blocked_content/url_list_manager.h b/components/blocked_content/url_list_manager.h
+index 0abc30e4..161d0cc2 100644
+--- a/components/blocked_content/url_list_manager.h
++++ b/components/blocked_content/url_list_manager.h
+@@ -25,6 +25,13 @@
+    public:
+     virtual ~Observer() = default;
+     virtual void BlockedUrlAdded(int32_t id, const GURL& url) = 0;
++
++    // Called when the UrlListManager is being destroyed. Observers must stop
++    // observing (e.g. reset their ScopedObservation) and must not touch the
++    // manager afterwards. The owning tab helper may be destroyed before UI
++    // surfaces that observe it (e.g. content setting bubbles), so observers
++    // that can outlive the manager must handle this.
++    virtual void OnUrlListManagerDestroying(UrlListManager* manager) {}
+   };
+ 
+   UrlListManager();
+diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
+index 71f1405..83c1578 100644
+--- a/v8/include/v8-version.h
++++ b/v8/include/v8-version.h
+@@ -11,7 +11,7 @@
+ #define V8_MAJOR_VERSION 15
+ #define V8_MINOR_VERSION 9
+ #define V8_BUILD_NUMBER 128
+-#define V8_PATCH_LEVEL 27
++#define V8_PATCH_LEVEL 28
+ 
+ // Use 1 for candidates and 0 otherwise.
+ // (Boolean macro values are not supported by all preprocessors.)
+diff --git a/v8/src/maglev/maglev-known-node-aspects.cc b/v8/src/maglev/maglev-known-node-aspects.cc
+index 9ca76c8..a74598a 100644
+--- a/v8/src/maglev/maglev-known-node-aspects.cc
++++ b/v8/src/maglev/maglev-known-node-aspects.cc
+@@ -433,24 +433,16 @@
+       });
+ }
+ 
+-void KnownNodeAspects::UnwrapIdentitiesAndPhisInKeys() {
+-  auto unwrap = [](ValueNode* node) -> ValueNode* {
+-    return node == nullptr ? nullptr : node->UnwrapIdentitiesAndPhis();
++template <bool kRemapValues, typename RemapFn>
++void KnownNodeAspects::RemapPropertyAndContextNodes(RemapFn&& remap) {
++  auto remap_value = [&](const auto&, ValueNode*& value) {
++    value = remap(value);
+   };
+ 
+-  // node_infos_ is keyed by value node.
+-  node_infos_.RemapKeys(unwrap, [](NodeInfo& dst, const NodeInfo& src) {
+-    // A phi and its single input normalize to the same node; both entries
+-    // then describe the same value, so combine their facts.
+-    dst.CombineSameValueFrom(src);
+-  });
+-
+-  // Cached property loads: key -> object -> value. Only the object is a node
+-  // key; values are left as-is (the merge already unwraps identities on value
+-  // comparison, and available_expressions_ is not remapped at all).
+   auto remap_loaded_properties = [&](LoadedPropertyMap& map) {
+     map.MutateValues([&](PropertyKey, PropertyObjectMap& objects) {
+-      objects.RemapKeys(unwrap);
++      objects.RemapKeys(remap);
++      if constexpr (kRemapValues) objects.MutateValues(remap_value);
+     });
+   };
+   remap_loaded_properties(loaded_properties_);
+@@ -458,20 +450,60 @@
+ 
+   loaded_tagged_keyed_properties_.RemapKeys(
+       [&](std::pair<ValueNode*, ValueNode*> key) {
+-        return std::make_pair(unwrap(key.first), unwrap(key.second));
++        return std::make_pair(remap(key.first), remap(key.second));
+       });
++  if constexpr (kRemapValues) {
++    loaded_tagged_keyed_properties_.MutateValues(remap_value);
++  }
+ 
+-  // Context slot loads: (context node, offset) -> value. Only the context node
+-  // in the key is remapped.
+   auto remap_context_slots = [&](LoadedContextSlots& m) {
+     m.RemapKeys([&](const LoadedContextSlotsKey& key) {
+-      return LoadedContextSlotsKey{unwrap(std::get<0>(key)), std::get<1>(key)};
++      return LoadedContextSlotsKey{remap(std::get<0>(key)), std::get<1>(key)};
+     });
++    if constexpr (kRemapValues) m.MutateValues(remap_value);
+   };
+   remap_context_slots(loaded_context_constants_);
+   remap_context_slots(loaded_context_slots_);
+ }
+ 
++void KnownNodeAspects::UnwrapIdentitiesAndPhisInKeys() {
++  auto unwrap = [](ValueNode* node) -> ValueNode* {
++    return node == nullptr ? nullptr : node->UnwrapIdentitiesAndPhis();
++  };
++
++  // node_infos_ is keyed by value node.
++  // TODO(victorgomes): MergeForLoop no longer reads backedge node_infos_.
++  // Remove this in a follow-up along with an invariant check (e.g. drop
++  // node_infos_ and available_expressions_ from the saved backedge KNA and
++  // DCHECK it in MergeForLoop).
++  node_infos_.RemapKeys(unwrap, [](NodeInfo& dst, const NodeInfo& src) {
++    // A phi and its single input normalize to the same node; both entries
++    // then describe the same value, so combine their facts.
++    dst.CombineSameValueFrom(src);
++  });
++
++  // Values are left as-is (the merge already unwraps identities on value
++  // comparison, and available_expressions_ is not remapped at all).
++  RemapPropertyAndContextNodes</*kRemapValues=*/false>(unwrap);
++}
++
++void KnownNodeAspects::RemapLoopHeaderPhis(
++    const ZoneAbslFlatHashMap<Phi*, Phi*>& replacements) {
++  if (replacements.empty()) return;
++  auto remap = [&](ValueNode* node) -> ValueNode* {
++    if (node == nullptr) return nullptr;
++    ValueNode* unwrapped = node->UnwrapIdentitiesAndPhis();
++    if (Phi* phi = unwrapped->TryCast<Phi>()) {
++      auto it = replacements.find(phi);
++      if (it != replacements.end()) return it->second;
++    }
++    return node;
++  };
++  // MergeForLoop only reads the property and context maps from the saved
++  // backedge KNA (not node_infos_ or available_expressions_).
++  RemapPropertyAndContextNodes</*kRemapValues=*/true>(remap);
++}
++
+ void KnownNodeAspects::UpdateMayHaveAliasingContexts(
+     compiler::JSHeapBroker* broker, LocalIsolate* local_isolate,
+     ValueNode* context) {
+diff --git a/v8/src/maglev/maglev-known-node-aspects.h b/v8/src/maglev/maglev-known-node-aspects.h
+index 388b108..7df89ee 100644
+--- a/v8/src/maglev/maglev-known-node-aspects.h
++++ b/v8/src/maglev/maglev-known-node-aspects.h
+@@ -15,6 +15,7 @@
+ #include "src/maglev/maglev-kna-map.h"
+ #include "src/maglev/maglev-node-type.h"
+ #include "src/objects/contexts.h"
++#include "src/zone/zone-containers.h"
+ 
+ namespace v8 {
+ namespace internal {
+@@ -406,6 +407,11 @@
+   // KNA before merging it into the forward KNA.
+   void UnwrapIdentitiesAndPhisInKeys();
+ 
++  // Rewrites references to replaced loop-header phis (keys and cached values)
++  // in a peeled loop's saved backedge KNA before the old phis are overwritten
++  // with identities to the peel-exit-merge phis.
++  void RemapLoopHeaderPhis(const ZoneAbslFlatHashMap<Phi*, Phi*>& replacements);
++
+   // Loop headers can safely clone the node types, since those won't be
+   // invalidated in the loop body, and similarly stable maps will have
+   // dependencies installed. Unstable maps however might be invalidated by
+@@ -955,6 +961,9 @@
+ 
+   bool MarkSingleMapAsStale(ValueNode* node, bool is_tracing_enabled);
+ 
++  template <bool kRemapValues, typename RemapFn>
++  void RemapPropertyAndContextNodes(RemapFn&& remap);
++
+   static constexpr uint32_t kEffectEpochForPureInstructions =
+       std::numeric_limits<uint32_t>::max();
+   static constexpr uint32_t kEffectEpochOverflow =
+diff --git a/v8/src/maglev/maglev-loop-peeler.cc b/v8/src/maglev/maglev-loop-peeler.cc
+index f6cde18..d2517e1 100644
+--- a/v8/src/maglev/maglev-loop-peeler.cc
++++ b/v8/src/maglev/maglev-loop-peeler.cc
+@@ -1245,6 +1245,10 @@
+ //     │  pem_phi = Phi(pre_val, loop_phi) ◄┼─ Merges peeled and loop values
+ //     │  old_phi = Identity(pem_phi)      ◄┼─── Satisfies all downstream
+ //     └────────────────────────────────────┘    uses of old_phi.
++//
++// TODO(victorgomes): Investigate whether we might want to change Maglev (or
++// loop peeling) to use LCSSA, which would avoid downstream uses of loop phis
++// and body values and eliminate this in-place Identity/KNA rewiring.
+ void MaglevLoopPeeler::RewireDownstreamPhiRefs(PeelContext& ctx) {
+   if (ctx.header_phi_to_pem_phi.empty()) return;
+ 
+@@ -1285,6 +1289,14 @@
+     RewireNodeInputs(r.loop_phi, replacements);
+   }
+ 
++  // Rewrite references to the old header phis in the loop's saved backedge KNA
++  // before the old phis are overwritten with identities to the PEM phis.
++  ctx.loop.header()
++      ->state()
++      ->AsLoopHeader()
++      ->backedge_known_node_aspects()
++      ->RemapLoopHeaderPhis(replacements);
++
+   // Rewrite all references inside the loop body blocks from the old header
+   // phis to their loop phis in a single walk. Body blocks are never dead:
+   // CloneBodySubgraph and CloneLoopBodyControl already clone every body block
+
