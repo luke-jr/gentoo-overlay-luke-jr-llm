@@ -1718,8 +1718,10 @@ chromium_regenerated_outputs() {
 	# DevTools' generated files, and its JavaScript bundles (lit's, codemirror.next's,
 	# web-vitals', third-party-web's) and ClientVariations.js
 	local d=third_party/devtools-frontend/src
-	echo "${d}/front_end/generated/SupportedCSSProperties.ts" \
-		"${d}/front_end/models/javascript_metadata/NativeFunctions.ts"
+	echo "${d}/front_end/models/javascript_metadata/NativeFunctions.ts"
+	# Up to 159 (160's DevTools build generates it itself)
+	[[ -e ${d}/front_end/generated/SupportedCSSProperties.ts ]] &&
+		echo "${d}/front_end/generated/SupportedCSSProperties.ts"
 	# Up to 158 (159's DevTools build generates these itself)
 	[[ -e ${d}/front_end/generated/InspectorBackendCommands.ts ]] &&
 		echo "${d}"/front_end/generated/{ARIAProperties,Deprecation,InspectorBackendCommands,protocol}.ts \
@@ -2885,7 +2887,7 @@ chromium_regen_openxr() {
 chromium_regen_devtools_generated() {
 	# DevTools checks in files generated from Blink's and V8's definitions: front_end/generated/
 	# (the protocol, ARIA, CSS and deprecation data; since 159 only the CSS data, its build makes
-	# the rest) and models/javascript_metadata/
+	# the rest; since 160 none, and generate_protocol_resources.py is gone) and models/javascript_metadata/
 	# NativeFunctions.ts (from Blink's Web IDL). Regenerate them with DevTools' own scripts (the
 	# first gives byte-identical files; NativeFunctions.ts differs: 156's IDL, which DevTools'
 	# copy lags behind, and the order of its lists, made deterministic by
@@ -2894,8 +2896,10 @@ chromium_regen_devtools_generated() {
 	# edited by hand since).
 	einfo "Regenerating DevTools' generated files ..."
 	pushd third_party/devtools-frontend/src >/dev/null || die
-	"${EPYTHON}" scripts/deps/generate_protocol_resources.py --node-path "$(type -P node)" ||
-		die "Failed to regenerate DevTools' protocol resources"
+	if [[ -e scripts/deps/generate_protocol_resources.py ]]; then
+		"${EPYTHON}" scripts/deps/generate_protocol_resources.py --node-path "$(type -P node)" ||
+			die "Failed to regenerate DevTools' protocol resources"
+	fi
 	# NativeFunctions.ts also needs TypeScript's lib*.d.ts (dev-lang/typescript's) and webidl2's
 	# sources (lib/; its dist/ bundle isn't used)
 	rm -r node_modules/webidl2/dist || die
