@@ -296,6 +296,9 @@ CHROMIUM_HARDENED_PATCHES=(
 CHROMIUM_KEEPLIBS=(
 	# 159 renamed ANGLE's libXNVCtrl.
 	third_party/angle/src/third_party/libxnvctrl
+	# 160 builds LiteRT with ML Drift, its WebGPU accelerator (build_litert_with_ml_drift, false
+	# in 159, now on for desktop).
+	third_party/ml_drift
 	third_party/oak/src/oak_session/tls
 	# OpenH264 in Rust (159's media_use_rust_openh264, with proprietary_codecs).
 	third_party/openh264rs
