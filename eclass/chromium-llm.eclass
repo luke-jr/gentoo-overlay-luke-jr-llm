@@ -103,13 +103,6 @@
 # HarfBuzz's Unicode data, file by file (from unicodetools), for a Unicode version whose zipped
 # UCD isn't published. Unset: the zipped UCD.
 
-# @ECLASS_VARIABLE: CHROMIUM_CRUBIT_RUST
-# @DEFAULT_UNSET
-# @DESCRIPTION:
-# For each slot of LLVM_COMPAT, "<LLVM slot>:<dev-lang/rust version>": the Rust that uses that
-# LLVM, whose dev-util/crubit-<Rust version>_p${CRUBIT_DATE} the build then needs (Crubit is
-# tied to one Rust build). Unset: the one for RUST_MIN_VER, whatever the LLVM slot.
-
 # @ECLASS_VARIABLE: CHROMIUM_UPSTREAM_CRUBIT
 # @DEFAULT_UNSET
 # @DESCRIPTION:
@@ -553,21 +546,24 @@ DEPEND="${COMMON_DEPEND}
 	)
 "
 
-# The dev-util/crubit for the selected Rust (see CHROMIUM_CRUBIT_RUST).
+# For each LLVM slot, a dev-util/crubit-<Rust version>_p${CRUBIT_DATE} (this version's Crubit
+# commit) for any Rust release that rust.eclass maps to the slot (within RUST_MIN_VER and
+# RUST_MAX_VER). No dev-lang/rust dependency of its own: each Crubit depends on the Rust it is
+# linked against, so the pair is always complete, and a newer Rust doesn't break the build
+# until its Crubit is installed too. pkg_setup builds with the newest Rust whose Crubit is
+# installed.
 _chromium_crubit_dep() {
-	if [[ ${#CHROMIUM_CRUBIT_RUST[@]} -eq 0 ]]; then
-		echo "~dev-util/crubit-${RUST_MIN_VER}_p${CRUBIT_DATE}"
-		return
-	fi
-	local slot e found
+	local slot r list
 	for slot in "${LLVM_COMPAT[@]}"; do
-		found=
-		for e in "${CHROMIUM_CRUBIT_RUST[@]}"; do
-			[[ ${e%%:*} == "${slot}" ]] || continue
-			echo "llvm_slot_${slot}? ( ~dev-util/crubit-${e#*:}_p${CRUBIT_DATE} )"
-			found=1
+		list=()
+		for r in "${_RUST_SLOTS[@]}"; do
+			# Releases only: no live or beta Rust.
+			[[ ${r} == *9999* || ${r} == *beta* ]] && continue
+			[[ ${_RUST_LLVM_MAP[${r}]} == "${slot}" ]] &&
+				list+=( "~dev-util/crubit-${r}_p${CRUBIT_DATE}" )
 		done
-		[[ -n ${found} ]] || die "CHROMIUM_CRUBIT_RUST has no Rust for LLVM ${slot}"
+		[[ ${#list[@]} -gt 0 ]] || die "No Rust for LLVM ${slot} within RUST_MIN_VER/RUST_MAX_VER"
+		echo "llvm_slot_${slot}? ( || ( ${list[*]} ) )"
 	done
 }
 
@@ -804,6 +800,22 @@ chromium-llm_pkg_setup() {
 				llvm-r2_pkg_setup
 			else
 				llvm-r1_pkg_setup
+			fi
+			# The newest Rust of the LLVM slot whose Crubit is installed (see
+			# _chromium_crubit_dep), unless the user picked one with ERUST_SLOT_OVERRIDE.
+			local ERUST_SLOT_OVERRIDE=${ERUST_SLOT_OVERRIDE} ERUST_TYPE_OVERRIDE=${ERUST_TYPE_OVERRIDE}
+			if [[ -z ${ERUST_SLOT_OVERRIDE} ]]; then
+				local r
+				for r in "${_RUST_SLOTS[@]}"; do
+					[[ ${r} == *9999* || ${r} == *beta* ]] && continue
+					[[ ${_RUST_LLVM_MAP[${r}]} == "${LLVM_SLOT}" ]] || continue
+					if has_version -b "~dev-util/crubit-${r}_p${CRUBIT_DATE}"; then
+						ERUST_SLOT_OVERRIDE=${r} ERUST_TYPE_OVERRIDE=source
+						break
+					fi
+				done
+				[[ -n ${ERUST_SLOT_OVERRIDE} ]] ||
+					die "No dev-util/crubit-<Rust>_p${CRUBIT_DATE} is installed for a Rust of LLVM ${LLVM_SLOT}"
 			fi
 			rust_pkg_setup
 
