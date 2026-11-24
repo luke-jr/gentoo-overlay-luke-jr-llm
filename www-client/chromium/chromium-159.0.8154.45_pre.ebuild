@@ -43,8 +43,8 @@ RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit build (rustc driver, ti
 CRUBIT_DATE="20261104"
 PPC64_HASH="7aae8a84e327fc2078ce1625c9c70bfda77d626f"
 COPIUM_COMMIT="8f644ae974c69af28134dd8b3b4ca4cf20bfe602"
-# 159.0.8154.32 is a tag without a tarball: built from the 159.0.8154.28 tarball plus
-# files/chromium-159.0.8154.28-to-159.0.8154.32.patch (see its header).
+# 159.0.8154.45 is a tag without a tarball: built from the 159.0.8154.28 tarball plus
+# files/chromium-159.0.8154.28-to-159.0.8154.45.patch (see its header).
 CHROMIUM_TARBALL_PV="159.0.8154.28"
 # Inputs of ANGLE's code generators that the tarball lacks (files/chromium-angle-regen.py):
 # Khronos' registries at ANGLE's (and, for Vulkan, Chromium's) DEPS revisions; perfect-hash,
@@ -190,11 +190,6 @@ LICENSE+=" rar? ( unRAR )"
 # Masking www-client/chromium:stable/fixes keeps only the builds of Google's releases in this slot.
 SLOT="stable/fixes"
 KEYWORDS="~amd64 ~arm64"
-
-# The 159 branch's changes after the 159.0.8154.32 tag, up to #1528 (see its header).
-CHROMIUM_FIXES=(
-	chromium-159.0.8154.32-branch-fixes.patch
-)
 
 # The overlay's patches, after the Gentoo patchset's common ones.
 CHROMIUM_PATCHES=(
