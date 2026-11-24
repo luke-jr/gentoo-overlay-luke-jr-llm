@@ -97,8 +97,13 @@ def main():
     )
 
     # Generate AppData (AppStream)
+    # 160 renamed the template to metainfo.xml.template (same content but one empty
+    # <translation/>); the output keeps the name the eclass installs.
+    appdata = Path("chrome/installer/linux/common/metainfo.xml.template")
+    if not appdata.exists():
+        appdata = Path("chrome/installer/linux/common/appdata.xml.template")
     installer.process_template(
-        Path("chrome/installer/linux/common/appdata.xml.template"),
+        appdata,
         Path(args.outdir, f"chromium-browser{channel_suffix}.appdata.xml"),
         context,
     )
