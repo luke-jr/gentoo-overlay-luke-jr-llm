@@ -33,8 +33,8 @@ ROLLUP_BIDI_VER="4.63.1"
 # dev-util/cddlconv's slot: the version chromium-bidi's checked-in protocol types name.
 CDDLCONV_VER="0.2.0"
 
-# Each LLVM slot means one dev-lang/rust (::gentoo's Rust ebuilds have one LLVM slot each), and
-# its own dev-util/crubit (tied to one Rust build).
+# Each LLVM slot means its Rust releases (::gentoo's Rust ebuilds have one LLVM slot each); the
+# build uses the newest one whose dev-util/crubit (tied to one Rust build) is installed.
 LLVM_COMPAT=( 22 23 )
 RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit build (rustc driver, tied to the Rust build)
 # The dev-util/crubit this version needs: <Rust version>_p<CRUBIT_DATE>, the commit date of
