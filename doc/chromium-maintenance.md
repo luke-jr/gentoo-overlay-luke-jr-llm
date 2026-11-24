@@ -34,13 +34,13 @@ was added with (and 156 updated from .12 to .47).
     Google's Early Stable (e.g. 158.0.8127.18), there is one plain ebuild, as Early Stable
     (`SLOT="stable"`), and no Beta one until the Linux Beta moves to another version
     (159.0.8154.13 is both, since 2026-11-18: no Beta ebuild until 160).
-  - The line-up (2026-11-23): Stable 158.0.8127.88 (`amd64`); Early Stable 159.0.8154.14
-    (`159.0.8154.14_pre`, official, `~amd64`), which replaced 158.0.8127.37-r2; the bleeding edge 159.0.8154.45_p1624_pre (`stable/fixes`); no Beta until 160, whose port is
+  - The line-up (2026-11-24): Stable 158.0.8127.88 (`amd64`); Early Stable 159.0.8154.34
+    (`159.0.8154.34_pre`, official, `~amd64`), which replaced 158.0.8127.37-r2; the bleeding edge 159.0.8154.45_p1624_pre (`stable/fixes`); no Beta until 160, whose port is
     160.0.8171.0 (`beta`, on a dev tarball, ahead of its Beta; it moves to the 160 branch at the branch point).
   - A tarball Google's bucket lacks: chromium-linux-tarballs' (the one `::gentoo` uses,
     `chromium-<version>-linux.tar.xz` on GitHub, with a `.hashes` file) is the same content;
-    an ebuild sets `CHROMIUM_TARBALL_SOURCE="linux-tarballs"` for it (159.0.8154.13 is the
-    base of 159.0.8154.14_pre; Google has no lite tarball of .13 or .14).
+    an ebuild sets `CHROMIUM_TARBALL_SOURCE="linux-tarballs"` for it (159.0.8154.14_pre was
+    built so, from .13's; the current 159.0.8154.34_pre has Google's lite tarball of .33).
   - The bleeding edge (`<tag>_p<N>[_pre]`, sub-slot `fixes`): one only, of the Early Stable's
     major, `SLOT="stable/fixes"`, `~amd64 ~arm64`. The old major's bleeding edge is dropped
     when the next major becomes Early Stable (the newer branch gets every fix first; the old
