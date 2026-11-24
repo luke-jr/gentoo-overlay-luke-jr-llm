@@ -191,6 +191,11 @@ LICENSE+=" rar? ( unRAR )"
 SLOT="stable/fixes"
 KEYWORDS="~amd64 ~arm64"
 
+# The 159 branch's changes after the 159.0.8154.45 tag, up to #1541 (see its header).
+CHROMIUM_FIXES=(
+	chromium-159.0.8154.45-branch-fixes.patch
+)
+
 # The overlay's patches, after the Gentoo patchset's common ones.
 CHROMIUM_PATCHES=(
 	# Chromium must not download executable code at runtime (other than

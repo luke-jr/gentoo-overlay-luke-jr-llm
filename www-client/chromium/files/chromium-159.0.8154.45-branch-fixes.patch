@@ -1,0 +1,549 @@
+Chromium 159.0.8154.45 + the later changes of its release branch, up to
+fc4c7c309a0a5d466a982bddd133bcb23a983614 (refs/branch-heads/8154@{#1541}), for the
+159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
+chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
+8154@{#1541}.
+
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..fc4c7c309a0a and the
+dependency whose DEPS revision changed: ANGLE 4dd34493f8a2..9cb758f56d71 (under
+third_party/angle/), as served by Gitiles, with scripts/chromium-delta/branch-fixes.py
+(filter.py --branch-fixes, against the 159.0.8154.45 tree's files): left out are files not
+in the release tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs (GN
+files kept), translations other than en-GB, PGO/orderfile/AFDO pointers, submodule pointer
+updates. chrome/VERSION (the branch's "Incrementing VERSION" commits after the 159.0.8154.45
+tag are not tags yet), the DEPS files and the stamp files stay at 159.0.8154.45.
+
+Commits contributing to it (oldest first):
+  e8dd7df98b89 Roll commits from side projects in M159 (ANGLE 4dd34493f8a2..9cb758f56d71, 8154@{#1538})
+  f99b2eb99572 [M159] Support circle highlight engaged indicator style in WebUI toolbar. (8154@{#1539})
+  630964377970 [M159] WebUI: Follow up refinements to WebUIExtension (8154@{#1540})
+  fc4c7c309a0a [M159] [contextual-tasks] Fix site settings crash on permission chips (8154@{#1541})
+Dependency commits of those rolls that touch kept files:
+  315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
+  9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
+
+Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
+version at fc4c7c309a0a (or ANGLE's 9cb758f56d71).
+
+Apply with git apply.
+
+diff --git a/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.css b/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.css
+index 2915d181..b88fe68 100644
+--- a/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.css
++++ b/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.css
+@@ -16,13 +16,26 @@
+   app-region: no-drag;
+ }
+ 
+-/* Engaged actions paint their icon in the engaged color, as native
+- * PinnedActionToolbarButton does. */
++/* Engaged actions with the underline indicator style paint their icon in the
++ * engaged color, as native PinnedActionToolbarButton::GetForegroundColor()
++ * does. */
+ toolbar-chip-button[is-activated] {
+   --toolbar-chip-fg-color: var(--color-toolbar-action-item-engaged,
+       var(--google-blue-600));
+ }
+ 
++/* Engaged actions with the circle highlight indicator style show a circular
++ * background highlight when not highlighted (is-menu-open), as native
++ * PinnedActionToolbarButton::UpdateStatusIndicator() does. While an IPH is
++ * anchored to the button, help_bubble_anchor.css suppresses this background on
++ * .iph-visual-target with transparent !important so the IPH attention pulse on
++ * ::before replaces it, and the icon uses the feature promo highlight color
++ * below (since [is-activated] is only set for the underline indicator style,
++ * matching native PinnedActionToolbarButton::UpdateIcon()). */
++toolbar-chip-button[has-circle-highlight] {
++  --toolbar-chip-bg-color: var(--color-avatar-button-highlight-default);
++}
++
+ /* Like native toolbar buttons, use the inactive icon color while disabled or
+  * while the browser window is inactive on Mac (the browser sets
+  * controls-appear-inactive). This doesn't apply during an IPH, where native
+@@ -35,7 +48,8 @@
+ 
+ /* While an IPH is anchored to the button, paint the icon in the feature promo
+  * highlight color, matching native ToolbarButton::GetForegroundColor(). Engaged
+- * buttons keep the engaged color, as native PinnedActionToolbarButton does. */
++ * buttons with the underline indicator style keep the engaged color, as native
++ * PinnedActionToolbarButton::UpdateIcon() does. */
+ toolbar-chip-button.help-anchor-highlight:not([is-activated]) {
+   --toolbar-chip-fg-color: var(--color-toolbar-feature-promo-highlight);
+ }
+diff --git a/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.html.ts b/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.html.ts
+index 641add8c..f67c119 100644
+--- a/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.html.ts
++++ b/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.html.ts
+@@ -12,7 +12,9 @@
+     class="${this.hasHelpBubble ? 'help-anchor-highlight' : ''}"
+     .disabled="${!this.state.enabled}"
+     ?is-menu-open="${this.state.highlighted || this.trackedHighlighted}"
+-    ?is-activated="${this.state.activated}" .tooltip="${this.getTooltip_()}"
++    ?is-activated="${this.showUnderlineIndicator_()}"
++    ?has-circle-highlight="${this.showCircleHighlight_()}"
++    .tooltip="${this.getTooltip_()}"
+     .ariaLabel="${this.state.accessibilityText || this.state.tooltip}"
+     .ariaPressed="${
+         this.state.highlighted || this.trackedHighlighted ? 'true' : 'false'}"
+@@ -36,7 +38,8 @@
+     </circle>
+   </svg>
+ ` : nothing}
+-<div class="status-indicator" ?hidden="${!this.state.activated}"></div>
++<div class="status-indicator" ?hidden="${!this.showUnderlineIndicator_()}">
++</div>
+ ${this.getBadgeText_() ? html`
+   <div class="badge" aria-hidden="true" ?disabled="${!this.state.enabled}"
+       ?dormant="${this.isDormant_()}" ?is-activated="${this.state.activated}">
+diff --git a/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.ts b/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.ts
+index 7722014..320dbb4 100644
+--- a/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.ts
++++ b/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.ts
+@@ -11,7 +11,7 @@
+ import type {PropertyValues} from '//resources/lit/v3_0/lit.rollup.js';
+ import {getContextMenuPosition, getContextMenuSourceType} from '/shared/toolbar_button.js';
+ import type {OverflowMenuItem} from '/shared/toolbar_ui_api.mojom-webui.js';
+-import {ContextMenuType, DownloadProgressRingStatus, PinnedToolbarAction} from '/shared/toolbar_ui_api_data_model.mojom-webui.js';
++import {ContextMenuType, DownloadProgressRingStatus, PinnedToolbarAction, PinnedToolbarActionEngagedIndicatorStyle} from '/shared/toolbar_ui_api_data_model.mojom-webui.js';
+ import type {PinnedToolbarActionState} from '/shared/toolbar_ui_api_data_model.mojom-webui.js';
+ 
+ import {BrowserProxyImpl} from './browser_proxy.js';
+@@ -27,6 +27,7 @@
+   highlighted: false,
+   enabled: true,
+   activated: false,
++  engagedIndicatorStyle: PinnedToolbarActionEngagedIndicatorStyle.kUnderline,
+   tooltip: '',
+   accessibilityText: '',
+   elementId: null,
+@@ -157,6 +158,19 @@
+         DownloadProgressRingStatus.kDormant;
+   }
+ 
++  protected showUnderlineIndicator_(): boolean {
++    return this.state.activated &&
++        this.state.engagedIndicatorStyle ===
++        PinnedToolbarActionEngagedIndicatorStyle.kUnderline;
++  }
++
++  protected showCircleHighlight_(): boolean {
++    return this.state.activated &&
++        this.state.engagedIndicatorStyle ===
++        PinnedToolbarActionEngagedIndicatorStyle.kCircleHighlight &&
++        !this.state.highlighted && !this.trackedHighlighted;
++  }
++
+   /**
+    * Returns the inline style that shrinks the icon by the action's icon size
+    * delta, matching native PinnedActionToolbarButton::GetIconSize(), or
+diff --git a/chrome/browser/resources/webui_toolbar/webui_toolbar.ts b/chrome/browser/resources/webui_toolbar/webui_toolbar.ts
+index 33a406b..cab5dc7 100644
+--- a/chrome/browser/resources/webui_toolbar/webui_toolbar.ts
++++ b/chrome/browser/resources/webui_toolbar/webui_toolbar.ts
+@@ -13,7 +13,7 @@
+ export {IconTable} from '/shared/icon_table.js';
+ export {getClickSourceType, getContextMenuSourceType, HighlightTracker, PressHandler} from '/shared/toolbar_button.js';
+ export type {AdjustOmniboxTextForCopyResult, InitialState, OverflowMenuItem, ToolbarUIServiceInterface} from '/shared/toolbar_ui_api.mojom-webui.js';
+-export {AppMenuIconType, AppMenuSeverity, AvatarToolbarButtonState, ContentSettingImageType, ContextMenuType, DownloadProgressRingStatus, FocusRequestTarget, LhsChipIdentifier, OmniboxTextColor, PageActionAnimationStyle, PageActionId, PageActionTrigger, PermissionAction, PermissionChipTheme, PermissionPromptStyle, PinnedToolbarAction, SecurityChipRole} from '/shared/toolbar_ui_api_data_model.mojom-webui.js';
++export {AppMenuIconType, AppMenuSeverity, AvatarToolbarButtonState, ContentSettingImageType, ContextMenuType, DownloadProgressRingStatus, FocusRequestTarget, LhsChipIdentifier, OmniboxTextColor, PageActionAnimationStyle, PageActionId, PageActionTrigger, PermissionAction, PermissionChipTheme, PermissionPromptStyle, PinnedToolbarAction, PinnedToolbarActionEngagedIndicatorStyle, SecurityChipRole} from '/shared/toolbar_ui_api_data_model.mojom-webui.js';
+ export type {GlicButtonState, LocationBarState, OmniboxAction, PageActionState, PermissionChipState, PermissionDashboardState} from '/shared/toolbar_ui_api_data_model.mojom-webui.js';
+ export {ToolbarAppElement} from './app.js';
+ export type {BackForwardButtonElement} from './back_forward_button.js';
+diff --git a/chrome/browser/ui/page_info/BUILD.gn b/chrome/browser/ui/page_info/BUILD.gn
+index 49ed0c3..2dc75f5 100644
+--- a/chrome/browser/ui/page_info/BUILD.gn
++++ b/chrome/browser/ui/page_info/BUILD.gn
+@@ -119,6 +119,7 @@
+     "//chrome/browser/ui:url_identity",
+     "//chrome/browser/ui/browser_window",
+     "//chrome/browser/ui/hats",
++    "//chrome/browser/ui/webui:webui_util",
+     "//chrome/browser/usb",
+     "//chrome/browser/vr",
+     "//chrome/common",
+diff --git a/chrome/browser/ui/page_info/chrome_page_info_delegate.cc b/chrome/browser/ui/page_info/chrome_page_info_delegate.cc
+index e6d5d90..67ebb36 100644
+--- a/chrome/browser/ui/page_info/chrome_page_info_delegate.cc
++++ b/chrome/browser/ui/page_info/chrome_page_info_delegate.cc
+@@ -32,6 +32,7 @@
+ #include "chrome/browser/ssl/stateful_ssl_host_state_delegate_factory.h"
+ #include "chrome/browser/subresource_filter/subresource_filter_profile_context_factory.h"
+ #include "chrome/browser/ui/url_identity.h"
++#include "chrome/browser/ui/webui/webui_embedding_context.h"
+ #include "chrome/browser/usb/usb_chooser_context.h"
+ #include "chrome/browser/usb/usb_chooser_context_factory.h"
+ #include "chrome/browser/vr/vr_tab_helper.h"
+@@ -135,7 +136,16 @@
+ ChromePageInfoDelegate::GetBrowserCallback
+ ChromePageInfoDelegate::DefaultGetBrowserCallback() {
+   return base::BindRepeating([](content::WebContents* contents) {
+-    return GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents);
++    if (BrowserWindowInterface* browser =
++            GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
++                contents)) {
++      return browser;
++    }
++    // Page Info can be opened for non-tab WebContents (e.g. side panels), where
++    // `FindBrowserWithTab()` returns nullptr. Fall back to the embedding
++    // browser context so browser-scoped actions (like opening Site Settings)
++    // still resolve the owning browser window.
++    return contents ? webui::GetBrowserWindowInterface(contents) : nullptr;
+   });
+ }
+ 
+diff --git a/chrome/browser/ui/views/toolbar/webui_pinned_toolbar_actions.cc b/chrome/browser/ui/views/toolbar/webui_pinned_toolbar_actions.cc
+index 1f7a34c..cf665e29 100644
+--- a/chrome/browser/ui/views/toolbar/webui_pinned_toolbar_actions.cc
++++ b/chrome/browser/ui/views/toolbar/webui_pinned_toolbar_actions.cc
+@@ -25,6 +25,7 @@
+ #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_ids.h"
+ #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
+ #include "chrome/browser/ui/views/toolbar/download_button.h"
++#include "chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.h"
+ #include "chrome/browser/ui/views/toolbar/pinned_action_toolbar_button_menu_model.h"
+ #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+ #include "chrome/browser/ui/views/toolbar/webui_toolbar_web_view.h"
+@@ -249,10 +250,17 @@
+         IsActionHighlighted(id) || (menu_runner_ && menu_runner_->IsRunning() &&
+                                     active_context_menu_action_ == id);
+     state->enabled = item->GetEnabled();
+-    // TODO(crbug.com/578143713): Also plumb
+-    // `kActionItemEngagedIndicatorStyleKey` through `PinnedToolbarActionState`
+-    // to support `kCircleHighlight` in WebUI.
+     state->activated = item->GetProperty(kActionItemUnderlineIndicatorKey);
++    switch (item->GetProperty(kActionItemEngagedIndicatorStyleKey)) {
++      case ActionItemEngagedIndicatorStyle::kUnderline:
++        state->engaged_indicator_style = toolbar_ui_api::mojom::
++            PinnedToolbarActionEngagedIndicatorStyle::kUnderline;
++        break;
++      case ActionItemEngagedIndicatorStyle::kCircleHighlight:
++        state->engaged_indicator_style = toolbar_ui_api::mojom::
++            PinnedToolbarActionEngagedIndicatorStyle::kCircleHighlight;
++        break;
++    }
+     state->tooltip = item->GetTooltipText();
+     state->accessibility_text = item->GetAccessibleName();
+     if (auto element_id = webui_toolbar::ActionIdToElementIdentifier(id)) {
+diff --git a/components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom b/components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom
+index 655d191..2e6ac35 100644
+--- a/components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom
++++ b/components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom
+@@ -794,6 +794,19 @@
+   uint8? progress_percentage;
+ };
+ 
++// Visual style used to indicate that a pinned toolbar action button is engaged
++// (`activated`). Mirrors `ActionItemEngagedIndicatorStyle` in
++// //chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.h.
++enum PinnedToolbarActionEngagedIndicatorStyle {
++  // Colors the button icon with `--color-toolbar-action-item-engaged` and shows
++  // an underline status indicator below the icon.
++  kUnderline,
++  // Shows a circular background highlight
++  // (`--color-avatar-button-highlight-default`) behind the button when not
++  // highlighted (`is-menu-open`).
++  kCircleHighlight,
++};
++
+ // The state of a pinned toolbar action button that should be displayed.
+ struct PinnedToolbarActionState {
+   // The action to invoke upon click of this button.
+@@ -808,6 +821,12 @@
+   // Should this button appear activated?
+   bool activated;
+ 
++  // Visual style used to indicate that the action is engaged when `activated`
++  // is true. Mirrors `kActionItemEngagedIndicatorStyleKey` and
++  // `PinnedActionToolbarButton::SetEngagedIndicatorStyle()`.
++  PinnedToolbarActionEngagedIndicatorStyle engaged_indicator_style =
++      PinnedToolbarActionEngagedIndicatorStyle.kUnderline;
++
+   // Tooltip text to display on hover.
+   mojo_base.mojom.String16 tooltip;
+ 
+diff --git a/content/renderer/render_frame_impl.h b/content/renderer/render_frame_impl.h
+index e202a62..8beffe8 100644
+--- a/content/renderer/render_frame_impl.h
++++ b/content/renderer/render_frame_impl.h
+@@ -812,14 +812,14 @@
+     navigation_client_impl_ = std::move(client);
+   }
+ 
++  base::WeakPtr<RenderFrameImpl> GetWeakPtr();
++
+  protected:
+   explicit RenderFrameImpl(CreateParams params);
+ 
+   bool IsLocalRoot() const;
+   const RenderFrameImpl* GetLocalRoot() const;
+ 
+-  base::WeakPtr<RenderFrameImpl> GetWeakPtr();
+-
+  private:
+   friend class RenderFrameImplTest;
+   friend class RenderFrameObserver;
+diff --git a/content/renderer/web_ui_extension.cc b/content/renderer/web_ui_extension.cc
+index 8dc44808..d898836 100644
+--- a/content/renderer/web_ui_extension.cc
++++ b/content/renderer/web_ui_extension.cc
+@@ -8,26 +8,24 @@
+ #include <utility>
+ 
+ #include "base/functional/bind.h"
++#include "base/memory/weak_ptr.h"
+ #include "base/values.h"
+ #include "components/viz/common/frame_timing_details.h"
+ #include "content/public/common/bindings_policy.h"
+-#include "content/public/common/url_constants.h"
+ #include "content/public/renderer/chrome_object_extensions_utils.h"
+-#include "content/public/renderer/render_frame.h"
+ #include "content/public/renderer/render_thread.h"
+ #include "content/public/renderer/v8_value_converter.h"
++#include "content/renderer/render_frame_impl.h"
+ #include "content/renderer/web_ui_extension_data.h"
+ #include "content/renderer/web_ui_histograms_extension.h"
+ #include "gin/arguments.h"
+ #include "gin/converter.h"
+ #include "gin/function_template.h"
+ #include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
+-#include "third_party/blink/public/web/web_document.h"
+ #include "third_party/blink/public/web/web_frame_widget.h"
+ #include "third_party/blink/public/web/web_local_frame.h"
+ #include "third_party/blink/public/web/web_view.h"
+ #include "ui/gfx/presentation_feedback.h"
+-#include "url/gurl.h"
+ #include "v8/include/v8-context.h"
+ #include "v8/include/v8-function.h"
+ #include "v8/include/v8-local-handle.h"
+@@ -41,29 +39,20 @@
+ 
+ namespace {
+ 
+-bool ShouldRespondToRequest(blink::WebLocalFrame** frame_ptr,
+-                            RenderFrame** render_frame_ptr) {
++// Returns the RenderFrameImpl for the current V8 context if it has WebUI
++// bindings, or null otherwise.
++RenderFrameImpl* GetWebUIFrameForCurrentContext() {
+   blink::WebLocalFrame* frame = blink::WebLocalFrame::FrameForCurrentContext();
+-  if (!frame || !frame->View())
+-    return false;
++  if (!frame) {
++    return nullptr;
++  }
+ 
+-  GURL frame_url = frame->GetDocument().Url();
++  RenderFrameImpl* render_frame = RenderFrameImpl::FromWebFrame(frame);
++  if (!render_frame->GetEnabledBindings().Has(BindingsPolicyValue::kWebUi)) {
++    return nullptr;
++  }
+ 
+-  RenderFrame* render_frame = RenderFrame::FromWebFrame(frame);
+-  if (!render_frame)
+-    return false;
+-
+-  bool webui_enabled =
+-      (render_frame->GetEnabledBindings().Has(BindingsPolicyValue::kWebUi)) &&
+-      (frame_url.SchemeIs(kChromeUIScheme) ||
+-       frame_url.SchemeIs(url::kDataScheme));
+-
+-  if (!webui_enabled)
+-    return false;
+-
+-  *frame_ptr = frame;
+-  *render_frame_ptr = render_frame;
+-  return true;
++  return render_frame;
+ }
+ 
+ // Get or create a `child_name` object in the `parent` object.
+@@ -221,11 +210,11 @@
+ v8::Local<v8::Value> WebUIExtension::RequestPresentationTime(
+     gin::Arguments* args) {
+   v8::Isolate* isolate = args->isolate();
+-  blink::WebLocalFrame* frame;
+-  RenderFrame* render_frame;
+-  if (!ShouldRespondToRequest(&frame, &render_frame)) {
++  RenderFrameImpl* render_frame = GetWebUIFrameForCurrentContext();
++  if (!render_frame) {
+     return v8::Undefined(isolate);
+   }
++  blink::WebLocalFrame* frame = render_frame->GetWebFrame();
+ 
+   v8::Local<v8::Context> context = isolate->GetCurrentContext();
+   v8::Local<v8::Promise::Resolver> resolver;
+@@ -250,7 +239,7 @@
+   blink::WebFrameWidget* widget = frame->LocalRoot()->FrameWidget();
+   const bool page_visible = frame->View()->GetVisibilityState() ==
+                             blink::mojom::PageVisibilityState::kVisible;
+-  if (!widget || !page_visible || !widget->RequestedMainFramePending()) {
++  if (!page_visible || !widget->RequestedMainFramePending()) {
+     resolver->Resolve(context, v8::Null(isolate)).Check();
+     return resolver->GetPromise();
+   }
+@@ -268,10 +257,11 @@
+ 
+ // static
+ void WebUIExtension::Send(gin::Arguments* args) {
+-  blink::WebLocalFrame* frame;
+-  RenderFrame* render_frame;
+-  if (!ShouldRespondToRequest(&frame, &render_frame))
++  RenderFrameImpl* frame = GetWebUIFrameForCurrentContext();
++  if (!frame) {
+     return;
++  }
++  base::WeakPtr<RenderFrameImpl> render_frame = frame->GetWeakPtr();
+ 
+   std::string message;
+   if (!args->GetNext(&message)) {
+@@ -291,19 +281,19 @@
+ 
+     std::unique_ptr<base::Value> value =
+         V8ValueConverter::Create()->FromV8Value(
+-            obj, frame->MainWorldScriptContext());
++            obj, frame->GetWebFrame()->MainWorldScriptContext());
+     DCHECK(value->is_list());
+     content = std::move(*value).TakeList();
+ 
+-    // The conversion of |obj| could have triggered arbitrary JavaScript code,
+-    // so check that the frame is still valid to avoid dereferencing a stale
+-    // pointer.
+-    if (frame != blink::WebLocalFrame::FrameForCurrentContext()) {
+-      NOTREACHED();
++    // The conversion of `obj` can run arbitrary script (getters, toJSON), which
++    // may detach the frame. Drop the message in that case rather than touching
++    // a destroyed RenderFrame.
++    if (!render_frame) {
++      return;
+     }
+   }
+ 
+-  auto* webui = WebUIExtensionData::Get(render_frame);
++  auto* webui = WebUIExtensionData::Get(render_frame.get());
+   if (!webui)
+     return;
+ 
+@@ -313,10 +303,10 @@
+ 
+ // static
+ std::string WebUIExtension::GetVariableValue(const std::string& name) {
+-  blink::WebLocalFrame* frame;
+-  RenderFrame* render_frame;
+-  if (!ShouldRespondToRequest(&frame, &render_frame))
++  RenderFrameImpl* render_frame = GetWebUIFrameForCurrentContext();
++  if (!render_frame) {
+     return std::string();
++  }
+ 
+   auto* webui = WebUIExtensionData::Get(render_frame);
+   if (!webui)
+diff --git a/content/renderer/web_ui_extension.h b/content/renderer/web_ui_extension.h
+index 21e3c5c..86d2bd1 100644
+--- a/content/renderer/web_ui_extension.h
++++ b/content/renderer/web_ui_extension.h
+@@ -22,6 +22,9 @@
+ 
+ namespace content {
+ 
++// Installs the chrome.* bindings used by WebUI pages. These are for WebUI
++// only: they are installed in, and respond to calls from, frames the browser
++// has granted WebUI bindings via RenderFrameHostImpl::AllowBindings.
+ class WebUIExtension {
+  public:
+   WebUIExtension() = delete;
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.cpp
+index d6ef269..91da9f0 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.cpp
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.cpp
+@@ -38,6 +38,10 @@
+ constexpr VkImageUsageFlags kColorAttachmentImageFlags =
+     VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+ 
++// The image usage flags that depend on the format (see updateFormatDependentImageUsageFlags()).
++constexpr VkImageUsageFlags kFormatDependentImageUsageFlags =
++    kColorAttachmentImageFlags | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
++
+ constexpr VkImageUsageFlags kDrawStagingImageFlags =
+     vk::kImageUsageTransferBits | kColorAttachmentImageFlags;
+ 
+@@ -2540,13 +2544,15 @@
+     mDescriptorSetCacheManager.releaseKeys(contextVk->getRenderer());
+ }
+ 
+-void TextureVk::initImageUsageFlags(ContextVk *contextVk,
+-                                    const angle::Format &intendedFormat,
+-                                    angle::FormatID actualFormatID)
++void TextureVk::updateFormatDependentImageUsageFlags(ContextVk *contextVk,
++                                                     const angle::Format &intendedFormat,
++                                                     angle::FormatID actualFormatID)
+ {
+     ASSERT(actualFormatID != angle::FormatID::NONE);
+ 
+-    mImageUsageFlags = vk::kImageUsageTransferBits | VK_IMAGE_USAGE_SAMPLED_BIT;
++    // Only the usage flags that depend on the format are updated here.  The rest are kept as they
++    // are, as they are based on how the texture is used (such as storage).
++    mImageUsageFlags &= ~kFormatDependentImageUsageFlags;
+ 
+     // If the image has depth/stencil support, add those as possible usage.
+     vk::Renderer *renderer = contextVk->getRenderer();
+@@ -2586,8 +2592,9 @@
+         setImageHelper(contextVk, new vk::ImageHelper(gl_vk::GetImageType(mState.getType())), true);
+     }
+ 
+-    initImageUsageFlags(contextVk, format.getIntendedFormat(),
+-                        format.getActualImageFormatID(getRequiredFormatSupport()));
++    mImageUsageFlags = vk::kImageUsageTransferBits | VK_IMAGE_USAGE_SAMPLED_BIT;
++    updateFormatDependentImageUsageFlags(contextVk, format.getIntendedFormat(),
++                                         format.getActualImageFormatID(getRequiredFormatSupport()));
+ 
+     return angle::Result::Continue;
+ }
+@@ -3332,7 +3339,15 @@
+     }
+     else
+     {
+-        const vk::Format &format         = getBaseLevelFormat(contextVk->getRenderer());
++        // Reformat the image only if its own format now requires a different actual format, i.e.
++        // the texture has switched to a renderable fallback format.  Note that the format of the
++        // image is used and not that of the base level.  If the base level has changed to a level
++        // with a different format, the image still holds the data of the previous levels, which
++        // must be preserved in their own format.  Converting them to the new base level's format
++        // would stage updates that are incompatible with those levels, leaving them uninitialized
++        // once the image is recreated for them.
++        const vk::Format &format =
++            contextVk->getRenderer()->getFormat(mImage->getIntendedFormatID());
+         const uint32_t enabledLevelCount = getMipLevelCount(ImageMipLevels::EnabledLevels);
+         const angle::Format &dstFormat   = format.getActualImageFormat(getRequiredFormatSupport());
+         const bool canReformatImage      = mImage->getActualFormatID() != dstFormat.id &&
+@@ -4335,6 +4350,13 @@
+ {
+     vk::Renderer *renderer = contextVk->getRenderer();
+ 
++    // The format-dependent usage flags (such as color attachment) are initialized based on the
++    // format of whichever level was last specified (see redefineLevel()), which is not necessarily
++    // the format the image is created with, i.e. that of the base level.  Derive them from the
++    // image's format instead.
++    updateFormatDependentImageUsageFlags(contextVk, angle::Format::Get(intendedImageFormatID),
++                                         actualImageFormatID);
++
+     // Create the image. For immutable texture, we always allocate the full immutable levels
+     // specified by texStorage call. Otherwise we only try to allocate from base to max levels.
+     const gl::ImageDesc *firstLevelDesc;
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.h b/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.h
+index 9e912a4..5326c0a 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.h
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.h
+@@ -603,9 +603,11 @@
+     }
+ 
+     angle::Result refreshReadImageViews(ContextVk *contextVk);
+-    void initImageUsageFlags(ContextVk *contextVk,
+-                             const angle::Format &intendedFormat,
+-                             angle::FormatID actualFormatID);
++    // Updates the usage flags that depend on the format (i.e. attachment usages), leaving the
++    // other usage flags intact.
++    void updateFormatDependentImageUsageFlags(ContextVk *contextVk,
++                                              const angle::Format &intendedFormat,
++                                              angle::FormatID actualFormatID);
+     void handleImmutableSamplerTransition(const vk::ImageHelper *previousImage,
+                                           const vk::ImageHelper *nextImage);
+ 
