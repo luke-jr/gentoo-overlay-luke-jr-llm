@@ -186,7 +186,7 @@ LICENSE+=" Unicode-DFS-2015 Unlicense UoI-NCSA ZLIB libtiff openssl"
 LICENSE+=" rar? ( unRAR )"
 
 # Google's Early Stable (Windows and Mac first): ~amd64 in the stable slot. No sub-slot: no fixes
-# beyond Google's release (159.0.8154.27_p<N>_pre in stable/fixes is the build with fixes).
+# beyond Google's release (the bleeding edge, 159.0.8154.<tag>_p<N>_pre in stable/fixes, is the build with fixes).
 SLOT="stable"
 KEYWORDS="~amd64 ~arm64"
 
