@@ -33,9 +33,9 @@ ROLLUP_BIDI_VER="4.63.1"
 # dev-util/cddlconv's slot: the version chromium-bidi's checked-in protocol types name.
 CDDLCONV_VER="0.2.0"
 
-# LLVM 23 means dev-lang/rust:1.99.0, which also needs a dev-util/crubit:1.99.0
-# (Crubit is tied to one Rust build); add 23 together with that.
-LLVM_COMPAT=( 22 )
+# Each LLVM slot means its Rust releases (::gentoo's Rust ebuilds have one LLVM slot each); the
+# build uses the newest one whose dev-util/crubit (tied to one Rust build) is installed.
+LLVM_COMPAT=( 22 23 )
 RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit build (rustc driver, tied to the Rust build)
 # The dev-util/crubit this version needs: <Rust version>_p<CRUBIT_DATE>, the commit date of
 # CRUBIT_REVISION in tools/rust/update_rust.py (each Crubit version has its own slot). BDEPEND
@@ -43,6 +43,9 @@ RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit build (rustc driver, ti
 CRUBIT_DATE="20261015"
 PPC64_HASH="7aae8a84e327fc2078ce1625c9c70bfda77d626f"
 COPIUM_COMMIT="84aa29c73d11981f56eb9a9fbbf35ec993f9d7ff"
+# Google has no lite tarball of 158.0.8127.88 (Google's Linux Stable; a minibranch release,
+# 8127_36, of 158.0.8127.36): chromium-linux-tarballs' tarball.
+CHROMIUM_TARBALL_SOURCE="linux-tarballs"
 # Inputs of ANGLE's code generators that the tarball lacks (files/chromium-angle-regen.py):
 # Khronos' registries at ANGLE's (and, for Vulkan, Chromium's) DEPS revisions; perfect-hash,
 # the version its built-in symbols generator is written for. Its Vulkan back-end's shaders are
