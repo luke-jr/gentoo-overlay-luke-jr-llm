@@ -134,16 +134,6 @@
 # ICU4X_DATAGEN_LSTM_VER (the segmenter's LSTM models). The data is regenerated with
 # dev-util/chromium-icu4x-datagen. Unset: no such data.
 
-# @ECLASS_VARIABLE: CHROMIUM_SYSTEM_ICU_FLAG
-# @PRE_INHERIT
-# @DEFAULT_UNSET
-# @DESCRIPTION:
-# Set to 0 (before inherit) in new ebuilds: they have no USE=system-icu and always build
-# Chromium's bundled ICU, regenerated (chromium_regen_icu). System ICU doesn't build with this
-# overlay's Chromium (doc/chromium.md); the flag stays, masked in profiles/package.use.mask, only
-# in older ebuilds, unchanged. Once no ebuild has the flag, the mask and the flag's code go.
-# Unset: the flag exists (older ebuilds).
-
 # @ECLASS_VARIABLE: CHROMIUM_BUILD_DIR
 # @USER_VARIABLE
 # @DEFAULT_UNSET
@@ -429,8 +419,7 @@ SRC_URI+=" !prebuilt-chromedriver-atoms? (
 		-> lstm_word_segmentation-${ICU4X_DATAGEN_LSTM_VER}-models.zip
 "
 
-IUSE_SYSTEM_LIBS="+system-harfbuzz +system-icu +system-zstd"
-[[ ${CHROMIUM_SYSTEM_ICU_FLAG} == 0 ]] && IUSE_SYSTEM_LIBS="+system-harfbuzz +system-zstd"
+IUSE_SYSTEM_LIBS="+system-harfbuzz +system-zstd"
 IUSE="+X ${IUSE_SYSTEM_LIBS} bindist bundled-toolchain cups debug ffmpeg-chromium gtk4 +hangouts headless kerberos +lto +official pax-kernel pgo"
 IUSE+=" +proprietary-codecs pulseaudio qt6 +rar +screencast selinux test +vaapi +wayland +widevine cpu_flags_ppc_vsx3"
 IUSE+=" hardened openxr prebuilt-chromedriver-atoms"
@@ -462,7 +451,6 @@ COMMON_X_DEPEND="
 # sys-libs/zlib: https://bugs.gentoo.org/930365; -ng is not compatible.
 # We _could_ use the bundled minizip, but that's against policy.
 COMMON_SNAPSHOT_DEPEND="
-	system-icu? ( >=dev-libs/icu-73.0:= )
 	>=dev-libs/libxml2-2.12.4:=[icu]
 	dev-libs/nspr:=
 	>=dev-libs/nss-3.26:=
@@ -497,9 +485,6 @@ COMMON_SNAPSHOT_DEPEND="
 		)
 	)
 "
-# Without USE=system-icu (CHROMIUM_SYSTEM_ICU_FLAG=0): no system ICU.
-[[ ${CHROMIUM_SYSTEM_ICU_FLAG} == 0 ]] &&
-	COMMON_SNAPSHOT_DEPEND=${COMMON_SNAPSHOT_DEPEND//"system-icu? ( >=dev-libs/icu-73.0:= )"/}
 
 COMMON_DEPEND="
 	${COMMON_SNAPSHOT_DEPEND}
@@ -576,7 +561,7 @@ BDEPEND="
 		!bundled-toolchain? ( dev-python/clang[${PYTHON_USEDEP}] )
 	')
 	>=app-arch/gzip-1.7
-	!system-icu? ( app-arch/unzip )
+	app-arch/unzip
 	!headless? (
 		qt6? ( dev-qt/qtbase:6 )
 	)
@@ -628,14 +613,7 @@ BDEPEND="
 	x11-misc/xdg-utils
 "
 
-# Without USE=system-icu (CHROMIUM_SYSTEM_ICU_FLAG=0), the bundled ICU's data needs unzip.
-[[ ${CHROMIUM_SYSTEM_ICU_FLAG} == 0 ]] && BDEPEND=${BDEPEND//"!system-icu? ( app-arch/unzip )"/app-arch/unzip}
 
-# Whether to use the system's ICU: USE=system-icu, where the ebuild has the flag
-# (CHROMIUM_SYSTEM_ICU_FLAG).
-_chromium_system_icu() {
-	[[ ${CHROMIUM_SYSTEM_ICU_FLAG} != 0 ]] && use system-icu
-}
 
 [[ -n ${ICU4X_DATAGEN_CLDR_VER} ]] && BDEPEND+=" dev-util/chromium-icu4x-datagen:${PV%%.*}"
 
@@ -1624,18 +1602,16 @@ chromium_regenerated_outputs() {
 	# ICU's Unicode data files and its data package. Its C/C++ outputs and source/data/in/ are
 	# bootstrap inputs of its own build (configure reads data/in/ for its data build's rules), which
 	# chromium-icu-regen.sh deletes or overwrites before regenerating them.
-	if ! _chromium_system_icu; then
-		local i=third_party/icu/source/data/unidata
-		echo third_party/icu/common/icudtl.dat "${i}/norm2/*.txt" \
-			"${i}"/{CaseFolding,confusables,DerivedCoreProperties,DerivedNormalizationProps}.txt \
-			"${i}"/{emoji-sequences,emoji-zwj-sequences,NormalizationCorrections,NormalizationTest}.txt \
-			"${i}"/{ppucd,SpecialCasing,UnicodeData}.txt
-		# Its test data, which the slimmer tarballs of late 2026 (158.0.8127.37, 159.0.8154.6) leave out.
-		local t
-		for t in third_party/icu/source/test/testdata/{Bidi,GraphemeBreak,LineBreak,SentenceBreak,WordBreak}Test.txt; do
-			[[ -e ${t} ]] && echo "${t}"
-		done
-	fi
+	local i=third_party/icu/source/data/unidata
+	echo third_party/icu/common/icudtl.dat "${i}/norm2/*.txt" \
+		"${i}"/{CaseFolding,confusables,DerivedCoreProperties,DerivedNormalizationProps}.txt \
+		"${i}"/{emoji-sequences,emoji-zwj-sequences,NormalizationCorrections,NormalizationTest}.txt \
+		"${i}"/{ppucd,SpecialCasing,UnicodeData}.txt
+	# Its test data, which the slimmer tarballs of late 2026 (158.0.8127.37, 159.0.8154.6) leave out.
+	local t
+	for t in third_party/icu/source/test/testdata/{Bidi,GraphemeBreak,LineBreak,SentenceBreak,WordBreak}Test.txt; do
+		[[ -e ${t} ]] && echo "${t}"
+	done
 	# libc++'s <format> tables and <version>
 	echo 'third_party/libc++/src/include/__format/*_table.h' \
 		third_party/libc++/src/include/version
@@ -2119,26 +2095,24 @@ chromium_regen_icu() {
 	# sources and tools, with the generators ICU's release leaves out (SRC_URI). Kept as they
 	# are, as Unicode's published release data: the locale data ICU converts from CLDR with its
 	# Java tools (source/data/*/*.txt, FractionalUCA.txt, UCARules.txt, localefallback_data.h).
-	if ! _chromium_system_icu; then
-		einfo "Regenerating ICU's generated files ..."
-		local icu_unicode="${WORKDIR}/icu-unicode" icu_tools="${WORKDIR}/icu-tools" icu_f
-		mkdir -p "${icu_unicode}"/{ucd,idna,security,emoji} "${icu_tools}"/{py,c/genprops,c/genuca} \
-			"${WORKDIR}/icu-work" || die
-		unzip -qo "${DISTDIR}/unicode-data-${ICU_UNICODE_VER}-UCD.zip" -d "${icu_unicode}/ucd" || die
-		unzip -qo "${DISTDIR}/uts39-data-${ICU_UNICODE_VER}.zip" -d "${icu_unicode}/security" || die
-		cp "${DISTDIR}/unicode-${ICU_UNICODE_VER}-IdnaMappingTable.txt" \
-			"${icu_unicode}/idna/IdnaMappingTable.txt" || die
-		for icu_f in sequences zwj-sequences; do
-			cp "${DISTDIR}/unicode-emoji-${icu_f}-${ICU_UNICODE_VER}.txt" \
-				"${icu_unicode}/emoji/emoji-${icu_f}.txt" || die
-		done
-		for icu_f in ${ICU_TOOLS_FILES}; do
-			cp "${DISTDIR}/icu-${ICU_TOOLS_COMMIT:0:10}-${icu_f//\//-}" "${icu_tools}/${icu_f}" || die
-		done
-		CC="$(tc-getBUILD_CC)" CXX="$(tc-getBUILD_CXX)" bash "${FILESDIR}/chromium-icu-regen.sh" \
-			third_party/icu "${WORKDIR}/icu-work" "${icu_unicode}" "${icu_tools}" "$(makeopts_jobs)" \
-			> "${T}/icu-regen.log" 2>&1 || die "Failed to regenerate ICU's generated files (see ${T}/icu-regen.log)"
-	fi
+	einfo "Regenerating ICU's generated files ..."
+	local icu_unicode="${WORKDIR}/icu-unicode" icu_tools="${WORKDIR}/icu-tools" icu_f
+	mkdir -p "${icu_unicode}"/{ucd,idna,security,emoji} "${icu_tools}"/{py,c/genprops,c/genuca} \
+		"${WORKDIR}/icu-work" || die
+	unzip -qo "${DISTDIR}/unicode-data-${ICU_UNICODE_VER}-UCD.zip" -d "${icu_unicode}/ucd" || die
+	unzip -qo "${DISTDIR}/uts39-data-${ICU_UNICODE_VER}.zip" -d "${icu_unicode}/security" || die
+	cp "${DISTDIR}/unicode-${ICU_UNICODE_VER}-IdnaMappingTable.txt" \
+		"${icu_unicode}/idna/IdnaMappingTable.txt" || die
+	for icu_f in sequences zwj-sequences; do
+		cp "${DISTDIR}/unicode-emoji-${icu_f}-${ICU_UNICODE_VER}.txt" \
+			"${icu_unicode}/emoji/emoji-${icu_f}.txt" || die
+	done
+	for icu_f in ${ICU_TOOLS_FILES}; do
+		cp "${DISTDIR}/icu-${ICU_TOOLS_COMMIT:0:10}-${icu_f//\//-}" "${icu_tools}/${icu_f}" || die
+	done
+	CC="$(tc-getBUILD_CC)" CXX="$(tc-getBUILD_CXX)" bash "${FILESDIR}/chromium-icu-regen.sh" \
+		third_party/icu "${WORKDIR}/icu-work" "${icu_unicode}" "${icu_tools}" "$(makeopts_jobs)" \
+		> "${T}/icu-regen.log" 2>&1 || die "Failed to regenerate ICU's generated files (see ${T}/icu-regen.log)"
 }
 
 chromium_regen_libcxx() {
@@ -3524,9 +3498,7 @@ chromium_unbundle() {
 		keeplibs+=( third_party/harfbuzz )
 	fi
 
-	if ! _chromium_system_icu; then
-		keeplibs+=( third_party/icu )
-	fi
+	keeplibs+=( third_party/icu )
 
 	if ! use system-zstd; then
 		keeplibs+=( third_party/zstd )
@@ -3674,10 +3646,6 @@ chromium_configure() {
 		openh264
 		zlib
 	)
-
-	if _chromium_system_icu; then
-		gn_system_libraries+=( icu )
-	fi
 
 	if use system-zstd; then
 		gn_system_libraries+=( zstd )
@@ -3993,8 +3961,8 @@ chromium_configure() {
 		fi
 	fi
 
-	# Explicitly disable ICU data file support for system-icu/headless builds.
-	if _chromium_system_icu || use headless; then
+	# Explicitly disable ICU data file support for headless builds.
+	if use headless; then
 		myconf_gn+=( "icu_use_data_file=false" )
 	fi
 
@@ -4605,7 +4573,7 @@ chromium-llm_src_install() {
 		[[ ${#files[@]} -gt 0 ]] && doins "${files[@]}"
 	)
 
-	if ! _chromium_system_icu && ! use headless; then
+	if ! use headless; then
 		doins "${CHROMIUM_OUT}"/icudtl.dat
 	fi
 

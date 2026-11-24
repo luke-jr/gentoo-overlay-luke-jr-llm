@@ -171,8 +171,6 @@ ICU4X_DATAGEN_UNICODE_VER="18.0.0"
 ICU4X_DATAGEN_TZDB_VER="2026e"
 ICU4X_DATAGEN_LSTM_VER="v0.1.0"
 
-# New ebuilds have no USE=system-icu (see the eclass).
-CHROMIUM_SYSTEM_ICU_FLAG=0
 
 inherit chromium-llm
 
