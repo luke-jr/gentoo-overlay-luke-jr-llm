@@ -178,8 +178,6 @@ ICU4X_DATAGEN_LSTM_VER="v0.1.0"
 # 160's tools/crates/icu4x_datagen is 159's.
 CHROMIUM_ICU4X_DATAGEN_SLOT=159
 
-# New ebuilds have no USE=system-icu (see the eclass).
-CHROMIUM_SYSTEM_ICU_FLAG=0
 
 inherit chromium-llm
 
