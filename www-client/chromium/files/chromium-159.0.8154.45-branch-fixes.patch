@@ -1,0 +1,2663 @@
+Chromium 159.0.8154.45 + the later changes of its release branch, up to
+23f1b43af910bf2f049a9e85137d9a205914332d (refs/branch-heads/8154@{#1550}), for the
+159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
+chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
+8154@{#1550}.
+
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..23f1b43af910 and the
+dependency whose DEPS revision changed: ANGLE 4dd34493f8a2..9cb758f56d71 (under
+third_party/angle/), as served by Gitiles, with scripts/chromium-delta/branch-fixes.py
+(filter.py --branch-fixes, against the 159.0.8154.45 tree's files): left out are files not
+in the release tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs (GN
+files kept), translations other than en-GB, PGO/orderfile/AFDO pointers, submodule pointer
+updates. chrome/VERSION (the branch's "Incrementing VERSION" commits after the 159.0.8154.45
+tag are not tags yet), the DEPS files and the stamp files stay at 159.0.8154.45.
+
+Commits contributing to it (oldest first):
+  e8dd7df98b89 Roll commits from side projects in M159 (ANGLE 4dd34493f8a2..9cb758f56d71, 8154@{#1538})
+  f99b2eb99572 [M159] Support circle highlight engaged indicator style in WebUI toolbar. (8154@{#1539})
+  630964377970 [M159] WebUI: Follow up refinements to WebUIExtension (8154@{#1540})
+  fc4c7c309a0a [M159] [contextual-tasks] Fix site settings crash on permission chips (8154@{#1541})
+  ad58fcbf4f13 [M159] [contextual-tasks] Count unsubmitted inputs as active (8154@{#1542})
+  33d7ddd0b3e7 [M159] [loomnibox] Move loomnibox callbacks out of OmniboxPopupFileSelector (8154@{#1544})
+  e580d9709749 [M159] [Unbounded] Don't fade in the unbounded surface window on Aura (8154@{#1545})
+  a234d347178f [M159] LHS: Clean up hybrid flag from impl (8154@{#1546})
+  f1497bdcdcbd [M159] [omnibox] Drag URL from and handle drops on full webui omnibox input (8154@{#1547})
+  a6c29447b3d2 [M159] [Full WebUI Omnibox] Restore omnibox focus and selection on tab drag (8154@{#1548})
+  942376f95b26 [M159] [ServiceWorker] Protect ServiceWorkerVersion across re-entrant calls (8154@{#1549})
+  23f1b43af910 [M159] [LHS] Shrink folded rail item icons to 20px (8154@{#1550})
+Dependency commits of those rolls that touch kept files:
+  315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
+  9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
+
+Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
+version at 23f1b43af910 (or ANGLE's 9cb758f56d71).
+
+Apply with git apply.
+
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_service_worker_handler.cc b/chrome/browser/contextual_tasks/contextual_tasks_extension_service_worker_handler.cc
+index 7f3e9917..9cbd500 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_extension_service_worker_handler.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_extension_service_worker_handler.cc
+@@ -46,6 +46,8 @@
+       return "OpenLinkInSidePanelMode";
+     case lens::SearchToClientMessage::kOnPageChanged:
+       return "OnPageChanged";
++    case lens::SearchToClientMessage::kOnInputPlateStateChanged:
++      return "OnInputPlateStateChanged";
+     case lens::SearchToClientMessage::EVENT_MESSAGE_NOT_SET:
+       return "UnknownSearchToClientMessage";
+   }
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h b/chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h
+index c65cee9a..2884672 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h
+@@ -149,6 +149,12 @@
+   // or was closed and can be reopened to resume those results.
+   virtual bool HasResults() const = 0;
+ 
++  // Returns true if the active tab's side panel has unsubmitted input in AIM
++  // zero state (e.g. text in the input plate, an added tab, or a Lens crop),
++  // whether the side panel is currently open or was closed. Together with
++  // `HasResults()`, this indicates a session the user can resume.
++  virtual bool HasUnsubmittedInput() const = 0;
++
+   // Returns the entry source of the currently active panel.
+   virtual EntrySource GetActiveEntrySource() const = 0;
+ 
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
+index 0a86a11..eda5aae 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
+@@ -1325,6 +1325,23 @@
+   return IsShowingLensResults() || IsShowingAimResults();
+ }
+ 
++bool ContextualTasksSidePanelCoordinator::HasUnsubmittedInput() const {
++  std::optional<ContextualTask> task = GetCurrentTask();
++  if (!task) {
++    return false;
++  }
++
++  auto cache_it = task_id_to_web_contents_cache_.find(task->GetTaskId());
++  if (cache_it == task_id_to_web_contents_cache_.end() || !cache_it->second ||
++      !cache_it->second->web_contents) {
++    return false;
++  }
++
++  const auto* user_data = ContextualTasksWebContentsUserData::FromWebContents(
++      cache_it->second->web_contents.get());
++  return user_data && user_data->HasUnsubmittedQuery();
++}
++
+ ContextualTasksPanelController::EntrySource
+ ContextualTasksSidePanelCoordinator::GetActiveEntrySource() const {
+   if (content::WebContents* active_web_contents = GetActiveWebContents()) {
+@@ -2468,7 +2485,8 @@
+ 
+ bool ContextualTasksSidePanelCoordinator::ShouldPreserveTaskOnClose() const {
+   if (!browser_window_ || !browser_window_->GetProfile() ||
+-      browser_window_->GetProfile()->IsOffTheRecord()) {
++      browser_window_->GetProfile()->IsOffTheRecord() ||
++      (!HasResults() && !HasUnsubmittedInput())) {
+     return false;
+   }
+   const bool can_resume_from_pinned_button =
+@@ -2843,7 +2861,7 @@
+   auto cache_it = task_id_to_web_contents_cache_.find(task->GetTaskId());
+   if (cache_it == task_id_to_web_contents_cache_.end() || !cache_it->second ||
+       !cache_it->second->web_contents) {
+-    return false;
++    return task->GetThread().has_value();
+   }
+ 
+   ContextualTasksUiService* ui_service = GetUiService();
+@@ -2851,17 +2869,10 @@
+     return false;
+   }
+ 
+-  content::WebContents* web_contents = cache_it->second->web_contents.get();
+-  const auto* user_data =
+-      ContextualTasksWebContentsUserData::FromWebContents(web_contents);
+-  const bool has_unsubmitted_query =
+-      user_data && user_data->has_unsubmitted_query();
+-
+   const GURL url = GetActiveResultsUrl();
+   if (!url.is_empty()) {
+     return ui_service->IsAiUrl(url) &&
+-           (!ContextualTasksUI::IsZeroState(url, ui_service) ||
+-            has_unsubmitted_query);
++           !ContextualTasksUI::IsZeroState(url, ui_service);
+   }
+ 
+   // Pre-rearchitecture, the side panel `WebContents` loads
+@@ -2870,7 +2881,7 @@
+   // task without navigating the embedded frame). In that state,
+   // `GetActiveResultsUrl()` is empty even though the task already has an
+   // active thread.
+-  return task->GetThread().has_value() || has_unsubmitted_query;
++  return task->GetThread().has_value();
+ }
+ 
+ void ContextualTasksSidePanelCoordinator::CloseLensSessionsForTask(
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h
+index 87b1eea..5b5e592 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h
+@@ -207,6 +207,7 @@
+   bool IsPanelOpenForContextualTask() const override;
+   bool IsShowingResults() const override;
+   bool HasResults() const override;
++  bool HasUnsubmittedInput() const override;
+   ContextualTasksPanelController::EntrySource GetActiveEntrySource()
+       const override;
+   bool IsOnboardingTooltipVisible() const override;
+@@ -371,7 +372,8 @@
+   void DisassociateTabFromTask(content::WebContents* web_contents);
+ 
+   // Returns whether the current task and its tab associations should be
+-  // preserved when the side panel is closed so the user can resume it from the
++  // preserved when the side panel is closed (when the panel has an active
++  // thread/results or unsubmitted inputs) so the user can resume it from the
+   // ephemeral toolbar button or the pinned toolbar button (under Pinning V2).
+   bool ShouldPreserveTaskOnClose() const;
+ 
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
+index cb2b50fb..d4ff1070 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
+@@ -303,6 +303,7 @@
+   bool has_recorded_first_thread_context_library_update = false;
+   std::vector<std::vector<uint8_t>> pending_search_messages;
+   bool is_lens_crop_mounted = false;
++  bool has_aim_unsubmitted_input = false;
+   std::string last_lens_crop_data_uri;
+   bool context_library_is_active = false;
+   bool tab_picker_is_active = false;
+@@ -609,6 +610,7 @@
+   }
+   page_state.pending_search_messages.clear();
+   page_state.is_lens_crop_mounted = false;
++  page_state.has_aim_unsubmitted_input = false;
+   page_state.context_library_is_active = false;
+   page_state.tab_picker_is_active = false;
+   page_state.is_zero_state = false;
+@@ -749,6 +751,12 @@
+     case lens::SearchToClientMessage::kOnPageChanged:
+       OnPageChanged(search_to_client_message.on_page_changed().is_zero_state());
+       return true;
++    case lens::SearchToClientMessage::kOnInputPlateStateChanged:
++      GetPrimaryPageSearchState().has_aim_unsubmitted_input =
++          search_to_client_message.on_input_plate_state_changed()
++              .composition_state() ==
++          lens::SearchToClientMessage::OnInputPlateStateChanged::COMPOSING;
++      return true;
+     case lens::SearchToClientMessage::EVENT_MESSAGE_NOT_SET:
+       return false;
+   }
+@@ -874,14 +882,13 @@
+   return !tab_context.attached.empty() || !tab_context.restored.empty();
+ }
+ 
+-bool ContextualTasksWebContentsUserData::CanShareTabsForCurrentPage() {
++bool ContextualTasksWebContentsUserData::CanShareTabsForCurrentPage() const {
+   Profile* profile =
+-      Profile::FromBrowserContext(GetWebContents().GetBrowserContext());
++      Profile::FromBrowserContext(web_contents()->GetBrowserContext());
+   if (!CanShareTabContext(profile)) {
+     return false;
+   }
+-  const auto* page_state =
+-      PageSearchState::GetForPage(GetWebContents().GetPrimaryPage());
++  const auto* page_state = GetPrimaryPageSearchState();
+   return !page_state || page_state->server_supports_tabs;
+ }
+ 
+@@ -1990,6 +1997,7 @@
+   auto& page_state = GetPrimaryPageSearchState();
+   page_state.is_zero_state = false;
+   page_state.has_known_page_state = true;
++  page_state.has_aim_unsubmitted_input = false;
+   has_unsubmitted_query_ = false;
+   implicit_tab_.reset();
+   pending_context_uploads_.clear();
+@@ -2021,6 +2029,27 @@
+   return pending_submit_ ? pending_submit_->overlay_token : std::nullopt;
+ }
+ 
++bool ContextualTasksWebContentsUserData::HasUnsubmittedQuery() const {
++  if (has_unsubmitted_query_) {
++    return true;
++  }
++  const auto* page_state = GetPrimaryPageSearchState();
++  if (page_state && (page_state->has_aim_unsubmitted_input ||
++                     page_state->is_lens_crop_mounted)) {
++    return true;
++  }
++  if (!subscribed_session_handle_ || !CanShareTabsForCurrentPage()) {
++    return false;
++  }
++  // A manually added tab counts as unsubmitted input; the auto-suggested
++  // (implicit) tab and tabs whose upload failed do not.
++  return std::ranges::any_of(
++      GetSelectedTabsSnapshot(), [&](const contextual_search::TabInfo& tab) {
++        return !(implicit_tab_ && tab.context_token == implicit_tab_->token) &&
++               !failed_context_uploads_.contains(tab.context_token);
++      });
++}
++
+ std::vector<contextual_search::TabInfo>
+ ContextualTasksWebContentsUserData::GetSelectedTabs() {
+   if (!subscribed_session_handle_) {
+@@ -2330,6 +2359,7 @@
+   auto& page_state = GetPrimaryPageSearchState();
+   page_state.is_zero_state = false;
+   page_state.has_known_page_state = false;
++  page_state.has_aim_unsubmitted_input = false;
+   page_state.last_lens_crop_data_uri.clear();
+   if (page_state.is_lens_crop_mounted) {
+     page_state.is_lens_crop_mounted = false;
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h
+index 2d822482..efe189ed 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h
+@@ -283,7 +283,9 @@
+   }
+   bool submit_pending() const { return pending_submit_.has_value(); }
+   std::optional<base::UnguessableToken> pending_submit_overlay_token() const;
+-  bool has_unsubmitted_query() const { return has_unsubmitted_query_; }
++  // Returns true if the user has input that has not been submitted yet: typed
++  // text in the AIM input plate, a mounted Lens crop, or a manually added tab.
++  bool HasUnsubmittedQuery() const;
+   void set_has_unsubmitted_query(bool has_unsubmitted_query) {
+     has_unsubmitted_query_ = has_unsubmitted_query;
+   }
+@@ -453,7 +455,7 @@
+   const PageSearchState* GetPrimaryPageSearchState() const;
+   // Returns true if both the profile allows sharing tab context and the
+   // current page's server handshake did not disable the `TABS` capability.
+-  bool CanShareTabsForCurrentPage();
++  bool CanShareTabsForCurrentPage() const;
+   // Returns true if the session has tabs for the context library to show:
+   // unsubmitted tabs, submitted (persisted) tabs, or tabs restored from the AIM
+   // thread. Keep in sync with
+diff --git a/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_controller.h b/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_controller.h
+index 7bbd3da..8ffb3889 100644
+--- a/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_controller.h
++++ b/chrome/browser/contextual_tasks/mock_contextual_tasks_panel_controller.h
+@@ -70,6 +70,7 @@
+   MOCK_METHOD(bool, IsPanelOpenForContextualTask, (), (const, override));
+   MOCK_METHOD(bool, IsShowingResults, (), (const, override));
+   MOCK_METHOD(bool, HasResults, (), (const, override));
++  MOCK_METHOD(bool, HasUnsubmittedInput, (), (const, override));
+   MOCK_METHOD(ContextualTasksPanelController::EntrySource,
+               GetActiveEntrySource,
+               (),
+diff --git a/chrome/browser/resources/new_tab_page/left_hand_side.css b/chrome/browser/resources/new_tab_page/left_hand_side.css
+index 307b348..67155b9 100644
+--- a/chrome/browser/resources/new_tab_page/left_hand_side.css
++++ b/chrome/browser/resources/new_tab_page/left_hand_side.css
+@@ -6,23 +6,34 @@
+  * #type=style-lit
+  * #css_wrapper_metadata_end */
+ 
++/* Stack #folded, #ghostLoader, and #expanded in a single grid cell (without
++ * setting position: relative on :host, which would clip cr-tooltip's absolute
++ * positioning inside #folded) so they can cross-fade over the rail background
++ * while :host animates its width. */
+ :host {
+-  display: block;
++  background-color: var(--color-new-tab-page-threads-rail-background);
++  display: grid;
++  grid-template-columns: minmax(0, 1fr);
+   height: 100%;
+   overflow: hidden;
+-  /* The element sets this in both modes: in hybrid mode it switches between
+-   * the folded rail's width and the expanded width, in full-iframe mode it
+-   * mirrors the width the embedded page reports through frame-sizing (see
+-   * setHostWidth_()). Transitioning the host, rather than snapping to the
+-   * iframe's width, lets the rest of the NTP slide in sync with the rail.
+-   * Until the first width is known the host sizes to its content. */
++  /* The element switches this between the folded rail's width and the
++   * expanded width (see setHostWidth_()). Transitioning the host lets the rest
++   * of the NTP slide in sync with the rail. Until the first width is known the
++   * host sizes to its content. */
+   width: var(--cr-left-hand-side-width, fit-content);
+ }
+ 
++/* Stack the views in one grid cell and hide each unless it is active. Uses CSS
++ * rather than the hidden attribute so the views can cross-fade. */
+ #expanded,
+ #folded,
+ #ghostLoader {
++  grid-area: 1 / 1;
+   height: 100%;
++  justify-self: start;
++  opacity: 0;
++  pointer-events: none;
++  visibility: hidden;
+ }
+ 
+ #expanded {
+@@ -41,44 +52,22 @@
+   width: auto;
+ }
+ 
+-/* Stack #folded and #expanded in a single grid cell (without setting
+- * position: relative on :host, which would clip cr-tooltip's absolute
+- * positioning inside #folded) so they can cross-fade over the rail background
+- * while :host animates its width. */
+-:host([enable-threads-rail-hybrid_]) {
+-  background-color: var(--color-new-tab-page-threads-rail-background);
+-  display: grid;
+-  grid-template-columns: minmax(0, 1fr);
+-}
+-
+-/* Stack the views in one grid cell and hide each unless it is active. Uses CSS
+- * rather than the hidden attribute so the views can cross-fade. */
+-:host([enable-threads-rail-hybrid_]) #expanded,
+-:host([enable-threads-rail-hybrid_]) #folded,
+-:host([enable-threads-rail-hybrid_]) #ghostLoader {
+-  grid-area: 1 / 1;
+-  justify-self: start;
+-  opacity: 0;
+-  pointer-events: none;
+-  visibility: hidden;
+-}
+-
+ /* Show the active view. Keep opacity: 1 at rest so #folded does not create a
+  * stacking context that traps its cr-tooltip. */
+-:host([enable-threads-rail-hybrid_][view_=folded]) #folded,
+-:host([enable-threads-rail-hybrid_][view_=expanded]) #expanded {
++:host([view_=folded]) #folded,
++:host([view_=expanded]) #expanded {
+   opacity: 1;
+   pointer-events: auto;
+   visibility: visible;
+ }
+ 
+-:host([enable-threads-rail-hybrid_][view_=ghostLoader]) #ghostLoader {
++:host([view_=ghostLoader]) #ghostLoader {
+   opacity: 1;
+   visibility: visible;
+ }
+ 
+ @starting-style {
+-  :host([enable-threads-rail-hybrid_][view_=expanded]) #expanded {
++  :host([view_=expanded]) #expanded {
+     opacity: 0;
+   }
+ }
+@@ -96,36 +85,36 @@
+     transition: width 450ms cubic-bezier(0.2, 0.0, 0, 1.0);
+   }
+ 
+-  :host([enable-threads-rail-hybrid_]) #folded {
++  #folded {
+     /* Fade out over the first 100ms of the 450ms expand transition before
+      * #expanded begins fading in at 225ms. */
+     transition: opacity 100ms ease, visibility 0s 100ms;
+   }
+ 
+-  :host([enable-threads-rail-hybrid_][view_=folded]) #folded {
++  :host([view_=folded]) #folded {
+     /* Delay fade-in by 150ms on collapse so #expanded fades out first, then
+      * fade #folded in over the remaining 150ms. */
+     transition: opacity 150ms ease 150ms, visibility 0s 0s;
+   }
+ 
+-  :host([enable-threads-rail-hybrid_]) #expanded {
++  #expanded {
+     /* Fade out over 240ms (80% of the 300ms collapse transition). */
+     transition: opacity 240ms ease, visibility 0s 240ms;
+   }
+ 
+-  :host([enable-threads-rail-hybrid_][view_=expanded]) #expanded {
++  :host([view_=expanded]) #expanded {
+     /* Delay fade-in by 225ms (50% of the 450ms expand transition) and fade in
+      * over the remaining 225ms. */
+     transition: opacity 225ms ease 225ms, visibility 0s 0s;
+   }
+ 
+-  :host([enable-threads-rail-hybrid_]) #ghostLoader {
++  #ghostLoader {
+     /* Fade out in sync with #expanded fading in (see above), so that the two
+      * cross-fade. */
+     transition: opacity 225ms ease 225ms, visibility 0s 450ms;
+   }
+ 
+-  :host([enable-threads-rail-hybrid_][view_=ghostLoader]) #ghostLoader {
++  :host([view_=ghostLoader]) #ghostLoader {
+     /* Show immediately on expand, since #folded is hidden immediately too.
+      * Without this, the fade-out transition above would also apply here and
+      * delay the ghost loader by 450ms. */
+diff --git a/chrome/browser/resources/new_tab_page/left_hand_side.html.ts b/chrome/browser/resources/new_tab_page/left_hand_side.html.ts
+index 344bac2e..08222a0 100644
+--- a/chrome/browser/resources/new_tab_page/left_hand_side.html.ts
++++ b/chrome/browser/resources/new_tab_page/left_hand_side.html.ts
+@@ -10,27 +10,23 @@
+ export function getHtml(this: LeftHandSideElement) {
+   // clang-format off
+   return html`<!--_html_template_start_-->
+-${this.enableThreadsRailHybrid_ ? html`
+-  <cr-threads-rail id="folded" ?inert="${this.view_ !== LhsView.FOLDED}"
+-      @expand-rail="${this.onExpandRail_}" @click="${this.onFoldedClick_}"
+-      @pointerenter="${this.onFoldedPointerenter_}"
+-      @pointerleave="${this.onFoldedPointerleave_}"
+-      @focusin="${this.onFoldedFocusin_}" @focusout="${this.onFoldedFocusout_}">
+-  </cr-threads-rail>
+-  ${this.isExpanded_ ? html`
+-    <ntp-lhs-ghost-loader id="ghostLoader" role="region"
+-        aria-label="${this.ghostLoaderLabel_}" aria-busy="true"
+-        ?is-dark="${!!this.isDark}" style="width: ${this.expandedWidth_}px;">
+-    </ntp-lhs-ghost-loader>
+-  ` : ''}
++<cr-threads-rail id="folded" ?inert="${this.view_ !== LhsView.FOLDED}"
++    @expand-rail="${this.onExpandRail_}" @click="${this.onFoldedClick_}"
++    @pointerenter="${this.onFoldedPointerenter_}"
++    @pointerleave="${this.onFoldedPointerleave_}"
++    @focusin="${this.onFoldedFocusin_}" @focusout="${this.onFoldedFocusout_}">
++</cr-threads-rail>
++${this.isExpanded_ ? html`
++  <ntp-lhs-ghost-loader id="ghostLoader" role="region"
++      aria-label="${this.ghostLoaderLabel_}" aria-busy="true"
++      ?is-dark="${!!this.isDark}" style="width: ${this.expandedWidth_}px;">
++  </ntp-lhs-ghost-loader>
+ ` : ''}
+-${!this.enableThreadsRailHybrid_ || this.hasPreloaded_ ? html`
++${this.hasPreloaded_ ? html`
+   <ntp-iframe id="expanded" class="${this.isExpandedReady_ ? 'ready' : ''}"
+       allow="clipboard-write; unbounded-element"
+-      style="${this.enableThreadsRailHybrid_ ?
+-          `width: ${this.expandedWidth_}px;` :
+-          ''}"
+-      src="${this.expandedLhsUrl_}" ?hidden="${!this.isExpandedReady_}"
++      style="width: ${this.expandedWidth_}px;" src="${this.expandedLhsUrl_}"
++      ?hidden="${!this.isExpandedReady_}"
+       ?inert="${this.view_ !== LhsView.EXPANDED}">
+   </ntp-iframe>
+ ` : ''}
+diff --git a/chrome/browser/resources/new_tab_page/left_hand_side.ts b/chrome/browser/resources/new_tab_page/left_hand_side.ts
+index 2832e08..6fed746 100644
+--- a/chrome/browser/resources/new_tab_page/left_hand_side.ts
++++ b/chrome/browser/resources/new_tab_page/left_hand_side.ts
+@@ -6,6 +6,7 @@
+ import './lhs_ghost_loader.js';
+ 
+ import {COLOR_PROVIDER_CHANGED, ColorChangeUpdater} from 'chrome://resources/cr_components/color_change_listener/colors_css_updater.js';
++import {assert} from 'chrome://resources/js/assert.js';
+ import {EventTracker} from 'chrome://resources/js/event_tracker.js';
+ import type {PropertyValues} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+ import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+@@ -24,6 +25,7 @@
+   type: NtpLhsMessageType.NTP_LHS_SET_THEME;
+   theme: NtpLhsThemePalette;
+   isDark?: boolean;
++  iconSize?: number;
+ }
+ 
+ type ChromeToSearchLhsMessage = NtpLhsSetThemeMessage;
+@@ -67,17 +69,13 @@
+   railBackground?: string;
+ }
+ 
+-// The primary view of the LHS. In hybrid mode, #folded and #expanded stay
+-// rendered once the iframe is ready so that they can cross-fade (see
+-// left_hand_side.css), so more than one view may be painted during a
+-// transition.
++// The primary view of the LHS. #folded and #expanded stay rendered once the
++// iframe is ready so that they can cross-fade (see left_hand_side.css), so
++// more than one view may be painted during a transition.
+ export enum LhsView {
+-  // Nothing is visible. Used in full-iframe mode until the iframe is ready.
+-  NONE = 'none',
+-  // The folded threads rail. Used in hybrid mode only.
++  // The folded threads rail.
+   FOLDED = 'folded',
+-  // The ghost loader shown while the expanded iframe loads. Used in hybrid
+-  // mode only.
++  // The ghost loader shown while the expanded iframe loads.
+   GHOST_LOADER = 'ghostLoader',
+   // The expanded LHS iframe.
+   EXPANDED = 'expanded',
+@@ -98,10 +96,6 @@
+ 
+   static override get properties() {
+     return {
+-      enableThreadsRailHybrid_: {
+-        type: Boolean,
+-        reflect: true,
+-      },
+       expandedLhsUrl_: {type: String},
+       expandedWidth_: {type: Number},
+       hasPreloaded_: {type: Boolean},
+@@ -123,8 +117,6 @@
+   }
+ 
+   accessor isDark: boolean|undefined = undefined;
+-  protected accessor enableThreadsRailHybrid_: boolean =
+-      loadTimeData.getBoolean('enableThreadsRailHybrid');
+   protected accessor expandedLhsUrl_: string =
+       loadTimeData.getString('expandedLhsUrl');
+   protected accessor expandedWidth_: number = DEFAULT_EXPANDED_LHS_WIDTH_PX;
+@@ -137,16 +129,14 @@
+       100;
+   // The primary view, reflected as the `view_` attribute so that
+   // left_hand_side.css can style each view. Derived in willUpdate().
+-  protected accessor view_: LhsView = LhsView.NONE;
++  protected accessor view_: LhsView = LhsView.FOLDED;
+   // Accessible name of the ghost loader. Together with aria-busy, it keeps the
+   // LHS region in the a11y tree as busy while the expanded iframe loads,
+   // instead of the region silently going missing.
+   protected readonly ghostLoaderLabel_: string =
+       loadTimeData.getString('aimThreadsHistoryLabel');
+   private eventTracker_: EventTracker = new EventTracker();
+-  private iframeResizeObserver_: ResizeObserver|null = null;
+-  private lastIframeWidth_: number = 0;
+-  // Width of the folded rail in hybrid mode, measured once it has rendered.
++  // Width of the folded rail, measured once it has rendered.
+   private collapsedWidth_: number = 0;
+   private preloadTimerId_: number|null = null;
+ 
+@@ -164,8 +154,6 @@
+   override disconnectedCallback() {
+     super.disconnectedCallback();
+     this.eventTracker_.removeAll();
+-    this.iframeResizeObserver_?.disconnect();
+-    this.iframeResizeObserver_ = null;
+     this.cancelPreloadTimer_();
+   }
+ 
+@@ -176,20 +164,17 @@
+ 
+   override firstUpdated(changedProperties: PropertyValues<this>) {
+     super.firstUpdated(changedProperties);
+-    if (this.enableThreadsRailHybrid_) {
+-      const folded = this.shadowRoot.querySelector<HTMLElement>('#folded');
+-      this.collapsedWidth_ = folded ? folded.offsetWidth : 0;
+-    }
++    const folded = this.shadowRoot.querySelector<HTMLElement>('#folded');
++    this.collapsedWidth_ = folded ? folded.offsetWidth : 0;
+   }
+ 
+   override updated(changedProperties: PropertyValues<this>) {
+     super.updated(changedProperties);
+     const changedPrivateProperties =
+         changedProperties as Map<PropertyKey, unknown>;
+-    if (this.enableThreadsRailHybrid_ &&
+-        (changedPrivateProperties.has('isExpanded_') ||
+-         changedPrivateProperties.has('expandedWidth_') ||
+-         changedPrivateProperties.has('collapsedWidth_'))) {
++    if (changedPrivateProperties.has('isExpanded_') ||
++        changedPrivateProperties.has('expandedWidth_') ||
++        changedPrivateProperties.has('collapsedWidth_')) {
+       this.setHostWidth_(
+           this.isExpanded_ ? this.expandedWidth_ : this.collapsedWidth_);
+     }
+@@ -200,13 +185,10 @@
+   // views, including hiding the folded rail while the ghost loader replaces
+   // it, are handled in left_hand_side.css.
+   protected getVisibleView_(): LhsView {
+-    if (this.enableThreadsRailHybrid_) {
+-      if (!this.isExpanded_) {
+-        return LhsView.FOLDED;
+-      }
+-      return this.isExpandedReady_ ? LhsView.EXPANDED : LhsView.GHOST_LOADER;
++    if (!this.isExpanded_) {
++      return LhsView.FOLDED;
+     }
+-    return this.isExpandedReady_ ? LhsView.EXPANDED : LhsView.NONE;
++    return this.isExpandedReady_ ? LhsView.EXPANDED : LhsView.GHOST_LOADER;
+   }
+ 
+   private setHostWidth_(width: number) {
+@@ -214,48 +196,12 @@
+         '--cr-left-hand-side-width', `${Math.round(width)}px`);
+   }
+ 
+-  // In full-iframe mode the embedded page owns the rail width and reports it
+-  // through `frame-sizing: content-width`. That width lands in one step, so the
+-  // NTP layout would jump while the rail animates. Mirror the iframe width onto
+-  // the host, which transitions it, so the rest of the NTP slides in sync.
+-  private observeIframeWidth_(iframe: HTMLIFrameElement) {
+-    if (this.iframeResizeObserver_) {
+-      return;
+-    }
+-    this.iframeResizeObserver_ = new ResizeObserver(entries => {
+-      this.onIframeResize_(entries[entries.length - 1]!);
+-    });
+-    this.iframeResizeObserver_.observe(iframe);
+-  }
+-
+-  private onIframeResize_(entry: ResizeObserverEntry) {
+-    const width = Math.round(entry.contentRect.width);
+-    // The iframe is 0px wide until it is ready. Leave the host width alone so
+-    // the first non-zero width is applied without a transition. The observer
+-    // also fires for height-only resizes (e.g. when the browser window is
+-    // resized); ignore those so the expanded state inferred below is not
+-    // flipped by a width that did not change.
+-    if (width <= 0 || width === this.lastIframeWidth_) {
+-      return;
+-    }
+-    if (this.lastIframeWidth_ > 0) {
+-      // The embedded page owns the expanded state in full-iframe mode. Infer
+-      // it from the direction of the resize to pick the matching transition.
+-      this.isExpanded_ = width > this.lastIframeWidth_;
+-    }
+-    this.lastIframeWidth_ = width;
+-    this.setHostWidth_(width);
+-  }
+-
+-  // Returns the expanded LHS iframe, or null while it is not in the DOM or not
+-  // yet upgraded. In hybrid mode it is only stamped once the folded rail is
+-  // hovered, focused, or expanded (see getHtml()), so that the embedded page is
+-  // not loaded until the user interacts with the rail. In full-iframe mode it
+-  // is stamped right away, but <ntp-iframe> is defined in the lazily loaded
+-  // bundle, so until lazy_load.js runs it is a plain HTMLElement without
+-  // IframeElement's methods (e.g. postMessage()).
++  // Returns the expanded LHS iframe, or null while it is not in the DOM. It is
++  // only stamped once the folded rail is hovered, focused, or expanded (see
++  // getHtml()), so that the embedded page is not loaded until the user
++  // interacts with the rail.
+   private getExpandedIframe_(): IframeElement|null {
+-    return this.shadowRoot.querySelector<IframeElement>('#expanded:defined');
++    return this.shadowRoot.querySelector<IframeElement>('#expanded');
+   }
+ 
+   protected onFoldedPointerenter_() {
+@@ -347,9 +293,6 @@
+             data.width :
+             DEFAULT_EXPANDED_LHS_WIDTH_PX;
+         this.isExpandedReady_ = true;
+-        if (!this.enableThreadsRailHybrid_) {
+-          this.observeIframeWidth_(iframe);
+-        }
+         break;
+       }
+       case NtpLhsMessageType.NTP_LHS_CLOSE: {
+@@ -381,8 +324,8 @@
+   private postThemeColors_ = () => {
+     const expanded = this.getExpandedIframe_();
+     if (!expanded) {
+-      // Nothing to post to before the iframe is stamped and upgraded. The
+-      // embedded page asks for the theme with NTP_LHS_READY once it is loaded.
++      // Nothing to post to before the expanded iframe is stamped. The embedded
++      // page asks for the theme with NTP_LHS_READY once it is loaded.
+       return;
+     }
+     const computedStyle = getComputedStyle(this);
+@@ -394,10 +337,16 @@
+                            `--color-new-tab-page-threads-rail-${cssVarSuffix}`)
+                        .trim();
+     }
++    const folded = this.shadowRoot.querySelector<HTMLElement>('#folded');
++    assert(folded);
++    const iconSize = parseInt(
++        getComputedStyle(folded).getPropertyValue('--threads-rail-icon-size'),
++        10);
+     const message: ChromeToSearchLhsMessage = {
+       type: NtpLhsMessageType.NTP_LHS_SET_THEME,
+       theme,
+       isDark: this.isDark,
++      ...(iconSize > 0 ? {iconSize} : {}),
+     };
+     expanded.postMessage(message);
+   };
+diff --git a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
+index b48d7f8..c9fb496 100644
+--- a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
++++ b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
+@@ -18,7 +18,7 @@
+ import type {SearchboxMixinInterface} from '//resources/cr_components/searchbox/searchbox_mixin.js';
+ import {ControlKeyState, SearchboxMixin} from '//resources/cr_components/searchbox/searchbox_mixin.js';
+ import {selectionIsNativelySupported, selectionsEqual} from '//resources/cr_components/searchbox/searchbox_selection_mixin.js';
+-import {afterNextPaint, markOnce, sanitizeTextForPaste} from '//resources/cr_components/searchbox/utils.js';
++import {afterNextPaint, markOnce, sanitizeTextForPaste, stripJavascriptSchemas} from '//resources/cr_components/searchbox/utils.js';
+ import {I18nMixinLit} from '//resources/cr_elements/i18n_mixin_lit.js';
+ import {WebUiListenerMixinLit} from '//resources/cr_elements/web_ui_listener_mixin_lit.js';
+ import {EventTracker} from '//resources/js/event_tracker.js';
+@@ -72,6 +72,54 @@
+  */
+ const DRAG_THRESHOLD_PX = 3;
+ 
++/**
++ * The URL that the browser passes to a page in place of a dragged URL that the
++ * page may not request, e.g. a "javascript:" URL. See `content::kBlockedURL`.
++ */
++const BLOCKED_URL = 'about:blank#blocked';
++
++/**
++ * Sequences of whitespace as `base::IsUnicodeWhitespace()` defines it. Unlike
++ * `\s`, that includes U+0085 and excludes U+FEFF.
++ */
++const WHITESPACE_SEQUENCES =
++    /[\t-\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/g;
++
++/**
++ * Like `base::CollapseWhitespace(text, true)`, removes leading and trailing
++ * whitespace and whitespace sequences that contain a line break, and reduces
++ * every other whitespace sequence to a single space.
++ */
++function collapseWhitespace(text: string): string {
++  return text.replace(WHITESPACE_SEQUENCES, (sequence, offset: number) => {
++    const isAtEdge = offset === 0 || offset + sequence.length === text.length;
++    return isAtEdge || /[\n\r]/.test(sequence) ? '' : ' ';
++  });
++}
++
++/**
++ * Returns the text that a drop of `dataTransfer`, dragged from outside the
++ * input, sets in the input, or null if the drag has neither a URL nor text
++ * (e.g. files). Like `OmniboxViewViews::PerformDrop()`, that's the first URL
++ * of the drag, or else its text with its whitespace collapsed, in both cases
++ * without any "javascript:" scheme, so that it can't be run from the omnibox.
++ */
++function getTextToDrop(dataTransfer: DataTransfer|null): string|null {
++  if (!dataTransfer) {
++    return null;
++  }
++  // The first URL of 'text/uri-list'. For a URL that the browser blocked, use
++  // the text of the drag, which for a link is its URL.
++  const url = dataTransfer.getData('URL');
++  if (url && url !== BLOCKED_URL) {
++    return stripJavascriptSchemas(url);
++  }
++  // The whitespace is collapsed first, since removing a line break can form a
++  // "javascript:" scheme.
++  const text = dataTransfer.getData('text/plain');
++  return text ? stripJavascriptSchemas(collapseWhitespace(text)) : null;
++}
++
+ export interface AimButtonConfig {
+   text: string;
+   title: string;
+@@ -363,6 +411,10 @@
+   private lastSelectedMatch_: AutocompleteMatch|null = null;
+   private accessor fullUrl_: string = '';
+   private accessor permanentDisplayText_: string = '';
++  // The URL to drag when all of the unedited permanent text is dragged out of
++  // the input, or empty if there is none. Unlike `fullUrl_`, which is formatted
++  // for display, e.g. without "http://", this is the URL of the page itself.
++  private dragUrl_: string = '';
+   protected accessor aimButtonIconOnly_: boolean = false;
+   // Set by the browser, like the Views omnibox's text input type.
+   protected accessor textInputType_: 'url'|'search' = 'search';
+@@ -1138,9 +1190,18 @@
+       text: input.value,
+       selection: {start: Math.min(start, end), end: Math.max(start, end)},
+     };
+-    // Like the native omnibox, allow both copying and moving the text.
+     if (e.dataTransfer) {
+-      e.dataTransfer.effectAllowed = 'copyMove';
++      // Like `OmniboxViewViews::OnWriteDragData()`, if all of the unedited
++      // text is selected, drag the URL of the page rather than the text shown
++      // for it, which may be elided.
++      const url = this.isPermanentTextAllSelected_() ? this.dragUrl_ : '';
++      if (url) {
++        e.dataTransfer.setData('text/plain', url);
++        e.dataTransfer.setData('text/uri-list', url);
++      }
++      // Like the native omnibox, allow both copying and moving the text, and
++      // also linking to a URL.
++      e.dataTransfer.effectAllowed = url ? 'all' : 'copyMove';
+     }
+     // Like `OmniboxViewViews::OnMouseDragged()`, close the dropdown, since the
+     // user may want to drop the text on something that it covers.
+@@ -1156,12 +1217,17 @@
+    * `views::Textfield::DropDraggedText()`: moves the text to where it's
+    * dropped, or copies it there if the copy modifier is held, as a single
+    * undoable edit, and puts the caret after the dropped text rather than
+-   * selecting it. Blink handles other drops.
++   * selecting it. Drops of anything else are handled by
++   * `onDropFromOutside_()`.
+    */
+   private onInputDrop_(e: DragEvent) {
+     const drag = this.textDrag_;
++    if (!drag) {
++      this.onDropFromOutside_(e);
++      return;
++    }
+     const input = this.getInputElement().inputElement;
+-    if (!drag || input.value !== drag.text) {
++    if (input.value !== drag.text) {
+       return;
+     }
+     const caretPosition = document.caretPositionFromPoint(
+@@ -1175,8 +1241,7 @@
+     const {start, end} = drag.selection;
+     const draggedText = drag.text.substring(start, end);
+     let position = caretPosition.offset;
+-    // Like Blink, which handles drops of other text, use the platform's copy
+-    // modifier.
++    // Like Blink, use the platform's copy modifier.
+     const isCopy = isMac ? e.altKey : e.ctrlKey;
+     if (!isCopy) {
+       // Account for the removal of the dragged text before the drop position.
+@@ -1222,6 +1287,57 @@
+     }
+   }
+ 
++  /**
++   * Handles a drop of a URL or text dragged from outside the input, e.g. a
++   * link of the page, like `OmniboxViewViews::PerformDrop()`: rather than
++   * inserting it where it's dropped, replaces all of the input's text with it
++   * (see `getTextToDrop()`) as user input, selects it and focuses the input.
++   * Leaves a drop of anything else to Blink, which inserts no text for it.
++   */
++  private onDropFromOutside_(e: DragEvent) {
++    const text = getTextToDrop(e.dataTransfer);
++    if (text === null) {
++      return;
++    }
++    e.preventDefault();
++
++    // Like `OmniboxEditModel::SetUserText()`, leave keyword mode.
++    this.keywordModeManager.exit();
++
++    // Record the drop as a single edit, which undo reverts to the text and
++    // selection from before it.
++    const input = this.getInputElement().inputElement;
++    this.syncTextfieldModelWithInput_(input.value);
++    this.textfieldModel_.selectRange(
++        {start: input.selectionStart ?? 0, end: input.selectionEnd ?? 0});
++    this.textfieldModel_.replaceAllText(text);
++    const selection = {start: 0, end: text.length};
++    this.textfieldModel_.selectRange(selection);
++    this.lastInputText_ = text;
++    this.lastInputSelection_ = selection;
++    this.updateEditHistoryState_();
++
++    this.userInputInProgress_ = true;
++    this.hasUserInput_ = !!text.trim();
++    this.getInputElement().setInput({text, inline: ''});
++    this.$.input.focus();
++    this.getInputElement().select();
++    this.updateAimButtonCollapse_();
++
++    if (!this.isInputCleared_(text)) {
++      // The query also sets the text in the browser. So, unlike
++      // `OmniboxViewViews::PerformDrop()`, which only starts autocomplete if
++      // the omnibox has focus, this also queries if the input wasn't focused.
++      // All of the text is selected, which inline autocompletion would
++      // replace with a selection of the autocompleted text.
++      this.queryAutocomplete(
++          text, /*preventInlineAutocomplete=*/ true, /*isOnFocus=*/ false);
++    } else {
++      this.clearAutocompleteMatches();
++      this.popupPageHandler_.onInputCleared(this.currentSequenceNum_);
++    }
++  }
++
+   override async onInputWrapperKeydown(e: KeyboardEvent) {
+     // Some keys below are handled without calling
+     // `super.onInputWrapperKeydown()`, so update the state every key press
+@@ -1490,6 +1606,20 @@
+   }
+ 
+   /**
++   * Returns whether the input shows the unedited permanent text, either elided
++   * (`permanentDisplayText_`) or not (`fullUrl_`), and all of it is selected.
++   * Like `OmniboxEditModel::AdjustTextForCopy()`, this compares the text, since
++   * an unedited input can also show other text, e.g. of a selected match.
++   */
++  private isPermanentTextAllSelected_(): boolean {
++    const input = this.getInputElement().inputElement;
++    return !this.userInputInProgress_ && !!input.value &&
++        (input.value === this.permanentDisplayText_ ||
++         input.value === this.fullUrl_) &&
++        input.selectionStart === 0 && input.selectionEnd === input.value.length;
++  }
++
++  /**
+    * Unelides the URL, keeping the caret (or selection) on the same characters
+    * by shifting it past the prefix (e.g. "https://www.") that was elided. Does
+    * nothing if all the text is selected. Compare
+@@ -1691,6 +1821,7 @@
+     this.tabId_ = state.tabId;
+     this.fullUrl_ = state.fullUrl;
+     this.permanentDisplayText_ = state.permanentDisplayText;
++    this.dragUrl_ = state.dragUrl;
+     this.textInputType_ = state.prefersUrlInput ? 'url' : 'search';
+     this.isComposing_ = false;
+     const keywordChanged =
+diff --git a/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.css b/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.css
+index 2915d181..b88fe68 100644
+--- a/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.css
++++ b/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.css
+@@ -16,13 +16,26 @@
+   app-region: no-drag;
+ }
+ 
+-/* Engaged actions paint their icon in the engaged color, as native
+- * PinnedActionToolbarButton does. */
++/* Engaged actions with the underline indicator style paint their icon in the
++ * engaged color, as native PinnedActionToolbarButton::GetForegroundColor()
++ * does. */
+ toolbar-chip-button[is-activated] {
+   --toolbar-chip-fg-color: var(--color-toolbar-action-item-engaged,
+       var(--google-blue-600));
+ }
+ 
++/* Engaged actions with the circle highlight indicator style show a circular
++ * background highlight when not highlighted (is-menu-open), as native
++ * PinnedActionToolbarButton::UpdateStatusIndicator() does. While an IPH is
++ * anchored to the button, help_bubble_anchor.css suppresses this background on
++ * .iph-visual-target with transparent !important so the IPH attention pulse on
++ * ::before replaces it, and the icon uses the feature promo highlight color
++ * below (since [is-activated] is only set for the underline indicator style,
++ * matching native PinnedActionToolbarButton::UpdateIcon()). */
++toolbar-chip-button[has-circle-highlight] {
++  --toolbar-chip-bg-color: var(--color-avatar-button-highlight-default);
++}
++
+ /* Like native toolbar buttons, use the inactive icon color while disabled or
+  * while the browser window is inactive on Mac (the browser sets
+  * controls-appear-inactive). This doesn't apply during an IPH, where native
+@@ -35,7 +48,8 @@
+ 
+ /* While an IPH is anchored to the button, paint the icon in the feature promo
+  * highlight color, matching native ToolbarButton::GetForegroundColor(). Engaged
+- * buttons keep the engaged color, as native PinnedActionToolbarButton does. */
++ * buttons with the underline indicator style keep the engaged color, as native
++ * PinnedActionToolbarButton::UpdateIcon() does. */
+ toolbar-chip-button.help-anchor-highlight:not([is-activated]) {
+   --toolbar-chip-fg-color: var(--color-toolbar-feature-promo-highlight);
+ }
+diff --git a/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.html.ts b/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.html.ts
+index 641add8c..f67c119 100644
+--- a/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.html.ts
++++ b/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.html.ts
+@@ -12,7 +12,9 @@
+     class="${this.hasHelpBubble ? 'help-anchor-highlight' : ''}"
+     .disabled="${!this.state.enabled}"
+     ?is-menu-open="${this.state.highlighted || this.trackedHighlighted}"
+-    ?is-activated="${this.state.activated}" .tooltip="${this.getTooltip_()}"
++    ?is-activated="${this.showUnderlineIndicator_()}"
++    ?has-circle-highlight="${this.showCircleHighlight_()}"
++    .tooltip="${this.getTooltip_()}"
+     .ariaLabel="${this.state.accessibilityText || this.state.tooltip}"
+     .ariaPressed="${
+         this.state.highlighted || this.trackedHighlighted ? 'true' : 'false'}"
+@@ -36,7 +38,8 @@
+     </circle>
+   </svg>
+ ` : nothing}
+-<div class="status-indicator" ?hidden="${!this.state.activated}"></div>
++<div class="status-indicator" ?hidden="${!this.showUnderlineIndicator_()}">
++</div>
+ ${this.getBadgeText_() ? html`
+   <div class="badge" aria-hidden="true" ?disabled="${!this.state.enabled}"
+       ?dormant="${this.isDormant_()}" ?is-activated="${this.state.activated}">
+diff --git a/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.ts b/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.ts
+index 7722014..320dbb4 100644
+--- a/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.ts
++++ b/chrome/browser/resources/webui_toolbar/pinned_toolbar_action.ts
+@@ -11,7 +11,7 @@
+ import type {PropertyValues} from '//resources/lit/v3_0/lit.rollup.js';
+ import {getContextMenuPosition, getContextMenuSourceType} from '/shared/toolbar_button.js';
+ import type {OverflowMenuItem} from '/shared/toolbar_ui_api.mojom-webui.js';
+-import {ContextMenuType, DownloadProgressRingStatus, PinnedToolbarAction} from '/shared/toolbar_ui_api_data_model.mojom-webui.js';
++import {ContextMenuType, DownloadProgressRingStatus, PinnedToolbarAction, PinnedToolbarActionEngagedIndicatorStyle} from '/shared/toolbar_ui_api_data_model.mojom-webui.js';
+ import type {PinnedToolbarActionState} from '/shared/toolbar_ui_api_data_model.mojom-webui.js';
+ 
+ import {BrowserProxyImpl} from './browser_proxy.js';
+@@ -27,6 +27,7 @@
+   highlighted: false,
+   enabled: true,
+   activated: false,
++  engagedIndicatorStyle: PinnedToolbarActionEngagedIndicatorStyle.kUnderline,
+   tooltip: '',
+   accessibilityText: '',
+   elementId: null,
+@@ -157,6 +158,19 @@
+         DownloadProgressRingStatus.kDormant;
+   }
+ 
++  protected showUnderlineIndicator_(): boolean {
++    return this.state.activated &&
++        this.state.engagedIndicatorStyle ===
++        PinnedToolbarActionEngagedIndicatorStyle.kUnderline;
++  }
++
++  protected showCircleHighlight_(): boolean {
++    return this.state.activated &&
++        this.state.engagedIndicatorStyle ===
++        PinnedToolbarActionEngagedIndicatorStyle.kCircleHighlight &&
++        !this.state.highlighted && !this.trackedHighlighted;
++  }
++
+   /**
+    * Returns the inline style that shrinks the icon by the action's icon size
+    * delta, matching native PinnedActionToolbarButton::GetIconSize(), or
+diff --git a/chrome/browser/resources/webui_toolbar/webui_toolbar.ts b/chrome/browser/resources/webui_toolbar/webui_toolbar.ts
+index 33a406b..cab5dc7 100644
+--- a/chrome/browser/resources/webui_toolbar/webui_toolbar.ts
++++ b/chrome/browser/resources/webui_toolbar/webui_toolbar.ts
+@@ -13,7 +13,7 @@
+ export {IconTable} from '/shared/icon_table.js';
+ export {getClickSourceType, getContextMenuSourceType, HighlightTracker, PressHandler} from '/shared/toolbar_button.js';
+ export type {AdjustOmniboxTextForCopyResult, InitialState, OverflowMenuItem, ToolbarUIServiceInterface} from '/shared/toolbar_ui_api.mojom-webui.js';
+-export {AppMenuIconType, AppMenuSeverity, AvatarToolbarButtonState, ContentSettingImageType, ContextMenuType, DownloadProgressRingStatus, FocusRequestTarget, LhsChipIdentifier, OmniboxTextColor, PageActionAnimationStyle, PageActionId, PageActionTrigger, PermissionAction, PermissionChipTheme, PermissionPromptStyle, PinnedToolbarAction, SecurityChipRole} from '/shared/toolbar_ui_api_data_model.mojom-webui.js';
++export {AppMenuIconType, AppMenuSeverity, AvatarToolbarButtonState, ContentSettingImageType, ContextMenuType, DownloadProgressRingStatus, FocusRequestTarget, LhsChipIdentifier, OmniboxTextColor, PageActionAnimationStyle, PageActionId, PageActionTrigger, PermissionAction, PermissionChipTheme, PermissionPromptStyle, PinnedToolbarAction, PinnedToolbarActionEngagedIndicatorStyle, SecurityChipRole} from '/shared/toolbar_ui_api_data_model.mojom-webui.js';
+ export type {GlicButtonState, LocationBarState, OmniboxAction, PageActionState, PermissionChipState, PermissionDashboardState} from '/shared/toolbar_ui_api_data_model.mojom-webui.js';
+ export {ToolbarAppElement} from './app.js';
+ export type {BackForwardButtonElement} from './back_forward_button.js';
+diff --git a/chrome/browser/ui/omnibox/omnibox_popup_view.h b/chrome/browser/ui/omnibox/omnibox_popup_view.h
+index 1a94bada8..32956d80 100644
+--- a/chrome/browser/ui/omnibox/omnibox_popup_view.h
++++ b/chrome/browser/ui/omnibox/omnibox_popup_view.h
+@@ -119,6 +119,11 @@
+   // for a draft, like clicking into the page, but leaves nothing focused.
+   virtual void Blur() {}
+ 
++  // Drops the selection saved when the omnibox was blurred, so that a newer
++  // selection made directly by the user (e.g. a click or drag in the native
++  // view, or a click into the WebUI input) wins on the next focus.
++  virtual void ClearSavedSelectionForFocusChange() {}
++
+   // Called when the WebUI omnibox reports a manual blur.
+   virtual void OnManualBlur() {}
+ 
+diff --git a/chrome/browser/ui/page_info/BUILD.gn b/chrome/browser/ui/page_info/BUILD.gn
+index 49ed0c3..2dc75f5 100644
+--- a/chrome/browser/ui/page_info/BUILD.gn
++++ b/chrome/browser/ui/page_info/BUILD.gn
+@@ -119,6 +119,7 @@
+     "//chrome/browser/ui:url_identity",
+     "//chrome/browser/ui/browser_window",
+     "//chrome/browser/ui/hats",
++    "//chrome/browser/ui/webui:webui_util",
+     "//chrome/browser/usb",
+     "//chrome/browser/vr",
+     "//chrome/common",
+diff --git a/chrome/browser/ui/page_info/chrome_page_info_delegate.cc b/chrome/browser/ui/page_info/chrome_page_info_delegate.cc
+index e6d5d90..67ebb36 100644
+--- a/chrome/browser/ui/page_info/chrome_page_info_delegate.cc
++++ b/chrome/browser/ui/page_info/chrome_page_info_delegate.cc
+@@ -32,6 +32,7 @@
+ #include "chrome/browser/ssl/stateful_ssl_host_state_delegate_factory.h"
+ #include "chrome/browser/subresource_filter/subresource_filter_profile_context_factory.h"
+ #include "chrome/browser/ui/url_identity.h"
++#include "chrome/browser/ui/webui/webui_embedding_context.h"
+ #include "chrome/browser/usb/usb_chooser_context.h"
+ #include "chrome/browser/usb/usb_chooser_context_factory.h"
+ #include "chrome/browser/vr/vr_tab_helper.h"
+@@ -135,7 +136,16 @@
+ ChromePageInfoDelegate::GetBrowserCallback
+ ChromePageInfoDelegate::DefaultGetBrowserCallback() {
+   return base::BindRepeating([](content::WebContents* contents) {
+-    return GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents);
++    if (BrowserWindowInterface* browser =
++            GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
++                contents)) {
++      return browser;
++    }
++    // Page Info can be opened for non-tab WebContents (e.g. side panels), where
++    // `FindBrowserWithTab()` returns nullptr. Fall back to the embedding
++    // browser context so browser-scoped actions (like opening Site Settings)
++    // still resolve the owning browser window.
++    return contents ? webui::GetBrowserWindowInterface(contents) : nullptr;
+   });
+ }
+ 
+diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
+index b0a26be0..628004e 100644
+--- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
++++ b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
+@@ -342,7 +342,7 @@
+ 
+   contextual_tasks::ContextualTasksService* service =
+       GetContextualTasksService();
+-  if (!HasPanelResults()) {
++  if (!HasPanelResultsOrUnsubmittedInput()) {
+     for (SessionID tab_id : service->GetTabsAssociatedWithTask(*task_id)) {
+       ClearTabEligibility(tab_id);
+     }
+@@ -761,11 +761,13 @@
+   return GetActiveTaskId().has_value();
+ }
+ 
+-bool ContextualTasksEphemeralButtonController::HasPanelResults() const {
++bool ContextualTasksEphemeralButtonController::
++    HasPanelResultsOrUnsubmittedInput() const {
+   auto* const panel_controller =
+       contextual_tasks::ContextualTasksPanelController::From(
+           browser_window_interface_);
+-  return panel_controller && panel_controller->HasResults();
++  return panel_controller && (panel_controller->HasResults() ||
++                              panel_controller->HasUnsubmittedInput());
+ }
+ 
+ void ContextualTasksEphemeralButtonController::OnActiveTabChange(
+diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.h b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.h
+index 764c065..d3aaf365 100644
+--- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.h
++++ b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.h
+@@ -142,7 +142,7 @@
+   contextual_tasks::ContextualTasksService* GetContextualTasksService();
+   std::optional<SessionID> GetCurrentTabSessionId();
+   std::optional<base::Uuid> GetActiveTaskId();
+-  bool HasPanelResults() const;
++  bool HasPanelResultsOrUnsubmittedInput() const;
+   base::TimeTicks NowTicks() const;
+   void SettlePendingOpenClick(OpenSidePanelSessionCounts& counts,
+                               bool closed_by_user);
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+index 4c8ba30..2a894e4 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -1808,12 +1808,14 @@
+   if (is_full_webui_omnibox_) {
+     // In Full WebUI mode, `LocationBarView` is the focusable Views proxy for
+     // the WebUI omnibox. When `FocusManager` moves focus here on its own (tab
+-    // traversal, focus restoration), forward to WebUI without triggering an
+-    // unexpected Zero-Prefix Suggestion (ZPS) query.
++    // traversal, focus restoration), open and focus the popup as
++    // `OmniboxViewViews::OnFocus()` would focus the Views omnibox: select all
++    // on focus traversal, and otherwise restore the selection saved on blur,
++    // without triggering an unexpected Zero-Prefix Suggestion (ZPS) query.
+     if (!moving_focus_to_webui_) {
+-      if (omnibox::ShouldHostUnboundedOmniboxInLocationBar() &&
+-          GetFocusManager() &&
+-          GetFocusManager()->focus_change_reason() ==
++      auto* focus_manager = GetFocusManager();
++      if (omnibox::ShouldHostUnboundedOmniboxInLocationBar() && focus_manager &&
++          focus_manager->focus_change_reason() ==
+               views::FocusManager::FocusChangeReason::kFocusRestore) {
+         // On activation by a click, `FocusManager` restores focus before the
+         // click is dispatched; let the click take focus first.
+@@ -1823,17 +1825,27 @@
+                 [](base::WeakPtr<LocationBarView> self) {
+                   // `LocationBarView::HasFocus()` checks `edit_model()`, not
+                   // Views focus.
+-                  if (self && self->views::View::HasFocus()) {
+-                    self->ForwardFocusToWebUI(/*query_zps=*/false,
+-                                              /*select_all=*/false,
+-                                              /*show_full_url=*/false);
++                  if (!self || !self->views::View::HasFocus()) {
++                    return;
++                  }
++                  if (auto* popup_view = self->GetOmniboxPopupView()) {
++                    popup_view->OnFocus(/*query_zps=*/false,
++                                        /*select_all=*/false,
++                                        /*show_full_url=*/false);
+                   }
+                 },
+                 weak_factory_.GetWeakPtr()));
+         return;
+       }
+-      ForwardFocusToWebUI(/*query_zps=*/false, /*select_all=*/false,
+-                          /*show_full_url=*/false);
++      if (auto* popup_view = GetOmniboxPopupView()) {
++        const bool is_focus_traversal =
++            focus_manager &&
++            focus_manager->focus_change_reason() ==
++                views::FocusManager::FocusChangeReason::kFocusTraversal;
++        popup_view->OnFocus(/*query_zps=*/false,
++                            /*select_all=*/is_focus_traversal,
++                            /*show_full_url=*/false);
++      }
+     }
+     return;
+   }
+@@ -2252,6 +2264,10 @@
+ void LocationBarView::OpenOmniboxPopup(bool query_zps) {
+   if (is_full_webui_omnibox_ && !in_popup_state_transition_) {
+     if (auto* popup_view = GetOmniboxPopupView()) {
++      // The native view hands off a selection the user just made (e.g. by
++      // clicking or dragging), which replaces the one saved on blur, as a
++      // click in `OmniboxViewViews` sets the selection after `OnFocus()`.
++      popup_view->ClearSavedSelectionForFocusChange();
+       popup_view->OnFocus(query_zps, /*select_all=*/false,
+                           /*show_full_url=*/false);
+     }
+diff --git a/chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.cc b/chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.cc
+index e7ee28a..5c240e4 100644
+--- a/chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.cc
++++ b/chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.cc
+@@ -56,10 +56,9 @@
+ namespace {
+ 
+ // Returns the location bar of the browser window that `web_contents` belongs
+-// to, or null if there is none (such as for Omnibox Everywhere).
++// to, or null if there is none.
+ LocationBar* GetLocationBar(content::WebContents* web_contents) {
+-  if (!web_contents ||
+-      OmniboxContextMenuController::GetOmniboxEverywhereUI(web_contents)) {
++  if (!web_contents) {
+     return nullptr;
+   }
+   auto* browser_window = webui::GetBrowserWindowInterface(web_contents);
+@@ -106,23 +105,7 @@
+   image_encoding_options_ = image_encoding_options;
+   was_ai_mode_open_ = was_ai_mode_open;
+   is_image_ = is_image;
+-  if (file_chooser_opened_callback_) {
+-    file_chooser_opened_callback_.Run();
+-  }
+-  if (LocationBar* location_bar = GetLocationBar(web_contents)) {
+-    if (was_ai_mode_open) {
+-      if (auto* delegate = location_bar->GetPresenterDelegate()) {
+-        if (auto* presenter = delegate->GetOmniboxPopupAimPresenter()) {
+-          deactivation_blocker_ = presenter->CreateDeactivationBlocker();
+-        }
+-      }
+-    } else if (auto* popup_view = location_bar->GetOmniboxPopupView()) {
+-      if (OmniboxPopupHost* popup_host = popup_view->popup_host()) {
+-        popup_host->OnFileDialogOpened();
+-        deactivation_blocker_ = popup_host->CreateDeactivationBlocker();
+-      }
+-    }
+-  }
++  OnFileSelectionOpened();
+ 
+   file_dialog_ = ui::SelectFileDialog::Create(
+       this, std::make_unique<ChromeSelectFilePolicy>(web_contents));
+@@ -419,6 +402,26 @@
+                                                mime_string, result);
+ }
+ 
++void OmniboxPopupFileSelector::OnFileSelectionOpened() {
++  if (file_chooser_opened_callback_) {
++    file_chooser_opened_callback_.Run();
++  }
++  if (LocationBar* location_bar = GetLocationBar(web_contents_.get())) {
++    if (was_ai_mode_open_) {
++      if (auto* delegate = location_bar->GetPresenterDelegate()) {
++        if (auto* presenter = delegate->GetOmniboxPopupAimPresenter()) {
++          deactivation_blocker_ = presenter->CreateDeactivationBlocker();
++        }
++      }
++    } else if (auto* popup_view = location_bar->GetOmniboxPopupView()) {
++      if (OmniboxPopupHost* popup_host = popup_view->popup_host()) {
++        popup_host->OnFileDialogOpened();
++        deactivation_blocker_ = popup_host->CreateDeactivationBlocker();
++      }
++    }
++  }
++}
++
+ void OmniboxPopupFileSelector::NotifyFileSelectionClosed(bool file_selected) {
+   if (file_chooser_closed_callback_) {
+     file_chooser_closed_callback_.Run();
+@@ -446,7 +449,9 @@
+ void OmniboxPopupFileSelector::OpenAiMode() {
+   if (open_ai_mode_callback_) {
+     open_ai_mode_callback_.Run();
+-  } else if (edit_model_) {
++    return;
++  }
++  if (edit_model_) {
+     edit_model_->OpenAiMode(OmniboxEditModel::AimActivation::kContextMenu);
+   }
+ }
+diff --git a/chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.h b/chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.h
+index 199cafa..6dc3ec6 100644
+--- a/chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.h
++++ b/chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.h
+@@ -94,6 +94,10 @@
+ 
+  protected:
+   bool IsFileDialogOpen() const { return file_dialog_ != nullptr; }
++  virtual void OnFileSelectionOpened();
++  // `file_selected` is whether the user selected files rather than canceling.
++  virtual void NotifyFileSelectionClosed(bool file_selected);
++  virtual void OpenAiMode();
+ 
+  private:
+   scoped_refptr<ui::SelectFileDialog> file_dialog_;
+@@ -105,17 +109,12 @@
+   bool was_ai_mode_open_ = false;
+   bool is_image_ = false;
+ 
+-  base::RepeatingClosure open_ai_mode_callback_;
+-  base::RepeatingClosure file_chooser_opened_callback_;
+-  base::RepeatingClosure file_chooser_closed_callback_;
+-
+   // Prevents the omnibox popup from closing when focus shifts to the system
+   // file dialog.
+   std::unique_ptr<OmniboxPopupDeactivationBlocker> deactivation_blocker_;
+-
+-  // `file_selected` is whether the user selected files rather than canceling.
+-  void NotifyFileSelectionClosed(bool file_selected);
+-  void OpenAiMode();
++  base::RepeatingClosure open_ai_mode_callback_;
++  base::RepeatingClosure file_chooser_opened_callback_;
++  base::RepeatingClosure file_chooser_closed_callback_;
+ 
+   base::WeakPtrFactory<OmniboxPopupFileSelector> weak_factory_{this};
+ };
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc b/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc
+index 5ce9ce83..91f13f3 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc
+@@ -98,12 +98,15 @@
+       edit_model->has_temporary_text()) {
+     edit_model->AcceptTemporaryTextAsUserText();
+   }
+-  edit_model->RevertUneditedText();
+ 
++  // Blur the popup view before reverting, so that it saves the selection the
++  // user had, like `OmniboxViewViews::OnBlur()`.
+   if (OmniboxPopupView* popup_view = edit_model->popup_view()) {
+     popup_view->OnBlur();
+   }
+ 
++  edit_model->RevertUneditedText();
++
+   move_focus();
+   edit_model->OnKillFocus();
+ 
+@@ -154,10 +157,10 @@
+       user_input_in_progress ? edit_model->user_text() : permanent_display_text;
+   bool focus = edit_model->has_focus();
+   const std::u16string full_url = controller()->client()->GetFormattedFullURL();
+-  const bool should_show_full_url =
++  bool should_show_full_url =
+       show_full_url && !user_input_in_progress && !full_url.empty();
+-  // Default to select-all on permanent URLs (so focusing or refocusing selects
+-  // all text, and empty text defaults to Range(0, 0)).
++  // Default to select-all on permanent URLs when there's no saved, native or
++  // WebUI selection to keep below (empty text defaults to Range(0, 0)).
+   gfx::Range selection(
+       0, should_show_full_url ? full_url.length() : text.length());
+ 
+@@ -190,10 +193,21 @@
+       native_selection.IsValid() && !native_selection.is_empty() &&
+       native_selection.GetMax() <= max_selection_length;
+ 
+-  // When `should_show_full_url` is true (e.g. Ctrl+L / Cmd+L), keep the full
+-  // URL selected rather than restoring a prior native or WebUI selection.
+-  if (!should_show_full_url && has_native_highlight &&
+-      native_selection != last_consumed_native_selection_) {
++  // Restore the selection saved when the omnibox was blurred, like
++  // `OmniboxViewViews::OnFocus()`. Otherwise, when `should_show_full_url` is
++  // true (e.g. Ctrl+L / Cmd+L), keep the full URL selected rather than
++  // restoring a prior native or WebUI selection.
++  if (focus && saved_selection_for_focus_change_.IsValid()) {
++    selection = gfx::Range(std::min(saved_selection_for_focus_change_.start(),
++                                    max_selection_length),
++                           std::min(saved_selection_for_focus_change_.end(),
++                                    max_selection_length));
++    should_show_full_url = saved_show_full_url_for_focus_change_ &&
++                           !user_input_in_progress && !full_url.empty();
++    saved_selection_for_focus_change_ = gfx::Range::InvalidRange();
++    saved_show_full_url_for_focus_change_ = false;
++  } else if (!should_show_full_url && has_native_highlight &&
++             native_selection != last_consumed_native_selection_) {
+     // The native view has a highlight we have not handed off yet (e.g. from
+     // mouse dragging or double-clicking in Views), so preserve the exact
+     // selection range. Record it so that later syncs, which would still see
+@@ -209,11 +223,15 @@
+                     ? handler_selection
+                     : gfx::Range(text.length(), text.length());
+   } else if (!should_show_full_url && is_handler_selection_valid &&
+-             !handler_selection.is_empty()) {
++             (!handler_selection.is_empty() ||
++              (focus && last_sent_focus_.value_or(false)))) {
+     // For permanent URLs without native selection, if WebUI already has a valid
+     // non-empty selection range (e.g. from user highlighting text in WebUI),
+-    // preserve it.
++    // preserve it. While the omnibox stays focused, also preserve a caret, as
++    // `OmniboxViewViews` keeps its selection while focused. Keep whether the
++    // URL is unelided too, since the selection is relative to it.
+     selection = handler_selection;
++    should_show_full_url = popup_handler->show_full_url() && !full_url.empty();
+   }
+ 
+   // Restore the selection the omnibox had before a modal dialog blurred it, if
+@@ -261,12 +279,23 @@
+   bool logically_focused = edit_model->has_focus();
+ 
+   // The text input lives in WebUI, so the native view hierarchy does not
+-  // track selection. Fetch it from the WebUI handler.
++  // track selection. Fetch it from the WebUI handler, unless it hasn't been
++  // sent this tab's state yet (e.g. while a new window's WebUI loads), in which
++  // case keep the selection restored from the tab, as `OmniboxViewViews` does.
+   gfx::Range selection;
+   bool show_full_url = false;
+-  if (auto* popup_handler = GetPopupHandler()) {
++  gfx::Range saved_selection = saved_selection_for_focus_change_;
++  auto* popup_handler = GetPopupHandler();
++  if (popup_handler && last_sent_text_) {
+     selection = popup_handler->latest_selection();
+     show_full_url = popup_handler->show_full_url();
++  } else if (const auto* existing_state = static_cast<OmniboxState*>(
++                 tab->GetUserData(OmniboxTabHelper::kOmniboxStateKey))) {
++    selection = existing_state->selection;
++    show_full_url = existing_state->show_full_url;
++  }
++  if (!logically_focused && saved_selection.IsValid()) {
++    show_full_url = saved_show_full_url_for_focus_change_;
+   }
+ 
+   // If the user cleared the Omnibox, we should not preserve the empty draft
+@@ -295,19 +324,16 @@
+     // we must select-all on restoration (since the permanent URL will be
+     // restored).
+     selection = gfx::Range(0, permanent_text.length());
++    saved_selection = gfx::Range::InvalidRange();
++    show_full_url = false;
+     // Force `user_input_in_progress` to false to trigger a revert
+     // to the permanent URL on restoration.
+     state->user_input_in_progress = false;
+   }
+ 
+-  // WebUI retains selection across focus changes, so we only need to sync
+-  // the active selection. `saved_selection_for_focus_change` is unused.
+-  tab->SetUserData(
+-      OmniboxTabHelper::kOmniboxStateKey,
+-      std::make_unique<OmniboxState>(
+-          *state, selection,
+-          /*saved_selection_for_focus_change=*/gfx::Range::InvalidRange(),
+-          show_full_url));
++  tab->SetUserData(OmniboxTabHelper::kOmniboxStateKey,
++                   std::make_unique<OmniboxState>(
++                       *state, selection, saved_selection, show_full_url));
+ }
+ 
+ void OmniboxPopupViewFullWebUI::OnTabChanged(content::WebContents* contents) {
+@@ -322,10 +348,6 @@
+   // waiting for the WebUI's `stopAutocomplete` IPC.
+   controller()->StopAutocomplete(/*clear_result=*/true);
+ 
+-  // TODO(b:544433912) Consider removing or fixing `target_popup_state` logic as
+-  //   it doesn't seem to be opening the popup as it intends, nor is it clear if
+-  //   it even should.
+-  OmniboxPopupState target_popup_state;
+   auto* state = static_cast<OmniboxState*>(
+       contents->GetUserData(OmniboxTabHelper::kOmniboxStateKey));
+   bool should_focus_popup = false;
+@@ -342,39 +364,29 @@
+   // is drawn again.
+   const bool can_show_popup = !location_bar() || location_bar()->IsDrawn();
+ 
+-  if (state) {
+-    // Restore the saved state for the tab.
+-    controller()->edit_model()->RestoreState(&state->model_state);
++  // Restore the selection saved when the tab's omnibox was blurred, like
++  // `OmniboxViewViews::OnTabChanged()`.
++  saved_selection_for_focus_change_ =
++      state ? state->saved_selection_for_focus_change
++            : gfx::Range::InvalidRange();
++  saved_show_full_url_for_focus_change_ =
++      saved_selection_for_focus_change_.IsValid() && state->show_full_url;
++  // `OmniboxViewViews::OnTabChanged()` also applies the tab's selection to the
++  // view. If the WebUI can't be sent it yet (e.g. in a new window whose WebUI
++  // is still loading), hold onto it so the first sync once the WebUI is ready
++  // applies it rather than selecting all.
++  if (state && !IsPopupHandlerReady() &&
++      !saved_selection_for_focus_change_.IsValid()) {
++    saved_selection_for_focus_change_ = state->selection;
++    saved_show_full_url_for_focus_change_ = state->show_full_url;
++  }
+ 
+-    // Only request native keyboard focus for the omnibox
+-    // popup if it was logically focused when the user switched tabs.
++  if (state) {
++    // Restore the saved state for the tab, and only focus the popup if the
++    // omnibox was logically focused when the user switched tabs.
++    controller()->edit_model()->RestoreState(&state->model_state);
+     should_focus_popup =
+         can_show_popup && state->model_state.focus_state != OMNIBOX_FOCUS_NONE;
+-
+-    // The popup must be visible (`OmniboxPopupState::kFull`) if there is an
+-    // active draft or if the omnibox should have visible focus, and the popup
+-    // is initialized and ready.
+-    target_popup_state =
+-        IsPopupHandlerReady() && can_show_popup &&
+-                (non_empty_user_input_in_progress || should_focus_popup)
+-            ? OmniboxPopupState::kFull
+-            : OmniboxPopupState::kNone;
+-
+-    // Set popup state before setting focus state to avoid focus ring flicker.
+-    controller()->popup_state_manager()->SetPopupState(target_popup_state);
+-
+-    // Prevent focus state leaks by explicitly syncing the `OmniboxEditModel`'s
+-    // focus state with the restored state of the newly active tab.
+-    if (should_focus_popup) {
+-      if (!is_first_tab_changed) {
+-        TRACE_EVENT_INSTANT0(
+-            "omnibox", "OmniboxPopupViewFullWebUI::OnTabChanged:OnSetFocus",
+-            TRACE_EVENT_SCOPE_THREAD);
+-      }
+-      controller()->edit_model()->OnSetFocus(/*control_down=*/false);
+-    } else {
+-      controller()->edit_model()->OnKillFocus();
+-    }
+   } else {
+     // No saved state. Revert the edit model and check if the tab should focus
+     // the location bar by default (e.g., New Tab Page).
+@@ -382,24 +394,36 @@
+     controller()->edit_model()->OnChanged();
+     should_focus_popup =
+         can_show_popup && contents->FocusLocationBarByDefault();
+-    // Only transition to `kFull` if the popup is initialized and ready.
+-    // Otherwise, maintain `kNone` until `OnPopupHandlerReady()` is called.
+-    target_popup_state = IsPopupHandlerReady() && should_focus_popup
+-                             ? OmniboxPopupState::kFull
+-                             : OmniboxPopupState::kNone;
+-    // Set popup state before setting focus state to avoid focus ring flicker.
+-    controller()->popup_state_manager()->SetPopupState(target_popup_state);
++  }
+ 
+-    if (should_focus_popup) {
+-      if (!is_first_tab_changed) {
+-        TRACE_EVENT_INSTANT0(
+-            "omnibox", "OmniboxPopupViewFullWebUI::OnTabChanged:OnSetFocus",
+-            TRACE_EVENT_SCOPE_THREAD);
+-      }
+-      controller()->edit_model()->OnSetFocus(/*control_down=*/false);
+-    } else {
+-      controller()->edit_model()->OnKillFocus();
++  // TODO(b:544433912) Consider removing or fixing `target_popup_state` logic as
++  //   it doesn't seem to be opening the popup as it intends, nor is it clear if
++  //   it even should.
++  //
++  // The popup must be visible (`OmniboxPopupState::kFull`) if there is an
++  // active draft or if the omnibox should have visible focus, and the popup is
++  // initialized and ready. Otherwise, keep it closed. If the native omnibox has
++  // focus while the WebUI loads (e.g. on a new NTP),
++  // `LocationBarView::OnFullWebUiOmniboxReady()` opens it once ready.
++  const OmniboxPopupState target_popup_state =
++      IsPopupHandlerReady() && can_show_popup &&
++              (non_empty_user_input_in_progress || should_focus_popup)
++          ? OmniboxPopupState::kFull
++          : OmniboxPopupState::kNone;
++
++  // Set popup state before setting focus state to avoid focus ring flicker.
++  controller()->popup_state_manager()->SetPopupState(target_popup_state);
++
++  // Prevent focus state leaks by explicitly syncing the `OmniboxEditModel`'s
++  // focus state with the restored state of the newly active tab.
++  if (should_focus_popup) {
++    if (!is_first_tab_changed) {
++      TRACE_EVENT_INSTANT("omnibox",
++                          "OmniboxPopupViewFullWebUI::OnTabChanged:OnSetFocus");
+     }
++    controller()->edit_model()->OnSetFocus(/*control_down=*/false);
++  } else {
++    controller()->edit_model()->OnKillFocus();
+   }
+ 
+   // Keep `focused_` in sync with the tab's target focus state. When switching
+@@ -451,7 +475,8 @@
+         controller()->edit_model()->GetPermanentDisplayText();
+     std::u16string text =
+         non_empty_user_input_in_progress ? user_text : permanent_display_text;
+-    bool show_full_url = state ? state->show_full_url : false;
++    // Only show the unelided URL while focused.
++    bool show_full_url = state && should_focus_popup && state->show_full_url;
+     const std::u16string full_url =
+         controller()->client()->GetFormattedFullURL();
+     gfx::Range selection =
+@@ -506,10 +531,19 @@
+         ->CancelPendingContextMenuRequest();
+   }
+   focused_ = true;
++  // An explicit select-all, zero-prefix query or unelide replaces the
++  // selection saved on blur, like `OmniboxViewViews::OnFocus()` on focus
++  // traversal.
++  if (query_zps || select_all || show_full_url) {
++    saved_selection_for_focus_change_ = gfx::Range::InvalidRange();
++    saved_show_full_url_for_focus_change_ = false;
++  }
++  const bool restore_saved_selection =
++      saved_selection_for_focus_change_.IsValid();
+   bool changed = controller()->popup_state_manager()->popup_state() !=
+                  OmniboxPopupState::kFull;
+ 
+-  if (changed) {
++  if (changed || restore_saved_selection) {
+     last_sent_text_.reset();
+     last_sent_focus_.reset();
+   }
+@@ -548,7 +582,7 @@
+   // keyboard events route to the WebUI input field.
+   popup_host()->RequestFocus();
+ 
+-  if (changed) {
++  if (changed || restore_saved_selection) {
+     SyncNativeStateToWebUIImpl(
+         query_zps ? omnibox_popup::mojom::MatchesUpdate::kQueryZps
+                   : omnibox_popup::mojom::MatchesUpdate::kDefault,
+@@ -573,10 +607,26 @@
+ }
+ 
+ void OmniboxPopupViewFullWebUI::OnBlur() {
+-  focused_ = false;
+-  if (auto* popup_handler = GetPopupHandler()) {
+-    popup_handler->SetFocus(false);
++  auto* popup_handler = GetPopupHandler();
++  // Save the selection to restore when the omnibox is focused again, like
++  // `OmniboxViewViews::OnBlur()`. Only the WebUI knows it, and only once it was
++  // sent this tab's state. Check the edit model too, since clicking into an
++  // open popup focuses the omnibox without `OnFocus()`.
++  if ((focused_ || controller()->edit_model()->has_focus()) && popup_handler &&
++      last_sent_text_) {
++    saved_selection_for_focus_change_ = popup_handler->latest_selection();
++    saved_show_full_url_for_focus_change_ = popup_handler->show_full_url();
+   }
++  focused_ = false;
++  if (popup_handler) {
++    popup_handler->SetFocus(false);
++    last_sent_focus_ = false;
++  }
++}
++
++void OmniboxPopupViewFullWebUI::ClearSavedSelectionForFocusChange() {
++  saved_selection_for_focus_change_ = gfx::Range::InvalidRange();
++  saved_show_full_url_for_focus_change_ = false;
+ }
+ 
+ bool OmniboxPopupViewFullWebUI::RequestWebUIContextMenu(
+@@ -642,13 +692,19 @@
+ 
+ void OmniboxPopupViewFullWebUI::DidFinishNavigation(
+     content::NavigationHandle* navigation_handle) {
++  if (!navigation_handle->HasCommitted() ||
++      !navigation_handle->IsInPrimaryMainFrame()) {
++    return;
++  }
++  // A selection saved for the previous URL doesn't apply to the new one, even
++  // after a same-document navigation, as `OmniboxViewViews::RevertAll()` drops
++  // its saved selection whenever the URL changes.
++  ClearSavedSelectionForFocusChange();
+   // Clicking into the page with a draft in the omnibox leaves the popup open,
+   // unfocused, to show the draft (see OmniboxPopupFullPresenter::OnEvent()).
+   // A later cross-document navigation of the page, e.g. clicking a link, ends
+   // that edit session.
+-  if (!navigation_handle->HasCommitted() ||
+-      !navigation_handle->IsInPrimaryMainFrame() ||
+-      navigation_handle->IsSameDocument()) {
++  if (navigation_handle->IsSameDocument()) {
+     return;
+   }
+   // An unfocused draft is shown in the open popup, or kept in the edit model
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.h b/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.h
+index eb75e85..b18eb0eb6 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.h
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.h
+@@ -68,6 +68,7 @@
+   // `SetFocus(false)` Mojo IPC to ensure DOM input focus in the WebUI is
+   // cleared.
+   void OnBlur() override;
++  void ClearSavedSelectionForFocusChange() override;
+   bool RequestWebUIContextMenu(const gfx::Point& screen_point,
+                                ui::mojom::MenuSourceType source_type) override;
+   // Called when the WebUI page handler establishes its Mojo connection.
+@@ -88,13 +89,14 @@
+   bool is_focused() const { return focused_; }
+ 
+   // The Full popup's blur sequence: accepts any temporary text while user
+-  // input is in progress as the user's draft, reverts unedited text (see
+-  // `OmniboxEditModel::RevertUneditedText()`), tells the WebUI it lost focus
++  // input is in progress as the user's draft, tells the WebUI it lost focus
+   // (`edit_model->popup_view()->OnBlur()`, when the popup view is still
+-  // registered), runs `move_focus` (the host's own focus change, e.g. clearing
+-  // views focus or focusing the page), blurs the edit model, and closes the
+-  // popup unless the edit model holds a draft. Static so a host can still run
+-  // the rest of the sequence while the popup view is tearing down.
++  // registered), which saves its selection, reverts unedited text (see
++  // `OmniboxEditModel::RevertUneditedText()`), runs `move_focus` (the host's
++  // own focus change, e.g. clearing views focus or focusing the page), blurs
++  // the edit model, and closes the popup unless the edit model holds a draft.
++  // Static so a host can still run the rest of the sequence while the popup
++  // view is tearing down.
+   static void BlurOmnibox(OmniboxController& controller,
+                           base::FunctionRef<void()> move_focus);
+ 
+@@ -102,6 +104,11 @@
+     return GetPopupHandler();
+   }
+ 
++  // True if the WebUI has been sent the current tab's state.
++  bool has_sent_state_for_testing() const {
++    return last_sent_text_.has_value();
++  }
++
+  private:
+   // Gets the OmniboxPopupHandler associated with this view's WebUI.
+   OmniboxPopupHandler* GetPopupHandler();
+@@ -132,6 +139,15 @@
+   // Null after a state reset (e.g., tab switch, popup reopen).
+   std::optional<gfx::Range> last_consumed_native_selection_;
+ 
++  // The selection and unelided state saved when the omnibox is blurred, and
++  // restored when it's focused again, as `OmniboxViewViews` does with its own
++  // `saved_selection_for_focus_change_`. Saved per tab in `OmniboxState`.
++  // TODO(b/574630952): Restore the selection after a modal dialog from these
++  // too, so `OmniboxPopupFullPresenter` only tracks whether the dialog
++  // interrupted focus, and remove `FocusStateToRestore`'s selection.
++  gfx::Range saved_selection_for_focus_change_ = gfx::Range::InvalidRange();
++  bool saved_show_full_url_for_focus_change_ = false;
++
+   bool has_completed_first_tab_changed_ = false;
+   bool is_reverting_ = false;
+   bool focused_ = false;
+diff --git a/chrome/browser/ui/views/toolbar/webui_pinned_toolbar_actions.cc b/chrome/browser/ui/views/toolbar/webui_pinned_toolbar_actions.cc
+index 1f7a34c..cf665e29 100644
+--- a/chrome/browser/ui/views/toolbar/webui_pinned_toolbar_actions.cc
++++ b/chrome/browser/ui/views/toolbar/webui_pinned_toolbar_actions.cc
+@@ -25,6 +25,7 @@
+ #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_ids.h"
+ #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
+ #include "chrome/browser/ui/views/toolbar/download_button.h"
++#include "chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.h"
+ #include "chrome/browser/ui/views/toolbar/pinned_action_toolbar_button_menu_model.h"
+ #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+ #include "chrome/browser/ui/views/toolbar/webui_toolbar_web_view.h"
+@@ -249,10 +250,17 @@
+         IsActionHighlighted(id) || (menu_runner_ && menu_runner_->IsRunning() &&
+                                     active_context_menu_action_ == id);
+     state->enabled = item->GetEnabled();
+-    // TODO(crbug.com/578143713): Also plumb
+-    // `kActionItemEngagedIndicatorStyleKey` through `PinnedToolbarActionState`
+-    // to support `kCircleHighlight` in WebUI.
+     state->activated = item->GetProperty(kActionItemUnderlineIndicatorKey);
++    switch (item->GetProperty(kActionItemEngagedIndicatorStyleKey)) {
++      case ActionItemEngagedIndicatorStyle::kUnderline:
++        state->engaged_indicator_style = toolbar_ui_api::mojom::
++            PinnedToolbarActionEngagedIndicatorStyle::kUnderline;
++        break;
++      case ActionItemEngagedIndicatorStyle::kCircleHighlight:
++        state->engaged_indicator_style = toolbar_ui_api::mojom::
++            PinnedToolbarActionEngagedIndicatorStyle::kCircleHighlight;
++        break;
++    }
+     state->tooltip = item->GetTooltipText();
+     state->accessibility_text = item->GetAccessibleName();
+     if (auto element_id = webui_toolbar::ActionIdToElementIdentifier(id)) {
+diff --git a/chrome/browser/ui/webui/new_tab_page/core/ntp_load_time_data.cc b/chrome/browser/ui/webui/new_tab_page/core/ntp_load_time_data.cc
+index 6181906..12c1d15 100644
+--- a/chrome/browser/ui/webui/new_tab_page/core/ntp_load_time_data.cc
++++ b/chrome/browser/ui/webui/new_tab_page/core/ntp_load_time_data.cc
+@@ -102,15 +102,13 @@
+ 
+ // Returns whether the left-hand side (LHS) threads rail is shown on the NTP.
+ // The rail embeds Google Search AI Mode content, so it is only available on
+-// Google Chrome branded builds. In hybrid mode, the local rail renders items
+-// from `LhsRailConfig`, so a non-null config is required.
++// Google Chrome branded builds. The folded rail renders items from
++// `LhsRailConfig`, so a non-null config is required.
+ bool IsThreadsRailEnabled(bool aim_eligible, bool has_lhs_rail_config) {
+ #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+-  if (!aim_eligible ||
+-      !base::FeatureList::IsEnabled(ntp_features::kNtpThreadsRail)) {
+-    return false;
+-  }
+-  return !ntp_features::kNtpThreadsRailHybridParam.Get() || has_lhs_rail_config;
++  return aim_eligible &&
++         base::FeatureList::IsEnabled(ntp_features::kNtpThreadsRail) &&
++         has_lhs_rail_config;
+ #else
+   return false;
+ #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+@@ -223,10 +221,8 @@
+   dict.Set("threadsUrl", threads_url.spec());
+ 
+   GURL expanded_lhs_url = google_base_url.Resolve(kLhsRelativeUrl);
+-  if (ntp_features::kNtpThreadsRailHybridParam.Get()) {
+-    expanded_lhs_url = net::AppendQueryParameter(expanded_lhs_url, "atvm",
+-                                                 kAIMThreadsVisibilityMode);
+-  }
++  expanded_lhs_url = net::AppendQueryParameter(expanded_lhs_url, "atvm",
++                                               kAIMThreadsVisibilityMode);
+   expanded_lhs_url = net::AppendQueryParameter(expanded_lhs_url, "csui",
+                                                kAIMConversationalSearchUI);
+   expanded_lhs_url = net::AppendQueryParameter(
+@@ -699,8 +695,6 @@
+   const bool enable_threads_rail =
+       IsThreadsRailEnabled(aim_eligible, lhs_rail_config != nullptr);
+   dict.Set("enableThreadsRail", enable_threads_rail);
+-  dict.Set("enableThreadsRailHybrid",
+-           ntp_features::kNtpThreadsRailHybridParam.Get());
+   dict.Set("threadsRailPreloadDebounceMs",
+            ntp_features::kNtpThreadsRailPreloadDebounceMsParam.Get());
+   if (enable_threads_rail && lhs_rail_config) {
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_file_selector.cc b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_file_selector.cc
+index b6899bf1..685021c79 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_file_selector.cc
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_file_selector.cc
+@@ -42,7 +42,6 @@
+       owning_window_(owning_window)
+ #endif
+ {
+-  set_file_chooser_closed_callback(closed_callback_);
+ }
+ 
+ OmniboxEverywhereFileSelector::~OmniboxEverywhereFileSelector() = default;
+@@ -101,9 +100,6 @@
+ }
+ 
+ void OmniboxEverywhereFileSelector::FileSelectionCanceled() {
+-#if BUILDFLAG(IS_MAC)
+-  ResetPendingShow();
+-#endif
+   OmniboxPopupFileSelector::FileSelectionCanceled();
+   if (canceled_callback_) {
+     canceled_callback_.Run();
+@@ -119,14 +115,36 @@
+ #endif
+   const bool had_open_dialog = IsFileDialogOpen();
+   CancelFileSelection();
+-  if (had_pending_show && closed_callback_) {
+-    closed_callback_.Run();
++  if (had_pending_show) {
++    NotifyFileSelectionClosed(/*file_selected=*/false);
+   }
+   if ((had_pending_show || had_open_dialog) && canceled_callback_) {
+     canceled_callback_.Run();
+   }
+ }
+ 
++void OmniboxEverywhereFileSelector::OnFileSelectionOpened() {
++  // Intentional no-op: `opened_callback_` already ran at the start of
++  // `OpenFileUploadDialog()` to collapse the Composebox before waiting for
++  // widget bounds to shrink, and OmniboxEverywhere does not use the browser
++  // window's LocationBar deactivation blocker.
++}
++
++void OmniboxEverywhereFileSelector::NotifyFileSelectionClosed(
++    bool /*file_selected*/) {
++#if BUILDFLAG(IS_MAC)
++  ResetPendingShow();
++#endif
++  if (closed_callback_) {
++    closed_callback_.Run();
++  }
++}
++
++void OmniboxEverywhereFileSelector::OpenAiMode() {
++  // Intentional no-op: OmniboxEverywhere transitions to its Composebox via
++  // `OmniboxEverywhereUI::AddFileContext()` rather than `OmniboxEditModel`.
++}
++
+ #if BUILDFLAG(IS_MAC)
+ void OmniboxEverywhereFileSelector::OnWidgetBoundsChanged(
+     views::Widget* widget,
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_file_selector.h b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_file_selector.h
+index 0400103..f9460fa9 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_file_selector.h
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_file_selector.h
+@@ -72,6 +72,12 @@
+   void OnWidgetDestroying(views::Widget* widget) override;
+ #endif
+ 
++ protected:
++  // OmniboxPopupFileSelector:
++  void OnFileSelectionOpened() override;
++  void NotifyFileSelectionClosed(bool file_selected) override;
++  void OpenAiMode() override;
++
+  private:
+ #if BUILDFLAG(IS_MAC)
+   void ShowFileUploadDialog(
+diff --git a/chrome/browser/ui/webui/omnibox_popup/mojom/BUILD.gn b/chrome/browser/ui/webui/omnibox_popup/mojom/BUILD.gn
+index 42f3936c..bd21c352 100644
+--- a/chrome/browser/ui/webui/omnibox_popup/mojom/BUILD.gn
++++ b/chrome/browser/ui/webui/omnibox_popup/mojom/BUILD.gn
+@@ -17,5 +17,6 @@
+     "//mojo/public/mojom/base",
+     "//ui/gfx/geometry/mojom",
+     "//ui/gfx/range/mojom",
++    "//url/mojom:url_mojom_gurl",
+   ]
+ }
+diff --git a/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom b/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom
+index ef49f62..381aded 100644
+--- a/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom
++++ b/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom
+@@ -7,6 +7,7 @@
+ import "components/omnibox/browser/searchbox.mojom";
+ import "ui/gfx/geometry/mojom/geometry.mojom";
+ import "ui/gfx/range/mojom/range.mojom";
++import "url/mojom/url.mojom";
+ 
+ // How the WebUI omnibox should update its autocomplete matches for a new
+ // `OmniboxInputState`.
+@@ -62,6 +63,12 @@
+   // Whether the input expects URLs rather than search queries. See
+   // `OmniboxViewViews::GetPreferredTextInputType()`.
+   bool prefers_url_input;
++  // The URL to drag, in place of the text, when all of the unedited permanent
++  // text is dragged out of the Omnibox, whether it shows
++  // `permanent_display_text` or `full_url`. Both of those are formatted for
++  // display, e.g. they omit "http://", so they can differ from the URL. Empty
++  // if there is no such URL, or the page may not drag it.
++  url.mojom.Url drag_url;
+ };
+ 
+ // Browser-side handler for the Omnibox Popup.
+diff --git a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc b/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc
+index 6a93027..ae30c4c3 100644
+--- a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc
++++ b/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc
+@@ -31,14 +31,20 @@
+ #include "chrome/browser/ui/webui/omnibox_popup/omnibox_popup_web_contents_helper.h"
+ #include "chrome/browser/ui/webui/top_chrome/top_chrome_webui_user_profile.h"
+ #include "components/bookmarks/browser/bookmark_model.h"
++#include "components/omnibox/browser/omnibox_client.h"
+ #include "components/omnibox/browser/omnibox_logging_utils.h"
+ #include "components/omnibox/browser/omnibox_popup_selection.h"
++#include "components/omnibox/browser/omnibox_text_util.h"
+ #include "components/omnibox/browser/suggest_template_info_mojo_utils.h"
+ #include "components/search/search.h"
+ #include "components/search_engines/template_url.h"
+ #include "components/search_engines/template_url_service.h"
+ #include "components/tabs/public/tab_interface.h"
+ #include "content/public/browser/browser_context.h"
++#include "content/public/browser/child_process_security_policy.h"
++#include "content/public/browser/render_frame_host.h"
++#include "content/public/browser/render_process_host.h"
++#include "content/public/browser/web_contents.h"
+ #include "ui/base/clipboard/scoped_clipboard_writer.h"
+ #include "ui/base/ime/input_method.h"
+ #include "ui/base/ime/text_input_type.h"
+@@ -47,6 +53,7 @@
+ #include "ui/color/color_provider.h"
+ #include "ui/gfx/color_utils.h"
+ #include "ui/views/widget/widget.h"
++#include "url/gurl.h"
+ 
+ namespace {
+ 
+@@ -330,6 +337,7 @@
+     input_method_observation_.Observe(input_method);
+   }
+   state->prefers_url_input = PrefersUrlInput(input_method);
++  state->drag_url = GetDragUrl(permanent_display_text);
+   // Extract active tab ID if in a Chrome browser window context.
+   if (controller_ && controller_->client()->IsChromeOmniboxClient()) {
+     auto* chrome_client =
+@@ -606,3 +614,34 @@
+       /*include_security_style=*/!is_user_input,
+       controller_ ? controller_->client() : nullptr);
+ }
++
++GURL OmniboxPopupHandler::GetDragUrl(
++    const std::string& permanent_display_text) const {
++  if (!controller_ || !web_contents_ || permanent_display_text.empty()) {
++    return GURL();
++  }
++
++  // The URL that `OmniboxViewViews::OnWriteDragData()` writes for a selection
++  // of all of the unedited permanent text, whichever text the omnibox shows
++  // right now. This doesn't call `OmniboxEditModel::AdjustTextForCopy()` for
++  // it, since that requests the `AutocompleteClassifier`, which creates it if
++  // it doesn't exist yet, and this runs for every input state.
++  OmniboxClient* const client = controller_->client();
++  const GURL url = omnibox::GetUrlForCopyOfUnmodifiedText(
++      client->GetNavigationEntryURL(),
++      client->GetContextualTasksInnerFrameURL());
++  if (!url.is_valid()) {
++    return GURL();
++  }
++
++  // The page writes the URL to the drag. In a drag, the browser replaces a URL
++  // that the page's process may not request, e.g. a view-source: URL, with
++  // `content::kBlockedURL` (see `RenderWidgetHostImpl::StartDragging()`).
++  // Leave such a URL out, so that the page drags its text instead.
++  if (!content::ChildProcessSecurityPolicy::GetInstance()->CanRequestURL(
++          web_contents_->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID(),
++          url)) {
++    return GURL();
++  }
++  return url;
++}
+diff --git a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.h b/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.h
+index 1191ac9..8329eef 100644
+--- a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.h
++++ b/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.h
+@@ -5,6 +5,8 @@
+ #ifndef CHROME_BROWSER_UI_WEBUI_OMNIBOX_POPUP_OMNIBOX_POPUP_HANDLER_H_
+ #define CHROME_BROWSER_UI_WEBUI_OMNIBOX_POPUP_OMNIBOX_POPUP_HANDLER_H_
+ 
++#include <string>
++
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/weak_ptr.h"
+ #include "base/scoped_observation.h"
+@@ -19,6 +21,8 @@
+ #include "ui/base/ime/input_method_observer.h"
+ #include "ui/gfx/range/range.h"
+ 
++class GURL;
++
+ namespace content {
+ class WebContents;
+ }
+@@ -136,6 +140,11 @@
+   bool can_redo() const { return can_redo_; }
+ 
+  private:
++  // Returns the URL for `OmniboxInputState.drag_url`: the one to drag when all
++  // of the unedited `permanent_display_text` is dragged out of the omnibox, or
++  // an empty URL if there is none or the page may not drag it.
++  GURL GetDragUrl(const std::string& permanent_display_text) const;
++
+   mojo::Receiver<omnibox_popup::mojom::PageHandler> receiver_;
+   mojo::Remote<omnibox_popup::mojom::Page> page_;
+   base::WeakPtr<TopChromeWebUIController::Embedder> embedder_;
+diff --git a/chrome/browser/ui/webui/searchbox/BUILD.gn b/chrome/browser/ui/webui/searchbox/BUILD.gn
+index 7fd244c8..e421580 100644
+--- a/chrome/browser/ui/webui/searchbox/BUILD.gn
++++ b/chrome/browser/ui/webui/searchbox/BUILD.gn
+@@ -362,6 +362,7 @@
+       "//third_party/blink/public/common:headers",
+       "//ui/accessibility",
+       "//ui/base",
++      "//ui/base:ozone_buildflags",
+       "//ui/base/clipboard",
+       "//ui/base/emoji",
+       "//ui/events:test_support",
+@@ -392,9 +393,13 @@
+     }
+     if (use_aura) {
+       deps += [
++        "//chrome/test/base:drag_and_drop_test_utils",
+         "//ui/aura",
+         "//ui/aura:test_support",
+       ]
+     }
++    if (use_ozone) {
++      deps += [ "//ui/ozone" ]
++    }
+   }
+ }
+diff --git a/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc b/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc
+index 5ebf591d..f87b7349 100644
+--- a/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc
++++ b/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc
+@@ -28,6 +28,7 @@
+ #include "chrome/browser/ui/omnibox/omnibox_next_features.h"
+ #include "chrome/browser/ui/omnibox/omnibox_pedal_implementations.h"
+ #include "chrome/browser/ui/omnibox/omnibox_popup_state_manager.h"
++#include "chrome/browser/ui/omnibox/omnibox_popup_view.h"
+ #include "chrome/browser/ui/omnibox/omnibox_tab_helper.h"
+ #include "chrome/browser/ui/omnibox/omnibox_view.h"
+ #include "chrome/browser/ui/search/omnibox_utils.h"
+@@ -544,6 +545,11 @@
+       }
+     }
+     edit_model()->OnSetFocus(/*control_down=*/false);
++    // The user focused the WebUI input directly (e.g. clicking into a popup a
++    // draft kept open), so its own selection replaces the one saved on blur.
++    if (auto* popup_view = edit_model()->popup_view()) {
++      popup_view->ClearSavedSelectionForFocusChange();
++    }
+   } else {
+     edit_model()->OnWillKillFocus();
+     // Delay killing focus for full popup until state is properly synced in
+diff --git a/components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom b/components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom
+index 655d191..2e6ac35 100644
+--- a/components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom
++++ b/components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom
+@@ -794,6 +794,19 @@
+   uint8? progress_percentage;
+ };
+ 
++// Visual style used to indicate that a pinned toolbar action button is engaged
++// (`activated`). Mirrors `ActionItemEngagedIndicatorStyle` in
++// //chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.h.
++enum PinnedToolbarActionEngagedIndicatorStyle {
++  // Colors the button icon with `--color-toolbar-action-item-engaged` and shows
++  // an underline status indicator below the icon.
++  kUnderline,
++  // Shows a circular background highlight
++  // (`--color-avatar-button-highlight-default`) behind the button when not
++  // highlighted (`is-menu-open`).
++  kCircleHighlight,
++};
++
+ // The state of a pinned toolbar action button that should be displayed.
+ struct PinnedToolbarActionState {
+   // The action to invoke upon click of this button.
+@@ -808,6 +821,12 @@
+   // Should this button appear activated?
+   bool activated;
+ 
++  // Visual style used to indicate that the action is engaged when `activated`
++  // is true. Mirrors `kActionItemEngagedIndicatorStyleKey` and
++  // `PinnedActionToolbarButton::SetEngagedIndicatorStyle()`.
++  PinnedToolbarActionEngagedIndicatorStyle engaged_indicator_style =
++      PinnedToolbarActionEngagedIndicatorStyle.kUnderline;
++
+   // Tooltip text to display on hover.
+   mojo_base.mojom.String16 tooltip;
+ 
+diff --git a/components/omnibox/browser/omnibox_text_util.cc b/components/omnibox/browser/omnibox_text_util.cc
+index c2856a1..8203a5a6 100644
+--- a/components/omnibox/browser/omnibox_text_util.cc
++++ b/components/omnibox/browser/omnibox_text_util.cc
+@@ -148,6 +148,25 @@
+                                     std::u16string(), adjusted_text);
+ }
+ 
++GURL GetUrlForCopyOfUnmodifiedText(
++    const GURL& navigation_entry_url,
++    const GURL& contextual_tasks_inner_frame_url) {
++  GURL url = navigation_entry_url;
++
++  // Don't let users copy Reader Mode page URLs.
++  // We display the original article's URL in the omnibox, so users will
++  // expect that to be what is copied to the clipboard.
++  if (web_distiller::url_utils::IsDistilledPage(url)) {
++    url = web_distiller::url_utils::GetOriginalUrlFromDistillerUrl(url);
++  }
++  // Don't let users copy Contextual Task URLs. We should let them copy the
++  // inner frame URL instead.
++  if (!contextual_tasks_inner_frame_url.is_empty()) {
++    url = contextual_tasks_inner_frame_url;
++  }
++  return url;
++}
++
+ void AdjustTextForCopy(
+     int sel_min,
+     std::u16string* text,
+@@ -176,22 +195,9 @@
+   // text (whether it's in the elided or unelided form), copy the omnibox
+   // contents as a hyperlink to the current page.
+   if (!has_user_modified_text) {
+-    *url_from_text = navigation_entry_url;
++    *url_from_text = GetUrlForCopyOfUnmodifiedText(
++        navigation_entry_url, contextual_tasks_inner_frame_url);
+     *write_url = true;
+-
+-    // Don't let users copy Reader Mode page URLs.
+-    // We display the original article's URL in the omnibox, so users will
+-    // expect that to be what is copied to the clipboard.
+-    if (web_distiller::url_utils::IsDistilledPage(*url_from_text)) {
+-      *url_from_text = web_distiller::url_utils::GetOriginalUrlFromDistillerUrl(
+-          *url_from_text);
+-    }
+-    // Don't let users copy Contextual Task URLs. We should let them copy the
+-    // inner frame URL instead.
+-    if (!contextual_tasks_inner_frame_url.is_empty()) {
+-      *url_from_text = contextual_tasks_inner_frame_url;
+-    }
+-
+     *text = base::UTF8ToUTF16(url_from_text->spec());
+     return;
+   }
+diff --git a/components/omnibox/browser/omnibox_text_util.h b/components/omnibox/browser/omnibox_text_util.h
+index c65f1c28..e8cc1c44 100644
+--- a/components/omnibox/browser/omnibox_text_util.h
++++ b/components/omnibox/browser/omnibox_text_util.h
+@@ -47,6 +47,18 @@
+ // locale's preferred direction. Returns an empty string if `text` is empty.
+ std::u16string FormatAdditionalText(std::u16string_view text);
+ 
++// Returns the URL that `AdjustTextForCopy()` writes for all of the omnibox's
++// text when the user hasn't modified it, whether that text is elided or not.
++// That's `navigation_entry_url`, the URL of the current page, except that it's
++// the original article's URL for a Reader Mode page, and
++// `contextual_tasks_inner_frame_url` if that isn't empty.
++//
++// Unlike `AdjustTextForCopy()`, this needs no `AutocompleteClassifier`, so
++// getting this URL doesn't create one.
++GURL GetUrlForCopyOfUnmodifiedText(
++    const GURL& navigation_entry_url,
++    const GURL& contextual_tasks_inner_frame_url);
++
+ // Adjusts the copied text before writing it to the clipboard. If the copied
+ // text is a URL with the scheme elided, this method reattaches the scheme.
+ //
+diff --git a/components/search/ntp_features.cc b/components/search/ntp_features.cc
+index 94f68bf..80efc29 100644
+--- a/components/search/ntp_features.cc
++++ b/components/search/ntp_features.cc
+@@ -590,9 +590,6 @@
+     "BookmarkBarMinStalenessTimeInterval",
+     base::Days(1));
+ 
+-const base::FeatureParam<bool> kNtpThreadsRailHybridParam{
+-    &ntp_features::kNtpThreadsRail, "NtpThreadsRailHybridParam", false};
+-
+ const base::FeatureParam<int> kNtpThreadsRailPreloadDebounceMsParam{
+     &ntp_features::kNtpThreadsRail, "NtpThreadsRailPreloadDebounceMs", 100};
+ 
+diff --git a/components/search/ntp_features.h b/components/search/ntp_features.h
+index 5fb2602..0b3c6099 100644
+--- a/components/search/ntp_features.h
++++ b/components/search/ntp_features.h
+@@ -318,11 +318,6 @@
+ extern const base::FeatureParam<base::TimeDelta>
+     kBookmarkBarMinStalenessTimeInterval;
+ 
+-// Parameter determining whether the Threads Rail is shown in hybrid mode: the
+-// folded state is rendered natively by Chrome, while the expanded state is
+-// rendered by GWS.
+-extern const base::FeatureParam<bool> kNtpThreadsRailHybridParam;
+-
+ // Parameter determining the debounce duration before preloading the expanded
+ // Threads Rail iframe on hover or focus, in milliseconds.
+ extern const base::FeatureParam<int> kNtpThreadsRailPreloadDebounceMsParam;
+diff --git a/content/browser/renderer_host/unbounded_surface_window_aura.cc b/content/browser/renderer_host/unbounded_surface_window_aura.cc
+index c45ad40..f15a109 100644
+--- a/content/browser/renderer_host/unbounded_surface_window_aura.cc
++++ b/content/browser/renderer_host/unbounded_surface_window_aura.cc
+@@ -22,6 +22,7 @@
+ #include "third_party/blink/public/common/input/web_mouse_wheel_event.h"
+ #include "third_party/blink/public/common/input/web_touch_event.h"
+ #include "third_party/skia/include/core/SkColor.h"
++#include "ui/aura/client/aura_constants.h"
+ #include "ui/aura/client/screen_position_client.h"
+ #include "ui/aura/client/transient_window_client.h"
+ #include "ui/aura/client/window_parenting_client.h"
+@@ -340,6 +341,9 @@
+       std::make_unique<aura::Window>(this, aura::client::WINDOW_TYPE_MENU);
+   window_->Init(ui::LayerType::LAYER_SURFACE);
+   window_->SetTransparent(true);
++  // The popped-out DOM surface must appear on its first frame; a window
++  // manager fade-in crossfades with the page that stopped painting it.
++  window_->SetProperty(aura::client::kAnimationsDisabledKey, true);
+   if (base::FeatureList::IsEnabled(
+           features::kOmitNativeFrameOnShadowlessMenus)) {
+     wm::SetShadowElevation(window_.get(), wm::kShadowElevationNone);
+diff --git a/content/browser/service_worker/service_worker_version.cc b/content/browser/service_worker/service_worker_version.cc
+index 5ea7280..47f5dc4a 100644
+--- a/content/browser/service_worker/service_worker_version.cc
++++ b/content/browser/service_worker/service_worker_version.cc
+@@ -2288,6 +2288,10 @@
+     return;
+   }
+ 
++  // Protect `this` across NavigateClient(), which can synchronously activate a
++  // waiting version or run `callback` and drop the last reference to `this`
++  // before NotifyClientNavigated() reads `script_url_`.
++  scoped_refptr<ServiceWorkerVersion> protect(this);
+   service_worker_client_utils::NavigateClient(
+       url, script_url_, key_, service_worker_client->GetRenderFrameHostId(),
+       BuildClientSecurityState(), policy_container_host(), context_,
+@@ -2419,6 +2423,10 @@
+     return;
+   }
+ 
++  // Protect `this` across OpenWindow(), which can synchronously run `callback`
++  // and drop the last reference to `this` before NotifyWindowOpened() reads
++  // `script_url_`.
++  scoped_refptr<ServiceWorkerVersion> protect(this);
+   // TODO(crbug.com/379869738) Remove GetUnsafeValue.
+   service_worker_client_utils::OpenWindow(
+       url, script_url_, key_, embedded_worker_->embedded_worker_id(),
+@@ -3453,6 +3461,10 @@
+     }
+   }
+   if (context_ && worker_is_idle_on_renderer_) {
++    // Protect `this` because ServiceWorkerRegistration::OnNoWork() can
++    // synchronously activate a waiting version and drop the registration's
++    // reference to `this` before `observers_` are notified.
++    scoped_refptr<ServiceWorkerVersion> protect(this);
+     scoped_refptr<ServiceWorkerRegistration> registration =
+         context_->GetLiveRegistration(registration_id());
+     if (registration) {
+diff --git a/content/renderer/render_frame_impl.h b/content/renderer/render_frame_impl.h
+index e202a62..8beffe8 100644
+--- a/content/renderer/render_frame_impl.h
++++ b/content/renderer/render_frame_impl.h
+@@ -812,14 +812,14 @@
+     navigation_client_impl_ = std::move(client);
+   }
+ 
++  base::WeakPtr<RenderFrameImpl> GetWeakPtr();
++
+  protected:
+   explicit RenderFrameImpl(CreateParams params);
+ 
+   bool IsLocalRoot() const;
+   const RenderFrameImpl* GetLocalRoot() const;
+ 
+-  base::WeakPtr<RenderFrameImpl> GetWeakPtr();
+-
+  private:
+   friend class RenderFrameImplTest;
+   friend class RenderFrameObserver;
+diff --git a/content/renderer/web_ui_extension.cc b/content/renderer/web_ui_extension.cc
+index 8dc44808..d898836 100644
+--- a/content/renderer/web_ui_extension.cc
++++ b/content/renderer/web_ui_extension.cc
+@@ -8,26 +8,24 @@
+ #include <utility>
+ 
+ #include "base/functional/bind.h"
++#include "base/memory/weak_ptr.h"
+ #include "base/values.h"
+ #include "components/viz/common/frame_timing_details.h"
+ #include "content/public/common/bindings_policy.h"
+-#include "content/public/common/url_constants.h"
+ #include "content/public/renderer/chrome_object_extensions_utils.h"
+-#include "content/public/renderer/render_frame.h"
+ #include "content/public/renderer/render_thread.h"
+ #include "content/public/renderer/v8_value_converter.h"
++#include "content/renderer/render_frame_impl.h"
+ #include "content/renderer/web_ui_extension_data.h"
+ #include "content/renderer/web_ui_histograms_extension.h"
+ #include "gin/arguments.h"
+ #include "gin/converter.h"
+ #include "gin/function_template.h"
+ #include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
+-#include "third_party/blink/public/web/web_document.h"
+ #include "third_party/blink/public/web/web_frame_widget.h"
+ #include "third_party/blink/public/web/web_local_frame.h"
+ #include "third_party/blink/public/web/web_view.h"
+ #include "ui/gfx/presentation_feedback.h"
+-#include "url/gurl.h"
+ #include "v8/include/v8-context.h"
+ #include "v8/include/v8-function.h"
+ #include "v8/include/v8-local-handle.h"
+@@ -41,29 +39,20 @@
+ 
+ namespace {
+ 
+-bool ShouldRespondToRequest(blink::WebLocalFrame** frame_ptr,
+-                            RenderFrame** render_frame_ptr) {
++// Returns the RenderFrameImpl for the current V8 context if it has WebUI
++// bindings, or null otherwise.
++RenderFrameImpl* GetWebUIFrameForCurrentContext() {
+   blink::WebLocalFrame* frame = blink::WebLocalFrame::FrameForCurrentContext();
+-  if (!frame || !frame->View())
+-    return false;
++  if (!frame) {
++    return nullptr;
++  }
+ 
+-  GURL frame_url = frame->GetDocument().Url();
++  RenderFrameImpl* render_frame = RenderFrameImpl::FromWebFrame(frame);
++  if (!render_frame->GetEnabledBindings().Has(BindingsPolicyValue::kWebUi)) {
++    return nullptr;
++  }
+ 
+-  RenderFrame* render_frame = RenderFrame::FromWebFrame(frame);
+-  if (!render_frame)
+-    return false;
+-
+-  bool webui_enabled =
+-      (render_frame->GetEnabledBindings().Has(BindingsPolicyValue::kWebUi)) &&
+-      (frame_url.SchemeIs(kChromeUIScheme) ||
+-       frame_url.SchemeIs(url::kDataScheme));
+-
+-  if (!webui_enabled)
+-    return false;
+-
+-  *frame_ptr = frame;
+-  *render_frame_ptr = render_frame;
+-  return true;
++  return render_frame;
+ }
+ 
+ // Get or create a `child_name` object in the `parent` object.
+@@ -221,11 +210,11 @@
+ v8::Local<v8::Value> WebUIExtension::RequestPresentationTime(
+     gin::Arguments* args) {
+   v8::Isolate* isolate = args->isolate();
+-  blink::WebLocalFrame* frame;
+-  RenderFrame* render_frame;
+-  if (!ShouldRespondToRequest(&frame, &render_frame)) {
++  RenderFrameImpl* render_frame = GetWebUIFrameForCurrentContext();
++  if (!render_frame) {
+     return v8::Undefined(isolate);
+   }
++  blink::WebLocalFrame* frame = render_frame->GetWebFrame();
+ 
+   v8::Local<v8::Context> context = isolate->GetCurrentContext();
+   v8::Local<v8::Promise::Resolver> resolver;
+@@ -250,7 +239,7 @@
+   blink::WebFrameWidget* widget = frame->LocalRoot()->FrameWidget();
+   const bool page_visible = frame->View()->GetVisibilityState() ==
+                             blink::mojom::PageVisibilityState::kVisible;
+-  if (!widget || !page_visible || !widget->RequestedMainFramePending()) {
++  if (!page_visible || !widget->RequestedMainFramePending()) {
+     resolver->Resolve(context, v8::Null(isolate)).Check();
+     return resolver->GetPromise();
+   }
+@@ -268,10 +257,11 @@
+ 
+ // static
+ void WebUIExtension::Send(gin::Arguments* args) {
+-  blink::WebLocalFrame* frame;
+-  RenderFrame* render_frame;
+-  if (!ShouldRespondToRequest(&frame, &render_frame))
++  RenderFrameImpl* frame = GetWebUIFrameForCurrentContext();
++  if (!frame) {
+     return;
++  }
++  base::WeakPtr<RenderFrameImpl> render_frame = frame->GetWeakPtr();
+ 
+   std::string message;
+   if (!args->GetNext(&message)) {
+@@ -291,19 +281,19 @@
+ 
+     std::unique_ptr<base::Value> value =
+         V8ValueConverter::Create()->FromV8Value(
+-            obj, frame->MainWorldScriptContext());
++            obj, frame->GetWebFrame()->MainWorldScriptContext());
+     DCHECK(value->is_list());
+     content = std::move(*value).TakeList();
+ 
+-    // The conversion of |obj| could have triggered arbitrary JavaScript code,
+-    // so check that the frame is still valid to avoid dereferencing a stale
+-    // pointer.
+-    if (frame != blink::WebLocalFrame::FrameForCurrentContext()) {
+-      NOTREACHED();
++    // The conversion of `obj` can run arbitrary script (getters, toJSON), which
++    // may detach the frame. Drop the message in that case rather than touching
++    // a destroyed RenderFrame.
++    if (!render_frame) {
++      return;
+     }
+   }
+ 
+-  auto* webui = WebUIExtensionData::Get(render_frame);
++  auto* webui = WebUIExtensionData::Get(render_frame.get());
+   if (!webui)
+     return;
+ 
+@@ -313,10 +303,10 @@
+ 
+ // static
+ std::string WebUIExtension::GetVariableValue(const std::string& name) {
+-  blink::WebLocalFrame* frame;
+-  RenderFrame* render_frame;
+-  if (!ShouldRespondToRequest(&frame, &render_frame))
++  RenderFrameImpl* render_frame = GetWebUIFrameForCurrentContext();
++  if (!render_frame) {
+     return std::string();
++  }
+ 
+   auto* webui = WebUIExtensionData::Get(render_frame);
+   if (!webui)
+diff --git a/content/renderer/web_ui_extension.h b/content/renderer/web_ui_extension.h
+index 21e3c5c..86d2bd1 100644
+--- a/content/renderer/web_ui_extension.h
++++ b/content/renderer/web_ui_extension.h
+@@ -22,6 +22,9 @@
+ 
+ namespace content {
+ 
++// Installs the chrome.* bindings used by WebUI pages. These are for WebUI
++// only: they are installed in, and respond to calls from, frames the browser
++// has granted WebUI bindings via RenderFrameHostImpl::AllowBindings.
+ class WebUIExtension {
+  public:
+   WebUIExtension() = delete;
+diff --git a/third_party/lens_server_proto/search_communication.proto b/third_party/lens_server_proto/search_communication.proto
+index ea68ef7..1edac2f 100644
+--- a/third_party/lens_server_proto/search_communication.proto
++++ b/third_party/lens_server_proto/search_communication.proto
+@@ -235,6 +235,28 @@
+     bool is_zero_state = 1;
+   }
+ 
++  // Message sent by Search Web to Chrome when the AIM input plate
++  // composition state changes.
++  message OnInputPlateStateChanged {
++    // Input plate composition states, mirroring
++    // search.next.aim.ui.inputplate.CompositionState.
++    enum CompositionState {
++      COMPOSITION_STATE_UNSPECIFIED = 0;
++
++      // Input plate is empty.
++      EMPTY = 1;
++
++      // A query is being composed.
++      COMPOSING = 2;
++
++      // Input plate is disabled.
++      DISABLED = 4;
++
++      reserved 3;
++    }
++    CompositionState composition_state = 1;
++  }
++
+   oneof event_message {
+     // Handshake response sent by Search Web acknowledging readiness.
+     HandshakeResponse handshake_response = 1;
+@@ -252,6 +274,9 @@
+ 
+     // Sent to notify Chrome that the page has changed.
+     OnPageChanged on_page_changed = 5;
++
++    // Sent to notify Chrome when the AIM input plate state changes.
++    OnInputPlateStateChanged on_input_plate_state_changed = 6;
+   }
+ }
+ 
+diff --git a/ui/views/widget/desktop_aura/desktop_native_widget_aura.cc b/ui/views/widget/desktop_aura/desktop_native_widget_aura.cc
+index de597e0..db0bfaf 100644
+--- a/ui/views/widget/desktop_aura/desktop_native_widget_aura.cc
++++ b/ui/views/widget/desktop_aura/desktop_native_widget_aura.cc
+@@ -157,6 +157,13 @@
+           aura::client::kOwnedWindowAnchor, *anchor);
+       child_window->ClearProperty(aura::client::kOwnedWindowAnchor);
+     }
++    // Forward animation suppression (e.g. from UnboundedSurfaceWindowAura,
++    // whose popped-out DOM surface must appear on its first frame without a
++    // window manager fade crossfading with the page).
++    if (child_window->GetProperty(aura::client::kAnimationsDisabledKey)) {
++      init_params.init_properties_container.SetProperty(
++          aura::client::kAnimationsDisabledKey, true);
++    }
+ 
+     // This widget instance will get deleted when the window is
+     // destroyed.
+diff --git a/ui/webui/resources/cr_components/composebox/threads_rail.css b/ui/webui/resources/cr_components/composebox/threads_rail.css
+index 1b77e8b..253a856 100644
+--- a/ui/webui/resources/cr_components/composebox/threads_rail.css
++++ b/ui/webui/resources/cr_components/composebox/threads_rail.css
+@@ -11,6 +11,7 @@
+  * #css_wrapper_metadata_end */
+ 
+ :host {
++  --threads-rail-icon-size: 20px;
+   background-color: var(--color-new-tab-page-threads-rail-background);
+   display: block;
+   height: 100%;
+@@ -42,7 +43,7 @@
+ }
+ 
+ cr-icon-button {
+-  --cr-icon-button-icon-size: 22px;
++  --cr-icon-button-icon-size: var(--threads-rail-icon-size);
+   --cr-icon-button-size: 40px;
+   --cr-icon-button-focus-outline-color: var(--threads-rail-focus-outline-color);
+   --cr-icon-button-fill-color:
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.cpp
+index d6ef269..91da9f0 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.cpp
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.cpp
+@@ -38,6 +38,10 @@
+ constexpr VkImageUsageFlags kColorAttachmentImageFlags =
+     VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+ 
++// The image usage flags that depend on the format (see updateFormatDependentImageUsageFlags()).
++constexpr VkImageUsageFlags kFormatDependentImageUsageFlags =
++    kColorAttachmentImageFlags | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
++
+ constexpr VkImageUsageFlags kDrawStagingImageFlags =
+     vk::kImageUsageTransferBits | kColorAttachmentImageFlags;
+ 
+@@ -2540,13 +2544,15 @@
+     mDescriptorSetCacheManager.releaseKeys(contextVk->getRenderer());
+ }
+ 
+-void TextureVk::initImageUsageFlags(ContextVk *contextVk,
+-                                    const angle::Format &intendedFormat,
+-                                    angle::FormatID actualFormatID)
++void TextureVk::updateFormatDependentImageUsageFlags(ContextVk *contextVk,
++                                                     const angle::Format &intendedFormat,
++                                                     angle::FormatID actualFormatID)
+ {
+     ASSERT(actualFormatID != angle::FormatID::NONE);
+ 
+-    mImageUsageFlags = vk::kImageUsageTransferBits | VK_IMAGE_USAGE_SAMPLED_BIT;
++    // Only the usage flags that depend on the format are updated here.  The rest are kept as they
++    // are, as they are based on how the texture is used (such as storage).
++    mImageUsageFlags &= ~kFormatDependentImageUsageFlags;
+ 
+     // If the image has depth/stencil support, add those as possible usage.
+     vk::Renderer *renderer = contextVk->getRenderer();
+@@ -2586,8 +2592,9 @@
+         setImageHelper(contextVk, new vk::ImageHelper(gl_vk::GetImageType(mState.getType())), true);
+     }
+ 
+-    initImageUsageFlags(contextVk, format.getIntendedFormat(),
+-                        format.getActualImageFormatID(getRequiredFormatSupport()));
++    mImageUsageFlags = vk::kImageUsageTransferBits | VK_IMAGE_USAGE_SAMPLED_BIT;
++    updateFormatDependentImageUsageFlags(contextVk, format.getIntendedFormat(),
++                                         format.getActualImageFormatID(getRequiredFormatSupport()));
+ 
+     return angle::Result::Continue;
+ }
+@@ -3332,7 +3339,15 @@
+     }
+     else
+     {
+-        const vk::Format &format         = getBaseLevelFormat(contextVk->getRenderer());
++        // Reformat the image only if its own format now requires a different actual format, i.e.
++        // the texture has switched to a renderable fallback format.  Note that the format of the
++        // image is used and not that of the base level.  If the base level has changed to a level
++        // with a different format, the image still holds the data of the previous levels, which
++        // must be preserved in their own format.  Converting them to the new base level's format
++        // would stage updates that are incompatible with those levels, leaving them uninitialized
++        // once the image is recreated for them.
++        const vk::Format &format =
++            contextVk->getRenderer()->getFormat(mImage->getIntendedFormatID());
+         const uint32_t enabledLevelCount = getMipLevelCount(ImageMipLevels::EnabledLevels);
+         const angle::Format &dstFormat   = format.getActualImageFormat(getRequiredFormatSupport());
+         const bool canReformatImage      = mImage->getActualFormatID() != dstFormat.id &&
+@@ -4335,6 +4350,13 @@
+ {
+     vk::Renderer *renderer = contextVk->getRenderer();
+ 
++    // The format-dependent usage flags (such as color attachment) are initialized based on the
++    // format of whichever level was last specified (see redefineLevel()), which is not necessarily
++    // the format the image is created with, i.e. that of the base level.  Derive them from the
++    // image's format instead.
++    updateFormatDependentImageUsageFlags(contextVk, angle::Format::Get(intendedImageFormatID),
++                                         actualImageFormatID);
++
+     // Create the image. For immutable texture, we always allocate the full immutable levels
+     // specified by texStorage call. Otherwise we only try to allocate from base to max levels.
+     const gl::ImageDesc *firstLevelDesc;
+diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.h b/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.h
+index 9e912a4..5326c0a 100644
+--- a/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.h
++++ b/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.h
+@@ -603,9 +603,11 @@
+     }
+ 
+     angle::Result refreshReadImageViews(ContextVk *contextVk);
+-    void initImageUsageFlags(ContextVk *contextVk,
+-                             const angle::Format &intendedFormat,
+-                             angle::FormatID actualFormatID);
++    // Updates the usage flags that depend on the format (i.e. attachment usages), leaving the
++    // other usage flags intact.
++    void updateFormatDependentImageUsageFlags(ContextVk *contextVk,
++                                              const angle::Format &intendedFormat,
++                                              angle::FormatID actualFormatID);
+     void handleImmutableSamplerTransition(const vk::ImageHelper *previousImage,
+                                           const vk::ImageHelper *nextImage);
+ 
