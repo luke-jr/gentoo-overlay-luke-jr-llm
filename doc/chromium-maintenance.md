@@ -34,7 +34,7 @@ was added with (and 156 updated from .12 to .47).
     Google's Early Stable (e.g. 158.0.8127.18), there is one plain ebuild, as Early Stable
     (`SLOT="stable"`), and no Beta one until the Linux Beta moves to another version
     (159.0.8154.13 is both, since 2026-11-18: no Beta ebuild until 160).
-  - The line-up (2026-11-23): Stable 158.0.8127.88 (`158.0.8127.88_pre`, `amd64`); Early Stable 159.0.8154.14
+  - The line-up (2026-11-23): Stable 158.0.8127.88 (`amd64`); Early Stable 159.0.8154.14
     (`159.0.8154.14_pre`, official, `~amd64`), which replaced 158.0.8127.37-r2; the bleeding edge 159.0.8154.32_p1512_pre (`stable/fixes`); no Beta until 160.
   - A tarball Google's bucket lacks: chromium-linux-tarballs' (the one `::gentoo` uses,
     `chromium-<version>-linux.tar.xz` on GitHub, with a `.hashes` file) is the same content;
