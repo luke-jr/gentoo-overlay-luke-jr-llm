@@ -312,12 +312,11 @@ OpenXR's with `USE=-openxr`, XNNPACK's RISC-V kernels).
 
 ## Known issues / TODO
 
-- **`USE=system-icu` doesn't work, and the overlay masks it** (`profiles/package.use.mask`, as
-  `::gentoo`'s `profiles/base/package.use.mask` did, bug #943216), so builds use the bundled ICU, as
-  with 151. New ebuilds drop the flag: they set `CHROMIUM_SYSTEM_ICU_FLAG=0` before inheriting the
-  eclass, and always build the bundled ICU. Older ebuilds keep the masked flag, unchanged; once no
-  ebuild has it, the mask and the eclass's code for the flag go. Unmasking it locally shows three
-  blockers:
+- **No `USE=system-icu`:** the ebuilds always build the bundled ICU (regenerated, see the
+  eclass's `chromium_regen_icu`), as with 151. System ICU doesn't build with this overlay's
+  Chromium, so the flag was masked (as `::gentoo`'s `profiles/base/package.use.mask` did, bug
+  #943216) and then dropped, ebuild by ebuild (`CHROMIUM_SYSTEM_ICU_FLAG=0`), until none had it
+  (2026-11-24); then the flag's code went from the eclass. The three blockers:
   1. ICU ≥ 76's C++ API uses `std::u16string_view`, which doesn't link against Chromium's own
      libc++ (`std::__Cr`), and the ebuild requires that libc++.
   2. V8's Temporal code includes ICU-internal headers (`udatamem.h`) that system ICU doesn't install.
