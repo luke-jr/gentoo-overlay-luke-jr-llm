@@ -1,12 +1,12 @@
 Chromium 159.0.8154.32 + the later changes of its release branch, up to
-e71898b2333bd23b4e7194b20c9a077fb038d08c (refs/branch-heads/8154@{#1512}), for the
+3233022a62f65c2154a262344c62c4f0da29b087 (refs/branch-heads/8154@{#1529}), for the
 159.0.8154.32 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.32.patch). The newest change it carries is
-8154@{#1512}.
+8154@{#1528}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.32..e71898b2333b and the
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.32..3233022a62f6 and the
 dependencies whose DEPS revision changed: ANGLE 3fe66f897d8c..4dd34493f8a2 (under
-third_party/angle/), Dawn 76994457bcf6..18789416e6fd (under third_party/dawn/), V8
+third_party/angle/), Dawn 76994457bcf6..e6ee1e531926 (under third_party/dawn/), V8
 264c6cfa2279..90a5172104e6 (under v8/), as served by Gitiles, with scripts/chromium-
 delta/branch-fixes.py (filter.py --branch-fixes, against the 159.0.8154.32 tree's files):
 left out are files not in the release tarball, iOS/Android/ChromeOS/Mac/Windows-only files,
@@ -40,9 +40,19 @@ Commits contributing to it (oldest first):
   8604968dfbd5 [M159] [HLS] Disallow all local schemes, not just file (8154@{#1509})
   8fb6069af3e5 [M159] [ContextualTasks] Stop creating legacy ContextualTasksButton in toolbar (8154@{#1511})
   e71898b2333b [M159] [ContextualTasks] Delete legacy ContextualTasksButton (8154@{#1512})
+  d3e37fa4c753 [M159] [Agentic Suggestions][Android] Support SUIT ActionIconType BLUE_DOT (8154@{#1513})
+  98c3487de75f [M159] [Agentic Suggestions][Android] Support SUIT TypeIconBadge (8154@{#1514})
+  631b6e393bd4 [M159] glic: Register a What's New Page module for Quizzes (8154@{#1516})
+  ba219cdbff81 [M159] Reland "[Actor] Intercept JS dialogs during actuation" (8154@{#1518})
+  dfe02f99fc80 Cherry pick "[Blink] Preserve parser provenance for script CSP" (8154@{#1521})
+  c47f9d8c32aa Roll commits from side projects in M159 (Dawn 18789416e6fd..e6ee1e531926, 8154@{#1523})
+  e87616467166 [M159] [Agentic Suggestions] Support SUIT TypeIconBadge on Desktop (8154@{#1525})
+  fcdd592f154a [M159] [omnibox] Follow input language changes in the full WebUI omnibox (8154@{#1526})
+  d0a8a4a6e734 [M159] [omnibox][webui] Don't add .com on ctrl+enter if ctrl pressed elsewhere (8154@{#1528})
 Dependency commits of those rolls that touch kept files:
   4dd34493f8a2 [M159] Vulkan: Disable rasterization-samples dynamic state on Intel/mesa (ANGLE: src/libANGLE/renderer/vulkan/vk_renderer.cpp)
   18789416e6fd [M159] [opengl] Limit texture image units to 13 on PowerVR (Dawn: src/dawn/native/Adapter.cpp, src/dawn/native/Device.cpp, src/dawn/native/Limits.cpp, src/dawn/native/Limits.h, src/dawn/native/Toggles.cpp, src/dawn/native/Toggles.h, src/dawn/native/opengl/PhysicalDeviceGL.cpp, src/dawn/native/opengl/ShaderModuleGL.cpp, webgpu-cts/compat-expectations.txt)
+  e6ee1e531926 [M159] [metal] Enable full polyfill for extractBits (Dawn: src/dawn/native/Toggles.cpp, src/dawn/native/Toggles.h, src/tint/lang/msl/writer/common/options.h, src/tint/lang/msl/writer/raise/raise.cc, src/tint/lang/msl/writer/writer_fuzz.cc)
   a38f990ac808 [M159] [turbolev] Remap replaced header phis in peeled loop backedge KNA (V8: src/maglev/maglev-known-node-aspects.cc, src/maglev/maglev-known-node-aspects.h, src/maglev/maglev-loop-peeler.cc)
   3f63936945bb Version 15.9.128.28 (V8: include/v8-version.h)
   a92c222bcaff [M159] [turboshaft] Check Load rep when folding map loads (V8: src/compiler/turboshaft/machine-optimization-reducer.h)
@@ -59,7 +69,7 @@ Dependency commits of those rolls that touch kept files:
   90a5172104e6 Version 15.9.128.34 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.32 tree; every patched file is byte-identical to its
-version at e71898b2333b (or ANGLE's 4dd34493f8a2) (or Dawn's 18789416e6fd) (or V8's
+version at 3233022a62f6 (or ANGLE's 4dd34493f8a2) (or Dawn's e6ee1e531926) (or V8's
 90a5172104e6).
 
 Apply with git apply.
@@ -98,6 +108,1141 @@ index fb9531e5..8e691f5 100644
    // The Chrome process that was launched by this app in FindOrLaunchChrome.
    // Note that the app is not compelled to connect to this process (consider the
    // case where multiple apps launch at the same time, and all launch their own
+diff --git a/chrome/browser/actor/BUILD.gn b/chrome/browser/actor/BUILD.gn
+index 06f8f96..51949b13 100644
+--- a/chrome/browser/actor/BUILD.gn
++++ b/chrome/browser/actor/BUILD.gn
+@@ -39,6 +39,7 @@
+     "enterprise_policy_checker.h",
+     "execution_engine.h",
+     "headless_web_contents_manager.h",
++    "javascript_dialog_interceptor.h",
+     "site_policy.h",
+     "tab_annotation_manager.h",
+     "tab_observation_controller.h",
+@@ -112,6 +113,7 @@
+     "//components/password_manager/core/browser/actor_login:common",
+     "//components/policy/core/browser",
+     "//components/tabs:public",
++    "//content/public/browser",
+     "//third_party/blink/public/mojom:mojom_platform_headers",
+     "//ui/base/unowned_user_data",
+   ]
+@@ -125,7 +127,6 @@
+     public_deps += [
+       "//chrome/browser/actor/resources:browser_resources",
+       "//chrome/browser/actor/ui:states",
+-      "//content/public/browser",
+       "//content/public/common:buildflags",
+     ]
+   }
+@@ -161,6 +162,7 @@
+     "enterprise_policy_checker.cc",
+     "execution_engine.cc",
+     "headless_web_contents_manager.cc",
++    "javascript_dialog_interceptor.cc",
+     "site_policy.cc",
+     "tab_annotation_manager.cc",
+     "tab_observation_controller.cc",
+@@ -316,6 +318,7 @@
+     "//components/favicon/core",
+     "//components/feature_engagement/public",
+     "//components/history/core/browser",
++    "//components/javascript_dialogs",
+     "//components/lookalikes/core",
+     "//components/one_time_tokens/core/browser",
+     "//components/optimization_guide/proto:optimization_guide_proto",
+@@ -492,6 +495,7 @@
+     "actor_test_util_unittest.cc",
+     "execution_engine_unittest.cc",
+     "headless_web_contents_manager_unittest.cc",
++    "javascript_dialog_interceptor_unittest.cc",
+     "tab_annotation_manager_unittest.cc",
+     "tab_observation_strategy_unittest.cc",
+     "tools/autofill/attempt_form_filling/attempt_form_filling_tool_request_unittest.cc",
+@@ -548,6 +552,7 @@
+     "//components/critical_actions/core/browser",
+     "//components/history/core/browser",
+     "//components/history/core/test",
++    "//components/javascript_dialogs",
+     "//components/optimization_guide/proto:optimization_guide_proto",
+     "//components/optimization_guide/proto:optimization_guide_proto_fuzzable",
+     "//components/password_manager/content/browser",
+@@ -555,6 +560,7 @@
+     "//components/policy/core/common:test_support",
+     "//components/tabs:test_support",
+     "//components/ukm:test_support",
++    "//content/public/browser",
+     "//testing/gtest",
+     "//third_party/fuzztest",
+     "//url",
+@@ -567,7 +573,6 @@
+       "//chrome/browser/ui/tabs:tab_strip",
+       "//chrome/browser/ui/tabs:test_support",
+       "//components/tabs:public",
+-      "//content/public/browser",
+     ]
+   }
+   data = [ "//tools/metrics/histograms/metadata/actor/histograms.xml" ]
+@@ -616,6 +621,7 @@
+     "actor_keyed_service_browsertest.cc",
+     "actor_keyed_service_browsertest.h",
+     "actor_util_browsertest.cc",
++    "javascript_dialog_interceptor_browsertest.cc",
+     "tools/execute_js_tool_browsertest.cc",
+     "tools/open_known_page_tool_browsertest.cc",
+     "tools/open_url_tool_browsertest.cc",
+diff --git a/chrome/browser/actor/actor_proto_conversion.cc b/chrome/browser/actor/actor_proto_conversion.cc
+index b6a1162..150692e5 100644
+--- a/chrome/browser/actor/actor_proto_conversion.cc
++++ b/chrome/browser/actor/actor_proto_conversion.cc
+@@ -21,6 +21,7 @@
+ #include "base/functional/callback_helpers.h"
+ #include "base/no_destructor.h"
+ #include "base/notimplemented.h"
++#include "base/notreached.h"
+ #include "base/numerics/safe_conversions.h"
+ #include "base/strings/to_string.h"
+ #include "base/trace_event/trace_event.h"
+@@ -1745,6 +1746,23 @@
+   return screenshot_collection_options_value;
+ }
+ 
++apc::ExecuteJsResult::JavaScriptDialog::Type ToProtoJavaScriptDialogType(
++    JavaScriptDialogType type) {
++  switch (type) {
++    case JavaScriptDialogType::kAlert:
++      return apc::ExecuteJsResult::JavaScriptDialog::TYPE_ALERT;
++    case JavaScriptDialogType::kConfirm:
++      return apc::ExecuteJsResult::JavaScriptDialog::TYPE_CONFIRM;
++    case JavaScriptDialogType::kPrompt:
++      return apc::ExecuteJsResult::JavaScriptDialog::TYPE_PROMPT;
++  }
++  NOTREACHED();
++}
++
++bool IsExecuteJsToolName(std::string_view tool_name) {
++  return tool_name == ExecuteJsToolRequest::kName;
++}
++
+ void BuildActionsResultWithObservations(
+     content::BrowserContext& browser_context,
+     base::TimeTicks actions_start_time,
+diff --git a/chrome/browser/actor/actor_proto_conversion.h b/chrome/browser/actor/actor_proto_conversion.h
+index ffdb3df..52db6c1 100644
+--- a/chrome/browser/actor/actor_proto_conversion.h
++++ b/chrome/browser/actor/actor_proto_conversion.h
+@@ -6,6 +6,7 @@
+ #define CHROME_BROWSER_ACTOR_ACTOR_PROTO_CONVERSION_H_
+ 
+ #include <memory>
++#include <string_view>
+ #include <vector>
+ 
+ #include "base/functional/callback_forward.h"
+@@ -192,9 +193,18 @@
+   }
+ }
+ 
++// Converts a `JavaScriptDialogType` to the corresponding
++// `ExecuteJsResult::JavaScriptDialog::Type` proto enum.
++optimization_guide::proto::ExecuteJsResult::JavaScriptDialog::Type
++ToProtoJavaScriptDialogType(JavaScriptDialogType type);
++
++// Returns true if `tool_name` identifies an `ExecuteJsToolRequest`.
++bool IsExecuteJsToolName(std::string_view tool_name);
++
+ // Copies ExecuteJS action results in `action_results` to the input proto. For a
+ // failed action, copies the JavaScript error and/or console output the renderer
+-// reported, if any. Only ExecuteJsToolHost retains `execute_js_response` (after
++// reported, if any, along with any intercepted JavaScript dialogs. Only
++// ExecuteJsToolHost retains `execute_js_response` (after
+ // `ExecuteJsToolHost::SanitizeResponse()`); non-ExecuteJS renderer tool hosts
+ // strip it at the IPC boundary.
+ template <typename T>
+@@ -204,24 +214,41 @@
+   for (size_t i = 0; i < action_results.size(); ++i) {
+     const mojom::ActionResult& result = *action_results[i].result;
+     const auto& response = result.execute_js_response;
++    const bool is_execute_js_action =
++        action_results[i].tool_name.empty()
++            ? static_cast<bool>(response)
++            : IsExecuteJsToolName(action_results[i].tool_name);
++    if (!is_execute_js_action) {
++      // TODO(b/586645337): Surface dialogs intercepted during non-ExecuteJs
++      // actions (e.g. Click) in ActionsResult.
++      continue;
++    }
++
++    const auto& javascript_dialogs = action_results[i].javascript_dialogs;
++    const bool has_ok_response = IsOk(result) && response;
++    const bool has_js_error = response && response->js_error_message;
+     const bool has_console_logs = response && !response->console_logs.empty();
+-    if (IsOk(result) && response) {
+-      auto* execute_js_result = proto.add_execute_js_results();
+-      execute_js_result->set_index_of_execute_js_action(i);
++    const bool has_dialogs = !javascript_dialogs.empty();
++    if (!has_ok_response && !has_js_error && !has_console_logs &&
++        !has_dialogs) {
++      continue;
++    }
++
++    auto* execute_js_result = proto.add_execute_js_results();
++    execute_js_result->set_index_of_execute_js_action(i);
++    if (has_ok_response) {
+       execute_js_result->set_result(response->result);
+       execute_js_result->set_truncated(response->truncated);
+-      if (has_console_logs) {
+-        execute_js_result->set_console_logs(response->console_logs);
+-      }
+-    } else if (response && (response->js_error_message || has_console_logs)) {
+-      auto* execute_js_result = proto.add_execute_js_results();
+-      execute_js_result->set_index_of_execute_js_action(i);
+-      if (response->js_error_message) {
+-        execute_js_result->set_js_error_message(*response->js_error_message);
+-      }
+-      if (has_console_logs) {
+-        execute_js_result->set_console_logs(response->console_logs);
+-      }
++    } else if (has_js_error) {
++      execute_js_result->set_js_error_message(*response->js_error_message);
++    }
++    if (has_console_logs) {
++      execute_js_result->set_console_logs(response->console_logs);
++    }
++    for (const InterceptedJavaScriptDialog& dialog : javascript_dialogs) {
++      auto* proto_dialog = execute_js_result->add_javascript_dialogs();
++      proto_dialog->set_type(ToProtoJavaScriptDialogType(dialog.type));
++      proto_dialog->set_dialog_message(dialog.dialog_message);
+     }
+   }
+ }
+diff --git a/chrome/browser/actor/actor_task.cc b/chrome/browser/actor/actor_task.cc
+index 8b30619c..e247839 100644
+--- a/chrome/browser/actor/actor_task.cc
++++ b/chrome/browser/actor/actor_task.cc
+@@ -22,8 +22,10 @@
+ #include "chrome/browser/actor/actor_surface.h"
+ #include "chrome/browser/actor/actor_surface_handle.h"
+ #include "chrome/browser/actor/actor_surface_registry.h"
++#include "chrome/browser/actor/actor_util.h"
+ #include "chrome/browser/actor/enterprise_policy_checker.h"
+ #include "chrome/browser/actor/execution_engine.h"
++#include "chrome/browser/actor/javascript_dialog_interceptor.h"
+ #include "chrome/browser/actor/tab_observation_strategy.h"
+ #include "chrome/browser/actor/ui/event_dispatcher.h"
+ #include "chrome/browser/glic/public/glic_perf_traits_tracker.h"
+@@ -582,9 +584,27 @@
+   if (GetState() != State::kWaitingOnUser) {
+     return;
+   }
++  const bool was_under_user_control = interrupted_task_needs_user_control_;
+   interrupt_reason_ = std::nullopt;
+   interrupted_task_needs_user_control_ = false;
+   SetState(resumed_state);
++  if (was_under_user_control && IsUnderActorControl()) {
++    for (const auto& [actor_surface_handle, controlled_state] :
++         controlled_tabs_) {
++      content::WebContents* contents = controlled_state->web_contents();
++      if (!contents) {
++        // If the user navigated while interrupted with user control,
++        // PrimaryPageChanged() detached `controlled_state` from its
++        // WebContents. Resolve the current contents from the surface handle so
++        // any modal dialog opened on the post-navigation page is still
++        // dismissed.
++        contents = GetWebContentsIfSurfaceAlive(actor_surface_handle.Get());
++      }
++      if (contents) {
++        JavaScriptDialogInterceptor::DismissExistingTabModalDialog(*contents);
++      }
++    }
++  }
+   execution_engine_->DidUninterruptTask();
+ }
+ 
+@@ -743,6 +763,19 @@
+     // Record the tab visibility duration.
+     UpdateVisibilityTimes();
+     DidTabExitActorControl(actor_surface_handle);
++  } else if (auto it = controlled_tabs_.find(actor_surface_handle);
++             it != controlled_tabs_.end() && IsStateActorControlled(state_)) {
++    // When interrupted with user control, `state_` is still `kWaitingOnUser`
++    // (so `DidTabExitActorControl()` did not run on `Interrupt()`), while
++    // `IsActingOnActorSurface()` is false. Ensure any attached interceptor
++    // UserData is removed before dropping the surface from `controlled_tabs_`.
++    content::WebContents* contents = it->second->web_contents();
++    if (!contents) {
++      contents = GetWebContentsIfSurfaceAlive(actor_surface_handle.Get());
++    }
++    if (contents) {
++      MaybeRemoveJavaScriptDialogInterceptor(actor_surface_handle, *contents);
++    }
+   }
+   auto num_removed = controlled_tabs_.erase(actor_surface_handle);
+   RecomputeHasVisibleTab();
+@@ -990,6 +1023,7 @@
+         tab->RegisterWillDiscardContents(base::BindRepeating(
+             &ActorTask::HandleDiscardContents, weak_ptr_factory_.GetWeakPtr()));
+   }
++  JavaScriptDialogInterceptor::DismissExistingTabModalDialog(*contents);
+   DidContentsEnterActorControl(state, contents);
+ 
+   RecomputeHasVisibleTab();
+@@ -1029,16 +1063,37 @@
+   // the state observes. It follows the tab's contents across discards.
+   content::WebContents* contents = state->web_contents();
+   if (!contents) {
++    // If `state` stopped observing its WebContents during an interruption with
++    // user control and was later reused after Uninterrupt(), still detach any
++    // interceptor attached to the surface's current WebContents.
++    if (content::WebContents* surface_contents =
++            GetWebContentsIfSurfaceAlive(actor_surface_handle.Get())) {
++      MaybeRemoveJavaScriptDialogInterceptor(actor_surface_handle,
++                                             *surface_contents);
++    }
+     return;
+   }
+ 
+   // Reset focus and remove observers.
++  MaybeRemoveJavaScriptDialogInterceptor(actor_surface_handle, *contents);
+   SetFocusState(contents, std::nullopt);
+   state->SetContents(nullptr);
+   state->content_discarded_subscription = {};
+   DidContentsExitActorControl(state, contents);
+ }
+ 
++void ActorTask::MaybeRemoveJavaScriptDialogInterceptor(
++    ActorSurfaceHandle actor_surface_handle,
++    content::WebContents& contents) {
++  for (const auto& [task_id, actor_task] : service_->GetActiveTasks()) {
++    if (actor_task != this &&
++        actor_task->IsActingOnActorSurface(actor_surface_handle)) {
++      return;
++    }
++  }
++  JavaScriptDialogInterceptor::RemoveForWebContents(contents);
++}
++
+ void ActorTask::DidContentsExitActorControl(
+     ActorTask::ActorControlledTabState* state,
+     content::WebContents* contents) {
+diff --git a/chrome/browser/actor/actor_task.h b/chrome/browser/actor/actor_task.h
+index 9403605..7451b75 100644
+--- a/chrome/browser/actor/actor_task.h
++++ b/chrome/browser/actor/actor_task.h
+@@ -411,6 +411,12 @@
+   void DidContentsExitActorControl(ActorControlledTabState* state,
+                                    content::WebContents* contents);
+ 
++  // Removes the JavaScriptDialogInterceptor UserData from `contents` unless
++  // another active task is still acting on `actor_surface_handle`.
++  void MaybeRemoveJavaScriptDialogInterceptor(
++      ActorSurfaceHandle actor_surface_handle,
++      content::WebContents& contents);
++
+   // Returns true if the surface does not exist or belongs to a different
+   // profile than the task, and logs an error to the journal.
+   bool CheckCrossProfileAndLog(ActorSurface* actor_surface,
+diff --git a/chrome/browser/actor/actor_util.cc b/chrome/browser/actor/actor_util.cc
+index cfe21d9..2cf5579 100644
+--- a/chrome/browser/actor/actor_util.cc
++++ b/chrome/browser/actor/actor_util.cc
+@@ -8,6 +8,7 @@
+ #include <vector>
+ 
+ #include "chrome/browser/actor/actor_keyed_service.h"
++#include "chrome/browser/actor/actor_surface.h"
+ #include "chrome/browser/actor/actor_surface_handle.h"
+ #include "chrome/browser/actor/actor_task.h"
+ #include "chrome/browser/actor/execution_engine.h"
+@@ -30,6 +31,19 @@
+ 
+ namespace actor {
+ 
++content::WebContents* GetWebContentsIfSurfaceAlive(
++    const ActorSurface* actor_surface) {
++  if (!actor_surface) {
++    return nullptr;
++  }
++  if (std::optional<tabs::TabHandle> tab_handle =
++          actor_surface->GetTabHandle()) {
++    tabs::TabInterface* tab = tab_handle->Get();
++    return tab ? tab->GetContents() : nullptr;
++  }
++  return actor_surface->GetWebContents();
++}
++
+ glic::GlicInstance* GetGlicInstanceForTask(const ActorTask& task) {
+   glic::GlicKeyedService* glic_service =
+       glic::GlicKeyedService::Get(task.GetProfile());
+diff --git a/chrome/browser/actor/actor_util.h b/chrome/browser/actor/actor_util.h
+index dc7537b..a021ce4d 100644
+--- a/chrome/browser/actor/actor_util.h
++++ b/chrome/browser/actor/actor_util.h
+@@ -22,8 +22,14 @@
+ 
+ namespace actor {
+ 
++class ActorSurface;
+ class ActorTask;
+ 
++// Resolves the current WebContents for `actor_surface` without CHECK-failing if
++// a tab-backed surface's TabInterface has already been destroyed.
++content::WebContents* GetWebContentsIfSurfaceAlive(
++    const ActorSurface* actor_surface);
++
+ // Returns the GlicInstance associated with `task`, or nullptr if `task` is not
+ // associated with a Glic instance.
+ glic::GlicInstance* GetGlicInstanceForTask(const ActorTask& task);
+diff --git a/chrome/browser/actor/execution_engine.cc b/chrome/browser/actor/execution_engine.cc
+index f7fa4265..1046ee8 100644
+--- a/chrome/browser/actor/execution_engine.cc
++++ b/chrome/browser/actor/execution_engine.cc
+@@ -19,6 +19,7 @@
+ #include "base/check.h"
+ #include "base/check_deref.h"
+ #include "base/command_line.h"
++#include "base/containers/extend.h"
+ #include "base/containers/fixed_flat_set.h"
+ #include "base/feature_list.h"
+ #include "base/functional/bind.h"
+@@ -45,7 +46,9 @@
+ #include "chrome/browser/actor/actor_surface.h"
+ #include "chrome/browser/actor/actor_surface_registry.h"
+ #include "chrome/browser/actor/actor_task.h"
++#include "chrome/browser/actor/actor_util.h"
+ #include "chrome/browser/actor/enterprise_policy_checker.h"
++#include "chrome/browser/actor/javascript_dialog_interceptor.h"
+ #include "chrome/browser/actor/site_policy.h"
+ #include "chrome/browser/actor/tools/password_manager/attempt_login/attempt_login_tool.h"
+ #include "chrome/browser/actor/tools/tool_controller.h"
+@@ -579,6 +582,20 @@
+   }
+ }
+ 
++void MergeInterceptedDialogs(
++    std::vector<InterceptedJavaScriptDialog>& target,
++    std::vector<InterceptedJavaScriptDialog> followup) {
++  if (target.size() >= JavaScriptDialogInterceptor::kMaxInterceptedDialogs) {
++    return;
++  }
++  const size_t remaining =
++      JavaScriptDialogInterceptor::kMaxInterceptedDialogs - target.size();
++  if (followup.size() > remaining) {
++    followup.resize(remaining);
++  }
++  base::Extend(target, std::move(followup));
++}
++
+ // When operating on an opaque site, we choose to use the precursor's origin
+ // when judging whether a user confirmation should be triggered or not. We are
+ // effectively using `url::Origin::Create(rfh.GetLastCommittedUrl())` in lieu of
+@@ -1704,6 +1721,14 @@
+         contents->GetPrimaryMainFrame()->GetNavigationId();
+   }
+ 
++  // Discard any dialogs buffered between actions (for example while reflecting
++  // or during an earlier action that failed validation) so this action only
++  // reports dialogs fired during its own invocation.
++  if (content::WebContents* dialog_contents =
++          GetWebContentsForDialogAttachment(current_action)) {
++    JavaScriptDialogInterceptor::ClearInterceptedDialogs(*dialog_contents);
++  }
++
+   SetState(State::kToolInvoke);
+   tool_controller_->Invoke(base::BindOnce(&ExecutionEngine::FinishedToolInvoke,
+                                           GetActionSequenceWeakPtr()));
+@@ -1713,38 +1738,53 @@
+   TRACE_EVENT0("actor", "ExecutionEngine::FinishedToolInvoke");
+   CHECK_EQ(state_, State::kToolInvoke, base::NotFatalUntil::M161);
+ 
++  // Drain dialogs intercepted during this tool invocation before any deferral
++  // so dialogs fired while waiting on the user are not attributed to the
++  // already-finished tool.
++  std::vector<InterceptedJavaScriptDialog> javascript_dialogs =
++      TakeInterceptedJavaScriptDialogs(GetInProgressAction());
++
+   if (tool_invoke_complete_callback_for_testing_) {
+     std::move(tool_invoke_complete_callback_for_testing_).Run();
+   }
+ 
++  FinishToolInvokeWithDialogs(std::move(result), std::move(javascript_dialogs));
++}
++
++void ExecutionEngine::FinishToolInvokeWithDialogs(
++    mojom::ActionResultPtr result,
++    std::vector<InterceptedJavaScriptDialog> javascript_dialogs) {
++  CHECK_EQ(state_, State::kToolInvoke, base::NotFatalUntil::M161);
++
+   // If the task is waiting on user input, defer returning a result for it. This
+   // prevents the actor state from proceeding and also allows UI to insert an
+   // `external_tool_failure_reason` to the action.
+   if (base::FeatureList::IsEnabled(kGlicDeferActUntilUninterrupted) &&
+       task_->GetState() == ActorTask::State::kWaitingOnUser) {
+     CHECK(deferred_finish_tool_invoke_.is_null());
+-    deferred_finish_tool_invoke_ =
+-        base::BindOnce(&ExecutionEngine::FinishedToolInvoke,
+-                       base::Unretained(this), std::move(result));
++    deferred_finish_tool_invoke_ = base::BindOnce(
++        &ExecutionEngine::FinishToolInvokeWithDialogs, base::Unretained(this),
++        std::move(result), std::move(javascript_dialogs));
+     return;
+   }
+ 
++  const ToolRequest& current_action = GetInProgressAction();
++
+   // The current action errored out. Stop the chain.
+   std::optional<mojom::ActionResultCode> external_tool_failure_reason;
+   std::swap(external_tool_failure_reason, external_tool_failure_reason_);
+   if (external_tool_failure_reason) {
+     CompleteActions(MakeResult(*external_tool_failure_reason),
+-                    InProgressActionIndex());
++                    InProgressActionIndex(), std::move(javascript_dialogs));
+     return;
+   }
+ 
+   if (!IsOk(*result)) {
+-    CompleteActions(std::move(result), InProgressActionIndex());
++    CompleteActions(std::move(result), InProgressActionIndex(),
++                    std::move(javascript_dialogs));
+     return;
+   }
+ 
+-  const ToolRequest& current_action = GetInProgressAction();
+-
+   ActorCriticalActionLogger::MaybeLogAction(*task_, &GetProfile(),
+                                             current_action, *result,
+                                             pre_invoke_navigation_id_);
+@@ -1777,10 +1817,13 @@
+     CHECK(!action_results_.empty());
+     ActionResultWithLatencyInfo& action_result = action_results_.back();
+     MergeActionResult(*action_result.result, std::move(result));
++    MergeInterceptedDialogs(action_result.javascript_dialogs,
++                            std::move(javascript_dialogs));
+     action_result.end_time = end_time;
+   } else {
+     action_results_.emplace_back(action_start_time_, end_time,
+-                                 std::move(result));
++                                 std::move(result), current_action.Name(),
++                                 std::move(javascript_dialogs));
+   }
+ 
+   SetState(State::kUiPostInvoke);
+@@ -1811,6 +1854,13 @@
+ 
+ void ExecutionEngine::CompleteActions(mojom::ActionResultPtr result,
+                                       std::optional<size_t> action_index) {
++  CompleteActions(std::move(result), action_index, /*javascript_dialogs=*/{});
++}
++
++void ExecutionEngine::CompleteActions(
++    mojom::ActionResultPtr result,
++    std::optional<size_t> action_index,
++    std::vector<InterceptedJavaScriptDialog> javascript_dialogs) {
+   TRACE_EVENT0("actor", "ExecutionEngine::CompleteActions");
+   CHECK(!action_sequence_.empty());
+   CHECK(act_callback_);
+@@ -1821,7 +1871,9 @@
+     size_t result_index = GetResultIndexForAction(*action_index);
+     if (action_results_.size() == result_index) {
+       action_results_.emplace_back(action_start_time_, base::TimeTicks::Now(),
+-                                   result->Clone());
++                                   result->Clone(),
++                                   action_sequence_[*action_index]->Name(),
++                                   std::move(javascript_dialogs));
+     } else if (action_results_.size() > result_index &&
+                (!IsOk(*result) ||
+                 action_sequence_[*action_index]->IsFollowup())) {
+@@ -1832,6 +1884,8 @@
+       ActionResultWithLatencyInfo& action_result =
+           action_results_[result_index];
+       MergeActionResult(*action_result.result, result->Clone());
++      MergeInterceptedDialogs(action_result.javascript_dialogs,
++                              std::move(javascript_dialogs));
+       action_result.end_time = base::TimeTicks::Now();
+     }
+   } else if (!IsOk(*result)) {
+@@ -2245,6 +2299,26 @@
+       request.GetActorSurfaceForValidation());
+ }
+ 
++content::WebContents* ExecutionEngine::GetWebContentsForDialogAttachment(
++    const ToolRequest& action) {
++  ActorSurfaceHandle surface_handle = action.GetActorSurfaceForValidation();
++  if (surface_handle.is_null()) {
++    surface_handle = task_->GetLastActuatedActorSurface();
++  }
++  return GetWebContentsIfSurfaceAlive(
++      task_->actor_keyed_service().GetSurfaceRegistry().Get(surface_handle));
++}
++
++std::vector<InterceptedJavaScriptDialog>
++ExecutionEngine::TakeInterceptedJavaScriptDialogs(const ToolRequest& action) {
++  content::WebContents* web_contents =
++      GetWebContentsForDialogAttachment(action);
++  if (!web_contents) {
++    return {};
++  }
++  return JavaScriptDialogInterceptor::TakeInterceptedDialogs(*web_contents);
++}
++
+ size_t ExecutionEngine::GetResultIndexForAction(size_t action_index) const {
+   CHECK_LT(action_index, action_sequence_.size());
+   size_t original_count = std::count_if(
+diff --git a/chrome/browser/actor/execution_engine.h b/chrome/browser/actor/execution_engine.h
+index 3a279eb..b1117e9c 100644
+--- a/chrome/browser/actor/execution_engine.h
++++ b/chrome/browser/actor/execution_engine.h
+@@ -82,6 +82,7 @@
+ class ActorSurface;
+ class ActorTask;
+ class AutofillSelectionDialogEventHandler;
++struct InterceptedJavaScriptDialog;
+ class ToolRequest;
+ namespace ui {
+ class UiEventDispatcher;
+@@ -392,10 +393,17 @@
+   void PostToolCreate(mojom::ActionResultPtr result);
+   void FinishedUiPreInvoke(mojom::ActionResultPtr result);
+   void FinishedToolInvoke(mojom::ActionResultPtr result);
++  void FinishToolInvokeWithDialogs(
++      mojom::ActionResultPtr result,
++      std::vector<InterceptedJavaScriptDialog> javascript_dialogs);
+   void FinishedUiPostInvoke(mojom::ActionResultPtr result);
+ 
+   void CompleteActions(mojom::ActionResultPtr result,
+                        std::optional<size_t> action_index);
++  void CompleteActions(
++      mojom::ActionResultPtr result,
++      std::optional<size_t> action_index,
++      std::vector<InterceptedJavaScriptDialog> javascript_dialogs);
+ 
+   // Returns the next action that will be started when ExecuteNextAction is
+   // reached.
+@@ -423,6 +431,17 @@
+   // resolve a handle from the client before the target has been validated.
+   ActorSurface* GetSurfaceForValidation(const ToolRequest& request);
+ 
++  // Returns the WebContents whose JavaScriptDialogInterceptor corresponds to
++  // `action` (its explicit validation surface, or the task's most recently
++  // actuated surface when `action` has no target surface).
++  content::WebContents* GetWebContentsForDialogAttachment(
++      const ToolRequest& action);
++
++  // Drains and returns any JavaScript dialogs intercepted on `action`'s
++  // WebContents during this action.
++  std::vector<InterceptedJavaScriptDialog> TakeInterceptedJavaScriptDialogs(
++      const ToolRequest& action);
++
+   void LogNavigationGating(const url::Origin& source,
+                            base::optional_ref<const url::Origin> initiator,
+                            const url::Origin& destination,
+diff --git a/chrome/browser/actor/headless_web_contents_manager.cc b/chrome/browser/actor/headless_web_contents_manager.cc
+index 58808068..ebbe4fc 100644
+--- a/chrome/browser/actor/headless_web_contents_manager.cc
++++ b/chrome/browser/actor/headless_web_contents_manager.cc
+@@ -8,6 +8,7 @@
+ #include <utility>
+ 
+ #include "base/check.h"
++#include "chrome/browser/actor/javascript_dialog_interceptor.h"
+ #include "content/public/browser/web_contents.h"
+ 
+ namespace actor {
+@@ -56,4 +57,10 @@
+ 
+ void HeadlessWebContentsManager::CloseContents(content::WebContents* source) {}
+ 
++content::JavaScriptDialogManager*
++HeadlessWebContentsManager::GetJavaScriptDialogManager(
++    content::WebContents* source) {
++  return JavaScriptDialogInterceptor::MaybeGetForWebContents(source);
++}
++
+ }  // namespace actor
+diff --git a/chrome/browser/actor/headless_web_contents_manager.h b/chrome/browser/actor/headless_web_contents_manager.h
+index 3947631..c12f4b7 100644
+--- a/chrome/browser/actor/headless_web_contents_manager.h
++++ b/chrome/browser/actor/headless_web_contents_manager.h
+@@ -15,6 +15,7 @@
+ 
+ namespace content {
+ class BrowserContext;
++class JavaScriptDialogManager;
+ class WebContents;
+ }  // namespace content
+ 
+@@ -61,6 +62,8 @@
+   // Intentionally does not destroy `source`: a headless page outlives
+   // window.close() and is destroyed only through Destroy().
+   void CloseContents(content::WebContents* source) override;
++  content::JavaScriptDialogManager* GetJavaScriptDialogManager(
++      content::WebContents* source) override;
+ 
+  private:
+   // The context in which all headless WebContents are created.
+diff --git a/chrome/browser/actor/javascript_dialog_interceptor.cc b/chrome/browser/actor/javascript_dialog_interceptor.cc
+new file mode 100644
+index 0000000..b5f8f2e5
+--- /dev/null
++++ b/chrome/browser/actor/javascript_dialog_interceptor.cc
+@@ -0,0 +1,307 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/actor/javascript_dialog_interceptor.h"
++
++#include <string>
++#include <string_view>
++#include <utility>
++
++#include "base/check.h"
++#include "base/feature_list.h"
++#include "base/functional/callback.h"
++#include "base/notreached.h"
++#include "base/strings/string_util.h"
++#include "base/strings/utf_string_conversions.h"
++#include "build/build_config.h"
++#include "chrome/browser/actor/actor_keyed_service.h"
++#include "chrome/browser/actor/actor_surface_registry.h"
++#include "chrome/browser/actor/actor_task.h"
++#include "chrome/browser/actor/actor_util.h"
++#include "components/actor/core/actor_features.h"
++#include "components/actor/core/aggregated_journal.h"
++#include "components/actor/core/journal_details_builder.h"
++#include "components/javascript_dialogs/tab_modal_dialog_manager.h"
++#include "content/public/browser/render_frame_host.h"
++#include "content/public/browser/web_contents.h"
++#include "url/gurl.h"
++#include "url/origin.h"
++
++#if BUILDFLAG(IS_ANDROID)
++#include "chrome/browser/android/tab_android.h"
++#endif
++
++namespace actor {
++
++namespace {
++
++JavaScriptDialogType ToDialogType(content::JavaScriptDialogType dialog_type) {
++  switch (dialog_type) {
++    case content::JAVASCRIPT_DIALOG_TYPE_ALERT:
++      return JavaScriptDialogType::kAlert;
++    case content::JAVASCRIPT_DIALOG_TYPE_CONFIRM:
++      return JavaScriptDialogType::kConfirm;
++    case content::JAVASCRIPT_DIALOG_TYPE_PROMPT:
++      return JavaScriptDialogType::kPrompt;
++  }
++  NOTREACHED();
++}
++
++std::string_view DialogTypeToString(JavaScriptDialogType type) {
++  switch (type) {
++    case JavaScriptDialogType::kAlert:
++      return "alert";
++    case JavaScriptDialogType::kConfirm:
++      return "confirm";
++    case JavaScriptDialogType::kPrompt:
++      return "prompt";
++  }
++  NOTREACHED();
++}
++
++bool ShouldRecordDialog(content::WebContents* web_contents,
++                        content::RenderFrameHost* render_frame_host) {
++  content::RenderFrameHost* primary_main_frame =
++      web_contents->GetPrimaryMainFrame();
++  if (!render_frame_host || !primary_main_frame) {
++    return false;
++  }
++  if (render_frame_host == primary_main_frame) {
++    return true;
++  }
++  // Only record subframe dialogs from frames in the primary page whose
++  // committed origin is non-opaque and same-origin with the primary main frame.
++  // Cross-origin subframes are normally suppressed upstream in
++  // WebContentsImpl::RunJavaScriptDialog, but opaque-origin subframes (such as
++  // `<iframe sandbox="allow-scripts allow-modals">` or `data:` iframes) are
++  // exempted there. Auto-dismissing them without recording keeps the renderer
++  // unblocked while preventing untrusted subframes from injecting text into
++  // action receipts.
++  if (render_frame_host->GetMainFrame() != primary_main_frame) {
++    return false;
++  }
++  const url::Origin& frame_origin = render_frame_host->GetLastCommittedOrigin();
++  if (frame_origin.opaque()) {
++    return false;
++  }
++  return frame_origin.IsSameOriginWith(
++      primary_main_frame->GetLastCommittedOrigin());
++}
++
++}  // namespace
++
++JavaScriptDialogInterceptor::JavaScriptDialogInterceptor(
++    content::WebContents* web_contents)
++    : content::WebContentsUserData<JavaScriptDialogInterceptor>(*web_contents) {
++}
++
++JavaScriptDialogInterceptor::~JavaScriptDialogInterceptor() = default;
++
++// static
++content::JavaScriptDialogManager*
++JavaScriptDialogInterceptor::MaybeGetForWebContents(
++    content::WebContents* web_contents) {
++  // Check for an active actor task before querying the feature flag so regular
++  // non-actor Chrome dialogs do not prematurely activate the
++  // `kActorInterceptJavaScriptDialogs` Finch field trial.
++  if (!HaveActiveTaskForContents(web_contents)) {
++    return nullptr;
++  }
++
++  if (!base::FeatureList::IsEnabled(kActorInterceptJavaScriptDialogs)) {
++    return nullptr;
++  }
++
++  CreateForWebContents(web_contents);
++  return FromWebContents(web_contents);
++}
++
++// static
++std::vector<InterceptedJavaScriptDialog>
++JavaScriptDialogInterceptor::TakeInterceptedDialogs(
++    content::WebContents& web_contents) {
++  JavaScriptDialogInterceptor* interceptor = FromWebContents(&web_contents);
++  if (!interceptor) {
++    return {};
++  }
++  return std::exchange(interceptor->intercepted_dialogs_, {});
++}
++
++// static
++void JavaScriptDialogInterceptor::ClearInterceptedDialogs(
++    content::WebContents& web_contents) {
++  if (JavaScriptDialogInterceptor* interceptor =
++          FromWebContents(&web_contents)) {
++    interceptor->intercepted_dialogs_.clear();
++  }
++}
++
++// static
++void JavaScriptDialogInterceptor::DismissExistingTabModalDialog(
++    content::WebContents& web_contents) {
++  // Check whether a tab-modal or pending dialog actually exists before querying
++  // the feature flag so dialog-free actor tabs and headless surfaces do not
++  // prematurely activate `kActorInterceptJavaScriptDialogs`.
++  javascript_dialogs::TabModalDialogManager* tab_modal_manager =
++      javascript_dialogs::TabModalDialogManager::FromWebContents(&web_contents);
++  if (!tab_modal_manager || !tab_modal_manager->HasDialogOrPendingDialog() ||
++      !base::FeatureList::IsEnabled(kActorInterceptJavaScriptDialogs)) {
++    return;
++  }
++  tab_modal_manager->CloseDialogWithReason(
++      javascript_dialogs::TabModalDialogManager::DismissalCause::
++          kCancelDialogsCalled);
++}
++
++// static
++void JavaScriptDialogInterceptor::RemoveForWebContents(
++    content::WebContents& web_contents) {
++  web_contents.RemoveUserData(UserDataKey());
++}
++
++void JavaScriptDialogInterceptor::SetFallbackDialogManagerForTesting(
++    content::JavaScriptDialogManager* fallback) {
++  fallback_for_testing_ = fallback;
++}
++
++void JavaScriptDialogInterceptor::RunJavaScriptDialog(
++    content::WebContents* web_contents,
++    content::RenderFrameHost* render_frame_host,
++    content::JavaScriptDialogType dialog_type,
++    const std::u16string& message_text,
++    const std::u16string& default_prompt_text,
++    DialogClosedCallback callback,
++    bool* did_suppress_message) {
++  CHECK(did_suppress_message);
++
++  // Defense-in-depth: dismiss any tab-modal or pending dialog that may still be
++  // held by the owner tab's TabModalDialogManager, without cancelling app-modal
++  // beforeunload dialogs.
++  if (javascript_dialogs::TabModalDialogManager* tab_modal_manager =
++          javascript_dialogs::TabModalDialogManager::FromWebContents(
++              &GetWebContents())) {
++    tab_modal_manager->CloseDialogWithReason(
++        javascript_dialogs::TabModalDialogManager::DismissalCause::
++            kSubsequentDialogShown);
++  }
++
++  // Non-MPArch guest views (e.g. MimeHandlerViewGuest for the non-OOPIF PDF
++  // viewer) borrow their owner tab's JavaScriptDialogManager and pass the guest
++  // WebContents as `web_contents`. Auto-dismiss those dialogs so the guest
++  // renderer never blocks, but only record dialogs belonging to the owned
++  // WebContents itself (consistent with MPArch guests and untrusted subframes).
++  if (web_contents == &GetWebContents() &&
++      ShouldRecordDialog(&GetWebContents(), render_frame_host) &&
++      intercepted_dialogs_.size() < kMaxInterceptedDialogs) {
++    const JavaScriptDialogType type = ToDialogType(dialog_type);
++    // Bound UTF-16 -> UTF-8 conversion cost on arbitrarily large page strings:
++    // each UTF-16 code unit encodes to at least 1 UTF-8 byte (and surrogate
++    // pairs of 2 units encode to 4 bytes), so kMaxDialogMessageBytes + 1 code
++    // units always covers the full truncated prefix without splitting a
++    // surrogate pair that starts before the byte limit.
++    const std::u16string_view message_prefix =
++        std::u16string_view(message_text).substr(0, kMaxDialogMessageBytes + 1);
++    std::string message_utf8 = base::UTF16ToUTF8(message_prefix);
++    if (message_utf8.size() > kMaxDialogMessageBytes) {
++      message_utf8.resize(
++          base::TruncateUTF8ToByteSize(message_utf8, kMaxDialogMessageBytes)
++              .size());
++    }
++
++    if (ActorKeyedService* actor_service =
++            ActorKeyedService::Get(web_contents->GetBrowserContext())) {
++      if (const ActorTask* task =
++              actor_service->GetActingActorTaskForWebContents(web_contents)) {
++        actor_service->GetJournal().Log(
++            render_frame_host->GetLastCommittedURL(), task->id(),
++            "JavaScriptDialogIntercepted",
++            JournalDetailsBuilder()
++                .Add("type", DialogTypeToString(type))
++                .Add("message_length", message_utf8.size())
++                .Build());
++      }
++    }
++
++    intercepted_dialogs_.emplace_back(type, std::move(message_utf8));
++  }
++
++  // Synchronously resolve the dialog so the renderer main thread unblocks
++  // immediately without displaying modal UI:
++  // - alert: accept (true).
++  // - confirm / prompt: dismiss (false) so confirm() returns false and
++  //   prompt() returns null rather than auto-accepting a potentially
++  //   destructive confirmation.
++  // TODO(b/586647124): Log UMA by dialog type to measure how often dialogs
++  // (especially confirm/prompt) are auto-dismissed during actuation.
++  *did_suppress_message = false;
++  const bool accept = (dialog_type == content::JAVASCRIPT_DIALOG_TYPE_ALERT);
++  std::move(callback).Run(accept, std::u16string());
++}
++
++void JavaScriptDialogInterceptor::RunBeforeUnloadDialog(
++    content::WebContents* web_contents,
++    content::RenderFrameHost* render_frame_host,
++    bool is_reload,
++    DialogClosedCallback callback) {
++  if (content::JavaScriptDialogManager* fallback = GetFallbackDialogManager()) {
++    fallback->RunBeforeUnloadDialog(web_contents, render_frame_host, is_reload,
++                                    std::move(callback));
++    return;
++  }
++  // Headless WebContents have no UI dialog manager; match WebContentsImpl's
++  // default when no handler is present and allow navigation to proceed.
++  std::move(callback).Run(/*success=*/true, std::u16string());
++}
++
++bool JavaScriptDialogInterceptor::HandleJavaScriptDialog(
++    content::WebContents* web_contents,
++    bool accept,
++    const std::u16string* prompt_override) {
++  if (content::JavaScriptDialogManager* fallback = GetFallbackDialogManager()) {
++    return fallback->HandleJavaScriptDialog(web_contents, accept,
++                                            prompt_override);
++  }
++  return false;
++}
++
++void JavaScriptDialogInterceptor::CancelDialogs(
++    content::WebContents* web_contents,
++    bool reset_state) {
++  if (content::JavaScriptDialogManager* fallback = GetFallbackDialogManager()) {
++    fallback->CancelDialogs(web_contents, reset_state);
++  }
++}
++
++content::JavaScriptDialogManager*
++JavaScriptDialogInterceptor::GetFallbackDialogManager() {
++  if (fallback_for_testing_) {
++    return fallback_for_testing_;
++  }
++  content::WebContents* owner_web_contents = &GetWebContents();
++  // Demoted headless surfaces retain their former tab's TabModalDialogManager
++  // WebContentsUserData even after detaching from a tab and browser window.
++  // Never delegate into that orphaned manager: headless surfaces have no UI
++  // window and must auto-proceed beforeunload dialogs.
++  if (ActorKeyedService* actor_service =
++          ActorKeyedService::Get(owner_web_contents->GetBrowserContext());
++      actor_service &&
++      actor_service->GetSurfaceRegistry().GetForHeadless(owner_web_contents)) {
++    return nullptr;
++  }
++#if BUILDFLAG(IS_ANDROID)
++  // Offscreen-rendering tabs on Android (e.g. background actuation) have no
++  // visible UI window; match TabWebContentsDelegateAndroid and auto-proceed
++  // beforeunload dialogs instead of delegating to TabModalDialogManager.
++  if (TabAndroid* tab = TabAndroid::FromWebContents(owner_web_contents);
++      tab && tab->IsOffscreenRendering()) {
++    return nullptr;
++  }
++#endif
++  return javascript_dialogs::TabModalDialogManager::FromWebContents(
++      owner_web_contents);
++}
++
++WEB_CONTENTS_USER_DATA_KEY_IMPL(JavaScriptDialogInterceptor);
++
++}  // namespace actor
+diff --git a/chrome/browser/actor/javascript_dialog_interceptor.h b/chrome/browser/actor/javascript_dialog_interceptor.h
+new file mode 100644
+index 0000000..c7b73b9
+--- /dev/null
++++ b/chrome/browser/actor/javascript_dialog_interceptor.h
+@@ -0,0 +1,131 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_ACTOR_JAVASCRIPT_DIALOG_INTERCEPTOR_H_
++#define CHROME_BROWSER_ACTOR_JAVASCRIPT_DIALOG_INTERCEPTOR_H_
++
++#include <cstddef>
++#include <string>
++#include <vector>
++
++#include "base/memory/raw_ptr.h"
++#include "chrome/common/actor/action_result.h"
++#include "content/public/browser/javascript_dialog_manager.h"
++#include "content/public/browser/web_contents_user_data.h"
++
++namespace content {
++class RenderFrameHost;
++class WebContents;
++}  // namespace content
++
++namespace actor {
++
++// Intercepts JavaScript dialogs (`window.alert`, `window.confirm`,
++// `window.prompt`) at the browser layer while an active actor task is
++// controlling a WebContents.
++//
++// Rather than blocking the renderer on a modal UI dialog (or silently dropping
++// the text when a tab is backgrounded or headless), this manager synchronously
++// auto-dismisses each dialog and buffers `{type, dialog_message}` for dialogs
++// from the primary main frame or same-origin non-opaque subframes in the
++// primary page so ExecutionEngine can attach them to the action receipt.
++// Dialogs from opaque-origin or cross-origin subframes (e.g. sandboxed iframes)
++// are still auto-dismissed without being recorded.
++//
++// `beforeunload` dialogs are not intercepted here; they continue to delegate to
++// the underlying TabModalDialogManager (or auto-proceed on headless
++// WebContents), keeping `kGlicSkipBeforeUnloadDialogAndNavigate` orthogonal.
++//
++// Guest-view frames routed via
++// `GuestPageHolder::Delegate::GuestGetJavascriptDialogManager()` (such as
++// `<webview>`) are out of scope: actor actuation only targets regular web
++// pages, `MimeHandlerViewGuest` (e.g. PDF viewer) delegates back to the owner
++// WebContents's delegate, and `WebViewGuest` does not display Chrome tab-modal
++// UI. When a non-MPArch guest WebContents (such as `MimeHandlerViewGuest`)
++// borrows its owner tab's interceptor and passes the guest `WebContents*`,
++// regular dialogs are auto-dismissed without being recorded (matching MPArch
++// guests and untrusted subframes), while `beforeunload`, handle, and cancel
++// calls look up the owner's fallback manager and forward the original
++// `WebContents*`.
++class JavaScriptDialogInterceptor
++    : public content::WebContentsUserData<JavaScriptDialogInterceptor>,
++      public content::JavaScriptDialogManager {
++ public:
++  // Maximum number of dialogs buffered per WebContents between drains. Dialogs
++  // beyond this cap are still auto-dismissed so the renderer never blocks.
++  static constexpr size_t kMaxInterceptedDialogs = 50;
++
++  // Maximum UTF-8 byte length stored per dialog message.
++  static constexpr size_t kMaxDialogMessageBytes = 16 * 1024;
++
++  JavaScriptDialogInterceptor(const JavaScriptDialogInterceptor&) = delete;
++  JavaScriptDialogInterceptor& operator=(const JavaScriptDialogInterceptor&) =
++      delete;
++  ~JavaScriptDialogInterceptor() override;
++
++  // Returns this WebContents' interceptor if `kActorInterceptJavaScriptDialogs`
++  // is enabled and an active actor task is currently controlling
++  // `web_contents`, creating it on demand. Otherwise returns nullptr so the
++  // delegate falls back to its regular JavaScriptDialogManager.
++  static content::JavaScriptDialogManager* MaybeGetForWebContents(
++      content::WebContents* web_contents);
++
++  // Drains and returns all dialogs intercepted on `web_contents` since the
++  // previous call, in the order they fired.
++  static std::vector<InterceptedJavaScriptDialog> TakeInterceptedDialogs(
++      content::WebContents& web_contents);
++
++  // Discards any buffered dialogs on `web_contents` without creating an
++  // interceptor if none is attached.
++  static void ClearInterceptedDialogs(content::WebContents& web_contents);
++
++  // Dismisses any active or pending TabModalDialogManager dialog on
++  // `web_contents` when `kActorInterceptJavaScriptDialogs` is enabled, without
++  // affecting app-modal `beforeunload` dialogs. Called when a WebContents
++  // enters actor control so a pre-existing modal dialog does not leave the
++  // renderer blocked before the first actor action runs.
++  static void DismissExistingTabModalDialog(content::WebContents& web_contents);
++
++  // Removes the interceptor (and any buffered dialogs) from `web_contents`.
++  static void RemoveForWebContents(content::WebContents& web_contents);
++
++  // Overrides the fallback JavaScriptDialogManager used for beforeunload and
++  // cancellation delegation in unit tests. Caller retains ownership.
++  void SetFallbackDialogManagerForTesting(
++      content::JavaScriptDialogManager* fallback);
++
++  // content::JavaScriptDialogManager:
++  void RunJavaScriptDialog(content::WebContents* web_contents,
++                           content::RenderFrameHost* render_frame_host,
++                           content::JavaScriptDialogType dialog_type,
++                           const std::u16string& message_text,
++                           const std::u16string& default_prompt_text,
++                           DialogClosedCallback callback,
++                           bool* did_suppress_message) override;
++  void RunBeforeUnloadDialog(content::WebContents* web_contents,
++                             content::RenderFrameHost* render_frame_host,
++                             bool is_reload,
++                             DialogClosedCallback callback) override;
++  bool HandleJavaScriptDialog(content::WebContents* web_contents,
++                              bool accept,
++                              const std::u16string* prompt_override) override;
++  void CancelDialogs(content::WebContents* web_contents,
++                     bool reset_state) override;
++
++ private:
++  friend class content::WebContentsUserData<JavaScriptDialogInterceptor>;
++
++  explicit JavaScriptDialogInterceptor(content::WebContents* web_contents);
++
++  content::JavaScriptDialogManager* GetFallbackDialogManager();
++
++  std::vector<InterceptedJavaScriptDialog> intercepted_dialogs_;
++  raw_ptr<content::JavaScriptDialogManager> fallback_for_testing_ = nullptr;
++
++  WEB_CONTENTS_USER_DATA_KEY_DECL();
++};
++
++}  // namespace actor
++
++#endif  // CHROME_BROWSER_ACTOR_JAVASCRIPT_DIALOG_INTERCEPTOR_H_
+diff --git a/chrome/browser/android/BUILD.gn b/chrome/browser/android/BUILD.gn
+index 8d7a095a..67572de 100644
+--- a/chrome/browser/android/BUILD.gn
++++ b/chrome/browser/android/BUILD.gn
+@@ -702,6 +702,7 @@
+       "//chrome/app:command_ids",
+       "//chrome/browser:global_features",
+       "//chrome/browser/accessibility/settings",
++      "//chrome/browser/actor",
+       "//chrome/browser/android/content:jni_headers",
+       "//chrome/browser/android/discards",
+       "//chrome/browser/android/extensions:android",
 diff --git a/chrome/browser/extensions/extension_service.cc b/chrome/browser/extensions/extension_service.cc
 index bbfff3d..10fe5fde 100644
 --- a/chrome/browser/extensions/extension_service.cc
@@ -127,6 +1272,103 @@ index bbfff3d..10fe5fde 100644
    // Enable any Shared Modules that incorrectly got disabled previously.
    // This is temporary code to fix incorrect behavior from previous versions of
    // Chrome and can be removed after several releases (perhaps M60).
+diff --git a/chrome/browser/glic/public/features.cc b/chrome/browser/glic/public/features.cc
+index fbd9a76..a82f421 100644
+--- a/chrome/browser/glic/public/features.cc
++++ b/chrome/browser/glic/public/features.cc
+@@ -355,6 +355,8 @@
+                    &kGlicBrowserCommandFallback,
+                    "https://support.google.com/chrome/answer/17140089");
+ 
++BASE_FEATURE(kGlicWhatsNewQuizzes, base::FEATURE_DISABLED_BY_DEFAULT);
++
+ BASE_FEATURE(kGlicForceFcmExperimentalTriggerFailure,
+              base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+diff --git a/chrome/browser/glic/public/features.h b/chrome/browser/glic/public/features.h
+index a18a42d..023e0800 100644
+--- a/chrome/browser/glic/public/features.h
++++ b/chrome/browser/glic/public/features.h
+@@ -279,6 +279,8 @@
+ BASE_DECLARE_FEATURE(kGlicBrowserCommandFallback);
+ BASE_DECLARE_FEATURE_PARAM(std::string, kGlicBrowserCommandFallbackUrl);
+ 
++BASE_DECLARE_FEATURE(kGlicWhatsNewQuizzes);
++
+ // Test only. When enabled, Android drops incoming Glic experimental triggering
+ // TriggerActuationRequest messages without replying or acking, as if the FCM
+ // message never arrived.
+diff --git a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
+index 08efbd26..b48d7f8 100644
+--- a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
++++ b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
+@@ -500,6 +500,10 @@
+     this.popupListenerIds_ = [
+       this.popupCallbackRouter_.setInputState.addListener(
+           this.onSetInputState_.bind(this)),
++      this.popupCallbackRouter_.setPrefersUrlInput.addListener(
++          (prefersUrlInput: boolean) => {
++            this.textInputType_ = prefersUrlInput ? 'url' : 'search';
++          }),
+       this.popupCallbackRouter_.setFocus.addListener(
+           this.onSetFocus_.bind(this)),
+       this.popupCallbackRouter_.focusSearchWithDefaultSearchEngineKeywordMode
+@@ -1917,6 +1921,9 @@
+     this.selectAllOnMouseRelease_ = false;
+     this.queryZpsOnMouseRelease_ = false;
+     this.clickQueriedZps_ = false;
++    // Ctrl may be released while the omnibox doesn't have focus, so forget
++    // it was pressed.
++    this.controlKeyState = ControlKeyState.UP;
+     this.getInputElement().setSelectionRange(0, 0);
+     this.getInputElement().blur();
+     // Show the start of the text, so that the #mirror elides its end. Blink
+@@ -2498,8 +2505,7 @@
+       // verbatim input text (or reload the permanent URL).
+       e.preventDefault();
+       if (!this.inKeywordMode && e.ctrlKey && !e.shiftKey && !e.altKey &&
+-          !e.metaKey &&
+-          this.controlKeyState !== ControlKeyState.DOWN_AND_CONSUMED) {
++          !e.metaKey && this.controlKeyState === ControlKeyState.DOWN) {
+         this.openCtrlEnterMatch(-1);
+       } else {
+         this.pageHandler().openAutocompleteMatch(
+diff --git a/chrome/browser/ui/android/omnibox/BUILD.gn b/chrome/browser/ui/android/omnibox/BUILD.gn
+index 8f3c7a99..f4a19f0 100644
+--- a/chrome/browser/ui/android/omnibox/BUILD.gn
++++ b/chrome/browser/ui/android/omnibox/BUILD.gn
+@@ -134,6 +134,7 @@
+     "java/src/org/chromium/chrome/browser/omnibox/status/StatusProperties.java",
+     "java/src/org/chromium/chrome/browser/omnibox/status/StatusView.java",
+     "java/src/org/chromium/chrome/browser/omnibox/status/StatusViewBinder.java",
++    "java/src/org/chromium/chrome/browser/omnibox/styles/BadgedIconDrawable.java",
+     "java/src/org/chromium/chrome/browser/omnibox/styles/OmniboxDrawableState.java",
+     "java/src/org/chromium/chrome/browser/omnibox/styles/OmniboxImageSupplier.java",
+     "java/src/org/chromium/chrome/browser/omnibox/styles/OmniboxResourceProvider.java",
+@@ -423,6 +424,7 @@
+     "java/res/drawable/fusebox_popup_bg_tinted.xml",
+     "java/res/drawable/fusebox_popup_bg_tinted_on_dark_bg.xml",
+     "java/res/drawable/gs_drive_vd_theme_24.xml",
++    "java/res/drawable/ic_action_dot_24dp.xml",
+     "java/res/drawable/ic_add_round_20dp_with_inset.xml",
+     "java/res/drawable/ic_attach_file_24dp.xml",
+     "java/res/drawable/ic_attach_image_24dp.xml",
+@@ -462,6 +464,7 @@
+     "java/res/drawable/switch_to_tab.xml",
+     "java/res/drawable/tab.xml",
+     "java/res/drawable/trending_up_black_24dp.xml",
++    "java/res/drawable/type_icon_badge_dot.xml",
+     "java/res/layout-sw600dp/location_bar.xml",
+     "java/res/layout/drive_consent_dialog.xml",
+     "java/res/layout/fusebox_attachment_layout.xml",
+@@ -621,6 +624,7 @@
+     "java/src/org/chromium/chrome/browser/omnibox/status/SiteControlsIphControllerUnitTest.java",
+     "java/src/org/chromium/chrome/browser/omnibox/status/StatusMediatorUnitTest.java",
+     "java/src/org/chromium/chrome/browser/omnibox/status/StatusViewUnitTest.java",
++    "java/src/org/chromium/chrome/browser/omnibox/styles/BadgedIconDrawableUnitTest.java",
+     "java/src/org/chromium/chrome/browser/omnibox/styles/OmniboxImageSupplierUnitTest.java",
+     "java/src/org/chromium/chrome/browser/omnibox/styles/OmniboxResourceProviderUnitTest.java",
+     "java/src/org/chromium/chrome/browser/omnibox/styles/ResourceCacheUnitTest.java",
 diff --git a/chrome/browser/ui/browser_element_identifiers.cc b/chrome/browser/ui/browser_element_identifiers.cc
 index 49bba2d4..e8c1c80 100644
 --- a/chrome/browser/ui/browser_element_identifiers.cc
@@ -153,6 +1395,29 @@ index 77f7d86..d3f5a78 100644
  DECLARE_ELEMENT_IDENTIFIER_VALUE(kContextualTasksFaviconsElementId);
  DECLARE_ELEMENT_IDENTIFIER_VALUE(kContextualTasksPageActionElementId);
  DECLARE_ELEMENT_IDENTIFIER_VALUE(kContextualTasksScrimViewElementId);
+diff --git a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+index b89a449..f36f7bd3 100644
+--- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
++++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+@@ -11,6 +11,7 @@
+ #include "base/trace_event/trace_event.h"
+ #include "chrome/app/chrome_command_ids.h"
+ #include "chrome/browser/actor/actor_util.h"
++#include "chrome/browser/actor/javascript_dialog_interceptor.h"
+ #include "chrome/browser/background/background_contents.h"
+ #include "chrome/browser/background/background_contents_service.h"
+ #include "chrome/browser/background/background_contents_service_factory.h"
+@@ -1181,6 +1182,10 @@
+ content::JavaScriptDialogManager*
+ BrowserWebContentsDelegate::GetJavaScriptDialogManager(
+     content::WebContents* source) {
++  if (content::JavaScriptDialogManager* interceptor =
++          actor::JavaScriptDialogInterceptor::MaybeGetForWebContents(source)) {
++    return interceptor;
++  }
+   return javascript_dialogs::TabModalDialogManager::FromWebContents(source);
+ }
+ 
 diff --git a/chrome/browser/ui/color/chrome_color_id.h b/chrome/browser/ui/color/chrome_color_id.h
 index 45e24b0e..eac1f6b4 100644
 --- a/chrome/browser/ui/color/chrome_color_id.h
@@ -2459,6 +3724,293 @@ index 476c466..d9c83dc 100644
      DidInvokeShowUi();
      NotifyEmbedderOfResult(FederatedLoginResult::kIdpReturnedError);
      return true;
+diff --git a/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom b/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom
+index f3e0718b..ef49f62 100644
+--- a/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom
++++ b/chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom
+@@ -167,6 +167,10 @@
+   // and selection range) of the WebUI Omnibox.
+   SetInputState(OmniboxInputState state);
+ 
++  // Called by the browser when the input language changes, with whether the
++  // input should now expect URLs. See `OmniboxInputState.prefers_url_input`.
++  SetPrefersUrlInput(bool prefers_url_input);
++
+   // Called by the browser when focus changes within the active tab. `query_zps`
+   // indicates whether to issue a Zero-Suggest autocomplete query upon focus.
+   // `select_all` indicates whether to select all input text upon gaining focus.
+diff --git a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc b/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc
+index 6c7064eb9..6a93027 100644
+--- a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc
++++ b/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc
+@@ -40,6 +40,7 @@
+ #include "components/tabs/public/tab_interface.h"
+ #include "content/public/browser/browser_context.h"
+ #include "ui/base/clipboard/scoped_clipboard_writer.h"
++#include "ui/base/ime/input_method.h"
+ #include "ui/base/ime/text_input_type.h"
+ #include "ui/base/models/menu_model.h"
+ #include "ui/base/ui_base_features.h"
+@@ -47,6 +48,16 @@
+ #include "ui/gfx/color_utils.h"
+ #include "ui/views/widget/widget.h"
+ 
++namespace {
++
++// Returns whether the page's input should expect URLs, like the Views omnibox.
++bool PrefersUrlInput(const ui::InputMethod* input_method) {
++  return OmniboxViewViews::GetPreferredTextInputType(input_method) ==
++         ui::TEXT_INPUT_TYPE_URL;
++}
++
++}  // namespace
++
+ OmniboxPopupHandler::OmniboxPopupHandler(
+     mojo::PendingReceiver<omnibox_popup::mojom::PageHandler> receiver,
+     mojo::PendingRemote<omnibox_popup::mojom::Page> page,
+@@ -305,14 +316,20 @@
+         current_match.GetVectorIcon(is_bookmarked, associated_keyword_turl));
+     state->current_match = std::move(mojom_match);
+   }
+-  // The input language is the same for all widgets.
++  // The input language is the same for all widgets, but Windows only tells the
++  // focused window's input method when it changes, and that's the popup's
++  // while the user types in it.
+   views::Widget* widget = web_contents_
+                               ? views::Widget::GetTopLevelWidgetForNativeView(
+                                     web_contents_->GetNativeView())
+                               : nullptr;
+-  state->prefers_url_input = OmniboxViewViews::GetPreferredTextInputType(
+-                                 widget ? widget->GetInputMethod() : nullptr) ==
+-                             ui::TEXT_INPUT_TYPE_URL;
++  ui::InputMethod* input_method = widget ? widget->GetInputMethod() : nullptr;
++  if (input_method &&
++      !input_method_observation_.IsObservingSource(input_method)) {
++    input_method_observation_.Reset();
++    input_method_observation_.Observe(input_method);
++  }
++  state->prefers_url_input = PrefersUrlInput(input_method);
+   // Extract active tab ID if in a Chrome browser window context.
+   if (controller_ && controller_->client()->IsChromeOmniboxClient()) {
+     auto* chrome_client =
+@@ -356,6 +373,16 @@
+   template_url_service_observation_.Reset();
+ }
+ 
++void OmniboxPopupHandler::OnInputMethodDestroyed(
++    const ui::InputMethod* input_method) {
++  input_method_observation_.Reset();
++}
++
++void OmniboxPopupHandler::OnInputLocaleChanged() {
++  page_->SetPrefersUrlInput(
++      PrefersUrlInput(input_method_observation_.GetSource()));
++}
++
+ std::string GetDefaultSearchProviderIcon(
+     const TemplateURLService* template_url_service,
+     bool is_dark_mode) {
+diff --git a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.h b/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.h
+index 343bd58c..1191ac9 100644
+--- a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.h
++++ b/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.h
+@@ -16,6 +16,7 @@
+ #include "mojo/public/cpp/bindings/pending_remote.h"
+ #include "mojo/public/cpp/bindings/receiver.h"
+ #include "mojo/public/cpp/bindings/remote.h"
++#include "ui/base/ime/input_method_observer.h"
+ #include "ui/gfx/range/range.h"
+ 
+ namespace content {
+@@ -31,7 +32,8 @@
+     bool is_dark_mode);
+ 
+ class OmniboxPopupHandler : public omnibox_popup::mojom::PageHandler,
+-                            public TemplateURLServiceObserver {
++                            public TemplateURLServiceObserver,
++                            public ui::InputMethodObserver {
+  public:
+   OmniboxPopupHandler(
+       mojo::PendingReceiver<omnibox_popup::mojom::PageHandler> receiver,
+@@ -117,6 +119,14 @@
+   void OnTemplateURLServiceChanged() override;
+   void OnTemplateURLServiceShuttingDown() override;
+ 
++  // ui::InputMethodObserver:
++  void OnFocus() override {}
++  void OnBlur() override {}
++  void OnCaretBoundsChanged(const ui::TextInputClient* client) override {}
++  void OnTextInputStateChanged(const ui::TextInputClient* client) override {}
++  void OnInputMethodDestroyed(const ui::InputMethod* input_method) override;
++  void OnInputLocaleChanged() override;
++
+   // Notifies the WebUI of the current DSE icon and placeholder type.
+   void NotifyDefaultSearchProviderChanged();
+ 
+@@ -133,6 +143,10 @@
+   raw_ptr<OmniboxController> controller_;
+   base::ScopedObservation<TemplateURLService, TemplateURLServiceObserver>
+       template_url_service_observation_{this};
++  // Observes the input method of the popup's widget, which Windows tells about
++  // input language changes while the user types in the popup.
++  base::ScopedObservation<ui::InputMethod, ui::InputMethodObserver>
++      input_method_observation_{this};
+   // Caches the latest selection range reported by the WebUI to allow
+   // synchronous access on tab switches.
+   gfx::Range latest_selection_;
+diff --git a/chrome/browser/ui/webui/searchbox/searchbox_test_utils.h b/chrome/browser/ui/webui/searchbox/searchbox_test_utils.h
+index 67910928..e9ee295 100644
+--- a/chrome/browser/ui/webui/searchbox/searchbox_test_utils.h
++++ b/chrome/browser/ui/webui/searchbox/searchbox_test_utils.h
+@@ -167,6 +167,7 @@
+               SetInputState,
+               (omnibox_popup::mojom::OmniboxInputStatePtr state),
+               (override));
++  MOCK_METHOD(void, SetPrefersUrlInput, (bool prefers_url_input), (override));
+   MOCK_METHOD(
+       void,
+       SetFocus,
+diff --git a/chrome/browser/ui/webui/whats_new/whats_new_registrar.cc b/chrome/browser/ui/webui/whats_new/whats_new_registrar.cc
+index f80d160..6b5802c 100644
+--- a/chrome/browser/ui/webui/whats_new/whats_new_registrar.cc
++++ b/chrome/browser/ui/webui/whats_new/whats_new_registrar.cc
+@@ -48,6 +48,9 @@
+   registry->RegisterModule(WhatsNewModule(::features::kGlicWhatsNewLuminous,
+                                           "iwells@chromium.org",
+                                           BrowserCommand::kOpenGlic));
++  registry->RegisterModule(WhatsNewModule(::features::kGlicWhatsNewQuizzes,
++                                          "jeffreycohen@google.com",
++                                          BrowserCommand::kOpenGlic));
+ }
+ 
+ void RegisterWhatsNewEditions(whats_new::WhatsNewRegistry* registry) {
+diff --git a/chrome/common/actor/action_result.cc b/chrome/common/actor/action_result.cc
+index 64072bd6..305528b 100644
+--- a/chrome/common/actor/action_result.cc
++++ b/chrome/common/actor/action_result.cc
+@@ -15,8 +15,14 @@
+ ActionResultWithLatencyInfo::ActionResultWithLatencyInfo(
+     base::TimeTicks start_time,
+     base::TimeTicks end_time,
+-    mojom::ActionResultPtr result)
+-    : start_time(start_time), end_time(end_time), result(std::move(result)) {
++    mojom::ActionResultPtr result,
++    std::string_view tool_name,
++    std::vector<InterceptedJavaScriptDialog> javascript_dialogs)
++    : start_time(start_time),
++      end_time(end_time),
++      result(std::move(result)),
++      tool_name(tool_name),
++      javascript_dialogs(std::move(javascript_dialogs)) {
+   DCHECK(!start_time.is_null());
+   DCHECK(!end_time.is_null());
+   DCHECK_LE(start_time, end_time);
+@@ -25,10 +31,14 @@
+     const ActionResultWithLatencyInfo& other)
+     : start_time(other.start_time),
+       end_time(other.end_time),
+-      result(other.result.Clone()) {}
++      result(other.result.Clone()),
++      tool_name(other.tool_name),
++      javascript_dialogs(other.javascript_dialogs) {}
+ ActionResultWithLatencyInfo::~ActionResultWithLatencyInfo() = default;
+ ActionResultWithLatencyInfo::ActionResultWithLatencyInfo(
+     ActionResultWithLatencyInfo&&) = default;
++ActionResultWithLatencyInfo& ActionResultWithLatencyInfo::operator=(
++    ActionResultWithLatencyInfo&&) = default;
+ 
+ bool IsOk(const mojom::ActionResult& result) {
+   return IsOk(result.code);
+diff --git a/chrome/common/actor/action_result.h b/chrome/common/actor/action_result.h
+index cb399b5..08796f4 100644
+--- a/chrome/common/actor/action_result.h
++++ b/chrome/common/actor/action_result.h
+@@ -18,6 +18,24 @@
+ 
+ namespace actor {
+ 
++// The type of a JavaScript dialog intercepted during actor execution.
++enum class JavaScriptDialogType {
++  kAlert = 0,
++  kConfirm = 1,
++  kPrompt = 2,
++};
++
++// Details of a JavaScript dialog (`window.alert`, `window.confirm`, or
++// `window.prompt`) intercepted and auto-dismissed at the browser layer while
++// an actor task is controlling a WebContents. Mirrors
++// ExecuteJsResult.JavaScriptDialog in actions_data.proto.
++struct InterceptedJavaScriptDialog {
++  JavaScriptDialogType type = JavaScriptDialogType::kAlert;
++  std::string dialog_message;
++
++  bool operator==(const InterceptedJavaScriptDialog&) const = default;
++};
++
+ // The result of each action with latency information.
+ // TODO(crbug.com/490381613): Create an object to wrap
+ // std::vector<ActionResultWithLatencyInfo> that can replace several of the free
+@@ -26,11 +44,28 @@
+   base::TimeTicks start_time;
+   base::TimeTicks end_time;
+   mojom::ActionResultPtr result;
++  // The `ToolRequest::Name()` of the action that produced `result` (e.g.
++  // `ExecuteJsToolRequest::kName`), populated by `ExecutionEngine`. May be
++  // empty for general/sequence-level errors or synthetic results not tied to a
++  // specific tool, in which case `CopyExecuteJsResults()` falls back to
++  // checking whether `result->execute_js_response` is present.
++  std::string tool_name;
++  // JavaScript dialogs intercepted on the target WebContents during this
++  // action's execution (in chronological order, capped at
++  // `JavaScriptDialogInterceptor::kMaxInterceptedDialogs`). Populated for all
++  // actions, though `CopyExecuteJsResults()` currently only serializes dialogs
++  // for `ExecuteJsTool` actions into `ActionsResult.execute_js_results`.
++  // TODO(b/586645337): Export dialogs for non-ExecuteJs actions as well.
++  std::vector<InterceptedJavaScriptDialog> javascript_dialogs;
+ 
+-  ActionResultWithLatencyInfo(base::TimeTicks start_time,
+-                              base::TimeTicks end_time,
+-                              mojom::ActionResultPtr result);
++  ActionResultWithLatencyInfo(
++      base::TimeTicks start_time,
++      base::TimeTicks end_time,
++      mojom::ActionResultPtr result,
++      std::string_view tool_name = {},
++      std::vector<InterceptedJavaScriptDialog> javascript_dialogs = {});
+   ActionResultWithLatencyInfo(ActionResultWithLatencyInfo&&);
++  ActionResultWithLatencyInfo& operator=(ActionResultWithLatencyInfo&&);
+   ActionResultWithLatencyInfo(const ActionResultWithLatencyInfo&);
+   ActionResultWithLatencyInfo& operator=(const ActionResultWithLatencyInfo&) =
+       delete;
+diff --git a/components/actor/core/actor_features.cc b/components/actor/core/actor_features.cc
+index c080486..6140e8d 100644
+--- a/components/actor/core/actor_features.cc
++++ b/components/actor/core/actor_features.cc
+@@ -195,6 +195,8 @@
+ BASE_FEATURE(kActorScriptToolIdValidation, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+ BASE_FEATURE(kActorExecuteJsTool, base::FEATURE_DISABLED_BY_DEFAULT);
++BASE_FEATURE(kActorInterceptJavaScriptDialogs,
++             base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ BASE_FEATURE(kActorRecordInvocationSourceCompletionMetrics,
+              base::FEATURE_ENABLED_BY_DEFAULT);
+diff --git a/components/actor/core/actor_features.h b/components/actor/core/actor_features.h
+index 89dc2b6..d06f3c09 100644
+--- a/components/actor/core/actor_features.h
++++ b/components/actor/core/actor_features.h
+@@ -171,6 +171,11 @@
+ BASE_DECLARE_FEATURE(kActorScriptToolIdValidation);
+ 
+ BASE_DECLARE_FEATURE(kActorExecuteJsTool);
++// When enabled, JavaScript dialogs (`alert`, `confirm`, `prompt`) triggered on
++// WebContents controlled by an active actor task are intercepted and
++// auto-dismissed at the browser layer, and their type and message are recorded
++// on the action result.
++BASE_DECLARE_FEATURE(kActorInterceptJavaScriptDialogs);
+ 
+ // Guards the new Actor Task invocation source completion metrics.
+ BASE_DECLARE_FEATURE(kActorRecordInvocationSourceCompletionMetrics);
 diff --git a/components/blocked_content/BUILD.gn b/components/blocked_content/BUILD.gn
 index f9b40fe..13149a2a 100644
 --- a/components/blocked_content/BUILD.gn
@@ -2514,11 +4066,38 @@ index 0abc30e4..161d0cc2 100644
    };
  
    UrlListManager();
+diff --git a/components/javascript_dialogs/tab_modal_dialog_manager.cc b/components/javascript_dialogs/tab_modal_dialog_manager.cc
+index bffeb73..a2a9830 100644
+--- a/components/javascript_dialogs/tab_modal_dialog_manager.cc
++++ b/components/javascript_dialogs/tab_modal_dialog_manager.cc
+@@ -47,6 +47,10 @@
+   CloseDialog(reason, false, std::u16string());
+ }
+ 
++bool TabModalDialogManager::HasDialogOrPendingDialog() const {
++  return dialog_ || pending_dialog_;
++}
++
+ void TabModalDialogManager::SetDialogShownCallbackForTesting(
+     base::OnceClosure callback) {
+   dialog_shown_ = std::move(callback);
+diff --git a/components/javascript_dialogs/tab_modal_dialog_manager.h b/components/javascript_dialogs/tab_modal_dialog_manager.h
+index 0931c0c..f588de09 100644
+--- a/components/javascript_dialogs/tab_modal_dialog_manager.h
++++ b/components/javascript_dialogs/tab_modal_dialog_manager.h
+@@ -103,6 +103,7 @@
+ 
+   void BrowserActiveStateChanged();
+   void CloseDialogWithReason(DismissalCause reason);
++  bool HasDialogOrPendingDialog() const;
+ 
+   void SetDialogShownCallbackForTesting(base::OnceClosure callback);
+   bool IsShowingDialogForTesting() const;
 diff --git a/components/omnibox/browser/suggest_template_info.mojom b/components/omnibox/browser/suggest_template_info.mojom
-index 9a7d138f..7f7b445 100644
+index 9a7d138f..7da0415 100644
 --- a/components/omnibox/browser/suggest_template_info.mojom
 +++ b/components/omnibox/browser/suggest_template_info.mojom
-@@ -110,6 +110,18 @@
+@@ -110,6 +110,28 @@
  };
  // LINT.ThenChange(//third_party/omnibox_proto/suggest_template_info.proto:SecondaryTextPlacement)
  
@@ -2534,21 +4113,33 @@ index 9a7d138f..7f7b445 100644
 +};
 +// LINT.ThenChange(//third_party/omnibox_proto/suggest_template_info.proto:ActionIconType)
 +
++// The badge drawn on top of the type icon. Maps to
++// SuggestTemplateInfo.TypeIconBadge.BadgeType in
++// //third_party/omnibox_proto/suggest_template_info.proto.
++// LINT.IfChange(BadgeType)
++enum BadgeType {
++  kBadgeTypeUnspecified = 0,
++  kDot = 1,
++};
++// LINT.ThenChange(//third_party/omnibox_proto/suggest_template_info.proto:BadgeType)
++
  // An image to display with the suggestion. Maps to SuggestTemplateInfo.Image in
  // //third_party/omnibox_proto/suggest_template_info.proto.
  struct Image {
-@@ -148,4 +160,6 @@
+@@ -148,4 +170,8 @@
    // FuseboxAction carries client behavior and configuration to apply when the
    // user accepts a suggestion.
    fusebox_action.mojom.FuseboxAction? fusebox_action;
 +  // The icon to display on the right hand side of the suggestion, if any.
 +  ActionIconType? action_icon;
++  // The badge to draw on top of the type icon, if any.
++  BadgeType? type_icon_badge;
  };
 diff --git a/components/omnibox/browser/suggest_template_info_mojo_utils.cc b/components/omnibox/browser/suggest_template_info_mojo_utils.cc
-index 157e9fb4..5e05f19 100644
+index 157e9fb4..7824dbf1 100644
 --- a/components/omnibox/browser/suggest_template_info_mojo_utils.cc
 +++ b/components/omnibox/browser/suggest_template_info_mojo_utils.cc
-@@ -86,6 +86,26 @@
+@@ -86,6 +86,44 @@
    return static_cast<mojom::IconType>(proto.type_icon());
  }
  
@@ -2572,14 +4163,33 @@ index 157e9fb4..5e05f19 100644
 +  return std::nullopt;
 +}
 +
++std::optional<mojom::BadgeType> GetTypeIconBadge(
++    const omnibox::SuggestTemplateInfo& proto) {
++  using ProtoTypeIconBadge = omnibox::SuggestTemplateInfo::TypeIconBadge;
++  if (!proto.has_type_icon_badge() ||
++      !proto.type_icon_badge().has_badge_type()) {
++    return std::nullopt;
++  }
++  // Map the values explicitly instead of casting, so a proto value can't end up
++  // as a mojom value with a different meaning.
++  switch (proto.type_icon_badge().badge_type()) {
++    case ProtoTypeIconBadge::BADGE_TYPE_UNSPECIFIED:
++      return std::nullopt;
++    case ProtoTypeIconBadge::DOT:
++      return mojom::BadgeType::kDot;
++  }
++  return std::nullopt;
++}
++
  mojom::SuggestStyle GetStyle(const omnibox::SuggestTemplateInfo& proto) {
    static_assert(static_cast<int32_t>(
                      omnibox::SuggestTemplateInfo::StandardSuggestStyle_MAX) ==
-@@ -126,6 +146,7 @@
+@@ -126,6 +164,8 @@
    suggest_template->style = GetStyle(proto);
    suggest_template->type_icon = GetTypeIcon(proto);
    suggest_template->fusebox_action = GetFuseboxAction(proto);
 +  suggest_template->action_icon = GetActionIcon(proto);
++  suggest_template->type_icon_badge = GetTypeIconBadge(proto);
    return suggest_template;
  }
  
@@ -3358,6 +4968,19 @@ index 3c7e67c..a9256afd 100644
    if (!HasAnimationsOrTransitions(state)) {
      return false;
    }
+diff --git a/third_party/blink/renderer/core/frame/csp/csp_directive_list.cc b/third_party/blink/renderer/core/frame/csp/csp_directive_list.cc
+index 317a01c..fa2e6fb 100644
+--- a/third_party/blink/renderer/core/frame/csp/csp_directive_list.cc
++++ b/third_party/blink/renderer/core/frame/csp/csp_directive_list.cc
+@@ -772,7 +772,7 @@
+       (inline_type == ContentSecurityPolicy::InlineType::kScript ||
+        inline_type ==
+            ContentSecurityPolicy::InlineType::kScriptSpeculationRules) &&
+-      !html_script_element->Loader()->IsParserInserted() &&
++      !html_script_element->Loader()->IsParserInsertedForCSP() &&
+       CSPDirectiveListAllowDynamic(csp, type)) {
+     return true;
+   }
 diff --git a/third_party/blink/renderer/core/loader/modulescript/module_script_creation_params.cc b/third_party/blink/renderer/core/loader/modulescript/module_script_creation_params.cc
 index e0c0984..74ab079 100644
 --- a/third_party/blink/renderer/core/loader/modulescript/module_script_creation_params.cc
@@ -3392,6 +5015,73 @@ index 69902835..a9b3f5f5 100644
    }
  
    ScriptStreamer* GetScriptStreamer() const { return script_streamer_; }
+diff --git a/third_party/blink/renderer/core/script/script_loader.cc b/third_party/blink/renderer/core/script/script_loader.cc
+index beda657d..8d01804 100644
+--- a/third_party/blink/renderer/core/script/script_loader.cc
++++ b/third_party/blink/renderer/core/script/script_loader.cc
+@@ -254,6 +254,9 @@
+ 
+ namespace {
+ 
++BASE_FEATURE(kPreserveParserInsertedForCSPOnDisconnectedScript,
++             base::FEATURE_ENABLED_BY_DEFAULT);
++
+ // <specdef href="https://html.spec.whatwg.org/C/#prepare-the-script-element">
+ bool IsValidClassicScriptTypeAndLanguage(const String& type,
+                                          const String& language) {
+@@ -561,6 +564,15 @@
+ 
+   // <spec step="7">If el is not connected, then return.</spec>
+   if (!element_->IsConnected()) {
++    // Keep `parser_inserted_` false so `ScriptRunner` handles scheduling if the
++    // element is later connected, while preserving parser-inserted provenance
++    // for CSP checks when the script was parsed in its current document (as
++    // opposed to an inert `<template>` contents document).
++    if (was_parser_inserted && parser_document_ == &element_->GetDocument() &&
++        base::FeatureList::IsEnabled(
++            kPreserveParserInsertedForCSPOnDisconnectedScript)) {
++      was_parser_inserted_for_csp_ = true;
++    }
+     return nullptr;
+   }
+ 
+@@ -714,7 +726,7 @@
+   // <spec step="28">Let parser metadata be "parser-inserted" if el is
+   // ...</spec>
+   ParserDisposition parser_state =
+-      IsParserInserted() ? kParserInserted : kNotParserInserted;
++      IsParserInsertedForCSP() ? kParserInserted : kNotParserInserted;
+ 
+   if (GetScriptType() == ScriptLoader::ScriptTypeAtPrepare::kModule) {
+     UseCounter::Count(*context_window, WebFeature::kPrepareModuleScript);
+diff --git a/third_party/blink/renderer/core/script/script_loader.h b/third_party/blink/renderer/core/script/script_loader.h
+index 949c0fbe..c8b21d9 100644
+--- a/third_party/blink/renderer/core/script/script_loader.h
++++ b/third_party/blink/renderer/core/script/script_loader.h
+@@ -95,6 +95,11 @@
+       const TextPosition& script_start_position);
+ 
+   bool IsParserInserted() const { return parser_inserted_; }
++  // Unlike scheduling state, CSP provenance survives preparing a non-empty
++  // script while it is disconnected in its parser document.
++  bool IsParserInsertedForCSP() const {
++    return parser_inserted_ || was_parser_inserted_for_csp_;
++  }
+   bool AlreadyStarted() const { return already_started_; }
+   void SetAlreadyStarted() { already_started_ = true; }
+   bool IsForceAsync() const { return force_async_; }
+@@ -181,6 +186,11 @@
+   // store this information separately.
+   bool parser_inserted_ = false;
+ 
++  // Tracks whether a parser-created script in its parser document had its
++  // initial `PrepareScript()` call abort at the `!IsConnected()` check after
++  // `parser_inserted_` was cleared for scheduling.
++  bool was_parser_inserted_for_csp_ = false;
++
+   // <spec href="https://html.spec.whatwg.org/C/#script-force-async">...
+   // initially true. ...</spec>
+   bool force_async_ = true;
 diff --git a/third_party/blink/renderer/core/workers/worklet_module_responses_map.cc b/third_party/blink/renderer/core/workers/worklet_module_responses_map.cc
 index 4fb9dce95..b5f520c 100644
 --- a/third_party/blink/renderer/core/workers/worklet_module_responses_map.cc
@@ -3611,15 +5301,136 @@ index 6049967..6d5b1466 100644
    ParkableStringCacheMapTraits::MapType::PersistentValueReference
        cached_v8_string = parkable_string_cache_.GetReference(string.Impl());
    if (!cached_v8_string.IsEmpty()) {
+diff --git a/third_party/omnibox_proto/README.chromium b/third_party/omnibox_proto/README.chromium
+index ce0a999..1adb20a 100644
+--- a/third_party/omnibox_proto/README.chromium
++++ b/third_party/omnibox_proto/README.chromium
+@@ -2,8 +2,8 @@
+ Short Name: omnibox_proto
+ URL: This is the canonical public repository
+ Update Mechanism: Manual
+-Version: 1018426835
+-Date: 2026-11-10
++Version: 1019184858
++Date: 2026-11-12
+ License: BSD-3-Clause
+ License File: LICENSE
+ Shipped: yes
+diff --git a/third_party/omnibox_proto/suggest_template_info.proto b/third_party/omnibox_proto/suggest_template_info.proto
+index 029bc78..394c408 100644
+--- a/third_party/omnibox_proto/suggest_template_info.proto
++++ b/third_party/omnibox_proto/suggest_template_info.proto
+@@ -22,7 +22,7 @@
+ import "tool_mode.proto";
+ 
+ // Suggest Template rendering data.
+-// Next ID: 15
++// Next ID: 16
+ message SuggestTemplateInfo {
+ // LINT.IfChange(StandardSuggestStyle)
+   enum StandardSuggestStyle {
+@@ -263,4 +263,21 @@
+ 
+   // The icon on the right hand side of the suggestion.
+   optional ActionIconType action_icon = 14;
++
++  // Badge overlay specification for the type icon.
++  // Next ID: 2
++  message TypeIconBadge {
++    // Next ID: 2
++    enum BadgeType {
++      BADGE_TYPE_UNSPECIFIED = 0;
++      // Small dot badge indicator per Material 3 specs.
++      DOT = 1;
++    }
++
++    // The type of badge to render.
++    optional BadgeType badge_type = 1;
++  }
++
++  // Optional badge overlay associated with the type icon.
++  optional TypeIconBadge type_icon_badge = 15;
+ }
+diff --git a/tools/metrics/actions/actions.xml b/tools/metrics/actions/actions.xml
+index 6f406447..365342a 100644
+--- a/tools/metrics/actions/actions.xml
++++ b/tools/metrics/actions/actions.xml
+@@ -1131,6 +1131,7 @@
+   <variant name=".GenerativeThemes" summary="Generative Themes"/>
+   <variant name=".GenerativeTheming" summary="Generative Theming"/>
+   <variant name=".GlicWhatsNewLuminous" summary="Gemini in Chrome: Luminous"/>
++  <variant name=".GlicWhatsNewQuizzes" summary="Gemini in Chrome: Quizzes"/>
+   <variant name=".GoogleLens" summary="Google Lens"/>
+   <variant name=".Googlepayreauth" summary="Google Pay Re-auth"/>
+   <variant name=".HeadlessLiveCaption" summary="Headless Live Caption"/>
+diff --git a/tools/metrics/histograms/metadata/user_education/histograms.xml b/tools/metrics/histograms/metadata/user_education/histograms.xml
+index b5b39cf..8c0de85 100644
+--- a/tools/metrics/histograms/metadata/user_education/histograms.xml
++++ b/tools/metrics/histograms/metadata/user_education/histograms.xml
+@@ -136,6 +136,8 @@
+       summary="the module for Generative Theming"/>
+   <variant name="GlicWhatsNewLuminous"
+       summary="the module for Gemini in Chrome: Luminous"/>
++  <variant name="GlicWhatsNewQuizzes"
++      summary="the module for Gemini in Chrome: Quizzes"/>
+   <variant name="GlitterAIFeaturesVideo"
+       summary="the module for Glitter AI Features Video"/>
+   <variant name="GlitterAIMode" summary="the module for Glitter AI Mode"/>
+diff --git a/ui/base/ime/input_method_base.cc b/ui/base/ime/input_method_base.cc
+index 5c91cc1..faead4f7 100644
+--- a/ui/base/ime/input_method_base.cc
++++ b/ui/base/ime/input_method_base.cc
+@@ -155,6 +155,10 @@
+   observer_list_.Notify(&InputMethodObserver::OnCaretBoundsChanged, client);
+ }
+ 
++void InputMethodBase::NotifyInputLocaleChanged() {
++  observer_list_.Notify(&InputMethodObserver::OnInputLocaleChanged);
++}
++
+ void InputMethodBase::SetFocusedTextInputClientInternal(
+     TextInputClient* client) {
+   TextInputClient* old = text_input_client_;
+diff --git a/ui/base/ime/input_method_base.h b/ui/base/ime/input_method_base.h
+index 750e84a9..dfb4216 100644
+--- a/ui/base/ime/input_method_base.h
++++ b/ui/base/ime/input_method_base.h
+@@ -92,6 +92,9 @@
+   // |client| which is the text input client with focus.
+   void NotifyTextInputCaretBoundsChanged(const TextInputClient* client);
+ 
++  // Convenience method to notify all observers of input locale changes.
++  void NotifyInputLocaleChanged();
++
+   ImeKeyEventDispatcher* ime_key_event_dispatcher() {
+     return ime_key_event_dispatcher_;
+   }
+diff --git a/ui/base/ime/input_method_observer.h b/ui/base/ime/input_method_observer.h
+index b3e759e..17dbe23 100644
+--- a/ui/base/ime/input_method_observer.h
++++ b/ui/base/ime/input_method_observer.h
+@@ -40,6 +40,11 @@
+   // Called when an API call is used to explicitly show / hide the virtual
+   // keyboard.
+   virtual void OnVirtualKeyboardVisibilityChangedIfEnabled(bool should_show) {}
++
++  // Called when the system tells the observed input method's window that the
++  // input locale changed, e.g. because the user switched to another input
++  // language. Currently only called on Windows.
++  virtual void OnInputLocaleChanged() {}
+ };
+ 
+ }  // namespace ui
 diff --git a/ui/webui/resources/cr_components/composebox/composebox_proxy.ts b/ui/webui/resources/cr_components/composebox/composebox_proxy.ts
-index b83bf08..1850b29 100644
+index b83bf08..d21bb5f 100644
 --- a/ui/webui/resources/cr_components/composebox/composebox_proxy.ts
 +++ b/ui/webui/resources/cr_components/composebox/composebox_proxy.ts
-@@ -39,6 +39,7 @@
+@@ -39,6 +39,8 @@
        style: SuggestStyle.kUnspecified,
        typeIcon: IconType.kIconTypeUnspecified,
        fuseboxAction: null,
 +      actionIcon: null,
++      typeIconBadge: null,
      },
      secondaryTextIsUrl: false,
      urlEmphasis: null,
@@ -3644,17 +5455,113 @@ index 0000000..c16b130
 +<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4"/></svg>
 \ No newline at end of file
 diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_browser_proxy.ts b/ui/webui/resources/cr_components/searchbox/searchbox_browser_proxy.ts
-index fa4d125..fb74871 100644
+index fa4d125..b2c39cfd 100644
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_browser_proxy.ts
 +++ b/ui/webui/resources/cr_components/searchbox/searchbox_browser_proxy.ts
-@@ -64,6 +64,7 @@
+@@ -64,6 +64,8 @@
      style: SuggestStyle.kUnspecified,
      typeIcon: IconType.kIconTypeUnspecified,
      fuseboxAction: null,
 +    actionIcon: null,
++    typeIconBadge: null,
    };
  
    return Object.assign(base, modifiers);
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_icon.css b/ui/webui/resources/cr_components/searchbox/searchbox_icon.css
+index a9876d1..25f2727 100644
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_icon.css
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_icon.css
+@@ -87,6 +87,28 @@
+   width: 16px;
+ }
+ 
++/* A badge in the top-right corner of the icon. The icon is centered in the
++   square container, so the corner is half the leftover space in. */
++#badge {
++  inset-inline-end: calc(
++      (100% - var(--cr-searchbox-results-search-icon-size, 16px)) / 2);
++  position: absolute;
++  top: calc((100% - var(--cr-searchbox-results-search-icon-size, 16px)) / 2);
++}
++
++/* The dot uses the URL color so that it follows dark mode and themes. */
++#badge.dot {
++  -webkit-mask-image: url(chrome://resources/cr_components/searchbox/icons/dot.svg);
++  -webkit-mask-size: contain;
++  background-color: var(--color-searchbox-results-url);
++  height: 4px;
++  width: 4px;
++}
++
++:host-context(cr-searchbox-match:is(:focus-within, [selected])) #badge.dot {
++  background-color: var(--color-searchbox-results-url-selected);
++}
++
+ @media (forced-colors: active) {
+   :host {
+     --color-searchbox-answer-icon-background: transparent;
+@@ -169,3 +191,12 @@
+   background-color: var(--color-searchbox-results-icon-container-background);
+   border-radius: 4000px;
+ }
++
++@media (forced-colors: active) {
++  /* Same color as the icon, which turns HighlightText on hover and
++     selection. */
++  #badge.dot {
++    background-color: var(--color-searchbox-search-icon-background);
++    forced-color-adjust: none;
++  }
++}
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_icon.html.ts b/ui/webui/resources/cr_components/searchbox/searchbox_icon.html.ts
+index 2a8fcdf..f7d6260 100644
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_icon.html.ts
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_icon.html.ts
+@@ -33,6 +33,9 @@
+   <img id="iconImg" alt="" ?hidden="${!this.showIconImg_}"
+       src="${resolveSchemeRelativeUrl(this.iconSrc_)}"
+       @load="${this.onIconLoad_}">
++  ${this.getBadgeClass_() ? html`
++    <div id="badge" class="${this.getBadgeClass_()}"></div>
++  ` : ''}
+ </div>
+ <!--_html_template_end_-->`;
+   // clang-format on
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_icon.ts b/ui/webui/resources/cr_components/searchbox/searchbox_icon.ts
+index f99ac00..9183d79 100644
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_icon.ts
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_icon.ts
+@@ -7,7 +7,7 @@
+ import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
+ import type {PropertyValues} from '//resources/lit/v3_0/lit.rollup.js';
+ import type {AutocompleteMatch} from '//resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
+-import {SecondaryTextPlacement} from '//resources/mojo/components/omnibox/browser/suggest_template_info.mojom-webui.js';
++import {BadgeType, SecondaryTextPlacement} from '//resources/mojo/components/omnibox/browser/suggest_template_info.mojom-webui.js';
+ 
+ import {getCss} from './searchbox_icon.css.js';
+ import {getHtml} from './searchbox_icon.html.js';
+@@ -564,6 +564,21 @@
+     return this.match?.type === STARTER_PACK ||
+         this.match?.type === FEATURED_ENTERPRISE_SEARCH;
+   }
++
++  // Returns the class that styles the badge on the type icon, or an empty
++  // string if there is no badge to show. The searchbox input icon never shows
++  // one.
++  protected getBadgeClass_(): string {
++    if (this.inSearchbox) {
++      return '';
++    }
++    switch (this.match?.suggestTemplate.typeIconBadge) {
++      case BadgeType.kDot:
++        return 'dot';
++      default:
++        return '';
++    }
++  }
+ }
+ 
+ declare global {
 diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
 index fad7bcdf..a8c5037c 100644
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_match.css
@@ -3766,6 +5673,26 @@ index 01cd8a16..74e286e 100644
  }
  
  declare global {
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts b/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts
+index 9c3a664..ff16f6b 100644
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts
+@@ -997,10 +997,13 @@
+         return;
+       }
+ 
++      // Ctrl+Enter only adds 'www.' and '.com' if Ctrl was pressed while the
++      // searchbox had focus and wasn't used for another key. E.g. not if Ctrl
++      // was held to focus the searchbox with Ctrl+L from the page, which the
++      // searchbox doesn't see.
+       const isPureCtrlEnter = this.shouldAppendDotComOnCtrlEnter() &&
+           !this.inKeywordMode && e.ctrlKey && !e.shiftKey && !e.altKey &&
+-          !e.metaKey &&
+-          this.controlKeyState !== ControlKeyState.DOWN_AND_CONSUMED;
++          !e.metaKey && this.controlKeyState === ControlKeyState.DOWN;
+ 
+       e.preventDefault();
+       if (this.handleVirtualFocusEnter(e)) {
 diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/vk_renderer.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/vk_renderer.cpp
 index 816202f..3db6617 100644
 --- a/third_party/angle/src/libANGLE/renderer/vulkan/vk_renderer.cpp
@@ -3856,10 +5783,10 @@ index 4f9f1d2..f0c8d8f 100644
  CombinedLimits ApplyLimitTiers(const CombinedLimits& limits);
  
 diff --git a/third_party/dawn/src/dawn/native/Toggles.cpp b/third_party/dawn/src/dawn/native/Toggles.cpp
-index 14e870c..a175e83 100644
+index 14e870c..a3e817e 100644
 --- a/third_party/dawn/src/dawn/native/Toggles.cpp
 +++ b/third_party/dawn/src/dawn/native/Toggles.cpp
-@@ -993,6 +993,11 @@
+@@ -993,6 +993,16 @@
        "block-compressed textures. Works around a device hang on some Intel GPUs when many "
        "buffer-texture copies of BC textures are recorded with unaligned buffer offsets.",
        "https://crbug.com/581018327", ToggleStage::Device}},
@@ -3868,18 +5795,24 @@ index 14e870c..a175e83 100644
 +      "Limit maxSampledTexturesPerShaderStage and maxSamplersPerShaderStage to 13, and reject "
 +      "shaders using more than 13 GL texture image units. Works around a PowerVR driver bug.",
 +      "https://crbug.com/580872855", ToggleStage::Adapter}},
++    {Toggle::MetalPolyfillExtractBits,
++     {"metal_polyfill_extract_bits",
++      "Use the full polyfill for extractBits() instead of clamping to work around an Apple Metal "
++      "compiler bug.",
++      "https://crbug.com/587021111", ToggleStage::Device}},
  
      // Comment to separate the }} so it is clearer what to copy-paste to add a toggle.
  }};
 diff --git a/third_party/dawn/src/dawn/native/Toggles.h b/third_party/dawn/src/dawn/native/Toggles.h
-index bc0ca2a..8e60543 100644
+index bc0ca2a..1fbc46a 100644
 --- a/third_party/dawn/src/dawn/native/Toggles.h
 +++ b/third_party/dawn/src/dawn/native/Toggles.h
-@@ -237,6 +237,7 @@
+@@ -237,6 +237,8 @@
      LimitMaxTextureBytesTo1MB,
      VulkanUseDescriptorUpdateTemplate,
      D3D12DisableRelaxedBufferTextureCopyAlignmentForCompressedFormats,
 +    GLLimitTextureImageUnitsTo13,
++    MetalPolyfillExtractBits,
  
      EnumCount,
      InvalidEnum = EnumCount,
@@ -3926,6 +5859,75 @@ index 126815a..e611c21 100644
          *combinedSamplersOut = std::move(combinedSamplers);
      }
  
+diff --git a/third_party/dawn/src/tint/lang/msl/writer/common/options.h b/third_party/dawn/src/tint/lang/msl/writer/common/options.h
+index 0672791..4bc4d59 100644
+--- a/third_party/dawn/src/tint/lang/msl/writer/common/options.h
++++ b/third_party/dawn/src/tint/lang/msl/writer/common/options.h
+@@ -150,6 +150,9 @@
+         /// select-based whole vector write operation.
+         bool polyfill_bool_vec_dynamic_store = false;
+ 
++        /// Set to `true` to use the full polyfill for `extractBits()` instead of clamping.
++        bool polyfill_extract_bits = false;
++
+         TINT_REFLECT(Workarounds,
+                      scalarize_max_min_clamp,
+                      disable_module_constant_f16,
+@@ -161,7 +164,8 @@
+                      replace_workgroup_bool_with_u32,
+                      collapse_subgroup_min_max,
+                      fix_u32_div_mod,
+-                     polyfill_bool_vec_dynamic_store);
++                     polyfill_bool_vec_dynamic_store,
++                     polyfill_extract_bits);
+         TINT_REFLECT_HASH_CODE(Workarounds);
+ 
+         bool operator==(const Workarounds&) const = default;
+diff --git a/third_party/dawn/src/tint/lang/msl/writer/raise/raise.cc b/third_party/dawn/src/tint/lang/msl/writer/raise/raise.cc
+index 66fd2fd..36696ce 100644
+--- a/third_party/dawn/src/tint/lang/msl/writer/raise/raise.cc
++++ b/third_party/dawn/src/tint/lang/msl/writer/raise/raise.cc
+@@ -173,7 +173,9 @@
+             .clamp_float = options.workarounds.polyfill_clamp_float,
+             .abs_signed_int = true,
+             .degrees = true,
+-            .extract_bits = core::ir::transform::BuiltinPolyfillLevel::kClampOrRangeCheck,
++            .extract_bits = options.workarounds.polyfill_extract_bits
++                                ? core::ir::transform::BuiltinPolyfillLevel::kFull
++                                : core::ir::transform::BuiltinPolyfillLevel::kClampOrRangeCheck,
+             .fwidth_fine = true,
+             .insert_bits = core::ir::transform::BuiltinPolyfillLevel::kClampOrRangeCheck,
+             .radians = true,
+diff --git a/third_party/dawn/src/tint/lang/msl/writer/writer_fuzz.cc b/third_party/dawn/src/tint/lang/msl/writer/writer_fuzz.cc
+index dfa2ce6..e28b9a0 100644
+--- a/third_party/dawn/src/tint/lang/msl/writer/writer_fuzz.cc
++++ b/third_party/dawn/src/tint/lang/msl/writer/writer_fuzz.cc
+@@ -66,6 +66,7 @@
+     bool fix_u32_div_mod;
+     bool polyfill_bool_vec_dynamic_store;
+     uint32_t non_constant_zero_offset;
++    bool polyfill_extract_bits;
+ 
+     /// Reflect the fields of this class so that it can be used by tint::ForeachField()
+     TINT_REFLECT(FuzzedOptions,
+@@ -91,7 +92,8 @@
+                  collapse_subgroup_min_max,
+                  fix_u32_div_mod,
+                  polyfill_bool_vec_dynamic_store,
+-                 non_constant_zero_offset);
++                 non_constant_zero_offset,
++                 polyfill_extract_bits);
+     TINT_REFLECT_HASH_CODE(FuzzedOptions);
+ };
+ 
+@@ -154,6 +156,7 @@
+     options.workarounds.polyfill_bool_vec_dynamic_store =
+         fuzzed_options.polyfill_bool_vec_dynamic_store;
+     options.non_constant_zero_offset = fuzzed_options.non_constant_zero_offset;
++    options.workarounds.polyfill_extract_bits = fuzzed_options.polyfill_extract_bits;
+ 
+     options.bindings = GenerateBindings(module, ep_name, false, false);
+     options.immediate_binding_point = 30;
 diff --git a/third_party/dawn/webgpu-cts/compat-expectations.txt b/third_party/dawn/webgpu-cts/compat-expectations.txt
 index 3d57031..a9e657e 100644
 --- a/third_party/dawn/webgpu-cts/compat-expectations.txt
