@@ -34,9 +34,8 @@ ROLLUP_BIDI_VER="4.63.1"
 CDDLCONV_VER="0.2.0"
 
 # Each LLVM slot means one dev-lang/rust (::gentoo's Rust ebuilds have one LLVM slot each), and
-# its own dev-util/crubit (tied to one Rust build): CHROMIUM_CRUBIT_RUST.
+# its own dev-util/crubit (tied to one Rust build).
 LLVM_COMPAT=( 22 23 )
-CHROMIUM_CRUBIT_RUST=( 22:1.98.1 23:1.99.0 )
 RUST_MIN_VER=1.98.1 # Oldest Rust with a dev-util/crubit build (rustc driver, tied to the Rust build)
 # The dev-util/crubit this version needs: <Rust version>_p<CRUBIT_DATE>, the commit date of
 # CRUBIT_REVISION in tools/rust/update_rust.py (each Crubit version has its own slot). BDEPEND
