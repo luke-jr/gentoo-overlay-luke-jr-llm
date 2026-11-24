@@ -134,6 +134,21 @@
 # ICU4X_DATAGEN_LSTM_VER (the segmenter's LSTM models). The data is regenerated with
 # dev-util/chromium-icu4x-datagen. Unset: no such data.
 
+# @ECLASS_VARIABLE: CHROMIUM_ICU4X_DATAGEN_SLOT
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# With ICU4X_DATAGEN_CLDR_VER: the dev-util/chromium-icu4x-datagen slot (an older major's) when
+# this version's tools/crates/icu4x_datagen is the same as that major's (160: 159's). Unset: the
+# major version's own.
+
+# @ECLASS_VARIABLE: BLINK_EMOJI_UNICODE_VER
+# @DEFAULT_UNSET
+# @DESCRIPTION:
+# Set (160 and later) when Blink checks in its emoji property table
+# (third_party/blink/renderer/platform/text/character_emoji_data.h, made by
+# generate_character_emoji_data.py from Unicode's emoji-data.txt): the Unicode version it names.
+# The table is regenerated from that version's emoji-data.txt. Unset: no such table.
+
 # @ECLASS_VARIABLE: CHROMIUM_BUILD_DIR
 # @USER_VARIABLE
 # @DEFAULT_UNSET
@@ -403,6 +418,13 @@ done
 unset _f
 SRC_URI+=" )"
 
+# Blink's emoji property table (BLINK_EMOJI_UNICODE_VER, see chromium_regen_blink_emoji); the same
+# file as HarfBuzz's emoji/emoji-data with HB_UCD_FILES.
+[[ -n ${BLINK_EMOJI_UNICODE_VER} ]] && SRC_URI+="
+	${UNICODETOOLS_DATA}/ucd/${BLINK_EMOJI_UNICODE_VER}/emoji/emoji-data.txt
+		-> unicode-${BLINK_EMOJI_UNICODE_VER}-emoji-data.txt
+"
+
 SRC_URI+=" !prebuilt-chromedriver-atoms? (
 	https://github.com/SeleniumHQ/selenium/archive/${SELENIUM_COMMIT}.tar.gz -> selenium-${SELENIUM_COMMIT}.gh.tar.gz
 )"
@@ -615,7 +637,8 @@ BDEPEND="
 
 
 
-[[ -n ${ICU4X_DATAGEN_CLDR_VER} ]] && BDEPEND+=" dev-util/chromium-icu4x-datagen:${PV%%.*}"
+[[ -n ${ICU4X_DATAGEN_CLDR_VER} ]] &&
+	BDEPEND+=" dev-util/chromium-icu4x-datagen:${CHROMIUM_ICU4X_DATAGEN_SLOT:-${PV%%.*}}"
 
 if ! has chromium_pkg_die ${EBUILD_DEATH_HOOKS}; then
 	EBUILD_DEATH_HOOKS+=" chromium_pkg_die";
@@ -1644,6 +1667,8 @@ chromium_regenerated_outputs() {
 	echo third_party/ipcz/src/ipcz/{node,test}_messages.{cc,h} ui/base/ime/character_composer_data.h \
 		third_party/zxcvbn-cpp/native-src/zxcvbn/adjacency_graphs.{cpp,hpp} third_party/libzip/src/zip_err_str.c
 	use wayland && echo third_party/wayland/include/config.h
+	# Blink's emoji property table (160 and later)
+	[[ -n ${BLINK_EMOJI_UNICODE_VER} ]] && echo third_party/blink/renderer/platform/text/character_emoji_data.h
 	# Extension API TypeScript declarations, Glic's API enums
 	echo $(_chromium_ts_definitions) chrome/browser/resources/glic/glic_api/glic_api_generated.ts
 	if use !system-harfbuzz; then
@@ -1693,8 +1718,10 @@ chromium_regenerated_outputs() {
 	# DevTools' generated files, and its JavaScript bundles (lit's, codemirror.next's,
 	# web-vitals', third-party-web's) and ClientVariations.js
 	local d=third_party/devtools-frontend/src
-	echo "${d}/front_end/generated/SupportedCSSProperties.ts" \
-		"${d}/front_end/models/javascript_metadata/NativeFunctions.ts"
+	echo "${d}/front_end/models/javascript_metadata/NativeFunctions.ts"
+	# Up to 159 (160's DevTools build generates it itself)
+	[[ -e ${d}/front_end/generated/SupportedCSSProperties.ts ]] &&
+		echo "${d}/front_end/generated/SupportedCSSProperties.ts"
 	# Up to 158 (159's DevTools build generates these itself)
 	[[ -e ${d}/front_end/generated/InspectorBackendCommands.ts ]] &&
 		echo "${d}"/front_end/generated/{ARIAProperties,Deprecation,InspectorBackendCommands,protocol}.ts \
@@ -1843,7 +1870,7 @@ chromium_regen_icu4x_data() {
 		ICU4X_ICUEXPORT_DIR="${DISTDIR}/icu4x-icuexportdata-${ICU4X_DATAGEN_ICUEXPORT_VER}.zip" \
 		ICU4X_UNICODE_DIR="${d}/unicode" ICU4X_TZDB_DIR="${d}/tzdb" \
 		ICU4X_SEGMENTER_LSTM_DIR="${DISTDIR}/lstm_word_segmentation-${ICU4X_DATAGEN_LSTM_VER}-models.zip" \
-		"${BROOT}/usr/lib/chromium-icu4x-datagen/${PV%%.*}/icu4x_datagen" generate --platforms common \
+		"${BROOT}/usr/lib/chromium-icu4x-datagen/${CHROMIUM_ICU4X_DATAGEN_SLOT:-${PV%%.*}}/icu4x_datagen" generate --platforms common \
 		> "${T}/icu4x_datagen.log" 2>&1 || die "icu4x_datagen failed (see ${T}/icu4x_datagen.log)"
 	if [[ ! -e third_party/rust-toolchain/bin/rustfmt ]]; then
 		# As icu4x_datagen formats them (its mod.rs starts with @generated, which rustfmt skips
@@ -2456,6 +2483,25 @@ chromium_regen_ipcz() {
 		> "${T}/ipcz-messages.log" 2>&1 || die "Failed to regenerate ipcz's messages (see ${T}/ipcz-messages.log)"
 }
 
+chromium_regen_blink_emoji() {
+	# Blink's emoji property table (third_party/blink/renderer/platform/text/
+	# character_emoji_data.h, 160 and later) is made from Unicode's emoji-data.txt by
+	# generate_character_emoji_data.py, which downloads it: regenerate it from the file
+	# (BLINK_EMOJI_UNICODE_VER), naming the versioned URL it is published at as the source, as the
+	# generator does for a download.
+	einfo "Regenerating Blink's emoji property table ..."
+	"${EPYTHON}" -B - third_party/blink/renderer/platform/text \
+		"${DISTDIR}/unicode-${BLINK_EMOJI_UNICODE_VER}-emoji-data.txt" "${BLINK_EMOJI_UNICODE_VER}" <<-EOF ||
+		import sys
+		sys.path.insert(0, sys.argv[1])
+		import generate_character_emoji_data as g
+		text = open(sys.argv[2], encoding="utf-8").read()
+		header = g.generate_header(text, source_comment=g.VERSIONED_URL_TEMPLATE.format(version=sys.argv[3]))
+		open(sys.argv[1] + "/character_emoji_data.h", "w", encoding="utf-8").write(header)
+	EOF
+		die "Failed to regenerate character_emoji_data.h"
+}
+
 chromium_regen_composer() {
 	# The IME character composer's table (ui/base/ime/character_composer_data.h) is made from
 	# character_composer_sequences.txt by generate_character_composer_data.py: regenerate it.
@@ -2841,7 +2887,7 @@ chromium_regen_openxr() {
 chromium_regen_devtools_generated() {
 	# DevTools checks in files generated from Blink's and V8's definitions: front_end/generated/
 	# (the protocol, ARIA, CSS and deprecation data; since 159 only the CSS data, its build makes
-	# the rest) and models/javascript_metadata/
+	# the rest; since 160 none, and generate_protocol_resources.py is gone) and models/javascript_metadata/
 	# NativeFunctions.ts (from Blink's Web IDL). Regenerate them with DevTools' own scripts (the
 	# first gives byte-identical files; NativeFunctions.ts differs: 156's IDL, which DevTools'
 	# copy lags behind, and the order of its lists, made deterministic by
@@ -2850,8 +2896,10 @@ chromium_regen_devtools_generated() {
 	# edited by hand since).
 	einfo "Regenerating DevTools' generated files ..."
 	pushd third_party/devtools-frontend/src >/dev/null || die
-	"${EPYTHON}" scripts/deps/generate_protocol_resources.py --node-path "$(type -P node)" ||
-		die "Failed to regenerate DevTools' protocol resources"
+	if [[ -e scripts/deps/generate_protocol_resources.py ]]; then
+		"${EPYTHON}" scripts/deps/generate_protocol_resources.py --node-path "$(type -P node)" ||
+			die "Failed to regenerate DevTools' protocol resources"
+	fi
 	# NativeFunctions.ts also needs TypeScript's lib*.d.ts (dev-lang/typescript's) and webidl2's
 	# sources (lib/; its dist/ bundle isn't used)
 	rm -r node_modules/webidl2/dist || die
@@ -3173,7 +3221,8 @@ chromium_regenerate() {
 		vulkan_headers devtools_generated ffmpeg libaom dav1d bidi pdfium_tables libcxx v8_keywords \
 		sqlite wuffs simdutf re2 bison_ragel harfbuzz_tables ipcz composer zxcvbn libzip wayland \
 		ts_definitions selenium_atoms root_stores libutf metrics openxr polymer devtools_lit \
-		devtools_codemirror web_vitals third_party_web client_variations
+		devtools_codemirror web_vitals third_party_web client_variations \
+		${BLINK_EMOJI_UNICODE_VER:+blink_emoji}
 
 	chromium_unbundle
 }
