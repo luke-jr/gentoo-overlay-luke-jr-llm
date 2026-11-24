@@ -310,6 +310,33 @@ Website Sets and adds an optimization guide model). The same 28 checked-in gener
 are not made again (unused: ANGLE's unused Vulkan shader variants, codemirror.next's stale chunks,
 OpenXR's with `USE=-openxr`, XNNPACK's RISC-V kernels).
 
+## 160
+
+`160.0.8171.0` is 160's port ahead of its Beta (`SLOT="beta"`, no keywords), on a dev tarball
+(chromium-linux-tarballs'; 160 branches on 2026-11-30, Beta 2026-12-02). Differences from 159:
+- Pins: gn 0.2627; Crubit commit 20261110 (`dev-util/crubit-*_p20261110`, for Rust 1.98.1,
+  1.99.0 and 1.99.1); Node 26.13.1 (`NODE_VER`, which pulls a newer `net-libs/nodejs` into the
+  build); the WebDriver BiDi Web Bluetooth spec at an unmerged pull request's head (whatwg/bluetooth
+  #672), because chromium-bidi hand-added `simulateGattMtuChange`, which only that PR has.
+- Crubit's `rust_api_from_cpp` (C++ to Rust bindings, `rs_bindings_from_cc`), which 160 turns on,
+  stays off (copium's two `cr160-*rust_api_from_cpp` patches): `dev-util/crubit` builds only
+  `cc_bindings_from_rs`, and only the Rust ORB sniffers use it (their feature is off by default).
+- New bundled source kept: `third_party/ml_drift`. 160 builds LiteRT with ML Drift, its WebGPU
+  accelerator (`build_litert_with_ml_drift`, false in 159 though its sources were in the
+  tarball, so the unbundling deleted them).
+- New checked-in generated file: Blink's emoji property table (`character_emoji_data.h`),
+  regenerated from Unicode's emoji-data.txt (`BLINK_EMOJI_UNICODE_VER`). DevTools generates
+  `SupportedCSSProperties.ts` in its own build now (`generate_protocol_resources.py` is gone).
+- The AppStream template is `metainfo.xml.template` (was `appdata.xml.template`);
+  `files/generate-support-files.py` takes either.
+- Per-major packages: `dev-util/chromium-rust-crates:160` and `chromium-node-modules:160`;
+  `gnrt:158` and `chromium-icu4x-datagen:159` (`CHROMIUM_ICU4X_DATAGEN_SLOT`) are reused, their
+  inputs unchanged. The npm keep list is 156's (traced on 160's first build: same packages).
+- Patches rebased (fuzz only): `chromium-160-no-runtime-executable-downloads.patch`,
+  `chromium-160-hardened-0183-seccomp-restrict-dynamic-code-support.patch`, and the Gentoo
+  patchset's `cr151-dawn-system-go.patch`; the others apply as they are.
+- The `WebUIOmniboxPopup` feature (and the native omnibox popup) is still there.
+
 ## Known issues / TODO
 
 - **No `USE=system-icu`:** the ebuilds always build the bundled ICU (regenerated, see the
