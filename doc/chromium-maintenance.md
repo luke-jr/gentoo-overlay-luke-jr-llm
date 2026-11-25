@@ -33,7 +33,7 @@ was added with (and 156 updated from .12 to .47).
     `~amd64 ~arm64` when it becomes Early Stable. When the Linux Beta is the same version as
     Google's Early Stable (e.g. 158.0.8127.18), there is one plain ebuild, as Early Stable
     (`SLOT="stable"`), and no Beta one until the Linux Beta moves to another version
-    (159.0.8154.13 is both, since 2026-11-18: no Beta ebuild until 160).
+    (159 is both since 2026-11-18, now 159.0.8154.33/.34: no Beta ebuild until 160).
   - The line-up (2026-11-24): Stable 158.0.8127.88 (`amd64`); Early Stable 159.0.8154.34
     (`159.0.8154.34_pre`, official, `~amd64`), which replaced 158.0.8127.37-r2; the bleeding edge 159.0.8154.45_p1684_pre (`stable/fixes`); no Beta until 160, whose port is
     160.0.8171.0 (`beta`, on a dev tarball, ahead of its Beta; it moves to the 160 branch at the branch point).
