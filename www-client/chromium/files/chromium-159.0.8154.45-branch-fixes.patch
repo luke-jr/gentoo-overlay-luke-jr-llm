@@ -1,10 +1,10 @@
 Chromium 159.0.8154.45 + the later changes of its release branch, up to
-c8faa14c68e61321b16ff6ddc4702cc4b6969f97 (refs/branch-heads/8154@{#1694}), for the
+d388491bd2d83938da18d144fb4c71d26337152f (refs/branch-heads/8154@{#1707}), for the
 159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
-8154@{#1693}.
+8154@{#1707}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..c8faa14c68e6 and the
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..d388491bd2d8 and the
 dependencies whose DEPS revision changed: ANGLE 4dd34493f8a2..fcd0b7205673 (under
 third_party/angle/), third_party/libvpx/source/libvpx fb0a26ad923b..6f89cfbcc99f (under
 third_party/libvpx/source/libvpx/), V8 90a5172104e6..5075e76e0972 (under v8/), as served by
@@ -82,6 +82,10 @@ Commits contributing to it (oldest first):
   b041ae1632af [M159] Revert CHECK_GE back to DCHECK_GE in MetricsHandler::HandleRecordTime (8154@{#1684})
   494ba27b96c7 [M159] [loomnibox] Update the Loomnibox 1-line pill and expand/collapse animations (8154@{#1685})
   975ba709be1c [M159] FSA: validate source entry type before moving or renaming (8154@{#1693})
+  0a2edb98bd9e [M159] Revert CHECK for NotificationHandler in ProcessNotificationOperation (8154@{#1703})
+  c3a56a5f8a04 [M159] Revert CHECK_NE conversion in (8154@{#1704})
+  7cd6bbfe3c95 [M159] Revert CHECK back to DCHECK in ViewAccessibility::SetName (8154@{#1705})
+  d388491bd2d8 [M159] media: Retain decoder ownership in DecoderSelector until delivery runs (8154@{#1707})
 Dependency commits of those rolls that touch kept files:
   315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
   9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
@@ -98,7 +102,7 @@ Dependency commits of those rolls that touch kept files:
   5075e76e0972 Version 15.9.128.38 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
-version at c8faa14c68e6 (or ANGLE's fcd0b7205673) (or third_party/libvpx/source/libvpx's
+version at d388491bd2d8 (or ANGLE's fcd0b7205673) (or third_party/libvpx/source/libvpx's
 6f89cfbcc99f) (or V8's 5075e76e0972).
 
 Apply with git apply.
@@ -471,6 +475,23 @@ index 7bbd3da..8ffb3889 100644
    MOCK_METHOD(ContextualTasksPanelController::EntrySource,
                GetActiveEntrySource,
                (),
+diff --git a/chrome/browser/extensions/api/passwords_private/passwords_private_delegate_impl.cc b/chrome/browser/extensions/api/passwords_private/passwords_private_delegate_impl.cc
+index 08af8fd..ad009fd 100644
+--- a/chrome/browser/extensions/api/passwords_private/passwords_private_delegate_impl.cc
++++ b/chrome/browser/extensions/api/passwords_private/passwords_private_delegate_impl.cc
+@@ -747,8 +747,10 @@
+     std::move(results_callback).Run(results);
+     return;
+   }
+-  CHECK_NE(api::passwords_private::PasswordStoreSet::kDeviceAndAccount,
+-           to_store, base::NotFatalUntil::M161);
++  // TODO(crbug.com/586523128): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK_NE(api::passwords_private::PasswordStoreSet::kDeviceAndAccount,
++            to_store);
+   password_manager::PasswordForm::Store store_to_use =
+       *ConvertToPasswordFormStores(to_store).begin();
+   password_import_controller_->Import(
 diff --git a/chrome/browser/extensions/api/tab_capture/tab_capture_api.cc b/chrome/browser/extensions/api/tab_capture/tab_capture_api.cc
 index 75d60369..7237304 100644
 --- a/chrome/browser/extensions/api/tab_capture/tab_capture_api.cc
@@ -863,6 +884,21 @@ index 0000000..1ef367ac
 +}  // namespace glic
 +
 +#endif  // CHROME_BROWSER_GLIC_PUBLIC_GLIC_WHATS_NEW_INVOKE_H_
+diff --git a/chrome/browser/notifications/notification_display_service_impl.cc b/chrome/browser/notifications/notification_display_service_impl.cc
+index f3a473c8..9713a645 100644
+--- a/chrome/browser/notifications/notification_display_service_impl.cc
++++ b/chrome/browser/notifications/notification_display_service_impl.cc
+@@ -149,7 +149,9 @@
+     const std::optional<bool>& is_suspicious,
+     base::OnceClosure on_completed_cb) {
+   NotificationHandler* handler = GetNotificationHandler(notification_type);
+-  CHECK(handler, base::NotFatalUntil::M161);
++  // TODO(crbug.com/586355582): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(handler);
+   if (!handler) {
+     LOG(ERROR) << "Unable to find a handler for "
+                << static_cast<int>(notification_type);
 diff --git a/chrome/browser/predictors/lcp_critical_path_predictor/prewarm_http_disk_cache_manager.cc b/chrome/browser/predictors/lcp_critical_path_predictor/prewarm_http_disk_cache_manager.cc
 index b3c71e3..c61f860 100644
 --- a/chrome/browser/predictors/lcp_critical_path_predictor/prewarm_http_disk_cache_manager.cc
@@ -7156,6 +7192,116 @@ index aeffab25..3a1de29d 100644
      "//ios/chrome/browser/shared/model/web_state_list",
      "//ios/chrome/browser/shared/model/web_state_list/test:test_support",
      "//ios/chrome/browser/shared/public/commands",
+diff --git a/media/filters/decoder_selector.cc b/media/filters/decoder_selector.cc
+index d747692..74a546c 100644
+--- a/media/filters/decoder_selector.cc
++++ b/media/filters/decoder_selector.cc
+@@ -272,7 +272,14 @@
+     return;
+   }
+ 
+-  RunSelectDecoderCB(std::move(decoder_));
++  // Retain ownership of `decoder_` and `decrypting_demuxer_stream_` until the
++  // posted task runs. Moving them into the posted task would allow them to
++  // outlive `DecoderSelector` (and pipeline dependencies such as `CdmContext`
++  // or `DemuxerStream`) if `this` is destroyed before the task executes.
++  task_runner_->PostTask(
++      FROM_HERE,
++      base::BindOnce(&DecoderSelector<StreamType>::DeliverSelectedDecoder,
++                     weak_this_factory_.GetWeakPtr()));
+ }
+ 
+ template <DemuxerStream::Type StreamType>
+@@ -280,11 +287,24 @@
+   DVLOG(1) << __func__ << ": No decoder selected";
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   DCHECK(!error.is_ok());
++  DCHECK(select_decoder_cb_);
+ 
++  // Cancel any pending initialization or delivery tasks before destroying
++  // `decoder_` and `decrypting_demuxer_stream_`.
++  weak_this_factory_.InvalidateWeakPtrs();
++
++  decoder_.reset();
++  if (stream_ == decrypting_demuxer_stream_.get()) {
++    stream_ = nullptr;
++  }
+   decrypting_demuxer_stream_.reset();
+   decoders_.clear();
+   prefer_prepended_platform_decoder_ = false;
+-  RunSelectDecoderCB(base::unexpected(std::move(error)));
++
++  EndSelectDecoderTrace("null", /*has_decrypting_demuxer_stream=*/false);
++  task_runner_->PostTask(
++      FROM_HERE, base::BindOnce(std::move(select_decoder_cb_),
++                                base::unexpected(std::move(error)), nullptr));
+ }
+ 
+ template <DemuxerStream::Type StreamType>
+@@ -332,25 +352,36 @@
+ }
+ 
+ template <DemuxerStream::Type StreamType>
+-void DecoderSelector<StreamType>::RunSelectDecoderCB(
+-    DecoderOrError decoder_or_error) {
++void DecoderSelector<StreamType>::DeliverSelectedDecoder() {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   DCHECK(select_decoder_cb_);
++  DCHECK(decoder_);
++
++  EndSelectDecoderTrace(GetDecoderName(decoder_->GetDecoderType()),
++                        !!decrypting_demuxer_stream_);
++
++  // Clear member state before running `select_decoder_cb_` in case it
++  // synchronously calls back into `this` (e.g. FinalizeDecoderSelection()) or
++  // destroys `this`.
++  auto select_decoder_cb = std::move(select_decoder_cb_);
++  auto decoder = std::move(decoder_);
++  auto decrypting_demuxer_stream = std::move(decrypting_demuxer_stream_);
++  std::move(select_decoder_cb)
++      .Run(std::move(decoder), std::move(decrypting_demuxer_stream));
++}
++
++template <DemuxerStream::Type StreamType>
++void DecoderSelector<StreamType>::EndSelectDecoderTrace(
++    const char* decoder_name,
++    bool has_decrypting_demuxer_stream) {
+   TRACE_EVENT_END(
+       "media", GetTracingTrack(this), "type",
+       DemuxerStream::GetTypeName(StreamType), "decoder",
+       base::StringPrintf(
+-          "%s (%s)",
+-          decoder_or_error.has_value()
+-              ? GetDecoderName(decoder_or_error.value()->GetDecoderType())
+-              : "null",
+-          decrypting_demuxer_stream_ ? "encrypted" : "unencrypted"));
++          "%s (%s)", decoder_name,
++          has_decrypting_demuxer_stream ? "encrypted" : "unencrypted"));
+   TRACE_EVENT_END("media",
+                   /* kSelectDecoderTrace */ GetTracingTrack(this));
+-
+-  task_runner_->PostTask(
+-      FROM_HERE,
+-      base::BindOnce(std::move(select_decoder_cb_), std::move(decoder_or_error),
+-                     std::move(decrypting_demuxer_stream_)));
+ }
+ 
+ template <DemuxerStream::Type StreamType>
+diff --git a/media/filters/decoder_selector.h b/media/filters/decoder_selector.h
+index 5433c95..2b4d665 100644
+--- a/media/filters/decoder_selector.h
++++ b/media/filters/decoder_selector.h
+@@ -123,7 +123,9 @@
+   void ReturnSelectionError(DecoderStatus error);
+   void InitializeDecryptingDemuxerStream();
+   void OnDecryptingDemuxerStreamInitializeDone(PipelineStatus status);
+-  void RunSelectDecoderCB(DecoderOrError decoder_or_error);
++  void DeliverSelectedDecoder();
++  void EndSelectDecoderTrace(const char* decoder_name,
++                             bool has_decrypting_demuxer_stream);
+   void FilterAndSortAvailableDecoders();
+   void SelectDecoderInternal(SelectDecoderCB select_decoder_cb,
+                              typename Decoder::OutputCB output_cb,
 diff --git a/third_party/lens_server_proto/search_communication.proto b/third_party/lens_server_proto/search_communication.proto
 index ea68ef7..1edac2f 100644
 --- a/third_party/lens_server_proto/search_communication.proto
@@ -7612,6 +7758,21 @@ index 17795f6..734ff4d9 100644
    void FireGeneratedEvent(AXEventGenerator::Event event_type,
                            const AXNode* node) override;
  
+diff --git a/ui/views/accessibility/view_accessibility.cc b/ui/views/accessibility/view_accessibility.cc
+index 551d928..8cdefe9 100644
+--- a/ui/views/accessibility/view_accessibility.cc
++++ b/ui/views/accessibility/view_accessibility.cc
+@@ -601,7 +601,9 @@
+   CHECK_NE(view_, &naming_view, base::NotFatalUntil::M163);
+ 
+   std::u16string name = naming_view.GetViewAccessibility().GetCachedName();
+-  CHECK(!name.empty(), base::NotFatalUntil::M163);
++  // TODO(crbug.com/585992395): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(!name.empty());
+   SetName(std::move(name), ax::mojom::NameFrom::kRelatedElement);
+ 
+   data_.AddIntListAttribute(ax::mojom::IntListAttribute::kLabelledbyIds,
 diff --git a/ui/views/widget/desktop_aura/desktop_native_widget_aura.cc b/ui/views/widget/desktop_aura/desktop_native_widget_aura.cc
 index de597e0..db0bfaf 100644
 --- a/ui/views/widget/desktop_aura/desktop_native_widget_aura.cc
