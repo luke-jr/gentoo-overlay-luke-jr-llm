@@ -1,13 +1,13 @@
 Chromium 159.0.8154.45 + the later changes of its release branch, up to
-d388491bd2d83938da18d144fb4c71d26337152f (refs/branch-heads/8154@{#1707}), for the
+1b29608a735880f85c26fd112660f92ee23dade3 (refs/branch-heads/8154@{#1711}), for the
 159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
-8154@{#1707}.
+8154@{#1711}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..d388491bd2d8 and the
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..1b29608a7358 and the
 dependencies whose DEPS revision changed: ANGLE 4dd34493f8a2..fcd0b7205673 (under
 third_party/angle/), third_party/libvpx/source/libvpx fb0a26ad923b..6f89cfbcc99f (under
-third_party/libvpx/source/libvpx/), V8 90a5172104e6..5075e76e0972 (under v8/), as served by
+third_party/libvpx/source/libvpx/), V8 90a5172104e6..b0ec06674184 (under v8/), as served by
 Gitiles, with scripts/chromium-delta/branch-fixes.py (filter.py --branch-fixes, against the
 159.0.8154.45 tree's files): left out are files not in the release tarball,
 iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs (GN files kept), translations
@@ -86,6 +86,8 @@ Commits contributing to it (oldest first):
   c3a56a5f8a04 [M159] Revert CHECK_NE conversion in (8154@{#1704})
   7cd6bbfe3c95 [M159] Revert CHECK back to DCHECK in ViewAccessibility::SetName (8154@{#1705})
   d388491bd2d8 [M159] media: Retain decoder ownership in DecoderSelector until delivery runs (8154@{#1707})
+  30643ce52791 [M159] [webapps] Ensure non-empty name in web app sync (8154@{#1709})
+  1b29608a7358 Roll commits from side projects in M159 (V8 5075e76e0972..b0ec06674184, 8154@{#1711})
 Dependency commits of those rolls that touch kept files:
   315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
   9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
@@ -100,10 +102,12 @@ Dependency commits of those rolls that touch kept files:
   693055610188 Version 15.9.128.37 (V8: include/v8-version.h)
   78d94a8570c2 [M159] [lookup] Fix AccessorInfo handling and state reset in Next() (V8: src/builtins/builtins-object.cc, src/objects/lookup.cc)
   5075e76e0972 Version 15.9.128.38 (V8: include/v8-version.h)
+  d76136bceff0 [M159] [debug] Reject hoisting var/function into modules or lexical bindings (V8: src/runtime/runtime-scopes.cc)
+  b0ec06674184 Version 15.9.128.39 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
-version at d388491bd2d8 (or ANGLE's fcd0b7205673) (or third_party/libvpx/source/libvpx's
-6f89cfbcc99f) (or V8's 5075e76e0972).
+version at 1b29608a7358 (or ANGLE's fcd0b7205673) (or third_party/libvpx/source/libvpx's
+6f89cfbcc99f) (or V8's b0ec06674184).
 
 Apply with git apply.
 
@@ -6206,6 +6210,80 @@ index ae89bca..3a41b226 100644
    SessionService* const session_service =
        SessionServiceFactory::GetForProfile(browser_->GetProfile());
    if (session_service) {
+diff --git a/chrome/browser/web_applications/commands/install_from_sync_command.cc b/chrome/browser/web_applications/commands/install_from_sync_command.cc
+index 6469b73a..71178d83 100644
+--- a/chrome/browser/web_applications/commands/install_from_sync_command.cc
++++ b/chrome/browser/web_applications/commands/install_from_sync_command.cc
+@@ -96,7 +96,7 @@
+     : app_id(app_id),
+       manifest_id(manifest_id),
+       start_url(start_url),
+-      title(title),
++      title(!title.empty() ? title : start_url.spec()),
+       scope(scope),
+       theme_color(theme_color),
+       user_display_mode(user_display_mode),
+diff --git a/chrome/browser/web_applications/web_app.cc b/chrome/browser/web_applications/web_app.cc
+index 7a5f872..f9cb89fb 100644
+--- a/chrome/browser/web_applications/web_app.cc
++++ b/chrome/browser/web_applications/web_app.cc
+@@ -1020,6 +1020,11 @@
+         sync_proto_.migrated_from_manifest_id());
+   }
+ 
++  // `WebAppSyncBridge::PrepareLocalUpdateFromSyncChange()` relies on
++  // `IsEntityDataValid()` to guarantee a parseable `start_url` and then
++  // populates a non-empty name on `modified_sync_proto` before merging.
++  CHECK(!modified_sync_proto.name().empty(), base::NotFatalUntil::M162);
++
+   sync_proto_ = std::move(modified_sync_proto);
+   CHECK(HasCurrentPlatformUserDisplayMode(sync_proto_));
+ }
+diff --git a/chrome/browser/web_applications/web_app_sync_bridge.cc b/chrome/browser/web_applications/web_app_sync_bridge.cc
+index f2af8d6f..a405551e 100644
+--- a/chrome/browser/web_applications/web_app_sync_bridge.cc
++++ b/chrome/browser/web_applications/web_app_sync_bridge.cc
+@@ -679,6 +679,25 @@
+   specifics.set_relative_manifest_id(
+       RelativeManifestIdPath(manifest_id.value()));
+ 
++  // Modern clients always populate `WebAppSpecifics::name`, but older clients
++  // committed entities with an empty `name` that still live on the server
++  // (crbug.com/579501200). The sync system and downstream install path require
++  // a non-empty name, so if the incoming specifics name is empty, prefer the
++  // existing local app's name; otherwise fall back to the canonicalized
++  // `start_url` (guaranteed non-empty by `IsEntityDataValid()`).
++  // `EntityData::name` is not consulted because Sync encryption replaces it
++  // with the literal "encrypted".
++  if (specifics.name().empty()) {
++    if (existing_web_app && !existing_web_app->sync_proto().name().empty()) {
++      specifics.set_name(existing_web_app->sync_proto().name());
++    } else if (existing_web_app &&
++               !existing_web_app->untranslated_name().empty()) {
++      specifics.set_name(existing_web_app->untranslated_name());
++    } else {
++      specifics.set_name(GURL(specifics.start_url()).spec());
++    }
++  }
++
+   if (!existing_web_app) {
+     // Any remote entities that don’t exist locally must be written to local
+     // storage.
+@@ -697,13 +716,7 @@
+     // Request a followup sync-initiated install for this stub app to fetch
+     // full local data and all the icons.
+     web_app->SetIsFromSyncAndPendingInstallation(true);
+-    // The sync system requires non-empty name, populate temp name from
+-    // the fallback sync data name.
+-    if (specifics.name().empty()) {
+-      web_app->SetName(change.data().name);
+-    } else {
+-      web_app->SetName(specifics.name());
+-    }
++    web_app->SetName(specifics.name());
+     // For a new app, automatically choose if we want to install it locally.
+     web_app->SetInstallState(
+         AreAppsLocallyInstalledBySync()
 diff --git a/chrome/test/data/webui/contextual_tasks/BUILD.gn b/chrome/test/data/webui/contextual_tasks/BUILD.gn
 index 5b703172..89e5f3d 100644
 --- a/chrome/test/data/webui/contextual_tasks/BUILD.gn
@@ -6413,6 +6491,22 @@ index 5fb2602..0b3c6099 100644
  // Parameter determining the debounce duration before preloading the expanded
  // Threads Rail iframe on hover or focus, in milliseconds.
  extern const base::FeatureParam<int> kNtpThreadsRailPreloadDebounceMsParam;
+diff --git a/components/sync/protocol/web_app_specifics.proto b/components/sync/protocol/web_app_specifics.proto
+index e4845628..dfc9e04 100644
+--- a/components/sync/protocol/web_app_specifics.proto
++++ b/components/sync/protocol/web_app_specifics.proto
+@@ -57,6 +57,11 @@
+   }
+ 
+   optional string start_url = 1;
++  // The user-visible name of the web app. Modern clients always populate this
++  // field, but older clients committed entities with an empty `name` that
++  // still live on the server (crbug.com/579501200). Readers must tolerate an
++  // empty value; see `WebAppSyncBridge::PrepareLocalUpdateFromSyncChange()`
++  // for the fallback.
+   optional string name = 2;
+ 
+   // User-selected display setting, which may be used if no platform-specific
 diff --git a/content/browser/file_system_access/file_system_access_directory_handle_impl.cc b/content/browser/file_system_access/file_system_access_directory_handle_impl.cc
 index d84cc420..2d75f2c 100644
 --- a/content/browser/file_system_access/file_system_access_directory_handle_impl.cc
@@ -8697,7 +8791,7 @@ index 3aa7243..7d307de 100644
        svc->use_partition_reuse = 0;
      }
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index d9cc68e..e3d995f 100644
+index d9cc68e..2e9710d 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -8705,7 +8799,7 @@ index d9cc68e..e3d995f 100644
  #define V8_MINOR_VERSION 9
  #define V8_BUILD_NUMBER 128
 -#define V8_PATCH_LEVEL 34
-+#define V8_PATCH_LEVEL 38
++#define V8_PATCH_LEVEL 39
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
@@ -9338,6 +9432,104 @@ index 3def0ce..880026f 100644
    Tagged<Map> map = orig_map;
    do {
      Tagged<JSReceiver> maybe_holder = NextHolder(map);
+diff --git a/v8/src/runtime/runtime-scopes.cc b/v8/src/runtime/runtime-scopes.cc
+index 1a3b142..345d96a 100644
+--- a/v8/src/runtime/runtime-scopes.cc
++++ b/v8/src/runtime/runtime-scopes.cc
+@@ -364,6 +364,17 @@
+ 
+ namespace {
+ 
++#ifdef DEBUG
++bool HasDebugEvaluateContextInChain(Tagged<Context> current,
++                                    Tagged<Context> limit) {
++  while (current != limit) {
++    if (current->IsDebugEvaluateContext()) return true;
++    current = current->previous();
++  }
++  return false;
++}
++#endif  // DEBUG
++
+ Tagged<Object> DeclareEvalHelper(Isolate* isolate, Handle<String> name,
+                                  Handle<Object> value) {
+   // Declarations are always made in a function, native, eval, or script
+@@ -372,18 +383,21 @@
+   // context and not the declaration context.
+   Handle<Context> context(isolate->context()->declaration_context(), isolate);
+ 
+-  // For debug-evaluate we always use sloppy eval, in which case context could
+-  // also be a module context. As module contexts reuse the extension slot
+-  // we need to check for this.
+-  const bool is_debug_evaluate_in_module =
+-      isolate->context()->IsDebugEvaluateContext() &&
+-      context->IsModuleContext();
++  // Regular JS inside a module is always strict, so direct sloppy eval can
++  // only reach a ModuleContext via debug-evaluate. Module contexts cannot be
++  // extended (their extension slot holds the SourceTextModule), so disallow
++  // hoisting var/function declarations into them altogether.
++  if (context->IsModuleContext()) {
++    DCHECK(HasDebugEvaluateContextInChain(isolate->context(), *context));
++    THROW_NEW_ERROR_RETURN_FAILURE(
++        isolate,
++        NewEvalError(MessageTemplate::kVarNotAllowedInEvalScope, name));
++  }
+ 
+   DCHECK(context->IsFunctionContext() || IsNativeContext(*context) ||
+          context->IsScriptContext() || context->IsEvalContext() ||
+          (context->IsBlockContext() &&
+-          context->scope_info()->is_declaration_scope()) ||
+-         is_debug_evaluate_in_module);
++          context->scope_info()->is_declaration_scope()));
+ 
+   bool is_var = IsUndefined(*value);
+   DCHECK_IMPLIES(!is_var, IsJSFunction(*value));
+@@ -421,13 +435,29 @@
+   }
+ 
+   if (attributes != ABSENT) {
++    // For regular sloppy eval, conflicts with lexical bindings (and with the
++    // implicit `arguments` binding in a non-simple parameter scope) are caught
++    // at parse time by DeclarationScope::CheckConflictingVarDeclarations.
++    // During debug-evaluate, deserializing a DebugEvaluateContext creates a
++    // DeclarationScope that stops that check before reaching enclosing
++    // contexts, so we can encounter lexical/read-only bindings here.
++    if (IsLexicalVariableMode(mode) || (attributes & READ_ONLY) != 0 ||
++        (index != Context::kNotFound && context->IsFunctionContext() &&
++         !context->scope_info()->HasSimpleParameters())) {
++      DCHECK(HasDebugEvaluateContextInChain(isolate->context(), *context));
++      return ThrowRedeclarationError(isolate, name,
++                                     RedeclarationType::kSyntaxError);
++    }
+     DCHECK_EQ(NONE, attributes);
++    DCHECK_EQ(VariableMode::kVar, mode);
++    DCHECK_EQ(kCreatedInitialized, init_flag);
+ 
+     // Skip var re-declarations.
+     if (is_var) return ReadOnlyRoots(isolate).undefined_value();
+ 
+     if (index != Context::kNotFound) {
+       DCHECK(holder.is_identical_to(context));
++      DCHECK(!context->IsElementTdzHole(index));
+       Context::Set(context, index, value, isolate);
+       Tagged<ScopeInfo> scope_info = context->scope_info();
+       int var_index = index - scope_info->ContextHeaderLength();
+@@ -441,12 +471,12 @@
+     }
+ 
+     object = Cast<JSObject>(holder);
++    DCHECK(IsJSContextExtensionObject(*object));
+ 
+-  } else if (context->has_extension() && !is_debug_evaluate_in_module) {
++  } else if (context->has_extension()) {
+     object = direct_handle(context->extension_object(), isolate);
+     DCHECK(IsJSContextExtensionObject(*object));
+-  } else if (context->scope_info()->HasContextExtensionSlot() &&
+-             !is_debug_evaluate_in_module) {
++  } else if (context->scope_info()->HasContextExtensionSlot()) {
+     // Sloppy varblock and function contexts might not have an extension object
+     // yet. Sloppy eval will never have an extension object, as vars are hoisted
+     // out, and lets are known statically.
 diff --git a/v8/src/sandbox/js-dispatch-table-inl.h b/v8/src/sandbox/js-dispatch-table-inl.h
 index 410feba..7e95aa3 100644
 --- a/v8/src/sandbox/js-dispatch-table-inl.h
