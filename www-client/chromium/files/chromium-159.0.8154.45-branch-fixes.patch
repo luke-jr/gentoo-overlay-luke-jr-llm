@@ -1,18 +1,19 @@
 Chromium 159.0.8154.45 + the later changes of its release branch, up to
-ac2c1b3ee922a1898bcbd6ed44d7b9b31f25d08a (refs/branch-heads/8154@{#1725}), for the
+65f6c4cb67b7559f10f4a2948c990f78037e9057 (refs/branch-heads/8154@{#1745}), for the
 159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
-8154@{#1725}.
+8154@{#1745}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..ac2c1b3ee922 and the
-dependencies whose DEPS revision changed: ANGLE 4dd34493f8a2..fcd0b7205673 (under
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..65f6c4cb67b7 and the
+dependencies whose DEPS revision changed: ANGLE 4dd34493f8a2..2ec7b6db14f2 (under
 third_party/angle/), third_party/libvpx/source/libvpx fb0a26ad923b..6f89cfbcc99f (under
-third_party/libvpx/source/libvpx/), V8 90a5172104e6..b0ec06674184 (under v8/), as served by
-Gitiles, with scripts/chromium-delta/branch-fixes.py (filter.py --branch-fixes, against the
-159.0.8154.45 tree's files): left out are files not in the release tarball,
+third_party/libvpx/source/libvpx/), Skia b809e72312b0..220d4fc2d73c (under
+third_party/skia/), V8 90a5172104e6..b0ec06674184 (under v8/), as served by Gitiles, with
+scripts/chromium-delta/branch-fixes.py (filter.py --branch-fixes, against the 159.0.8154.45
+tree's files): left out are files not in the release tarball,
 iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs (GN files kept), translations
 other than en-GB, PGO/orderfile/AFDO pointers, submodule pointer updates. chrome/VERSION
-(its later "Incrementing VERSION" commits, among them the 159.0.8154.46 tag's, are left out),
+(its later "Incrementing VERSION" commits, among them the 159.0.8154.46 and .47 tags', are left out),
 the DEPS files and the stamp files stay at 159.0.8154.45.
 
 Commits contributing to it (oldest first):
@@ -93,12 +94,16 @@ Commits contributing to it (oldest first):
   245f6bc0c3d0 [Copy Trigger] Skip scanning placeholder for audit-only copies (8154@{#1722})
   b30c2cde08b5 Updating XTBs based on .GRDs from branch 8154 (8154@{#1723})
   ac2c1b3ee922 [M159] [PageInfo] Close bubble synchronously on WebContents destruction (8154@{#1725})
+  168e526e2749 [M159] [OmniboxEverywhere] Make empty search and compose inputs draggable (8154@{#1742})
+  65f6c4cb67b7 Roll commits from side projects in M159 (Skia b809e72312b0..220d4fc2d73c, 8154@{#1745})
 Dependency commits of those rolls that touch kept files:
   315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
   9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
   8165b581a669 [M159] D3D11: Do not overwrite dirty staging images on storage release (ANGLE: src/libANGLE/renderer/d3d/TextureD3D.cpp)
   fcd0b7205673 [M159] D3D11: Invalidate swizzle cache on PBO fast unpack (ANGLE: src/libANGLE/renderer/d3d/TextureD3D.cpp, src/libANGLE/renderer/d3d/TextureD3D.h)
+  2ec7b6db14f2 [M159] GL: Read the last row separately when a pack fills its buffer (ANGLE: include/platform/autogen/FeaturesGL_autogen.h, include/platform/gl_features.json, src/libANGLE/renderer/gl/FramebufferGL.cpp, src/libANGLE/renderer/gl/renderergl_utils.cpp, util/autogen/angle_features_autogen.cpp, util/autogen/angle_features_autogen.h)
   6f89cfbcc99f vp9: Fix base_mv usage when lower SVC layers are skipped (third_party/libvpx/source/libvpx: vp9/encoder/vp9_pickmode.c, vp9/encoder/vp9_svc_layercontext.c)
+  220d4fc2d73c [M159] [ganesh] Drop mask domain in SoftwarePathRenderer (Skia: gn/tests.gni, src/gpu/ganesh/ops/SoftwarePathRenderer.cpp)
   c20e1a6e22a3 [M159] [sandbox] Load dynamic JS parameter count in builtin prolog (V8: src/builtins/base.tq, src/builtins/builtins-internal-gen.cc, src/builtins/builtins-utils-gen.h, src/builtins/js-to-wasm.tq, src/builtins/js-trampoline-assembler.cc, src/builtins/js-trampoline-assembler.h, src/builtins/wasm-interpreter-wrappers.tq, src/codegen/code-stub-assembler.cc, src/codegen/code-stub-assembler.h, src/codegen/turboshaft-builtins-assembler-inl.h, src/compiler/code-assembler.cc, src/compiler/code-assembler.h, src/compiler/raw-machine-assembler.cc, src/compiler/raw-machine-assembler.h, src/sandbox/js-dispatch-table-inl.h, src/torque/constants.h, src/torque/implementation-visitor.cc, src/torque/type-oracle.h)
   8b9283283ad3 Version 15.9.128.35 (V8: include/v8-version.h)
   b8320c4d1ab8 [M159] [turbofan] Avoid hoisting TypeGuard in CommonOperatorRed::ReducePhi (V8: src/compiler/common-operator-reducer.cc, src/compiler/node-properties.h)
@@ -111,8 +116,8 @@ Dependency commits of those rolls that touch kept files:
   b0ec06674184 Version 15.9.128.39 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
-version at ac2c1b3ee922 (or ANGLE's fcd0b7205673) (or third_party/libvpx/source/libvpx's
-6f89cfbcc99f) (or V8's b0ec06674184).
+version at 65f6c4cb67b7 (or ANGLE's 2ec7b6db14f2) (or third_party/libvpx/source/libvpx's
+6f89cfbcc99f) (or Skia's 220d4fc2d73c) (or V8's b0ec06674184).
 
 Apply with git apply.
 
@@ -2285,7 +2290,7 @@ index 78692dd..368f84c 100644
            .autosubmitEnabled="${true}" .submitStopButtonsEnabled="${true}">
        </cr-composebox-voice-search>
 diff --git a/chrome/browser/resources/omnibox_everywhere/app.ts b/chrome/browser/resources/omnibox_everywhere/app.ts
-index b767c778..2dccc188 100644
+index b767c778..2e52f5a4 100644
 --- a/chrome/browser/resources/omnibox_everywhere/app.ts
 +++ b/chrome/browser/resources/omnibox_everywhere/app.ts
 @@ -188,7 +188,7 @@
@@ -2355,7 +2360,20 @@ index b767c778..2dccc188 100644
    }
  
    protected onMostVisitedCloseClick_() {
-@@ -840,6 +838,7 @@
+@@ -781,6 +779,12 @@
+   // browser subtracts all no-drag boxes, so don't nest `drag` in `no-drag`.
+   private onMousedown_(e: MouseEvent) {
+     const target = e.composedPath()[0];
++    // Text fields keep their default action, so clicking one focuses it.
++    if (target instanceof HTMLInputElement ||
++        target instanceof HTMLTextAreaElement ||
++        (target instanceof HTMLElement && target.isContentEditable)) {
++      return;
++    }
+     if (e.button === 0 && target instanceof Element &&
+         getComputedStyle(target).getPropertyValue('app-region') === 'drag') {
+       e.preventDefault();
+@@ -840,6 +844,7 @@
      this.showVoiceSearchOverlay_ = false;
      this.hasVoiceSearchError_ = false;
      this.voiceSearchListening_ = false;
@@ -2363,7 +2381,7 @@ index b767c778..2dccc188 100644
    }
  
    protected onVoicePermissionChanged_(
-@@ -903,6 +902,11 @@
+@@ -903,6 +908,11 @@
      this.voiceSearchTranscript_ = '';
    }
  
@@ -2376,7 +2394,7 @@ index b767c778..2dccc188 100644
      this.voiceSearchTranscript_ = e.detail;
    }
 diff --git a/chrome/browser/resources/omnibox_everywhere/composebox.css b/chrome/browser/resources/omnibox_everywhere/composebox.css
-index 38bb66c..c94d6e6 100644
+index 38bb66c..149c0a06 100644
 --- a/chrome/browser/resources/omnibox_everywhere/composebox.css
 +++ b/chrome/browser/resources/omnibox_everywhere/composebox.css
 @@ -92,7 +92,7 @@
@@ -2388,11 +2406,52 @@ index 38bb66c..c94d6e6 100644
    --cr-composebox-voice-icon-fill-color: var(--color-sys-on-surface-subtle);
    --cr-composebox-submit-border-radius: 100px;
    --cr-composebox-submit-height: 32px;
+@@ -254,6 +254,18 @@
+   -webkit-app-region: no-drag;
+ }
+ 
++cr-composebox-input::part(input) {
++  cursor: text;
++}
++
++/* Allow dragging the window from the compose input when empty while preserving
++ * text selection once user input is active. Uses [empty-input] rather than
++ * :placeholder-shown, since the input may be a contenteditable div. */
++:host([draggable-empty-input]) cr-composebox-input[empty-input]::part(input) {
++  -webkit-app-region: drag;
++  -webkit-user-drag: none;
++}
++
+ cr-composebox-input::part(icon-container) {
+   -webkit-app-region: drag;
+   -webkit-user-drag: none;
+diff --git a/chrome/browser/resources/omnibox_everywhere/composebox.html.ts b/chrome/browser/resources/omnibox_everywhere/composebox.html.ts
+index 2f9c696..9fbf47d 100644
+--- a/chrome/browser/resources/omnibox_everywhere/composebox.html.ts
++++ b/chrome/browser/resources/omnibox_everywhere/composebox.html.ts
+@@ -44,6 +44,7 @@
+         .disableCaretColorAnimation="${this.disableCaretColorAnimation}"
+         .showDropdown="${this.showDropdown}"
+         .inputPlaceholder="${this.inputPlaceholder}" .input="${this.input}"
++        ?empty-input="${!this.input}"
+         .smartComposeEnabled="${this.smartComposeEnabled}"
+         .smartComposeInlineHint="${this.smartComposeInlineHint}"
+         .submitEnabled="${this.submitEnabled}"
 diff --git a/chrome/browser/resources/omnibox_everywhere/composebox.ts b/chrome/browser/resources/omnibox_everywhere/composebox.ts
-index 827ff75..dd3dd6df 100644
+index 827ff75..0e62470 100644
 --- a/chrome/browser/resources/omnibox_everywhere/composebox.ts
 +++ b/chrome/browser/resources/omnibox_everywhere/composebox.ts
-@@ -336,7 +336,7 @@
+@@ -192,6 +192,9 @@
+ 
+   override connectedCallback() {
+     super.connectedCallback();
++    this.toggleAttribute(
++        'draggable-empty-input',
++        getLoadTimeBoolean('draggableEmptyInput', false));
+     if (!this.isPendingContextUpload) {
+       this.playGlowAnimation();
+       this.refreshTabSuggestions(/*forceRefresh=*/ true);
+@@ -336,7 +339,7 @@
      super.onInputInput(e);
    }
  
@@ -2402,7 +2461,7 @@ index 827ff75..dd3dd6df 100644
      this.refreshTabSuggestions(/*forceRefresh=*/ true);
      this.queryAutocomplete(/* clearMatches= */ true);
 diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.css b/chrome/browser/resources/omnibox_everywhere/omnibox.css
-index 115a9344..62145677 100644
+index 115a9344..106fa00a 100644
 --- a/chrome/browser/resources/omnibox_everywhere/omnibox.css
 +++ b/chrome/browser/resources/omnibox_everywhere/omnibox.css
 @@ -18,19 +18,20 @@
@@ -2534,7 +2593,22 @@ index 115a9344..62145677 100644
  }
  
  #bottomControls #context {
-@@ -444,18 +485,30 @@
+@@ -428,6 +469,14 @@
+   -webkit-app-region: no-drag;
+ }
+ 
++/* Allow dragging the window from the search input when empty while preserving
++ * text selection once text or keyword mode is active. */
++:host([draggable-empty-input])
++    :not([in-keyword-mode])::part(searchbox-input):placeholder-shown {
++  -webkit-app-region: drag;
++  -webkit-user-drag: none;
++}
++
+ cr-searchbox-input,
+ cr-searchbox-input::part(searchbox-input) {
+   cursor: text;
+@@ -444,18 +493,30 @@
    height: var(--cr-searchbox-height, 48px);
  }
  
@@ -2573,7 +2647,7 @@ index 115a9344..62145677 100644
  }
  
  /* 48px profile offset + 3x28px buttons + 2x4px gaps + 8px clearance. */
-@@ -469,9 +522,11 @@
+@@ -469,9 +530,11 @@
  }
  
  :host(:not([dropdown-is-visible]):not([has-user-input]))
@@ -2587,7 +2661,7 @@ index 115a9344..62145677 100644
    text-overflow: ellipsis;
    white-space: nowrap;
  }
-@@ -492,7 +547,7 @@
+@@ -492,7 +555,7 @@
    inset-inline-end: 48px;
    padding: 0;
    position: absolute;
@@ -2596,7 +2670,7 @@ index 115a9344..62145677 100644
    width: auto;
  }
  
-@@ -515,18 +570,6 @@
+@@ -515,18 +578,6 @@
    display: block;
  }
  
@@ -2615,7 +2689,7 @@ index 115a9344..62145677 100644
  @keyframes loomniboxDropdownExpand {
    from {
      opacity: 0;
-@@ -534,27 +577,9 @@
+@@ -534,27 +585,9 @@
    }
  }
  
@@ -2669,9 +2743,18 @@ index 164068e..c1a3d797 100644
        <div
            class="contextualEntrypointContainer
 diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.ts b/chrome/browser/resources/omnibox_everywhere/omnibox.ts
-index 2824d84a..27e964e4 100644
+index 2824d84a..9422573 100644
 --- a/chrome/browser/resources/omnibox_everywhere/omnibox.ts
 +++ b/chrome/browser/resources/omnibox_everywhere/omnibox.ts
+@@ -10,7 +10,7 @@
+ import '//resources/cr_components/composebox/contextual_entrypoint_button.js';
+ import './profile_icon.js';
+ 
+-import {recordContextAdditionMethod} from '//resources/cr_components/composebox/common.js';
++import {getLoadTimeBoolean, recordContextAdditionMethod} from '//resources/cr_components/composebox/common.js';
+ import type {ComposeboxState, ContextualUpload} from '//resources/cr_components/composebox/common.js';
+ import {HelpBubbleMixinLit} from '//resources/cr_components/help_bubble/help_bubble_mixin_lit.js';
+ import {ComposeboxContextAddedMethod, GlowAnimationState} from '//resources/cr_components/search/constants.js';
 @@ -146,8 +146,6 @@
          reflect: true,
          attribute: 'has-user-input',
@@ -2692,7 +2775,17 @@ index 2824d84a..27e964e4 100644
    protected accessor inputState_: InputState|null = null;
  
    private pageHandler_: PageHandlerInterface;
-@@ -327,22 +321,10 @@
+@@ -303,6 +297,9 @@
+     this.pageHandler_.getInputState().then((response) => {
+       this.inputState_ = response.state;
+     });
++    this.toggleAttribute(
++        'draggable-empty-input',
++        getLoadTimeBoolean('draggableEmptyInput', false));
+   }
+ 
+   override disconnectedCallback() {
+@@ -327,22 +324,10 @@
      }
      this.placeholderCycler_?.stop();
      this.isPlaceholderCycling_ = false;
@@ -2715,7 +2808,7 @@ index 2824d84a..27e964e4 100644
      if (!this.canCyclePlaceholders_()) {
        this.showLensPlaceholder_ = false;
      }
-@@ -436,8 +418,8 @@
+@@ -436,8 +421,8 @@
      this.setInputText('');
    }
  
@@ -2726,7 +2819,7 @@ index 2824d84a..27e964e4 100644
      this.setInputText('');
    }
  
-@@ -885,18 +867,6 @@
+@@ -885,18 +870,6 @@
      }
    }
  
@@ -3701,7 +3794,7 @@ index fe68c72..ee8c0418 100644
        !ChallengeMatchesNavigation(
            navigation_handle->GetAuthChallengeInfo().value(),
 diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/BUILD.gn b/chrome/browser/ui/omnibox/omnibox_everywhere/BUILD.gn
-index 2254a16..91b96b3d 100644
+index 2254a16..6225a015 100644
 --- a/chrome/browser/ui/omnibox/omnibox_everywhere/BUILD.gn
 +++ b/chrome/browser/ui/omnibox/omnibox_everywhere/BUILD.gn
 @@ -49,6 +49,7 @@
@@ -3712,7 +3805,15 @@ index 2254a16..91b96b3d 100644
    ]
    public_deps = [
      ":icon",
-@@ -86,6 +87,7 @@
+@@ -63,6 +64,7 @@
+     "//components/feature_engagement/public",
+     "//components/prefs",
+     "//components/user_education/common",
++    "//third_party/blink/public/common:headers",
+     "//ui/base/accelerators/global_accelerator_listener",
+     "//ui/gfx",
+     "//ui/views",
+@@ -86,6 +88,7 @@
      "omnibox_everywhere_ui_manager.cc",
      "omnibox_everywhere_widget_delegate.cc",
      "omnibox_everywhere_widget_delegate.h",
@@ -3720,7 +3821,7 @@ index 2254a16..91b96b3d 100644
    ]
    if (is_mac) {
      sources += [ "mac_window_util.mm" ]
-@@ -125,6 +127,7 @@
+@@ -125,6 +128,7 @@
      "//components/search_engines",
      "//components/url_formatter",
      "//components/vector_icons",
@@ -3728,7 +3829,7 @@ index 2254a16..91b96b3d 100644
      "//ui/base",
      "//ui/base/accelerators/global_accelerator_listener",
      "//ui/base/clipboard",
-@@ -139,6 +142,9 @@
+@@ -139,6 +143,9 @@
      "//ui/views",
      "//ui/views/controls/webview",
    ]
@@ -3738,7 +3839,7 @@ index 2254a16..91b96b3d 100644
    if (use_aura) {
      sources += [
        "omnibox_everywhere_event_handler_aura.cc",
-@@ -174,6 +180,7 @@
+@@ -174,6 +181,7 @@
        "omnibox_everywhere_region_select_overlay_unittest.cc",
        "omnibox_everywhere_ui_manager_unittest.cc",
        "omnibox_everywhere_widget_delegate_unittest.cc",
@@ -3746,7 +3847,7 @@ index 2254a16..91b96b3d 100644
      ]
      if (use_aura) {
        sources += [ "omnibox_everywhere_event_handler_aura_unittest.cc" ]
-@@ -213,6 +220,7 @@
+@@ -213,6 +221,7 @@
        "//content/test:test_support",
        "//skia",
        "//testing/gtest",
@@ -3770,7 +3871,7 @@ index 0536943e9..463579b 100644
  
  }  // namespace omnibox_everywhere
 diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc
-index 8185f1a..2b34c69b 100644
+index 8185f1a..4db5350 100644
 --- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc
 +++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc
 @@ -215,6 +215,13 @@
@@ -3843,7 +3944,7 @@ index 8185f1a..2b34c69b 100644
      }
    } else {
      scoped_ignore_input_events_.reset();
-@@ -1582,6 +1601,33 @@
+@@ -1582,6 +1601,45 @@
    return true;
  }
  
@@ -3874,11 +3975,23 @@ index 8185f1a..2b34c69b 100644
 +  OnWidgetUserDragEnded(widget_.get());
 +}
 +
++void OmniboxEverywhereUIManager::ForwardMouseEventToRenderer(
++    const blink::WebMouseEvent& event) {
++  content::WebContents* contents = web_contents();
++  if (!contents) {
++    return;
++  }
++  if (content::RenderWidgetHostView* view =
++          contents->GetRenderWidgetHostView()) {
++    view->GetRenderWidgetHost()->ForwardMouseEvent(event);
++  }
++}
++
  // Forwards unhandled keyboard events from the renderer process (such as
  // keyboard shortcuts) to the Views FocusManager so that accelerators and focus
  // traversal work as expected.
 diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h
-index c6caeee6..3a1401d7 100644
+index c6caeee6..f0d42e0 100644
 --- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h
 +++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h
 @@ -23,6 +23,7 @@
@@ -3948,7 +4061,7 @@ index c6caeee6..3a1401d7 100644
  
  #if BUILDFLAG(IS_WIN)
    // Creates the Start Menu shortcut the Shell requires for taskbar pinning,
-@@ -390,6 +401,13 @@
+@@ -390,6 +401,14 @@
    void SetModalOpen(Modal modal, bool open);
    void UpdateModalInteractionState();
  
@@ -3958,11 +4071,12 @@ index c6caeee6..3a1401d7 100644
 +  bool IsWindowDragging() const override;
 +  void OnWindowDragStarted() override;
 +  void OnWindowDragEnded() override;
++  void ForwardMouseEventToRenderer(const blink::WebMouseEvent& event) override;
 +
  #if defined(USE_AURA)
    std::unique_ptr<OmniboxEverywhereEventHandlerAura> event_handler_;
  #endif
-@@ -467,6 +485,8 @@
+@@ -467,6 +486,8 @@
    bool taskbar_pinning_disabled_ = false;
  #endif
  
@@ -3999,10 +4113,10 @@ index 8f4f27f8..163f9a16 100644
    }
 diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_window_drag_controller.cc b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_window_drag_controller.cc
 new file mode 100644
-index 0000000..7a38077
+index 0000000..17425bb
 --- /dev/null
 +++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_window_drag_controller.cc
-@@ -0,0 +1,197 @@
+@@ -0,0 +1,217 @@
 +// Copyright 2026 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -4011,6 +4125,7 @@ index 0000000..7a38077
 +
 +#include <utility>
 +
++#include "base/auto_reset.h"
 +#include "base/functional/bind.h"
 +#include "base/functional/callback_helpers.h"
 +#include "base/location.h"
@@ -4079,14 +4194,16 @@ index 0000000..7a38077
 +// `PreHandleGestureEvent()`.
 +bool OmniboxEverywhereWindowDragController::PreHandleMouseEvent(
 +    const blink::WebMouseEvent& event) {
-+  if (!delegate_->GetWindowDragWidget()) {
++  if (replaying_press_ || !delegate_->GetWindowDragWidget()) {
 +    return false;
 +  }
-+  if (delegate_->IsWindowDragging() &&
-+      !(event.GetType() == blink::WebInputEvent::Type::kMouseUp &&
-+        event.button == blink::WebMouseEvent::Button::kLeft)) {
-+    // Hide mouse events from Blink while the window is dragged, except the
-+    // release that ends the drag.
++  if (delegate_->IsWindowDragging()) {
++    // Hide mouse events from Blink while the window is dragged, including the
++    // release that ends the drag, since Blink never saw its press.
++    if (event.GetType() == blink::WebInputEvent::Type::kMouseUp &&
++        event.button == blink::WebMouseEvent::Button::kLeft) {
++      Reset();
++    }
 +    return true;
 +  }
 +  switch (event.GetType()) {
@@ -4103,6 +4220,11 @@ index 0000000..7a38077
 +
 +bool OmniboxEverywhereWindowDragController::HandleMouseDown(
 +    const blink::WebMouseEvent& event) {
++  if (held_press_ && !IsPlainLeftPress(event)) {
++    // Another button was pressed, so it isn't a drag. Send the held press
++    // first.
++    ReplayHeldPress();
++  }
 +  Reset();
 +  if (!IsPlainLeftPress(event) ||
 +      !delegate_->IsPointInDraggableRegion(
@@ -4110,34 +4232,36 @@ index 0000000..7a38077
 +      !PrepareForWindowDrag()) {
 +    return false;
 +  }
-+  drag_init_point_screen_ = gfx::ToFlooredPoint(event.PositionInScreen());
++  // Hold the press until it's known to be a click or a drag.
++  held_press_ = event;
 +  window_move_drag_suppression_ = SuppressDataDragsForWindowMove();
-+  // Let the press reach Blink so clicks, focus, etc., work.
-+  return false;
++  return true;
 +}
 +
 +bool OmniboxEverywhereWindowDragController::HandleMouseMove(
 +    const blink::WebMouseEvent& event) {
-+  if (!drag_init_point_screen_) {
++  if (!held_press_) {
 +    return false;
 +  }
 +  if (event.button == blink::WebMouseEvent::Button::kNoButton) {
 +    // The button was released without a mouse up reaching us, e.g. while
-+    // another window had mouse capture.
++    // another window had mouse capture. Drop the press.
 +    Reset();
 +    return false;
 +  }
-+  const gfx::Point press_point_screen = *drag_init_point_screen_;
++  const gfx::Point press_point_screen =
++      gfx::ToFlooredPoint(held_press_->PositionInScreen());
 +  if (!views::View::ExceededDragThreshold(
 +          gfx::ToFlooredPoint(event.PositionInScreen()) - press_point_screen)) {
-+    return false;
++    // Blink hasn't seen the press, so hide moves from it too.
++    return true;
 +  }
 +  // `Widget::RunMoveLoop()` expects the press point relative to the window
 +  // origin.
 +  const gfx::Vector2d drag_offset =
 +      press_point_screen -
 +      delegate_->GetWindowDragWidget()->GetWindowBoundsInScreen().origin();
-+  drag_init_point_screen_.reset();
++  held_press_.reset();
 +  delegate_->OnWindowDragStarted();
 +  // Post the move loop so it doesn't run inside mouse event dispatch.
 +  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
@@ -4150,12 +4274,22 @@ index 0000000..7a38077
 +
 +bool OmniboxEverywhereWindowDragController::HandleMouseUp(
 +    const blink::WebMouseEvent& event) {
-+  Reset();
++  if (held_press_) {
++    // A click: send the held press, then let the release follow it.
++    ReplayHeldPress();
++  }
 +  return false;
 +}
 +
++void OmniboxEverywhereWindowDragController::ReplayHeldPress() {
++  const blink::WebMouseEvent press = *held_press_;
++  Reset();
++  base::AutoReset<bool> replaying_press(&replaying_press_, true);
++  delegate_->ForwardMouseEventToRenderer(press);
++}
++
 +void OmniboxEverywhereWindowDragController::Reset() {
-+  drag_init_point_screen_.reset();
++  held_press_.reset();
 +  window_move_drag_suppression_.RunAndReset();
 +  if (move_loop_weak_factory_.HasWeakPtrs()) {
 +    // Cancel a move loop that was posted but hasn't started.
@@ -4202,10 +4336,10 @@ index 0000000..7a38077
 +}  // namespace omnibox_everywhere
 diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_window_drag_controller.h b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_window_drag_controller.h
 new file mode 100644
-index 0000000..b8284b3d
+index 0000000..5e394bf
 --- /dev/null
 +++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_window_drag_controller.h
-@@ -0,0 +1,96 @@
+@@ -0,0 +1,104 @@
 +// Copyright 2026 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -4218,12 +4352,9 @@ index 0000000..b8284b3d
 +#include "base/functional/callback_helpers.h"
 +#include "base/memory/raw_ref.h"
 +#include "base/memory/weak_ptr.h"
++#include "third_party/blink/public/common/input/web_mouse_event.h"
 +#include "ui/gfx/geometry/point.h"
 +#include "ui/gfx/geometry/vector2d.h"
-+
-+namespace blink {
-+class WebMouseEvent;
-+}  // namespace blink
 +
 +namespace views {
 +class Widget;
@@ -4234,10 +4365,13 @@ index 0000000..b8284b3d
 +// Moves the Omnibox Everywhere window when the user drags a
 +// `-webkit-app-region: drag` area. It works from mouse events seen in
 +// `WebContentsDelegate::PreHandleMouseEvent()`, on every platform:
-+// - A left press in a draggable region arms a drag, and still reaches Blink so
-+//   clicks, focus, etc., work.
-+// - Once the press moves past the drag threshold, it posts a widget move-loop
-+//   and drops mouse moves until the drag ends.
++// - A left press in a draggable region is held back from Blink until it's known
++//   whether it is a click or a drag.
++// - If the button is released first, the held press is sent to Blink followed
++//   by the release, so clicks, focus, etc., work.
++// - Once the press moves past the drag threshold, the press is dropped, and it
++//   posts a widget move-loop and hides mouse events until the drag ends. Blink
++//   never sees the gesture.
 +class OmniboxEverywhereWindowDragController {
 + public:
 +  class Delegate {
@@ -4251,6 +4385,10 @@ index 0000000..b8284b3d
 +    virtual bool IsWindowDragging() const = 0;
 +    virtual void OnWindowDragStarted() = 0;
 +    virtual void OnWindowDragEnded() = 0;
++    // Sends `event` to the renderer. `PreHandleMouseEvent()` is called again
++    // with `event` from inside this call, and lets it through.
++    virtual void ForwardMouseEventToRenderer(
++        const blink::WebMouseEvent& event) = 0;
 +
 +   protected:
 +    virtual ~Delegate() = default;
@@ -4267,26 +4405,30 @@ index 0000000..b8284b3d
 +  // Returns true if `event` should not reach the renderer.
 +  bool PreHandleMouseEvent(const blink::WebMouseEvent& event);
 +
-+  // Ends a pending drag and cancels a posted move loop. The owner must
++  // Drops a held press and cancels a posted move loop. The owner must
 +  // call this whenever the widget may stop delivering mouse events (hidden,
 +  // deactivated, demoted or destroyed), since the release would never arrive.
 +  void Reset();
 +
-+  bool has_pending_drag_for_testing() const {
-+    return drag_init_point_screen_.has_value();
-+  }
++  bool has_pending_drag_for_testing() const { return held_press_.has_value(); }
 +
 + private:
 +  bool HandleMouseDown(const blink::WebMouseEvent& event);
 +  bool HandleMouseMove(const blink::WebMouseEvent& event);
 +  bool HandleMouseUp(const blink::WebMouseEvent& event);
++  void ReplayHeldPress();
 +  bool PrepareForWindowDrag();
 +  void StartWindowMoveLoop(const gfx::Vector2d& drag_offset);
 +
 +  const raw_ref<Delegate> delegate_;
 +
-+  // Screen location of the left press that armed the drag.
-+  std::optional<gfx::Point> drag_init_point_screen_;
++  // The left press on a draggable region that hasn't become a click or a drag
++  // yet.
++  std::optional<blink::WebMouseEvent> held_press_;
++
++  // True while the held press is being sent to the renderer, so it's let
++  // through.
++  bool replaying_press_ = false;
 +
 +  // Suppresses renderer-initiated data drags while a left press is held on a
 +  // draggable region waiting to cross the drag threshold, and during the move
@@ -4303,17 +4445,17 @@ index 0000000..b8284b3d
 +
 +#endif  // CHROME_BROWSER_UI_OMNIBOX_OMNIBOX_EVERYWHERE_OMNIBOX_EVERYWHERE_WINDOW_DRAG_CONTROLLER_H_
 diff --git a/chrome/browser/ui/omnibox/omnibox_next_features.cc b/chrome/browser/ui/omnibox/omnibox_next_features.cc
-index 6a59aed2..570037a 100644
+index 6a59aed2..4f7958b 100644
 --- a/chrome/browser/ui/omnibox/omnibox_next_features.cc
 +++ b/chrome/browser/ui/omnibox/omnibox_next_features.cc
 @@ -138,6 +138,10 @@
  // context menu during `Profile` initialization until browser startup is
  // complete.
  BASE_FEATURE(kOmniboxEverywhereDeferStatusIcon, ENABLED);
-+// If enabled, Omnibox Everywhere drags its window from
++// Kill switch. If enabled, Omnibox Everywhere drags its window from
 +// WebContentsDelegate::PreHandleMouseEvent() on all platforms. If disabled,
 +// it falls back to the legacy Aura pre-target handler and macOS HTCAPTION.
-+BASE_FEATURE(kOmniboxEverywherePreHandleMouseDrag, DISABLED);
++BASE_FEATURE(kOmniboxEverywherePreHandleMouseDrag, ENABLED);
  // If enabled, submitting a query with screenshots attached in Omnibox
  // Everywhere opens the result in a new browser window aligned with the
  // Omnibox Everywhere popup.
@@ -6118,10 +6260,22 @@ index b5600ac7..e39eb44 100644
    void OnDemoted();
  
 diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc
-index 814b1f0e..f51c2046d 100644
+index 814b1f0e..f93ef64 100644
 --- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc
 +++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc
-@@ -979,7 +979,7 @@
+@@ -311,6 +311,11 @@
+   source->AddBoolean(
+       "singleLineOnInlineAutocomplete",
+       omnibox::kOmniboxEverywhereSingleLineOnInlineAutocompleteParam.Get());
++  // Empty inputs can only be draggable when clicks inside draggable regions
++  // still reach the page, which the PreHandleMouseEvent drag path provides.
++  source->AddBoolean("draggableEmptyInput",
++                     base::FeatureList::IsEnabled(
++                         omnibox::kOmniboxEverywherePreHandleMouseDrag));
+ 
+   source->AddBoolean("reportMetrics", true);
+   source->AddString("charTypedToPaintMetricName",
+@@ -979,7 +984,7 @@
      SetIsComposebox(false);
    }
    if (page_handler_) {
@@ -9253,6 +9407,45 @@ index e602615..97240fd9 100644
  };
  
  // Click information needed to determine user's desired window disposition using
+diff --git a/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h b/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
+index 68a27bd..9dd00f1 100644
+--- a/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
++++ b/third_party/angle/include/platform/autogen/FeaturesGL_autogen.h
+@@ -92,6 +92,12 @@
+         &members,
+     };
+ 
++    FeatureInfo packLastRowSeparatelyWhenFillingPackBuffer = {
++        "packLastRowSeparatelyWhenFillingPackBuffer",
++        FeatureCategory::OpenGLWorkarounds,
++        &members,
++    };
++
+     FeatureInfo initializeCurrentVertexAttributes = {
+         "initializeCurrentVertexAttributes",
+         FeatureCategory::OpenGLWorkarounds,
+diff --git a/third_party/angle/include/platform/gl_features.json b/third_party/angle/include/platform/gl_features.json
+index 81a89a0..7cae59a 100644
+--- a/third_party/angle/include/platform/gl_features.json
++++ b/third_party/angle/include/platform/gl_features.json
+@@ -95,6 +95,17 @@
+             "issue": "http://crbug.com/529867799"
+         },
+         {
++            "name": "pack_last_row_separately_when_filling_pack_buffer",
++            "category": "Workarounds",
++            "description": [
++                "When a readPixels pack could reach the end of the bound pixel pack buffer and does ",
++                "not write every byte up to its end, read its last row separately. Some Mali drivers ",
++                "do not retain the previous contents of bytes the pack leaves unwritten when it fills ",
++                "the buffer, and count the last row's alignment padding against the buffer's size."
++            ],
++            "issue": "crbug.com/551017142"
++        },
++        {
+             "name": "initialize_current_vertex_attributes",
+             "category": "Workarounds",
+             "description": [
 diff --git a/third_party/angle/src/libANGLE/renderer/d3d/TextureD3D.cpp b/third_party/angle/src/libANGLE/renderer/d3d/TextureD3D.cpp
 index 07a56d9..20b8d97 100644
 --- a/third_party/angle/src/libANGLE/renderer/d3d/TextureD3D.cpp
@@ -9376,6 +9569,160 @@ index 3117f08..ffd2efa 100644
  
      GLint getLevelZeroWidth() const;
      GLint getLevelZeroHeight() const;
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
+index 4669abf..2b4657a 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/FramebufferGL.cpp
+@@ -521,6 +521,81 @@
+     }
+ }
+ 
++// Advances a readPixels destination by `bytes`. When a pixel pack buffer is bound, `pixels` is an
++// offset into that buffer rather than a pointer to memory, and is null for offset 0. Pointer
++// arithmetic on a null pointer is undefined behavior, so the offset is advanced as an integer
++// instead. For client memory, the caller must ensure that `pixels + bytes` stays within the
++// destination's pack extent.
++// TODO(anglebug.com/584647615): Pass client memory destinations as a span so this can use
++// subspan() instead of pointer arithmetic.
++ANGLE_UNSAFE_BUFFER_USAGE GLubyte *AdvanceReadPixelsDestination(GLubyte *pixels,
++                                                                size_t bytes,
++                                                                bool isPackBufferOffset)
++{
++    if (isPackBufferOffset)
++    {
++        return reinterpret_cast<GLubyte *>(reinterpret_cast<uintptr_t>(pixels) + bytes);
++    }
++    // SAFETY: The caller guarantees that `pixels + bytes` stays within the destination.
++    return ANGLE_UNSAFE_BUFFERS(pixels + bytes);
++}
++
++// Some Mali GLES drivers do not retain the previous contents of pixel pack buffer bytes that a
++// readPixels pack leaves unwritten (row padding and the last row's alignment padding) when the
++// pack fills the buffer. These drivers also count the last row's GL_PACK_ALIGNMENT padding, which
++// the spec does not, so a pack into a buffer that ends at the spec's end byte fails with
++// GL_INVALID_OPERATION when the last row has alignment padding.
++//
++// Reading the last row separately avoids both. The first call stops one row pitch short of the
++// pack's end, and the last row's alignment padding is smaller than a row pitch, so the first call
++// cannot reach the end of the buffer. The last row is then read with GL_PACK_ALIGNMENT 1, so it is
++// tightly packed and can only fill the buffer by writing all of it. Do this whenever the pack,
++// including its last row's alignment padding, could reach the end of the buffer, unless the pack
++// writes every byte up to its end anyway.
++angle::Result ShouldReadLastRowSeparatelyWhenFillingPackBuffer(ContextGL *contextGL,
++                                                               const gl::Extents &size,
++                                                               const gl::PixelPackState &packState,
++                                                               const gl::Buffer *packBuffer,
++                                                               GLenum format,
++                                                               GLenum type,
++                                                               const void *pixels,
++                                                               bool *shouldReadLastRowSeparatelyOut)
++{
++    if (packBuffer == nullptr)
++    {
++        *shouldReadLastRowSeparatelyOut = false;
++        return angle::Result::Continue;
++    }
++
++    const gl::InternalFormat &glFormat = gl::GetInternalFormatInfo(format, type);
++    GLuint rowPitch                    = 0;
++    ANGLE_CHECK_GL_MATH(contextGL, glFormat.computeRowPitch(type, size.width, packState.alignment,
++                                                            packState.rowLength, &rowPitch));
++    GLuint tightRowBytes = 0;
++    ANGLE_CHECK_GL_MATH(contextGL, glFormat.computeRowPitch(type, size.width, /*alignment=*/1,
++                                                            /*rowLength=*/0, &tightRowBytes));
++    GLuint alignedRowBytes = 0;
++    ANGLE_CHECK_GL_MATH(contextGL, glFormat.computeRowPitch(type, size.width, packState.alignment,
++                                                            /*rowLength=*/0, &alignedRowBytes));
++    GLuint endByte = 0;
++    ANGLE_CHECK_GL_MATH(contextGL, glFormat.computePackUnpackEndByte(type, size, packState,
++                                                                     /*is3D=*/false, &endByte));
++
++    const uint64_t lastRowPadding = alignedRowBytes - tightRowBytes;
++    const uint64_t endByteWithLastRowPadding =
++        static_cast<uint64_t>(reinterpret_cast<uintptr_t>(pixels)) + endByte + lastRowPadding;
++    // A tightly packed read at offset 0 with no skips writes every byte up to its end, so it
++    // cannot leave anything unwritten even when it fills the buffer. A single row is tightly
++    // packed whatever the row pitch (for example, with a GL_PACK_ROW_LENGTH larger than the
++    // width), because the row pitch only affects where later rows go.
++    const bool packIsTight = pixels == nullptr && packState.skipRows == 0 &&
++                             packState.skipPixels == 0 && lastRowPadding == 0 &&
++                             (size.height == 1 || rowPitch == tightRowBytes);
++    *shouldReadLastRowSeparatelyOut =
++        !packIsTight && endByteWithLastRowPadding >= static_cast<uint64_t>(packBuffer->getSize());
++    return angle::Result::Continue;
++}
++
+ }  // namespace
+ 
+ bool IsEmulatedAlphaChannelTextureAttachment(const gl::FramebufferAttachment *attachment)
+@@ -932,7 +1007,10 @@
+     if (leftClip || topClip)
+     {
+         // Adjust destination to match portion clipped off left and/or top.
+-        ANGLE_UNSAFE_TODO(outPtr += leftClip * glFormat.pixelBytes + topClip * rowBytes);
++        // SAFETY: `clippedArea` is non-empty and inside `area`, so this is the position of a
++        // pixel of the unclipped pack, which the destination holds.
++        outPtr = ANGLE_UNSAFE_BUFFERS(AdvanceReadPixelsDestination(
++            outPtr, leftClip * glFormat.pixelBytes + topClip * rowBytes, packBuffer != nullptr));
+     }
+ 
+     if (packState.rowLength == 0 && clippedArea.width != area.width)
+@@ -956,16 +1034,22 @@
+                                   outPtr);
+     }
+ 
+-    bool useLastRowPaddingWorkaround = false;
++    bool readLastRowSeparately = false;
+     if (features.packLastRowSeparatelyForPaddingInclusion.enabled)
+     {
+         ANGLE_TRY(ShouldApplyLastRowPaddingWorkaround(
+             contextGL, gl::Extents(clippedArea.width, clippedArea.height, 1), packState, packBuffer,
+-            format, type, false, outPtr, &useLastRowPaddingWorkaround));
++            format, type, false, outPtr, &readLastRowSeparately));
++    }
++    if (features.packLastRowSeparatelyWhenFillingPackBuffer.enabled && !readLastRowSeparately)
++    {
++        ANGLE_TRY(ShouldReadLastRowSeparatelyWhenFillingPackBuffer(
++            contextGL, gl::Extents(clippedArea.width, clippedArea.height, 1), packState, packBuffer,
++            format, type, outPtr, &readLastRowSeparately));
+     }
+ 
+     return readPixelsAllAtOnce(context, clippedArea, originalReadFormat, format, type, packState,
+-                               outPtr, useLastRowPaddingWorkaround);
++                               outPtr, readLastRowSeparately);
+ }
+ 
+ angle::Result FramebufferGL::blit(const gl::Context *context,
+@@ -1967,8 +2051,12 @@
+         directPack.alignment = 1;
+         ANGLE_TRY(stateManager->setPixelPackState(context, directPack));
+ 
++        const bool isPackBufferOffset =
++            context->getState().getTargetBuffer(gl::BufferBinding::PixelPack) != nullptr;
+         GLubyte *readbackPixels = workaround.Pixels();
+-        ANGLE_UNSAFE_TODO(readbackPixels += skipBytes + (area.height - 1) * rowBytes);
++        // SAFETY: This is the start of the pack's last row, which the destination holds.
++        readbackPixels = ANGLE_UNSAFE_BUFFERS(AdvanceReadPixelsDestination(
++            readbackPixels, skipBytes + (area.height - 1) * rowBytes, isPackBufferOffset));
+         ANGLE_GL_TRY_ALWAYS_CHECK(
+             context, functions->readPixels(area.x, area.y + area.height - 1, area.width, 1, format,
+                                            type, readbackPixels));
+diff --git a/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp b/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp
+index d72f628..77eecbb 100644
+--- a/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp
++++ b/third_party/angle/src/libANGLE/renderer/gl/renderergl_utils.cpp
+@@ -2345,6 +2345,11 @@
+     // the new test. crbug.com/529867799
+     ANGLE_FEATURE_CONDITION(features, packLargeRowLengthSeparatelyPackBuffer, isMali || isPowerVR);
+ 
++    // Mali GLES drivers do not retain the previous contents of pixel pack buffer bytes that a
++    // readPixels pack leaves unwritten when the pack fills the buffer, and count the last row's
++    // alignment padding against the buffer's size. crbug.com/551017142
++    ANGLE_FEATURE_CONDITION(features, packLastRowSeparatelyWhenFillingPackBuffer, isMali);
++
+     std::array<int, 2> powerVRVersion = {0, 0};
+     bool isPowerVRDriver =
+         GetPowerVRDriverVersion(GetVendorString(functions), GetRendererString(functions),
 diff --git a/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.cpp b/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.cpp
 index d6ef269..91da9f0 100644
 --- a/third_party/angle/src/libANGLE/renderer/vulkan/TextureVk.cpp
@@ -9473,6 +9820,30 @@ index 9e912a4..5326c0a 100644
      void handleImmutableSamplerTransition(const vk::ImageHelper *previousImage,
                                            const vk::ImageHelper *nextImage);
  
+diff --git a/third_party/angle/util/autogen/angle_features_autogen.cpp b/third_party/angle/util/autogen/angle_features_autogen.cpp
+index 0c1d6ab..34de38c 100644
+--- a/third_party/angle/util/autogen/angle_features_autogen.cpp
++++ b/third_party/angle/util/autogen/angle_features_autogen.cpp
+@@ -281,6 +281,7 @@
+     {Feature::OverrideSurfaceFormatRGB8ToRGBA8, "overrideSurfaceFormatRGB8ToRGBA8"},
+     {Feature::PackLargeRowLengthSeparatelyPackBuffer, "packLargeRowLengthSeparatelyPackBuffer"},
+     {Feature::PackLastRowSeparatelyForPaddingInclusion, "packLastRowSeparatelyForPaddingInclusion"},
++    {Feature::PackLastRowSeparatelyWhenFillingPackBuffer, "packLastRowSeparatelyWhenFillingPackBuffer"},
+     {Feature::PackOverlappingRowsSeparatelyPackBuffer, "packOverlappingRowsSeparatelyPackBuffer"},
+     {Feature::PadBuffersToMaxVertexAttribStride, "padBuffersToMaxVertexAttribStride"},
+     {Feature::PassHighpToPackUnormSnormBuiltins, "passHighpToPackUnormSnormBuiltins"},
+diff --git a/third_party/angle/util/autogen/angle_features_autogen.h b/third_party/angle/util/autogen/angle_features_autogen.h
+index 6f49759..6556a15 100644
+--- a/third_party/angle/util/autogen/angle_features_autogen.h
++++ b/third_party/angle/util/autogen/angle_features_autogen.h
+@@ -281,6 +281,7 @@
+     OverrideSurfaceFormatRGB8ToRGBA8,
+     PackLargeRowLengthSeparatelyPackBuffer,
+     PackLastRowSeparatelyForPaddingInclusion,
++    PackLastRowSeparatelyWhenFillingPackBuffer,
+     PackOverlappingRowsSeparatelyPackBuffer,
+     PadBuffersToMaxVertexAttribStride,
+     PassHighpToPackUnormSnormBuiltins,
 diff --git a/third_party/libvpx/source/libvpx/vp9/encoder/vp9_pickmode.c b/third_party/libvpx/source/libvpx/vp9/encoder/vp9_pickmode.c
 index 4c4f3a8..891eb97 100644
 --- a/third_party/libvpx/source/libvpx/vp9/encoder/vp9_pickmode.c
@@ -9535,6 +9906,39 @@ index 3aa7243..7d307de 100644
        svc->use_base_mv = 0;
        svc->use_partition_reuse = 0;
      }
+diff --git a/third_party/skia/gn/tests.gni b/third_party/skia/gn/tests.gni
+index 9cfee72..8b0ee7c 100644
+--- a/third_party/skia/gn/tests.gni
++++ b/third_party/skia/gn/tests.gni
+@@ -540,6 +540,7 @@
+   "$_tests/Skbug6653.cpp",
+   "$_tests/SlugTest.cpp",
+   "$_tests/SmallPathRendererTest.cpp",
++  "$_tests/SoftwarePathRendererTest.cpp",
+   "$_tests/SrcSrcOverBatchTest.cpp",
+   "$_tests/StencilClearTest.cpp",
+   "$_tests/SurfaceDrawContextTest.cpp",
+diff --git a/third_party/skia/src/gpu/ganesh/ops/SoftwarePathRenderer.cpp b/third_party/skia/src/gpu/ganesh/ops/SoftwarePathRenderer.cpp
+index a03dccc..465d6de 100644
+--- a/third_party/skia/src/gpu/ganesh/ops/SoftwarePathRenderer.cpp
++++ b/third_party/skia/src/gpu/ganesh/ops/SoftwarePathRenderer.cpp
+@@ -268,13 +268,14 @@
+     // initialized (0,0 to deviceSpaceRectToDraw.size()). To combat this, manually pass in the
+     // subset and domain to enable subset clamping.
+     SkRect maskSubset = SkRect::Make(deviceSpaceRectToDraw.size());
+-    SkRect maskDomain = maskMatrix.mapRect(invert.mapRect(dstRect.makeInset(0.5f, 0.5f)));
++    // Omit a CPU-computed domain: GrTextureEffect insets kNearest bounds by 0.5 + 1/512 so an
++    // exact [0.5, size - 0.5] domain (> 1px) never skips clamping, whereas float rounding under
++    // large cancelled translations can pull it inward and expose stale approx-fit mask texels
+     paint.setCoverageFragmentProcessor(GrTextureEffect::MakeSubset(std::move(view),
+                                                                    kPremul_SkAlphaType,
+                                                                    maskMatrix,
+                                                                    GrSamplerState::Filter::kNearest,
+                                                                    maskSubset,
+-                                                                   maskDomain,
+                                                                    *sdc->caps()));
+     DrawNonAARect(sdc, std::move(paint), userStencilSettings, clip, SkMatrix::I(),
+                   dstRect, invert);
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
 index d9cc68e..2e9710d 100644
 --- a/v8/include/v8-version.h
