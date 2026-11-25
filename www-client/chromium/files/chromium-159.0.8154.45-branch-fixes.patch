@@ -1,10 +1,10 @@
 Chromium 159.0.8154.45 + the later changes of its release branch, up to
-b041ae1632af39235926ef21a031003b41a9d085 (refs/branch-heads/8154@{#1684}), for the
+c8faa14c68e61321b16ff6ddc4702cc4b6969f97 (refs/branch-heads/8154@{#1694}), for the
 159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
-8154@{#1684}.
+8154@{#1693}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..b041ae1632af and the
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..c8faa14c68e6 and the
 dependencies whose DEPS revision changed: ANGLE 4dd34493f8a2..fcd0b7205673 (under
 third_party/angle/), third_party/libvpx/source/libvpx fb0a26ad923b..6f89cfbcc99f (under
 third_party/libvpx/source/libvpx/), V8 90a5172104e6..5075e76e0972 (under v8/), as served by
@@ -80,6 +80,8 @@ Commits contributing to it (oldest first):
   0f11ab44f7fb [M159] Revert CHECK_CURRENTLY_ON back to DCHECK_CURRENTLY_ON in OnComplete (8154@{#1682})
   565df66121cd [M159] Revert CHECK back to DCHECK in IncognitoClearBrowsingDataDialog (8154@{#1683})
   b041ae1632af [M159] Revert CHECK_GE back to DCHECK_GE in MetricsHandler::HandleRecordTime (8154@{#1684})
+  494ba27b96c7 [M159] [loomnibox] Update the Loomnibox 1-line pill and expand/collapse animations (8154@{#1685})
+  975ba709be1c [M159] FSA: validate source entry type before moving or renaming (8154@{#1693})
 Dependency commits of those rolls that touch kept files:
   315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
   9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
@@ -96,7 +98,7 @@ Dependency commits of those rolls that touch kept files:
   5075e76e0972 Version 15.9.128.38 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
-version at b041ae1632af (or ANGLE's fcd0b7205673) (or third_party/libvpx/source/libvpx's
+version at c8faa14c68e6 (or ANGLE's fcd0b7205673) (or third_party/libvpx/source/libvpx's
 6f89cfbcc99f) (or V8's 5075e76e0972).
 
 Apply with git apply.
@@ -2324,10 +2326,104 @@ index 827ff75..dd3dd6df 100644
      this.refreshTabSuggestions(/*forceRefresh=*/ true);
      this.queryAutocomplete(/* clearMatches= */ true);
 diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.css b/chrome/browser/resources/omnibox_everywhere/omnibox.css
-index 115a9344..80d3bd5 100644
+index 115a9344..62145677 100644
 --- a/chrome/browser/resources/omnibox_everywhere/omnibox.css
 +++ b/chrome/browser/resources/omnibox_everywhere/omnibox.css
-@@ -200,7 +200,7 @@
+@@ -18,19 +18,20 @@
+   --cr-searchbox-border-radius: 16px;
+   --cr-searchbox-icon-size-in-searchbox: 18px;
+   --cr-searchbox-icon-container-size: 32px;
+-  --cr-searchbox-icon-left-position: 16px;
++  --cr-searchbox-icon-left-position: 9px;
+   --cr-searchbox-icon-right-position: 0px;
+   --cr-searchbox-icon-width: 26px;
+-  --cr-searchbox-match-padding-inline-start: 16px;
++  --cr-searchbox-dropdown-header-padding-inline-start: 9px;
++  --cr-searchbox-match-padding-inline-start: 9px;
+   --cr-searchbox-match-text-padding-inline-start: 8px;
+   --cr-searchbox-voice-icon-offset: 16px;
+   --cr-searchbox-voice-search-button-width: 0px;
+   --cr-compose-button-width: 104px;
+   --cr-searchbox-icon-spacing: 11px;
+   --cr-composebox-background-color: var(--color-searchbox-background);
+-  /* Easing and duration tokens for expand/collapse animations (300ms
++  /* Easing and duration tokens for expand/collapse animations (340ms
+    * when expanded, overridden to 220ms when collapsed). */
+-  --loomnibox-animation-duration: 300ms;
++  --loomnibox-animation-duration: 340ms;
+   --loomnibox-animation-easing: cubic-bezier(0.2, 0, 0, 1);
+   border: var(--cr-searchbox-border, 2px solid transparent);
+   box-sizing: border-box;
+@@ -93,21 +94,60 @@
+ }
+ 
+ #inputWrapper {
++  --cr-searchbox-dropdown-header-padding-inline-start: 9px;
++  --cr-searchbox-icon-left-position: 9px;
++  --cr-searchbox-match-padding-inline-start: 9px;
++  display: flex;
++  flex-direction: column;
++  height: auto;
++  isolation: isolate;
++  min-height: var(--cr-searchbox-height);
++  padding-top: 6px;
++  position: relative;
++  width: 100%;
++}
++
++/* Animate the pill/card surface independently so the Super G stays static at
++ * 16px in the 1-line pill, and on expand the card grows outward around the G
++ * and profile icon (-7px left/right via inset-inline-start/end; top expansion
++ * via #inputWrapper margin-top 8px -> padding-top 6px) to center-align G with
++ * the 32px match icons/thumbnails and 16px card inset below. */
++#inputWrapper::before {
+   background: linear-gradient(
+           var(--omnibox-inactive-hover-overlay, transparent),
+           var(--omnibox-inactive-hover-overlay, transparent)),
+       var(--color-searchbox-background);
+   border-radius: var(--cr-searchbox-border-radius);
++  bottom: 0;
+   box-shadow: 0 4px 20px 2px rgba(0, 0, 0, 0.25);
+-  display: flex;
+-  flex-direction: column;
+-  height: auto;
+-  min-height: var(--cr-searchbox-height);
+-  padding-top: 6px;
+-  position: relative;
++  content: '';
++  inset-inline-end: -7px;
++  inset-inline-start: -7px;
++  pointer-events: none;
++  position: absolute;
++  top: 0;
+   transition: border-radius var(--loomnibox-animation-duration)
+-      var(--loomnibox-animation-easing);
+-  width: 100%;
++          var(--loomnibox-animation-easing),
++      inset-inline-end var(--loomnibox-animation-duration)
++          var(--loomnibox-animation-easing),
++      inset-inline-start var(--loomnibox-animation-duration)
++          var(--loomnibox-animation-easing);
++  z-index: -1;
++}
++
++/* search-animated-glow uses 'border-radius: inherit', which would inherit 0px
++ * from #inputWrapper now that the rounded surface lives on #inputWrapper::before. */
++search-animated-glow {
++  border-radius: var(--cr-searchbox-border-radius);
++  inset-inline-start: -7px;
++  top: 0;
++  width: calc(100% + 14px);
++  transition: border-radius var(--loomnibox-animation-duration)
++          var(--loomnibox-animation-easing),
++      inset-inline-start var(--loomnibox-animation-duration)
++          var(--loomnibox-animation-easing),
++      width var(--loomnibox-animation-duration)
++          var(--loomnibox-animation-easing);
+ }
+ 
+ :host([in-voice-search-mode]) #inputWrapper {
+@@ -200,7 +240,7 @@
  cr-searchbox-input::part(searchbox-input)::placeholder,
  #lensPlaceholder {
    color: var(--cr-composebox-input-placeholder-color,
@@ -2336,11 +2432,214 @@ index 115a9344..80d3bd5 100644
    font-weight: 400;
  }
  
+@@ -264,7 +304,7 @@
+ --contextual-entrypoint-and-carousel-context-menu-container-padding-inline-start
+   : 0px;
+   --text-input-inline-start-spacing: 16px;
+-  --cr-searchbox-match-padding-inline-start: 16px;
++  --cr-searchbox-match-padding-inline-start: 9px;
+ 
+   /* Used in search-animated-glow-element. */
+   --search-animated-glow-drag-drop-placeholder-top: 18px;
+@@ -331,7 +371,7 @@
+ 
+ :host([is-fusebox-enabled]) cr-searchbox-input {
+   --cr-searchbox-icon-container-size: 32px;
+-  --cr-searchbox-icon-left-position: 16px;
++  --cr-searchbox-icon-left-position: 9px;
+   --cr-searchbox-icon-right-position: 0px;
+ }
+ 
+@@ -392,6 +432,7 @@
+ #bottomControls {
+   padding-block-start: 4px;
+   padding-block-end: 12px;
++  padding-inline-start: 5px;
+ }
+ 
+ #bottomControls #context {
+@@ -444,18 +485,30 @@
+   height: var(--cr-searchbox-height, 48px);
+ }
+ 
+-/* Overrides the defaults on :host when collapsed to a single-line pill. */
+-:host(:not([dropdown-is-visible]):not([has-user-input])) {
+-  --cr-searchbox-border-radius: calc(var(--cr-searchbox-height, 48px) / 2);
++/* Overrides the defaults when collapsed to a single-line pill. Set on
++ * #inputWrapper (not :host) so outer app.css --cr-searchbox-height: 48px
++ * cannot override the 44px collapsed pill height. */
++:host(:not([dropdown-is-visible]):not([has-user-input])) #inputWrapper {
++  --cr-searchbox-border-radius: 22px;
++  --cr-searchbox-height: 44px;
++  --cr-searchbox-input-height: 44px;
+   --enterprise-profile-clearance: 24px;
+   --loomnibox-animation-duration: 220ms;
+-  --omnibox-everywhere-top-actions-top: 10px;
+-  --search-animated-glow-drag-drop-placeholder-top: 12px;
++  --omnibox-everywhere-top-actions-top: 8px;
++  --search-animated-glow-drag-drop-placeholder-top: 10px;
++  margin-top: 8px;
++  padding-top: 0;
+ }
+ 
+-:host(:not([dropdown-is-visible]):not([has-user-input])) #inputWrapper {
+-  margin-top: 6px;
+-  padding-top: 0;
++:host(:not([dropdown-is-visible]):not([has-user-input])) #inputWrapper::before {
++  inset-inline-end: 0;
++  inset-inline-start: 0;
++}
++
++:host(:not([dropdown-is-visible]):not([has-user-input])) search-animated-glow {
++  height: 100%;
++  inset-inline-start: 0;
++  width: 100%;
+ }
+ 
+ /* 48px profile offset + 3x28px buttons + 2x4px gaps + 8px clearance. */
+@@ -469,9 +522,11 @@
+ }
+ 
+ :host(:not([dropdown-is-visible]):not([has-user-input]))
+-    cr-searchbox-input::part(searchbox-input) {
+-  height: var(--cr-searchbox-height, 48px);
++    cr-searchbox-input::part(searchbox-input),
++:host(:not([dropdown-is-visible]):not([has-user-input])) #lensPlaceholder {
++  height: var(--cr-searchbox-height, 44px);
+   overflow: hidden;
++  padding-block: 10px;
+   text-overflow: ellipsis;
+   white-space: nowrap;
+ }
+@@ -492,7 +547,7 @@
+   inset-inline-end: 48px;
+   padding: 0;
+   position: absolute;
+-  top: var(--omnibox-everywhere-top-actions-top, 10px);
++  top: var(--omnibox-everywhere-top-actions-top, 8px);
+   width: auto;
+ }
+ 
+@@ -515,18 +570,6 @@
+   display: block;
+ }
+ 
+-:host([has-expanded]:not([dropdown-is-visible]):not([has-user-input]))
+-    #bottomControls,
+-:host(:is([dropdown-is-visible], [has-user-input])) #composeButton {
+-  animation: loomniboxTopControlsEnter var(--loomnibox-animation-duration)
+-      var(--loomnibox-animation-easing);
+-}
+-
+-:host(:is([dropdown-is-visible], [has-user-input])) #bottomControls {
+-  animation: loomniboxBottomControlsExpand var(--loomnibox-animation-duration)
+-      var(--loomnibox-animation-easing);
+-}
+-
+ @keyframes loomniboxDropdownExpand {
+   from {
+     opacity: 0;
+@@ -534,27 +577,9 @@
+   }
+ }
+ 
+-/* Fades and slides controls up into the top row (#composeButton when expanding,
+- * #bottomControls when collapsing back to the 1-line pill). */
+-@keyframes loomniboxTopControlsEnter {
+-  from {
+-    opacity: 0;
+-    transform: translateY(12px);
+-  }
+-}
+-
+-/* Counter-animates the vertical shift when #bottomControls moves from the
+- * inline 1-line pill position to the 2-line expanded bottom row. */
+-@keyframes loomniboxBottomControlsExpand {
+-  from {
+-    opacity: 0;
+-    transform: translateY(-16px);
+-  }
+-}
+-
+ @media (prefers-reduced-motion: reduce) {
+   :host,
+-  :host(:not([dropdown-is-visible]):not([has-user-input])) {
++  :host(:not([dropdown-is-visible]):not([has-user-input])) #inputWrapper {
+     --loomnibox-animation-duration: 0ms;
+   }
+ }
+diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.html.ts b/chrome/browser/resources/omnibox_everywhere/omnibox.html.ts
+index 164068e..c1a3d797 100644
+--- a/chrome/browser/resources/omnibox_everywhere/omnibox.html.ts
++++ b/chrome/browser/resources/omnibox_everywhere/omnibox.html.ts
+@@ -39,9 +39,6 @@
+     </div>
+     ${this.composeButtonEnabled ? html`
+       <cr-searchbox-compose-button id="composeButton" slot="compose-button"
+-          ?dynamic="${this.ntpRealboxDynamicAiModeButtonEnabled_}"
+-          ?inherit-visibility="${
+-              this.ntpRealboxDynamicAiModeButtonPreventEarlyPaint_}"
+           ?has-user-input="${this.hasUserInput_}"
+           ?virtual-focus-enabled="${this.virtualFocusEnabled}"
+           ?has-virtual-focus="${this.isAiModeVirtualFocused()}"
+@@ -64,8 +61,7 @@
+         ?hidden="${!this.dropdownIsVisible}">
+     </cr-searchbox-dropdown>
+   </div>
+-  <div id="bottomControls" @animationend="${this.onBottomControlsAnimationEnd_}"
+-      @animationcancel="${this.onBottomControlsAnimationEnd_}">
++  <div id="bottomControls">
+     ${this.isFuseboxEnabled ? html`
+       <div
+           class="contextualEntrypointContainer
 diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.ts b/chrome/browser/resources/omnibox_everywhere/omnibox.ts
-index 2824d84a..4f6a499 100644
+index 2824d84a..27e964e4 100644
 --- a/chrome/browser/resources/omnibox_everywhere/omnibox.ts
 +++ b/chrome/browser/resources/omnibox_everywhere/omnibox.ts
-@@ -436,8 +436,8 @@
+@@ -146,8 +146,6 @@
+         reflect: true,
+         attribute: 'has-user-input',
+       },
+-      ntpRealboxDynamicAiModeButtonEnabled_: {type: Boolean},
+-      ntpRealboxDynamicAiModeButtonPreventEarlyPaint_: {type: Boolean},
+       inputState_: {type: Object},
+       contextManagementInComposeboxEnabled: {type: Boolean},
+       isDraggingFile: {
+@@ -224,10 +222,6 @@
+   protected accessor isFuseboxEnabled: boolean =
+       loadTimeData.getBoolean('isFuseboxEnabled');
+   protected accessor hasUserInput_: boolean = false;
+-  protected accessor ntpRealboxDynamicAiModeButtonEnabled_: boolean =
+-      loadTimeData.getBoolean('ntpRealboxDynamicAiModeButton');
+-  protected accessor ntpRealboxDynamicAiModeButtonPreventEarlyPaint_: boolean =
+-      loadTimeData.getBoolean('ntpRealboxDynamicAiModeButtonPreventEarlyPaint');
+   protected accessor inputState_: InputState|null = null;
+ 
+   private pageHandler_: PageHandlerInterface;
+@@ -327,22 +321,10 @@
+     }
+     this.placeholderCycler_?.stop();
+     this.isPlaceholderCycling_ = false;
+-    this.removeAttribute('has-expanded');
+   }
+ 
+   override willUpdate(changedProperties: PropertyValues<this>) {
+     super.willUpdate(changedProperties);
+-    // `has-expanded` marks that the omnibox has been expanded at least once in
+-    // the current session so collapsing back to `!dropdownIsVisible &&
+-    // !hasUserInput_` plays the collapse animation on `#bottomControls`
+-    // (whereas initial mount does not). `willUpdate()` re-applies
+-    // `has-expanded` on every subsequent expansion after it is cleared by
+-    // voice search or `onBottomControlsAnimationEnd_()`.
+-    if (this.inVoiceSearchMode) {
+-      this.removeAttribute('has-expanded');
+-    } else if (this.dropdownIsVisible || this.hasUserInput_) {
+-      this.toggleAttribute('has-expanded', true);
+-    }
+     if (!this.canCyclePlaceholders_()) {
+       this.showLensPlaceholder_ = false;
+     }
+@@ -436,8 +418,8 @@
      this.setInputText('');
    }
  
@@ -2351,6 +2650,25 @@ index 2824d84a..4f6a499 100644
      this.setInputText('');
    }
  
+@@ -885,18 +867,6 @@
+     }
+   }
+ 
+-  // `#bottomControls` animates on both expand (`loomniboxBottomControlsExpand`)
+-  // and collapse (`loomniboxTopControlsEnter`). Clear `has-expanded` only when
+-  // the collapse animation finishes (`!dropdownIsVisible && !hasUserInput_`) so
+-  // the 1-line pill is back at rest until the next expansion.
+-  protected onBottomControlsAnimationEnd_(e: AnimationEvent) {
+-    if (e.target === e.currentTarget &&
+-        e.animationName === 'loomniboxTopControlsEnter' &&
+-        !this.dropdownIsVisible && !this.hasUserInput_) {
+-      this.removeAttribute('has-expanded');
+-    }
+-  }
+-
+   // Fast-forwards active shadow root animations so native menu anchor rects are
+   // sampled at their final resting positions.
+   private finishAnimations_() {
 diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox_everywhere.html b/chrome/browser/resources/omnibox_everywhere/omnibox_everywhere.html
 index 1ff3143..a946559 100644
 --- a/chrome/browser/resources/omnibox_everywhere/omnibox_everywhere.html
@@ -6059,6 +6377,188 @@ index 5fb2602..0b3c6099 100644
  // Parameter determining the debounce duration before preloading the expanded
  // Threads Rail iframe on hover or focus, in milliseconds.
  extern const base::FeatureParam<int> kNtpThreadsRailPreloadDebounceMsParam;
+diff --git a/content/browser/file_system_access/file_system_access_directory_handle_impl.cc b/content/browser/file_system_access/file_system_access_directory_handle_impl.cc
+index d84cc420..2d75f2c 100644
+--- a/content/browser/file_system_access/file_system_access_directory_handle_impl.cc
++++ b/content/browser/file_system_access/file_system_access_directory_handle_impl.cc
+@@ -1072,4 +1072,9 @@
+   return weak_factory_.GetWeakPtr();
+ }
+ 
++FileSystemAccessHandleBase::HandleType
++FileSystemAccessDirectoryHandleImpl::GetHandleType() const {
++  return HandleType::kDirectory;
++}
++
+ }  // namespace content
+diff --git a/content/browser/file_system_access/file_system_access_directory_handle_impl.h b/content/browser/file_system_access/file_system_access_directory_handle_impl.h
+index ed9c807..23bd52e 100644
+--- a/content/browser/file_system_access/file_system_access_directory_handle_impl.h
++++ b/content/browser/file_system_access/file_system_access_directory_handle_impl.h
+@@ -192,6 +192,8 @@
+       FileSystemAccessPermissionContext::HandleType handle_type);
+ 
+   base::WeakPtr<FileSystemAccessHandleBase> AsWeakPtr() override;
++  // Returns `HandleType::kDirectory` for directory handles.
++  HandleType GetHandleType() const override;
+ 
+   base::WeakPtrFactory<FileSystemAccessDirectoryHandleImpl> weak_factory_
+       GUARDED_BY_CONTEXT(sequence_checker_){this};
+diff --git a/content/browser/file_system_access/file_system_access_file_handle_impl.cc b/content/browser/file_system_access/file_system_access_file_handle_impl.cc
+index ac59f93..047fe8e 100644
+--- a/content/browser/file_system_access/file_system_access_file_handle_impl.cc
++++ b/content/browser/file_system_access/file_system_access_file_handle_impl.cc
+@@ -1024,4 +1024,9 @@
+   return weak_factory_.GetWeakPtr();
+ }
+ 
++FileSystemAccessHandleBase::HandleType
++FileSystemAccessFileHandleImpl::GetHandleType() const {
++  return HandleType::kFile;
++}
++
+ }  // namespace content
+diff --git a/content/browser/file_system_access/file_system_access_file_handle_impl.h b/content/browser/file_system_access/file_system_access_file_handle_impl.h
+index e0b6b41..fda5ea7 100644
+--- a/content/browser/file_system_access/file_system_access_file_handle_impl.h
++++ b/content/browser/file_system_access/file_system_access_file_handle_impl.h
+@@ -222,6 +222,8 @@
+ #endif  // BUILDFLAG(IS_MAC)
+ 
+   base::WeakPtr<FileSystemAccessHandleBase> AsWeakPtr() override;
++  // Returns `HandleType::kFile` for file handles.
++  HandleType GetHandleType() const override;
+ 
+   base::WeakPtrFactory<FileSystemAccessFileHandleImpl> weak_factory_
+       GUARDED_BY_CONTEXT(sequence_checker_){this};
+diff --git a/content/browser/file_system_access/file_system_access_file_writer_impl.cc b/content/browser/file_system_access/file_system_access_file_writer_impl.cc
+index 61ca9176..876a07f7 100644
+--- a/content/browser/file_system_access/file_system_access_file_writer_impl.cc
++++ b/content/browser/file_system_access/file_system_access_file_writer_impl.cc
+@@ -334,4 +334,9 @@
+   return weak_factory_.GetWeakPtr();
+ }
+ 
++FileSystemAccessHandleBase::HandleType
++FileSystemAccessFileWriterImpl::GetHandleType() const {
++  return HandleType::kFile;
++}
++
+ }  // namespace content
+diff --git a/content/browser/file_system_access/file_system_access_file_writer_impl.h b/content/browser/file_system_access/file_system_access_file_writer_impl.h
+index fa4eb77..1dfff47 100644
+--- a/content/browser/file_system_access/file_system_access_file_writer_impl.h
++++ b/content/browser/file_system_access/file_system_access_file_writer_impl.h
+@@ -152,6 +152,8 @@
+   bool did_start_close_ GUARDED_BY_CONTEXT(sequence_checker_) = false;
+ 
+   base::WeakPtr<FileSystemAccessHandleBase> AsWeakPtr() override;
++  // Returns `HandleType::kFile` for file writers.
++  HandleType GetHandleType() const override;
+ 
+   base::WeakPtrFactory<FileSystemAccessFileWriterImpl> weak_factory_
+       GUARDED_BY_CONTEXT(sequence_checker_){this};
+diff --git a/content/browser/file_system_access/file_system_access_handle_base.cc b/content/browser/file_system_access/file_system_access_handle_base.cc
+index f1c0040..e6ab66e5 100644
+--- a/content/browser/file_system_access/file_system_access_handle_base.cc
++++ b/content/browser/file_system_access/file_system_access_handle_base.cc
+@@ -377,9 +377,7 @@
+   SharedHandleState destination_shared_handle_state =
+       manager()->GetSharedHandleStateForNonSandboxedPath(
+           content::PathInfo(destination_url.virtual_path(), new_entry_name),
+-          context().storage_key,
+-          // TODO(crbug.com/40198034): Support directory moves.
+-          FileSystemAccessPermissionContext::HandleType::kFile,
++          context().storage_key, GetHandleType(),
+           // TODO(crbug.com/545006893): Rename queries write_grant and should
+           // use AccessTrigger::kProgrammaticWrite rather than
+           // kProgrammaticRead. This CL is a pure refactoring so we avoid making
+@@ -643,9 +641,7 @@
+   // Request a sensitive entry access check which will decide if the destination
+   // path should be allowed or blocked, and may spawn a confirmation UI.
+   RunWithSensitiveEntryAccess(
+-      destination_url, /*display_name=*/"",
+-      // TODO(crbug.com/40198034): Update once moving directory is supported.
+-      HandleType::kFile,
++      destination_url, /*display_name=*/"", GetHandleType(),
+       // TODO(crbug.com/545006893): Move currently passes kSave because the
+       // move operation will save the file, but it can spawn unexpected
+       // interactive UI dialogs when blocked. Revisit transitioning this to a
+@@ -673,6 +669,36 @@
+     base::OnceCallback<void(blink::mojom::FileSystemAccessErrorPtr)> callback) {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+ 
++  // Confirm that the source entry still exists and matches this handle's type
++  // while the exclusive lock on `url()` is held.
++  auto exists_operation =
++      GetHandleType() == HandleType::kDirectory
++          ? &storage::FileSystemOperationRunner::DirectoryExists
++          : &storage::FileSystemOperationRunner::FileExists;
++  manager()->DoFileSystemOperation(
++      FROM_HERE, exists_operation,
++      base::BindOnce(&FileSystemAccessHandleBase::DidConfirmSourceExistsForMove,
++                     AsWeakPtr(), std::move(destination_url),
++                     has_overwrite_permission, has_transient_user_activation,
++                     std::move(locks), std::move(callback)),
++      url());
++}
++
++void FileSystemAccessHandleBase::DidConfirmSourceExistsForMove(
++    storage::FileSystemURL destination_url,
++    bool has_overwrite_permission,
++    bool has_transient_user_activation,
++    std::vector<scoped_refptr<LockHandle>> locks,
++    base::OnceCallback<void(blink::mojom::FileSystemAccessErrorPtr)> callback,
++    base::File::Error result) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++
++  if (result != base::File::FILE_OK) {
++    locks.clear();
++    std::move(callback).Run(file_system_access_error::FromFileError(result));
++    return;
++  }
++
+   // Only allow overwriting moves if we have write access to the destination or
+   // the parent directory write permission.
+   if (has_overwrite_permission) {
+@@ -704,6 +730,7 @@
+       result == base::File::FILE_ERROR_NOT_EMPTY ||
+       result == base::File::FILE_ERROR_NOT_A_FILE ||
+       result == base::File::FILE_ERROR_INVALID_OPERATION) {
++    locks.clear();
+     std::move(callback).Run(file_system_access_error::FromStatus(
+         blink::mojom::FileSystemAccessStatus::kInvalidModificationError));
+     return;
+diff --git a/content/browser/file_system_access/file_system_access_handle_base.h b/content/browser/file_system_access/file_system_access_handle_base.h
+index 9b9cd9c..72b6444c 100644
+--- a/content/browser/file_system_access/file_system_access_handle_base.h
++++ b/content/browser/file_system_access/file_system_access_handle_base.h
+@@ -179,6 +179,9 @@
+  protected:
+   virtual base::WeakPtr<FileSystemAccessHandleBase> AsWeakPtr() = 0;
+ 
++  // Returns the handle type (`kFile` or `kDirectory`) represented by `this`.
++  virtual HandleType GetHandleType() const = 0;
++
+   // Checks whether the handle represents a non-sandboxed file system path
+   // bound to a third-party execution context. Sandboxed file systems (OPFS)
+   // are partitioned by storage key and exempt from third-party restrictions.
+@@ -260,6 +263,15 @@
+       std::vector<scoped_refptr<FileSystemAccessLockManager::LockHandle>> locks,
+       base::OnceCallback<void(blink::mojom::FileSystemAccessErrorPtr)>
+           callback);
++  // Invoked after confirming that the source entry at `url()` still exists and
++  // matches `GetHandleType()` while holding exclusive move `locks`.
++  void DidConfirmSourceExistsForMove(
++      storage::FileSystemURL destination_url,
++      bool has_overwrite_permission,
++      bool has_transient_user_activation,
++      std::vector<scoped_refptr<FileSystemAccessLockManager::LockHandle>> locks,
++      base::OnceCallback<void(blink::mojom::FileSystemAccessErrorPtr)> callback,
++      base::File::Error result);
+   // Only called if the move operation is not allowed to overwrite the target.
+   void ConfirmMoveWillNotOverwriteDestination(
+       const storage::FileSystemURL& destination_url,
 diff --git a/content/browser/renderer_host/navigation_request.cc b/content/browser/renderer_host/navigation_request.cc
 index 6a1b0279..9762b856 100644
 --- a/content/browser/renderer_host/navigation_request.cc
