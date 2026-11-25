@@ -1,10 +1,10 @@
 Chromium 159.0.8154.45 + the later changes of its release branch, up to
-65f6c4cb67b7559f10f4a2948c990f78037e9057 (refs/branch-heads/8154@{#1745}), for the
+e853f1c9f26eb77dc83971a07176018882c7ca81 (refs/branch-heads/8154@{#1760}), for the
 159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
-8154@{#1745}.
+8154@{#1759}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..65f6c4cb67b7 and the
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..e853f1c9f26e and the
 dependencies whose DEPS revision changed: ANGLE 4dd34493f8a2..2ec7b6db14f2 (under
 third_party/angle/), third_party/libvpx/source/libvpx fb0a26ad923b..6f89cfbcc99f (under
 third_party/libvpx/source/libvpx/), Skia b809e72312b0..220d4fc2d73c (under
@@ -96,6 +96,15 @@ Commits contributing to it (oldest first):
   ac2c1b3ee922 [M159] [PageInfo] Close bubble synchronously on WebContents destruction (8154@{#1725})
   168e526e2749 [M159] [OmniboxEverywhere] Make empty search and compose inputs draggable (8154@{#1742})
   65f6c4cb67b7 Roll commits from side projects in M159 (Skia b809e72312b0..220d4fc2d73c, 8154@{#1745})
+  444c12805ae1 [Enterprise] Fix double ClipboardMonitor observer registration (8154@{#1748})
+  acd0295a5983 [M159] [omnibox][webui] Remove stale realboxVirtualFocusNavigation overrides (8154@{#1749})
+  bd978881f74a [M159] [LHS] Access #folded via this.$.folded (8154@{#1750})
+  c2e89ffc99dd [M159] [LHS] Parse and cache SuperG and small Doodle URLs (8154@{#1752})
+  b28816bf1f24 [M159] [loomnibox] Add dogfood Send Feedback option to overflow menus (8154@{#1753})
+  8771127d08e5 [M159] [loomnibox] Hide MVT tiles while Lens IPH help bubble is showing (8154@{#1754})
+  0fa90a5bb2b4 [M159] [Full WebUI Omnibox] Blur the omnibox when a tab drag starts (8154@{#1755})
+  6cf1220acf75 [M159] [editing] Skip pseudo-elements in `AbstractLineBox::PositionForPoint` (8154@{#1757})
+  002a9be8e41f [M159] activity_reporter: exclude per-user Azure AD workplace join on Windows (8154@{#1759})
 Dependency commits of those rolls that touch kept files:
   315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
   9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
@@ -116,7 +125,7 @@ Dependency commits of those rolls that touch kept files:
   b0ec06674184 Version 15.9.128.39 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
-version at 65f6c4cb67b7 (or ANGLE's 2ec7b6db14f2) (or third_party/libvpx/source/libvpx's
+version at e853f1c9f26e (or ANGLE's 2ec7b6db14f2) (or third_party/libvpx/source/libvpx's
 6f89cfbcc99f) (or Skia's 220d4fc2d73c) (or V8's b0ec06674184).
 
 Apply with git apply.
@@ -617,6 +626,18 @@ index 75d60369..7237304 100644
    DesktopMediaID source = BuildDesktopMediaID(target_contents, nullptr);
    TabCaptureRegistry* registry = TabCaptureRegistry::Get(browser_context());
    std::string device_id =
+diff --git a/chrome/browser/feedback/public/feedback_source.h b/chrome/browser/feedback/public/feedback_source.h
+index e025a24a..70910ad6 100644
+--- a/chrome/browser/feedback/public/feedback_source.h
++++ b/chrome/browser/feedback/public/feedback_source.h
+@@ -68,6 +68,7 @@
+   kFeedbackSourceOnDeviceAI = 49,
+   kFeedbackSourceOmnibox = 50,
+   kFeedbackSourceReadingMode = 51,
++  kFeedbackSourceOmniboxEverywhere = 52,
+ 
+   // ATTENTION: Before making any changes or adding to feedback collection,
+   // please ensure the teams that operationalize feedback are aware and
 diff --git a/chrome/browser/flag-metadata.json b/chrome/browser/flag-metadata.json
 index 75899c38..e8ee58c 100644
 --- a/chrome/browser/flag-metadata.json
@@ -1358,18 +1379,19 @@ index 344bac2e..44da8ace 100644
    </ntp-iframe>
  ` : ''}
 diff --git a/chrome/browser/resources/new_tab_page/left_hand_side.ts b/chrome/browser/resources/new_tab_page/left_hand_side.ts
-index 2832e08..a0ab4be 100644
+index 2832e08..b606151 100644
 --- a/chrome/browser/resources/new_tab_page/left_hand_side.ts
 +++ b/chrome/browser/resources/new_tab_page/left_hand_side.ts
-@@ -6,6 +6,7 @@
+@@ -6,6 +6,8 @@
  import './lhs_ghost_loader.js';
  
  import {COLOR_PROVIDER_CHANGED, ColorChangeUpdater} from 'chrome://resources/cr_components/color_change_listener/colors_css_updater.js';
++import type {ThreadsRailElement} from 'chrome://resources/cr_components/composebox/threads_rail.js';
 +import {assert} from 'chrome://resources/js/assert.js';
  import {EventTracker} from 'chrome://resources/js/event_tracker.js';
  import type {PropertyValues} from 'chrome://resources/lit/v3_0/lit.rollup.js';
  import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
-@@ -14,23 +15,68 @@
+@@ -14,23 +16,68 @@
  import type {IframeElement} from './iframe.js';
  import {getCss} from './left_hand_side.css.js';
  import {getHtml} from './left_hand_side.html.js';
@@ -1438,7 +1460,7 @@ index 2832e08..a0ab4be 100644
  };
  
  export enum NtpLhsMessageType {
-@@ -62,22 +108,42 @@
+@@ -62,27 +109,53 @@
  export type SearchToChromeLhsMessage = NtpLhsReadyMessage|NtpLhsCloseMessage|
      NtpLhsNewThreadMessage|NtpLhsNavigateMessage;
  
@@ -1490,7 +1512,18 @@ index 2832e08..a0ab4be 100644
    GHOST_LOADER = 'ghostLoader',
    // The expanded LHS iframe.
    EXPANDED = 'expanded',
-@@ -98,13 +164,8 @@
+ }
+ 
++export interface LeftHandSideElement {
++  $: {
++    folded: ThreadsRailElement,
++  };
++}
++
+ export class LeftHandSideElement extends CrLitElement {
+   static get is() {
+     return 'cr-left-hand-side';
+@@ -98,13 +171,8 @@
  
    static override get properties() {
      return {
@@ -1504,7 +1537,7 @@ index 2832e08..a0ab4be 100644
        isDark: {
          type: Boolean,
          reflect: true,
-@@ -114,6 +175,7 @@
+@@ -114,6 +182,7 @@
          reflect: true,
        },
        isExpandedReady_: {type: Boolean},
@@ -1512,7 +1545,7 @@ index 2832e08..a0ab4be 100644
        threadsRailPreloadDebounceMs_: {type: Number},
        view_: {
          type: String,
-@@ -123,32 +185,42 @@
+@@ -123,32 +192,42 @@
    }
  
    accessor isDark: boolean|undefined = undefined;
@@ -1562,7 +1595,7 @@ index 2832e08..a0ab4be 100644
  
    override connectedCallback() {
      super.connectedCallback();
-@@ -159,13 +231,14 @@
+@@ -159,13 +238,14 @@
      this.eventTracker_.add(
          ColorChangeUpdater.forDocument().eventTarget, COLOR_PROVIDER_CHANGED,
          this.postThemeColors_);
@@ -1579,7 +1612,7 @@ index 2832e08..a0ab4be 100644
      this.cancelPreloadTimer_();
    }
  
-@@ -176,20 +249,32 @@
+@@ -176,20 +256,31 @@
  
    override firstUpdated(changedProperties: PropertyValues<this>) {
      super.firstUpdated(changedProperties);
@@ -1587,8 +1620,7 @@ index 2832e08..a0ab4be 100644
 -      const folded = this.shadowRoot.querySelector<HTMLElement>('#folded');
 -      this.collapsedWidth_ = folded ? folded.offsetWidth : 0;
 -    }
-+    const folded = this.shadowRoot.querySelector<HTMLElement>('#folded');
-+    this.collapsedWidth_ = folded ? folded.offsetWidth : 0;
++    this.collapsedWidth_ = this.$.folded.offsetWidth;
    }
  
    override updated(changedProperties: PropertyValues<this>) {
@@ -1620,7 +1652,7 @@ index 2832e08..a0ab4be 100644
        this.setHostWidth_(
            this.isExpanded_ ? this.expandedWidth_ : this.collapsedWidth_);
      }
-@@ -200,13 +285,10 @@
+@@ -200,13 +291,10 @@
    // views, including hiding the folded rail while the ghost loader replaces
    // it, are handled in left_hand_side.css.
    protected getVisibleView_(): LhsView {
@@ -1637,7 +1669,7 @@ index 2832e08..a0ab4be 100644
    }
  
    private setHostWidth_(width: number) {
-@@ -214,66 +296,79 @@
+@@ -214,66 +302,79 @@
          '--cr-left-hand-side-width', `${Math.round(width)}px`);
    }
  
@@ -1761,7 +1793,7 @@ index 2832e08..a0ab4be 100644
    protected async onFoldedClick_() {
      await this.expand_();
    }
-@@ -283,7 +378,7 @@
+@@ -283,7 +384,7 @@
    }
  
    private schedulePreloadExpanded_() {
@@ -1770,7 +1802,7 @@ index 2832e08..a0ab4be 100644
        return;
      }
      if (this.preloadTimerId_ !== null) {
-@@ -307,17 +402,37 @@
+@@ -307,17 +408,37 @@
    }
  
    private async preloadExpanded_() {
@@ -1810,7 +1842,7 @@ index 2832e08..a0ab4be 100644
      this.cancelPreloadTimer_();
      await this.preloadExpanded_();
      this.isExpanded_ = true;
-@@ -342,21 +457,36 @@
+@@ -342,21 +463,36 @@
  
      switch (data.type) {
        case NtpLhsMessageType.NTP_LHS_READY: {
@@ -1850,7 +1882,7 @@ index 2832e08..a0ab4be 100644
          this.fire('open-composebox');
          break;
        }
-@@ -370,6 +500,8 @@
+@@ -370,6 +506,8 @@
          if (url.protocol !== 'http:' && url.protocol !== 'https:') {
            return;
          }
@@ -1859,7 +1891,7 @@ index 2832e08..a0ab4be 100644
          WindowProxy.getInstance().navigate(data.url);
          break;
        }
-@@ -378,11 +510,53 @@
+@@ -378,11 +516,53 @@
      }
    };
  
@@ -1915,14 +1947,13 @@ index 2832e08..a0ab4be 100644
        return;
      }
      const computedStyle = getComputedStyle(this);
-@@ -394,10 +568,16 @@
+@@ -394,10 +574,15 @@
                             `--color-new-tab-page-threads-rail-${cssVarSuffix}`)
                         .trim();
      }
-+    const folded = this.shadowRoot.querySelector<HTMLElement>('#folded');
-+    assert(folded);
 +    const iconSize = parseInt(
-+        getComputedStyle(folded).getPropertyValue('--threads-rail-icon-size'),
++        getComputedStyle(this.$.folded)
++            .getPropertyValue('--threads-rail-icon-size'),
 +        10);
      const message: ChromeToSearchLhsMessage = {
        type: NtpLhsMessageType.NTP_LHS_SET_THEME,
@@ -2126,7 +2157,7 @@ index f1b8cb1..0f1ba7ff 100644
  export {recordBoolean, recordDuration, recordEnumeration, recordLinearValue, recordLogValue, recordOccurrence, recordPerdecage, recordSmallCount, recordSparseValueWithPersistentHash, recordVoiceAction, VoiceAction, VoiceError} from './metrics_utils.js';
  export {NtpSearchboxElement} from './ntp_searchbox.js';
 diff --git a/chrome/browser/resources/omnibox_everywhere/app.css b/chrome/browser/resources/omnibox_everywhere/app.css
-index 87fe4348..7acc398 100644
+index 87fe4348..4d7a8691 100644
 --- a/chrome/browser/resources/omnibox_everywhere/app.css
 +++ b/chrome/browser/resources/omnibox_everywhere/app.css
 @@ -11,6 +11,8 @@
@@ -2254,6 +2285,14 @@ index 87fe4348..7acc398 100644
  }
  
  :host([show-voice-search-overlay_]) #content {
+@@ -341,6 +363,7 @@
+ #content:has([is-context-menu-open]) #mostVisitedContainer,
+ #content:has([is-screenshot-menu-open]) #mostVisitedContainer,
+ #content:has([is-overflow-menu-open]) #mostVisitedContainer,
++#content:has([is-lens-help-bubble-showing]) #mostVisitedContainer,
+ #content:has(#composebox) #mostVisitedContainer,
+ #mostVisitedContainer[hidden],
+ #mostVisitedContainer:has(cr-most-visited:not([visible_])),
 diff --git a/chrome/browser/resources/omnibox_everywhere/app.html.ts b/chrome/browser/resources/omnibox_everywhere/app.html.ts
 index 78692dd..368f84c 100644
 --- a/chrome/browser/resources/omnibox_everywhere/app.html.ts
@@ -2743,7 +2782,7 @@ index 164068e..c1a3d797 100644
        <div
            class="contextualEntrypointContainer
 diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.ts b/chrome/browser/resources/omnibox_everywhere/omnibox.ts
-index 2824d84a..9422573 100644
+index 2824d84a..5cf001bb 100644
 --- a/chrome/browser/resources/omnibox_everywhere/omnibox.ts
 +++ b/chrome/browser/resources/omnibox_everywhere/omnibox.ts
 @@ -10,7 +10,7 @@
@@ -2764,7 +2803,20 @@ index 2824d84a..9422573 100644
        inputState_: {type: Object},
        contextManagementInComposeboxEnabled: {type: Boolean},
        isDraggingFile: {
-@@ -224,10 +222,6 @@
+@@ -175,7 +173,11 @@
+         reflect: true,
+         attribute: 'is-active',
+       },
+-      isLensHelpBubbleShowing: {type: Boolean},
++      isLensHelpBubbleShowing: {
++        type: Boolean,
++        reflect: true,
++        attribute: 'is-lens-help-bubble-showing',
++      },
+       showLensPlaceholder_: {type: Boolean},
+     };
+   }
+@@ -224,10 +226,6 @@
    protected accessor isFuseboxEnabled: boolean =
        loadTimeData.getBoolean('isFuseboxEnabled');
    protected accessor hasUserInput_: boolean = false;
@@ -2775,7 +2827,7 @@ index 2824d84a..9422573 100644
    protected accessor inputState_: InputState|null = null;
  
    private pageHandler_: PageHandlerInterface;
-@@ -303,6 +297,9 @@
+@@ -303,6 +301,9 @@
      this.pageHandler_.getInputState().then((response) => {
        this.inputState_ = response.state;
      });
@@ -2785,7 +2837,7 @@ index 2824d84a..9422573 100644
    }
  
    override disconnectedCallback() {
-@@ -327,22 +324,10 @@
+@@ -327,22 +328,10 @@
      }
      this.placeholderCycler_?.stop();
      this.isPlaceholderCycling_ = false;
@@ -2808,7 +2860,7 @@ index 2824d84a..9422573 100644
      if (!this.canCyclePlaceholders_()) {
        this.showLensPlaceholder_ = false;
      }
-@@ -436,8 +421,8 @@
+@@ -436,8 +425,8 @@
      this.setInputText('');
    }
  
@@ -2819,7 +2871,7 @@ index 2824d84a..9422573 100644
      this.setInputText('');
    }
  
-@@ -885,18 +870,6 @@
+@@ -885,18 +874,6 @@
      }
    }
  
@@ -2865,7 +2917,7 @@ index 253540a..ded7eed9 100644
        --color-omnibox-results-button-border);
    --color-searchbox-results-action-chip-focus-outline: var(
 diff --git a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
-index b48d7f8..378be30 100644
+index b48d7f8..877eed7 100644
 --- a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
 +++ b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
 @@ -18,7 +18,7 @@
@@ -3184,6 +3236,15 @@ index b48d7f8..378be30 100644
      this.textInputType_ = state.prefersUrlInput ? 'url' : 'search';
      this.isComposing_ = false;
      const keywordChanged =
+@@ -2468,7 +2670,7 @@
+   /**
+    * Returns true if any popup element or match row is currently selected,
+    * bridging the legacy DOM focus model and the Virtual Focus model (gated by
+-   * `realboxVirtualFocusNavigation`). When legacy focus is eventually
++   * `virtualFocusEnabled`). When legacy focus is eventually
+    * deprecated and removed along with `selectedMatchIndex`, this can be
+    * simplified to just `!selectionsEqual(this.selection, kDefaultSelection)`.
+    */
 @@ -2504,9 +2706,9 @@
        // On an open page where no suggestion match is highlighted, submit the
        // verbatim input text (or reload the permanent URL).
@@ -3794,7 +3855,7 @@ index fe68c72..ee8c0418 100644
        !ChallengeMatchesNavigation(
            navigation_handle->GetAuthChallengeInfo().value(),
 diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/BUILD.gn b/chrome/browser/ui/omnibox/omnibox_everywhere/BUILD.gn
-index 2254a16..6225a015 100644
+index 2254a16..65728bb 100644
 --- a/chrome/browser/ui/omnibox/omnibox_everywhere/BUILD.gn
 +++ b/chrome/browser/ui/omnibox/omnibox_everywhere/BUILD.gn
 @@ -49,6 +49,7 @@
@@ -3813,7 +3874,14 @@ index 2254a16..6225a015 100644
      "//ui/base/accelerators/global_accelerator_listener",
      "//ui/gfx",
      "//ui/views",
-@@ -86,6 +88,7 @@
+@@ -81,11 +83,14 @@
+     "omnibox_everywhere_context_menu_controller.cc",
+     "omnibox_everywhere_controller.cc",
+     "omnibox_everywhere_feature_promo_controller.cc",
++    "omnibox_everywhere_feedback.cc",
++    "omnibox_everywhere_feedback.h",
+     "omnibox_everywhere_fre_controller.cc",
+     "omnibox_everywhere_region_select_overlay.cc",
      "omnibox_everywhere_ui_manager.cc",
      "omnibox_everywhere_widget_delegate.cc",
      "omnibox_everywhere_widget_delegate.h",
@@ -3821,7 +3889,15 @@ index 2254a16..6225a015 100644
    ]
    if (is_mac) {
      sources += [ "mac_window_util.mm" ]
-@@ -125,6 +128,7 @@
+@@ -103,6 +108,7 @@
+     "//chrome/browser/autocomplete:aim_eligibility_service",
+     "//chrome/browser/background/omnibox_everywhere",
+     "//chrome/browser/feature_engagement",
++    "//chrome/browser/feedback",
+     "//chrome/browser/media/webrtc",
+     "//chrome/browser/new_tab_page/prefs",
+     "//chrome/browser/profiles:profile_manager",
+@@ -125,6 +131,7 @@
      "//components/search_engines",
      "//components/url_formatter",
      "//components/vector_icons",
@@ -3829,9 +3905,11 @@ index 2254a16..6225a015 100644
      "//ui/base",
      "//ui/base/accelerators/global_accelerator_listener",
      "//ui/base/clipboard",
-@@ -139,6 +143,9 @@
+@@ -138,7 +145,11 @@
+     "//ui/strings:ui_strings",
      "//ui/views",
      "//ui/views/controls/webview",
++    "//url",
    ]
 +  if (is_mac) {
 +    deps += [ "//components/remote_cocoa/app_shim" ]
@@ -3839,7 +3917,7 @@ index 2254a16..6225a015 100644
    if (use_aura) {
      sources += [
        "omnibox_everywhere_event_handler_aura.cc",
-@@ -174,6 +181,7 @@
+@@ -174,6 +185,7 @@
        "omnibox_everywhere_region_select_overlay_unittest.cc",
        "omnibox_everywhere_ui_manager_unittest.cc",
        "omnibox_everywhere_widget_delegate_unittest.cc",
@@ -3847,7 +3925,7 @@ index 2254a16..6225a015 100644
      ]
      if (use_aura) {
        sources += [ "omnibox_everywhere_event_handler_aura_unittest.cc" ]
-@@ -213,6 +221,7 @@
+@@ -213,6 +225,7 @@
        "//content/test:test_support",
        "//skia",
        "//testing/gtest",
@@ -3870,6 +3948,174 @@ index 0536943e9..463579b 100644
  #endif
  
  }  // namespace omnibox_everywhere
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_context_menu_controller.cc b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_context_menu_controller.cc
+index fb13f06..091ee39d 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_context_menu_controller.cc
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_context_menu_controller.cc
+@@ -18,6 +18,7 @@
+ #include "chrome/browser/search_engines/ai_mode_button_service_factory.h"
+ #include "chrome/browser/ui/chrome_pages.h"
+ #include "chrome/browser/ui/omnibox/clipboard_utils.h"
++#include "chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_feedback.h"
+ #include "chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_prefs.h"
+ #include "chrome/browser/ui/omnibox/omnibox_everywhere_service.h"
+ #include "chrome/browser/ui/omnibox/omnibox_everywhere_service_factory.h"
+@@ -31,6 +32,7 @@
+ #include "components/search_engines/ai_mode_button_service.h"
+ #include "components/search_engines/search_engines_switches.h"
+ #include "components/url_formatter/elide_url.h"
++#include "components/vector_icons/vector_icons.h"
+ #include "content/public/browser/render_frame_host.h"
+ #include "content/public/browser/render_widget_host.h"
+ #include "content/public/browser/web_contents.h"
+@@ -41,8 +43,10 @@
+ #include "ui/base/clipboard/clipboard.h"
+ #include "ui/base/emoji/emoji_panel_helper.h"
+ #include "ui/base/l10n/l10n_util.h"
++#include "ui/base/models/image_model.h"
+ #include "ui/base/mojom/window_open_disposition.mojom-shared.h"
+ #include "ui/base/page_transition_types.h"
++#include "ui/color/color_id.h"
+ #include "ui/events/keycodes/keyboard_codes.h"
+ #include "ui/gfx/geometry/point.h"
+ #include "ui/gfx/geometry/rect.h"
+@@ -149,6 +153,13 @@
+   last_params_ = content::ContextMenuParams();
+   context_menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
+   AppendSettingsContextMenu();
++  if (ShouldShowFeedback(profile())) {
++    context_menu_model_->AddItemWithStringIdAndIcon(
++        kSendFeedback, IDS_CHROMELABS_SEND_FEEDBACK,
++        ui::ImageModel::FromVectorIcon(vector_icons::kPetsIcon,
++                                       ui::kColorMenuIcon,
++                                       ui::SimpleMenuModel::kDefaultIconSize));
++  }
+ #if BUILDFLAG(IS_WIN)
+   AppendWindowControlsContextMenu();
+ #endif  // BUILDFLAG(IS_WIN)
+@@ -589,6 +600,12 @@
+       }
+       break;
+     }
++    case kSendFeedback: {
++      if (Profile* current_profile = profile()) {
++        ShowFeedbackForm(current_profile);
++      }
++      break;
++    }
+ #if BUILDFLAG(IS_MAC)
+     case kWritingDirectionDefault:
+     case kWritingDirectionLtr:
+@@ -677,6 +694,8 @@
+       return true;
+     case kSettings:
+       return true;
++    case kSendFeedback:
++      return ShouldShowFeedback(current_profile);
+ #if BUILDFLAG(IS_MAC)
+     case kWritingDirectionMenu:
+       return true;
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_context_menu_controller.h b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_context_menu_controller.h
+index a17e68a..f477825 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_context_menu_controller.h
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_context_menu_controller.h
+@@ -64,6 +64,7 @@
+     kWritingDirectionLtr = 18,
+     kWritingDirectionRtl = 19,
+ #endif  // BUILDFLAG(IS_MAC)
++    kSendFeedback = 20,
+   };
+ 
+   class Delegate {
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_feedback.cc b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_feedback.cc
+new file mode 100644
+index 0000000..38a6dae0
+--- /dev/null
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_feedback.cc
+@@ -0,0 +1,54 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_feedback.h"
++
++#include "base/feature_list.h"
++#include "build/branding_buildflags.h"
++#include "chrome/browser/feedback/public/feedback_source.h"
++#include "chrome/browser/feedback/show_feedback_page.h"
++#include "chrome/browser/ui/omnibox/omnibox_next_features.h"
++#include "chrome/browser/ui/webui/omnibox_popup/omnibox_dogfood_feedback.h"
++#include "url/gurl.h"
++
++namespace omnibox_everywhere {
++
++namespace {
++
++// Dogfood only, so not translated. The gFeedback rule prepends the dogfood
++// bug title prefix automatically.
++constexpr char kCategoryTag[] = "loomnibox_dogfood";
++constexpr char kDescriptionTemplate[] =
++    "go/new-loomni-bug\n\n"
++    "DESCRIPTION of issue:\n\n"
++    "REPRO STEPS:\n\n"
++    "EXPECTED RESULTS:\n\n"
++    "ACTUAL RESULTS (with screenshots or captures where available):\n\n";
++
++}  // namespace
++
++bool ShouldShowFeedback(const Profile* profile) {
++#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
++  return base::FeatureList::IsEnabled(
++             omnibox::kOmniboxEverywhereDogfoodFeedback) &&
++         profile && chrome::CanShowFeedback(profile);
++#else
++  return false;
++#endif
++}
++
++void ShowFeedbackForm(Profile* profile) {
++  // Reuse the Omnibox WebUI dogfood diagnostics helper to attach overridden
++  // omnibox/webui feature flags and Finch trial state without duplicating the
++  // `FeatureList`/`FieldTrialParamAssociator` plumbing here.
++  // TODO(crbug.com/579894893): Move `GetDiagnostics()` out of
++  // `omnibox_dogfood_feedback::internal` into a shared omnibox helper.
++  chrome::ShowFeedbackPage(
++      GURL(), profile, feedback::kFeedbackSourceOmniboxEverywhere,
++      kDescriptionTemplate,
++      /*description_placeholder_text=*/"", kCategoryTag,
++      omnibox_dogfood_feedback::internal::GetDiagnostics());
++}
++
++}  // namespace omnibox_everywhere
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_feedback.h b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_feedback.h
+new file mode 100644
+index 0000000..f331a854
+--- /dev/null
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_feedback.h
+@@ -0,0 +1,23 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_OMNIBOX_OMNIBOX_EVERYWHERE_OMNIBOX_EVERYWHERE_FEEDBACK_H_
++#define CHROME_BROWSER_UI_OMNIBOX_OMNIBOX_EVERYWHERE_OMNIBOX_EVERYWHERE_FEEDBACK_H_
++
++class Profile;
++
++namespace omnibox_everywhere {
++
++// Returns true when the dogfood feedback menu option should be shown for
++// `profile`. Returns false if `profile` is `nullptr`.
++bool ShouldShowFeedback(const Profile* profile);
++
++// Opens Chrome's feedback form for `profile` (which must be non-null)
++// pre-populated with the Omnibox Everywhere dogfood bug template and
++// Omnibox/WebUI diagnostics.
++void ShowFeedbackForm(Profile* profile);
++
++}  // namespace omnibox_everywhere
++
++#endif  // CHROME_BROWSER_UI_OMNIBOX_OMNIBOX_EVERYWHERE_OMNIBOX_EVERYWHERE_FEEDBACK_H_
 diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc
 index 8185f1a..4db5350 100644
 --- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.cc
@@ -4445,10 +4691,10 @@ index 0000000..5e394bf
 +
 +#endif  // CHROME_BROWSER_UI_OMNIBOX_OMNIBOX_EVERYWHERE_OMNIBOX_EVERYWHERE_WINDOW_DRAG_CONTROLLER_H_
 diff --git a/chrome/browser/ui/omnibox/omnibox_next_features.cc b/chrome/browser/ui/omnibox/omnibox_next_features.cc
-index 6a59aed2..4f7958b 100644
+index 6a59aed2..615cfe3 100644
 --- a/chrome/browser/ui/omnibox/omnibox_next_features.cc
 +++ b/chrome/browser/ui/omnibox/omnibox_next_features.cc
-@@ -138,6 +138,10 @@
+@@ -138,6 +138,14 @@
  // context menu during `Profile` initialization until browser startup is
  // complete.
  BASE_FEATURE(kOmniboxEverywhereDeferStatusIcon, ENABLED);
@@ -4456,10 +4702,14 @@ index 6a59aed2..4f7958b 100644
 +// WebContentsDelegate::PreHandleMouseEvent() on all platforms. If disabled,
 +// it falls back to the legacy Aura pre-target handler and macOS HTCAPTION.
 +BASE_FEATURE(kOmniboxEverywherePreHandleMouseDrag, ENABLED);
++// If enabled, shows the Send Feedback item in OmniboxEverywhere menus for
++// dogfooders/teamfooders (targeted via g/loomnibox-dogfood and
++// g/loomnibox-teamfood).
++BASE_FEATURE(kOmniboxEverywhereDogfoodFeedback, DISABLED);
  // If enabled, submitting a query with screenshots attached in Omnibox
  // Everywhere opens the result in a new browser window aligned with the
  // Omnibox Everywhere popup.
-@@ -170,7 +174,7 @@
+@@ -170,7 +178,7 @@
  // Controls showing most visited tiles in OmniboxEverywhere.
  const base::FeatureParam<bool> kOmniboxEverywhereMostVisitedParam{
      &kOmniboxEverywhere, "MostVisited", true};
@@ -4469,18 +4719,19 @@ index 6a59aed2..4f7958b 100644
      &kOmniboxEverywhere, "smallLoomnibox", false};
  // Controls whether dynamic sizing is enabled for OmniboxEverywhere.
 diff --git a/chrome/browser/ui/omnibox/omnibox_next_features.h b/chrome/browser/ui/omnibox/omnibox_next_features.h
-index 2cac8d5..77862be 100644
+index 2cac8d5..ba57c11 100644
 --- a/chrome/browser/ui/omnibox/omnibox_next_features.h
 +++ b/chrome/browser/ui/omnibox/omnibox_next_features.h
-@@ -85,6 +85,7 @@
+@@ -85,6 +85,8 @@
  BASE_DECLARE_FEATURE(kWebUIOmniboxFullPopupDoubleClick);
  BASE_DECLARE_FEATURE(kOmniboxEverywhere);
  BASE_DECLARE_FEATURE(kOmniboxEverywhereDeferStatusIcon);
 +BASE_DECLARE_FEATURE(kOmniboxEverywherePreHandleMouseDrag);
++BASE_DECLARE_FEATURE(kOmniboxEverywhereDogfoodFeedback);
  BASE_DECLARE_FEATURE(kOmniboxEverywhereScreenshotNewWindow);
  extern const base::FeatureParam<int>
      kOmniboxEverywhereScreenshotNewWindowWidthParam;
-@@ -125,7 +126,7 @@
+@@ -125,7 +127,7 @@
  extern const base::FeatureParam<bool> kShowContextMenu;
  // Controls showing most visited tiles in OmniboxEverywhere.
  extern const base::FeatureParam<bool> kOmniboxEverywhereMostVisitedParam;
@@ -4701,6 +4952,62 @@ index 764c065..d3aaf365 100644
    base::TimeTicks NowTicks() const;
    void SettlePendingOpenClick(OpenSidePanelSessionCounts& counts,
                                bool closed_by_user);
+diff --git a/chrome/browser/ui/views/frame/browser_widget.cc b/chrome/browser/ui/views/frame/browser_widget.cc
+index 73fdb23..e9995732 100644
+--- a/chrome/browser/ui/views/frame/browser_widget.cc
++++ b/chrome/browser/ui/views/frame/browser_widget.cc
+@@ -489,6 +489,15 @@
+   }
+ 
+   tab_drag_kind_ = tab_drag_kind;
++
++  if (was_dragging_any != is_dragging_any) {
++    tab_dragging_status_changed_callbacks_.Notify(is_dragging_any);
++  }
++}
++
++base::CallbackListSubscription BrowserWidget::RegisterTabDraggingStatusChanged(
++    TabDraggingStatusChangedCallback callback) {
++  return tab_dragging_status_changed_callbacks_.Add(std::move(callback));
+ }
+ 
+ void BrowserWidget::OnNativeThemeUpdated(ui::NativeTheme* observed_theme) {
+diff --git a/chrome/browser/ui/views/frame/browser_widget.h b/chrome/browser/ui/views/frame/browser_widget.h
+index 9305b87..fb8f10e 100644
+--- a/chrome/browser/ui/views/frame/browser_widget.h
++++ b/chrome/browser/ui/views/frame/browser_widget.h
+@@ -5,6 +5,7 @@
+ #ifndef CHROME_BROWSER_UI_VIEWS_FRAME_BROWSER_WIDGET_H_
+ #define CHROME_BROWSER_UI_VIEWS_FRAME_BROWSER_WIDGET_H_
+ 
++#include "base/callback_list.h"
+ #include "base/memory/raw_ptr.h"
+ #include "build/build_config.h"
+ #include "content/public/browser/keyboard_event_processing_result.h"
+@@ -132,6 +133,13 @@
+   void SetTabDragKind(TabDragKind tab_drag_kind);
+   TabDragKind tab_drag_kind() const { return tab_drag_kind_; }
+ 
++  // Registers `callback` to run when a tab drag starts or ends in this window,
++  // i.e. when `tab_drag_kind()` changes to or from `TabDragKind::kNone`.
++  using TabDraggingStatusChangedCallback =
++      base::RepeatingCallback<void(bool is_dragging)>;
++  base::CallbackListSubscription RegisterTabDraggingStatusChanged(
++      TabDraggingStatusChangedCallback callback);
++
+  protected:
+   // views::Widget:
+   void OnNativeThemeUpdated(ui::NativeTheme* observed_theme) override;
+@@ -193,6 +201,9 @@
+   // contents for smoother dragging.
+   TabDragKind tab_drag_kind_ = TabDragKind::kNone;
+ 
++  base::RepeatingCallbackList<void(bool is_dragging)>
++      tab_dragging_status_changed_callbacks_;
++
+ #if BUILDFLAG(IS_LINUX)
+   bool tiled_ = false;
+ #endif
 diff --git a/chrome/browser/ui/views/incognito_clear_browsing_data_dialog.cc b/chrome/browser/ui/views/incognito_clear_browsing_data_dialog.cc
 index adee49f4..2adcd941 100644
 --- a/chrome/browser/ui/views/incognito_clear_browsing_data_dialog.cc
@@ -4718,10 +5025,18 @@ index adee49f4..2adcd941 100644
    SetShowCloseButton(true);
  
 diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
-index 4c8ba30..51d842b 100644
+index 4c8ba30..cb02d10 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
-@@ -394,7 +394,6 @@
+@@ -15,6 +15,7 @@
+ #include "base/functional/bind.h"
+ #include "base/functional/callback_helpers.h"
+ #include "base/metrics/field_trial_params.h"
++#include "base/task/sequenced_task_runner.h"
+ #include "base/trace_event/trace_event.h"
+ #include "build/build_config.h"
+ #include "chrome/app/vector_icons/vector_icons.h"
+@@ -394,7 +395,6 @@
            /*omnibox_view=*/omnibox_view_,
            /*controller=*/omnibox_controller_.get(), /*location_bar=*/this,
            std::move(presenter));
@@ -4729,7 +5044,7 @@ index 4c8ba30..51d842b 100644
        omnibox_popup_view_ = std::move(popup_view);
      } else if (omnibox::IsWebUIOmniboxInBrowserViewEnabled()) {
        omnibox_popup_view_ =
-@@ -417,9 +416,6 @@
+@@ -417,9 +417,6 @@
            std::move(popup_host),
            base::BindRepeating(&LocationBarView::OnFullWebUiOmniboxReady,
                                weak_factory_.GetWeakPtr()));
@@ -4739,7 +5054,78 @@ index 4c8ba30..51d842b 100644
        omnibox_popup_view_ = std::move(popup_view);
      }
  
-@@ -1808,12 +1804,14 @@
+@@ -427,6 +424,17 @@
+       // NOTE: In classic mode, `OmniboxViewViews` provides the accessible name.
+       GetViewAccessibility().SetName(
+           l10n_util::GetStringUTF16(IDS_ACCNAME_LOCATION));
++
++      // `browser_` may not have a window yet, so find its `BrowserView` through
++      // this view's widget.
++      if (auto* browser_view = BrowserView::GetBrowserViewForNativeWindow(
++              GetWidget()->GetNativeWindow())) {
++        tab_dragging_status_subscription_ =
++            browser_view->browser_widget()->RegisterTabDraggingStatusChanged(
++                base::BindRepeating(
++                    &LocationBarView::OnTabDraggingStatusChanged,
++                    base::Unretained(this)));
++      }
+     }
+   }
+ 
+@@ -1347,6 +1355,52 @@
+   }
+ }
+ 
++void LocationBarView::OnTabDraggingStatusChanged(bool is_dragging) {
++  // The Views omnibox is blurred and refocused by `TabDragController`, which
++  // clears and restores this window's Views focus. The Full WebUI omnibox
++  // holds focus in its popup widget instead, so mirror that here.
++  if (is_dragging) {
++    tab_drag_focused_web_contents_ = nullptr;
++    content::WebContents* web_contents = GetWebContents();
++    if (!web_contents || !GetOmniboxController()->edit_model()->has_focus()) {
++      return;
++    }
++    tab_drag_focused_web_contents_ = web_contents->GetWeakPtr();
++    // Blur the omnibox, as `TabDragController::SaveFocus()` does for the Views
++    // omnibox, so the dragged tab saves an unfocused omnibox and a new window
++    // it's dropped into doesn't focus it. Blurring saves the selection to
++    // restore if the tab comes back.
++    if (auto* popup_view = GetOmniboxPopupView()) {
++      popup_view->Blur();
++    }
++    return;
++  }
++
++  // Like `TabDragController::RestoreFocus()`, refocus the omnibox if the tab
++  // ended up back in this window. A canceled drag resets the drag status before
++  // reselecting the dragged tab, so check once that's done.
++  if (base::WeakPtr<content::WebContents> web_contents =
++          std::exchange(tab_drag_focused_web_contents_, nullptr)) {
++    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++        FROM_HERE,
++        base::BindOnce(&LocationBarView::RestoreFocusAfterTabDrag,
++                       weak_factory_.GetWeakPtr(), std::move(web_contents)));
++  }
++}
++
++void LocationBarView::RestoreFocusAfterTabDrag(
++    base::WeakPtr<content::WebContents> web_contents) {
++  if (!web_contents || GetWebContents() != web_contents.get() ||
++      !GetWidget() || GetWidget()->IsMinimized() ||
++      GetOmniboxController()->edit_model()->has_focus()) {
++    return;
++  }
++  if (auto* focus_manager = GetFocusManager()) {
++    focus_manager->SetFocusedViewWithReason(
++        this, views::FocusManager::FocusChangeReason::kFocusRestore);
++  }
++}
++
+ bool LocationBarView::ShouldUsePopupOpenAppearance() const {
+   // The full popup covers the location bar, so the native look underneath
+   // isn't visible while it's on screen, and any frame where it isn't on screen
+@@ -1808,12 +1862,14 @@
    if (is_full_webui_omnibox_) {
      // In Full WebUI mode, `LocationBarView` is the focusable Views proxy for
      // the WebUI omnibox. When `FocusManager` moves focus here on its own (tab
@@ -4759,7 +5145,7 @@ index 4c8ba30..51d842b 100644
                views::FocusManager::FocusChangeReason::kFocusRestore) {
          // On activation by a click, `FocusManager` restores focus before the
          // click is dispatched; let the click take focus first.
-@@ -1823,17 +1821,27 @@
+@@ -1823,17 +1879,27 @@
                  [](base::WeakPtr<LocationBarView> self) {
                    // `LocationBarView::HasFocus()` checks `edit_model()`, not
                    // Views focus.
@@ -4793,7 +5179,7 @@ index 4c8ba30..51d842b 100644
      }
      return;
    }
-@@ -2252,6 +2260,10 @@
+@@ -2252,6 +2318,10 @@
  void LocationBarView::OpenOmniboxPopup(bool query_zps) {
    if (is_full_webui_omnibox_ && !in_popup_state_transition_) {
      if (auto* popup_view = GetOmniboxPopupView()) {
@@ -4804,6 +5190,41 @@ index 4c8ba30..51d842b 100644
        popup_view->OnFocus(query_zps, /*select_all=*/false,
                            /*show_full_url=*/false);
      }
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
+index 93970b80..a9a1ed0 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.h
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
+@@ -400,6 +400,16 @@
+   // to process input and display suggestions.
+   void OnFullWebUiOmniboxReady();
+ 
++  // Blurs the Full WebUI omnibox when a tab drag starts in this window and
++  // refocuses it when the drag ends, as `TabDragController` does for the Views
++  // omnibox.
++  void OnTabDraggingStatusChanged(bool is_dragging);
++
++  // Refocuses the Full WebUI omnibox after a tab drag if `web_contents`, whose
++  // omnibox was focused when the drag started, is active in this window again.
++  void RestoreFocusAfterTabDrag(
++      base::WeakPtr<content::WebContents> web_contents);
++
+   // Forwards focus to the WebUI omnibox. Like `OmniboxViewViews::SetFocus()`,
+   // this selects all when `select_all` is true or the omnibox didn't already
+   // have focus.
+@@ -682,6 +692,13 @@
+ 
+   void OnMiddleClickPaste(base::TimeTicks event_timestamp, std::u16string text);
+ 
++  // The active tab when a tab drag started in this window, if the Full WebUI
++  // omnibox was focused then.  Only populated when `FullWebUIOmnibox` is
++  // enabled.
++  base::WeakPtr<content::WebContents> tab_drag_focused_web_contents_;
++
++  base::CallbackListSubscription tab_dragging_status_subscription_;
++
+   base::WeakPtrFactory<LocationBarView> weak_factory_{this};
+ };
+ 
 diff --git a/chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.cc b/chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.cc
 index e7ee28a..5c240e4 100644
 --- a/chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.cc
@@ -6671,6 +7092,25 @@ index 009b824..d8ddca2 100644
      "//ui/webui/resources/cr_components/composebox:build_ts",
      "//ui/webui/resources/cr_components/help_bubble:build_ts",
      "//ui/webui/resources/cr_components/most_visited:build_ts",
+diff --git a/components/activity_reporter/configurator.cc b/components/activity_reporter/configurator.cc
+index b48f422..d0baf6e 100644
+--- a/components/activity_reporter/configurator.cc
++++ b/components/activity_reporter/configurator.cc
+@@ -234,8 +234,13 @@
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   policy::PlatformManagementService* service =
+       policy::PlatformManagementService::GetInstance();
++  // Use GetManagementAuthorityTrustworthinessForPolicyLoading() instead of
++  // GetManagementAuthorityTrustworthiness(): on Windows, the latter counts
++  // per-user Azure AD workplace joins (personal devices with a linked
++  // work/school account), whereas this reports machine-level management
++  // (device-level join). >= TRUSTED also excludes LOW-trust local policies.
+   return service &&
+-        service->GetManagementAuthorityTrustworthiness() >=
++         service->GetManagementAuthorityTrustworthinessForPolicyLoading() >=
+              policy::ManagementAuthorityTrustworthiness::TRUSTED;
+ }
+ 
 diff --git a/components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom b/components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom
 index 655d191..2e6ac35 100644
 --- a/components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom
@@ -6708,6 +7148,96 @@ index 655d191..2e6ac35 100644
    // Tooltip text to display on hover.
    mojo_base.mojom.String16 tooltip;
  
+diff --git a/components/enterprise/data_controls/content/browser/BUILD.gn b/components/enterprise/data_controls/content/browser/BUILD.gn
+index 1f053de3..86723a6 100644
+--- a/components/enterprise/data_controls/content/browser/BUILD.gn
++++ b/components/enterprise/data_controls/content/browser/BUILD.gn
+@@ -14,6 +14,7 @@
+     "last_replaced_clipboard_data.h",
+   ]
+   deps = [
++    "//base",
+     "//components/enterprise/data_controls/core/browser",
+     "//components/enterprise/data_controls/core/browser:features",
+     "//components/prefs",
+diff --git a/components/enterprise/data_controls/content/browser/last_replaced_clipboard_data.cc b/components/enterprise/data_controls/content/browser/last_replaced_clipboard_data.cc
+index a05a10ce..a3e3490 100644
+--- a/components/enterprise/data_controls/content/browser/last_replaced_clipboard_data.cc
++++ b/components/enterprise/data_controls/content/browser/last_replaced_clipboard_data.cc
+@@ -55,6 +55,11 @@
+   return *data.get();
+ }
+ 
++LastReplacedClipboardDataObserver::LastReplacedClipboardDataObserver() =
++    default;
++LastReplacedClipboardDataObserver::~LastReplacedClipboardDataObserver() =
++    default;
++
+ // static
+ LastReplacedClipboardDataObserver*
+ LastReplacedClipboardDataObserver::GetInstance() {
+@@ -73,8 +78,8 @@
+     data.bitmap = SkBitmap();
+   }
+ 
+-  if (pending_seqno_data_.empty()) {
+-    ui::ClipboardMonitor::GetInstance()->AddObserver(this);
++  if (!clipboard_monitor_observation_.IsObserving()) {
++    clipboard_monitor_observation_.Observe(ui::ClipboardMonitor::GetInstance());
+   }
+   pending_seqno_data_.Merge(std::move(data));
+   // Only override the pending restriction level if the new restriction is more
+@@ -101,7 +106,7 @@
+   pending_seqno_data_ = content::ClipboardPasteData();
+   pending_restriction_level_ = CopyRestrictionLevel::kNone;
+ 
+-  ui::ClipboardMonitor::GetInstance()->RemoveObserver(this);
++  clipboard_monitor_observation_.Reset();
+ }
+ 
+ }  // namespace data_controls
+diff --git a/components/enterprise/data_controls/content/browser/last_replaced_clipboard_data.h b/components/enterprise/data_controls/content/browser/last_replaced_clipboard_data.h
+index 5bae57a..f5b9fe37 100644
+--- a/components/enterprise/data_controls/content/browser/last_replaced_clipboard_data.h
++++ b/components/enterprise/data_controls/content/browser/last_replaced_clipboard_data.h
+@@ -5,10 +5,15 @@
+ #ifndef COMPONENTS_ENTERPRISE_DATA_CONTROLS_CONTENT_BROWSER_LAST_REPLACED_CLIPBOARD_DATA_H_
+ #define COMPONENTS_ENTERPRISE_DATA_CONTROLS_CONTENT_BROWSER_LAST_REPLACED_CLIPBOARD_DATA_H_
+ 
++#include "base/scoped_observation.h"
+ #include "content/public/browser/clipboard_types.h"
+ #include "ui/base/clipboard/clipboard_observer.h"
+ #include "ui/base/clipboard/clipboard_sequence_number_token.h"
+ 
++namespace ui {
++class ClipboardMonitor;
++}  // namespace ui
++
+ namespace data_controls {
+ 
+ // Represents the enforcement state of a clipboard copy operation tracked inside
+@@ -51,6 +56,9 @@
+  public:
+   static LastReplacedClipboardDataObserver* GetInstance();
+ 
++  LastReplacedClipboardDataObserver();
++  ~LastReplacedClipboardDataObserver() override;
++
+   // Adds `data` to `pending_seqno_data_` so that it can be associated to the
+   // next sequence number change. Note that because this can be called multiple
+   // times with different data types (text, html, png, etc.) before
+@@ -75,6 +83,11 @@
+   // Data recently copied from Chrome, waiting to be tied to a sequence number.
+   content::ClipboardPasteData pending_seqno_data_;
+   CopyRestrictionLevel pending_restriction_level_ = CopyRestrictionLevel::kNone;
++
++  // Observes clipboard changes from the first `AddDataToNextSeqno()` call
++  // until the next `OnClipboardDataChanged()`.
++  base::ScopedObservation<ui::ClipboardMonitor, ui::ClipboardObserver>
++      clipboard_monitor_observation_{this};
+ };
+ 
+ }  // namespace data_controls
 diff --git a/components/omnibox/browser/omnibox_text_util.cc b/components/omnibox/browser/omnibox_text_util.cc
 index c2856a1..8203a5a6 100644
 --- a/components/omnibox/browser/omnibox_text_util.cc
@@ -6816,6 +7346,143 @@ index 5fb2602..0b3c6099 100644
  // Parameter determining the debounce duration before preloading the expanded
  // Threads Rail iframe on hover or focus, in milliseconds.
  extern const base::FeatureParam<int> kNtpThreadsRailPreloadDebounceMsParam;
+diff --git a/components/search_provider_logos/google_logo_api.cc b/components/search_provider_logos/google_logo_api.cc
+index 3efb9a2..e0090f2 100644
+--- a/components/search_provider_logos/google_logo_api.cc
++++ b/components/search_provider_logos/google_logo_api.cc
+@@ -301,6 +301,36 @@
+                        /*is_dark=*/true, logo->metadata.dark_mural_metadata);
+   }
+ 
++  if (const base::DictValue* super_g_image =
++          ddljson->FindDict("super_g_image")) {
++    logo->metadata.super_g_url = ParseUrl(*super_g_image, "url", base_url);
++  }
++  if (const base::DictValue* dark_super_g_image =
++          ddljson->FindDict("dark_super_g_image")) {
++    logo->metadata.dark_super_g_url =
++        ParseUrl(*dark_super_g_image, "url", base_url);
++  }
++  if (const base::DictValue* small_image = ddljson->FindDict("small_image")) {
++    logo->metadata.small_url = ParseUrl(*small_image, "url", base_url);
++    if (std::optional<int> width_px = small_image->FindInt("width")) {
++      logo->metadata.small_width_px = *width_px;
++    }
++    if (std::optional<int> height_px = small_image->FindInt("height")) {
++      logo->metadata.small_height_px = *height_px;
++    }
++  }
++  if (const base::DictValue* dark_small_image =
++          ddljson->FindDict("dark_small_image")) {
++    logo->metadata.dark_small_url =
++        ParseUrl(*dark_small_image, "url", base_url);
++    if (std::optional<int> width_px = dark_small_image->FindInt("width")) {
++      logo->metadata.dark_small_width_px = *width_px;
++    }
++    if (std::optional<int> height_px = dark_small_image->FindInt("height")) {
++      logo->metadata.dark_small_height_px = *height_px;
++    }
++  }
++
+   logo->metadata.full_page_url =
+       ParseUrl(*ddljson, "fullpage_interactive_url", base_url);
+ 
+diff --git a/components/search_provider_logos/logo_cache.cc b/components/search_provider_logos/logo_cache.cc
+index e5ab2489..997b4d1f 100644
+--- a/components/search_provider_logos/logo_cache.cc
++++ b/components/search_provider_logos/logo_cache.cc
+@@ -79,6 +79,15 @@
+ const char kDarkMuralCoreContentLeftPx[] = "dark_mural_core_content_left_px";
+ const char kDarkMuralCoreContentTopPx[] = "dark_mural_core_content_top_px";
+ 
++const char kSuperGUrlKey[] = "super_g_url";
++const char kDarkSuperGUrlKey[] = "dark_super_g_url";
++const char kSmallUrlKey[] = "small_url";
++const char kSmallWidthPxKey[] = "small_width_px";
++const char kSmallHeightPxKey[] = "small_height_px";
++const char kDarkSmallUrlKey[] = "dark_small_url";
++const char kDarkSmallWidthPxKey[] = "dark_small_width_px";
++const char kDarkSmallHeightPxKey[] = "dark_small_height_px";
++
+ const char kLogoType[] = "LOGO";
+ const char kSimpleType[] = "SIMPLE";
+ const char kAnimatedType[] = "ANIMATED";
+@@ -290,6 +299,10 @@
+   std::string short_link;
+   std::string mural_url;
+   std::string dark_mural_url;
++  std::string super_g_url;
++  std::string dark_super_g_url;
++  std::string small_url;
++  std::string dark_small_url;
+   if (!get_string(kSourceUrlKey, &source_url) ||
+       !get_string(kFingerprintKey, &metadata->fingerprint) ||
+       !get_string(kTypeKey, &type) ||
+@@ -349,6 +362,14 @@
+                    &metadata->dark_mural_metadata.core_content_area.left_px) ||
+       !get_integer(kDarkMuralCoreContentTopPx,
+                    &metadata->dark_mural_metadata.core_content_area.top_px) ||
++      !get_string(kSuperGUrlKey, &super_g_url) ||
++      !get_string(kDarkSuperGUrlKey, &dark_super_g_url) ||
++      !get_string(kSmallUrlKey, &small_url) ||
++      !get_integer(kSmallWidthPxKey, &metadata->small_width_px) ||
++      !get_integer(kSmallHeightPxKey, &metadata->small_height_px) ||
++      !get_string(kDarkSmallUrlKey, &dark_small_url) ||
++      !get_integer(kDarkSmallWidthPxKey, &metadata->dark_small_width_px) ||
++      !get_integer(kDarkSmallHeightPxKey, &metadata->dark_small_height_px) ||
+       !get_integer(kWidthPx, &metadata->width_px) ||
+       !get_integer(kHeightPx, &metadata->height_px) ||
+       !get_integer(kDarkWidthPx, &metadata->dark_width_px) ||
+@@ -372,6 +393,10 @@
+   metadata->short_link = GURL(short_link);
+   metadata->mural_metadata.mural_url = GURL(mural_url);
+   metadata->dark_mural_metadata.mural_url = GURL(dark_mural_url);
++  metadata->super_g_url = GURL(super_g_url);
++  metadata->dark_super_g_url = GURL(dark_super_g_url);
++  metadata->small_url = GURL(small_url);
++  metadata->dark_small_url = GURL(dark_small_url);
+ 
+   return metadata;
+ }
+@@ -442,6 +467,14 @@
+            metadata.dark_mural_metadata.core_content_area.left_px);
+   dict.Set(kDarkMuralCoreContentTopPx,
+            metadata.dark_mural_metadata.core_content_area.top_px);
++  dict.Set(kSuperGUrlKey, metadata.super_g_url.spec());
++  dict.Set(kDarkSuperGUrlKey, metadata.dark_super_g_url.spec());
++  dict.Set(kSmallUrlKey, metadata.small_url.spec());
++  dict.Set(kSmallWidthPxKey, metadata.small_width_px);
++  dict.Set(kSmallHeightPxKey, metadata.small_height_px);
++  dict.Set(kDarkSmallUrlKey, metadata.dark_small_url.spec());
++  dict.Set(kDarkSmallWidthPxKey, metadata.dark_small_width_px);
++  dict.Set(kDarkSmallHeightPxKey, metadata.dark_small_height_px);
+   SetTimeValue(dict, kExpirationTimeKey, metadata.expiration_time);
+   *str = base::WriteJson(dict).value_or("");
+ }
+diff --git a/components/search_provider_logos/logo_common.h b/components/search_provider_logos/logo_common.h
+index 8af0d9a6..cc2f90c 100644
+--- a/components/search_provider_logos/logo_common.h
++++ b/components/search_provider_logos/logo_common.h
+@@ -132,6 +132,19 @@
+   MuralMetadata mural_metadata;
+   MuralMetadata dark_mural_metadata;
+ 
++  // LOGO, INTERACTIVE: not used.
++  // SIMPLE, ANIMATED: URLs for the light and dark SuperG doodle icons, and
++  // URLs + dimensions for the light and dark small wordmark doodle images.
++  // May be empty / zero.
++  GURL super_g_url;
++  GURL dark_super_g_url;
++  GURL small_url;
++  int small_width_px = 0;
++  int small_height_px = 0;
++  GURL dark_small_url;
++  int dark_small_width_px = 0;
++  int dark_small_height_px = 0;
++
+   // For use by LogoService ---------------------------------------------------
+ 
+   // The URL from which the logo was downloaded (without the fingerprint param).
 diff --git a/components/sync/protocol/web_app_specifics.proto b/components/sync/protocol/web_app_specifics.proto
 index e4845628..dfc9e04 100644
 --- a/components/sync/protocol/web_app_specifics.proto
@@ -8295,6 +8962,52 @@ index f7432fb..9cfd623c 100644
    // Completes the QuicCryptoClientConfigKey by removing the
    // NetworkAnonymizationKey if not applicable, and filling in the current
    // SSLContextConfigGeneration.
+diff --git a/third_party/blink/renderer/core/editing/selection_modifier_line.cc b/third_party/blink/renderer/core/editing/selection_modifier_line.cc
+index 163df3ed..3ad7d0a 100644
+--- a/third_party/blink/renderer/core/editing/selection_modifier_line.cc
++++ b/third_party/blink/renderer/core/editing/selection_modifier_line.cc
+@@ -178,6 +178,12 @@
+         continue;
+       if (!cursor.Current().IsInlineLeaf())
+         continue;
++      if (RuntimeEnabledFeatures::SelectionLineSkipPseudoElementEnabled() &&
++          !cursor.Current().GetLayoutObject()->NonPseudoNode()) {
++        // Pseudo-elements (like ::before/::after) don't have DOM nodes that
++        // can be used for caret positioning.
++        continue;
++      }
+       if (only_editable_leaves && !IsEditable(cursor)) {
+         // This condition allows us to move editable to editable with skipping
+         // non-editable element.
+@@ -207,7 +213,10 @@
+     }
+     if (!closest_leaf_child)
+       return PositionInFlatTreeWithAffinity();
+-    const Node* const node = closest_leaf_child.Current().GetNode();
++    const Node* const node =
++        RuntimeEnabledFeatures::SelectionLineSkipPseudoElementEnabled()
++            ? closest_leaf_child.Current().GetLayoutObject()->NonPseudoNode()
++            : closest_leaf_child.Current().GetNode();
+     if (!node)
+       return PositionInFlatTreeWithAffinity();
+     if (EditingIgnoresContent(*node)) {
+diff --git a/third_party/blink/renderer/platform/runtime_enabled_features.json5 b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+index 9ee8f83..efabf71 100644
+--- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
++++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+@@ -6099,6 +6099,12 @@
+       status: "stable",
+     },
+     {
++      // Skip pseudo-element inline leaves in AbstractLineBox::PositionForPoint.
++      // See https://crbug.com/589812279
++      name: "SelectionLineSkipPseudoElement",
++      status: "stable",
++    },
++    {
+       // https://issues.chromium.org/issues/40502558
+       name: "SelectionRemoveRangeNotFoundError",
+       status: "stable",
 diff --git a/third_party/lens_server_proto/search_communication.proto b/third_party/lens_server_proto/search_communication.proto
 index ea68ef7..1edac2f 100644
 --- a/third_party/lens_server_proto/search_communication.proto
