@@ -1,10 +1,10 @@
 Chromium 159.0.8154.45 + the later changes of its release branch, up to
-669a0a6b0dc5e86fcc71052156f7825ab155c8b3 (refs/branch-heads/8154@{#1716}), for the
+ac2c1b3ee922a1898bcbd6ed44d7b9b31f25d08a (refs/branch-heads/8154@{#1725}), for the
 159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
-8154@{#1716}.
+8154@{#1725}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..669a0a6b0dc5 and the
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..ac2c1b3ee922 and the
 dependencies whose DEPS revision changed: ANGLE 4dd34493f8a2..fcd0b7205673 (under
 third_party/angle/), third_party/libvpx/source/libvpx fb0a26ad923b..6f89cfbcc99f (under
 third_party/libvpx/source/libvpx/), V8 90a5172104e6..b0ec06674184 (under v8/), as served by
@@ -90,6 +90,9 @@ Commits contributing to it (oldest first):
   1b29608a7358 Roll commits from side projects in M159 (V8 5075e76e0972..b0ec06674184, 8154@{#1711})
   9bce4066b1fd [M159] Get SharedImageInterface on UI thread in DesktopCaptureDevice (8154@{#1713})
   669a0a6b0dc5 [M159] [net] Skip closed sessions in QuicSessionPool network notifications (8154@{#1716})
+  245f6bc0c3d0 [Copy Trigger] Skip scanning placeholder for audit-only copies (8154@{#1722})
+  b30c2cde08b5 Updating XTBs based on .GRDs from branch 8154 (8154@{#1723})
+  ac2c1b3ee922 [M159] [PageInfo] Close bubble synchronously on WebContents destruction (8154@{#1725})
 Dependency commits of those rolls that touch kept files:
   315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
   9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
@@ -108,7 +111,7 @@ Dependency commits of those rolls that touch kept files:
   b0ec06674184 Version 15.9.128.39 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
-version at 669a0a6b0dc5 (or ANGLE's fcd0b7205673) (or third_party/libvpx/source/libvpx's
+version at ac2c1b3ee922 (or ANGLE's fcd0b7205673) (or third_party/libvpx/source/libvpx's
 6f89cfbcc99f) (or V8's b0ec06674184).
 
 Apply with git apply.
@@ -163,6 +166,18 @@ index 0000000..cae0d47
 @@ -0,0 +1 @@
 +27064d8aeed46a6e1efbbc040473854ace6d772b
 \ No newline at end of file
+diff --git a/chrome/app/resources/generated_resources_en-GB.xtb b/chrome/app/resources/generated_resources_en-GB.xtb
+index 658ae69..f8dc5e2 100644
+--- a/chrome/app/resources/generated_resources_en-GB.xtb
++++ b/chrome/app/resources/generated_resources_en-GB.xtb
+@@ -7118,6 +7118,7 @@
+ <translation id="7152478047064750137">This extension requires no special permissions</translation>
+ <translation id="7152923486458597248">Focus on group</translation>
+ <translation id="7154130902455071009">Change your start page to: <ph name="START_PAGE" /></translation>
++<translation id="7159383838726952486">Create a simple 5-question quiz on this page</translation>
+ <translation id="7159695867335480590">Play/pause</translation>
+ <translation id="7159953856712257647">Installed by default</translation>
+ <translation id="7160182524506337403">You can now view your phone's notifications</translation>
 diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
 index d35590a..7400581a 100644
 --- a/chrome/browser/about_flags.cc
@@ -481,6 +496,25 @@ index 7bbd3da..8ffb3889 100644
    MOCK_METHOD(ContextualTasksPanelController::EntrySource,
                GetActiveEntrySource,
                (),
+diff --git a/chrome/browser/enterprise/data_protection/data_protection_clipboard_utils.cc b/chrome/browser/enterprise/data_protection/data_protection_clipboard_utils.cc
+index c6ea717..c7b6188 100644
+--- a/chrome/browser/enterprise/data_protection/data_protection_clipboard_utils.cc
++++ b/chrome/browser/enterprise/data_protection/data_protection_clipboard_utils.cc
+@@ -444,9 +444,11 @@
+     delegate_data.initiating_frame_id = rfh->GetGlobalId();
+   }
+ 
+-  // Write a placeholder to the OS clipboard while the scan is ongoing.
+-  // The original data is saved to be pasted if the user pastes in the same tab.
+-  {
++  // Only a scan that holds the copy back needs a placeholder on the OS
++  // clipboard and the copied data tracked as being scanned. An audit-only
++  // scan lets the copy through before this function returns.
++  if (delegate_data.settings.block_until_verdict ==
++      enterprise_connectors::BlockUntilVerdict::kBlock) {
+     data_controls::LastReplacedClipboardDataObserver::GetInstance()
+         ->AddDataToNextSeqno(data,
+                              data_controls::CopyRestrictionLevel::kOngoingScan);
 diff --git a/chrome/browser/extensions/api/passwords_private/passwords_private_delegate_impl.cc b/chrome/browser/extensions/api/passwords_private/passwords_private_delegate_impl.cc
 index 08af8fd..ad009fd 100644
 --- a/chrome/browser/extensions/api/passwords_private/passwords_private_delegate_impl.cc
@@ -4403,6 +4437,43 @@ index e6d5d90..67ebb36 100644
    });
  }
  
+diff --git a/chrome/browser/ui/page_info/chrome_page_info_delegate.h b/chrome/browser/ui/page_info/chrome_page_info_delegate.h
+index 4c15266..4d6b01dd 100644
+--- a/chrome/browser/ui/page_info/chrome_page_info_delegate.h
++++ b/chrome/browser/ui/page_info/chrome_page_info_delegate.h
+@@ -148,9 +148,7 @@
+   // Focus the window and tab for the web contents.
+   void FocusWebContents();
+ 
+-  // The sentiment service is owned by the profile and will outlive this. The
+-  // service cannot be retrieved via |web_contents_| as that may be destroyed
+-  // before this is.
++  // The sentiment service is owned by the profile and will outlive this.
+   raw_ptr<TrustSafetySentimentService> sentiment_service_;
+ #endif
+ 
+@@ -160,7 +158,7 @@
+   // but can be overridden by callers for WebContents not directly hosted as
+   // browser tabs (e.g. payment handler dialogs or modal web dialogs).
+   GetBrowserCallback get_browser_callback_;
+-  raw_ptr<content::WebContents, AcrossTasksDanglingUntriaged> web_contents_;
++  raw_ptr<content::WebContents> web_contents_;
+   security_state::SecurityLevel security_level_for_tests_;
+   security_state::VisibleSecurityState visible_security_state_for_tests_;
+   bool security_state_for_tests_set_ = false;
+diff --git a/chrome/browser/ui/page_info/chrome_page_info_ui_delegate.h b/chrome/browser/ui/page_info/chrome_page_info_ui_delegate.h
+index 085f6f5b..b4dc49f 100644
+--- a/chrome/browser/ui/page_info/chrome_page_info_ui_delegate.h
++++ b/chrome/browser/ui/page_info/chrome_page_info_ui_delegate.h
+@@ -97,7 +97,7 @@
+  private:
+   Profile* GetProfile() const;
+ 
+-  raw_ptr<content::WebContents, AcrossTasksDanglingUntriaged> web_contents_;
++  raw_ptr<content::WebContents> web_contents_;
+   GURL site_url_;
+ };
+ 
 diff --git a/chrome/browser/ui/passwords/bubble_controllers/move_to_account_store_bubble_controller.cc b/chrome/browser/ui/passwords/bubble_controllers/move_to_account_store_bubble_controller.cc
 index 5a91b70..05f82cc 100644
 --- a/chrome/browser/ui/passwords/bubble_controllers/move_to_account_store_bubble_controller.cc
@@ -5293,6 +5364,104 @@ index bbb5db4..d645df9 100644
    // Whether the "first shown" metrics have been logged at least once.
    bool logged_first_shown_metric_ = false;
  
+diff --git a/chrome/browser/ui/views/page_info/page_info_bubble_view.cc b/chrome/browser/ui/views/page_info/page_info_bubble_view.cc
+index d17d6bfd..9711ed59 100644
+--- a/chrome/browser/ui/views/page_info/page_info_bubble_view.cc
++++ b/chrome/browser/ui/views/page_info/page_info_bubble_view.cc
+@@ -358,11 +358,6 @@
+   }
+ }
+ 
+-void PageInfoBubbleView::WebContentsDestroyed() {
+-  PageInfoBubbleViewBase::WebContentsDestroyed();
+-  weak_factory_.InvalidateWeakPtrs();
+-}
+-
+ gfx::Size PageInfoBubbleView::CalculatePreferredSize(
+     const views::SizeBounds& available_size) const {
+   if (page_container_ == nullptr) {
+diff --git a/chrome/browser/ui/views/page_info/page_info_bubble_view.h b/chrome/browser/ui/views/page_info/page_info_bubble_view.h
+index fb837817..35b6243 100644
+--- a/chrome/browser/ui/views/page_info/page_info_bubble_view.h
++++ b/chrome/browser/ui/views/page_info/page_info_bubble_view.h
+@@ -72,7 +72,6 @@
+   gfx::Size CalculatePreferredSize(
+       const views::SizeBounds& available_size) const override;
+   void OnWidgetDestroying(views::Widget* widget) override;
+-  void WebContentsDestroyed() override;
+   void ChildPreferredSizeChanged(views::View* child) override;
+ 
+   void AnnouncePageOpened(std::u16string announcement);
+@@ -89,8 +88,6 @@
+   raw_ptr<PageSwitcherView> page_container_ = nullptr;
+ 
+   PageInfoClosingCallback closing_callback_;
+-
+-  base::WeakPtrFactory<PageInfoBubbleView> weak_factory_{this};
+ };
+ 
+ #endif  // CHROME_BROWSER_UI_VIEWS_PAGE_INFO_PAGE_INFO_BUBBLE_VIEW_H_
+diff --git a/chrome/browser/ui/views/page_info/page_info_bubble_view_base.cc b/chrome/browser/ui/views/page_info/page_info_bubble_view_base.cc
+index 320b507f..944a6ba2 100644
+--- a/chrome/browser/ui/views/page_info/page_info_bubble_view_base.cc
++++ b/chrome/browser/ui/views/page_info/page_info_bubble_view_base.cc
+@@ -123,7 +123,8 @@
+ 
+ void PageInfoBubbleViewBase::RenderFrameDeleted(
+     content::RenderFrameHost* render_frame_host) {
+-  if (render_frame_host->IsInPrimaryMainFrame()) {
++  if (render_frame_host->IsInPrimaryMainFrame() &&
++      !web_contents()->IsBeingDestroyed()) {
+     GetWidget()->Close();
+   }
+ }
+@@ -140,7 +141,13 @@
+ }
+ 
+ void PageInfoBubbleViewBase::WebContentsDestroyed() {
+-  GetWidget()->Close();
++  if (PageInfoBubbleTracker::GetBubble(web_contents()) == this) {
++    PageInfoBubbleTracker::FromWebContents(web_contents())->SetBubble(nullptr);
++  }
++  Observe(nullptr);
++  if (views::Widget* widget = GetWidget()) {
++    widget->CloseNow();
++  }
+ }
+ 
+ BEGIN_METADATA(PageInfoBubbleViewBase)
+diff --git a/chrome/browser/ui/views/page_info/page_info_bubble_view_base.h b/chrome/browser/ui/views/page_info/page_info_bubble_view_base.h
+index 94a5593..eed9e07 100644
+--- a/chrome/browser/ui/views/page_info/page_info_bubble_view_base.h
++++ b/chrome/browser/ui/views/page_info/page_info_bubble_view_base.h
+@@ -75,7 +75,7 @@
+   void OnWidgetDestroying(views::Widget* widget) override;
+ 
+   // WebContentsObserver:
+-  void WebContentsDestroyed() override;
++  void WebContentsDestroyed() final;
+ 
+  private:
+   friend class SafetyTipPageInfoBubbleViewBrowserTest;
+diff --git a/chrome/browser/ui/views/page_info/safety_tip_page_info_bubble_view.cc b/chrome/browser/ui/views/page_info/safety_tip_page_info_bubble_view.cc
+index 45b6166..67fa89c 100644
+--- a/chrome/browser/ui/views/page_info/safety_tip_page_info_bubble_view.cc
++++ b/chrome/browser/ui/views/page_info/safety_tip_page_info_bubble_view.cc
+@@ -186,9 +186,11 @@
+     action_taken_ = SafetyTipInteraction::kCloseTab;
+   }
+ 
+-  // There's no great ClosedReason for this, so we use kUnspecified to signal
+-  // that a more specific action_taken_ may have already been set.
+-  GetWidget()->CloseWithReason(views::Widget::ClosedReason::kUnspecified);
++  if (!web_contents()->IsBeingDestroyed()) {
++    // There's no great ClosedReason for this, so we use kUnspecified to signal
++    // that a more specific action_taken_ may have already been set.
++    GetWidget()->CloseWithReason(views::Widget::ClosedReason::kUnspecified);
++  }
+ }
+ 
+ void SafetyTipPageInfoBubbleView::OnVisibilityChanged(
 diff --git a/chrome/browser/ui/views/tabs/common/horizontal_tab_style_views.cc b/chrome/browser/ui/views/tabs/common/horizontal_tab_style_views.cc
 index 3203af3..0093a721 100644
 --- a/chrome/browser/ui/views/tabs/common/horizontal_tab_style_views.cc
