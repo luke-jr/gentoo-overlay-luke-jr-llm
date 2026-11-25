@@ -1,17 +1,18 @@
 Chromium 159.0.8154.45 + the later changes of its release branch, up to
-436cd1206c1f673200b366695fda8c6c62676cd2 (refs/branch-heads/8154@{#1624}), for the
+b041ae1632af39235926ef21a031003b41a9d085 (refs/branch-heads/8154@{#1684}), for the
 159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
-8154@{#1624}.
+8154@{#1684}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..436cd1206c1f and the
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..b041ae1632af and the
 dependencies whose DEPS revision changed: ANGLE 4dd34493f8a2..fcd0b7205673 (under
-third_party/angle/), V8 90a5172104e6..5075e76e0972 (under v8/), as served by Gitiles, with
-scripts/chromium-delta/branch-fixes.py (filter.py --branch-fixes, against the 159.0.8154.45
-tree's files): left out are files not in the release tarball,
+third_party/angle/), third_party/libvpx/source/libvpx fb0a26ad923b..6f89cfbcc99f (under
+third_party/libvpx/source/libvpx/), V8 90a5172104e6..5075e76e0972 (under v8/), as served by
+Gitiles, with scripts/chromium-delta/branch-fixes.py (filter.py --branch-fixes, against the
+159.0.8154.45 tree's files): left out are files not in the release tarball,
 iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs (GN files kept), translations
 other than en-GB, PGO/orderfile/AFDO pointers, submodule pointer updates. chrome/VERSION
-(the branch's "Incrementing VERSION" commits after the 159.0.8154.45 tag are not tags yet),
+(its later "Incrementing VERSION" commits, among them the 159.0.8154.46 tag's, are left out),
 the DEPS files and the stamp files stay at 159.0.8154.45.
 
 Commits contributing to it (oldest first):
@@ -53,11 +54,38 @@ Commits contributing to it (oldest first):
   cd030e4a1f2e [M159] [omnibox] Clear virtual-focus button state when searchbox blurs (8154@{#1619})
   783d6acd1484 [M159] [Agentic Suggestions][iOS] Support SUIT ActionIconType BLUE_DOT (8154@{#1620})
   436cd1206c1f [M159] [LHS] Use native tooltips on the folded rail (8154@{#1624})
+  ef97f045ada1 [M159] [Unified Tabstrip] Fix double separator at pinned/unpinned seam (8154@{#1629})
+  08170ae60416 [M159] [MenuSimplification] Move glic and search into its own section (8154@{#1630})
+  524200db981f [M159] [MenuSimplification] Add feature param for glic section above save/print (8154@{#1631})
+  e87ecd5b5db0 [M159] [MenuSimplification] Move link AI/search section (8154@{#1632})
+  3559a1067e5e [M159] [LHS] Support full theme palette in threads rail (8154@{#1635})
+  2f17849a8618 [M159] [NTP] Apply clang-format to NTP color mixer files (8154@{#1636})
+  85ed609708a8 [M159] [loomnibox] Rename onScreenshotCaptureCancelled to onContextUploadCancelled (8154@{#1637})
+  d39d035be895 [M159] [loomnibox] Preserve searchbox text when context upload is cancelled (8154@{#1638})
+  a8884bcbd0fc [M159] [Keyboard Shortcuts] Make F6 page-first on Android (8154@{#1639})
+  2231f0063fd1 [M159] [Mac] Record DisplayLink creation time histograms (8154@{#1645})
+  081344d9274a [M159] [omnibox] Drag URL for partial or edited URL text in full webui omnibox (8154@{#1647})
+  54d0490e32fe [M159] [ContextualTasks] Fix composebox flash when opening in zero state (8154@{#1648})
+  16652797a0da [M159] [Omnibox] Remove OmniboxPopupView::presenter() (8154@{#1651})
+  126e9eb2ac61 [M159] [LHS] Record preload and ghost loader metrics for hybrid threads rail (8154@{#1656})
+  0d179ff8d06f [M159] [omnibox] Don't activate the Full WebUI popup during a touch (8154@{#1657})
+  29d76f4d41e7 [M159] [loomnibox] Reduce persistent resting state width from 480px to 408px (8154@{#1658})
+  0a5fc5a69785 [M159] [loomnibox] Use correct color for placeholder hint text (8154@{#1659})
+  414a65d8cf2d [M159] glic: implement What's New click handling for Glic Quizzes (8154@{#1663})
+  5c240af77653 Cherry-pick libvpx 6f89cfbcc9 to m159 (third_party/libvpx/source/libvpx fb0a26ad923b..6f89cfbcc99f, 8154@{#1673})
+  43d706ed67f6 [M159] Revert CHECK to DCHECK in PerProfileWorkerTaskTracker::CreateWorkerTask (8154@{#1678})
+  5edbc5b05803 [M159] Convert CHECK to DCHECK in GetProfileIcon (8154@{#1679})
+  acf94c491d94 [M159] Revert CHECK for on_print_dialog_shown_callback_ to DCHECK (8154@{#1680})
+  cb03fa5329ef [M159] Convert CHECK to DCHECK in WindowMetadataController::SetWindowUserTitle (8154@{#1681})
+  0f11ab44f7fb [M159] Revert CHECK_CURRENTLY_ON back to DCHECK_CURRENTLY_ON in OnComplete (8154@{#1682})
+  565df66121cd [M159] Revert CHECK back to DCHECK in IncognitoClearBrowsingDataDialog (8154@{#1683})
+  b041ae1632af [M159] Revert CHECK_GE back to DCHECK_GE in MetricsHandler::HandleRecordTime (8154@{#1684})
 Dependency commits of those rolls that touch kept files:
   315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
   9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
   8165b581a669 [M159] D3D11: Do not overwrite dirty staging images on storage release (ANGLE: src/libANGLE/renderer/d3d/TextureD3D.cpp)
   fcd0b7205673 [M159] D3D11: Invalidate swizzle cache on PBO fast unpack (ANGLE: src/libANGLE/renderer/d3d/TextureD3D.cpp, src/libANGLE/renderer/d3d/TextureD3D.h)
+  6f89cfbcc99f vp9: Fix base_mv usage when lower SVC layers are skipped (third_party/libvpx/source/libvpx: vp9/encoder/vp9_pickmode.c, vp9/encoder/vp9_svc_layercontext.c)
   c20e1a6e22a3 [M159] [sandbox] Load dynamic JS parameter count in builtin prolog (V8: src/builtins/base.tq, src/builtins/builtins-internal-gen.cc, src/builtins/builtins-utils-gen.h, src/builtins/js-to-wasm.tq, src/builtins/js-trampoline-assembler.cc, src/builtins/js-trampoline-assembler.h, src/builtins/wasm-interpreter-wrappers.tq, src/codegen/code-stub-assembler.cc, src/codegen/code-stub-assembler.h, src/codegen/turboshaft-builtins-assembler-inl.h, src/compiler/code-assembler.cc, src/compiler/code-assembler.h, src/compiler/raw-machine-assembler.cc, src/compiler/raw-machine-assembler.h, src/sandbox/js-dispatch-table-inl.h, src/torque/constants.h, src/torque/implementation-visitor.cc, src/torque/type-oracle.h)
   8b9283283ad3 Version 15.9.128.35 (V8: include/v8-version.h)
   b8320c4d1ab8 [M159] [turbofan] Avoid hoisting TypeGuard in CommonOperatorRed::ReducePhi (V8: src/compiler/common-operator-reducer.cc, src/compiler/node-properties.h)
@@ -68,7 +96,8 @@ Dependency commits of those rolls that touch kept files:
   5075e76e0972 Version 15.9.128.38 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
-version at 436cd1206c1f (or ANGLE's fcd0b7205673) (or V8's 5075e76e0972).
+version at b041ae1632af (or ANGLE's fcd0b7205673) (or third_party/libvpx/source/libvpx's
+6f89cfbcc99f) (or V8's 5075e76e0972).
 
 Apply with git apply.
 
@@ -123,10 +152,24 @@ index 0000000..cae0d47
 +27064d8aeed46a6e1efbbc040473854ace6d772b
 \ No newline at end of file
 diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
-index d35590a..29957863 100644
+index d35590a..7400581a 100644
 --- a/chrome/browser/about_flags.cc
 +++ b/chrome/browser/about_flags.cc
-@@ -9734,6 +9734,12 @@
+@@ -5128,6 +5128,13 @@
+     {"no reload, back, or forward animations",
+      kToolbarGlowUpNoReloadBackForward, nullptr}};
+ 
++const FeatureEntry::FeatureParam
++    kMenuSimplificationGlicSearchAboveSaveAndPrint[] = {
++        {"MenuSimplificationGlicSearchAboveSaveAndPrint", "true"}};
++const FeatureEntry::FeatureVariation kMenuSimplificationVariations[] = {
++    {"glic section above save", kMenuSimplificationGlicSearchAboveSaveAndPrint,
++     nullptr}};
++
+ #if !BUILDFLAG(IS_ANDROID)
+ const FeatureEntry::FeatureParam kDictationEvalModeParam[] = {
+     {"eval_mode", "true"}};
+@@ -9734,6 +9741,12 @@
       flag_descriptions::kOmniboxLoomDescription, kOsDesktop,
       MULTI_VALUE_TYPE(kOmniboxLoomChoices)},
  
@@ -139,6 +182,17 @@ index d35590a..29957863 100644
      {"omnibox-everywhere-screenshot-new-window",
       flag_descriptions::kOmniboxEverywhereScreenshotNewWindowName,
       flag_descriptions::kOmniboxEverywhereScreenshotNewWindowDescription,
+@@ -9991,7 +10004,9 @@
+ 
+     {"menu-simplification", flag_descriptions::kMenuSimplificationName,
+      flag_descriptions::kMenuSimplificationDescription, kOsDesktop,
+-     FEATURE_VALUE_TYPE(features::kMenuSimplification)},
++     FEATURE_WITH_PARAMS_VALUE_TYPE(features::kMenuSimplification,
++                                    kMenuSimplificationVariations,
++                                    "MenuSimplification")},
+ 
+     {"webui-refresh-2026", flag_descriptions::kWebuiRefresh2026Name,
+      flag_descriptions::kWebuiRefresh2026Description, kOsDesktop,
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_service_worker_handler.cc b/chrome/browser/contextual_tasks/contextual_tasks_extension_service_worker_handler.cc
 index 7f3e9917..9cbd500 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_extension_service_worker_handler.cc
@@ -266,6 +320,24 @@ index 87b1eea..5b5e592 100644
    // ephemeral toolbar button or the pinned toolbar button (under Pinning V2).
    bool ShouldPreserveTaskOnClose() const;
  
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui.cc
+index d075088..34bf66a 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui.cc
+@@ -1486,6 +1486,13 @@
+   source->AddBoolean("isZeroState",
+                      ui_service_ && task_creation_url &&
+                          IsZeroState(task_creation_url.value(), ui_service_));
++  // Without a creation URL, the zero state isn't known until the page resolves
++  // the task's URL after it loads. Tell the page so that it keeps the
++  // composebox hidden until then, rather than showing it in the wrong state. A
++  // task that is waiting for its URL is known to not be in the zero state.
++  source->AddBoolean("isZeroStateKnownOnInit",
++                     !ui_service_ || task_creation_url ||
++                         ui_service_->IsTaskWaitingForUrl(task_id));
+   source->AddBoolean("isShownInTab", IsShownInTab());
+   bool is_signed_in = ui_service_ &&
+                       ui_service_->IsSignedInToBrowserWithValidCredentials() &&
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
 index cb2b50fb..d4ff1070 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
@@ -511,6 +583,468 @@ index c14d47da..34658c6 100644
  inline constexpr char kOmniboxEverywhereScreenshotNewWindowName[] =
      "Omnibox Everywhere Screenshot New Window";
  inline constexpr char kOmniboxEverywhereScreenshotNewWindowDescription[] =
+diff --git a/chrome/browser/glic/BUILD.gn b/chrome/browser/glic/BUILD.gn
+index 474fec15..d1ef8fdb 100644
+--- a/chrome/browser/glic/BUILD.gn
++++ b/chrome/browser/glic/BUILD.gn
+@@ -175,6 +175,7 @@
+       "glic_selection_observer.h",
+       "host/context/glic_focused_tab_manager.h",
+       "public/widget/glic_side_panel_coordinator_impl.h",
++      "public/glic_whats_new_invoke.h",
+       "widget/glic_loading_placeholder_controller.h",
+       "widget/glic_loading_placeholder_view.h",
+       "widget/glic_view.h",
+@@ -745,6 +746,7 @@
+       "host/context/glic_focused_tab_manager.cc",
+       "host/context/glic_focused_tab_manager.h",
+       "host/glic_tools_desktop.cc",
++      "public/glic_whats_new_invoke.cc",
+       "widget/glic_floating_ui.cc",
+       "widget/glic_floating_ui.h",
+       "widget/glic_inactive_side_panel_ui.cc",
+@@ -1038,6 +1040,7 @@
+       "host/glic_cookie_synchronizer_unittest.cc",
+       "public/glic_context_menu_invocation_helper_unittest.cc",
+       "public/glic_enabling_metrics_unittest.cc",
++      "public/glic_whats_new_invoke_unittest.cc",
+       "service/glic_activity_manager_unittest.cc",
+       "service/glic_instance_helper_unittest.cc",
+       "service/glic_instance_limit_calculator_unittest.cc",
+@@ -1060,6 +1063,7 @@
+       "//chrome/browser/status_icons",
+       "//chrome/browser/ui:browser_manager_service",
+       "//chrome/browser/ui/browser_window/test:test_support",
++      "//chrome/browser/ui/webui/browser_command",
+       "//chrome/common:chrome_features",
+       "//chrome/test/base:scoped_metrics_service",
+       "//components/live_caption",
+diff --git a/chrome/browser/glic/public/OWNERS b/chrome/browser/glic/public/OWNERS
+index 1b529d9..b0c3d038 100644
+--- a/chrome/browser/glic/public/OWNERS
++++ b/chrome/browser/glic/public/OWNERS
+@@ -1,2 +1,4 @@
+ per-file glic_passkeys.h=set noparent
+ per-file glic_passkeys.h=file://chrome/browser/glic/API_OWNERS
++per-file glic_whats_new_invoke.*=set noparent
++per-file glic_whats_new_invoke.*=file://chrome/browser/glic/API_OWNERS
+diff --git a/chrome/browser/glic/public/features.cc b/chrome/browser/glic/public/features.cc
+index a82f421..8cfe4de 100644
+--- a/chrome/browser/glic/public/features.cc
++++ b/chrome/browser/glic/public/features.cc
+@@ -357,6 +357,8 @@
+ 
+ BASE_FEATURE(kGlicWhatsNewQuizzes, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
++BASE_FEATURE(kGlicBrowserCommandInvoke, base::FEATURE_DISABLED_BY_DEFAULT);
++
+ BASE_FEATURE(kGlicForceFcmExperimentalTriggerFailure,
+              base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+diff --git a/chrome/browser/glic/public/features.h b/chrome/browser/glic/public/features.h
+index 023e0800..1dded7d 100644
+--- a/chrome/browser/glic/public/features.h
++++ b/chrome/browser/glic/public/features.h
+@@ -281,6 +281,11 @@
+ 
+ BASE_DECLARE_FEATURE(kGlicWhatsNewQuizzes);
+ 
++// Enabled alongside a What's New module feature flag to invoke Glic via
++// `GlicKeyedService::Invoke` (or `InvokeWithAutoSubmit` for approved modules
++// such as `kGlicWhatsNewQuizzes`) when the module's CTA is clicked.
++BASE_DECLARE_FEATURE(kGlicBrowserCommandInvoke);
++
+ // Test only. When enabled, Android drops incoming Glic experimental triggering
+ // TriggerActuationRequest messages without replying or acking, as if the FCM
+ // message never arrived.
+diff --git a/chrome/browser/glic/public/glic_passkeys.h b/chrome/browser/glic/public/glic_passkeys.h
+index cd4410c0..e1db25c8 100644
+--- a/chrome/browser/glic/public/glic_passkeys.h
++++ b/chrome/browser/glic/public/glic_passkeys.h
+@@ -6,9 +6,14 @@
+ #define CHROME_BROWSER_GLIC_PUBLIC_GLIC_PASSKEYS_H_
+ 
+ #include "base/types/pass_key.h"
++#include "build/build_config.h"
+ #include "chrome/browser/glic/host/glic.mojom-shared.h"
+ #include "chrome/browser/glic/public/glic_context_menu_invocation_helper.h"
+ 
++#if !BUILDFLAG(IS_ANDROID)
++#include "chrome/browser/glic/public/glic_whats_new_invoke.h"
++#endif
++
+ namespace tabs {
+ class TabInterface;
+ }
+@@ -65,6 +70,12 @@
+       tabs::TabInterface* tab,
+       const std::u16string& selection_text,
+       content::GlobalRenderFrameHostId rfh_id);
++#if !BUILDFLAG(IS_ANDROID)
++  friend void InvokeFromWhatsNewForQuizzes(
++      InvokeFromWhatsNewPasskey,
++      GlicKeyedService& glic_service,
++      BrowserWindowInterface* browser_window);
++#endif
+   friend class extensions::GlicPrivateInvokeFunction;
+   friend class extensions::PdfViewerPrivateGlicSummarizeFunction;
+   friend class ::ContextHubPageHandler;
+diff --git a/chrome/browser/glic/public/glic_whats_new_invoke.cc b/chrome/browser/glic/public/glic_whats_new_invoke.cc
+new file mode 100644
+index 0000000..12560fa
+--- /dev/null
++++ b/chrome/browser/glic/public/glic_whats_new_invoke.cc
+@@ -0,0 +1,91 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/glic/public/glic_whats_new_invoke.h"
++
++#include <optional>
++#include <string>
++#include <utility>
++
++#include "base/feature_list.h"
++#include "chrome/browser/glic/public/features.h"
++#include "chrome/browser/glic/public/glic_enabling.h"
++#include "chrome/browser/glic/public/glic_invoke_options.h"
++#include "chrome/browser/glic/public/glic_keyed_service.h"
++#include "chrome/browser/glic/public/glic_passkeys.h"
++#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
++#include "chrome/common/glic_enums.mojom.h"
++#include "chrome/grit/generated_resources.h"
++#include "ui/base/l10n/l10n_util.h"
++
++namespace glic {
++namespace {
++
++// Prepares `GlicInvokeOptions` when `Invoke` / `InvokeWithAutoSubmit` should be
++// used, or handles the fallback (no-op or `ToggleUI`) and returns
++// `std::nullopt`.
++std::optional<GlicInvokeOptions> PrepareWhatsNewInvokeOrFallback(
++    GlicKeyedService& glic_service,
++    BrowserWindowInterface* browser_window) {
++  if (!GlicEnabling::ShouldShowGlicButton(glic_service.profile())) {
++    return std::nullopt;
++  }
++
++  // Use ToggleUI if !IsEnabledForProfile; this is needed for previously
++  // onboarded profiles that are not now enabled.
++  if (!base::FeatureList::IsEnabled(features::kGlicBrowserCommandInvoke) ||
++      !GlicEnabling::IsEnabledForProfile(glic_service.profile())) {
++    glic_service.ToggleUI(browser_window, /*prevent_close=*/false,
++                          mojom::InvocationSource::kWhatsNew);
++    return std::nullopt;
++  }
++
++  GlicInvokeOptions options(mojom::InvocationSource::kWhatsNew);
++  options.target.surface = DefaultSurface{browser_window};
++  options.fre_override = mojom::FreOverride::kTrustFirstInline;
++  return options;
++}
++
++}  // namespace
++
++void InvokeFromWhatsNew(InvokeFromWhatsNewPasskey,
++                        GlicKeyedService& glic_service,
++                        BrowserWindowInterface* browser_window) {
++  std::optional<GlicInvokeOptions> options =
++      PrepareWhatsNewInvokeOrFallback(glic_service, browser_window);
++  if (!options.has_value()) {
++    return;
++  }
++
++  glic_service.Invoke(std::move(*options));
++}
++
++void InvokeFromWhatsNewForQuizzes(InvokeFromWhatsNewPasskey,
++                                  GlicKeyedService& glic_service,
++                                  BrowserWindowInterface* browser_window) {
++  std::optional<GlicInvokeOptions> options =
++      PrepareWhatsNewInvokeOrFallback(glic_service, browser_window);
++  if (!options.has_value()) {
++    return;
++  }
++
++  // Only explicitly approved What's New modules may auto-submit prompts; adding
++  // a new auto-submitting handler requires chrome/browser/glic/API_OWNERS
++  // review.
++  if (base::FeatureList::IsEnabled(features::kGlicWhatsNewQuizzes)) {
++    std::string prompt =
++        l10n_util::GetStringUTF8(IDS_GLIC_WHATS_NEW_QUIZZES_PROMPT);
++    if (!prompt.empty()) {
++      options->prompts.push_back(std::move(prompt));
++      glic_service.InvokeWithAutoSubmit(
++          InvokeWithAutoSubmitPasskeyProvider::GetPassKey(),
++          std::move(*options));
++      return;
++    }
++  }
++
++  glic_service.Invoke(std::move(*options));
++}
++
++}  // namespace glic
+diff --git a/chrome/browser/glic/public/glic_whats_new_invoke.h b/chrome/browser/glic/public/glic_whats_new_invoke.h
+new file mode 100644
+index 0000000..1ef367ac
+--- /dev/null
++++ b/chrome/browser/glic/public/glic_whats_new_invoke.h
+@@ -0,0 +1,69 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_GLIC_PUBLIC_GLIC_WHATS_NEW_INVOKE_H_
++#define CHROME_BROWSER_GLIC_PUBLIC_GLIC_WHATS_NEW_INVOKE_H_
++
++#include "base/types/pass_key.h"
++
++class BrowserWindowInterface;
++class WhatsNewUI;
++
++namespace glic {
++
++class GlicKeyedService;
++class GlicWhatsNewInvokeTest;
++
++// Passkey for invoking Glic from What's New. Reach out to
++// chrome/browser/glic/API_OWNERS before adding new callers.
++class InvokeFromWhatsNewPasskeyProvider {
++ public:
++  using PassKey = base::PassKey<InvokeFromWhatsNewPasskeyProvider>;
++
++ private:
++  static PassKey GetPassKey() { return PassKey(); }
++
++  friend class ::WhatsNewUI;
++  friend class GlicWhatsNewInvokeTest;
++};
++
++using InvokeFromWhatsNewPasskey =
++    base::PassKey<InvokeFromWhatsNewPasskeyProvider>;
++
++// Opens Glic for the `kOpenGlic` browser command from the What's New page.
++// Callers must ensure `GlicEnabling::ShouldShowGlicButton` is true for
++// `glic_service.profile()` (fallback URL navigation is handled by
++// `BrowserCommandHandler`).
++// - When `kGlicBrowserCommandInvoke` is enabled and Glic is enabled for the
++//   profile, invokes Glic via `GlicKeyedService::Invoke` without a prompt.
++// - Otherwise (when `kGlicBrowserCommandInvoke` is disabled or the profile is
++//   not enabled, e.g. showing an anchored button on an ineligible account),
++//   falls back to `GlicKeyedService::ToggleUI`.
++// `browser_window` may be null or a non-normal window. In that case the
++// `ToggleUI` path uses the active Glic-eligible browser, while the `Invoke`
++// path opens a new browser window.
++void InvokeFromWhatsNew(InvokeFromWhatsNewPasskey,
++                        GlicKeyedService& glic_service,
++                        BrowserWindowInterface* browser_window);
++
++// Opens Glic for the `kOpenGlicForQuizzes` browser command from the What's New
++// page.
++// Callers must ensure `GlicEnabling::ShouldShowGlicButton` is true for
++// `glic_service.profile()` (fallback URL navigation is handled by
++// `BrowserCommandHandler`).
++// - When `kGlicBrowserCommandInvoke` is enabled and Glic is enabled for the
++//   profile:
++//   - If `kGlicWhatsNewQuizzes` is enabled, invokes Glic with
++//     `IDS_GLIC_WHATS_NEW_QUIZZES_PROMPT` and auto-submits via
++//     `GlicKeyedService::InvokeWithAutoSubmit`.
++//   - Otherwise, invokes Glic via `GlicKeyedService::Invoke` without a prompt.
++// - Otherwise (when `kGlicBrowserCommandInvoke` is disabled or the profile is
++//   not enabled), falls back to `GlicKeyedService::ToggleUI`.
++void InvokeFromWhatsNewForQuizzes(InvokeFromWhatsNewPasskey,
++                                  GlicKeyedService& glic_service,
++                                  BrowserWindowInterface* browser_window);
++
++}  // namespace glic
++
++#endif  // CHROME_BROWSER_GLIC_PUBLIC_GLIC_WHATS_NEW_INVOKE_H_
+diff --git a/chrome/browser/predictors/lcp_critical_path_predictor/prewarm_http_disk_cache_manager.cc b/chrome/browser/predictors/lcp_critical_path_predictor/prewarm_http_disk_cache_manager.cc
+index b3c71e3..c61f860 100644
+--- a/chrome/browser/predictors/lcp_critical_path_predictor/prewarm_http_disk_cache_manager.cc
++++ b/chrome/browser/predictors/lcp_critical_path_predictor/prewarm_http_disk_cache_manager.cc
+@@ -275,7 +275,9 @@
+ }
+ 
+ void PrewarmHttpDiskCacheManager::OnComplete(bool success) {
+-  CHECK_CURRENTLY_ON(content::BrowserThread::UI, base::NotFatalUntil::M162);
++  // TODO(crbug.com/587365479): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+   TRACE_EVENT("loading", "PrewarmHttpDiskCacheManager::OnComplete",
+               perfetto::Flow::FromPointer(this), "success", success);
+   CHECK(!use_read_and_discard_body_option_);
+diff --git a/chrome/browser/printing/print_view_manager.cc b/chrome/browser/printing/print_view_manager.cc
+index 49a87cb..56b7fd33 100644
+--- a/chrome/browser/printing/print_view_manager.cc
++++ b/chrome/browser/printing/print_view_manager.cc
+@@ -136,7 +136,9 @@
+ bool PrintViewManager::PrintForSystemDialogNow(
+     base::OnceClosure dialog_shown_callback) {
+   CHECK(dialog_shown_callback, base::NotFatalUntil::M162);
+-  CHECK(!on_print_dialog_shown_callback_, base::NotFatalUntil::M162);
++  // TODO(crbug.com/586904767): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(!on_print_dialog_shown_callback_);
+   on_print_dialog_shown_callback_ = std::move(dialog_shown_callback);
+   is_switching_to_system_dialog_ = true;
+ 
+diff --git a/chrome/browser/renderer_context_menu/render_view_context_menu.cc b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+index 2da86ef..70d13eab 100644
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+@@ -1092,6 +1092,13 @@
+   return nullptr;
+ }
+ 
++bool HasSearchProviderItem(const ui::SimpleMenuModel& menu_model) {
++  return menu_model.GetIndexOfCommandId(IDC_CONTENT_CONTEXT_SEARCHWEBFOR)
++             .has_value() ||
++         menu_model.GetIndexOfCommandId(IDC_CONTENT_CONTEXT_GOTOURL)
++             .has_value();
++}
++
+ }  // namespace
+ 
+ // static
+@@ -2671,19 +2678,24 @@
+ 
+   if (features::IsMenuSimplificationEnabled() &&
+       params_.selection_text.empty() && !params_.is_editable) {
++    const bool glic_search_above_save_and_print =
++        features::kMenuSimplificationGlicSearchAboveSaveAndPrint.Get();
++
+     // Navigation
+     menu_model_.AddItemWithStringId(IDC_BACK, IDS_CONTENT_CONTEXT_BACK);
+     menu_model_.AddItemWithStringId(IDC_FORWARD, IDS_CONTENT_CONTEXT_FORWARD);
+     menu_model_.AddItemWithStringId(IDC_RELOAD, IDS_CONTENT_CONTEXT_RELOAD);
+     menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
+ 
+-    // Save as & Print
+-    menu_model_.AddItemWithStringId(IDC_SAVE_PAGE,
+-                                    IDS_CONTENT_CONTEXT_SAVEPAGEAS);
+-    menu_model_.AddItemWithStringId(IDC_PRINT, IDS_CONTENT_CONTEXT_PRINT);
++    if (!glic_search_above_save_and_print) {
++      // Save as & Print
++      menu_model_.AddItemWithStringId(IDC_SAVE_PAGE,
++                                      IDS_CONTENT_CONTEXT_SAVEPAGEAS);
++      menu_model_.AddItemWithStringId(IDC_PRINT, IDS_CONTENT_CONTEXT_PRINT);
+ 
+-    AppendLiveCaptionItem();
+-    menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
++      AppendLiveCaptionItem();
++      menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
++    }
+ 
+     if (!glic_below_search) {
+       // Ask gemini
+@@ -2714,6 +2726,18 @@
+     // Indigo (Try it on)
+     AppendIndigoItem();
+ 
++    menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
++
++    if (glic_search_above_save_and_print) {
++      // Save as & Print
++      menu_model_.AddItemWithStringId(IDC_SAVE_PAGE,
++                                      IDS_CONTENT_CONTEXT_SAVEPAGEAS);
++      menu_model_.AddItemWithStringId(IDC_PRINT, IDS_CONTENT_CONTEXT_PRINT);
++
++      AppendLiveCaptionItem();
++      menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
++    }
++
+     // Open in reading mode & Listen to this page
+     AppendReadAnythingItem();
+ 
+@@ -3285,6 +3309,10 @@
+     if (glic_below_search) {
+       MaybeAppendOpenGlicItem(/*add_separator=*/false);
+     }
++    // Glic and search should be within the same section in the menu.
++    if (glic_item_shown_ || HasSearchProviderItem(menu_model_)) {
++      menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
++    }
+     AppendPrintItem();
+     AppendTranslateOrPartialTranslateItem();
+   }
+@@ -6462,6 +6490,12 @@
+     // Link + Selection case
+     AppendCopyItem();
+     AppendLinkToTextItems();
++    AppendSaveToMemoryBanksItem();
++    AppendPrintItem();
++    AppendTranslateOrPartialTranslateItem();
++
++    menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
++
+     if (!glic_below_search) {
+       MaybeAppendOpenGlicItem(/*add_separator=*/false);
+     }
+@@ -6469,10 +6503,10 @@
+     if (glic_below_search) {
+       MaybeAppendOpenGlicItem(/*add_separator=*/false);
+     }
+-    AppendSaveToMemoryBanksItem();
+-    AppendPrintItem();
+ 
+-    AppendTranslateOrPartialTranslateItem();
++    if (glic_item_shown_ || HasSearchProviderItem(menu_model_)) {
++      menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
++    }
+   } else {
+     // Pure Selection case
+     AppendCopyItem();
+@@ -6488,6 +6522,11 @@
+     if (glic_below_search) {
+       MaybeAppendOpenGlicItem(/*add_separator=*/false);
+     }
++
++    if (glic_item_shown_ || HasSearchProviderItem(menu_model_)) {
++      menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
++    }
++
+     AppendReadAnythingItem();
+     AppendSaveToMemoryBanksItem();
+ 
+diff --git a/chrome/browser/resources/contextual_tasks/app.html.ts b/chrome/browser/resources/contextual_tasks/app.html.ts
+index 83ac13b..889788a8 100644
+--- a/chrome/browser/resources/contextual_tasks/app.html.ts
++++ b/chrome/browser/resources/contextual_tasks/app.html.ts
+@@ -84,7 +84,8 @@
+   <contextual-tasks-composebox id="composebox"
+       style="${this.getComposeboxBoundsStyles()}"
+       ?hidden="${this.isComposeboxHidden_()}"
+-      .isZeroState="${this.isZeroState_}" .isSidePanel="${!this.isShownInTab_}"
++      .isZeroState="${!!this.isZeroState_}"
++      .isSidePanel="${!this.isShownInTab_}"
+       .isLensOverlayShowing="${this.isLensOverlayShowing_}"
+       .isOverlayOpenForAimVisualSearch="${
+           this.isOverlayOpenForAimVisualSearch_}"
+diff --git a/chrome/browser/resources/contextual_tasks/app.ts b/chrome/browser/resources/contextual_tasks/app.ts
+index a2d9102..0b14eaa 100644
+--- a/chrome/browser/resources/contextual_tasks/app.ts
++++ b/chrome/browser/resources/contextual_tasks/app.ts
+@@ -366,10 +366,13 @@
+ 
+   protected accessor isErrorPageVisible_: boolean = false;
+   // Whether no queries have been submitted in the current AIM thread. This
+-  // can be undefined on initial load to prevent the composebox from flashing
+-  // briefly before the zero state is rendered.
+-  protected accessor isZeroState_: boolean =
+-      loadTimeData.getBoolean('isZeroState');
++  // is undefined on initial load if the browser doesn't know the state yet, to
++  // prevent the composebox from flashing briefly before the zero state is
++  // rendered.
++  protected accessor isZeroState_: boolean|undefined =
++      loadTimeData.getBoolean('isZeroStateKnownOnInit') ?
++      loadTimeData.getBoolean('isZeroState') :
++      undefined;
+   protected accessor enableNativeZeroStateSuggestions_: boolean =
+       loadTimeData.getBoolean('enableNativeZeroStateSuggestions');
+   protected accessor inNlm_: boolean = false;
 diff --git a/chrome/browser/resources/contextual_tasks/composebox.ts b/chrome/browser/resources/contextual_tasks/composebox.ts
 index b2d3e0da..a3ca995 100644
 --- a/chrome/browser/resources/contextual_tasks/composebox.ts
@@ -525,6 +1059,23 @@ index b2d3e0da..a3ca995 100644
  import {GlowAnimationState, VoiceSearchState} from '//resources/cr_components/search/constants.js';
  import {I18nMixinLit} from '//resources/cr_elements/i18n_mixin_lit.js';
  import {assert} from '//resources/js/assert.js';
+diff --git a/chrome/browser/resources/contextual_tasks/contextual_tasks.html b/chrome/browser/resources/contextual_tasks/contextual_tasks.html
+index 981a4de..a1864af 100644
+--- a/chrome/browser/resources/contextual_tasks/contextual_tasks.html
++++ b/chrome/browser/resources/contextual_tasks/contextual_tasks.html
+@@ -31,6 +31,12 @@
+         align-items: stretch;
+         display: flex;
+         flex-direction: column;
++        /* Contain and clip absolutely positioned content, like the zero state
++         * container during its slide up animation. Otherwise its offset makes
++         * the document scrollable, and focusing the composebox scrolls the
++         * toolbar out of view until the animation ends. */
++        overflow: clip;
++        position: relative;
+       }
+ 
+       contextual-tasks-app {
 diff --git a/chrome/browser/resources/history/history.ts b/chrome/browser/resources/history/history.ts
 index dd1809d..c2f76c53 100644
 --- a/chrome/browser/resources/history/history.ts
@@ -678,7 +1229,7 @@ index 307b348..594ed8e9 100644
       * Without this, the fade-out transition above would also apply here and
       * delay the ghost loader by 450ms. */
 diff --git a/chrome/browser/resources/new_tab_page/left_hand_side.html.ts b/chrome/browser/resources/new_tab_page/left_hand_side.html.ts
-index 344bac2e..08222a0 100644
+index 344bac2e..44da8ace 100644
 --- a/chrome/browser/resources/new_tab_page/left_hand_side.html.ts
 +++ b/chrome/browser/resources/new_tab_page/left_hand_side.html.ts
 @@ -10,27 +10,23 @@
@@ -711,7 +1262,7 @@ index 344bac2e..08222a0 100644
 +  </ntp-lhs-ghost-loader>
  ` : ''}
 -${!this.enableThreadsRailHybrid_ || this.hasPreloaded_ ? html`
-+${this.hasPreloaded_ ? html`
++${this.preloadStartTime_ !== null ? html`
    <ntp-iframe id="expanded" class="${this.isExpandedReady_ ? 'ready' : ''}"
        allow="clipboard-write; unbounded-element"
 -      style="${this.enableThreadsRailHybrid_ ?
@@ -724,7 +1275,7 @@ index 344bac2e..08222a0 100644
    </ntp-iframe>
  ` : ''}
 diff --git a/chrome/browser/resources/new_tab_page/left_hand_side.ts b/chrome/browser/resources/new_tab_page/left_hand_side.ts
-index 2832e08..3b4ea7d9 100644
+index 2832e08..a0ab4be 100644
 --- a/chrome/browser/resources/new_tab_page/left_hand_side.ts
 +++ b/chrome/browser/resources/new_tab_page/left_hand_side.ts
 @@ -6,6 +6,7 @@
@@ -735,11 +1286,11 @@ index 2832e08..3b4ea7d9 100644
  import {EventTracker} from 'chrome://resources/js/event_tracker.js';
  import type {PropertyValues} from 'chrome://resources/lit/v3_0/lit.rollup.js';
  import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
-@@ -14,16 +15,39 @@
+@@ -14,23 +15,68 @@
  import type {IframeElement} from './iframe.js';
  import {getCss} from './left_hand_side.css.js';
  import {getHtml} from './left_hand_side.html.js';
-+import {recordBoolean, recordEnumeration} from './metrics_utils.js';
++import {recordBoolean, recordDuration, recordEnumeration} from './metrics_utils.js';
  import {WindowProxy} from './window_proxy.js';
  
  const DEFAULT_EXPANDED_LHS_WIDTH_PX = 261;
@@ -775,8 +1326,66 @@ index 2832e08..3b4ea7d9 100644
  }
  
  type ChromeToSearchLhsMessage = NtpLhsSetThemeMessage;
-@@ -67,17 +91,13 @@
+ 
++// Maps each `NtpLhsThemePalette` key to its corresponding
++// `--color-new-tab-page-threads-rail-<suffix>` CSS variable from
++// `chrome_color_id.h`.
+ const NTP_LHS_THEME_CSS_VARS: Record<NtpLhsThemeKey, string> = {
+   'primaryFont': 'primary-font',
++  'secondaryFont': 'secondary-font',
+   'railBackground': 'background',
++  'flyoutMenuBackground': 'flyout-menu-background',
++  'surfaceContainer': 'surface-container',
++  'surfaceContainerHigh': 'surface-container-high',
++  'surfaceContainerHighest': 'surface-container-highest',
++  'primary': 'primary',
++  'tooltipContainer': 'tooltip-container',
++  'hoverBackgroundColor': 'hover-background',
++  'selectedBackgroundColor': 'selected-background',
++  'loaderBaseColor': 'loader-base',
++  'loaderHighlightColor': 'loader-highlight',
++  'brandPrimaryFont': 'brand-primary-font',
++  'brandSecondaryFont': 'brand-secondary-font',
++  'menuOpenBackgroundColor': 'menu-open-background',
++  'containerBackground': 'container-background',
++  'dividerColor': 'divider',
++  'scrimColor': 'scrim',
++  'scrollbarThumbColor': 'scrollbar-thumb',
++  'updateDotColor': 'update-dot',
+ };
+ 
+ export enum NtpLhsMessageType {
+@@ -62,22 +108,42 @@
+ export type SearchToChromeLhsMessage = NtpLhsReadyMessage|NtpLhsCloseMessage|
+     NtpLhsNewThreadMessage|NtpLhsNavigateMessage;
+ 
++/**
++ * Theme palette forwarded to the embedded Search AI Mode LHS iframe via
++ * `NTP_LHS_SET_THEME`. Property names must stay in sync with Search's
++ * `NtpLhsThemePalette` (`ntp_lhs_post_message.ts`).
++ */
+ export interface NtpLhsThemePalette {
+   primaryFont?: string;
++  secondaryFont?: string;
    railBackground?: string;
++  flyoutMenuBackground?: string;
++  surfaceContainer?: string;
++  surfaceContainerHigh?: string;
++  surfaceContainerHighest?: string;
++  primary?: string;
++  tooltipContainer?: string;
++  hoverBackgroundColor?: string;
++  selectedBackgroundColor?: string;
++  loaderBaseColor?: string;
++  loaderHighlightColor?: string;
++  brandPrimaryFont?: string;
++  brandSecondaryFont?: string;
++  menuOpenBackgroundColor?: string;
++  containerBackground?: string;
++  dividerColor?: string;
++  scrimColor?: string;
++  scrollbarThumbColor?: string;
++  updateDotColor?: string;
  }
  
 -// The primary view of the LHS. In hybrid mode, #folded and #expanded stay
@@ -798,7 +1407,7 @@ index 2832e08..3b4ea7d9 100644
    GHOST_LOADER = 'ghostLoader',
    // The expanded LHS iframe.
    EXPANDED = 'expanded',
-@@ -98,10 +118,6 @@
+@@ -98,13 +164,8 @@
  
    static override get properties() {
      return {
@@ -808,8 +1417,19 @@ index 2832e08..3b4ea7d9 100644
 -      },
        expandedLhsUrl_: {type: String},
        expandedWidth_: {type: Number},
-       hasPreloaded_: {type: Boolean},
-@@ -123,8 +139,6 @@
+-      hasPreloaded_: {type: Boolean},
+       isDark: {
+         type: Boolean,
+         reflect: true,
+@@ -114,6 +175,7 @@
+         reflect: true,
+       },
+       isExpandedReady_: {type: Boolean},
++      preloadStartTime_: {type: Number},
+       threadsRailPreloadDebounceMs_: {type: Number},
+       view_: {
+         type: String,
+@@ -123,32 +185,42 @@
    }
  
    accessor isDark: boolean|undefined = undefined;
@@ -818,7 +1438,16 @@ index 2832e08..3b4ea7d9 100644
    protected accessor expandedLhsUrl_: string =
        loadTimeData.getString('expandedLhsUrl');
    protected accessor expandedWidth_: number = DEFAULT_EXPANDED_LHS_WIDTH_PX;
-@@ -137,16 +151,14 @@
+-  protected accessor hasPreloaded_: boolean = false;
+   protected accessor isExpanded_: boolean = false;
+   protected accessor isExpandedReady_: boolean = false;
++  // Time at which <ntp-iframe id="expanded"> was stamped into the DOM so that
++  // it starts loading expandedLhsUrl_, or null while it is not stamped. Set
++  // once ensureLazyLoaded() resolves on hover, focus, or expand.
++  protected accessor preloadStartTime_: number|null = null;
+   protected accessor threadsRailPreloadDebounceMs_: number =
+       loadTimeData.valueExists('threadsRailPreloadDebounceMs') ?
+       loadTimeData.getInteger('threadsRailPreloadDebounceMs') :
        100;
    // The primary view, reflected as the `view_` attribute so that
    // left_hand_side.css can style each view. Derived in willUpdate().
@@ -836,8 +1465,29 @@ index 2832e08..3b4ea7d9 100644
 +  // Width of the folded rail, measured once it has rendered.
    private collapsedWidth_: number = 0;
    private preloadTimerId_: number|null = null;
++  private isFoldedHovered_: boolean = false;
++  private isFoldedFocused_: boolean = false;
++  private hoverStartTime_: number|null = null;
++  // Longest completed hover/focus interval on the folded rail, or null if none
++  // has completed yet. Together with the active interval, this is recorded on
++  // first expand or on pagehide to tune threadsRailPreloadDebounceMs_.
++  private longestHoverDurationMs_: number|null = null;
++  // Whether the user has requested to expand the LHS at least once.
++  private hasExpanded_: boolean = false;
++  private ghostLoaderShownTime_: number|null = null;
++  private lastHiddenTime_: number|null = null;
  
-@@ -164,8 +176,6 @@
+   override connectedCallback() {
+     super.connectedCallback();
+@@ -159,13 +231,14 @@
+     this.eventTracker_.add(
+         ColorChangeUpdater.forDocument().eventTarget, COLOR_PROVIDER_CHANGED,
+         this.postThemeColors_);
++    this.eventTracker_.add(
++        document, 'visibilitychange', this.onVisibilityChange_);
++    this.eventTracker_.add(window, 'pagehide', this.onPageHide_);
+   }
+ 
    override disconnectedCallback() {
      super.disconnectedCallback();
      this.eventTracker_.removeAll();
@@ -846,7 +1496,7 @@ index 2832e08..3b4ea7d9 100644
      this.cancelPreloadTimer_();
    }
  
-@@ -176,20 +186,21 @@
+@@ -176,20 +249,32 @@
  
    override firstUpdated(changedProperties: PropertyValues<this>) {
      super.firstUpdated(changedProperties);
@@ -866,9 +1516,20 @@ index 2832e08..3b4ea7d9 100644
 -        (changedPrivateProperties.has('isExpanded_') ||
 -         changedPrivateProperties.has('expandedWidth_') ||
 -         changedPrivateProperties.has('collapsedWidth_'))) {
-+    if (changedPrivateProperties.has('view_') &&
-+        this.view_ === LhsView.EXPANDED) {
-+      recordBoolean('NewTabPage.ThreadsRail.ExpandedShown', true);
++    if (changedPrivateProperties.has('view_')) {
++      if (this.view_ === LhsView.EXPANDED) {
++        recordBoolean('NewTabPage.ThreadsRail.ExpandedShown', true);
++      }
++      if (this.view_ === LhsView.GHOST_LOADER) {
++        this.ghostLoaderShownTime_ = WindowProxy.getInstance().now();
++      } else if (this.ghostLoaderShownTime_ !== null) {
++        // Record how long the ghost loader was shown, until the expanded
++        // iframe replaced it or the LHS was collapsed.
++        this.recordLatency_(
++            'NewTabPage.ThreadsRail.GhostLoaderShownDuration',
++            this.ghostLoaderShownTime_, WindowProxy.getInstance().now());
++        this.ghostLoaderShownTime_ = null;
++      }
 +    }
 +    if (changedPrivateProperties.has('isExpanded_') ||
 +        changedPrivateProperties.has('expandedWidth_') ||
@@ -876,7 +1537,7 @@ index 2832e08..3b4ea7d9 100644
        this.setHostWidth_(
            this.isExpanded_ ? this.expandedWidth_ : this.collapsedWidth_);
      }
-@@ -200,13 +211,10 @@
+@@ -200,13 +285,10 @@
    // views, including hiding the folded rail while the ghost loader replaces
    // it, are handled in left_hand_side.css.
    protected getVisibleView_(): LhsView {
@@ -893,7 +1554,7 @@ index 2832e08..3b4ea7d9 100644
    }
  
    private setHostWidth_(width: number) {
-@@ -214,48 +222,12 @@
+@@ -214,66 +296,79 @@
          '--cr-left-hand-side-width', `${Math.round(width)}px`);
    }
  
@@ -947,7 +1608,126 @@ index 2832e08..3b4ea7d9 100644
    }
  
    protected onFoldedPointerenter_() {
-@@ -342,21 +314,29 @@
+-    this.schedulePreloadExpanded_();
++    this.isFoldedHovered_ = true;
++    this.onFoldedInteractionStart_();
+   }
+ 
+   protected onFoldedPointerleave_() {
+-    this.cancelPreloadTimer_();
++    this.isFoldedHovered_ = false;
++    this.onFoldedInteractionEnd_();
+   }
+ 
+   protected onFoldedFocusin_() {
++    this.isFoldedFocused_ = true;
++    this.onFoldedInteractionStart_();
++  }
++
++  protected onFoldedFocusout_(e: FocusEvent) {
++    // focusout bubbles from the rail's children, so moving focus between them
++    // fires focusout then focusin. Ignore it so that the hover/focus interval
++    // and preload timer are not interrupted while focus stays in the rail.
++    const folded = e.currentTarget as HTMLElement;
++    if (e.relatedTarget instanceof Node && folded.contains(e.relatedTarget)) {
++      return;
++    }
++    this.isFoldedFocused_ = false;
++    this.onFoldedInteractionEnd_();
++  }
++
++  // Starts a hover/focus interval on the folded rail, unless one is already
++  // active, and schedules the preload.
++  private onFoldedInteractionStart_() {
++    if (this.hoverStartTime_ === null) {
++      this.hoverStartTime_ = WindowProxy.getInstance().now();
++    }
+     this.schedulePreloadExpanded_();
+   }
+ 
+-  protected onFoldedFocusout_() {
++  // Ends the hover/focus interval and cancels the preload timer once the folded
++  // rail is neither hovered nor focused.
++  private onFoldedInteractionEnd_() {
++    if (this.isFoldedHovered_ || this.isFoldedFocused_) {
++      return;
++    }
++    this.endHoverInterval_();
+     this.cancelPreloadTimer_();
+   }
+ 
++  // Folds the active hover/focus interval, if any, into
++  // longestHoverDurationMs_.
++  private endHoverInterval_() {
++    this.longestHoverDurationMs_ = this.getLongestHoverDurationMs_();
++    this.hoverStartTime_ = null;
++  }
++
++  // Returns the longest continuous hover/focus interval on the folded rail so
++  // far, including the active one, or null if the rail was never hovered or
++  // focused.
++  private getLongestHoverDurationMs_(): number|null {
++    if (this.hoverStartTime_ === null) {
++      return this.longestHoverDurationMs_;
++    }
++    return Math.max(
++        this.longestHoverDurationMs_ ?? 0,
++        WindowProxy.getInstance().now() - this.hoverStartTime_);
++  }
++
+   protected async onFoldedClick_() {
+     await this.expand_();
+   }
+@@ -283,7 +378,7 @@
+   }
+ 
+   private schedulePreloadExpanded_() {
+-    if (this.hasPreloaded_) {
++    if (this.preloadStartTime_ !== null) {
+       return;
+     }
+     if (this.preloadTimerId_ !== null) {
+@@ -307,17 +402,37 @@
+   }
+ 
+   private async preloadExpanded_() {
+-    if (this.hasPreloaded_) {
++    if (this.preloadStartTime_ !== null) {
+       return;
+     }
+     // <ntp-iframe> is defined in the lazily loaded bundle, which may not have
+     // been loaded yet if the folded rail is hovered or clicked right after the
+     // NTP loads.
+     await WindowProxy.getInstance().ensureLazyLoaded();
+-    this.hasPreloaded_ = true;
++    // A concurrent call (e.g. a click while the hover preload is awaiting
++    // above) may have stamped the iframe already.
++    if (this.preloadStartTime_ === null) {
++      this.preloadStartTime_ = WindowProxy.getInstance().now();
++    }
+   }
+ 
+   private async expand_() {
++    if (!this.hasExpanded_) {
++      this.hasExpanded_ = true;
++      // Record whether the expanded iframe was already preloaded and ready at
++      // the first expand request, i.e. whether the ghost loader is skipped.
++      recordBoolean(
++          'NewTabPage.ThreadsRail.FirstExpandWasPreloaded',
++          this.isExpandedReady_);
++      const longestHoverDurationMs = this.getLongestHoverDurationMs_();
++      if (longestHoverDurationMs !== null) {
++        // Record the longest continuous hover/focus on the folded rail before
++        // the first expand request, to tune threadsRailPreloadDebounceMs_.
++        recordDuration(
++            'NewTabPage.ThreadsRail.LongestFocusDurationBeforeExpand',
++            longestHoverDurationMs);
++      }
++    }
+     this.cancelPreloadTimer_();
+     await this.preloadExpanded_();
+     this.isExpanded_ = true;
+@@ -342,21 +457,36 @@
  
      switch (data.type) {
        case NtpLhsMessageType.NTP_LHS_READY: {
@@ -955,6 +1735,13 @@ index 2832e08..3b4ea7d9 100644
 +        // !isExpandedReady_ to ensure at most one sample per NTP.
 +        if (!this.isExpandedReady_) {
 +          recordBoolean('NewTabPage.ThreadsRail.ExpandedIframeLoaded', true);
++          // The iframe only exists once stamped, see getHtml().
++          assert(this.preloadStartTime_ !== null);
++          // Record time from the expanded iframe being stamped until
++          // NTP_LHS_READY.
++          this.recordLatency_(
++              'NewTabPage.ThreadsRail.IframeLoadLatency',
++              this.preloadStartTime_, WindowProxy.getInstance().now());
 +        }
          this.postThemeColors_();
          this.expandedWidth_ = typeof data.width === 'number' && data.width > 0 ?
@@ -980,7 +1767,7 @@ index 2832e08..3b4ea7d9 100644
          this.fire('open-composebox');
          break;
        }
-@@ -370,6 +350,8 @@
+@@ -370,6 +500,8 @@
          if (url.protocol !== 'http:' && url.protocol !== 'https:') {
            return;
          }
@@ -989,7 +1776,52 @@ index 2832e08..3b4ea7d9 100644
          WindowProxy.getInstance().navigate(data.url);
          break;
        }
-@@ -381,8 +363,8 @@
+@@ -378,11 +510,53 @@
+     }
+   };
+ 
++  // Tracks when the NTP was last hidden (e.g. the user switched tabs), so that
++  // latency samples spanning background time can be dropped in
++  // recordLatency_(). Also ends the active hover/focus interval and cancels a
++  // pending preload, since the user no longer dwells on the folded rail while
++  // the page is hidden.
++  private onVisibilityChange_ = () => {
++    if (document.visibilityState === 'hidden') {
++      this.lastHiddenTime_ = WindowProxy.getInstance().now();
++      this.isFoldedHovered_ = false;
++      this.isFoldedFocused_ = false;
++      this.onFoldedInteractionEnd_();
++    }
++  };
++
++  // Records the longest continuous hover/focus on the folded rail if the NTP
++  // is closed or navigated away from without the LHS ever being expanded. Its
++  // distribution against LongestFocusDurationBeforeExpand is used to tune
++  // threadsRailPreloadDebounceMs_.
++  private onPageHide_ = () => {
++    if (this.hasExpanded_) {
++      return;
++    }
++    const longestHoverDurationMs = this.getLongestHoverDurationMs_();
++    if (longestHoverDurationMs !== null) {
++      recordDuration(
++          'NewTabPage.ThreadsRail.LongestFocusDurationWithoutExpand',
++          longestHoverDurationMs);
++    }
++  };
++
++  // Records a latency sample, unless the page is hidden now or was hidden at
++  // any point since `startTime`. While hidden, the user is not waiting and
++  // background throttling delays timers and rendering, so such samples would
++  // inflate the latency.
++  private recordLatency_(name: string, startTime: number, endTime: number) {
++    if (document.visibilityState === 'hidden' ||
++        (this.lastHiddenTime_ !== null && this.lastHiddenTime_ >= startTime)) {
++      return;
++    }
++    recordDuration(name, endTime - startTime);
++  }
++
    private postThemeColors_ = () => {
      const expanded = this.getExpandedIframe_();
      if (!expanded) {
@@ -1000,7 +1832,7 @@ index 2832e08..3b4ea7d9 100644
        return;
      }
      const computedStyle = getComputedStyle(this);
-@@ -394,10 +376,16 @@
+@@ -394,10 +568,16 @@
                             `--color-new-tab-page-threads-rail-${cssVarSuffix}`)
                         .trim();
      }
@@ -1211,7 +2043,7 @@ index f1b8cb1..0f1ba7ff 100644
  export {recordBoolean, recordDuration, recordEnumeration, recordLinearValue, recordLogValue, recordOccurrence, recordPerdecage, recordSmallCount, recordSparseValueWithPersistentHash, recordVoiceAction, VoiceAction, VoiceError} from './metrics_utils.js';
  export {NtpSearchboxElement} from './ntp_searchbox.js';
 diff --git a/chrome/browser/resources/omnibox_everywhere/app.css b/chrome/browser/resources/omnibox_everywhere/app.css
-index 87fe4348..613a95c 100644
+index 87fe4348..7acc398 100644
 --- a/chrome/browser/resources/omnibox_everywhere/app.css
 +++ b/chrome/browser/resources/omnibox_everywhere/app.css
 @@ -11,6 +11,8 @@
@@ -1223,6 +2055,33 @@ index 87fe4348..613a95c 100644
    display: block;
    position: relative;
    transition: opacity 150ms ease;
+@@ -21,7 +23,7 @@
+ }
+ 
+ :host([small-loomnibox]) {
+-  --loomnibox-content-width: 480px;
++  --loomnibox-content-width: 408px;
+ }
+ 
+ :host([small-font]) {
+@@ -41,7 +43,7 @@
+ }
+ 
+ :host([dynamic-sizing][small-loomnibox]) {
+-  --loomnibox-content-width: 480px;
++  --loomnibox-content-width: 408px;
+ }
+ 
+ :host(:not([is-active])) {
+@@ -70,7 +72,7 @@
+   --color-composebox-type-ahead-chip: var(
+       --color-omnibox-composebox-chip-background);
+   --color-composebox-font-light: var(--color-sys-on-surface);
+-  --color-searchbox-placeholder: var(--color-composebox-type-ahead);
++  --color-searchbox-placeholder: var(--color-sys-state-disabled);
+   display: block;
+ }
+ 
 @@ -91,7 +93,7 @@
     * to not be cut off by outer view container.
     */
@@ -1348,10 +2207,77 @@ index 78692dd..368f84c 100644
            .autosubmitEnabled="${true}" .submitStopButtonsEnabled="${true}">
        </cr-composebox-voice-search>
 diff --git a/chrome/browser/resources/omnibox_everywhere/app.ts b/chrome/browser/resources/omnibox_everywhere/app.ts
-index b767c778..fe7f58e33 100644
+index b767c778..2dccc188 100644
 --- a/chrome/browser/resources/omnibox_everywhere/app.ts
 +++ b/chrome/browser/resources/omnibox_everywhere/app.ts
-@@ -840,6 +840,7 @@
+@@ -188,7 +188,7 @@
+   // Tracks whether the current pending context upload (screenshot capture or
+   // native file chooser) was initiated while the user was in the Searchbox
+   // (`!isComposeboxMode_`) rather than already inside the Composebox. If the
+-  // user cancels the picker, this flag tells `onScreenshotCaptureCancelled` to
++  // user cancels the picker, this flag tells `onContextUploadCancelled` to
+   // return the view back to the Searchbox instead of leaving an empty
+   // Composebox open.
+   private contextUploadOriginWasSearchbox_: boolean = false;
+@@ -234,7 +234,7 @@
+   override willUpdate(changedProperties: PropertyValues<this>) {
+     super.willUpdate(changedProperties);
+     if (this.dynamicSizing_) {
+-      // In persistent mode, rest in the small 480px state (4 MVT tiles) until
++      // In persistent mode, rest in the small 408px state (3 MVT tiles) until
+       // the text input is focused; then stay expanded (5 tiles) until the
+       // browser demotes the widget (`onDemoted_`). Transient window blurs
+       // (e.g. native menus) intentionally do not shrink it.
+@@ -296,22 +296,20 @@
+     // shrink before presenting the native UI), restore the Searchbox view and
+     // focus its input; otherwise keep the existing Composebox open and restore
+     // its suggestions.
+-    // TODO(b/581982262): Rename `onScreenshotCaptureCancelled` (and its mojom
+-    // method) to `onContextUploadCancelled` now that it is shared with the
+-    // native file chooser.
+-    const onScreenshotCaptureCancelled = async () => {
++    const onContextUploadCancelled = async () => {
+       this.isPendingContextUpload_ = false;
+       if (this.contextUploadOriginWasSearchbox_) {
+         this.contextUploadOriginWasSearchbox_ = false;
+-        // TODO(b/585172152): Preserve any query text typed in the searchbox
+-        // when reverting a cancelled screenshot or file upload back to the
+-        // searchbox.
++        const text = this.composebox?.input || '';
+         this.setIsComposebox_(false);
+         await this.updateComplete;
++        if (text) {
++          this.searchbox?.setInputText?.(text);
++        }
+         this.searchbox?.focusInput?.();
+         return;
+       }
+-      this.composebox?.onScreenshotCaptureCancelled();
++      this.composebox?.onContextUploadCancelled();
+     };
+ 
+     this.searchboxListenerIds_.push(
+@@ -354,8 +352,8 @@
+             onContextMenuClosed),
+         omniboxEverywhereCallbackRouter.onOverflowMenuClosed.addListener(
+             () => this.searchbox?.onOverflowMenuClosed()),
+-        omniboxEverywhereCallbackRouter.onScreenshotCaptureCancelled
+-            .addListener(onScreenshotCaptureCancelled),
++        omniboxEverywhereCallbackRouter.onContextUploadCancelled
++            .addListener(onContextUploadCancelled),
+         omniboxEverywhereCallbackRouter.focusInput.addListener(() => {
+           // Expand even if the input can't take focus (e.g. under the FRE
+           // intro modal).
+@@ -526,7 +524,7 @@
+   }
+ 
+   protected getMaxMostVisitedTiles_(): number {
+-    return this.smallLoomnibox_ ? 4 : 5;
++    return this.smallLoomnibox_ ? 3 : 5;
+   }
+ 
+   protected onMostVisitedCloseClick_() {
+@@ -840,6 +838,7 @@
      this.showVoiceSearchOverlay_ = false;
      this.hasVoiceSearchError_ = false;
      this.voiceSearchListening_ = false;
@@ -1359,7 +2285,7 @@ index b767c778..fe7f58e33 100644
    }
  
    protected onVoicePermissionChanged_(
-@@ -903,6 +904,11 @@
+@@ -903,6 +902,11 @@
      this.voiceSearchTranscript_ = '';
    }
  
@@ -1371,6 +2297,45 @@ index b767c778..fe7f58e33 100644
    protected onVoiceSearchTranscriptUpdate_(e: CustomEvent<string>) {
      this.voiceSearchTranscript_ = e.detail;
    }
+diff --git a/chrome/browser/resources/omnibox_everywhere/composebox.css b/chrome/browser/resources/omnibox_everywhere/composebox.css
+index 38bb66c..c94d6e6 100644
+--- a/chrome/browser/resources/omnibox_everywhere/composebox.css
++++ b/chrome/browser/resources/omnibox_everywhere/composebox.css
+@@ -92,7 +92,7 @@
+       --color-omnibox-action-icon-hover);
+   --color-composebox-voice-search-font: var(--color-sys-on-surface);
+   --color-file-chip-remove-button-fill: var(--color-sys-on-surface-subtle);
+-  --cr-composebox-input-placeholder-color: var(--color-sys-on-surface-subtle);
++  --cr-composebox-input-placeholder-color: var(--color-searchbox-placeholder);
+   --cr-composebox-voice-icon-fill-color: var(--color-sys-on-surface-subtle);
+   --cr-composebox-submit-border-radius: 100px;
+   --cr-composebox-submit-height: 32px;
+diff --git a/chrome/browser/resources/omnibox_everywhere/composebox.ts b/chrome/browser/resources/omnibox_everywhere/composebox.ts
+index 827ff75..dd3dd6df 100644
+--- a/chrome/browser/resources/omnibox_everywhere/composebox.ts
++++ b/chrome/browser/resources/omnibox_everywhere/composebox.ts
+@@ -336,7 +336,7 @@
+     super.onInputInput(e);
+   }
+ 
+-  onScreenshotCaptureCancelled() {
++  onContextUploadCancelled() {
+     this.isPendingContextUpload = false;
+     this.refreshTabSuggestions(/*forceRefresh=*/ true);
+     this.queryAutocomplete(/* clearMatches= */ true);
+diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.css b/chrome/browser/resources/omnibox_everywhere/omnibox.css
+index 115a9344..80d3bd5 100644
+--- a/chrome/browser/resources/omnibox_everywhere/omnibox.css
++++ b/chrome/browser/resources/omnibox_everywhere/omnibox.css
+@@ -200,7 +200,7 @@
+ cr-searchbox-input::part(searchbox-input)::placeholder,
+ #lensPlaceholder {
+   color: var(--cr-composebox-input-placeholder-color,
+-      var(--color-composebox-type-ahead));
++      var(--color-searchbox-placeholder));
+   font-weight: 400;
+ }
+ 
 diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.ts b/chrome/browser/resources/omnibox_everywhere/omnibox.ts
 index 2824d84a..4f6a499 100644
 --- a/chrome/browser/resources/omnibox_everywhere/omnibox.ts
@@ -1386,8 +2351,34 @@ index 2824d84a..4f6a499 100644
      this.setInputText('');
    }
  
+diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox_everywhere.html b/chrome/browser/resources/omnibox_everywhere/omnibox_everywhere.html
+index 1ff3143..a946559 100644
+--- a/chrome/browser/resources/omnibox_everywhere/omnibox_everywhere.html
++++ b/chrome/browser/resources/omnibox_everywhere/omnibox_everywhere.html
+@@ -15,7 +15,7 @@
+       max-width: 100vw;
+     }
+ 
+-    /* Override the default max-width: 100vw (which equals 544px when the
++    /* Override the default max-width: 100vw (which equals 472px when the
+      * persistent C++ widget is resting) so Blink's EnableAutoResize can measure
+      * the expanded app width and resize the native widget window. */
+     html:has(omnibox-everywhere-app[dynamic-sizing]) {
+diff --git a/chrome/browser/resources/omnibox_everywhere/searchbox_shared_style.css b/chrome/browser/resources/omnibox_everywhere/searchbox_shared_style.css
+index 253540a..ded7eed9 100644
+--- a/chrome/browser/resources/omnibox_everywhere/searchbox_shared_style.css
++++ b/chrome/browser/resources/omnibox_everywhere/searchbox_shared_style.css
+@@ -99,7 +99,7 @@
+   --color-searchbox-foreground: var(--color-sys-on-surface);
+   --color-searchbox-lens-voice-icon-background: var(
+       --color-omnibox-results-icon);
+-  --color-searchbox-placeholder: var(--color-sys-on-surface-subtle);
++  --color-searchbox-placeholder: var(--color-sys-state-disabled);
+   --color-searchbox-results-action-chip: var(
+       --color-omnibox-results-button-border);
+   --color-searchbox-results-action-chip-focus-outline: var(
 diff --git a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
-index b48d7f8..3dc7d03 100644
+index b48d7f8..378be30 100644
 --- a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
 +++ b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
 @@ -18,7 +18,7 @@
@@ -1399,7 +2390,7 @@ index b48d7f8..3dc7d03 100644
  import {I18nMixinLit} from '//resources/cr_elements/i18n_mixin_lit.js';
  import {WebUiListenerMixinLit} from '//resources/cr_elements/web_ui_listener_mixin_lit.js';
  import {EventTracker} from '//resources/js/event_tracker.js';
-@@ -72,6 +72,54 @@
+@@ -72,6 +72,81 @@
   */
  const DRAG_THRESHOLD_PX = 3;
  
@@ -1451,21 +2442,49 @@ index b48d7f8..3dc7d03 100644
 +  return text ? stripJavascriptSchemas(collapseWhitespace(text)) : null;
 +}
 +
++/**
++ * Returns the URL that `text` stands for if it's an HTTP(S) URL on the host of
++ * `pageUrl`, the HTTP(S) URL of the page, and an empty string otherwise. The
++ * URL has the scheme of the page if `text` has none.
++ *
++ * This stands in for the browser's `AutocompleteClassifier`, which
++ * `omnibox::AdjustTextForCopy()` gets such a URL from: the page has to write
++ * the data of a drag during `dragstart`, so it can't ask the browser then.
++ * Parsing the text of a URL gives the same URL as classifying it. Unlike the
++ * classifier, this also takes a host without a dot for a URL if the user
++ * hasn't typed that host before. And it leaves out a URL with a username or a
++ * password, as text with another scheme parses as one, e.g.
++ * "mailto:user@example.com".
++ */
++function getUrlOnHostOfPage(text: string, pageUrl: string): string {
++  const page = URL.parse(pageUrl);
++  if (!page || !['http:', 'https:'].includes(page.protocol)) {
++    return '';
++  }
++  text = text.trim();
++  const url = URL.parse(
++      /^https?:\/\//i.test(text) ? text : `${page.protocol}//${text}`);
++  if (!url || url.hostname !== page.hostname || url.username || url.password) {
++    return '';
++  }
++  return url.href;
++}
  export interface AimButtonConfig {
    text: string;
    title: string;
-@@ -363,6 +411,10 @@
+@@ -363,6 +438,11 @@
    private lastSelectedMatch_: AutocompleteMatch|null = null;
    private accessor fullUrl_: string = '';
    private accessor permanentDisplayText_: string = '';
 +  // The URL to drag when all of the unedited permanent text is dragged out of
 +  // the input, or empty if there is none. Unlike `fullUrl_`, which is formatted
 +  // for display, e.g. without "http://", this is the URL of the page itself.
++  // Other dragged text can stand for a URL on its host. See `getUrlToDrag_()`.
 +  private dragUrl_: string = '';
    protected accessor aimButtonIconOnly_: boolean = false;
    // Set by the browser, like the Views omnibox's text input type.
    protected accessor textInputType_: 'url'|'search' = 'search';
-@@ -548,12 +600,9 @@
+@@ -548,12 +628,9 @@
      this.inputResizeObserver_.observe(this.$.inputWrapper);
  
      this.eventTracker_.add(document, 'mousemove', this.onMouseMove_.bind(this));
@@ -1481,7 +2500,7 @@ index b48d7f8..3dc7d03 100644
      this.eventTracker_.add(document, 'mouseup', this.onMouseUp_.bind(this));
      this.eventTracker_.add(document, 'dragstart', this.onDragStart_.bind(this));
      this.eventTracker_.add(document, 'dragend', this.onDragEnd_.bind(this));
-@@ -1029,6 +1078,35 @@
+@@ -1029,6 +1106,35 @@
          e.composedPath().includes(input) && (wasUnfocused || !input.value);
    }
  
@@ -1517,17 +2536,14 @@ index b48d7f8..3dc7d03 100644
    private onMouseMove_(e: MouseEvent) {
      // Only track drag distance while the primary (left) mouse button is held.
      if ((this.selectAllOnMouseRelease_ || this.queryZpsOnMouseRelease_) &&
-@@ -1138,9 +1216,18 @@
+@@ -1138,15 +1244,41 @@
        text: input.value,
        selection: {start: Math.min(start, end), end: Math.max(start, end)},
      };
 -    // Like the native omnibox, allow both copying and moving the text.
      if (e.dataTransfer) {
 -      e.dataTransfer.effectAllowed = 'copyMove';
-+      // Like `OmniboxViewViews::OnWriteDragData()`, if all of the unedited
-+      // text is selected, drag the URL of the page rather than the text shown
-+      // for it, which may be elided.
-+      const url = this.isPermanentTextAllSelected_() ? this.dragUrl_ : '';
++      const url = this.getUrlToDrag_();
 +      if (url) {
 +        e.dataTransfer.setData('text/plain', url);
 +        e.dataTransfer.setData('text/uri-list', url);
@@ -1538,7 +2554,33 @@ index b48d7f8..3dc7d03 100644
      }
      // Like `OmniboxViewViews::OnMouseDragged()`, close the dropdown, since the
      // user may want to drop the text on something that it covers.
-@@ -1156,12 +1243,17 @@
+     this.clearAutocompleteMatches();
+   }
+ 
++  /**
++   * Returns the URL to drag in place of the selected text, or an empty string
++   * to drag the text itself. Like `OmniboxViewViews::OnWriteDragData()`, if all
++   * of the unedited text is selected, that's the URL of the page rather than
++   * the text shown for it, which may be elided. For any other selection that
++   * starts at the start of the text, it's the URL that the selected text
++   * stands for, if that URL is on the host of the page.
++   */
++  private getUrlToDrag_(): string {
++    if (this.isPermanentTextAllSelected_()) {
++      return this.dragUrl_;
++    }
++    const input = this.getInputElement().inputElement;
++    if (input.selectionStart !== 0) {
++      return '';
++    }
++    return getUrlOnHostOfPage(
++        input.value.substring(0, input.selectionEnd ?? 0), this.dragUrl_);
++  }
++
+   private onDragEnd_() {
+     this.textDrag_ = null;
+   }
+@@ -1156,12 +1288,17 @@
     * `views::Textfield::DropDraggedText()`: moves the text to where it's
     * dropped, or copies it there if the copy modifier is held, as a single
     * undoable edit, and puts the caret after the dropped text rather than
@@ -1558,7 +2600,7 @@ index b48d7f8..3dc7d03 100644
        return;
      }
      const caretPosition = document.caretPositionFromPoint(
-@@ -1175,8 +1267,7 @@
+@@ -1175,8 +1312,7 @@
      const {start, end} = drag.selection;
      const draggedText = drag.text.substring(start, end);
      let position = caretPosition.offset;
@@ -1568,7 +2610,7 @@ index b48d7f8..3dc7d03 100644
      const isCopy = isMac ? e.altKey : e.ctrlKey;
      if (!isCopy) {
        // Account for the removal of the dragged text before the drop position.
-@@ -1222,6 +1313,57 @@
+@@ -1222,6 +1358,57 @@
      }
    }
  
@@ -1626,7 +2668,7 @@ index b48d7f8..3dc7d03 100644
    override async onInputWrapperKeydown(e: KeyboardEvent) {
      // Some keys below are handled without calling
      // `super.onInputWrapperKeydown()`, so update the state every key press
-@@ -1490,6 +1632,20 @@
+@@ -1490,6 +1677,20 @@
    }
  
    /**
@@ -1647,7 +2689,7 @@ index b48d7f8..3dc7d03 100644
     * Unelides the URL, keeping the caret (or selection) on the same characters
     * by shifting it past the prefix (e.g. "https://www.") that was elided. Does
     * nothing if all the text is selected. Compare
-@@ -1691,6 +1847,7 @@
+@@ -1691,6 +1892,7 @@
      this.tabId_ = state.tabId;
      this.fullUrl_ = state.fullUrl;
      this.permanentDisplayText_ = state.permanentDisplayText;
@@ -1655,7 +2697,7 @@ index b48d7f8..3dc7d03 100644
      this.textInputType_ = state.prefersUrlInput ? 'url' : 'search';
      this.isComposing_ = false;
      const keywordChanged =
-@@ -2504,9 +2661,9 @@
+@@ -2504,9 +2706,9 @@
        // On an open page where no suggestion match is highlighted, submit the
        // verbatim input text (or reload the permanent URL).
        e.preventDefault();
@@ -1790,6 +2832,460 @@ index 33a406b..cab5dc7 100644
  export type {GlicButtonState, LocationBarState, OmniboxAction, PageActionState, PermissionChipState, PermissionDashboardState} from '/shared/toolbar_ui_api_data_model.mojom-webui.js';
  export {ToolbarAppElement} from './app.js';
  export type {BackForwardButtonElement} from './back_forward_button.js';
+diff --git a/chrome/browser/task_manager/providers/per_profile_worker_task_tracker.cc b/chrome/browser/task_manager/providers/per_profile_worker_task_tracker.cc
+index 83cd43d..53a02eb8 100644
+--- a/chrome/browser/task_manager/providers/per_profile_worker_task_tracker.cc
++++ b/chrome/browser/task_manager/providers/per_profile_worker_task_tracker.cc
+@@ -152,7 +152,9 @@
+       worker_id,
+       std::make_unique<WorkerTask>(worker_process_host->GetProcess().Handle(),
+                                    task_type, worker_process_host->GetID()));
+-  CHECK(insertion_result.second, base::NotFatalUntil::M162);
++  // TODO(crbug.com/586996573): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(insertion_result.second);
+   worker_task_provider_->OnWorkerTaskAdded(
+       insertion_result.first->second.get());
+ }
+diff --git a/chrome/browser/ui/accelerator_table.cc b/chrome/browser/ui/accelerator_table.cc
+index f074c95..894876e 100644
+--- a/chrome/browser/ui/accelerator_table.cc
++++ b/chrome/browser/ui/accelerator_table.cc
+@@ -357,14 +357,6 @@
+     IDC_CYCLE_TO_NEXT_TAB,
+     IDC_CYCLE_TO_PREV_TAB,
+     IDC_EXIT,
+-#if BUILDFLAG(IS_ANDROID)
+-    // On Android, pane navigation (F6 / Shift+F6) is also reserved so web
+-    // pages cannot trap keyboard focus.
+-    // TODO(crbug.com/542618092): Check if pane navigation should be reserved
+-    // on Desktop as well.
+-    IDC_FOCUS_NEXT_PANE,
+-    IDC_FOCUS_PREVIOUS_PANE,
+-#endif  // BUILDFLAG(IS_ANDROID)
+ };
+ 
+ std::vector<AcceleratorMapping>* GetAcceleratorsPointer() {
+diff --git a/chrome/browser/ui/color/chrome_color_id.h b/chrome/browser/ui/color/chrome_color_id.h
+index eac1f6b4..2faabdf 100644
+--- a/chrome/browser/ui/color/chrome_color_id.h
++++ b/chrome/browser/ui/color/chrome_color_id.h
+@@ -340,8 +340,26 @@
+   E_CPONLY(kColorNewTabPageActionChipTextTitle) \
+   E_CPONLY(kColorNewTabPageActionChipDeepSearchIcon) \
+   E_CPONLY(kColorNewTabPageThreadsRailBackground) \
+-  E_CPONLY(kColorNewTabPageThreadsRailPrimaryFont) \
++  E_CPONLY(kColorNewTabPageThreadsRailBrandPrimaryFont) \
++  E_CPONLY(kColorNewTabPageThreadsRailBrandSecondaryFont) \
++  E_CPONLY(kColorNewTabPageThreadsRailContainerBackground) \
++  E_CPONLY(kColorNewTabPageThreadsRailDivider) \
++  E_CPONLY(kColorNewTabPageThreadsRailFlyoutMenuBackground) \
+   E_CPONLY(kColorNewTabPageThreadsRailHoverBackground) \
++  E_CPONLY(kColorNewTabPageThreadsRailLoaderBase) \
++  E_CPONLY(kColorNewTabPageThreadsRailLoaderHighlight) \
++  E_CPONLY(kColorNewTabPageThreadsRailMenuOpenBackground) \
++  E_CPONLY(kColorNewTabPageThreadsRailPrimary) \
++  E_CPONLY(kColorNewTabPageThreadsRailPrimaryFont) \
++  E_CPONLY(kColorNewTabPageThreadsRailScrim) \
++  E_CPONLY(kColorNewTabPageThreadsRailScrollbarThumb) \
++  E_CPONLY(kColorNewTabPageThreadsRailSecondaryFont) \
++  E_CPONLY(kColorNewTabPageThreadsRailSelectedBackground) \
++  E_CPONLY(kColorNewTabPageThreadsRailSurfaceContainer) \
++  E_CPONLY(kColorNewTabPageThreadsRailSurfaceContainerHigh) \
++  E_CPONLY(kColorNewTabPageThreadsRailSurfaceContainerHighest) \
++  E_CPONLY(kColorNewTabPageThreadsRailTooltipContainer) \
++  E_CPONLY(kColorNewTabPageThreadsRailUpdateDot) \
+   E_CPONLY(kColorNewTabPageChipBackground) \
+   E_CPONLY(kColorNewTabPageChipForeground) \
+   E_CPONLY(kColorNewTabPageComposeboxSubmitButtonBackground) \
+diff --git a/chrome/browser/ui/color/material_new_tab_page_color_mixer.cc b/chrome/browser/ui/color/material_new_tab_page_color_mixer.cc
+index ad69cca2..8b8addff 100644
+--- a/chrome/browser/ui/color/material_new_tab_page_color_mixer.cc
++++ b/chrome/browser/ui/color/material_new_tab_page_color_mixer.cc
+@@ -20,7 +20,8 @@
+ constexpr SkColor kColorSysSurface_Light = SkColorSetRGB(0xFF, 0xFF, 0xFF);
+ constexpr SkColor kColorSysSurface1_Light = SkColorSetRGB(0xF8, 0xFA, 0xFD);
+ constexpr SkColor kColorSysSurface3_Light = SkColorSetRGB(0xEF, 0xF3, 0xFA);
+-constexpr SkColor kColorSysStateHoverOnSubtle_Light = SkColorSetARGB(0x0F, 0x1F, 0x1F, 0x1F);
++constexpr SkColor kColorSysStateHoverOnSubtle_Light =
++    SkColorSetARGB(0x0F, 0x1F, 0x1F, 0x1F);
+ constexpr SkColor kColorSysStateRippleNeutralOnSubtle_Light =
+     SkColorSetARGB(0x14, 0x1F, 0x1F, 0x1F);
+ constexpr SkColor kColorGemSysColorPrimary_Light =
+@@ -59,7 +60,6 @@
+       ui::kColorSysStateHoverOnSubtle};
+   mixer[kColorNewTabPageButtonForeground] = {ui::kColorSysOnTonalContainer};
+ 
+-
+   mixer[kColorNewTabPageControlBackgroundHovered] = {
+       ui::kColorSysStateHoverOnSubtle};
+   mixer[kColorNewTabPageFocusRing] = {ui::kColorSysStateFocusRing};
+@@ -98,9 +98,48 @@
+ 
+   // Threads rail colors.
+   mixer[kColorNewTabPageThreadsRailPrimaryFont] = {ui::kColorSysOnSurface};
++  mixer[kColorNewTabPageThreadsRailSecondaryFont] = {
++      ui::kColorSysOnSurfaceSubtle};
++  mixer[kColorNewTabPageThreadsRailBrandPrimaryFont] = {
++      kColorNewTabPageThreadsRailPrimaryFont};
++  mixer[kColorNewTabPageThreadsRailBrandSecondaryFont] = {
++      kColorNewTabPageThreadsRailSecondaryFont};
+   mixer[kColorNewTabPageThreadsRailBackground] = {ui::kColorSysBaseContainer};
+-  mixer[kColorNewTabPageThreadsRailHoverBackground] =
+-      ui::SetAlpha(ui::kColorSysOnSurface, 0.06f * SK_AlphaOPAQUE);
++  mixer[kColorNewTabPageThreadsRailFlyoutMenuBackground] = {
++      ui::kColorMenuBackground};
++  mixer[kColorNewTabPageThreadsRailContainerBackground] = {
++      ui::kColorSysBaseContainerElevated};
++  mixer[kColorNewTabPageThreadsRailSurfaceContainer] = {
++      ui::kColorSysBaseContainerElevated};
++  mixer[kColorNewTabPageThreadsRailSurfaceContainerHigh] = {
++      ui::kColorSysSurface2};
++  mixer[kColorNewTabPageThreadsRailSurfaceContainerHighest] = {
++      ui::kColorSysStateHoverBrightBlendProtection};
++  mixer[kColorNewTabPageThreadsRailPrimary] = {
++      ui::kColorButtonBackgroundProminent};
++  // Use `kColorPrimaryBackground` (`kColorSysSurface` in GM3) rather than
++  // `kColorTooltipBackground` because Ash/GTK invert `kColorTooltipBackground`
++  // while rail and Search tooltips pair this surface with `PrimaryFont`.
++  mixer[kColorNewTabPageThreadsRailTooltipContainer] = {
++      ui::kColorPrimaryBackground};
++  mixer[kColorNewTabPageThreadsRailHoverBackground] = {
++      ui::kColorSysStateHoverOnSubtle};
++  mixer[kColorNewTabPageThreadsRailMenuOpenBackground] = {
++      kColorNewTabPageThreadsRailHoverBackground};
++  mixer[kColorNewTabPageThreadsRailSelectedBackground] = {
++      kColorNewTabPageThreadsRailHoverBackground};
++  mixer[kColorNewTabPageThreadsRailDivider] = {ui::kColorSysNeutralOutline};
++  mixer[kColorNewTabPageThreadsRailScrim] = {ui::kColorSysStateScrim};
++  // In light mode, swap SurfaceVariant (base) and Surface2 (highlight) so the
++  // shimmer sweeps a lighter band across a darker bar, matching dark mode and
++  // Search's default loader direction.
++  mixer[kColorNewTabPageThreadsRailLoaderBase] = {
++      dark_mode ? ui::kColorSysSurface2 : ui::kColorSysSurfaceVariant};
++  mixer[kColorNewTabPageThreadsRailLoaderHighlight] = {
++      dark_mode ? ui::kColorSysSurfaceVariant : ui::kColorSysSurface2};
++  mixer[kColorNewTabPageThreadsRailScrollbarThumb] = {
++      ui::kColorOverlayScrollbarFill};
++  mixer[kColorNewTabPageThreadsRailUpdateDot] = {ui::kColorSysPrimary};
+ 
+   mixer[kColorNewTabPageModuleBackground] = {ui::kColorSysBaseContainer};
+   mixer[kColorNewTabPageModuleIconBackground] = {ui::kColorSysNeutralContainer};
+@@ -161,8 +200,10 @@
+ 
+   // Realbox is at this time always themed light, so we use custom color values
+   // defined instead of using GM3 color variables.
+-  mixer[kColorNewTabPageCommonInputPlaceholder] = {SkColorSetARGB(0x60, 0x1F, 0x1F, 0x1F)};
+-  mixer[kColorNewTabPageRealboxNextIconHover] = {kColorSysStateHoverOnSubtle_Light};
++  mixer[kColorNewTabPageCommonInputPlaceholder] = {
++      SkColorSetARGB(0x60, 0x1F, 0x1F, 0x1F)};
++  mixer[kColorNewTabPageRealboxNextIconHover] = {
++      kColorSysStateHoverOnSubtle_Light};
+ #if BUILDFLAG(IS_ANDROID)
+   mixer[kColorNewTabPageComposeboxSubmitButtonBackground] = {
+       SkColorSetRGB(0x0B, 0x57, 0xD0)};
+@@ -177,44 +218,37 @@
+ #endif
+   mixer[kColorComposeboxBackground] = {SK_ColorWHITE};
+   mixer[kColorComposeboxFileChipSpinner] = {kColorSysPrimary_Light};
+-  mixer[kColorComposeboxFont] = {
+-      dark_mode ? SkColorSetRGB(0xE6, 0xE8, 0xF0)
+-                : SkColorSetRGB(0x0A, 0x0A, 0x0A)};
+-  mixer[kColorComposeboxFontLight] = {
+-      SkColorSetRGB(0x1F, 0x1F, 0x1F)};
++  mixer[kColorComposeboxFont] = {dark_mode ? SkColorSetRGB(0xE6, 0xE8, 0xF0)
++                                           : SkColorSetRGB(0x0A, 0x0A, 0x0A)};
++  mixer[kColorComposeboxFontLight] = {SkColorSetRGB(0x1F, 0x1F, 0x1F)};
+   mixer[kColorComposeboxGhostCardBackground] = {
+       kColorSysStateRippleNeutralOnSubtle_Light};
+-  mixer[kColorComposeboxCancelButton] = {
+-      dark_mode ? SkColorSetRGB(0xAD, 0xAF, 0xB8)
+-                : SkColorSetRGB(0x0A, 0x0A, 0x0A)};
++  mixer[kColorComposeboxCancelButton] = {dark_mode
++                                             ? SkColorSetRGB(0xAD, 0xAF, 0xB8)
++                                             : SkColorSetRGB(0x0A, 0x0A, 0x0A)};
+   mixer[kColorComposeboxCancelButtonLight] = {ui::kColorRefNeutral30};
+   mixer[kColorComposeboxErrorScrimBackground] = {
+       dark_mode ? ui::SetAlpha({ui::kColorRefNeutral0}, 0xE6)
+                 : ui::SetAlpha({SkColorSetRGB(0xFF, 0xFF, 0xFF)}, 0xE6)};
+-  mixer[kColorComposeboxErrorScrimButtonBackground] = {
+-      ui::kColorSysPrimary};
++  mixer[kColorComposeboxErrorScrimButtonBackground] = {ui::kColorSysPrimary};
+   mixer[kColorComposeboxErrorScrimButtonBackgroundHover] = {
+       ui::kColorSysStateHoverOnProminent};
+-  mixer[kColorComposeboxErrorScrimButtonText] = {
+-      ui::kColorSysOnPrimary};
+-  mixer[kColorComposeboxErrorScrimForeground] = {
+-      ui::kColorSysInverseSurface};
+-  mixer[kColorComposeboxHover] = {
+-      dark_mode ? SkColorSetRGB(0x25, 0x26, 0x2E)
+-                : SkColorSetRGB(0xE9, 0xEB, 0xF0)};
++  mixer[kColorComposeboxErrorScrimButtonText] = {ui::kColorSysOnPrimary};
++  mixer[kColorComposeboxErrorScrimForeground] = {ui::kColorSysInverseSurface};
++  mixer[kColorComposeboxHover] = {dark_mode ? SkColorSetRGB(0x25, 0x26, 0x2E)
++                                            : SkColorSetRGB(0xE9, 0xEB, 0xF0)};
+   mixer[kColorComposeboxInputIcon] = {ui::kColorRefNeutral30};
+-  mixer[kColorComposeboxLensButton] = {
+-      dark_mode ? SkColorSetRGB(0xAD, 0xAF, 0xB8)
+-                : SkColorSetRGB(0x0A, 0x0A, 0x0A)};
+-  mixer[kColorComposeboxOutlineHcm] = {
+-      dark_mode ? SkColorSetRGB(0xFF, 0xFF, 0xFF)
+-                : SkColorSetRGB(0x00, 0x00, 0x00)};
++  mixer[kColorComposeboxLensButton] = {dark_mode
++                                           ? SkColorSetRGB(0xAD, 0xAF, 0xB8)
++                                           : SkColorSetRGB(0x0A, 0x0A, 0x0A)};
++  mixer[kColorComposeboxOutlineHcm] = {dark_mode
++                                           ? SkColorSetRGB(0xFF, 0xFF, 0xFF)
++                                           : SkColorSetRGB(0x00, 0x00, 0x00)};
+   mixer[kColorComposeboxRecentTabChipOutline] = {kColorSysTonalOutline_Light};
+   mixer[kColorComposeboxScrimBackground] = {ui::kColorSysBase};
+   mixer[kColorComposeboxSubmitButtonBackground] = {
+       SkColorSetRGB(0x0B, 0x50, 0xD0)};
+-  mixer[kColorComposeboxSuggestionActivity] = {
+-      ui::kColorSysOnSurfaceSubtle};
++  mixer[kColorComposeboxSuggestionActivity] = {ui::kColorSysOnSurfaceSubtle};
+   mixer[kColorComposeboxTabSelectorButtonSelected] = {
+       kColorGemSysColorPrimary_Light};
+   mixer[kColorComposeboxTypeAhead] = {dark_mode
+@@ -226,11 +260,10 @@
+   mixer[kColorComposeboxUploadButton] = {ui::kColorRefNeutral10};
+   mixer[kColorComposeboxFileChipBackground] = {kColorSysSurface3_Light};
+   mixer[kColorComposeboxFileChipFaviconBackground] = {kColorSysSurface_Light};
+-  mixer[kColorComposeboxFileChipText] = {
+-      SkColorSetRGB(0x1F, 0x1F, 0x1F)};
+-  mixer[kColorComposeboxPdfChipIcon] = {
+-      dark_mode ? SkColorSetRGB(0xAD, 0xAF, 0xB8)
+-                : SkColorSetRGB(0x56, 0x59, 0x5E)};
++  mixer[kColorComposeboxFileChipText] = {SkColorSetRGB(0x1F, 0x1F, 0x1F)};
++  mixer[kColorComposeboxPdfChipIcon] = {dark_mode
++                                            ? SkColorSetRGB(0xAD, 0xAF, 0xB8)
++                                            : SkColorSetRGB(0x56, 0x59, 0x5E)};
+   mixer[kColorComposeboxFileImageOverlay] = {
+       SkColorSetARGB(0x99, 0x00, 0x00, 0x00)};
+   mixer[kColorComposeboxFileCarouselDivider] = {
+diff --git a/chrome/browser/ui/color/new_tab_page_color_mixer.cc b/chrome/browser/ui/color/new_tab_page_color_mixer.cc
+index 41fb089..020572b 100644
+--- a/chrome/browser/ui/color/new_tab_page_color_mixer.cc
++++ b/chrome/browser/ui/color/new_tab_page_color_mixer.cc
+@@ -30,7 +30,8 @@
+ constexpr SkColor kColorSysSurface_Light = SkColorSetRGB(0xFF, 0xFF, 0xFF);
+ constexpr SkColor kColorGemSysColorPrimary_Light =
+     SkColorSetRGB(0x0B, 0x57, 0xD0);
+-constexpr SkColor kColorSysStateHoverOnSubtle_Light = SkColorSetARGB(0x0F, 0x1F, 0x1F, 0x1F);
++constexpr SkColor kColorSysStateHoverOnSubtle_Light =
++    SkColorSetARGB(0x0F, 0x1F, 0x1F, 0x1F);
+ constexpr SkColor kColorSysStateRippleNeutralOnSubtle_Light =
+     SkColorSetARGB(0x14, 0x1F, 0x1F, 0x1F);
+ constexpr SkColor kColorSysTonalOutline_Light = SkColorSetRGB(0xA8, 0xC7, 0xFA);
+@@ -143,6 +144,64 @@
+                                  output_transform_for_non_white_input);
+ }
+ 
++// Overrides the OS-mode-dependent threads rail tokens from
++// `AddWebThemeNewTabPageColors` for custom themes (autogenerated and
++// CWS/extension) so surfaces, text, tooltips, accents, dividers, scrollbars,
++// and state layers stay contrast-matched to the rail background rather than OS
++// dark mode. The remaining rail tokens (`BrandPrimaryFont`,
++// `BrandSecondaryFont`, `ContainerBackground`, `MenuOpenBackground`,
++// `SelectedBackground`, `Scrim`, and `UpdateDot`) are defined in
++// `AddWebThemeNewTabPageColors` via intra-rail ColorId aliases/transforms that
++// resolve lazily from the tokens overridden here or theme-independent `ui::`
++// tokens (`kColorSysStateScrim`).
++void AddCustomThemeThreadsRailColors(
++    ui::ColorMixer& mixer,
++    ui::ColorTransform element_background_color,
++    ui::ColorTransform primary_foreground_color) {
++  mixer[kColorNewTabPageThreadsRailPrimaryFont] = {primary_foreground_color};
++  mixer[kColorNewTabPageThreadsRailBackground] =
++      SelectBasedOnWhiteNtpBackground(gfx::kGoogleGrey100,
++                                      element_background_color);
++  mixer[kColorNewTabPageThreadsRailSecondaryFont] = ui::SelectBasedOnDarkInput(
++      kColorNewTabPageThreadsRailBackground,
++      ui::PickGoogleColor(gfx::kGoogleGrey700,
++                          kColorNewTabPageThreadsRailBackground,
++                          color_utils::kMinimumReadableContrastRatio),
++      ui::PickGoogleColor(gfx::kGoogleGrey500,
++                          kColorNewTabPageThreadsRailBackground,
++                          color_utils::kMinimumReadableContrastRatio));
++  const ui::ColorTransform elevated_surface =
++      ui::SelectBasedOnDarkInput(kColorNewTabPageThreadsRailBackground,
++                                 gfx::kGoogleGrey900, SK_ColorWHITE);
++  mixer[kColorNewTabPageThreadsRailFlyoutMenuBackground] = elevated_surface;
++  mixer[kColorNewTabPageThreadsRailTooltipContainer] = elevated_surface;
++  mixer[kColorNewTabPageThreadsRailSurfaceContainer] = elevated_surface;
++  mixer[kColorNewTabPageThreadsRailSurfaceContainerHigh] =
++      ui::SelectBasedOnDarkInput(kColorNewTabPageThreadsRailBackground,
++                                 gfx::kGoogleGrey800, gfx::kGoogleGrey100);
++  mixer[kColorNewTabPageThreadsRailPrimary] =
++      ui::PickGoogleColor(ui::kColorButtonBackgroundProminent,
++                          kColorNewTabPageThreadsRailBackground,
++                          color_utils::kMinimumVisibleContrastRatio);
++  const ui::ColorTransform hover_state = ui::SelectBasedOnDarkInput(
++      kColorNewTabPageThreadsRailBackground,
++      ui::SetAlpha(SK_ColorWHITE, 0.1f * SK_AlphaOPAQUE),
++      ui::SetAlpha(gfx::kGoogleGrey900, 0.1f * SK_AlphaOPAQUE));
++  mixer[kColorNewTabPageThreadsRailHoverBackground] = hover_state;
++  mixer[kColorNewTabPageThreadsRailSurfaceContainerHighest] = hover_state;
++  mixer[kColorNewTabPageThreadsRailDivider] =
++      ui::SelectBasedOnDarkInput(kColorNewTabPageThreadsRailBackground,
++                                 gfx::kGoogleGrey700, gfx::kGoogleGrey300);
++  mixer[kColorNewTabPageThreadsRailLoaderBase] =
++      ui::SelectBasedOnDarkInput(kColorNewTabPageThreadsRailBackground,
++                                 gfx::kGoogleGrey700, gfx::kGoogleGrey200);
++  mixer[kColorNewTabPageThreadsRailLoaderHighlight] =
++      ui::SelectBasedOnDarkInput(kColorNewTabPageThreadsRailBackground,
++                                 gfx::kGoogleGrey600, gfx::kGoogleGrey050);
++  mixer[kColorNewTabPageThreadsRailScrollbarThumb] = ui::SetAlpha(
++      kColorNewTabPageThreadsRailPrimaryFont, 0.6f * SK_AlphaOPAQUE);
++}
++
+ // Comprehensive theming colors follow two different color conventions depending
+ // on the background color. On white backgrounds, we theme a few select
+ // elements with an accent color, while, on non-white background colors we
+@@ -275,15 +334,12 @@
+       ui::PickGoogleColor(gfx::kGoogleGrey500, element_background_color,
+                           color_utils::kMinimumReadableContrastRatio));
+ 
+-  mixer[kColorNewTabPageThreadsRailPrimaryFont] = {primary_foreground_color};
+-  mixer[kColorNewTabPageThreadsRailBackground] =
+-      SelectBasedOnWhiteNtpBackground(gfx::kGoogleGrey100,
+-                                      element_background_color);
+-  mixer[kColorNewTabPageThreadsRailHoverBackground] =
+-      ui::SetAlpha(primary_foreground_color, 0.06f * SK_AlphaOPAQUE);
++  AddCustomThemeThreadsRailColors(mixer, element_background_color,
++                                  primary_foreground_color);
+ }
+ 
+-void AddSearchboxColors(ui::ColorMixer& mixer, const ui::ColorProviderKey& key) {
++void AddSearchboxColors(ui::ColorMixer& mixer,
++                        const ui::ColorProviderKey& key) {
+   const bool dark_mode =
+       key.color_mode == ui::ColorProviderKey::ColorMode::kDark;
+ 
+@@ -309,26 +365,24 @@
+ 
+   mixer[kColorComposeboxBackground] = {SK_ColorWHITE};
+   mixer[kColorComposeboxFileChipSpinner] = {kColorSysPrimary_Light};
+-  mixer[kColorComposeboxFont] = {
+-      dark_mode ? SkColorSetRGB(0xE6, 0xE8, 0xF0)
+-                : SkColorSetRGB(0x0A, 0x0A, 0x0A)};
++  mixer[kColorComposeboxFont] = {dark_mode ? SkColorSetRGB(0xE6, 0xE8, 0xF0)
++                                           : SkColorSetRGB(0x0A, 0x0A, 0x0A)};
+   mixer[kColorComposeboxFontLight] = {SkColorSetRGB(0x1F, 0x1F, 0x1F)};
+   mixer[kColorComposeboxGhostCardBackground] = {
+       kColorSysStateRippleNeutralOnSubtle_Light};
+-  mixer[kColorComposeboxCancelButton] = {
+-      dark_mode ? SkColorSetRGB(0xAD, 0xAF, 0xB8)
+-                : SkColorSetRGB(0x0A, 0x0A, 0x0A)};
++  mixer[kColorComposeboxCancelButton] = {dark_mode
++                                             ? SkColorSetRGB(0xAD, 0xAF, 0xB8)
++                                             : SkColorSetRGB(0x0A, 0x0A, 0x0A)};
+   mixer[kColorComposeboxCancelButtonLight] = {ui::kColorRefNeutral30};
+-  mixer[kColorComposeboxHover] = {
+-      dark_mode ? SkColorSetRGB(0x25, 0x26, 0x2E)
+-                : SkColorSetRGB(0xE9, 0xEB, 0xF0)};
++  mixer[kColorComposeboxHover] = {dark_mode ? SkColorSetRGB(0x25, 0x26, 0x2E)
++                                            : SkColorSetRGB(0xE9, 0xEB, 0xF0)};
+   mixer[kColorComposeboxInputIcon] = {ui::kColorRefNeutral30};
+-  mixer[kColorComposeboxLensButton] = {
+-      dark_mode ? SkColorSetRGB(0xAD, 0xAF, 0xB8)
+-                : SkColorSetRGB(0x0A, 0x0A, 0x0A)};
+-  mixer[kColorComposeboxOutlineHcm] = {
+-      dark_mode ? SkColorSetRGB(0xFF, 0xFF, 0xFF)
+-                : SkColorSetRGB(0x00, 0x00, 0x00)};
++  mixer[kColorComposeboxLensButton] = {dark_mode
++                                           ? SkColorSetRGB(0xAD, 0xAF, 0xB8)
++                                           : SkColorSetRGB(0x0A, 0x0A, 0x0A)};
++  mixer[kColorComposeboxOutlineHcm] = {dark_mode
++                                           ? SkColorSetRGB(0xFF, 0xFF, 0xFF)
++                                           : SkColorSetRGB(0x00, 0x00, 0x00)};
+   mixer[kColorComposeboxRecentTabChipOutline] = {kColorSysTonalOutline_Light};
+   mixer[kColorComposeboxScrimBackground] = {ui::kColorSysBase};
+   mixer[kColorComposeboxSubmitButtonBackground] = {
+@@ -346,9 +400,9 @@
+   mixer[kColorComposeboxFileChipBackground] = {kColorSysSurface3_Light};
+   mixer[kColorComposeboxFileChipFaviconBackground] = {kColorSysSurface_Light};
+   mixer[kColorComposeboxFileChipText] = {SkColorSetRGB(0x1F, 0x1F, 0x1F)};
+-  mixer[kColorComposeboxPdfChipIcon] = {
+-      dark_mode ? SkColorSetRGB(0xAD, 0xAF, 0xB8)
+-                : SkColorSetRGB(0x56, 0x59, 0x5E)};
++  mixer[kColorComposeboxPdfChipIcon] = {dark_mode
++                                            ? SkColorSetRGB(0xAD, 0xAF, 0xB8)
++                                            : SkColorSetRGB(0x56, 0x59, 0x5E)};
+   mixer[kColorComposeboxFileImageOverlay] = {
+       SkColorSetARGB(0x99, 0x00, 0x00, 0x00)};
+   mixer[kColorComposeboxFileCarouselDivider] = {
+@@ -501,13 +555,8 @@
+                                              : SK_ColorBLACK};
+     // Includes ThemeType::kExtension, and ThemeType::kNativeX11
+     if (key.custom_theme) {
+-      mixer[kColorNewTabPageThreadsRailPrimaryFont] = {
+-          primary_foreground_color};
+-      mixer[kColorNewTabPageThreadsRailBackground] =
+-          SelectBasedOnWhiteNtpBackground(gfx::kGoogleGrey100,
+-                                          element_background_color);
+-      mixer[kColorNewTabPageThreadsRailHoverBackground] =
+-          ui::SetAlpha(primary_foreground_color, 0.06f * SK_AlphaOPAQUE);
++      AddCustomThemeThreadsRailColors(mixer, element_background_color,
++                                      primary_foreground_color);
+     }
+   }
+ 
+@@ -668,11 +717,52 @@
+   mixer[kColorNewTabPageActionChipDeepSearchIcon] = {
+       dark_mode ? SK_ColorWHITE : gfx::kGoogleGrey800};
+ 
++  // Threads rail colors. `AddCustomThemeThreadsRailColors` overrides the
++  // OS-mode-dependent base tokens for custom themes; the remaining tokens
++  // below either reference intra-rail ColorIds that adapt to those overrides or
++  // use theme-aware `ui::` tokens.
+   mixer[kColorNewTabPageThreadsRailPrimaryFont] = {primary_foreground_color};
++  mixer[kColorNewTabPageThreadsRailSecondaryFont] = {
++      secondary_foreground_color};
++  mixer[kColorNewTabPageThreadsRailBrandPrimaryFont] = {
++      kColorNewTabPageThreadsRailPrimaryFont};
++  mixer[kColorNewTabPageThreadsRailBrandSecondaryFont] = {
++      kColorNewTabPageThreadsRailSecondaryFont};
+   mixer[kColorNewTabPageThreadsRailBackground] = {
+       dark_mode ? gfx::kGoogleGrey800 : gfx::kGoogleGrey100};
+-  mixer[kColorNewTabPageThreadsRailHoverBackground] =
+-      ui::SetAlpha(primary_foreground_color, 0.06f * SK_AlphaOPAQUE);
++  mixer[kColorNewTabPageThreadsRailFlyoutMenuBackground] = {
++      ui::kColorMenuBackground};
++  mixer[kColorNewTabPageThreadsRailContainerBackground] = ui::AlphaBlend(
++      kColorNewTabPageThreadsRailPrimaryFont,
++      kColorNewTabPageThreadsRailBackground, 0.08f * SK_AlphaOPAQUE);
++  mixer[kColorNewTabPageThreadsRailSurfaceContainer] = {
++      kColorNewTabPageBackgroundOverride};
++  mixer[kColorNewTabPageThreadsRailSurfaceContainerHigh] = {kColorToolbar};
++  mixer[kColorNewTabPageThreadsRailSurfaceContainerHighest] = {
++      kColorNewTabPageControlBackgroundHovered};
++  mixer[kColorNewTabPageThreadsRailPrimary] = {
++      ui::kColorButtonBackgroundProminent};
++  // See `AddMaterialNewTabPageColorMixer` for why `kColorPrimaryBackground` is
++  // used instead of `kColorTooltipBackground`.
++  mixer[kColorNewTabPageThreadsRailTooltipContainer] = {
++      ui::kColorPrimaryBackground};
++  mixer[kColorNewTabPageThreadsRailHoverBackground] = {
++      kColorNewTabPageControlBackgroundHovered};
++  mixer[kColorNewTabPageThreadsRailMenuOpenBackground] = {
++      kColorNewTabPageThreadsRailHoverBackground};
++  mixer[kColorNewTabPageThreadsRailSelectedBackground] = {
++      kColorNewTabPageThreadsRailHoverBackground};
++  mixer[kColorNewTabPageThreadsRailDivider] = {dark_mode ? gfx::kGoogleGrey700
++                                                         : gfx::kGoogleGrey300};
++  mixer[kColorNewTabPageThreadsRailScrim] = {ui::kColorSysStateScrim};
++  mixer[kColorNewTabPageThreadsRailLoaderBase] = {
++      dark_mode ? gfx::kGoogleGrey700 : gfx::kGoogleGrey200};
++  mixer[kColorNewTabPageThreadsRailLoaderHighlight] = {
++      dark_mode ? gfx::kGoogleGrey600 : gfx::kGoogleGrey050};
++  mixer[kColorNewTabPageThreadsRailScrollbarThumb] = {
++      ui::kColorOverlayScrollbarFill};
++  mixer[kColorNewTabPageThreadsRailUpdateDot] = {
++      kColorNewTabPageThreadsRailPrimary};
+ 
+   // Isolated Tab colors.
+   // The Isolated Tab Page is designed to always remain in light mode.
 diff --git a/chrome/browser/ui/login/login_tab_helper.cc b/chrome/browser/ui/login/login_tab_helper.cc
 index fe68c72..ee8c0418 100644
 --- a/chrome/browser/ui/login/login_tab_helper.cc
@@ -1988,7 +3484,7 @@ index 8185f1a..2b34c69b 100644
  // keyboard shortcuts) to the Views FocusManager so that accelerators and focus
  // traversal work as expected.
 diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h
-index c6caeee6..fa858a3 100644
+index c6caeee6..3a1401d7 100644
 --- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h
 +++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_ui_manager.h
 @@ -23,6 +23,7 @@
@@ -2018,6 +3514,32 @@ index c6caeee6..fa858a3 100644
        public PermissionPromptObserver::Observer {
   public:
    // Modal surfaces owned by the widget that keep it from being dismissed on
+@@ -85,20 +91,20 @@
+   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kOmniboxEverywhereElementId);
+ 
+   // Fixed popup window width:
+-  //   680px (Loomnibox searchbox content width; 480px when smallLoomnibox param
++  //   680px (Loomnibox searchbox content width; 408px when smallLoomnibox param
+   //          is enabled)
+   // +  48px (24px left + 24px right body padding in omnibox_everywhere.html to
+   //          accommodate the drop shadow without clipping).
+-  // = 728px total window width (528px when smallLoomnibox is enabled).
++  // = 728px total window width (456px when smallLoomnibox is enabled).
+   static constexpr int kPopupFixedWidth = 728;
+-  static constexpr int kPopupSmallFixedWidth = 528;
++  static constexpr int kPopupSmallFixedWidth = 456;
+   // Dynamic sizing popup window widths (32px left + 32px right body padding):
+   // - Expanded: 680px (Large) or 600px (Medium) content width + 64px = 744px /
+   //             664px.
+-  // - Resting (persistent mode): 480px (Small) content width + 64px = 544px.
++  // - Resting (persistent mode): 408px (Small) content width + 64px = 472px.
+   static constexpr int kDynamicPopupLargeFixedWidth = 744;
+   static constexpr int kDynamicPopupMediumFixedWidth = 664;
+-  static constexpr int kDynamicPopupSmallFixedWidth = 544;
++  static constexpr int kDynamicPopupSmallFixedWidth = 472;
+   static int GetPopupFixedWidth();
+   static int GetPopupExpandedFixedWidth();
+   static constexpr int kDefaultRestingHeight = 152;
 @@ -252,7 +258,12 @@
    OmniboxEverywhereWidgetDelegate* widget_delegate();
    const OmniboxEverywhereWidgetDelegate* widget_delegate() const;
@@ -2387,7 +3909,7 @@ index 0000000..b8284b3d
 +
 +#endif  // CHROME_BROWSER_UI_OMNIBOX_OMNIBOX_EVERYWHERE_OMNIBOX_EVERYWHERE_WINDOW_DRAG_CONTROLLER_H_
 diff --git a/chrome/browser/ui/omnibox/omnibox_next_features.cc b/chrome/browser/ui/omnibox/omnibox_next_features.cc
-index 6a59aed2..bf390ba 100644
+index 6a59aed2..570037a 100644
 --- a/chrome/browser/ui/omnibox/omnibox_next_features.cc
 +++ b/chrome/browser/ui/omnibox/omnibox_next_features.cc
 @@ -138,6 +138,10 @@
@@ -2401,8 +3923,17 @@ index 6a59aed2..bf390ba 100644
  // If enabled, submitting a query with screenshots attached in Omnibox
  // Everywhere opens the result in a new browser window aligned with the
  // Omnibox Everywhere popup.
+@@ -170,7 +174,7 @@
+ // Controls showing most visited tiles in OmniboxEverywhere.
+ const base::FeatureParam<bool> kOmniboxEverywhereMostVisitedParam{
+     &kOmniboxEverywhere, "MostVisited", true};
+-// Controls whether small Loomnibox (480px width) is enabled.
++// Controls whether small Loomnibox (408px width) is enabled.
+ const base::FeatureParam<bool> kOmniboxEverywhereSmallLoomniboxParam{
+     &kOmniboxEverywhere, "smallLoomnibox", false};
+ // Controls whether dynamic sizing is enabled for OmniboxEverywhere.
 diff --git a/chrome/browser/ui/omnibox/omnibox_next_features.h b/chrome/browser/ui/omnibox/omnibox_next_features.h
-index 2cac8d5..e8a86f7f 100644
+index 2cac8d5..77862be 100644
 --- a/chrome/browser/ui/omnibox/omnibox_next_features.h
 +++ b/chrome/browser/ui/omnibox/omnibox_next_features.h
 @@ -85,6 +85,7 @@
@@ -2413,11 +3944,52 @@ index 2cac8d5..e8a86f7f 100644
  BASE_DECLARE_FEATURE(kOmniboxEverywhereScreenshotNewWindow);
  extern const base::FeatureParam<int>
      kOmniboxEverywhereScreenshotNewWindowWidthParam;
+@@ -125,7 +126,7 @@
+ extern const base::FeatureParam<bool> kShowContextMenu;
+ // Controls showing most visited tiles in OmniboxEverywhere.
+ extern const base::FeatureParam<bool> kOmniboxEverywhereMostVisitedParam;
+-// Controls whether small Loomnibox (480px width) is enabled.
++// Controls whether small Loomnibox (408px width) is enabled.
+ extern const base::FeatureParam<bool> kOmniboxEverywhereSmallLoomniboxParam;
+ // Controls whether dynamic sizing is enabled for OmniboxEverywhere.
+ extern const base::FeatureParam<bool> kOmniboxEverywhereDynamicSizingParam;
+diff --git a/chrome/browser/ui/omnibox/omnibox_popup_view.cc b/chrome/browser/ui/omnibox/omnibox_popup_view.cc
+index 5fb31637..5d28a7c 100644
+--- a/chrome/browser/ui/omnibox/omnibox_popup_view.cc
++++ b/chrome/browser/ui/omnibox/omnibox_popup_view.cc
+@@ -13,10 +13,6 @@
+ 
+ OmniboxPopupView::~OmniboxPopupView() = default;
+ 
+-OmniboxPopupPresenterBase* OmniboxPopupView::presenter() {
+-  return nullptr;
+-}
+-
+ OmniboxPopupHost* OmniboxPopupView::popup_host() const {
+   return nullptr;
+ }
 diff --git a/chrome/browser/ui/omnibox/omnibox_popup_view.h b/chrome/browser/ui/omnibox/omnibox_popup_view.h
-index 1a94bada8..32956d80 100644
+index 1a94bada8..2222b48 100644
 --- a/chrome/browser/ui/omnibox/omnibox_popup_view.h
 +++ b/chrome/browser/ui/omnibox/omnibox_popup_view.h
-@@ -119,6 +119,11 @@
+@@ -23,7 +23,6 @@
+ 
+ class OmniboxController;
+ class OmniboxPopupHost;
+-class OmniboxPopupPresenterBase;
+ class OmniboxResultView;
+ class OmniboxSuggestionButtonRowView;
+ class OmniboxPopupViewBrowserView;
+@@ -43,8 +42,6 @@
+   explicit OmniboxPopupView(OmniboxController* controller);
+   virtual ~OmniboxPopupView();
+ 
+-  virtual OmniboxPopupPresenterBase* presenter();
+-
+   // Returns the OmniboxPopupHost that shows the popup's WebUI, or null if the
+   // popup has none.
+   virtual OmniboxPopupHost* popup_host() const;
+@@ -119,6 +116,11 @@
    // for a draft, like clicking into the page, but leaves nothing focused.
    virtual void Blur() {}
  
@@ -2471,6 +4043,49 @@ index e6d5d90..67ebb36 100644
    });
  }
  
+diff --git a/chrome/browser/ui/passwords/bubble_controllers/move_to_account_store_bubble_controller.cc b/chrome/browser/ui/passwords/bubble_controllers/move_to_account_store_bubble_controller.cc
+index 5a91b70..05f82cc 100644
+--- a/chrome/browser/ui/passwords/bubble_controllers/move_to_account_store_bubble_controller.cc
++++ b/chrome/browser/ui/passwords/bubble_controllers/move_to_account_store_bubble_controller.cc
+@@ -89,7 +89,9 @@
+   }
+   AccountInfo primary_account_info = identity_manager->FindExtendedAccountInfo(
+       identity_manager->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin));
+-  CHECK(!primary_account_info.IsEmpty(), base::NotFatalUntil::M162);
++  // TODO(crbug.com/587122661): CHECK-exclusion: Convert to a CHECK once we
++  // are confident it won't be triggered.
++  DCHECK(!primary_account_info.IsEmpty());
+ 
+   gfx::Image account_icon = primary_account_info.GetAvatarImage().value_or(
+       ui::ResourceBundle::GetSharedInstance().GetImageNamed(
+diff --git a/chrome/browser/ui/ui_features.cc b/chrome/browser/ui/ui_features.cc
+index bf3fdc2ec..3956b9f4 100644
+--- a/chrome/browser/ui/ui_features.cc
++++ b/chrome/browser/ui/ui_features.cc
+@@ -130,6 +130,10 @@
+                    "bookmark",
+                    true);
+ BASE_FEATURE(kMenuSimplification, base::FEATURE_DISABLED_BY_DEFAULT);
++BASE_FEATURE_PARAM(bool,
++                   kMenuSimplificationGlicSearchAboveSaveAndPrint,
++                   &kMenuSimplification,
++                   false);
+ BASE_FEATURE(kTabGroupColorRefresh, base::FEATURE_ENABLED_BY_DEFAULT);
+ BASE_FEATURE(kWebuiRefresh2026, base::FEATURE_DISABLED_BY_DEFAULT);
+ BASE_FEATURE(kAppMenuGlowUp, base::FEATURE_DISABLED_BY_DEFAULT);
+diff --git a/chrome/browser/ui/ui_features.h b/chrome/browser/ui/ui_features.h
+index cd0146f5..49a55641 100644
+--- a/chrome/browser/ui/ui_features.h
++++ b/chrome/browser/ui/ui_features.h
+@@ -72,6 +72,8 @@
+ BASE_DECLARE_FEATURE_PARAM(bool, kToolbarGlowUpBackForwardEnabled);
+ BASE_DECLARE_FEATURE_PARAM(bool, kToolbarGlowUpBookmarkEnabled);
+ BASE_DECLARE_FEATURE(kMenuSimplification);
++BASE_DECLARE_FEATURE_PARAM(bool,
++                           kMenuSimplificationGlicSearchAboveSaveAndPrint);
+ BASE_DECLARE_FEATURE(kTabGroupColorRefresh);
+ BASE_DECLARE_FEATURE(kWebuiRefresh2026);
+ BASE_DECLARE_FEATURE(kAppMenuGlowUp);
 diff --git a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc b/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
 index b0a26be0..628004e 100644
 --- a/chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.cc
@@ -2513,11 +4128,45 @@ index 764c065..d3aaf365 100644
    base::TimeTicks NowTicks() const;
    void SettlePendingOpenClick(OpenSidePanelSessionCounts& counts,
                                bool closed_by_user);
+diff --git a/chrome/browser/ui/views/incognito_clear_browsing_data_dialog.cc b/chrome/browser/ui/views/incognito_clear_browsing_data_dialog.cc
+index adee49f4..2adcd941 100644
+--- a/chrome/browser/ui/views/incognito_clear_browsing_data_dialog.cc
++++ b/chrome/browser/ui/views/incognito_clear_browsing_data_dialog.cc
+@@ -30,8 +30,9 @@
+       dialog_type_(type),
+       incognito_profile_(incognito_profile) {
+   CHECK(incognito_profile_, base::NotFatalUntil::M162);
+-  CHECK(incognito_profile_->IsPrimaryOTRProfileWithRegularParent(),
+-        base::NotFatalUntil::M162);
++  // TODO(crbug.com/587127122): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(incognito_profile_->IsPrimaryOTRProfileWithRegularParent());
+   SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
+   SetShowCloseButton(true);
+ 
 diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
-index 4c8ba30..2a894e4 100644
+index 4c8ba30..51d842b 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
-@@ -1808,12 +1808,14 @@
+@@ -394,7 +394,6 @@
+           /*omnibox_view=*/omnibox_view_,
+           /*controller=*/omnibox_controller_.get(), /*location_bar=*/this,
+           std::move(presenter));
+-      popup_view->set_presenter(omnibox_popup_presenter_);
+       omnibox_popup_view_ = std::move(popup_view);
+     } else if (omnibox::IsWebUIOmniboxInBrowserViewEnabled()) {
+       omnibox_popup_view_ =
+@@ -417,9 +416,6 @@
+           std::move(popup_host),
+           base::BindRepeating(&LocationBarView::OnFullWebUiOmniboxReady,
+                               weak_factory_.GetWeakPtr()));
+-      if (omnibox_popup_presenter_) {
+-        popup_view->set_presenter(omnibox_popup_presenter_);
+-      }
+       omnibox_popup_view_ = std::move(popup_view);
+     }
+ 
+@@ -1808,12 +1804,14 @@
    if (is_full_webui_omnibox_) {
      // In Full WebUI mode, `LocationBarView` is the focusable Views proxy for
      // the WebUI omnibox. When `FocusManager` moves focus here on its own (tab
@@ -2537,7 +4186,7 @@ index 4c8ba30..2a894e4 100644
                views::FocusManager::FocusChangeReason::kFocusRestore) {
          // On activation by a click, `FocusManager` restores focus before the
          // click is dispatched; let the click take focus first.
-@@ -1823,17 +1825,27 @@
+@@ -1823,17 +1821,27 @@
                  [](base::WeakPtr<LocationBarView> self) {
                    // `LocationBarView::HasFocus()` checks `edit_model()`, not
                    // Views focus.
@@ -2571,7 +4220,7 @@ index 4c8ba30..2a894e4 100644
      }
      return;
    }
-@@ -2252,6 +2264,10 @@
+@@ -2252,6 +2260,10 @@
  void LocationBarView::OpenOmniboxPopup(bool query_zps) {
    if (is_full_webui_omnibox_ && !in_popup_state_transition_) {
      if (auto* popup_view = GetOmniboxPopupView()) {
@@ -2698,6 +4347,110 @@ index 199cafa..6dc3ec6 100644
  
    base::WeakPtrFactory<OmniboxPopupFileSelector> weak_factory_{this};
  };
+diff --git a/chrome/browser/ui/views/location_bar/webui_location_bar.cc b/chrome/browser/ui/views/location_bar/webui_location_bar.cc
+index 3854802..daca2bcc 100644
+--- a/chrome/browser/ui/views/location_bar/webui_location_bar.cc
++++ b/chrome/browser/ui/views/location_bar/webui_location_bar.cc
+@@ -165,7 +165,6 @@
+         /*omnibox_view=*/omnibox_view_.get(),
+         /*controller=*/omnibox_controller_.get(), /*location_bar=*/this,
+         std::move(presenter));
+-    popup_view->set_presenter(omnibox_popup_presenter_);
+     omnibox_popup_view_ = std::move(popup_view);
+   } else {
+     auto presenter = std::make_unique<OmniboxPopupPresenter>(
+@@ -175,7 +174,6 @@
+     auto popup_view = std::make_unique<OmniboxPopupViewWebUI>(
+         /*omnibox_view=*/omnibox_view_.get(), omnibox_controller_.get(),
+         /*location_bar=*/this, std::move(presenter));
+-    popup_view->set_presenter(omnibox_popup_presenter_);
+     omnibox_popup_view_ = std::move(popup_view);
+   }
+ 
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
+index d0d62a56..068babd 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
+@@ -59,10 +59,31 @@
+ #include "ui/views/view_class_properties.h"
+ #include "ui/views/view_utils.h"
+ 
++#if defined(USE_AURA)
++#include "ui/aura/env.h"
++#endif
++
+ #if BUILDFLAG(IS_CHROMEOS)
+ #include "ash/ash_element_identifiers.h"
+ #endif
+ 
++namespace {
++
++// Whether a touch is down. Aura activates a window when a touch on it begins,
++// but a button only acts once the touch is released (e.g. a menu button opens
++// its menu on the tap). Activating the popup in between takes activation from
++// the browser window the touch is on, and the tap is lost
++// (crbug.com/586343035).
++bool IsTouchDown() {
++#if defined(USE_AURA)
++  return aura::Env::GetInstance()->is_touch_down();
++#else
++  return false;
++#endif
++}
++
++}  // namespace
++
+ OmniboxPopupFullPresenter::OmniboxPopupFullPresenter(
+     LocationBar* location_bar,
+     OmniboxPopupPresenterDelegate& presenter_delegate,
+@@ -133,7 +154,8 @@
+   if (browser_widget && !event_monitor_) {
+     event_monitor_ = views::EventMonitor::CreateWindowMonitor(
+         this, browser_widget->GetNativeWindow(),
+-        {ui::EventType::kMousePressed, ui::EventType::kTouchPressed});
++        {ui::EventType::kMousePressed, ui::EventType::kTouchPressed,
++         ui::EventType::kTouchReleased, ui::EventType::kTouchCancelled});
+   }
+ 
+   if (browser_widget) {
+@@ -288,6 +310,14 @@
+         if (views::MenuController::GetActiveInstance()) {
+           return;
+         }
++        // Don't take activation from the browser window while a touch on it
++        // is down, e.g. a tap on the app menu button that activated the
++        // window and restored focus to the location bar. The menu only opens
++        // on release, so the check above can't catch it. `OnEvent()` requests
++        // focus again once the touch is released.
++        if (!presenter->GetWidget()->IsActive() && IsTouchDown()) {
++          return;
++        }
+         // The browser window may have been deactivated while this task was
+         // queued (e.g. a bubble opened). Only a request made while a bubble
+         // already held activation may take activation from it.
+@@ -1152,6 +1182,22 @@
+ }
+ 
+ void OmniboxPopupFullPresenter::OnEvent(const ui::Event& event) {
++  if (event.type() == ui::EventType::kTouchReleased ||
++      event.type() == ui::EventType::kTouchCancelled) {
++    // `RequestFocus()` doesn't activate the popup while a touch on the browser
++    // window is down. Once the last touch is released, hand focus back to the
++    // popup if the omnibox is still focused. The request is deferred, so a tap
++    // that opens a menu (e.g. the app menu) is dispatched first, and the
++    // request then leaves the menu alone.
++    if (!IsTouchDown() && IsShown() && GetWidget() &&
++        !GetWidget()->IsActive() &&
++        controller()->popup_state_manager()->popup_state() ==
++            OmniboxPopupState::kFull &&
++        controller()->edit_model()->has_focus()) {
++      RequestFocus();
++    }
++    return;
++  }
+   if (event.type() != ui::EventType::kMousePressed &&
+       event.type() != ui::EventType::kTouchPressed) {
+     return;
 diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc b/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc
 index 5ce9ce83..91f13f3 100644
 --- a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc
@@ -3106,6 +4859,348 @@ index eb75e85..b18eb0eb6 100644
    bool has_completed_first_tab_changed_ = false;
    bool is_reverting_ = false;
    bool focused_ = false;
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_view_webui.cc b/chrome/browser/ui/views/omnibox/omnibox_popup_view_webui.cc
+index 7c95ad5..e2406ab8 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_view_webui.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_view_webui.cc
+@@ -7,7 +7,6 @@
+ #include <memory>
+ 
+ #include "base/check.h"
+-#include "base/check_op.h"
+ #include "base/feature_list.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "build/build_config.h"
+@@ -16,7 +15,6 @@
+ #include "chrome/browser/ui/omnibox/omnibox_next_features.h"
+ #include "chrome/browser/ui/omnibox/omnibox_popup_state_manager.h"
+ #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
+-#include "chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h"
+ #include "chrome/browser/ui/views/omnibox/omnibox_popup_webui_content.h"
+ #include "chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.h"
+ #include "chrome/browser/ui/webui/omnibox_popup/omnibox_popup_ui.h"
+@@ -49,18 +47,6 @@
+   return popup_host_->IsShown();
+ }
+ 
+-OmniboxPopupPresenterBase* OmniboxPopupViewWebUI::presenter() {
+-  return presenter_;
+-}
+-
+-void OmniboxPopupViewWebUI::set_presenter(
+-    OmniboxPopupPresenterBase* presenter) {
+-  // TODO(crbug.com/584371333): Remove once the remaining callers use
+-  // popup_host().
+-  CHECK_EQ(static_cast<OmniboxPopupHost*>(presenter), popup_host_.get());
+-  presenter_ = presenter;
+-}
+-
+ OmniboxPopupHost* OmniboxPopupViewWebUI::popup_host() const {
+   return popup_host_.get();
+ }
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_view_webui.h b/chrome/browser/ui/views/omnibox/omnibox_popup_view_webui.h
+index bbb5db4..d645df9 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_view_webui.h
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_view_webui.h
+@@ -26,7 +26,6 @@
+ 
+ class LocationBar;
+ class OmniboxController;
+-class OmniboxPopupPresenterBase;
+ class OmniboxView;
+ 
+ class OmniboxPopupViewWebUI : public OmniboxPopupView,
+@@ -40,11 +39,6 @@
+   OmniboxPopupViewWebUI& operator=(const OmniboxPopupViewWebUI&) = delete;
+   ~OmniboxPopupViewWebUI() override;
+ 
+-  // TODO(crbug.com/584371333): Remove once the remaining callers use
+-  // popup_host().
+-  OmniboxPopupPresenterBase* presenter() override;
+-  void set_presenter(OmniboxPopupPresenterBase* presenter);
+-
+   OmniboxPopupHost* popup_host() const override;
+ 
+   // OmniboxPopupView:
+@@ -84,10 +78,6 @@
+   // which shows it inside LocationBarView.
+   std::unique_ptr<OmniboxPopupHost> popup_host_;
+ 
+-  // TODO(crbug.com/584371333): Remove once the remaining callers use
+-  // popup_host().
+-  raw_ptr<OmniboxPopupPresenterBase> presenter_ = nullptr;
+-
+   // Whether the "first shown" metrics have been logged at least once.
+   bool logged_first_shown_metric_ = false;
+ 
+diff --git a/chrome/browser/ui/views/tabs/common/horizontal_tab_style_views.cc b/chrome/browser/ui/views/tabs/common/horizontal_tab_style_views.cc
+index 3203af3..0093a721 100644
+--- a/chrome/browser/ui/views/tabs/common/horizontal_tab_style_views.cc
++++ b/chrome/browser/ui/views/tabs/common/horizontal_tab_style_views.cc
+@@ -574,29 +574,22 @@
+       right_tab && right_tab->GetGroup().has_value() &&
+       (!left_tab || left_tab->GetGroup() != right_tab->GetGroup());
+ 
+-  const float shown_separator_opacity =
+-      GetHoverInterpolatedSeparatorOpacity(for_layout, adjacent_tab);
+-
+   // Show the separator unless this tab is the first in the group and is next
+-  // to it's own header.
++  // to its own header; a group header separates this tab from `adjacent_tab`.
+   if (adjacent_to_header) {
+     return (delegate_->GetGroup().has_value() && leading)
+                ? 0.0f
+-               : shown_separator_opacity;
++               : GetHoverInterpolatedSeparatorOpacity(for_layout, nullptr);
+   }
+ 
++  const float shown_separator_opacity =
++      GetHoverInterpolatedSeparatorOpacity(for_layout, adjacent_tab);
++
+   if (base::FeatureList::IsEnabled(tabs::kTabStripUnification)) {
+     // When unification is enabled, tabs render trailing separators by default
+     // to avoid double separators between tabs. Leading separators are only
+     // rendered in certain scenarios.
+     if (leading) {
+-      // Between the pinned and unpinned tab containers when new pinned
+-      // tab styling is disabled should show leading
+-      if (!tabs::IsNewHorizontalPinnedTabStylingEnabled() && adjacent_tab &&
+-          adjacent_tab->IsPinned() && !has_visible_background(adjacent_tab)) {
+-        return shown_separator_opacity;
+-      }
+-
+       // When the preceding item is a group header, show a leading separator.
+       if (adjacent_tab && adjacent_tab->IsGroupCollapsed() &&
+           adjacent_tab->GetGroup() != delegate_->GetGroup() &&
+diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_view.cc b/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
+index 3fb79f4..389a8bc2 100644
+--- a/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
+@@ -7,6 +7,8 @@
+ #include <algorithm>
+ 
+ #include "base/callback_list.h"
++#include "base/check_deref.h"
++#include "base/check_op.h"
+ #include "base/functional/bind.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/metrics/histogram_macros.h"
+@@ -16,6 +18,7 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/color/chrome_color_id.h"
+ #include "chrome/browser/ui/layout_constants.h"
++#include "chrome/browser/ui/tabs/features.h"
+ #include "chrome/browser/ui/tabs/horizontal_tab_strip_metrics.h"
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+@@ -412,6 +415,9 @@
+   }
+ 
+   UpdateSeparatorVisibility();
++  if (orientation_ == TabStripOrientation::kHorizontal) {
++    SchedulePaintPinnedTrailingSeparator();
++  }
+ 
+   const tabs::TabInterface* active_tab =
+       collection_node_->GetController()->GetActiveTab();
+@@ -440,12 +446,23 @@
+   }
+ 
+   UpdateSeparatorVisibility();
++  if (orientation_ == TabStripOrientation::kHorizontal) {
++    SchedulePaintPinnedTrailingSeparator();
++  }
+ }
+ 
+ void TabStripView::OnChildMoved(TabCollectionNode* moved_node) {
+   CHECK(moved_node);
+ 
+-  if (!collection_node_ || is_first_window_presentation_ ||
++  if (!collection_node_) {
++    return;
++  }
++
++  if (orientation_ == TabStripOrientation::kHorizontal) {
++    SchedulePaintPinnedTrailingSeparator();
++  }
++
++  if (is_first_window_presentation_ ||
+       collection_node_->GetController()->GetDragHandler().IsDragging()) {
+     return;
+   }
+@@ -748,24 +765,36 @@
+     std::unique_ptr<views::View> view) {
+   if (auto* container =
+           views::AsViewClass<UnpinnedTabContainerView>(view.get())) {
++    CHECK(!unpinned_tabs_container_view_);
+     unpinned_tabs_container_view_ = container;
++    if (orientation_ == TabStripOrientation::kHorizontal) {
++      unpinned_leading_edge_paint_scheduled_subscription_ =
++          container->RegisterLeadingEdgePaintScheduledCallback(
++              base::BindRepeating(
++                  &TabStripView::SchedulePaintPinnedTrailingSeparator,
++                  base::Unretained(this)));
++    }
+     return unpinned_tabs_scroll_view_->SetContents(std::move(view));
+   }
+   // `view` should only ever be UnpinnedTabContainerView or
+   // PinnedTabContainerView.
+   auto* container = views::AsViewClass<PinnedTabContainerView>(view.get());
+   CHECK(container);
++  CHECK(!pinned_tabs_container_view_);
+   pinned_tabs_container_view_ = container;
+   return pinned_tabs_scroll_view_->SetContents(std::move(view));
+ }
+ 
+ void TabStripView::RemoveScrollViewContents(views::View* view) {
+   if (views::IsViewClass<UnpinnedTabContainerView>(view)) {
++    CHECK_EQ(view, unpinned_tabs_container_view_);
++    unpinned_leading_edge_paint_scheduled_subscription_ = {};
+     unpinned_tabs_container_view_ = nullptr;
+     unpinned_tabs_scroll_view_->SetContents(nullptr);
+     return;
+   }
+   if (views::IsViewClass<PinnedTabContainerView>(view)) {
++    CHECK_EQ(view, pinned_tabs_container_view_);
+     pinned_tabs_container_view_ = nullptr;
+     pinned_tabs_scroll_view_->SetContents(nullptr);
+     return;
+@@ -845,6 +874,7 @@
+ }
+ 
+ void TabStripView::ResetCollectionNode() {
++  unpinned_leading_edge_paint_scheduled_subscription_ = {};
+   collection_node_ = nullptr;
+   if (tab_scroll_button_container_) {
+     tab_scroll_button_container_->SetScrollView(nullptr);
+@@ -1211,5 +1241,34 @@
+   unpinned_tabs_container_view_->SchedulePaint();
+ }
+ 
++void TabStripView::SchedulePaintPinnedTrailingSeparator() {
++  CHECK_EQ(orientation_, TabStripOrientation::kHorizontal);
++  if (tabs::IsNewHorizontalPinnedTabStylingEnabled() ||
++      ShouldHideSeparators()) {
++    return;
++  }
++  TabCollectionNode* const pinned_node =
++      collection_node_->GetChildNodeOfType(TabCollectionNode::Type::PINNED);
++  if (!pinned_node || pinned_node->children().empty()) {
++    return;
++  }
++  // Schedule paint on the last pinned tab view's trailing overlap rather than
++  // the container's trailing edge: overflowing pinned containers add
++  // `tab_overlap / 2` padding, and `last_view` may temporarily paint to its own
++  // layer during animations.
++  TabCollectionNode* last_pinned = pinned_node->children().back().get();
++  if (last_pinned->type() == TabCollectionNode::Type::SPLIT &&
++      !last_pinned->children().empty()) {
++    last_pinned = last_pinned->children().back().get();
++  }
++  views::View& last_view = CHECK_DEREF(last_pinned->view());
++  const int strip_width =
++      std::min(TabStyle::Get()->GetTabOverlap(), last_view.width());
++  if (strip_width > 0 && last_view.height() > 0) {
++    last_view.SchedulePaintInRect(last_view.GetMirroredRect(gfx::Rect(
++        last_view.width() - strip_width, 0, strip_width, last_view.height())));
++  }
++}
++
+ BEGIN_METADATA(TabStripView)
+ END_METADATA
+diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_view.h b/chrome/browser/ui/views/tabs/common/tab_strip_view.h
+index b3adde4c..e99ecc1 100644
+--- a/chrome/browser/ui/views/tabs/common/tab_strip_view.h
++++ b/chrome/browser/ui/views/tabs/common/tab_strip_view.h
+@@ -177,6 +177,7 @@
+   void OnScrollButtonsVisibilityChanged();
+   bool ShouldHideSeparators() const;
+   void UpdateSeparatorVisibility();
++  void SchedulePaintPinnedTrailingSeparator();
+ 
+   PrefService* GetPrefs() const;
+ 
+@@ -221,6 +222,8 @@
+       unpinned_tab_scrollable_state_recorder_;
+ 
+   base::CallbackListSubscription node_destroyed_subscription_;
++  base::CallbackListSubscription
++      unpinned_leading_edge_paint_scheduled_subscription_;
+   std::vector<base::CallbackListSubscription> callback_subscriptions_;
+ 
+   base::ScopedObservation<views::Widget, views::WidgetObserver>
+diff --git a/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.cc b/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.cc
+index 02f714f6..058d1d06 100644
+--- a/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.cc
++++ b/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.cc
+@@ -7,6 +7,8 @@
+ #include <optional>
+ #include <vector>
+ 
++#include "base/check_op.h"
++#include "base/functional/callback.h"
+ #include "chrome/browser/ui/animation/browser_animation_controller.h"
+ #include "chrome/browser/ui/animation/browser_animation_types.h"
+ #include "chrome/browser/ui/layout_constants.h"
+@@ -212,6 +214,23 @@
+ 
+ UnpinnedTabContainerView::~UnpinnedTabContainerView() = default;
+ 
++base::CallbackListSubscription
++UnpinnedTabContainerView::RegisterLeadingEdgePaintScheduledCallback(
++    base::RepeatingClosure callback) {
++  CHECK_EQ(orientation_, TabStripOrientation::kHorizontal);
++  return leading_edge_paint_scheduled_callbacks_.Add(std::move(callback));
++}
++
++void UnpinnedTabContainerView::OnDidSchedulePaint(const gfx::Rect& rect) {
++  TabCollectionZOrderManager::OnDidSchedulePaint(rect);
++  if (!leading_edge_paint_scheduled_callbacks_.empty() &&
++      GetMirroredRect(
++          gfx::Rect(0, 0, TabStyle::Get()->GetTabOverlap(), height()))
++          .Intersects(rect)) {
++    leading_edge_paint_scheduled_callbacks_.Notify();
++  }
++}
++
+ int UnpinnedTabContainerView::LayoutManager::GetUnconstrainedPreferredWidth()
+     const {
+   return 0;
+diff --git a/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.h b/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.h
+index ae87ccd3..e314b0b 100644
+--- a/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.h
++++ b/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.h
+@@ -8,6 +8,7 @@
+ #include <optional>
+ 
+ #include "base/callback_list.h"
++#include "base/functional/callback_forward.h"
+ #include "base/memory/raw_ptr.h"
+ #include "chrome/browser/ui/animation/browser_animation_types.h"
+ #include "chrome/browser/ui/views/frame/browser_root_view.h"
+@@ -91,6 +92,14 @@
+   // ignoring any active tab closing mode override.
+   int GetUnconstrainedPreferredWidth() const;
+ 
++  // Runs `callback` when horizontal paint is scheduled in the leading overlap.
++  base::CallbackListSubscription RegisterLeadingEdgePaintScheduledCallback(
++      base::RepeatingClosure callback);
++
++ protected:
++  // views::View:
++  void OnDidSchedulePaint(const gfx::Rect& rect) override;
++
+  private:
+   friend class UnpinnedTabContainerViewVerticalLayout;
+   friend class UnpinnedTabContainerViewHorizontalLayout;
+@@ -127,6 +136,7 @@
+   base::CallbackListSubscription node_destroyed_subscription_;
+   base::CallbackListSubscription collapsed_state_changed_subscription_;
+   base::CallbackListSubscription focus_animation_subscription_;
++  base::RepeatingClosureList leading_edge_paint_scheduled_callbacks_;
+ };
+ 
+ #endif  // CHROME_BROWSER_UI_VIEWS_TABS_COMMON_UNPINNED_TAB_CONTAINER_VIEW_H_
 diff --git a/chrome/browser/ui/views/toolbar/webui_pinned_toolbar_actions.cc b/chrome/browser/ui/views/toolbar/webui_pinned_toolbar_actions.cc
 index 1f7a34c..cf665e29 100644
 --- a/chrome/browser/ui/views/toolbar/webui_pinned_toolbar_actions.cc
@@ -3139,6 +5234,189 @@ index 1f7a34c..cf665e29 100644
      state->tooltip = item->GetTooltipText();
      state->accessibility_text = item->GetAccessibleName();
      if (auto element_id = webui_toolbar::ActionIdToElementIdentifier(id)) {
+diff --git a/chrome/browser/ui/webui/browser_command/BUILD.gn b/chrome/browser/ui/webui/browser_command/BUILD.gn
+index be67e6f..9236de4 100644
+--- a/chrome/browser/ui/webui/browser_command/BUILD.gn
++++ b/chrome/browser/ui/webui/browser_command/BUILD.gn
+@@ -10,13 +10,17 @@
+     "browser_command_handler.h",
+   ]
+ 
++  public_deps = [
++    "//chrome/browser/glic",
++    "//ui/webui/resources/js/browser_command:mojo_bindings",
++  ]
++
+   deps = [
+     "//base",
+     "//chrome/app:command_ids",
+     "//chrome/browser:browser_process",
+     "//chrome/browser:command_updater_impl",
+     "//chrome/browser/feedback",
+-    "//chrome/browser/glic",
+     "//chrome/browser/new_tab_page",
+     "//chrome/browser/profiles:profile",
+     "//chrome/browser/search",
+@@ -45,7 +49,6 @@
+     "//net",
+     "//ui/base",
+     "//ui/base/interaction",
+-    "//ui/webui/resources/js/browser_command:mojo_bindings",
+     "//url",
+   ]
+ }
+diff --git a/chrome/browser/ui/webui/browser_command/browser_command_handler.cc b/chrome/browser/ui/webui/browser_command/browser_command_handler.cc
+index dd23ec8..0626d6ab 100644
+--- a/chrome/browser/ui/webui/browser_command/browser_command_handler.cc
++++ b/chrome/browser/ui/webui/browser_command/browser_command_handler.cc
+@@ -41,6 +41,7 @@
+ #include "chrome/common/buildflags.h"
+ #include "chrome/common/chrome_features.h"
+ #include "chrome/common/chrome_switches.h"
++#include "chrome/common/glic_enums.mojom.h"
+ #include "chrome/common/pref_names.h"
+ #include "chrome/common/webui_url_constants.h"
+ #include "components/password_manager/core/common/password_manager_features.h"
+@@ -70,12 +71,14 @@
+     mojo::PendingReceiver<CommandHandler> pending_page_handler,
+     Profile* profile,
+     std::vector<browser_command::mojom::Command> supported_commands,
+-    content::WebContents* web_contents)
++    content::WebContents* web_contents,
++    std::optional<glic::InvokeFromWhatsNewPasskey> glic_passkey)
+     : profile_(profile),
+       supported_commands_(supported_commands),
+       command_updater_(std::make_unique<CommandUpdaterImpl>(this)),
+       page_handler_(this, std::move(pending_page_handler)),
+-      web_contents_(web_contents) {
++      web_contents_(web_contents),
++      glic_passkey_(glic_passkey) {
+   if (supported_commands_.empty()) {
+     return;
+   }
+@@ -146,6 +149,7 @@
+       can_execute = true;
+       break;
+     case Command::kOpenGlic:
++    case Command::kOpenGlicForQuizzes:
+       can_execute = true;
+       break;
+     case Command::kOpenGlicSettings:
+@@ -243,6 +247,9 @@
+       OpenGlic();
+       break;
+     }
++    case Command::kOpenGlicForQuizzes:
++      OpenGlicForQuizzes();
++      break;
+     case Command::kOpenGlicSettings:
+       OpenGlicSettings();
+       break;
+@@ -360,6 +367,14 @@
+ }
+ 
+ void BrowserCommandHandler::OpenGlic() {
++  OpenGlicInternal(/*for_quizzes=*/false);
++}
++
++void BrowserCommandHandler::OpenGlicForQuizzes() {
++  OpenGlicInternal(/*for_quizzes=*/true);
++}
++
++void BrowserCommandHandler::OpenGlicInternal(bool for_quizzes) {
+   glic::GlicKeyedService* glic_service = glic::GlicKeyedService::Get(profile_);
+ 
+   if (!glic_service || !glic::GlicEnabling::ShouldShowGlicButton(profile_)) {
+@@ -370,10 +385,19 @@
+     return;
+   }
+ 
+-  auto* browser_window = webui::GetBrowserWindowInterface(web_contents_);
+-
+-  glic_service->ToggleUI(browser_window, /*prevent_close=*/false,
+-                         glic::mojom::InvocationSource::kWhatsNew);
++  auto* browser_window =
++      web_contents_ ? webui::GetBrowserWindowInterface(web_contents_) : nullptr;
++  if (!glic_passkey_.has_value()) {
++    glic_service->ToggleUI(browser_window, /*prevent_close=*/false,
++                           glic::mojom::InvocationSource::kWhatsNew);
++    return;
++  }
++  if (for_quizzes) {
++    glic::InvokeFromWhatsNewForQuizzes(*glic_passkey_, *glic_service,
++                                       browser_window);
++  } else {
++    glic::InvokeFromWhatsNew(*glic_passkey_, *glic_service, browser_window);
++  }
+ }
+ 
+ void BrowserCommandHandler::OpenGlicSettings() {
+diff --git a/chrome/browser/ui/webui/browser_command/browser_command_handler.h b/chrome/browser/ui/webui/browser_command/browser_command_handler.h
+index 31c3176e..f06c359e 100644
+--- a/chrome/browser/ui/webui/browser_command/browser_command_handler.h
++++ b/chrome/browser/ui/webui/browser_command/browser_command_handler.h
+@@ -6,11 +6,15 @@
+ #define CHROME_BROWSER_UI_WEBUI_BROWSER_COMMAND_BROWSER_COMMAND_HANDLER_H_
+ 
+ #include <memory>
++#include <optional>
++#include <string>
++#include <vector>
+ 
+ #include "base/gtest_prod_util.h"
+ #include "base/memory/raw_ptr.h"
+ #include "chrome/browser/command_updater_delegate.h"
+ #include "chrome/browser/feedback/show_feedback_page.h"
++#include "chrome/browser/glic/public/glic_whats_new_invoke.h"
+ #include "chrome/browser/ui/user_education/start_tutorial_in_page.h"
+ #include "content/public/browser/web_contents.h"
+ #include "mojo/public/cpp/bindings/pending_receiver.h"
+@@ -51,7 +55,9 @@
+           pending_page_handler,
+       Profile* profile,
+       std::vector<browser_command::mojom::Command> supported_commands,
+-      content::WebContents* web_contents);
++      content::WebContents* web_contents,
++      std::optional<glic::InvokeFromWhatsNewPasskey> glic_passkey =
++          std::nullopt);
+   ~BrowserCommandHandler() override;
+ 
+   // browser_command::mojom::CommandHandler:
+@@ -96,9 +102,11 @@
+   virtual void OpenPasswordManager();
+   virtual void OpenAISettings();
+   virtual void OpenGlic();
++  virtual void OpenGlicForQuizzes();
+   virtual void OpenGlicSettings();
+   virtual void OpenSplitView();
+   virtual void EnableVerticalTabs();
++  void OpenGlicInternal(bool for_quizzes);
+   void StartTabGroupTutorial();
+   void OpenNTPAndStartCustomizeChromeTutorial();
+   void StartPasswordManagerTutorial();
+@@ -110,6 +118,7 @@
+   std::unique_ptr<CommandUpdater> command_updater_;
+   mojo::Receiver<browser_command::mojom::CommandHandler> page_handler_;
+   raw_ptr<content::WebContents> web_contents_;
++  std::optional<glic::InvokeFromWhatsNewPasskey> glic_passkey_;
+ };
+ 
+ #endif  // CHROME_BROWSER_UI_WEBUI_BROWSER_COMMAND_BROWSER_COMMAND_HANDLER_H_
+diff --git a/chrome/browser/ui/webui/metrics_handler.cc b/chrome/browser/ui/webui/metrics_handler.cc
+index 1133d0ba..6dc13c52 100644
+--- a/chrome/browser/ui/webui/metrics_handler.cc
++++ b/chrome/browser/ui/webui/metrics_handler.cc
+@@ -81,7 +81,9 @@
+   const std::string& histogram_name = args[0].GetString();
+   double value = args[1].GetDouble();
+ 
+-  CHECK_GE(value, 0, base::NotFatalUntil::M162);
++  // TODO(crbug.com/587151683): CHECK-exclusion: Convert to a CHECK once we
++  // are confident it won't be triggered.
++  DCHECK_GE(value, 0);
+ 
+   base::UmaHistogramTimes(histogram_name, base::Milliseconds(value));
+ }
 diff --git a/chrome/browser/ui/webui/new_tab_page/core/ntp_load_time_data.cc b/chrome/browser/ui/webui/new_tab_page/core/ntp_load_time_data.cc
 index 6181906..12c1d15 100644
 --- a/chrome/browser/ui/webui/new_tab_page/core/ntp_load_time_data.cc
@@ -3186,6 +5464,23 @@ index 6181906..12c1d15 100644
    dict.Set("threadsRailPreloadDebounceMs",
             ntp_features::kNtpThreadsRailPreloadDebounceMsParam.Get());
    if (enable_threads_rail && lhs_rail_config) {
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/mojom/omnibox_everywhere.mojom b/chrome/browser/ui/webui/omnibox_everywhere/mojom/omnibox_everywhere.mojom
+index 3fc4ec9..595a08a6 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/mojom/omnibox_everywhere.mojom
++++ b/chrome/browser/ui/webui/omnibox_everywhere/mojom/omnibox_everywhere.mojom
+@@ -79,9 +79,9 @@
+   // actions) with optional initial configuration (tool, model, or tab).
+   OpenComposebox(ComposeboxInitialState? initial_state);
+ 
+-  // Notifies the WebUI that a pending screenshot capture (e.g. region or
+-  // window selection) was cancelled by the user or failed.
+-  OnScreenshotCaptureCancelled();
++  // Notifies the WebUI that a pending context upload (e.g. screenshot capture
++  // or native file chooser) was cancelled by the user or failed.
++  OnContextUploadCancelled();
+ 
+   // Notifies the WebUI to focus the active text input whenever the browser
+   // programmatically activates the widget (e.g. hotkey, tray, shortcut, or
 diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_file_selector.cc b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_file_selector.cc
 index b6899bf1..685021c79 100644
 --- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_file_selector.cc
@@ -3264,6 +5559,48 @@ index 0400103..f9460fa9 100644
   private:
  #if BUILDFLAG(IS_MAC)
    void ShowFileUploadDialog(
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.cc b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.cc
+index be951f7..d92e80b3 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.cc
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.cc
+@@ -63,9 +63,9 @@
+   }
+ }
+ 
+-void OmniboxEverywherePageHandler::OnScreenshotCaptureCancelled() {
++void OmniboxEverywherePageHandler::OnContextUploadCancelled() {
+   if (page_) {
+-    page_->OnScreenshotCaptureCancelled();
++    page_->OnContextUploadCancelled();
+   }
+ }
+ 
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.h b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.h
+index b5600ac7..e39eb44 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.h
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_page_handler.h
+@@ -44,7 +44,7 @@
+   void OnOverflowMenuClosed();
+   void OpenComposebox(
+       omnibox_everywhere::mojom::ComposeboxInitialStatePtr initial_state);
+-  void OnScreenshotCaptureCancelled();
++  void OnContextUploadCancelled();
+   void FocusInput();
+   void OnDemoted();
+ 
+diff --git a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc
+index 814b1f0e..f51c2046d 100644
+--- a/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc
++++ b/chrome/browser/ui/webui/omnibox_everywhere/omnibox_everywhere_ui.cc
+@@ -979,7 +979,7 @@
+     SetIsComposebox(false);
+   }
+   if (page_handler_) {
+-    page_handler_->OnScreenshotCaptureCancelled();
++    page_handler_->OnContextUploadCancelled();
+   }
+   context_upload_origin_was_searchbox_ = false;
+ }
 diff --git a/chrome/browser/ui/webui/omnibox_popup/mojom/BUILD.gn b/chrome/browser/ui/webui/omnibox_popup/mojom/BUILD.gn
 index 42f3936c..bd21c352 100644
 --- a/chrome/browser/ui/webui/omnibox_popup/mojom/BUILD.gn
@@ -3460,6 +5797,61 @@ index 5ebf591d..f87b7349 100644
    } else {
      edit_model()->OnWillKillFocus();
      // Delay killing focus for full popup until state is properly synced in
+diff --git a/chrome/browser/ui/webui/whats_new/whats_new_registrar.cc b/chrome/browser/ui/webui/whats_new/whats_new_registrar.cc
+index 6b5802c..76c74c6 100644
+--- a/chrome/browser/ui/webui/whats_new/whats_new_registrar.cc
++++ b/chrome/browser/ui/webui/whats_new/whats_new_registrar.cc
+@@ -48,9 +48,11 @@
+   registry->RegisterModule(WhatsNewModule(::features::kGlicWhatsNewLuminous,
+                                           "iwells@chromium.org",
+                                           BrowserCommand::kOpenGlic));
++
++  // M159
+   registry->RegisterModule(WhatsNewModule(::features::kGlicWhatsNewQuizzes,
+                                           "jeffreycohen@google.com",
+-                                          BrowserCommand::kOpenGlic));
++                                          BrowserCommand::kOpenGlicForQuizzes));
+ }
+ 
+ void RegisterWhatsNewEditions(whats_new::WhatsNewRegistry* registry) {
+diff --git a/chrome/browser/ui/webui/whats_new/whats_new_ui.cc b/chrome/browser/ui/webui/whats_new/whats_new_ui.cc
+index caa2ac9..7f2220c2 100644
+--- a/chrome/browser/ui/webui/whats_new/whats_new_ui.cc
++++ b/chrome/browser/ui/webui/whats_new/whats_new_ui.cc
+@@ -8,6 +8,7 @@
+ #include "base/memory/ref_counted_memory.h"
+ #include "base/version.h"
+ #include "chrome/browser/browser_process.h"
++#include "chrome/browser/glic/public/glic_whats_new_invoke.h"
+ #include "chrome/browser/global_features.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/ui_features.h"
+@@ -146,7 +147,8 @@
+       });
+   command_handler_ = std::make_unique<BrowserCommandHandler>(
+       std::move(pending_handler), profile_, supported_commands,
+-      web_ui()->GetWebContents());
++      web_ui()->GetWebContents(),
++      glic::InvokeFromWhatsNewPasskeyProvider::GetPassKey());
+ }
+ 
+ WhatsNewUI::~WhatsNewUI() = default;
+diff --git a/chrome/browser/ui/window_metadata/window_metadata_controller.cc b/chrome/browser/ui/window_metadata/window_metadata_controller.cc
+index ae89bca..3a41b226 100644
+--- a/chrome/browser/ui/window_metadata/window_metadata_controller.cc
++++ b/chrome/browser/ui/window_metadata/window_metadata_controller.cc
+@@ -280,8 +280,9 @@
+   user_title_ = user_title;
+   BrowserWindow::FromBrowser(browser_)->UpdateTitleBar();
+   // See comment in Browser::OnTabGroupChanged
+-  CHECK(!IsRelevantToAppSessionService(browser_->GetType()),
+-        base::NotFatalUntil::M162);
++  // TODO(crbug.com/587038188): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK(!IsRelevantToAppSessionService(browser_->GetType()));
+   SessionService* const session_service =
+       SessionServiceFactory::GetForProfile(browser_->GetProfile());
+   if (session_service) {
 diff --git a/chrome/test/data/webui/contextual_tasks/BUILD.gn b/chrome/test/data/webui/contextual_tasks/BUILD.gn
 index 5b703172..89e5f3d 100644
 --- a/chrome/test/data/webui/contextual_tasks/BUILD.gn
@@ -4307,17 +6699,108 @@ index ea68ef7..1edac2f 100644
    }
  }
  
+diff --git a/third_party/libvpx/README.chromium b/third_party/libvpx/README.chromium
+index 304d7a7..df92c266 100644
+--- a/third_party/libvpx/README.chromium
++++ b/third_party/libvpx/README.chromium
+@@ -1,7 +1,7 @@
+ Name: libvpx
+ URL: https://chromium.googlesource.com/webm/libvpx
+ Version: N/A
+-Revision: fb0a26ad923b58c3663aaa9523992cf779b1563b
++Revision: 6f89cfbcc99f02451106a82c97c05e5682364502
+ Update Mechanism: Manual
+ CPEPrefix: cpe:/a:webmproject:libvpx:1.17.0
+ License: BSD-3-Clause, WebM-Project-Patent
+diff --git a/third_party/libvpx/source/config/vpx_version.h b/third_party/libvpx/source/config/vpx_version.h
+index 278d150d..d6876bdd 100644
+--- a/third_party/libvpx/source/config/vpx_version.h
++++ b/third_party/libvpx/source/config/vpx_version.h
+@@ -4,8 +4,8 @@
+ #define VERSION_MAJOR  1
+ #define VERSION_MINOR  17
+ #define VERSION_PATCH  0
+-#define VERSION_EXTRA  "88-gfb0a26ad9"
++#define VERSION_EXTRA  "89-g6f89cfbcc"
+ #define VERSION_PACKED ((VERSION_MAJOR<<16)|(VERSION_MINOR<<8)|(VERSION_PATCH))
+-#define VERSION_STRING_NOSP "v1.17.0-88-gfb0a26ad9"
+-#define VERSION_STRING      " v1.17.0-88-gfb0a26ad9"
++#define VERSION_STRING_NOSP "v1.17.0-89-g6f89cfbcc"
++#define VERSION_STRING      " v1.17.0-89-g6f89cfbcc"
+ #endif  // VPX_VERSION_H_
+diff --git a/tools/metrics/histograms/metadata/gpu/histograms.xml b/tools/metrics/histograms/metadata/gpu/histograms.xml
+index d523687..26dacc7 100644
+--- a/tools/metrics/histograms/metadata/gpu/histograms.xml
++++ b/tools/metrics/histograms/metadata/gpu/histograms.xml
+@@ -2777,6 +2777,33 @@
+   </summary>
+ </histogram>
+ 
++<histogram name="Viz.DisplayLink.CADisplayLink.CreationTimeUs.{Order}{Result}"
++    units="microseconds" expires_after="2027-05-18">
++  <owner>magchen@chromium.org</owner>
++  <owner>chrome-gpu-metric-alerts@chromium.org</owner>
++  <improvement direction="LOWER_IS_BETTER"/>
++  <summary>
++    The time elapsed in microseconds (up to 25 seconds) to create and configure
++    a CADisplayLink via SLSGetDisplayLink() in
++    CADisplayLinkMac::GetForDisplay(), recorded on {Order} that resulted in
++    {Result}. Recorded once per display. Only reported on Mac clients, which
++    always have high-resolution clocks.
++  </summary>
++  <token key="Order">
++    <variant name="First"
++        summary="the first creation attempt in the process (including initial
++                 SkyLight display-link setup)"/>
++    <variant name="Subsequent"
++        summary="the first creation attempt for each additional display in
++                 the process"/>
++  </token>
++  <token key="Result">
++    <variant name="" summary="either success or failure"/>
++    <variant name=".Failure" summary="failure"/>
++    <variant name=".Success" summary="success"/>
++  </token>
++</histogram>
++
+ <histogram name="Viz.DisplayLink.Create.GPU.{Source}" enum="BooleanSuccess"
+     expires_after="2027-03-30">
+   <owner>magchen@chromium.org</owner>
+@@ -2797,6 +2824,25 @@
+   </token>
+ </histogram>
+ 
++<histogram name="Viz.DisplayLink.CVDisplayLink.CreationTimeUs{Result}"
++    units="microseconds" expires_after="2027-05-18">
++  <owner>magchen@chromium.org</owner>
++  <owner>chrome-gpu-metric-alerts@chromium.org</owner>
++  <improvement direction="LOWER_IS_BETTER"/>
++  <summary>
++    The time elapsed in microseconds (up to 25 seconds) to create and configure
++    a CVDisplayLink via CVDisplayLinkCreateWithCGDisplay() in
++    CVDisplayLinkMac::GetForDisplay(), recorded on the first creation attempt
++    for each display that resulted in {Result}. Only reported on Mac clients,
++    which always have high-resolution clocks.
++  </summary>
++  <token key="Result">
++    <variant name="" summary="either success or failure"/>
++    <variant name=".Failure" summary="failure"/>
++    <variant name=".Success" summary="success"/>
++  </token>
++</histogram>
++
+ <histogram name="Viz.DisplayLink.DrainEventQueueUs" units="microseconds"
+     expires_after="2027-09-25">
+   <owner>magchen@chromium.org</owner>
 diff --git a/tools/metrics/histograms/metadata/new_tab_page/histograms.xml b/tools/metrics/histograms/metadata/new_tab_page/histograms.xml
-index 95cce32..0dac9d5a 100644
+index 95cce32..78cc12545 100644
 --- a/tools/metrics/histograms/metadata/new_tab_page/histograms.xml
 +++ b/tools/metrics/histograms/metadata/new_tab_page/histograms.xml
-@@ -2568,9 +2568,45 @@
+@@ -2568,12 +2568,129 @@
    <summary>
      Logs count of each type of user click action (configured rail items, logo
      button, and folded rail background) within the native folded threads rail.
 -    Only logged on the 1P NTP when hybrid rail mode is enabled. Note that
--    Incognito and Guest mode NTPs are not considered 1P and don't log this
--    histogram.
 +    Only logged on the 1P NTP. Note that Incognito and Guest mode NTPs are not
 +    considered 1P and don't log this histogram.
 +  </summary>
@@ -4357,10 +6840,94 @@ index 95cce32..0dac9d5a 100644
 +    New Tab Page (including subsequent expansions after closing). Only logged on
 +    the 1P NTP. Note that Incognito and Guest mode NTPs are not considered 1P
 +    and don't log this histogram.
++  </summary>
++</histogram>
++
++<histogram name="NewTabPage.ThreadsRail.FirstExpandWasPreloaded" enum="Boolean"
++    expires_after="2027-05-30">
++  <owner>dhruvkathpalia@google.com</owner>
++  <owner>chrome-desktop-ntp@google.com</owner>
++  <summary>
++    Records whether the expanded threads rail iframe was already preloaded and
++    ready (had posted NTP_LHS_READY) when the user first requested to expand the
++    folded rail. True means the expanded iframe is shown right away; false means
++    the ghost loader is shown until the iframe is ready. Recorded at most once
++    per NTP, at the first expand request. Only logged on the 1P NTP. Note that
+     Incognito and Guest mode NTPs are not considered 1P and don't log this
+     histogram.
    </summary>
  </histogram>
  
-@@ -2581,9 +2617,9 @@
++<histogram name="NewTabPage.ThreadsRail.GhostLoaderShownDuration" units="ms"
++    expires_after="2027-05-30">
++  <owner>dhruvkathpalia@google.com</owner>
++  <owner>chrome-desktop-ntp@google.com</owner>
++  <summary>
++    Time the ghost loader was shown in place of the expanded threads rail
++    iframe, from the user expanding the folded rail before the iframe was ready
++    until the iframe replaced it or the user collapsed the rail again. Recorded
++    each time the ghost loader is hidden, so it can be recorded more than once
++    per NTP if the user collapses the rail before the iframe is ready and
++    expands it again. Not recorded if the page was hidden during the interval,
++    or if the page is closed while the ghost loader is shown. See
++    NewTabPage.ThreadsRail.FirstExpandWasPreloaded for the share of first
++    expands that show the ghost loader. Only logged on the 1P NTP. Note that
++    Incognito and Guest mode NTPs are not considered 1P and don't log this
++    histogram.
++  </summary>
++</histogram>
++
++<histogram name="NewTabPage.ThreadsRail.IframeLoadLatency" units="ms"
++    expires_after="2027-05-30">
++  <owner>dhruvkathpalia@google.com</owner>
++  <owner>chrome-desktop-ntp@google.com</owner>
++  <summary>
++    Time from the expanded threads rail iframe being stamped into the New Tab
++    Page (after a debounced hover/focus of the folded rail, or on expand) until
++    it posts its first NTP_LHS_READY message. Recorded at most once per NTP, and
++    not recorded if the page was hidden during the interval. Only logged on the
++    1P NTP. Note that Incognito and Guest mode NTPs are not considered 1P and
++    don't log this histogram.
++  </summary>
++</histogram>
++
++<histogram name="NewTabPage.ThreadsRail.LongestFocusDurationBeforeExpand"
++    units="ms" expires_after="2027-05-30">
++  <owner>dhruvkathpalia@google.com</owner>
++  <owner>chrome-desktop-ntp@google.com</owner>
++  <summary>
++    Longest continuous time the folded threads rail was hovered or focused
++    before the user first expanded it, including the hover/focus that is still
++    active at the time of the expand request. A hover/focus interval ends once
++    the rail is neither hovered nor focused, or when the page is hidden.
++    Recorded at most once per NTP, at the first expand request, and only if the
++    rail was hovered or focused before. Compared against
++    NewTabPage.ThreadsRail.LongestFocusDurationWithoutExpand to tune the preload
++    debounce delay. Only logged on the 1P NTP. Note that Incognito and Guest
++    mode NTPs are not considered 1P and don't log this histogram.
++  </summary>
++</histogram>
++
++<histogram name="NewTabPage.ThreadsRail.LongestFocusDurationWithoutExpand"
++    units="ms" expires_after="2027-05-30">
++  <owner>dhruvkathpalia@google.com</owner>
++  <owner>chrome-desktop-ntp@google.com</owner>
++  <summary>
++    Longest continuous time the folded threads rail was hovered or focused on a
++    New Tab Page that was closed or navigated away from (pagehide) without the
++    rail ever being expanded. A hover/focus interval ends once the rail is
++    neither hovered nor focused, or when the page is hidden. Recorded at most
++    once per NTP, and only if the rail was hovered or focused. Compared against
++    NewTabPage.ThreadsRail.LongestFocusDurationBeforeExpand to tune the preload
++    debounce delay. Only logged on the 1P NTP. Note that Incognito and Guest
++    mode NTPs are not considered 1P and don't log this histogram.
++  </summary>
++</histogram>
++
+ <histogram name="NewTabPage.ThreadsRail.Shown" enum="BooleanShown"
+     expires_after="2027-03-21">
+   <owner>bofengchen@google.com</owner>
+@@ -2581,9 +2698,9 @@
    <owner>chrome-desktop-ntp@google.com</owner>
    <summary>
      Recorded when the native folded threads rail is shown on the New Tab Page.
@@ -5174,6 +7741,18 @@ index ff16f6b..c446f976 100644
    onSearchboxInputTextUpdated(e: CustomEvent<{
      value: string,
      isComposing: boolean,
+diff --git a/ui/webui/resources/js/browser_command/browser_command.mojom b/ui/webui/resources/js/browser_command/browser_command.mojom
+index e602615..97240fd9 100644
+--- a/ui/webui/resources/js/browser_command/browser_command.mojom
++++ b/ui/webui/resources/js/browser_command/browser_command.mojom
+@@ -35,6 +35,7 @@
+   kOpenSplitView = 19,
+   // kOpenAutofillSettings = 20, - deprecated
+   kEnableVerticalTabs = 21,
++  kOpenGlicForQuizzes = 22,
+ };
+ 
+ // Click information needed to determine user's desired window disposition using
 diff --git a/third_party/angle/src/libANGLE/renderer/d3d/TextureD3D.cpp b/third_party/angle/src/libANGLE/renderer/d3d/TextureD3D.cpp
 index 07a56d9..20b8d97 100644
 --- a/third_party/angle/src/libANGLE/renderer/d3d/TextureD3D.cpp
@@ -5394,6 +7973,68 @@ index 9e912a4..5326c0a 100644
      void handleImmutableSamplerTransition(const vk::ImageHelper *previousImage,
                                            const vk::ImageHelper *nextImage);
  
+diff --git a/third_party/libvpx/source/libvpx/vp9/encoder/vp9_pickmode.c b/third_party/libvpx/source/libvpx/vp9/encoder/vp9_pickmode.c
+index 4c4f3a8..891eb97 100644
+--- a/third_party/libvpx/source/libvpx/vp9/encoder/vp9_pickmode.c
++++ b/third_party/libvpx/source/libvpx/vp9/encoder/vp9_pickmode.c
+@@ -132,6 +132,9 @@
+     const int prev_layer = cpi->svc.spatial_layer_id - 1;
+     const int index =
+         (mi_col >> 1) + (mi_row >> 1) * cpi->svc.mi_cols[prev_layer];
++    assert(cm->prev_frame != NULL && cm->prev_frame->mvs != NULL);
++    assert(cpi->svc.mi_cols[prev_layer] <= cm->prev_frame->mi_cols &&
++           cpi->svc.mi_rows[prev_layer] <= cm->prev_frame->mi_rows);
+     // prev_frame->mvs[] is allocated to size mi_cols * mi_rows corresponding
+     // to the previous spatial layer, so the index check is against
+     // svc.mi_col/rows[prev_layer].
+@@ -1289,10 +1292,14 @@
+       vp9_find_mv_refs(cm, xd, xd->mi[0], ref_frame, candidates, mi_row, mi_col,
+                        x->mbmi_ext->mode_context);
+     } else {
++      // Only use base_mv when a lower spatial layer was encoded in this
++      // superframe.
+       const_motion[ref_frame] =
+           mv_refs_rt(cpi, cm, x, xd, tile_info, xd->mi[0], ref_frame,
+                      candidates, &frame_mv[NEWMV][ref_frame], mi_row, mi_col,
+-                     (int)(cpi->svc.use_base_mv && cpi->svc.spatial_layer_id));
++                     (int)(cpi->svc.use_base_mv &&
++                           cpi->svc.spatial_layer_id >
++                               cpi->svc.first_spatial_layer_to_encode));
+     }
+     vp9_find_best_ref_mvs(xd, cm->allow_high_precision_mv, candidates,
+                           &frame_mv[NEARESTMV][ref_frame],
+@@ -1626,7 +1633,9 @@
+         cpi->sf.mv.subpel_search_level, cond_cost_list(cpi, cost_list),
+         x->nmvjointcost, x->mvcost, &dis, &x->pred_sse[ref_frame], NULL, 0, 0,
+         cpi->sf.use_accurate_subpel_search);
+-  } else if (svc->use_base_mv && svc->spatial_layer_id) {
++  } else if (svc->use_base_mv &&
++             svc->spatial_layer_id > svc->first_spatial_layer_to_encode) {
++    // Use base_mv from the lower spatial layer encoded in this superframe.
+     if (frame_mv[NEWMV][ref_frame].as_int != INVALID_MV) {
+       const int pre_stride = xd->plane[0].pre[0].stride;
+       unsigned int base_mv_sse = UINT_MAX;
+diff --git a/third_party/libvpx/source/libvpx/vp9/encoder/vp9_svc_layercontext.c b/third_party/libvpx/source/libvpx/vp9/encoder/vp9_svc_layercontext.c
+index 3aa7243..7d307de 100644
+--- a/third_party/libvpx/source/libvpx/vp9/encoder/vp9_svc_layercontext.c
++++ b/third_party/libvpx/source/libvpx/vp9/encoder/vp9_svc_layercontext.c
+@@ -928,10 +928,13 @@
+         break;
+       }
+     }
+-    // For non-zero spatial layers: if the previous spatial layer was dropped
+-    // disable the base_mv and partition_reuse features.
++    // For non-zero spatial layers: if the previous spatial layer was dropped,
++    // or if only the top spatial layer is encoded, disable the base_mv and
++    // partition_reuse features.
+     if (svc->spatial_layer_id > 0 &&
+-        svc->drop_spatial_layer[svc->spatial_layer_id - 1]) {
++        (svc->drop_spatial_layer[svc->spatial_layer_id - 1] ||
++         (svc->spatial_layer_id == svc->number_spatial_layers - 1 &&
++          svc->spatial_layer_id == svc->first_spatial_layer_to_encode))) {
+       svc->use_base_mv = 0;
+       svc->use_partition_reuse = 0;
+     }
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
 index d9cc68e..e3d995f 100644
 --- a/v8/include/v8-version.h
