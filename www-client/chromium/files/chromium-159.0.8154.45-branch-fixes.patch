@@ -1,10 +1,10 @@
 Chromium 159.0.8154.45 + the later changes of its release branch, up to
-9bce4066b1fd95681550d9d0136fc5b92a4d1ade (refs/branch-heads/8154@{#1713}), for the
+669a0a6b0dc5e86fcc71052156f7825ab155c8b3 (refs/branch-heads/8154@{#1716}), for the
 159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
-8154@{#1713}.
+8154@{#1716}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..9bce4066b1fd and the
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..669a0a6b0dc5 and the
 dependencies whose DEPS revision changed: ANGLE 4dd34493f8a2..fcd0b7205673 (under
 third_party/angle/), third_party/libvpx/source/libvpx fb0a26ad923b..6f89cfbcc99f (under
 third_party/libvpx/source/libvpx/), V8 90a5172104e6..b0ec06674184 (under v8/), as served by
@@ -89,6 +89,7 @@ Commits contributing to it (oldest first):
   30643ce52791 [M159] [webapps] Ensure non-empty name in web app sync (8154@{#1709})
   1b29608a7358 Roll commits from side projects in M159 (V8 5075e76e0972..b0ec06674184, 8154@{#1711})
   9bce4066b1fd [M159] Get SharedImageInterface on UI thread in DesktopCaptureDevice (8154@{#1713})
+  669a0a6b0dc5 [M159] [net] Skip closed sessions in QuicSessionPool network notifications (8154@{#1716})
 Dependency commits of those rolls that touch kept files:
   315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
   9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
@@ -107,7 +108,7 @@ Dependency commits of those rolls that touch kept files:
   b0ec06674184 Version 15.9.128.39 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
-version at 9bce4066b1fd (or ANGLE's fcd0b7205673) (or third_party/libvpx/source/libvpx's
+version at 669a0a6b0dc5 (or ANGLE's fcd0b7205673) (or third_party/libvpx/source/libvpx's
 6f89cfbcc99f) (or V8's b0ec06674184).
 
 Apply with git apply.
@@ -7818,6 +7819,159 @@ index 5433c95..2b4d665 100644
    void FilterAndSortAvailableDecoders();
    void SelectDecoderInternal(SelectDecoderCB select_decoder_cb,
                               typename Decoder::OutputCB output_cb,
+diff --git a/net/quic/quic_chromium_client_session.cc b/net/quic/quic_chromium_client_session.cc
+index 96dfc34..acb94e6 100644
+--- a/net/quic/quic_chromium_client_session.cc
++++ b/net/quic/quic_chromium_client_session.cc
+@@ -20,6 +20,7 @@
+ #include "base/logging.h"
+ #include "base/memory/ptr_util.h"
+ #include "base/memory/scoped_refptr.h"
++#include "base/memory/weak_ptr.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/metrics/histogram_macros.h"
+ #include "base/metrics/sparse_histogram.h"
+@@ -4553,6 +4554,11 @@
+       weak_factory_.GetWeakPtr());
+ }
+ 
++base::WeakPtr<QuicChromiumClientSession>
++QuicChromiumClientSession::GetWeakPtr() {
++  return weak_factory_.GetWeakPtr();
++}
++
+ void QuicChromiumClientSession::PopulateNetErrorDetails(
+     NetErrorDetails* details) const {
+   details->quic_port_migration_detected = port_migration_detected_;
+diff --git a/net/quic/quic_chromium_client_session.h b/net/quic/quic_chromium_client_session.h
+index 224353d..9821b15 100644
+--- a/net/quic/quic_chromium_client_session.h
++++ b/net/quic/quic_chromium_client_session.h
+@@ -26,6 +26,7 @@
+ #include "base/functional/callback.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/raw_ptr_exclusion.h"
++#include "base/memory/weak_ptr.h"
+ #include "base/observer_list.h"
+ #include "base/observer_list_types.h"
+ #include "base/task/sequenced_task_runner.h"
+@@ -942,6 +943,9 @@
+   // Creates a callback that returns whether this session is still alive.
+   base::RepeatingCallback<bool()> CreateSessionAliveCallback();
+ 
++  // Returns a WeakPtr to this session.
++  base::WeakPtr<QuicChromiumClientSession> GetWeakPtr();
++
+   // Called when NetworkChangeNotifier notifies observers of a newly
+   // connected network. Migrates this session to the newly connected
+   // network if the session has a pending migration.
+diff --git a/net/quic/quic_session_pool.cc b/net/quic/quic_session_pool.cc
+index 963b3039..d956c23 100644
+--- a/net/quic/quic_session_pool.cc
++++ b/net/quic/quic_session_pool.cc
+@@ -19,6 +19,7 @@
+ #include "base/functional/callback_helpers.h"
+ #include "base/location.h"
+ #include "base/memory/raw_ptr.h"
++#include "base/memory/weak_ptr.h"
+ #include "base/memory_coordinator/memory_limit.h"
+ #include "base/memory_coordinator/traits.h"
+ #include "base/metrics/field_trial.h"
+@@ -1530,6 +1531,15 @@
+   }
+ }
+ 
++QuicSessionPool::WeakSessionList QuicSessionPool::GetCurrentSessions() const {
++  WeakSessionList current_sessions;
++  current_sessions.reserve(all_sessions_.size());
++  for (const auto& session : all_sessions_) {
++    current_sessions.push_back(session->GetWeakPtr());
++  }
++  return current_sessions;
++}
++
+ void QuicSessionPool::OnNetworkConnected(handles::NetworkHandle network) {
+   CollectDataOnPlatformNotification(NETWORK_CONNECTED, network);
+   if (params_.migrate_sessions_on_network_change_v2) {
+@@ -1543,12 +1553,12 @@
+   }
+   // Broadcast network connected to all sessions.
+   // If migration is not turned on, session will not migrate but collect data.
+-  auto it = all_sessions_.begin();
+-  // Sessions may be deleted while iterating through the set.
+-  while (it != all_sessions_.end()) {
+-    QuicChromiumClientSession* session = it->get();
+-    ++it;
+-    session->OnNetworkConnected(network);
++  WeakSessionList current_sessions = GetCurrentSessions();
++  for (const base::WeakPtr<QuicChromiumClientSession>& session :
++       current_sessions) {
++    if (session && session->connection()->connected()) {
++      session->OnNetworkConnected(network);
++    }
+   }
+   NotifyOnNetworkEvent(net::NetworkChangeEvent::kConnected);
+ }
+@@ -1566,12 +1576,12 @@
+   }
+   // Broadcast network disconnected to all sessions.
+   // If migration is not turned on, session will not migrate but collect data.
+-  auto it = all_sessions_.begin();
+-  // Sessions may be deleted while iterating through the set.
+-  while (it != all_sessions_.end()) {
+-    QuicChromiumClientSession* session = it->get();
+-    ++it;
+-    session->OnNetworkDisconnectedV2(/*disconnected_network*/ network);
++  WeakSessionList current_sessions = GetCurrentSessions();
++  for (const base::WeakPtr<QuicChromiumClientSession>& session :
++       current_sessions) {
++    if (session && session->connection()->connected()) {
++      session->OnNetworkDisconnectedV2(/*disconnected_network*/ network);
++    }
+   }
+   NotifyOnNetworkEvent(net::NetworkChangeEvent::kDisconnected);
+ }
+@@ -1609,12 +1619,12 @@
+                       });
+   }
+ 
+-  auto it = all_sessions_.begin();
+-  // Sessions may be deleted while iterating through the set.
+-  while (it != all_sessions_.end()) {
+-    QuicChromiumClientSession* session = it->get();
+-    ++it;
+-    session->OnNetworkMadeDefault(network);
++  WeakSessionList current_sessions = GetCurrentSessions();
++  for (const base::WeakPtr<QuicChromiumClientSession>& session :
++       current_sessions) {
++    if (session && session->connection()->connected()) {
++      session->OnNetworkMadeDefault(network);
++    }
+   }
+   if (params_.migrate_sessions_on_network_change_v2) {
+     set_has_quic_ever_worked_on_current_network(false);
+diff --git a/net/quic/quic_session_pool.h b/net/quic/quic_session_pool.h
+index f7432fb..9cfd623c 100644
+--- a/net/quic/quic_session_pool.h
++++ b/net/quic/quic_session_pool.h
+@@ -635,6 +635,7 @@
+                raw_ptr<QuicChromiumClientSession, CtnExperimental>>;
+   using SessionIdSet = std::set<std::unique_ptr<QuicChromiumClientSession>,
+                                 base::UniquePtrComparator>;
++  using WeakSessionList = std::vector<base::WeakPtr<QuicChromiumClientSession>>;
+   using AliasSet = std::set<QuicSessionAliasKey>;
+   using SessionAliasMap = std::map<QuicChromiumClientSession*, AliasSet>;
+   using SessionSet =
+@@ -898,6 +899,9 @@
+       enum QuicPlatformNotification notification,
+       handles::NetworkHandle affected_network) const;
+ 
++  // Returns a copy of the current sessions as a list of WeakPtrs.
++  WeakSessionList GetCurrentSessions() const;
++
+   // Completes the QuicCryptoClientConfigKey by removing the
+   // NetworkAnonymizationKey if not applicable, and filling in the current
+   // SSLContextConfigGeneration.
 diff --git a/third_party/lens_server_proto/search_communication.proto b/third_party/lens_server_proto/search_communication.proto
 index ea68ef7..1edac2f 100644
 --- a/third_party/lens_server_proto/search_communication.proto
