@@ -1,10 +1,10 @@
 Chromium 159.0.8154.45 + the later changes of its release branch, up to
-d73b2ba647e2846aca288cf289c6db73ac4e0ea1 (refs/branch-heads/8154@{#1809}), for the
+cd9ffcdfb85f972c64551dedc2752f78681d8f14 (refs/branch-heads/8154@{#1831}), for the
 159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
-8154@{#1809}.
+8154@{#1831}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..d73b2ba647e2 and the
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..cd9ffcdfb85f and the
 dependencies whose DEPS revision changed: ANGLE 4dd34493f8a2..2ec7b6db14f2 (under
 third_party/angle/), third_party/devtools-frontend/src 3d48567555b6..170b7991fbe9 (under
 third_party/devtools-frontend/src/), third_party/libvpx/source/libvpx
@@ -125,6 +125,19 @@ Commits contributing to it (oldest first):
   f94aa93ac132 [M159] [omnibox] Show the AIM hint in the full WebUI omnibox popup (8154@{#1802})
   b24fe9b68b12 [M159] [autopip] Defer auto-PiP exit on window occlusion state changes (8154@{#1803})
   d73b2ba647e2 [M159] Use WeakPtr in MirroringActivity session startup (8154@{#1809})
+  08faddb0f351 [M159] [OmniboxEverywhere] Add SearchFromDesktopEnabled enterprise policy (8154@{#1811})
+  3371dab9283a [M159] [omnibox][webui] Make fast tabs wait for the latest results (8154@{#1818})
+  f30b85851268 [M159] [omnibox] Don't activate an inactive window on a Full WebUI tab change (8154@{#1819})
+  5bba75d662e3 [M159] [Extensions] Validate context and target event in events.*Rules (8154@{#1820})
+  6fc8af5c2ac8 [M159] [loomnibox] Keep search-animated-glow drag-and-drop light in dark mode (8154@{#1821})
+  390a5f4fd31f [M159] [Merch Chips on AL] Fix Suggestion Client and return fallback suggestions for Desktop Android (8154@{#1822})
+  342894c94280 [M159] [contextual-tasks] Keep ABA cue restorable across tab switches (8154@{#1823})
+  14eeb772c73a [M159] [Agentic Suggestions] Support SUIT action icons and badges in composebox (8154@{#1824})
+  6cb5dfa4ca01 [M159] [Omnibox][contextual_tasks] Make dogfood feedback form reusable (8154@{#1825})
+  3ab1a15433a7 [M159] [loomnibox] Close voice overlay on dismiss and prevent mic leak (8154@{#1826})
+  cda7e51ba308 [M159] [contextual-tasks] Gate permission chips on rearchitecture flag (8154@{#1828})
+  ee9419a415a3 [M159] [Contextual_Tasks] Add dogfood feedback flag, metric, service (8154@{#1830})
+  cd9ffcdfb85f [M159] [contextual_tasks] Add Mojo and handler plumbing for dogfood feedback (8154@{#1831})
 Dependency commits of those rolls that touch kept files:
   315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
   9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
@@ -152,7 +165,7 @@ Dependency commits of those rolls that touch kept files:
   0ff9fe7dd0e4 Version 15.9.128.40 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
-version at d73b2ba647e2 (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
+version at cd9ffcdfb85f (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
 170b7991fbe9) (or third_party/libvpx/source/libvpx's 6f89cfbcc99f) (or Skia's 220d4fc2d73c)
 (or V8's 0ff9fe7dd0e4).
 
@@ -374,10 +387,24 @@ index 658ae69..f8dc5e2 100644
  <translation id="7159953856712257647">Installed by default</translation>
  <translation id="7160182524506337403">You can now view your phone's notifications</translation>
 diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
-index d35590a..7400581a 100644
+index d35590a..5a80584 100644
 --- a/chrome/browser/about_flags.cc
 +++ b/chrome/browser/about_flags.cc
-@@ -5128,6 +5128,13 @@
+@@ -4592,6 +4592,13 @@
+     {" - Smart Tab Sharing: Toggle Off After Submit",
+      kSmartTabSharingToggleOffAfterSubmit, nullptr}};
+ 
++const FeatureEntry::FeatureParam kContextualTasksDogfoodFeedback[] = {
++    {"ContextualTasks_DogfoodFeedback", "true"}};
++
++const FeatureEntry::FeatureVariation kContextualTasksVariations[] = {
++    {"- with Dogfood Feedback", kContextualTasksDogfoodFeedback, nullptr},
++};
++
+ const FeatureEntry::FeatureParam kEphemeralBrandedEntryPointEnabled[] = {
+     {"ContextualTasksEntryPoint", "toolbar-ephemeral-branded"}};
+ const FeatureEntry::FeatureParam kEphemeralBrandedEntryPointWithRightDock[] = {
+@@ -5128,6 +5135,13 @@
      {"no reload, back, or forward animations",
       kToolbarGlowUpNoReloadBackForward, nullptr}};
  
@@ -391,7 +418,7 @@ index d35590a..7400581a 100644
  #if !BUILDFLAG(IS_ANDROID)
  const FeatureEntry::FeatureParam kDictationEvalModeParam[] = {
      {"eval_mode", "true"}};
-@@ -9734,6 +9741,12 @@
+@@ -9734,6 +9748,12 @@
       flag_descriptions::kOmniboxLoomDescription, kOsDesktop,
       MULTI_VALUE_TYPE(kOmniboxLoomChoices)},
  
@@ -404,7 +431,7 @@ index d35590a..7400581a 100644
      {"omnibox-everywhere-screenshot-new-window",
       flag_descriptions::kOmniboxEverywhereScreenshotNewWindowName,
       flag_descriptions::kOmniboxEverywhereScreenshotNewWindowDescription,
-@@ -9991,7 +10004,9 @@
+@@ -9991,7 +10011,9 @@
  
      {"menu-simplification", flag_descriptions::kMenuSimplificationName,
       flag_descriptions::kMenuSimplificationDescription, kOsDesktop,
@@ -415,11 +442,30 @@ index d35590a..7400581a 100644
  
      {"webui-refresh-2026", flag_descriptions::kWebuiRefresh2026Name,
       flag_descriptions::kWebuiRefresh2026Description, kOsDesktop,
+@@ -12183,7 +12205,9 @@
+      contextual_tasks::flag_descriptions::kContextualTasksName,
+      contextual_tasks::flag_descriptions::kContextualTasksDescription,
+      kOsDesktop | kOsAndroid,
+-     FEATURE_VALUE_TYPE(contextual_tasks::kContextualTasks)},
++     FEATURE_WITH_PARAMS_VALUE_TYPE(contextual_tasks::kContextualTasks,
++                                    kContextualTasksVariations,
++                                    "ContextualTasks")},
+ 
+     {"contextual-tasks-ephemeral-branded-entry-point",
+      contextual_tasks::flag_descriptions::
 diff --git a/chrome/browser/contextual_tasks/BUILD.gn b/chrome/browser/contextual_tasks/BUILD.gn
-index 68e386f..da0c7daf 100644
+index 68e386f..1086131b 100644
 --- a/chrome/browser/contextual_tasks/BUILD.gn
 +++ b/chrome/browser/contextual_tasks/BUILD.gn
-@@ -590,6 +590,7 @@
+@@ -257,6 +257,7 @@
+       "//chrome/browser/ui/views/permissions:permission_prompt_observer",
+       "//chrome/browser/ui/webui:webui_util",
+       "//chrome/browser/ui/webui/cr_components/searchbox",
++      "//chrome/browser/ui/webui/omnibox_popup:dogfood_feedback",
+       "//components/policy/core/browser",
+       "//components/strings:components_strings",
+       "//ui/webui/tracked_element",
+@@ -590,6 +591,7 @@
        "//components/contextual_tasks/public:feature_list",
        "//components/embedder_support:user_agent",
        "//components/feature_engagement/public",
@@ -427,7 +473,7 @@ index 68e386f..da0c7daf 100644
        "//services/network/public/cpp",
        "//services/network/public/mojom",
        "//third_party/blink/public/common:headers",
-@@ -667,6 +668,13 @@
+@@ -667,6 +669,13 @@
      "contextual_tasks_types.mojom",
    ]
    webui_module_path = "/"
@@ -441,7 +487,7 @@ index 68e386f..da0c7daf 100644
    public_deps = [
      "//components/browser_apis/ui_controllers/toolbar:mojom_data_model",
      "//components/omnibox/browser:mojo_bindings",
-@@ -924,6 +932,7 @@
+@@ -924,6 +933,7 @@
    if (!is_android) {
      deps += [
        "//chrome/app:branded_strings",
@@ -449,7 +495,7 @@ index 68e386f..da0c7daf 100644
        "//chrome/browser/feature_engagement",
        "//chrome/browser/ui:browser_actions",
        "//chrome/browser/ui/hats:test_support",
-@@ -1124,6 +1133,7 @@
+@@ -1124,6 +1134,7 @@
        "//components/infobars/content",
        "//components/infobars/core",
        "//components/lens:enterprise_policy",
@@ -457,8 +503,72 @@ index 68e386f..da0c7daf 100644
        "//components/search_engines",
        "//components/sessions",
        "//components/strings:components_strings",
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks.mojom b/chrome/browser/contextual_tasks/contextual_tasks.mojom
+index af01d7c..292ef31 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks.mojom
++++ b/chrome/browser/contextual_tasks/contextual_tasks.mojom
+@@ -354,6 +354,11 @@
+   // Removes the active Lens region crop, clearing region selection
+   // and closing the Lens overlay.
+   RemoveLensCrop();
++
++  // Opens Chrome's feedback form for Contextual Tasks dogfood feedback, in the
++  // browser window hosting the extension frame. No-op if the dogfood feedback
++  // button is disabled, or when called from the Service Worker.
++  OpenDogfoodFeedback();
+ };
+ 
+ // Extension-side handler for requests from the browser process.
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
+index 1f776fee..6ff7e22 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.cc
+@@ -27,10 +27,10 @@
+ #include "chrome/browser/contextual_tasks/contextual_tasks_context_service.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_context_service_factory.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
++#include "chrome/browser/contextual_tasks/contextual_tasks_ui_service_factory.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_utils.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h"
+ #include "chrome/browser/profiles/profile.h"
+-#include "chrome/browser/tab_list/tab_list_interface.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "components/contextual_search/contextual_search_session_handle.h"
+ #include "components/contextual_search/contextual_search_types.h"
+@@ -316,6 +316,19 @@
+   }
+ }
+ 
++void ContextualTasksExtensionHandler::OpenDogfoodFeedback() {
++  BrowserWindowInterface* browser = GetBrowserWindowInterface();
++  if (!browser) {
++    return;
++  }
++  const GURL page_url = contextual_tasks::GetFeedbackPageUrl(
++      browser, content::WebContents::FromRenderFrameHost(&render_frame_host()));
++  if (auto* ui_service = contextual_tasks::ContextualTasksUiServiceFactory::
++          GetForBrowserContext(render_frame_host().GetBrowserContext())) {
++    ui_service->OpenDogfoodFeedbackUi(browser, page_url);
++  }
++}
++
+ void ContextualTasksExtensionHandler::OnLensThumbnailCreated(
+     const std::string& thumbnail_uri) {
+   if (auto* user_data = GetOrCreateWebContentsUserData()) {
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
+index 3ba2e721..81e4a9f8 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_extension_handler.h
+@@ -98,6 +98,7 @@
+                            GetHandshakeMessageCallback callback) override;
+   void GetLensCropPreview(GetLensCropPreviewCallback callback) override;
+   void RemoveLensCrop() override;
++  void OpenDogfoodFeedback() override;
+ 
+   base::WeakPtr<contextual_search::InputStateModel>
+   GetOrCreateInputStateModelForTesting() {
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_service_worker_handler.cc b/chrome/browser/contextual_tasks/contextual_tasks_extension_service_worker_handler.cc
-index 7f3e9917..9cbd500 100644
+index 7f3e9917..10b18c0 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_extension_service_worker_handler.cc
 +++ b/chrome/browser/contextual_tasks/contextual_tasks_extension_service_worker_handler.cc
 @@ -46,6 +46,8 @@
@@ -470,6 +580,28 @@ index 7f3e9917..9cbd500 100644
      case lens::SearchToClientMessage::EVENT_MESSAGE_NOT_SET:
        return "UnknownSearchToClientMessage";
    }
+@@ -303,6 +305,9 @@
+ 
+ void ContextualTasksExtensionServiceWorkerHandler::RemoveLensCrop() {}
+ 
++// The Service Worker has no browser window to open the form in.
++void ContextualTasksExtensionServiceWorkerHandler::OpenDogfoodFeedback() {}
++
+ content::RenderFrameHost* ContextualTasksExtensionServiceWorkerHandler::
+     GetValidatedMainFrameForDocumentId(
+         const std::string& document_id_str) const {
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_extension_service_worker_handler.h b/chrome/browser/contextual_tasks/contextual_tasks_extension_service_worker_handler.h
+index 62ff7a735..fd2b4bb 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_extension_service_worker_handler.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_extension_service_worker_handler.h
+@@ -66,6 +66,7 @@
+   void SetTaskId(const base::Uuid& uuid) override;
+   void GetLensCropPreview(GetLensCropPreviewCallback callback) override;
+   void RemoveLensCrop() override;
++  void OpenDogfoodFeedback() override;
+ 
+  private:
+   void AcquireServiceWorkerKeepalive();
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_location_bar.cc b/chrome/browser/contextual_tasks/contextual_tasks_location_bar.cc
 index 7ee1b88..20765fa6 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_location_bar.cc
@@ -550,6 +682,27 @@ index c65cee9a..2884672 100644
    // Returns the entry source of the currently active panel.
    virtual EntrySource GetActiveEntrySource() const = 0;
  
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_permission_controller.cc b/chrome/browser/contextual_tasks/contextual_tasks_permission_controller.cc
+index dff8a077..5cb9ff95 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_permission_controller.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_permission_controller.cc
+@@ -26,6 +26,7 @@
+ #include "chrome/browser/ui/location_bar/location_bar_override_data.h"
+ #include "chrome/browser/ui/views/permissions/chip/webui_permission_chip.h"
+ #include "chrome/browser/ui/views/permissions/chip/webui_permission_dashboard.h"
++#include "components/contextual_tasks/public/features.h"
+ #endif
+ 
+ namespace contextual_tasks {
+@@ -65,7 +66,7 @@
+ ContextualTasksPermissionController::ContextualTasksPermissionController(
+     BrowserWindowInterface* browser_window) {
+ #if !BUILDFLAG(IS_ANDROID)
+-  if (browser_window) {
++  if (browser_window && IsContextualTasksSidePanelRearchitectureEnabled()) {
+     // Connect dashboard and single location bar for contextual tasks side
+     // panel.
+     location_bar_ = std::make_unique<ContextualTasksLocationBar>(
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc b/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
 index 0a86a11..eda5aae 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.cc
@@ -647,11 +800,35 @@ index 87b1eea..5b5e592 100644
    // ephemeral toolbar button or the pinned toolbar button (under Pinning V2).
    bool ShouldPreserveTaskOnClose() const;
  
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_toolbar.mojom b/chrome/browser/contextual_tasks/contextual_tasks_toolbar.mojom
+index 78c82a6..18055256 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_toolbar.mojom
++++ b/chrome/browser/contextual_tasks/contextual_tasks_toolbar.mojom
+@@ -74,6 +74,10 @@
+   // Opens the feedback UI.
+   OpenFeedbackUi();
+ 
++  // Opens Chrome's feedback form for Contextual Tasks dogfood feedback. No-op
++  // if the dogfood feedback button is disabled.
++  OpenDogfoodFeedback();
++
+   // Moves the contents of the side panel to a new tab.
+   MoveTaskUiToNewTab();
+ 
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui.cc
-index d075088..34bf66a 100644
+index d075088..c2aa6b4 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_ui.cc
 +++ b/chrome/browser/contextual_tasks/contextual_tasks_ui.cc
-@@ -1486,6 +1486,13 @@
+@@ -742,6 +742,8 @@
+            features::IsWebUIRoundedIconsEnabled() ? "webui-rounded-icons" : "");
+ 
+   AddZeroStateStrings(dict, profile);
++  dict.Merge(contextual_tasks::ContextualTasksUIBase::
++                 GetDogfoodFeedbackLoadTimeData());
+ 
+   return dict;
+ }
+@@ -1486,6 +1488,13 @@
    source->AddBoolean("isZeroState",
                       ui_service_ && task_creation_url &&
                           IsZeroState(task_creation_url.value(), ui_service_));
@@ -665,6 +842,295 @@ index d075088..34bf66a 100644
    source->AddBoolean("isShownInTab", IsShownInTab());
    bool is_signed_in = ui_service_ &&
                        ui_service_->IsSignedInToBrowserWithValidCredentials() &&
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc
+index e253603..3004345 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_base.cc
+@@ -45,7 +45,6 @@
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/profiles/profile_avatar_icon_util.h"
+ #include "chrome/browser/signin/identity_manager_factory.h"
+-#include "chrome/browser/tab_list/tab_list_interface.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/navigator/browser_navigator.h"
+@@ -856,6 +855,7 @@
+ #endif
+   dict.Set("contextualTasksUnboundedMenuEnabled",
+            contextual_tasks::IsContextualTasksUnboundedMenuEnabled());
++  dict.Merge(GetDogfoodFeedbackLoadTimeData());
+ 
+   const bool use_google_com_sign_out_label = base::FeatureList::IsEnabled(
+       contextual_tasks::kContextualTasksAccountMenuGoogleComSignOutLabel);
+@@ -874,6 +874,28 @@
+   return dict;
+ }
+ 
++// static
++base::DictValue ContextualTasksUIBase::GetDogfoodFeedbackLoadTimeData() {
++  base::DictValue dict;
++  // The dogfood feedback form can only be opened on desktop.
++#if BUILDFLAG(IS_ANDROID)
++  const bool enabled = false;
++  const char* attribute = "";
++#else
++  const bool enabled =
++      contextual_tasks::IsContextualTasksDogfoodFeedbackEnabled();
++  const char* attribute = enabled ? "dogfood-feedback-enabled" : "";
++#endif
++  dict.Set("contextualTasksDogfoodFeedbackEnabled", enabled);
++  // tab_picker.html doesn't load strings.m.js, so it sets this as an attribute
++  // of <tab-picker-app> through a template replacement instead.
++  dict.Set("contextualTasksDogfoodFeedbackAttribute", attribute);
++  // Dogfood only, so not translated.
++  dict.Set("dogfoodFeedbackTooltip",
++           "Submit Contextual Tasks Dogfood Feedback");
++  return dict;
++}
++
+ void ContextualTasksUIBase::CreatePageHandler(
+     mojo::PendingRemote<contextual_tasks_toolbar::mojom::Page> page,
+     mojo::PendingReceiver<contextual_tasks_toolbar::mojom::PageHandler>
+@@ -987,19 +1009,22 @@
+   if (!browser) {
+     return;
+   }
+-  content::WebContents* web_contents = GetWebUIWebContents();
+-  GURL page_url = web_contents ? web_contents->GetLastCommittedURL() : GURL();
+-  if (auto* tab_list = TabListInterface::From(browser)) {
+-    if (auto* active_tab = tab_list->GetActiveTab()) {
+-      if (active_tab->GetContents()) {
+-        page_url = active_tab->GetContents()->GetLastCommittedURL();
+-      }
+-    }
++
++  if (auto* ui_service = GetUiService()) {
++    ui_service->OpenFeedbackUi(
++        browser, GetFeedbackPageUrl(browser, GetWebUIWebContents()));
++  }
++}
++
++void ContextualTasksUIBase::OpenDogfoodFeedback() {
++  BrowserWindowInterface* browser = GetBrowser();
++  if (!browser) {
++    return;
+   }
+ 
+-  if (auto* ui_service =
+-          ContextualTasksUiServiceFactory::GetForBrowserContext(GetProfile())) {
+-    ui_service->OpenFeedbackUi(browser, page_url);
++  if (auto* ui_service = GetUiService()) {
++    ui_service->OpenDogfoodFeedbackUi(
++        browser, GetFeedbackPageUrl(browser, GetWebUIWebContents()));
+   }
+ }
+ 
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_base.h b/chrome/browser/contextual_tasks/contextual_tasks_ui_base.h
+index f87d43d..6b174236 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui_base.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_base.h
+@@ -92,6 +92,10 @@
+   static content::WebUIDataSource* RegisterWebUIDataSource(Profile* profile);
+   static base::DictValue GetContextualTasksLoadTimeData(Profile* profile);
+ 
++  // Returns the load time data that controls the dogfood feedback buttons in
++  // the top toolbar and the tab picker.
++  static base::DictValue GetDogfoodFeedbackLoadTimeData();
++
+   // contextual_tasks_toolbar::mojom::PageHandlerFactory:
+   void CreatePageHandler(
+       mojo::PendingRemote<contextual_tasks_toolbar::mojom::Page> page,
+@@ -106,6 +110,7 @@
+   void OpenManageAccountUi() override;
+   void OpenLogOutFlow() override;
+   void OpenFeedbackUi() override;
++  void OpenDogfoodFeedback() override;
+   void MoveTaskUiToNewTab() override;
+   void ShowThreadHistory() override;
+   void OnTabClickedFromSourcesMenu(int32_t tab_id, const GURL& url) override;
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
+index 9d0dc19..9e96118 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_service.cc
+@@ -3181,6 +3181,16 @@
+   delegate_->OpenFeedbackUi(browser, page_url);
+ }
+ 
++void ContextualTasksUiService::OpenDogfoodFeedbackUi(
++    BrowserWindowInterface* browser,
++    const GURL& page_url) {
++  // Renderers only hide the dogfood feedback UI, so check the gate here too.
++  if (!browser || !IsContextualTasksDogfoodFeedbackEnabled()) {
++    return;
++  }
++  delegate_->OpenDogfoodFeedbackUi(browser, page_url);
++}
++
+ void ContextualTasksUiService::ShowUndoSnackbar(
+     BrowserWindowInterface* browser_window_interface) {
+   delegate_->ShowUndoSnackbar(browser_window_interface);
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_service.h b/chrome/browser/contextual_tasks/contextual_tasks_ui_service.h
+index 906dca1c..33b03493 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui_service.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_service.h
+@@ -449,6 +449,11 @@
+   virtual void OpenFeedbackUi(BrowserWindowInterface* browser,
+                               const GURL& page_url);
+ 
++  // Shows the dogfood feedback form in `browser`. No-op if dogfood feedback is
++  // disabled.
++  virtual void OpenDogfoodFeedbackUi(BrowserWindowInterface* browser,
++                                     const GURL& page_url);
++
+   // Shows a snackbar to undo the closure of the contextual tasks sheet.
+   virtual void ShowUndoSnackbar(
+       BrowserWindowInterface* browser_window_interface);
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_service_delegate.h b/chrome/browser/contextual_tasks/contextual_tasks_ui_service_delegate.h
+index 981ea46..3192409 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui_service_delegate.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_service_delegate.h
+@@ -19,10 +19,16 @@
+  public:
+   virtual ~ContextualTasksUiServiceDelegate() = default;
+ 
+-  // Called to open the feedback page UI.
++  // Called to open the feedback page UI, which files reports to "cobrowse"
++  // (`kFeedbackSourceAI`).
+   virtual void OpenFeedbackUi(BrowserWindowInterface* browser,
+                               const GURL& page_url) = 0;
+ 
++  // Called to open the dogfood feedback form, which files reports to
++  // "contextual_tasks_rearch" (`kFeedbackSourceContextualTasks`).
++  virtual void OpenDogfoodFeedbackUi(BrowserWindowInterface* browser,
++                                     const GURL& page_url) = 0;
++
+   // Called to show the undo closure snackbar.
+   virtual void ShowUndoSnackbar(
+       BrowserWindowInterface* browser_window_interface) = 0;
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_service_delegate_desktop.cc b/chrome/browser/contextual_tasks/contextual_tasks_ui_service_delegate_desktop.cc
+index 377f932..f06814ac 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui_service_delegate_desktop.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_service_delegate_desktop.cc
+@@ -8,12 +8,28 @@
+ #include "chrome/browser/feedback/show_feedback_page.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
++#include "chrome/browser/ui/webui/omnibox_popup/omnibox_dogfood_feedback.h"
+ #include "chrome/grit/branded_strings.h"
+ #include "ui/base/l10n/l10n_util.h"
+ #include "url/gurl.h"
+ 
+ namespace contextual_tasks {
+ 
++namespace {
++
++// Identifier of the gFeedback bucket that Contextual Tasks reports are filed
++// in.
++constexpr char kFeedbackCategoryTag[] = "cobrowse";
++
++// Identifier of the gFeedback bucket that Contextual Tasks dogfood reports are
++// filed in.
++constexpr char kDogfoodFeedbackCategoryTag[] = "contextual_tasks_rearch";
++
++// Dogfood link placed at the top of the dogfood feedback description template.
++constexpr char kDogfoodDescriptionHeader[] = "go/sic-rearch-dogfood";
++
++}  // namespace
++
+ ContextualTasksUiServiceDelegateDesktop::
+     ContextualTasksUiServiceDelegateDesktop(Profile* profile)
+     : ContextualTasksUiServiceDelegate(), profile_(profile) {}
+@@ -28,10 +44,20 @@
+                            /*description_template=*/std::string(),
+                            /*description_placeholder_text=*/
+                            l10n_util::GetStringUTF8(IDS_LENS_SEND_FEEDBACK),
+-                           /*category_tag=*/"cobrowse",
++                           /*category_tag=*/kFeedbackCategoryTag,
+                            /*extra_diagnostics=*/std::string());
+ }
+ 
++void ContextualTasksUiServiceDelegateDesktop::OpenDogfoodFeedbackUi(
++    BrowserWindowInterface* browser,
++    const GURL& page_url) {
++  // Reuses the Omnibox dogfood form, but files reports in the Contextual Tasks
++  // dogfood bucket.
++  omnibox_dogfood_feedback::ShowFeedbackForm(
++      profile(), page_url, kDogfoodDescriptionHeader,
++      feedback::kFeedbackSourceContextualTasks, kDogfoodFeedbackCategoryTag);
++}
++
+ void ContextualTasksUiServiceDelegateDesktop::ShowUndoSnackbar(
+     BrowserWindowInterface* browser_window_interface) {}
+ 
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_ui_service_delegate_desktop.h b/chrome/browser/contextual_tasks/contextual_tasks_ui_service_delegate_desktop.h
+index 27088fb..05bd2104 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_ui_service_delegate_desktop.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_ui_service_delegate_desktop.h
+@@ -26,6 +26,8 @@
+   // ContextualTasksUiServiceDelegate overrides:
+   void OpenFeedbackUi(BrowserWindowInterface* browser,
+                       const GURL& page_url) override;
++  void OpenDogfoodFeedbackUi(BrowserWindowInterface* browser,
++                             const GURL& page_url) override;
+   void ShowUndoSnackbar(
+       BrowserWindowInterface* browser_window_interface) override;
+   void StartPlatformVoiceRecognition(
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_utils.cc b/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
+index 51c2bfb..58a6574 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
++++ b/chrome/browser/contextual_tasks/contextual_tasks_utils.cc
+@@ -1008,4 +1008,26 @@
+ #endif
+ }
+ 
++GURL GetFeedbackPageUrl(BrowserWindowInterface* browser,
++                        content::WebContents* fallback_web_contents) {
++  GURL page_url = fallback_web_contents
++                      ? fallback_web_contents->GetLastCommittedURL()
++                      : GURL();
++  if (!browser) {
++    return page_url;
++  }
++  if (auto* tab_list = TabListInterface::From(browser)) {
++    if (auto* active_tab = tab_list->GetActiveTab()) {
++      if (active_tab->GetContents()) {
++        const GURL& committed_url =
++            active_tab->GetContents()->GetLastCommittedURL();
++        if (!committed_url.is_empty()) {
++          page_url = committed_url;
++        }
++      }
++    }
++  }
++  return page_url;
++}
++
+ }  // namespace contextual_tasks
+diff --git a/chrome/browser/contextual_tasks/contextual_tasks_utils.h b/chrome/browser/contextual_tasks/contextual_tasks_utils.h
+index ea2eb05..beb1194 100644
+--- a/chrome/browser/contextual_tasks/contextual_tasks_utils.h
++++ b/chrome/browser/contextual_tasks/contextual_tasks_utils.h
+@@ -21,6 +21,7 @@
+ #include "third_party/omnibox_proto/model_mode.pb.h"
+ #include "third_party/omnibox_proto/tool_mode.pb.h"
+ #include "ui/base/mojom/window_open_disposition.mojom-forward.h"
++#include "url/gurl.h"
+ 
+ class Profile;
+ class BrowserWindowInterface;
+@@ -331,6 +332,12 @@
+ void RecordSidePanelLinkClickedMetrics(
+     ui::mojom::WindowOpenDisposition disposition);
+ 
++// Returns the URL to associate with a feedback report: prefers the active tab's
++// committed URL in `browser` when non-empty, falling back to
++// `fallback_web_contents`'s committed URL.
++GURL GetFeedbackPageUrl(BrowserWindowInterface* browser,
++                        content::WebContents* fallback_web_contents);
++
+ }  // namespace contextual_tasks
+ 
+ #endif  // CHROME_BROWSER_CONTEXTUAL_TASKS_CONTEXTUAL_TASKS_UTILS_H_
 diff --git a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc b/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
 index cb2b50fb..d4ff1070 100644
 --- a/chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.cc
@@ -823,6 +1289,86 @@ index 7bbd3da..8ffb3889 100644
    MOCK_METHOD(ContextualTasksPanelController::EntrySource,
                GetActiveEntrySource,
                (),
+diff --git a/chrome/browser/contextual_tasks/mock_contextual_tasks_ui_service.h b/chrome/browser/contextual_tasks/mock_contextual_tasks_ui_service.h
+index 71062ce..7e55796f 100644
+--- a/chrome/browser/contextual_tasks/mock_contextual_tasks_ui_service.h
++++ b/chrome/browser/contextual_tasks/mock_contextual_tasks_ui_service.h
+@@ -90,6 +90,10 @@
+               OpenFeedbackUi,
+               (BrowserWindowInterface*, const GURL&),
+               (override));
++  MOCK_METHOD(void,
++              OpenDogfoodFeedbackUi,
++              (BrowserWindowInterface*, const GURL&),
++              (override));
+   MOCK_METHOD(ContextualTasksEligibilityManager*,
+               GetEligibilityManager,
+               (),
+diff --git a/chrome/browser/contextual_tasks/mock_contextual_tasks_ui_service_delegate.h b/chrome/browser/contextual_tasks/mock_contextual_tasks_ui_service_delegate.h
+index 617ddbd..83bd0135 100644
+--- a/chrome/browser/contextual_tasks/mock_contextual_tasks_ui_service_delegate.h
++++ b/chrome/browser/contextual_tasks/mock_contextual_tasks_ui_service_delegate.h
+@@ -23,6 +23,10 @@
+               (BrowserWindowInterface * browser, const GURL& page_url),
+               (override));
+   MOCK_METHOD(void,
++              OpenDogfoodFeedbackUi,
++              (BrowserWindowInterface * browser, const GURL& page_url),
++              (override));
++  MOCK_METHOD(void,
+               ShowUndoSnackbar,
+               (BrowserWindowInterface * browser_window_interface),
+               (override));
+diff --git a/chrome/browser/contextual_tasks/search_journey_tracker.cc b/chrome/browser/contextual_tasks/search_journey_tracker.cc
+index 17b797d0..f925810 100644
+--- a/chrome/browser/contextual_tasks/search_journey_tracker.cc
++++ b/chrome/browser/contextual_tasks/search_journey_tracker.cc
+@@ -253,13 +253,21 @@
+     const auto& [source_tab_id, journey] = pair;
+     if (source_tab_id == tab_id) {
+       // Only a return to the page the user left counts.
+-      returned = journey.source_nav_entry_id == nav_entry_id;
+-      if (!returned) {
++      if (journey.source_nav_entry_id != nav_entry_id) {
+         RecordJourneyEnd(journey, SearchJourneyEndReason::kSourceTabNavigated);
++        return true;
+       }
+-      return !returned;
++      // Don't re-record a return once the cue has already shown.
++      if (!journey.cue_shown) {
++        returned = true;
++      }
++      return false;
+     }
+-    if (journey.search_tab_id == tab_id || allow_intermediate_tabs) {
++    // Once the cue has shown on Tab A, the A -> B -> A return already happened,
++    // so switching to another tab shouldn't drop the journey while the cue
++    // stays visible.
++    if (journey.search_tab_id == tab_id || journey.cue_shown ||
++        allow_intermediate_tabs) {
+       return false;
+     }
+     // Any other tab is an intermediate tab, as in A -> B -> C -> A.
+diff --git a/chrome/browser/contextual_tasks/search_journey_tracker.h b/chrome/browser/contextual_tasks/search_journey_tracker.h
+index 0247b3aa..cc6afc2 100644
+--- a/chrome/browser/contextual_tasks/search_journey_tracker.h
++++ b/chrome/browser/contextual_tasks/search_journey_tracker.h
+@@ -225,10 +225,11 @@
+                         SessionID opener_tab_id);
+ 
+   // Called when `tab_id` becomes the tab the user is looking at. Returns true
+-  // if `tab_id` is Tab A of an armed journey and is still on `nav_entry_id`,
+-  // i.e. the user has returned. A journey whose Tab A is now on another entry
+-  // is dropped. Unless intermediate tabs are allowed, activating a tab other
+-  // than Tab A or Tab B also drops the journey, so only A -> B -> A counts.
++  // if `tab_id` is Tab A of an armed journey whose cue hasn't shown yet and is
++  // still on `nav_entry_id`, i.e. the user has returned. A journey whose Tab A
++  // is now on another entry is dropped. Unless intermediate tabs are allowed or
++  // the journey's cue has already shown, activating a tab other than Tab A or
++  // Tab B also drops the journey, so only A -> B -> A counts.
+   bool OnTabActivated(SessionID tab_id, int nav_entry_id);
+ 
+   // Returns the search terms of `url` if it's a Google results page of the
 diff --git a/chrome/browser/devtools/devtools_dispatch_http_request_params.cc b/chrome/browser/devtools/devtools_dispatch_http_request_params.cc
 index 1c691a56..5c981a4 100644
 --- a/chrome/browser/devtools/devtools_dispatch_http_request_params.cc
@@ -1044,6 +1590,18 @@ index c6ea717..c7b6188 100644
      data_controls::LastReplacedClipboardDataObserver::GetInstance()
          ->AddDataToNextSeqno(data,
                               data_controls::CopyRestrictionLevel::kOngoingScan);
+diff --git a/chrome/browser/extensions/BUILD.gn b/chrome/browser/extensions/BUILD.gn
+index 6f01913..10168a2 100644
+--- a/chrome/browser/extensions/BUILD.gn
++++ b/chrome/browser/extensions/BUILD.gn
+@@ -1914,6 +1914,7 @@
+     "api/bookmarks/bookmarks_api_unittest.cc",
+     "api/browsing_data/browsing_data_unittest.cc",
+     "api/chrome_extensions_api_client_unittest.cc",
++    "api/declarative/declarative_api_unittest.cc",
+     "api/declarative/rules_registry_service_unittest.cc",
+     "api/declarative/rules_registry_with_cache_unittest.cc",
+     "api/declarative_content/chrome_content_rules_registry_unittest.cc",
 diff --git a/chrome/browser/extensions/api/passwords_private/passwords_private_delegate_impl.cc b/chrome/browser/extensions/api/passwords_private/passwords_private_delegate_impl.cc
 index 08af8fd..ad009fd 100644
 --- a/chrome/browser/extensions/api/passwords_private/passwords_private_delegate_impl.cc
@@ -1142,14 +1700,15 @@ index 75d60369..7237304 100644
    TabCaptureRegistry* registry = TabCaptureRegistry::Get(browser_context());
    std::string device_id =
 diff --git a/chrome/browser/feedback/public/feedback_source.h b/chrome/browser/feedback/public/feedback_source.h
-index e025a24a..70910ad6 100644
+index e025a24a..089c33b 100644
 --- a/chrome/browser/feedback/public/feedback_source.h
 +++ b/chrome/browser/feedback/public/feedback_source.h
-@@ -68,6 +68,7 @@
+@@ -68,6 +68,8 @@
    kFeedbackSourceOnDeviceAI = 49,
    kFeedbackSourceOmnibox = 50,
    kFeedbackSourceReadingMode = 51,
 +  kFeedbackSourceOmniboxEverywhere = 52,
++  kFeedbackSourceContextualTasks = 53,
  
    // ATTENTION: Before making any changes or adding to feedback collection,
    // please ensure the teams that operationalize feedback are aware and
@@ -1793,6 +2352,43 @@ index 3e54281..c74e4ade 100644
        break;
      case OcclusionState::kHidden:
        // Don't make any changes for a hidden state. If we're already in autopip
+diff --git a/chrome/browser/policy/BUILD.gn b/chrome/browser/policy/BUILD.gn
+index 2034c09..0bfc18fe 100644
+--- a/chrome/browser/policy/BUILD.gn
++++ b/chrome/browser/policy/BUILD.gn
+@@ -1434,6 +1434,7 @@
+       "//chrome/browser/device_identity",
+       "//chrome/browser/indigo",
+       "//chrome/browser/performance_manager/public/user_tuning",
++      "//chrome/browser/ui/omnibox/omnibox_everywhere:prefs",
+       "//chrome/browser/web_applications",
+       "//components/headless/policy",
+       "//components/live_caption",
+diff --git a/chrome/browser/policy/configuration_policy_handler_list_factory.cc b/chrome/browser/policy/configuration_policy_handler_list_factory.cc
+index fcd09ba..341d7a44 100644
+--- a/chrome/browser/policy/configuration_policy_handler_list_factory.cc
++++ b/chrome/browser/policy/configuration_policy_handler_list_factory.cc
+@@ -194,6 +194,10 @@
+ #include "chrome/browser/enterprise/platform_auth/extensible_enterprise_sso_policy_handler.h"
+ #endif  // BUILDFLAG(IS_MAC)
+ 
++#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
++#include "chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_prefs.h"
++#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
++
+ #if defined(TOOLKIT_VIEWS)
+ #include "chrome/browser/ui/side_search/side_search_prefs.h"
+ #endif  // BUILDFLAG(TOOLKIT_VIEWS)
+@@ -1994,6 +1998,9 @@
+   { key::kPrintPdfAsImageAvailability,
+     prefs::kPrintPdfAsImageAvailability,
+     base::Value::Type::BOOLEAN },
++  { key::kSearchFromDesktopEnabled,
++    omnibox_everywhere::prefs::kOmniboxEverywhereEnabled,
++    base::Value::Type::BOOLEAN },
+   { key::kTotalMemoryLimitMb,
+     prefs::kTotalMemoryLimitMb,
+     base::Value::Type::INTEGER },
 diff --git a/chrome/browser/predictors/lcp_critical_path_predictor/prewarm_http_disk_cache_manager.cc b/chrome/browser/predictors/lcp_critical_path_predictor/prewarm_http_disk_cache_manager.cc
 index b3c71e3..c61f860 100644
 --- a/chrome/browser/predictors/lcp_critical_path_predictor/prewarm_http_disk_cache_manager.cc
@@ -3184,7 +3780,7 @@ index 78692dd..368f84c 100644
            .autosubmitEnabled="${true}" .submitStopButtonsEnabled="${true}">
        </cr-composebox-voice-search>
 diff --git a/chrome/browser/resources/omnibox_everywhere/app.ts b/chrome/browser/resources/omnibox_everywhere/app.ts
-index b767c778..2e52f5a4 100644
+index b767c778..efc46266 100644
 --- a/chrome/browser/resources/omnibox_everywhere/app.ts
 +++ b/chrome/browser/resources/omnibox_everywhere/app.ts
 @@ -188,7 +188,7 @@
@@ -3254,7 +3850,17 @@ index b767c778..2e52f5a4 100644
    }
  
    protected onMostVisitedCloseClick_() {
-@@ -781,6 +779,12 @@
+@@ -704,6 +702,9 @@
+ 
+   private onDemoted_() {
+     this.isExpanded_ = false;
++    if (this.showVoiceSearchOverlay_) {
++      this.onVoiceSearchOverlayClose_();
++    }
+     // Clear active element focus on demotion so Blink's `FocusController`
+     // does not auto-restore `<input>` focus when `web_contents()->Focus()`
+     // runs on `WM_ACTIVATE(WA_CLICKACTIVE)` before `WM_LBUTTONDOWN`.
+@@ -781,6 +782,12 @@
    // browser subtracts all no-drag boxes, so don't nest `drag` in `no-drag`.
    private onMousedown_(e: MouseEvent) {
      const target = e.composedPath()[0];
@@ -3267,7 +3873,17 @@ index b767c778..2e52f5a4 100644
      if (e.button === 0 && target instanceof Element &&
          getComputedStyle(target).getPropertyValue('app-region') === 'drag') {
        e.preventDefault();
-@@ -840,6 +844,7 @@
+@@ -798,6 +805,9 @@
+   private async onVisibilitychange_() {
+     if (document.visibilityState !== 'visible') {
+       this.impressionRecordedForSession_ = false;
++      if (this.showVoiceSearchOverlay_) {
++        this.onVoiceSearchOverlayClose_();
++      }
+       return;
+     }
+ 
+@@ -840,6 +850,7 @@
      this.showVoiceSearchOverlay_ = false;
      this.hasVoiceSearchError_ = false;
      this.voiceSearchListening_ = false;
@@ -3275,7 +3891,7 @@ index b767c778..2e52f5a4 100644
    }
  
    protected onVoicePermissionChanged_(
-@@ -903,6 +908,11 @@
+@@ -903,6 +914,11 @@
      this.voiceSearchTranscript_ = '';
    }
  
@@ -3355,7 +3971,7 @@ index 827ff75..0e62470 100644
      this.refreshTabSuggestions(/*forceRefresh=*/ true);
      this.queryAutocomplete(/* clearMatches= */ true);
 diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.css b/chrome/browser/resources/omnibox_everywhere/omnibox.css
-index 115a9344..106fa00a 100644
+index 115a9344..c4f6b8e 100644
 --- a/chrome/browser/resources/omnibox_everywhere/omnibox.css
 +++ b/chrome/browser/resources/omnibox_everywhere/omnibox.css
 @@ -18,19 +18,20 @@
@@ -3479,7 +4095,22 @@ index 115a9344..106fa00a 100644
    --cr-searchbox-icon-right-position: 0px;
  }
  
-@@ -392,6 +432,7 @@
+@@ -344,9 +384,14 @@
+ }
+ 
+ :host([is-fusebox-enabled][is-dragging-file]) {
++  border-color: transparent;
+   --cr-searchbox-compose-button-z-index: 99;
+ }
+ 
++#inputWrapper:has(search-animated-glow[animation-state='dragging'])::before {
++  background: transparent;
++}
++
+ :host([is-fusebox-enabled][is-dragging-file])
+     cr-searchbox-input::part(searchbox-input),
+ :host([is-fusebox-enabled][is-dragging-file])
+@@ -392,6 +437,7 @@
  #bottomControls {
    padding-block-start: 4px;
    padding-block-end: 12px;
@@ -3487,7 +4118,7 @@ index 115a9344..106fa00a 100644
  }
  
  #bottomControls #context {
-@@ -428,6 +469,14 @@
+@@ -428,6 +474,14 @@
    -webkit-app-region: no-drag;
  }
  
@@ -3502,7 +4133,7 @@ index 115a9344..106fa00a 100644
  cr-searchbox-input,
  cr-searchbox-input::part(searchbox-input) {
    cursor: text;
-@@ -444,18 +493,30 @@
+@@ -444,18 +498,30 @@
    height: var(--cr-searchbox-height, 48px);
  }
  
@@ -3541,7 +4172,7 @@ index 115a9344..106fa00a 100644
  }
  
  /* 48px profile offset + 3x28px buttons + 2x4px gaps + 8px clearance. */
-@@ -469,9 +530,11 @@
+@@ -469,9 +535,11 @@
  }
  
  :host(:not([dropdown-is-visible]):not([has-user-input]))
@@ -3555,7 +4186,7 @@ index 115a9344..106fa00a 100644
    text-overflow: ellipsis;
    white-space: nowrap;
  }
-@@ -492,7 +555,7 @@
+@@ -492,7 +560,7 @@
    inset-inline-end: 48px;
    padding: 0;
    position: absolute;
@@ -3564,7 +4195,7 @@ index 115a9344..106fa00a 100644
    width: auto;
  }
  
-@@ -515,18 +578,6 @@
+@@ -515,18 +583,6 @@
    display: block;
  }
  
@@ -3583,7 +4214,7 @@ index 115a9344..106fa00a 100644
  @keyframes loomniboxDropdownExpand {
    from {
      opacity: 0;
-@@ -534,27 +585,9 @@
+@@ -534,27 +590,9 @@
    }
  }
  
@@ -3637,7 +4268,7 @@ index 164068e..c1a3d797 100644
        <div
            class="contextualEntrypointContainer
 diff --git a/chrome/browser/resources/omnibox_everywhere/omnibox.ts b/chrome/browser/resources/omnibox_everywhere/omnibox.ts
-index 2824d84a..5cf001bb 100644
+index 2824d84a..d7b7536 100644
 --- a/chrome/browser/resources/omnibox_everywhere/omnibox.ts
 +++ b/chrome/browser/resources/omnibox_everywhere/omnibox.ts
 @@ -10,7 +10,7 @@
@@ -3692,7 +4323,7 @@ index 2824d84a..5cf001bb 100644
    }
  
    override disconnectedCallback() {
-@@ -327,22 +328,10 @@
+@@ -327,21 +328,13 @@
      }
      this.placeholderCycler_?.stop();
      this.isPlaceholderCycling_ = false;
@@ -3711,11 +4342,13 @@ index 2824d84a..5cf001bb 100644
 -      this.removeAttribute('has-expanded');
 -    } else if (this.dropdownIsVisible || this.hasUserInput_) {
 -      this.toggleAttribute('has-expanded', true);
--    }
++    if (!this.inVoiceSearchMode && changedProperties.has('inVoiceSearchMode') &&
++        this.animationState === GlowAnimationState.LISTENING) {
++      this.animationState = GlowAnimationState.NONE;
+     }
      if (!this.canCyclePlaceholders_()) {
        this.showLensPlaceholder_ = false;
-     }
-@@ -436,8 +425,8 @@
+@@ -436,8 +429,8 @@
      this.setInputText('');
    }
  
@@ -3726,7 +4359,7 @@ index 2824d84a..5cf001bb 100644
      this.setInputText('');
    }
  
-@@ -885,18 +874,6 @@
+@@ -885,18 +878,6 @@
      }
    }
  
@@ -3759,7 +4392,7 @@ index 1ff3143..a946559 100644
       * the expanded app width and resize the native widget window. */
      html:has(omnibox-everywhere-app[dynamic-sizing]) {
 diff --git a/chrome/browser/resources/omnibox_everywhere/searchbox_shared_style.css b/chrome/browser/resources/omnibox_everywhere/searchbox_shared_style.css
-index 253540a..ded7eed9 100644
+index 253540a..64c8754f 100644
 --- a/chrome/browser/resources/omnibox_everywhere/searchbox_shared_style.css
 +++ b/chrome/browser/resources/omnibox_everywhere/searchbox_shared_style.css
 @@ -99,7 +99,7 @@
@@ -3771,6 +4404,17 @@ index 253540a..ded7eed9 100644
    --color-searchbox-results-action-chip: var(
        --color-omnibox-results-button-border);
    --color-searchbox-results-action-chip-focus-outline: var(
+@@ -279,3 +279,10 @@
+   --cr-hover-background-color: var(--cr-icon-button-hover-background-color);
+   background-color: var(--cr-icon-button-hover-background-color);
+ }
++
++/* Keep file drag-and-drop overlay in light mode even in dark theme for parity
++ * with the browser omnibox. */
++search-animated-glow[animation-state='dragging'] {
++  --color-search-animated-glow-background: rgba(255, 255, 255, 1);
++  --cr-composebox-background-color: initial;
++}
 diff --git a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.css b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.css
 index 3c978bfe..c4d074a 100644
 --- a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.css
@@ -3815,7 +4459,7 @@ index 24d4fa02..b9926b88 100644
        searchbox-icon="${this.searchboxIcon_}"
        .selectedMatch="${this.computeSelectedMatchForInput_()}"
 diff --git a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
-index b48d7f8..3f0387b 100644
+index b48d7f8..4105967 100644
 --- a/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
 +++ b/chrome/browser/resources/omnibox_popup/full/omnibox_popup_searchbox.ts
 @@ -18,7 +18,7 @@
@@ -3968,7 +4612,18 @@ index b48d7f8..3f0387b 100644
      if (changedProperties.has('selection') ||
          changedProperties.has('selectedMatchIndex')) {
        // Guard against transient out-of-bounds indices when autocomplete
-@@ -1029,6 +1116,35 @@
+@@ -708,6 +795,10 @@
+     return true;
+   }
+ 
++  override shouldTabWaitForResults(): boolean {
++    return this.virtualFocusEnabled;
++  }
++
+   override isBackgroundTabNavigation(e: KeyboardEvent|MouseEvent): boolean {
+     // Duplicate logic from
+     // `searchbox::ComputeOpenDispositionFromModifiersAndLogToUma()` to
+@@ -1029,6 +1120,35 @@
          e.composedPath().includes(input) && (wasUnfocused || !input.value);
    }
  
@@ -4004,7 +4659,7 @@ index b48d7f8..3f0387b 100644
    private onMouseMove_(e: MouseEvent) {
      // Only track drag distance while the primary (left) mouse button is held.
      if ((this.selectAllOnMouseRelease_ || this.queryZpsOnMouseRelease_) &&
-@@ -1138,15 +1254,41 @@
+@@ -1138,15 +1258,41 @@
        text: input.value,
        selection: {start: Math.min(start, end), end: Math.max(start, end)},
      };
@@ -4048,7 +4703,7 @@ index b48d7f8..3f0387b 100644
    private onDragEnd_() {
      this.textDrag_ = null;
    }
-@@ -1156,12 +1298,17 @@
+@@ -1156,12 +1302,17 @@
     * `views::Textfield::DropDraggedText()`: moves the text to where it's
     * dropped, or copies it there if the copy modifier is held, as a single
     * undoable edit, and puts the caret after the dropped text rather than
@@ -4068,7 +4723,7 @@ index b48d7f8..3f0387b 100644
        return;
      }
      const caretPosition = document.caretPositionFromPoint(
-@@ -1175,8 +1322,7 @@
+@@ -1175,8 +1326,7 @@
      const {start, end} = drag.selection;
      const draggedText = drag.text.substring(start, end);
      let position = caretPosition.offset;
@@ -4078,7 +4733,7 @@ index b48d7f8..3f0387b 100644
      const isCopy = isMac ? e.altKey : e.ctrlKey;
      if (!isCopy) {
        // Account for the removal of the dragged text before the drop position.
-@@ -1222,6 +1368,57 @@
+@@ -1222,6 +1372,57 @@
      }
    }
  
@@ -4136,7 +4791,7 @@ index b48d7f8..3f0387b 100644
    override async onInputWrapperKeydown(e: KeyboardEvent) {
      // Some keys below are handled without calling
      // `super.onInputWrapperKeydown()`, so update the state every key press
-@@ -1490,6 +1687,20 @@
+@@ -1490,6 +1691,20 @@
    }
  
    /**
@@ -4157,7 +4812,7 @@ index b48d7f8..3f0387b 100644
     * Unelides the URL, keeping the caret (or selection) on the same characters
     * by shifting it past the prefix (e.g. "https://www.") that was elided. Does
     * nothing if all the text is selected. Compare
-@@ -1688,9 +1899,16 @@
+@@ -1688,9 +1903,16 @@
      this.$.input.urlEmphasis = text === state.text ? state.urlEmphasis : null;
      this.hasUserInput_ = state.userInputInProgress && !!text.trim();
      this.currentSequenceNum_ = state.sequenceNumber;
@@ -4174,7 +4829,7 @@ index b48d7f8..3f0387b 100644
      this.textInputType_ = state.prefersUrlInput ? 'url' : 'search';
      this.isComposing_ = false;
      const keywordChanged =
-@@ -1735,6 +1953,7 @@
+@@ -1735,6 +1957,7 @@
      } else {
        this.deferredFocusAction_ = null;
        this.$.input.blur();
@@ -4182,7 +4837,7 @@ index b48d7f8..3f0387b 100644
      }
      if (state.showFullUrl) {
        this.maybeShowFullUrl_();
-@@ -1908,6 +2127,7 @@
+@@ -1908,6 +2131,7 @@
      // `focusout`, so reset its focus state, or a reshown popup would show the
      // placeholder.
      this.aimButtonFocused_ = false;
@@ -4190,7 +4845,7 @@ index b48d7f8..3f0387b 100644
      this.clearAutocompleteMatches();
      await this.updateComplete;
    }
-@@ -1944,6 +2164,7 @@
+@@ -1944,6 +2168,7 @@
      // here is necessary in order to guarantee that the AIM button is hidden
      // when the user defocuses the Omnibox.
      this.aimButtonVisible_ = false;
@@ -4198,7 +4853,7 @@ index b48d7f8..3f0387b 100644
    }
  
    /**
-@@ -2071,6 +2292,7 @@
+@@ -2071,6 +2296,7 @@
  
    protected onInputFocusin_() {
      this.searchboxPageHandler_.onFocusChanged(true);
@@ -4206,7 +4861,7 @@ index b48d7f8..3f0387b 100644
    }
  
    protected onComposeButtonFocusin_() {
-@@ -2082,7 +2304,48 @@
+@@ -2082,7 +2308,48 @@
    }
  
    protected computeInputPlaceholderText_(): string {
@@ -4256,7 +4911,7 @@ index b48d7f8..3f0387b 100644
    }
  
    private computeDsePlaceholderText_(
-@@ -2347,6 +2610,8 @@
+@@ -2347,6 +2614,8 @@
      } else if (this.hasReceivedInitialInputState_) {
        this.onSearchboxInputTextUpdated(e);
      }
@@ -4265,7 +4920,7 @@ index b48d7f8..3f0387b 100644
    }
  
    override onInputWrapperFocusout(e: FocusEvent) {
-@@ -2468,7 +2733,7 @@
+@@ -2468,7 +2737,7 @@
    /**
     * Returns true if any popup element or match row is currently selected,
     * bridging the legacy DOM focus model and the Virtual Focus model (gated by
@@ -4274,7 +4929,7 @@ index b48d7f8..3f0387b 100644
     * deprecated and removed along with `selectedMatchIndex`, this can be
     * simplified to just `!selectionsEqual(this.selection, kDefaultSelection)`.
     */
-@@ -2504,9 +2769,9 @@
+@@ -2504,9 +2773,9 @@
        // On an open page where no suggestion match is highlighted, submit the
        // verbatim input text (or reload the permanent URL).
        e.preventDefault();
@@ -5689,7 +6344,7 @@ index fe68c72..ee8c0418 100644
        !ChallengeMatchesNavigation(
            navigation_handle->GetAuthChallengeInfo().value(),
 diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/BUILD.gn b/chrome/browser/ui/omnibox/omnibox_everywhere/BUILD.gn
-index 2254a16..65728bb 100644
+index 2254a16..14368d1 100644
 --- a/chrome/browser/ui/omnibox/omnibox_everywhere/BUILD.gn
 +++ b/chrome/browser/ui/omnibox/omnibox_everywhere/BUILD.gn
 @@ -49,6 +49,7 @@
@@ -5731,7 +6386,15 @@ index 2254a16..65728bb 100644
      "//chrome/browser/media/webrtc",
      "//chrome/browser/new_tab_page/prefs",
      "//chrome/browser/profiles:profile_manager",
-@@ -125,6 +131,7 @@
+@@ -116,6 +122,7 @@
+     "//chrome/browser/ui/webui:webui_util",
+     "//chrome/browser/ui/webui/omnibox_everywhere",
+     "//chrome/browser/ui/webui/omnibox_popup",
++    "//chrome/browser/ui/webui/omnibox_popup:dogfood_feedback",
+     "//chrome/browser/user_education",
+     "//components/input",
+     "//components/keep_alive_registry",
+@@ -125,6 +132,7 @@
      "//components/search_engines",
      "//components/url_formatter",
      "//components/vector_icons",
@@ -5739,7 +6402,7 @@ index 2254a16..65728bb 100644
      "//ui/base",
      "//ui/base/accelerators/global_accelerator_listener",
      "//ui/base/clipboard",
-@@ -138,7 +145,11 @@
+@@ -138,7 +146,11 @@
      "//ui/strings:ui_strings",
      "//ui/views",
      "//ui/views/controls/webview",
@@ -5751,7 +6414,7 @@ index 2254a16..65728bb 100644
    if (use_aura) {
      sources += [
        "omnibox_everywhere_event_handler_aura.cc",
-@@ -174,6 +185,7 @@
+@@ -174,6 +186,7 @@
        "omnibox_everywhere_region_select_overlay_unittest.cc",
        "omnibox_everywhere_ui_manager_unittest.cc",
        "omnibox_everywhere_widget_delegate_unittest.cc",
@@ -5759,7 +6422,7 @@ index 2254a16..65728bb 100644
      ]
      if (use_aura) {
        sources += [ "omnibox_everywhere_event_handler_aura_unittest.cc" ]
-@@ -213,6 +225,7 @@
+@@ -213,6 +226,7 @@
        "//content/test:test_support",
        "//skia",
        "//testing/gtest",
@@ -5767,6 +6430,27 @@ index 2254a16..65728bb 100644
        "//ui/base/emoji",
        "//ui/base/mojom:ui_base_types",
        "//ui/color",
+@@ -251,14 +265,20 @@
+       "//chrome/browser/ui:browser_window_header",
+       "//chrome/browser/ui:chrome_pages",
+       "//chrome/browser/ui/browser_window",
++      "//chrome/browser/ui/profiles",
++      "//chrome/browser/ui/startup",
+       "//chrome/browser/ui/webui/cr_components/searchbox",
+       "//chrome/browser/ui/webui/omnibox_everywhere",
+       "//chrome/test:test_support",
+       "//chrome/test:test_support_ui",
+       "//components/keyed_service/core",
++      "//components/policy:generated",
++      "//components/policy/core/browser",
++      "//components/policy/core/common:test_support",
+       "//content/test:test_support",
+       "//media",
+       "//services/network/public/cpp",
++      "//testing/gmock",
+       "//testing/gtest",
+       "//ui/base:ozone_buildflags",
+       "//ui/views",
 diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/mac_window_util.h b/chrome/browser/ui/omnibox/omnibox_everywhere/mac_window_util.h
 index 0536943e9..463579b 100644
 --- a/chrome/browser/ui/omnibox/omnibox_everywhere/mac_window_util.h
@@ -5861,6 +6545,122 @@ index a17e68a..f477825 100644
    };
  
    class Delegate {
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_controller.cc b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_controller.cc
+index 5c65c60..c1d7e15 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_controller.cc
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_controller.cc
+@@ -81,9 +81,8 @@
+   if (g_browser_process && g_browser_process->local_state()) {
+     enabled_pref_member_.Init(
+         prefs::kOmniboxEverywhereEnabled, g_browser_process->local_state(),
+-        base::BindRepeating(
+-            &OmniboxEverywhereController::UpdateHotkeyRegistration,
+-            base::Unretained(this)));
++        base::BindRepeating(&OmniboxEverywhereController::OnEnabledPrefChanged,
++                            base::Unretained(this)));
+     hotkey_pref_member_.Init(
+         prefs::kHotkeyEnabled, g_browser_process->local_state(),
+         base::BindRepeating(
+@@ -94,6 +93,7 @@
+         base::BindRepeating(
+             &OmniboxEverywhereController::UpdateHotkeyRegistration,
+             base::Unretained(this)));
++    ClearUserDisabledBackgroundPrefsIfEnforced();
+   }
+   UpdateHotkeyRegistration();
+ 
+@@ -253,6 +253,10 @@
+ bool OmniboxEverywhereController::InvokeForStartup(InvocationSource source,
+                                                    Profile* fallback_profile,
+                                                    gfx::NativeWindow context) {
++  if (!IsEnabled()) {
++    return false;
++  }
++
+   if (auto* target_profile = GetTargetProfile()) {
+     OnInvoke(source, target_profile, context);
+     return true;
+@@ -305,6 +309,33 @@
+   return !enabled_pref_member_.prefs() || enabled_pref_member_.GetValue();
+ }
+ 
++void OmniboxEverywhereController::OnEnabledPrefChanged() {
++  UpdateHotkeyRegistration();
++  if (!IsEnabled()) {
++    // `Close()` cancels open dialogs and hides the widget. `Shutdown()` then
++    // destroys the widget and WebContents, so a screen picker that is still
++    // open cannot reopen the widget when it closes. The next invocation after
++    // re-enabling creates a new widget.
++    Close();
++    ui_manager_->Shutdown();
++  }
++  ClearUserDisabledBackgroundPrefsIfEnforced();
++}
++
++void OmniboxEverywhereController::ClearUserDisabledBackgroundPrefsIfEnforced() {
++  if (!enabled_pref_member_.IsManaged() || !IsEnabled()) {
++    return;
++  }
++
++  PrefService* local_state = g_browser_process->local_state();
++  for (const char* pref_name : {prefs::kOmniboxEverywhereBackgroundMode,
++                                prefs::kOmniboxEverywhereLaunchOnStartup}) {
++    if (!local_state->GetBoolean(pref_name)) {
++      local_state->ClearPref(pref_name);
++    }
++  }
++}
++
+ bool OmniboxEverywhereController::IsHotkeyEnabled() const {
+   return !hotkey_pref_member_.prefs() || hotkey_pref_member_.GetValue();
+ }
+diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_controller.h b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_controller.h
+index ff803af2..8007059 100644
+--- a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_controller.h
++++ b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_controller.h
+@@ -72,8 +72,8 @@
+   // Launches Omnibox Everywhere triggered during startup.
+   // Loads profile asynchronously if not yet loaded in memory and holds a
+   // ScopedKeepAlive during initialization.
+-  // Returns true if launch was initiated/handled, false if no eligible profile
+-  // exists.
++  // Returns true if launch was initiated/handled, false if Omnibox Everywhere
++  // is disabled or no eligible profile exists.
+   bool InvokeForStartup(InvocationSource source,
+                         Profile* fallback_profile,
+                         gfx::NativeWindow context = gfx::NativeWindow());
+@@ -98,6 +98,12 @@
+   // Returns true if the Omnibox Everywhere widget is visible.
+   bool IsVisible() const;
+ 
++  // Returns true if the `prefs::kOmniboxEverywhereEnabled` Local State pref
++  // (controlled by the user setting or the SearchFromDesktopEnabled policy)
++  // is on. Unlike `omnibox::IsOmniboxEverywhereEnabled()`, this does not check
++  // whether a specific profile is eligible.
++  bool IsEnabled() const;
++
+   // Shows Chrome's native Profile Picker to switch profiles for Omnibox
+   // Everywhere.
+   void ShowProfilePicker();
+@@ -161,8 +167,16 @@
+   // Persists or clears the target profile path in Local State preferences.
+   void PersistTargetProfilePath(const base::FilePath& path);
+ 
+-  // Returns true if the Omnibox Everywhere master pref is enabled.
+-  bool IsEnabled() const;
++  // Handles changes to `prefs::kOmniboxEverywhereEnabled`. Updates the hotkey
++  // registration, tears down the UI when disabled, and calls
++  // `ClearUserDisabledBackgroundPrefsIfEnforced()`.
++  void OnEnabledPrefChanged();
++
++  // When policy enforces `prefs::kOmniboxEverywhereEnabled` on, clears
++  // user-set `false` values of the background mode and launch on startup
++  // prefs. Turning the setting off in chrome://settings writes those values,
++  // and `OnInvoke()` only turns the prefs on while they hold their defaults.
++  void ClearUserDisabledBackgroundPrefsIfEnforced();
+ 
+   // Returns true if the Omnibox Everywhere global hotkey pref is enabled.
+   bool IsHotkeyEnabled() const;
 diff --git a/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_feedback.cc b/chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_feedback.cc
 new file mode 100644
 index 0000000..38a6dae0
@@ -6716,6 +7516,74 @@ index 5a91b70..05f82cc 100644
  
    gfx::Image account_icon = primary_account_info.GetAvatarImage().value_or(
        ui::ResourceBundle::GetSharedInstance().GetImageNamed(
+diff --git a/chrome/browser/ui/startup/startup_browser_creator.cc b/chrome/browser/ui/startup/startup_browser_creator.cc
+index fa99573..3d036df0 100644
+--- a/chrome/browser/ui/startup/startup_browser_creator.cc
++++ b/chrome/browser/ui/startup/startup_browser_creator.cc
+@@ -214,6 +214,26 @@
+ #endif
+ }
+ 
++#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
++// Returns the `OmniboxEverywhereController` that should handle startup, or null
++// if `command_line` lacks --omnibox-everywhere or Omnibox Everywhere is
++// unavailable or disabled (e.g. by the SearchFromDesktopEnabled policy). When
++// null, startup ignores the switch, so existing Omnibox Everywhere shortcuts
++// open a browser window instead of exiting with no UI.
++omnibox_everywhere::OmniboxEverywhereController*
++GetOmniboxEverywhereControllerForStartup(
++    const base::CommandLine& command_line) {
++  if (!command_line.HasSwitch(switches::kOmniboxEverywhere) ||
++      !base::FeatureList::IsEnabled(omnibox::kOmniboxEverywhere) ||
++      !g_browser_process || !g_browser_process->GetFeatures()) {
++    return nullptr;
++  }
++  omnibox_everywhere::OmniboxEverywhereController* controller =
++      g_browser_process->GetFeatures()->omnibox_everywhere_controller();
++  return controller && controller->IsEnabled() ? controller : nullptr;
++}
++#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
++
+ #if !BUILDFLAG(IS_CHROMEOS)
+ StartupProfileMode GetStartupProfileMode(
+     ProfileManager* profile_manager,
+@@ -247,11 +267,13 @@
+     return StartupProfileMode::kBrowserWindow;
+   }
+ 
++#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+   // Don't show the picker if Omnibox Everywhere is explicitly requested to
+   // open. `OmniboxEverywhereController` will decide which profile to load.
+-  if (command_line.HasSwitch(switches::kOmniboxEverywhere)) {
++  if (GetOmniboxEverywhereControllerForStartup(command_line)) {
+     return StartupProfileMode::kBrowserWindow;
+   }
++#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+ 
+ #if BUILDFLAG(IS_WIN)
+   // Don't show the picker if trying to uninstall an app. This URL param should
+@@ -1369,16 +1391,11 @@
+ #endif  // BUILDFLAG(IS_WIN)
+ 
+ #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+-  const bool is_omnibox_everywhere_enabled =
+-      command_line.HasSwitch(switches::kOmniboxEverywhere) &&
+-      base::FeatureList::IsEnabled(omnibox::kOmniboxEverywhere) &&
+-      g_browser_process && g_browser_process->GetFeatures() &&
+-      g_browser_process->GetFeatures()->omnibox_everywhere_controller();
+-  if (is_omnibox_everywhere_enabled) {
+-    return g_browser_process->GetFeatures()
+-        ->omnibox_everywhere_controller()
+-        ->InvokeForStartup(omnibox_everywhere::InvocationSource::kCommandLine,
+-                           /*fallback_profile=*/privacy_safe_profile);
++  if (auto* omnibox_everywhere_controller =
++          GetOmniboxEverywhereControllerForStartup(command_line)) {
++    return omnibox_everywhere_controller->InvokeForStartup(
++        omnibox_everywhere::InvocationSource::kCommandLine,
++        /*fallback_profile=*/privacy_safe_profile);
+   }
+ #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+ 
 diff --git a/chrome/browser/ui/ui_features.cc b/chrome/browser/ui/ui_features.cc
 index bf3fdc2ec..3956b9f4 100644
 --- a/chrome/browser/ui/ui_features.cc
@@ -7613,7 +8481,7 @@ index bfe0957d..f7671856 100644
  }  // namespace omnibox
  
 diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
-index d0d62a56..068babd 100644
+index d0d62a56..307435c 100644
 --- a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
 +++ b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.cc
 @@ -59,10 +59,31 @@
@@ -7696,8 +8564,156 @@ index d0d62a56..068babd 100644
    if (event.type() != ui::EventType::kMousePressed &&
        event.type() != ui::EventType::kTouchPressed) {
      return;
+@@ -1273,15 +1319,6 @@
+       OmniboxPopupPresenterBase::GetWebUIContent());
+ }
+ 
+-bool OmniboxPopupFullPresenter::IsBrowserOrPopupActive() {
+-  views::Widget* browser_widget = GetBrowserWidget();
+-  if (!browser_widget) {
+-    return false;
+-  }
+-  return browser_widget->IsActive() ||
+-         (GetWidget() && GetWidget()->IsActive());
+-}
+-
+ bool OmniboxPopupFullPresenter::CanTakeFocus() {
+   if (IsBrowserOrPopupActive()) {
+     return true;
+@@ -1298,11 +1335,6 @@
+ #endif  // BUILDFLAG(IS_MAC)
+ }
+ 
+-views::Widget* OmniboxPopupFullPresenter::GetBrowserWidget() {
+-  views::Widget* widget = delegate().GetLocationBarWidget();
+-  return widget ? widget->GetTopLevelWidget() : nullptr;
+-}
+-
+ views::FocusManager* OmniboxPopupFullPresenter::GetBrowserFocusManager() {
+   views::Widget* browser_widget = GetBrowserWidget();
+   return browser_widget ? browser_widget->GetFocusManager() : nullptr;
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h
+index f38fc90f..eb0d6654 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_full_presenter.h
+@@ -269,17 +269,6 @@
+   // otherwise the full URL if `show_full_url`, or the permanent display text.
+   std::u16string GetOmniboxText(bool show_full_url);
+ 
+-  // Returns the browser window's widget. In macOS immersive fullscreen this is
+-  // not the location bar's widget, which is then a non-activatable overlay.
+-  views::Widget* GetBrowserWidget();
+-
+-  // Returns whether the browser widget or this popup's widget is active. This
+-  // is true while the omnibox is focused, since the popup then holds
+-  // activation, and false once another window, such as a bubble anchored to
+-  // the browser window, takes activation. Returns false if there is no browser
+-  // widget.
+-  bool IsBrowserOrPopupActive();
+-
+   // Returns whether a focus request may activate the popup. This is
+   // `IsBrowserOrPopupActive()`, plus, on Mac, a child widget such as a bubble
+   // anchored to the browser window holding activation.
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_host.h b/chrome/browser/ui/views/omnibox/omnibox_popup_host.h
+index 52817aca..3de5283 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_host.h
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_host.h
+@@ -31,6 +31,8 @@
+   virtual void RequestFocus() = 0;
+   // Returns whether the WebUI is shown.
+   virtual bool IsShown() const = 0;
++  // Returns whether the browser window or its popup widget is active.
++  virtual bool IsBrowserOrPopupActive() = 0;
+   // Returns the WebUI content view. May return null before the content is
+   // created.
+   virtual OmniboxPopupWebUIBaseContent* GetWebUIContent() = 0;
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_location_bar_host.cc b/chrome/browser/ui/views/omnibox/omnibox_popup_location_bar_host.cc
+index bcefdb2e..23d001e 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_location_bar_host.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_location_bar_host.cc
+@@ -108,6 +108,12 @@
+   return content_ && content_->GetVisible();
+ }
+ 
++bool OmniboxPopupLocationBarHost::IsBrowserOrPopupActive() {
++  views::Widget* widget = location_bar_view_->GetWidget();
++  views::Widget* top_level = widget ? widget->GetTopLevelWidget() : nullptr;
++  return top_level && top_level->IsActive();
++}
++
+ OmniboxPopupWebUIBaseContent* OmniboxPopupLocationBarHost::GetWebUIContent() {
+   return content_;
+ }
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_location_bar_host.h b/chrome/browser/ui/views/omnibox/omnibox_popup_location_bar_host.h
+index e4fc403..99213f4 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_location_bar_host.h
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_location_bar_host.h
+@@ -49,6 +49,7 @@
+   void Hide() override;
+   void RequestFocus() override;
+   bool IsShown() const override;
++  bool IsBrowserOrPopupActive() override;
+   OmniboxPopupWebUIBaseContent* GetWebUIContent() override;
+   void OnOmniboxFocused() override {}
+   void SetPermissionPromptShowing(bool showing) override;
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.cc b/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.cc
+index 72f5c24..329c460 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.cc
+@@ -45,6 +45,7 @@
+ #include "ui/views/view_class_properties.h"
+ #include "ui/views/view_utils.h"
+ #include "ui/views/widget/native_widget.h"
++#include "ui/views/widget/widget.h"
+ 
+ #if BUILDFLAG(IS_MAC)
+ #include "chrome/browser/ui/views/omnibox/omnibox_popup_native_widget_mac.h"
+@@ -987,6 +988,19 @@
+   return std::nullopt;
+ }
+ 
++views::Widget* OmniboxPopupPresenterBase::GetBrowserWidget() {
++  views::Widget* widget = delegate().GetLocationBarWidget();
++  return widget ? widget->GetTopLevelWidget() : nullptr;
++}
++
++bool OmniboxPopupPresenterBase::IsBrowserOrPopupActive() {
++  views::Widget* browser_widget = GetBrowserWidget();
++  if (!browser_widget) {
++    return false;
++  }
++  return browser_widget->IsActive() || (GetWidget() && GetWidget()->IsActive());
++}
++
+ void OmniboxPopupPresenterBase::SetPermissionPromptShowing(bool showing) {
+   is_prompt_showing_ = showing;
+ }
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h b/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h
+index 040f6d4..e422c80a 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h
+@@ -122,6 +122,8 @@
+   // Tells whether the popup widget exists.
+   bool IsShown() const override;
+ 
++  bool IsBrowserOrPopupActive() override;
++
+   // Request focus on the popup widget and its web contents.
+   void RequestFocus() override;
+ 
+@@ -374,6 +376,10 @@
+ 
+   OmniboxController* controller() const { return controller_.get(); }
+ 
++  // Returns the browser window's widget. In macOS immersive fullscreen this is
++  // not the location bar's widget, which is then a non-activatable overlay.
++  views::Widget* GetBrowserWidget();
++
+   // permissions::PermissionRequestManager::Observer:
+   void OnPromptAdded() override;
+   void OnPromptRemoved() override;
 diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc b/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc
-index 5ce9ce83..91f13f3 100644
+index 5ce9ce83..e9a55882 100644
 --- a/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc
 +++ b/chrome/browser/ui/views/omnibox/omnibox_popup_view_full_webui.cc
 @@ -98,12 +98,15 @@
@@ -7950,7 +8966,52 @@ index 5ce9ce83..91f13f3 100644
    }
  
    // Keep `focused_` in sync with the tab's target focus state. When switching
-@@ -451,7 +475,8 @@
+@@ -410,6 +434,20 @@
+   // Any state recorded for a modal dialog belongs to the previous tab.
+   popup_host()->OnTabChanged();
+ 
++  const bool was_browser_or_popup_active =
++      popup_host()->IsBrowserOrPopupActive();
++  auto restore_tab_focus_if_active = [&]() {
++    // Focusing a view in an inactive window activates it, which would pull this
++    // window in front of the one the user switched to. `BrowserView` restores
++    // this tab's focus when the window is next activated.
++    if (contents && was_browser_or_popup_active) {
++      if (auto* focus_helper =
++              ChromeWebContentsViewFocusHelper::FromWebContents(contents)) {
++        focus_helper->RestoreFocus();
++      }
++    }
++  };
++
+   // Request focus before pushing content state so our `SetInputState` IPC
+   // overrides any OS-default focus selection (such as macOS Select-All).
+   if (target_popup_state == OmniboxPopupState::kFull) {
+@@ -427,19 +465,13 @@
+         }
+       }
+       popup_host()->RequestFocus();
+-    } else if (contents) {
+-      if (auto* focus_helper =
+-              ChromeWebContentsViewFocusHelper::FromWebContents(contents)) {
+-        focus_helper->RestoreFocus();
+-      }
++    } else {
++      restore_tab_focus_if_active();
+     }
+   } else {
+     popup_host()->Hide();
+-    if (!should_focus_popup && contents) {
+-      if (auto* focus_helper =
+-              ChromeWebContentsViewFocusHelper::FromWebContents(contents)) {
+-        focus_helper->RestoreFocus();
+-      }
++    if (!should_focus_popup) {
++      restore_tab_focus_if_active();
+     }
+   }
+ 
+@@ -451,7 +483,8 @@
          controller()->edit_model()->GetPermanentDisplayText();
      std::u16string text =
          non_empty_user_input_in_progress ? user_text : permanent_display_text;
@@ -7960,7 +9021,7 @@ index 5ce9ce83..91f13f3 100644
      const std::u16string full_url =
          controller()->client()->GetFormattedFullURL();
      gfx::Range selection =
-@@ -506,10 +531,19 @@
+@@ -506,10 +539,19 @@
          ->CancelPendingContextMenuRequest();
    }
    focused_ = true;
@@ -7981,7 +9042,7 @@ index 5ce9ce83..91f13f3 100644
      last_sent_text_.reset();
      last_sent_focus_.reset();
    }
-@@ -548,7 +582,7 @@
+@@ -548,7 +590,7 @@
    // keyboard events route to the WebUI input field.
    popup_host()->RequestFocus();
  
@@ -7990,7 +9051,7 @@ index 5ce9ce83..91f13f3 100644
      SyncNativeStateToWebUIImpl(
          query_zps ? omnibox_popup::mojom::MatchesUpdate::kQueryZps
                    : omnibox_popup::mojom::MatchesUpdate::kDefault,
-@@ -573,10 +607,26 @@
+@@ -573,10 +615,26 @@
  }
  
  void OmniboxPopupViewFullWebUI::OnBlur() {
@@ -8020,7 +9081,7 @@ index 5ce9ce83..91f13f3 100644
  }
  
  bool OmniboxPopupViewFullWebUI::RequestWebUIContextMenu(
-@@ -642,13 +692,19 @@
+@@ -642,13 +700,19 @@
  
  void OmniboxPopupViewFullWebUI::DidFinishNavigation(
      content::NavigationHandle* navigation_handle) {
@@ -9699,6 +10760,55 @@ index 814b1f0e..f93ef64 100644
    }
    context_upload_origin_was_searchbox_ = false;
  }
+diff --git a/chrome/browser/ui/webui/omnibox_popup/BUILD.gn b/chrome/browser/ui/webui/omnibox_popup/BUILD.gn
+index 33256ed..2b7f622b 100644
+--- a/chrome/browser/ui/webui/omnibox_popup/BUILD.gn
++++ b/chrome/browser/ui/webui/omnibox_popup/BUILD.gn
+@@ -3,10 +3,20 @@
+ # found in the LICENSE file.
+ 
+ if (!is_android) {
++  source_set("dogfood_feedback") {
++    sources = [ "omnibox_dogfood_feedback.cc" ]
++    public = [ "omnibox_dogfood_feedback.h" ]
++    public_deps = [ "//chrome/browser/feedback:feedback_enum" ]
++    deps = [
++      "//base",
++      "//chrome/browser/feedback",
++      "//chrome/browser/profiles:profile",
++    ]
++  }
++
+   source_set("omnibox_popup") {
+     sources = [
+       "full_webui_omnibox_layout_helper.cc",
+-      "omnibox_dogfood_feedback.cc",
+       "omnibox_popup_aim_handler.cc",
+       "omnibox_popup_handler.cc",
+       "omnibox_popup_ui.cc",
+@@ -14,13 +24,13 @@
+     ]
+     public = [
+       "full_webui_omnibox_layout_helper.h",
+-      "omnibox_dogfood_feedback.h",
+       "omnibox_popup_aim_handler.h",
+       "omnibox_popup_handler.h",
+       "omnibox_popup_ui.h",
+       "omnibox_popup_web_contents_helper.h",
+     ]
+     deps = [
++      ":dogfood_feedback",
+       "//base",
+       "//chrome/browser/autocomplete:aim_eligibility_service",
+       "//chrome/browser/contextual_search",
+@@ -85,6 +95,7 @@
+       "omnibox_popup_ui_unittest.cc",
+     ]
+     deps = [
++      ":dogfood_feedback",
+       ":omnibox_popup",
+       "//base/test:test_support",
+       "//chrome/browser/contextual_search",
 diff --git a/chrome/browser/ui/webui/omnibox_popup/mojom/BUILD.gn b/chrome/browser/ui/webui/omnibox_popup/mojom/BUILD.gn
 index 42f3936c..bd21c352 100644
 --- a/chrome/browser/ui/webui/omnibox_popup/mojom/BUILD.gn
@@ -9748,6 +10858,113 @@ index ef49f62..f3daf7a3 100644
  };
  
  // The WebUI page for the Omnibox Popup.
+diff --git a/chrome/browser/ui/webui/omnibox_popup/omnibox_dogfood_feedback.cc b/chrome/browser/ui/webui/omnibox_popup/omnibox_dogfood_feedback.cc
+index 906b06b..167bd60d 100644
+--- a/chrome/browser/ui/webui/omnibox_popup/omnibox_dogfood_feedback.cc
++++ b/chrome/browser/ui/webui/omnibox_popup/omnibox_dogfood_feedback.cc
+@@ -13,14 +13,16 @@
+ #include "base/strings/string_util.h"
+ #include "chrome/browser/feedback/public/feedback_source.h"
+ #include "chrome/browser/feedback/show_feedback_page.h"
++#include "chrome/browser/profiles/profile.h"
+ 
+ namespace omnibox_dogfood_feedback {
+ 
+ namespace {
+ 
+ // Dogfood only, so not translated.
+-constexpr char kDescriptionTemplate[] =
+-    "go/omnibox-dogfood\n\n"
++constexpr char kOmniboxDescriptionHeader[] = "go/omnibox-dogfood";
++constexpr char kDescriptionTemplateBody[] =
++    "\n\n"
+     "DESCRIPTION of issue:\n\n"
+     "REPRO STEPS:\n\n"
+     "EXPECTED RESULTS:\n\n"
+@@ -71,10 +73,23 @@
+ }  // namespace
+ 
+ void ShowFeedbackForm(BrowserWindowInterface* browser) {
+-  chrome::ShowFeedbackPage(browser, feedback::kFeedbackSourceOmnibox,
+-                           kDescriptionTemplate,
+-                           /*description_placeholder_text=*/"", kCategoryTag,
+-                           internal::GetDiagnostics());
++  chrome::ShowFeedbackPage(
++      browser, feedback::kFeedbackSourceOmnibox,
++      base::StrCat({kOmniboxDescriptionHeader, kDescriptionTemplateBody}),
++      /*description_placeholder_text=*/"", kCategoryTag,
++      internal::GetDiagnostics());
++}
++
++void ShowFeedbackForm(Profile* profile,
++                      const GURL& page_url,
++                      std::string_view description_header,
++                      feedback::FeedbackSource source,
++                      const std::string& category_tag) {
++  chrome::ShowFeedbackPage(
++      page_url, profile ? profile->GetOriginalProfile() : nullptr, source,
++      base::StrCat({description_header, kDescriptionTemplateBody}),
++      /*description_placeholder_text=*/"", category_tag,
++      internal::GetDiagnostics());
+ }
+ 
+ namespace internal {
+@@ -82,7 +97,8 @@
+ bool IsRelevantFeature(std::string_view name) {
+   const std::string lower_name = base::ToLowerASCII(name);
+   return lower_name.find("omnibox") != std::string::npos ||
+-         lower_name.find("webui") != std::string::npos;
++         lower_name.find("webui") != std::string::npos ||
++         lower_name.find("contextual") != std::string::npos;
+ }
+ 
+ std::string GetDiagnostics() {
+@@ -90,7 +106,7 @@
+   std::string disable_overrides;
+   base::FeatureList::GetInstance()->GetFeatureOverrides(&enable_overrides,
+                                                         &disable_overrides);
+-  std::string out = "Omnibox dogfood feedback diagnostics:\n";
++  std::string out = "Dogfood feedback diagnostics:\n";
+   AppendRelevantOverrides("enabled", enable_overrides, out);
+   AppendRelevantOverrides("disabled", disable_overrides, out);
+   return out;
+diff --git a/chrome/browser/ui/webui/omnibox_popup/omnibox_dogfood_feedback.h b/chrome/browser/ui/webui/omnibox_popup/omnibox_dogfood_feedback.h
+index 6e818130..29c3b12 100644
+--- a/chrome/browser/ui/webui/omnibox_popup/omnibox_dogfood_feedback.h
++++ b/chrome/browser/ui/webui/omnibox_popup/omnibox_dogfood_feedback.h
+@@ -8,7 +8,11 @@
+ #include <string>
+ #include <string_view>
+ 
++#include "chrome/browser/feedback/public/feedback_source.h"
++
+ class BrowserWindowInterface;
++class GURL;
++class Profile;
+ 
+ namespace omnibox_dogfood_feedback {
+ 
+@@ -16,9 +20,19 @@
+ // in the Full WebUI omnibox.
+ void ShowFeedbackForm(BrowserWindowInterface* browser);
+ 
++// Opens the same form as above, for dogfood feedback buttons on other
++// surfaces, with `page_url`, `description_header` (placed at the top of the
++// description template), `source`, and `category_tag`.
++void ShowFeedbackForm(Profile* profile,
++                      const GURL& page_url,
++                      std::string_view description_header,
++                      feedback::FeedbackSource source,
++                      const std::string& category_tag);
++
+ namespace internal {
+ 
+-// Returns whether `name` contains "omnibox" or "webui", ignoring case.
++// Returns whether `name` contains "omnibox", "webui", or "contextual",
++// ignoring case.
+ bool IsRelevantFeature(std::string_view name);
+ 
+ // Returns every relevant feature whose state was overridden (by Finch,
 diff --git a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc b/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc
 index 6a93027..1cba814 100644
 --- a/chrome/browser/ui/webui/omnibox_popup/omnibox_popup_handler.cc
@@ -10214,6 +11431,42 @@ index 655d191..2e6ac35 100644
    // Tooltip text to display on hover.
    mojo_base.mojom.String16 tooltip;
  
+diff --git a/components/contextual_tasks/public/features.cc b/components/contextual_tasks/public/features.cc
+index 5747045..5ff3ac4 100644
+--- a/components/contextual_tasks/public/features.cc
++++ b/components/contextual_tasks/public/features.cc
+@@ -1317,6 +1317,15 @@
+   return base::FeatureList::IsEnabled(kContextualTasksSingleTabMenuItem);
+ }
+ 
++// If enabled, the Contextual Tasks side panel toolbar and the tab picker show a
++// button that opens a form to file dogfood feedback.
++const base::FeatureParam<bool> kContextualTasksDogfoodFeedback{
++    &kContextualTasks, "ContextualTasks_DogfoodFeedback", false};
++
++bool IsContextualTasksDogfoodFeedbackEnabled() {
++  return kContextualTasksDogfoodFeedback.Get();
++}
++
+ bool IsContextualTasksFormFactorSupported() {
+ #if BUILDFLAG(IS_ANDROID)
+   // Supported on desktop Android only; not supported on phones and tablets.
+diff --git a/components/contextual_tasks/public/features.h b/components/contextual_tasks/public/features.h
+index 3b811ed..c129aa67 100644
+--- a/components/contextual_tasks/public/features.h
++++ b/components/contextual_tasks/public/features.h
+@@ -747,6 +747,11 @@
+ extern bool IsContextualTasksUnboundedMenuEnabled();
+ extern bool IsContextualTasksSingleTabMenuItemEnabled();
+ 
++// Returns whether the Contextual Tasks side panel toolbar and the tab picker
++// show a button that opens a form to file dogfood feedback. Controlled by the
++// `ContextualTasks_DogfoodFeedback` param of `kContextualTasks`.
++extern bool IsContextualTasksDogfoodFeedbackEnabled();
++
+ inline constexpr char kContextualTasksSearchCapabilitiesHeaderName[] =
+     "Chrome-Search-Capabilities-Version";
+ // The default version for the `Chrome-Search-Capabilities-Version` HTTP header.
 diff --git a/components/enterprise/data_controls/content/browser/BUILD.gn b/components/enterprise/data_controls/content/browser/BUILD.gn
 index 1f053de3..86723a6 100644
 --- a/components/enterprise/data_controls/content/browser/BUILD.gn
@@ -10316,6 +11569,55 @@ index a9d50fd..74419c7 100644
    int computed_height() const { return height_; }
    int target_height() const { return target_height_; }
  
+diff --git a/components/omnibox/browser/BUILD.gn b/components/omnibox/browser/BUILD.gn
+index e47e169..b5ed1478 100644
+--- a/components/omnibox/browser/BUILD.gn
++++ b/components/omnibox/browser/BUILD.gn
+@@ -454,6 +454,7 @@
+     "//third_party/re2",
+     "//ui/base",
+     "//ui/gfx",
++    "//ui/webui:buildflags",
+   ]
+ 
+   if (is_android) {
+@@ -472,6 +473,11 @@
+     ]
+   } else {
+     deps += [ "//components/keep_alive_registry" ]
++  }
++
++  # The suggest inventory fallback serves the NTP action chips, which only
++  # exist in the WebUI NTP.
++  if (enable_webui_ntp) {
+     sources += [
+       "suggest_inventory_fallback_prompts.h",
+       "suggest_inventory_fallback_utils.cc",
+@@ -1031,10 +1037,11 @@
+     "//testing/gtest",
+     "//ui/base:test_support",
+     "//ui/gfx:test_support",
++    "//ui/webui:buildflags",
+     "//url",
+   ]
+ 
+-  if (!is_android) {
++  if (enable_webui_ntp) {
+     sources += [ "suggest_inventory_fallback_utils_unittest.cc" ]
+   }
+ 
+diff --git a/components/omnibox/browser/DEPS b/components/omnibox/browser/DEPS
+index ea97660..af975692 100644
+--- a/components/omnibox/browser/DEPS
++++ b/components/omnibox/browser/DEPS
+@@ -81,6 +81,7 @@
+   "+ui/base",
+   "+ui/base/mojom",
+   "+ui/gfx",
++  "+ui/webui/buildflags.h",
+   "+url",
+ ]
+ 
 diff --git a/components/omnibox/browser/omnibox_text_util.cc b/components/omnibox/browser/omnibox_text_util.cc
 index c2856a1..8203a5a6 100644
 --- a/components/omnibox/browser/omnibox_text_util.cc
@@ -10394,6 +11696,45 @@ index c65f1c28..e8cc1c44 100644
  // Adjusts the copied text before writing it to the clipboard. If the copied
  // text is a URL with the scheme elided, this method reattaches the scheme.
  //
+diff --git a/components/omnibox/browser/zero_suggest_provider.cc b/components/omnibox/browser/zero_suggest_provider.cc
+index f141220b..2f2270104 100644
+--- a/components/omnibox/browser/zero_suggest_provider.cc
++++ b/components/omnibox/browser/zero_suggest_provider.cc
+@@ -35,9 +35,6 @@
+ #include "components/omnibox/browser/page_classification_functions.h"
+ #include "components/omnibox/browser/remote_suggestions_service.h"
+ #include "components/omnibox/browser/search_suggestion_parser.h"
+-#if !BUILDFLAG(IS_ANDROID)
+-#include "components/omnibox/browser/suggest_inventory_fallback_utils.h"
+-#endif
+ #include "components/omnibox/browser/suggestion_group_util.h"
+ #include "components/omnibox/browser/zero_suggest_cache_service.h"
+ #include "components/omnibox/common/omnibox_feature_configs.h"
+@@ -53,10 +50,15 @@
+ #include "third_party/metrics_proto/omnibox_event.pb.h"
+ #include "third_party/metrics_proto/omnibox_focus_type.pb.h"
+ #include "third_party/metrics_proto/omnibox_input_type.pb.h"
++#include "ui/webui/buildflags.h"
+ #include "url/gurl.h"
+ #include "url/url_canon.h"
+ #include "url/url_util.h"
+ 
++#if BUILDFLAG(ENABLE_WEBUI_NTP)
++#include "components/omnibox/browser/suggest_inventory_fallback_utils.h"
++#endif
++
+ using OEP = metrics::OmniboxEventProto;
+ using OFT = metrics::OmniboxFocusType;
+ using OIT = metrics::OmniboxInputType;
+@@ -915,7 +917,7 @@
+ void ZeroSuggestProvider::MaybePopulateFallbackMatches(
+     const AutocompleteInput& input) {
+   matches_.clear();
+-#if !BUILDFLAG(IS_ANDROID)
++#if BUILDFLAG(ENABLE_WEBUI_NTP)
+   matches_ = omnibox::MaybeCreateFallbackMatchesForSuggestInventory(
+       this, client(), input,
+       /*num_suggestions=*/omnibox::kDefaultFallbackNumSuggestions);
 diff --git a/components/payments/core/features.cc b/components/payments/core/features.cc
 index 1545507..f936d2ed 100644
 --- a/components/payments/core/features.cc
@@ -10422,6 +11763,65 @@ index 79972239..dee06352 100644
  }  // namespace features
  }  // namespace payments
  
+diff --git a/components/policy/resources/templates/policies.yaml b/components/policy/resources/templates/policies.yaml
+index b9e84925..66bc60a 100644
+--- a/components/policy/resources/templates/policies.yaml
++++ b/components/policy/resources/templates/policies.yaml
+@@ -1495,6 +1495,9 @@
+   1494: ManagedClientCertificateForBrowserConfig
+   1495: ManagedClientCertificateForUserConfig
+   1496: GeminiEnterpriseUrl
++  1497: ""
++  1498: ""
++  1499: SearchFromDesktopEnabled
+ 
+ atomic_groups:
+   1: Homepage
+diff --git a/components/policy/resources/templates/policy_definitions/Miscellaneous/SearchFromDesktopEnabled.yaml b/components/policy/resources/templates/policy_definitions/Miscellaneous/SearchFromDesktopEnabled.yaml
+new file mode 100644
+index 0000000..cf0e3abc
+--- /dev/null
++++ b/components/policy/resources/templates/policy_definitions/Miscellaneous/SearchFromDesktopEnabled.yaml
+@@ -0,0 +1,39 @@
++caption: Enable Search from desktop
++default: null
++desc: |-
++  Controls whether the Search from desktop feature is available in <ph name="PRODUCT_NAME">$1<ex>Google Chrome</ex></ph> on <ph name="MS_WIN_NAME">Microsoft® Windows®</ph> and <ph name="MAC_OS_NAME">macOS</ph>.
++
++  <ph name="PRODUCT_NAME">$1<ex>Google Chrome</ex></ph> provides a "Search from desktop" setting that allows users to open a floating desktop search box from anywhere on their computer using a global keyboard shortcut, the system tray or menu bar icon, or, on <ph name="MS_WIN_NAME">Microsoft® Windows®</ph>, Start Menu and taskbar shortcuts.
++
++  Setting the policy to Enabled turns on Search from desktop and prevents users from turning it off in <ph name="PRODUCT_NAME">$1<ex>Google Chrome</ex></ph> settings. Users can still customize their local keyboard shortcut. After Search from desktop is first used, <ph name="PRODUCT_NAME">$1<ex>Google Chrome</ex></ph> keeps running in the background so the keyboard shortcut works when no browser window is open, and on <ph name="MS_WIN_NAME">Microsoft® Windows®</ph> it also starts when the user signs in.
++
++  Setting the policy to Disabled turns off Search from desktop, closes any open desktop search window, unregisters the global keyboard shortcut, removes the system tray or menu bar icon, and prevents users from turning the feature on in <ph name="PRODUCT_NAME">$1<ex>Google Chrome</ex></ph> settings. Search from desktop then no longer keeps <ph name="PRODUCT_NAME">$1<ex>Google Chrome</ex></ph> running in the background or, on <ph name="MS_WIN_NAME">Microsoft® Windows®</ph>, starts it when the user signs in. On <ph name="MS_WIN_NAME">Microsoft® Windows®</ph>, existing Search from desktop shortcuts in the Start Menu or taskbar are not removed, but they open <ph name="PRODUCT_NAME">$1<ex>Google Chrome</ex></ph> as a normal launch would, in a browser window or the profile picker.
++
++  Not setting the policy turns on Search from desktop, and users can turn it off in <ph name="PRODUCT_NAME">$1<ex>Google Chrome</ex></ph> settings.
++
++  When Search from desktop is enabled, <ph name="GOOGLE_AI_MODE_PRODUCT_NAME">Google AI Mode</ph> availability and screen or file content sharing within the desktop search box continue to respect <ph name="AI_MODE_SETTINGS_POLICY_NAME">AIModeSettings</ph> and <ph name="SEARCH_CONTENT_SHARING_SETTINGS_POLICY_NAME">SearchContentSharingSettings</ph>.
++
++  This policy has no effect on versions of <ph name="PRODUCT_NAME">$1<ex>Google Chrome</ex></ph> where the "Search from desktop" setting is not available, or for profiles where it is unavailable, such as when Google is not the default search engine.
++example_value: false
++features:
++  can_be_recommended: true
++  dynamic_refresh: true
++  per_profile: false
++future_on:
++- chrome.win
++- chrome.mac
++items:
++- caption: Enable Search from desktop
++  value: true
++- caption: Disable Search from desktop
++  value: false
++- caption: Allow the user to decide
++  value: null
++owners:
++- file://chrome/browser/ui/omnibox/omnibox_everywhere/OWNERS
++- adamyao@google.com
++- julietlevesque@google.com
++schema:
++  type: boolean
++tags: []
++type: main
 diff --git a/components/remote_cocoa/app_shim/features.cc b/components/remote_cocoa/app_shim/features.cc
 index bf86d8d..14fe1cf5 100644
 --- a/components/remote_cocoa/app_shim/features.cc
@@ -10534,6 +11934,27 @@ index 5fb2602..0b3c6099 100644
  // Parameter determining the debounce duration before preloading the expanded
  // Threads Rail iframe on hover or focus, in milliseconds.
  extern const base::FeatureParam<int> kNtpThreadsRailPreloadDebounceMsParam;
+diff --git a/components/search_engines/template_url.cc b/components/search_engines/template_url.cc
+index f3251b13..62997218 100644
+--- a/components/search_engines/template_url.cc
++++ b/components/search_engines/template_url.cc
+@@ -1977,6 +1977,16 @@
+             !search_terms_args.current_page_url.empty()) {
+           return "chrome-omni";
+         } else {
++#if BUILDFLAG(IS_ANDROID)
++          // On Android the composebox uses the mobile client by default (see
++          // `kComposeboxClientOverride`). The WebUI NTP composebox uses the
++          // Desktop client instead, so that the server applies the same
++          // suggest configuration as on Desktop.
++          if (search_terms_args.page_classification ==
++              metrics::OmniboxEventProto::NTP_COMPOSEBOX) {
++            return "chrome-compose";
++          }
++#endif  // BUILDFLAG(IS_ANDROID)
+           return omnibox::kComposeboxClientOverride.Get();
+         }
+       } else {
 diff --git a/components/search_provider_logos/google_logo_api.cc b/components/search_provider_logos/google_logo_api.cc
 index 3efb9a2..e0090f2 100644
 --- a/components/search_provider_logos/google_logo_api.cc
@@ -11750,6 +13171,238 @@ index 309c6e99..c6eb699 100644
  
    // This may happen if a user doesn't have a SODA installation.
    if (!soda_dir.empty()) {
+diff --git a/extensions/browser/api/declarative/declarative_api.cc b/extensions/browser/api/declarative/declarative_api.cc
+index 1fe2c39..6e19aed7 100644
+--- a/extensions/browser/api/declarative/declarative_api.cc
++++ b/extensions/browser/api/declarative/declarative_api.cc
+@@ -14,22 +14,24 @@
+ #include "base/functional/bind.h"
+ #include "base/functional/callback_helpers.h"
+ #include "base/metrics/histogram_functions.h"
+-#include "base/strings/string_util.h"
+ #include "base/task/single_thread_task_runner.h"
+ #include "base/values.h"
++#include "components/guest_view/buildflags/buildflags.h"
+ #include "content/public/browser/browser_task_traits.h"
+ #include "content/public/browser/browser_thread.h"
+ #include "content/public/browser/web_contents.h"
+ #include "extensions/browser/api/declarative/rules_registry_service.h"
++#include "extensions/browser/api/declarative_webrequest/webrequest_constants.h"
+ #include "extensions/browser/api/extensions_api_client.h"
+ #include "extensions/browser/extension_system.h"
+ #include "extensions/browser/rules_registry_ids.h"
++#include "extensions/common/api/declarative/declarative_constants.h"
+ #include "extensions/common/api/events.h"
+ #include "extensions/common/extension_api.h"
++#include "extensions/common/mojom/context_type.mojom.h"
+ #include "extensions/common/permissions/permissions_data.h"
+ 
+ #if BUILDFLAG(ENABLE_GUEST_VIEW)
+-#include "extensions/browser/guest_view/web_view/web_view_constants.h"
+ #include "extensions/browser/guest_view/web_view/web_view_guest.h"
+ #endif
+ 
+@@ -43,14 +45,10 @@
+ 
+ namespace {
+ 
+-#if BUILDFLAG(ENABLE_GUEST_VIEW)
+-constexpr char kDeclarativeEventPrefix[] = "declarative";
+-#endif
+-
+-constexpr char kDeclarativeContentEventPrefix[] = "declarativeContent.";
+-constexpr char kDeclarativeWebRequestEventPrefix[] = "declarativeWebRequest.";
+-constexpr char kDeclarativeWebRequestWebViewEventPrefix[] =
+-    "webViewInternal.declarativeWebRequest.";
++constexpr char kDeclarativeWebRequestWebViewOnRequestEvent[] =
++    "webViewInternal.declarativeWebRequest.onRequest";
++constexpr char kRulesRegistryNotAvailableError[] =
++    "Internal error: rules registry is not available.";
+ 
+ // The type of Declarative API. To collect more granular metrics, a distinction
+ // is made when the declarative web request API is used from a webview.
+@@ -79,15 +77,15 @@
+ };
+ 
+ DeclarativeAPIType GetDeclarativeAPIType(const std::string& event_name) {
+-  if (base::StartsWith(event_name, kDeclarativeContentEventPrefix,
+-                       base::CompareCase::SENSITIVE))
++  if (event_name == declarative_content_constants::kOnPageChanged) {
+     return DeclarativeAPIType::kContent;
+-  if (base::StartsWith(event_name, kDeclarativeWebRequestEventPrefix,
+-                       base::CompareCase::SENSITIVE))
++  }
++  if (event_name == declarative_webrequest_constants::kOnRequest) {
+     return DeclarativeAPIType::kWebRequest;
+-  if (base::StartsWith(event_name, kDeclarativeWebRequestWebViewEventPrefix,
+-                       base::CompareCase::SENSITIVE))
++  }
++  if (event_name == kDeclarativeWebRequestWebViewOnRequestEvent) {
+     return DeclarativeAPIType::kWebRequestWebview;
++  }
+   return DeclarativeAPIType::kUnknown;
+ }
+ 
+@@ -142,52 +140,97 @@
+ RulesFunction::~RulesFunction() = default;
+ 
+ ExtensionFunction::ResponseAction RulesFunction::Run() {
+-  EXTENSION_FUNCTION_VALIDATE(CreateParams());
+-  EXTENSION_FUNCTION_VALIDATE(args().size() >= 2);
+-  const auto& event_name_value = args()[0];
+-  const auto& web_view_instance_id_value = args()[1];
+-  EXTENSION_FUNCTION_VALIDATE(event_name_value.is_string());
+-  EXTENSION_FUNCTION_VALIDATE(web_view_instance_id_value.is_int());
+-  std::string event_name = event_name_value.GetString();
+-  int web_view_instance_id = web_view_instance_id_value.GetInt();
+-
+-  EXTENSION_FUNCTION_VALIDATE(extension_);
+-
+-  // <webview> embedders use the declarativeWebRequest API via
+-  // <webview>.onRequest.
+-  if (web_view_instance_id && !extension_->permissions_data()->HasAPIPermission(
+-                                  mojom::APIPermissionID::kWebView)) {
+-    return RespondNow(Error("Missing webview permission"));
++  // Declarative rule functions are restricted to privileged extension contexts.
++  if (!extension_ ||
++      source_context_type() != mojom::ContextType::kPrivilegedExtension) {
++    return RespondNow(BadMessage());
+   }
+ 
+-  RecordUMA(event_name);
++  // Validate IPC arguments against the generated schema (which also guarantees
++  // `args()[0]` is a string `eventName` and `args()[1]` is an int
++  // `webViewInstanceId`).
++  if (!CreateParams()) {
++    return RespondNow(BadMessage());
++  }
++  const std::string event_name = args()[0].GetString();
++  const int web_view_instance_id = args()[1].GetInt();
++  // `0` indicates a regular extension event; `> 0` is a `<webview>` instance
++  // ID.
++  if (web_view_instance_id < 0) {
++    return RespondNow(BadMessage());
++  }
++
++  // Only allow the three declarative events that actually support rules.
++  const DeclarativeAPIType api_type = GetDeclarativeAPIType(event_name);
++  if (api_type == DeclarativeAPIType::kUnknown) {
++    return RespondNow(BadMessage());
++  }
++
++  // `<webview>` instance IDs must be paired exclusively with the `<webview>`
++  // declarativeWebRequest event.
++  const bool from_web_view = web_view_instance_id > 0;
++  if (from_web_view != (api_type == DeclarativeAPIType::kWebRequestWebview)) {
++    return RespondNow(BadMessage());
++  }
++
++  // <webview> embedders use the declarativeWebRequest API via
++  // <webview>.request.onRequest from an embedder frame (never a service
++  // worker). Unlike `declarativeContent` and `declarativeWebRequest`,
++  // `kWebView` sets `kFlagCannotBeOptional` and `<webview>` bindings are never
++  // instantiated without it, so an uncompromised renderer cannot send
++  // `web_view_instance_id > 0` without `kWebView`.
++  if (from_web_view) {
++#if BUILDFLAG(ENABLE_GUEST_VIEW)
++    if (is_from_service_worker() || render_frame_host() == nullptr ||
++        !extension_->permissions_data()->HasAPIPermission(
++            mojom::APIPermissionID::kWebView)) {
++      return RespondNow(BadMessage());
++    }
++#else
++    return RespondNow(BadMessage());
++#endif
++  }
++
++  // Verify the target declarative API (`declarativeContent`,
++  // `declarativeWebRequest`, or `webViewInternal`) is available to this
++  // extension and context. Return `Error` rather than `BadMessage` because
++  // `declarativeContent` and `declarativeWebRequest` can be optional
++  // permissions and `DeclarativeEvent` wrappers do not re-check access on call.
++  Feature::Availability availability =
++      ExtensionAPI::GetSharedInstance()->IsAvailable(
++          event_name, extension_.get(), source_context_type(), source_url(),
++          CheckAliasStatus::ALLOWED, context_id(), *GetContextData());
++  if (!availability.is_available()) {
++    return RespondNow(Error(availability.message()));
++  }
+ 
+   // If we are not operating on a particular <webview>, then the key is 0.
+   int rules_registry_id = rules_registry_ids::kDefaultRulesRegistryID;
++  std::string registry_event_name = event_name;
+ 
+ #if BUILDFLAG(ENABLE_GUEST_VIEW)
+-  bool from_web_view = web_view_instance_id != 0;
+   if (from_web_view) {
+-    // Sample event names:
+-    // webViewInternal.declarativeWebRequest.onRequest.
+-    // webViewInternal.declarativeWebRequest.onMessage.
+-    // The "webViewInternal." prefix is removed from the event name.
+-    std::size_t found = event_name.find(kDeclarativeEventPrefix);
+-    EXTENSION_FUNCTION_VALIDATE(found != std::string::npos);
+-    event_name = event_name.substr(found);
+-
++    registry_event_name = declarative_webrequest_constants::kOnRequest;
+     rules_registry_id = WebViewGuest::GetOrGenerateRulesRegistryID(
+         source_process_id(), web_view_instance_id);
+   }
+ #endif
+ 
+-  // The following call will return a NULL pointer for apps_shell, but should
+-  // never be called there anyways.
+-  rules_registry_ = RulesRegistryService::Get(browser_context())->
+-      GetRulesRegistry(rules_registry_id, event_name);
+-  // Raw access to this function is not available to extensions, therefore
+-  // there should never be a request for a nonexisting rules registry.
+-  EXTENSION_FUNCTION_VALIDATE(rules_registry_.get());
++  RulesRegistryService* rules_registry_service =
++      RulesRegistryService::Get(browser_context());
++  rules_registry_ = rules_registry_service
++                        ? rules_registry_service->GetRulesRegistry(
++                              rules_registry_id, registry_event_name)
++                        : nullptr;
++  // `rules_registry_` is only null on an invalid `source_process_id()`, during
++  // `RulesRegistryService` shutdown, or in embedders without a
++  // `ContentRulesRegistry`. None of these indicate a misbehaving renderer, so
++  // return a normal error rather than `BadMessage()`.
++  if (!rules_registry_) {
++    return RespondNow(Error(kRulesRegistryNotAvailableError));
++  }
++
++  RecordUMA(event_name);
+ 
+   return RespondNow(RunInternal());
+ }
+diff --git a/extensions/browser/api/declarative/rules_registry_service.cc b/extensions/browser/api/declarative/rules_registry_service.cc
+index 43516b5c..0098697 100644
+--- a/extensions/browser/api/declarative/rules_registry_service.cc
++++ b/extensions/browser/api/declarative/rules_registry_service.cc
+@@ -118,7 +118,9 @@
+   }
+ 
+   // Only web request rules registries are created for webviews.
+-  DCHECK_EQ(declarative_webrequest_constants::kOnRequest, event_name);
++  if (event_name != declarative_webrequest_constants::kOnRequest) {
++    return nullptr;
++  }
+ 
+   scoped_refptr<RulesRegistry> registry = RegisterWebRequestRulesRegistry(
+       rules_registry_id, RulesCacheDelegate::Type::kEphemeral);
+diff --git a/extensions/common/api/_api_features.json b/extensions/common/api/_api_features.json
+index 95403ad..61b5cbc 100644
+--- a/extensions/common/api/_api_features.json
++++ b/extensions/common/api/_api_features.json
+@@ -215,8 +215,7 @@
+     "internal": true,
+     "channel": "stable",
+     "extension_types": ["platform_app", "extension"],
+-    "contexts": "all",
+-    "matches": ["<all_urls>"]
++    "contexts": ["privileged_extension"]
+   },
+   "feedbackPrivate": [
+     {
 diff --git a/gpu/command_buffer/service/copy_shared_image_helper.cc b/gpu/command_buffer/service/copy_shared_image_helper.cc
 index 3bca0e7..8d4b526 100644
 --- a/gpu/command_buffer/service/copy_shared_image_helper.cc
@@ -12788,11 +14441,132 @@ index de597e0..db0bfaf 100644
  
      // This widget instance will get deleted when the window is
      // destroyed.
+diff --git a/ui/webui/resources/cr_components/composebox/composebox_match.css b/ui/webui/resources/cr_components/composebox/composebox_match.css
+index f660a39..37c820ec 100644
+--- a/ui/webui/resources/cr_components/composebox/composebox_match.css
++++ b/ui/webui/resources/cr_components/composebox/composebox_match.css
+@@ -119,11 +119,34 @@
+   -webkit-mask-position: center;
+   -webkit-mask-repeat: no-repeat;
+   -webkit-mask-size: cover;
++  anchor-name: --match-icon;
+   background-color: var(--color-composebox-input-icon);
+   height: var(--cr-composebox-match-icon-size, 20px);
+   width: var(--cr-composebox-match-icon-size, 20px);
+ }
+ 
++/* A badge in the top-right corner of the icon. It is anchored to the icon
++   because embedders change the padding and width of the icon container. */
++:host([base-layout='text']) #badge {
++  inset-inline-end: anchor(end);
++  position: absolute;
++  position-anchor: --match-icon;
++  top: anchor(top);
++}
++
++/* The dot uses the URL color so that it follows dark mode and themes. */
++:host([base-layout='text']) #badge.dot {
++  -webkit-mask-image: url(chrome://resources/cr_components/searchbox/icons/dot.svg);
++  -webkit-mask-size: contain;
++  background-color: var(--color-searchbox-results-url);
++  height: 4px;
++  width: 4px;
++}
++
++:host([base-layout='text']:is(:focus-visible, [selected])) #badge.dot {
++  background-color: var(--color-searchbox-results-url-selected);
++}
++
+ :host([base-layout='text']) #textContainer {
+   align-content: center;
+   color: var(--color-composebox-font-light);
+@@ -167,6 +190,57 @@
+   display: inline-flex;
+ }
+ 
++/* The action icon has the same size (the cr-icon-button default), end margin
++   and offset as the remove button, so on hover the X shows up exactly where
++   the icon was. */
++:host([base-layout='text']) #actionIcon {
++  flex-shrink: 0;
++  height: 32px;
++  margin-inline-end: var(--cr-composebox-dropdown-match-margin-end, 4px);
++  position: relative;
++  top: var(--cr-composebox-match-remove-button-top, 6px);
++  width: 32px;
++}
++
++/* The 8x8 dot uses the URL color so that it follows dark mode and themes. */
++:host([base-layout='text']) #actionIcon.blue-dot {
++  -webkit-mask-image: url(chrome://resources/cr_components/searchbox/icons/dot.svg);
++  -webkit-mask-position: center;
++  -webkit-mask-repeat: no-repeat;
++  -webkit-mask-size: 8px;
++  background-color: var(--color-searchbox-results-url);
++}
++
++:host([base-layout='text']:is(:focus-visible, [selected]))
++    #actionIcon.blue-dot {
++  background-color: var(--color-searchbox-results-url-selected);
++}
++
++/* The remove button takes precedence on hover and selection. */
++:host([base-layout='text']) .container:hover
++    #remove:not([hidden]) ~ #actionIcon,
++:host([base-layout='text']:is(:focus-within, [selected]))
++    #remove:not([hidden]) ~ #actionIcon {
++  display: none;
++}
++
++@media (forced-colors: active) {
++  /* Kept after the dot rules above so that it overrides their colors. */
++  :host([base-layout='text']) #badge.dot,
++  :host([base-layout='text']) #actionIcon.blue-dot {
++    background-color: ButtonText;
++    forced-color-adjust: none;
++  }
++
++  :host([base-layout='text']) .container:hover #badge.dot,
++  :host([base-layout='text']) .container:hover #actionIcon.blue-dot,
++  :host([base-layout='text']:is(:focus-visible, [selected])) #badge.dot,
++  :host([base-layout='text']:is(:focus-visible, [selected]))
++      #actionIcon.blue-dot {
++    background-color: HighlightText;
++  }
++}
++
+ /* ==========================================================================
+  * Suggestions whose secondary text is placed below the primary text
+  * (SuggestTemplateInfo.BELOW_PRIMARY_TEXT).
+diff --git a/ui/webui/resources/cr_components/composebox/composebox_match.html.ts b/ui/webui/resources/cr_components/composebox/composebox_match.html.ts
+index 8ac8095d..9605e8d 100644
+--- a/ui/webui/resources/cr_components/composebox/composebox_match.html.ts
++++ b/ui/webui/resources/cr_components/composebox/composebox_match.html.ts
+@@ -18,6 +18,9 @@
+         style="-webkit-mask-image: url(${
+             resolveSchemeRelativeUrl(this.iconPath_())});">
+     </div>
++    ${this.getBadgeClass_() ? html`
++      <div id="badge" class="${this.getBadgeClass_()}"></div>
++    ` : ''}
+   </div>
+   <div id="textContainer" part="match-text-container">
+     <span id="primaryText" part="match-primary-text">${
+@@ -37,6 +40,9 @@
+     ?hidden="${!this.match.supportsDeletion}"
+     tabindex="2">
+   </cr-icon-button>
++  ${this.getActionIconClass_() ? html`
++    <div id="actionIcon" class="${this.getActionIconClass_()}"></div>
++  ` : ''}
+ </div>
+   <!--_html_template_end_-->`;
+   // clang-format on
 diff --git a/ui/webui/resources/cr_components/composebox/composebox_match.ts b/ui/webui/resources/cr_components/composebox/composebox_match.ts
-index 0414c98..15da279 100644
+index 0414c98..47b643e 100644
 --- a/ui/webui/resources/cr_components/composebox/composebox_match.ts
 +++ b/ui/webui/resources/cr_components/composebox/composebox_match.ts
-@@ -4,6 +4,7 @@
+@@ -4,18 +4,19 @@
  
  import '//resources/cr_elements/cr_icon_button/cr_icon_button.js';
  
@@ -12800,7 +14574,12 @@ index 0414c98..15da279 100644
  import {getUrlForCss, resolveSchemeRelativeUrl} from '//resources/js/icon.js';
  import {loadTimeData} from '//resources/js/load_time_data.js';
  import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
-@@ -15,7 +16,7 @@
+ import type {PropertyValues} from '//resources/lit/v3_0/lit.rollup.js';
+ import type {AutocompleteMatch, PageHandlerRemote as SearchboxPageHandlerRemote} from '//resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
+-import {SecondaryTextPlacement, SuggestStyle} from '//resources/mojo/components/omnibox/browser/suggest_template_info.mojom-webui.js';
++import {ActionIconType, BadgeType, SecondaryTextPlacement, SuggestStyle} from '//resources/mojo/components/omnibox/browser/suggest_template_info.mojom-webui.js';
+ import {ToolMode} from '//resources/mojo/components/omnibox/composebox/composebox_query.mojom-webui.js';
+ 
  import {computeImageUrl} from './common.js';
  import {getCss} from './composebox_match.css.js';
  import {getHtml} from './composebox_match.html.js';
@@ -12809,6 +14588,35 @@ index 0414c98..15da279 100644
  
  export interface ComposeboxMatchElement {
    $: {
+@@ -187,6 +188,28 @@
+     return this.match.iconPath || '';
+   }
+ 
++  // Returns the class that styles the badge on the type icon, or an empty
++  // string if there is no badge to show.
++  protected getBadgeClass_(): string {
++    switch (this.match.suggestTemplate.typeIconBadge) {
++      case BadgeType.kDot:
++        return 'dot';
++      default:
++        return '';
++    }
++  }
++
++  // Returns the class that styles the action icon on the right side of the
++  // match, or an empty string if there is none or desktop has no design for it.
++  protected getActionIconClass_(): string {
++    switch (this.match.suggestTemplate.actionIcon) {
++      case ActionIconType.kBlueDot:
++        return 'blue-dot';
++      default:
++        return '';
++    }
++  }
++
+   protected imageStyle_(): string {
+     if (!this.isRichImage || this.loading) {
+       return '';
 diff --git a/ui/webui/resources/cr_components/composebox/composebox_proxy.ts b/ui/webui/resources/cr_components/composebox/composebox_proxy.ts
 index d21bb5f..a3ab41c777 100644
 --- a/ui/webui/resources/cr_components/composebox/composebox_proxy.ts
@@ -13011,6 +14819,146 @@ index 3afabca..9080f3aa 100644
      "constants.ts",
      "drag_drop_handler.ts",
      "drag_drop_host.ts",
+diff --git a/ui/webui/resources/cr_components/search/audio_processor.service.ts b/ui/webui/resources/cr_components/search/audio_processor.service.ts
+index d109ed8..f5ca315 100644
+--- a/ui/webui/resources/cr_components/search/audio_processor.service.ts
++++ b/ui/webui/resources/cr_components/search/audio_processor.service.ts
+@@ -19,6 +19,7 @@
+   // conflicts with Android speech recognition.
+   private simulate: boolean = false;
+   private isListening: boolean = false;
++  private sessionId: number = 0;
+   private startTimeMs: number = 0;
+   private lastVolumeTimeMs: number = 0;
+   private decayingAmplitude: number = 0;
+@@ -34,6 +35,7 @@
+   // Returning a boolean lets the UI know if it actually worked
+   async startMonitoringLevels(): Promise<boolean> {
+     if (this.simulate) {
++      this.sessionId++;
+       this.isListening = true;
+       this.startTimeMs = performance.now();
+       this.lastVolumeTimeMs = this.startTimeMs;
+@@ -45,37 +47,49 @@
+       return true;
+     }
+ 
+-    // Do not create another audio stream if one already exists.
+-    if (this.audioContext) {
++    // Do not create another audio stream if one already exists or is starting.
++    if (this.audioContext || this.isListening) {
+       return false;
+     }
+ 
++    this.isListening = true;
++    const sessionId = ++this.sessionId;
++    let stream: MediaStream|null = null;
++    let audioContext: AudioContext|null = null;
+     try {
+-      this.mediaStream =
+-          await navigator.mediaDevices.getUserMedia({audio: true});
+-
+-      this.audioContext = new AudioContext({sampleRate: 16000});
+-
+-      if (this.audioContext.state === 'suspended') {
+-        await this.audioContext.resume();
++      stream = await navigator.mediaDevices.getUserMedia({audio: true});
++      // If `sessionId` no longer matches (or `isListening` was cleared),
++      // `stopListening()` was called while awaiting `getUserMedia()`.
++      if (sessionId !== this.sessionId || !this.isListening) {
++        stream.getTracks().forEach((track) => track.stop());
++        return false;
+       }
+ 
+-
++      audioContext = new AudioContext({sampleRate: 16000});
++      if (audioContext.state === 'suspended') {
++        await audioContext.resume();
++      }
++      // If `sessionId` no longer matches (or `isListening` was cleared),
++      // `stopListening()` was called while awaiting `audioContext.resume()`.
++      if (sessionId !== this.sessionId || !this.isListening) {
++        stream.getTracks().forEach((track) => track.stop());
++        await audioContext.close().catch(() => {});
++        return false;
++      }
+       // Used to derive numbers like volume and frequency from the audio stream.
+-      this.analyser = this.audioContext.createAnalyser();
++      const analyser = audioContext.createAnalyser();
+ 
+-      this.microphoneSource =
+-          this.audioContext.createMediaStreamSource(this.mediaStream);
++      const microphoneSource = audioContext.createMediaStreamSource(stream);
+ 
+       // Plug the mic straight into the analyser. Done.
+-      this.microphoneSource.connect(this.analyser);
++      microphoneSource.connect(analyser);
+ 
+       // Fast Fourier Transform - higher means more detail, but slower
+       // calculations.
+-      this.analyser.fftSize = 1024;
++      analyser.fftSize = 1024;
+ 
+       // Set the default smoothing to 0 to utilize the Chrome custom smoother.
+-      this.analyser.smoothingTimeConstant = 0;
++      analyser.smoothingTimeConstant = 0;
+ 
+       // frequencyBinCount is half of fftSize, so 512 in this case.
+       // Assuming a 16000Hz sample rate, the maximum measurable frequency
+@@ -87,14 +101,26 @@
+       //   ~1094Hz, used).
+       //   - Bucket (70, 512): high frequencies (>1094Hz; noise, clicks,
+       //   sibilance, clipped).
+-      const bucketSize = this.analyser.frequencyBinCount;
++      const bucketSize = analyser.frequencyBinCount;
++      this.mediaStream = stream;
++      this.audioContext = audioContext;
++      this.analyser = analyser;
++      this.microphoneSource = microphoneSource;
+       this.levels = new Float32Array(bucketSize);
+       return true;
+ 
+     } catch (err) {
+-      if (this.mediaStream) {
+-        this.mediaStream.getTracks().forEach(track => track.stop());
+-        this.mediaStream = null;
++      // Only stop listening if the error belongs to this session; do not clear
++      // `isListening` for a newer valid session.
++      if (sessionId === this.sessionId) {
++        this.isListening = false;
++      }
++      // Stop mic tracks before closing `audioContext` to avoid a delay.
++      if (stream) {
++        stream.getTracks().forEach((track) => track.stop());
++      }
++      if (audioContext) {
++        await audioContext.close().catch(() => {});
+       }
+       return false;
+     }
+@@ -192,6 +218,7 @@
+ 
+   // Cleanup.
+   async stopListening(): Promise<void> {
++    this.sessionId++;
+     this.isListening = false;
+     if (this.simulate) {
+       this.activeSimulatedBumps = [];
+@@ -206,10 +233,13 @@
+       this.mediaStream = null;
+     }
+     if (this.audioContext) {
+-      await this.audioContext.close();
++      const audioContext = this.audioContext;
++      this.microphoneSource?.disconnect();
+       this.audioContext = null;
+       this.analyser = null;
++      this.levels = null;
+       this.microphoneSource = null;
++      await audioContext.close().catch(() => {});
+     }
+   }
+ }
 diff --git a/ui/webui/resources/cr_components/search/autocomplete_match_utils.ts b/ui/webui/resources/cr_components/search/autocomplete_match_utils.ts
 new file mode 100644
 index 0000000..70c472c6
@@ -13289,10 +15237,59 @@ index 74e286e..c6f19f0 100644
  import {getCss} from './searchbox_match.css.js';
  import {getHtml} from './searchbox_match.html.js';
 diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts b/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts
-index ff16f6b..c446f976 100644
+index ff16f6b..edb322b 100644
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts
 +++ b/ui/webui/resources/cr_components/searchbox/searchbox_mixin.ts
-@@ -436,17 +436,29 @@
+@@ -114,9 +114,9 @@
+ 
+     set activeQueryId(queryId: number) {
+       this.activeQueryId_ = queryId;
+-      // An 'Enter' pressed before the active query's results arrived waits for
+-      // them. Starting a new query, or abandoning the active one should abort
+-      // the pending navigate.
++      // An 'Enter' or 'Tab' pressed before the active query's results arrived
++      // waits for them. Starting a new query, or abandoning the active one
++      // should abort it.
+       this.pendingKeydownEvent_ = null;
+     }
+ 
+@@ -186,6 +186,10 @@
+     // before they arrived. It's handled once they arrive. Only one key press
+     // waits at a time; later ones that would also wait are ignored.
+     private pendingKeydownEvent_: KeyboardEvent|null = null;
++    // Whether the latest query is for the suggestions shown on focus, rather
++    // than for typed input. 'Tab' doesn't wait for those results; see
++    // `shouldKeydownWaitForResults_()`.
++    private lastQueryWasOnFocus_: boolean = false;
+     // The line of the match the backend was last asked to delete, while
+     // waiting for the post-deletion result. Null if no match was selected at
+     // the time. See `shouldPreserveSelectionOnMatchDeletion()`.
+@@ -364,6 +368,7 @@
+         input: string, preventInlineAutocomplete: boolean, isOnFocus: boolean) {
+       this.activeQueryId = this.nextQueryId_++;
+       this.lastQueriedInput = input;
++      this.lastQueryWasOnFocus_ = isOnFocus;
+       // The results of a new query are not the ones left by a deletion.
+       this.pendingDeletionLine_ = null;
+       this.narrateNextResultSelection_ = false;
+@@ -402,6 +407,16 @@
+       return false;
+     }
+ 
++    /**
++     * Whether 'Tab' pressed in the input should wait for the sync results for
++     * the latest typed input before navigating. Waiting prevents the browser's
++     * default 'Tab' focus movement, so this is only enabled by embedders that
++     * handle all 'Tab' navigation in JS (see `OmniboxPopupSearchboxElement`).
++     */
++    shouldTabWaitForResults(): boolean {
++      return false;
++    }
++
+     isBackgroundTabNavigation(_e: KeyboardEvent|MouseEvent): boolean {
+       return false;
+     }
+@@ -436,17 +451,29 @@
        e.preventDefault();
      }
  
@@ -13325,7 +15322,46 @@ index ff16f6b..c446f976 100644
        if (match) {
          this.getInputElement().setInput({
            text: match.fillIntoEdit,
-@@ -680,6 +692,15 @@
+@@ -491,10 +518,18 @@
+       // post-deletion result.
+       const deletedLine = this.pendingDeletionLine_;
+       this.pendingDeletionLine_ = null;
+-      // Likewise, an 'Enter' pressed before this query's results arrived waits
+-      // for its first results only, so it can't navigate on a later update.
++      // Likewise, an 'Enter' or 'Tab' pressed before this query's results
++      // arrived waits for its first results only, so it can't act on a later
++      // update.
+       const pendingKeydownEvent = this.pendingKeydownEvent_;
+       this.pendingKeydownEvent_ = null;
++      // Freeze the results like `updateStateForKeydown()` would have if 'Tab'
++      // hadn't waited for them. Do this here, before any of the awaits below
++      // have a chance to introduce a delay during which unwanted results can
++      // sneak in.
++      if (pendingKeydownEvent?.key === 'Tab') {
++        this.activeQueryId = -1;
++      }
+ 
+       this.result = result;
+       const hasMatches = this.hasMatches();
+@@ -552,6 +587,17 @@
+         }
+       }
+ 
++      // Handle a 'Tab' that waited for these results, unless a newer result or
++      // query replaced them in the meantime.
++      if (pendingKeydownEvent?.key === 'Tab') {
++        await this.updateComplete;
++        // The user may have closed the popup or continued typing during the
++        // awaits above. Discard the pending tab press in that case.
++        if (this.result === result && this.activeQueryId === -1) {
++          await this.handleKeyNavigation(pendingKeydownEvent);
++        }
++      }
++
+       // The results replaced the ones a suggestion was deleted from, so tell
+       // the user what is selected now, as the native omnibox does. Typing and
+       // other result updates are not narrated; screen readers echo the input.
+@@ -680,6 +726,15 @@
          this.clearAutocompleteMatches();
        } else {
          this.dropdownIsVisible = false;
@@ -13341,7 +15377,37 @@ index ff16f6b..c446f976 100644
  
          // Stop autocomplete but leave (potentially stale) results and continue
          // listening for key presses. These stale results should never be shown.
-@@ -714,13 +735,15 @@
+@@ -699,28 +754,35 @@
+      */
+     updateStateForKeydown(e: KeyboardEvent) {
+       // On user interaction, freeze the current results to avoid result updates
+-      // potentially erasing user changes like cursor position. Freezing on
+-      // 'enter' would break the fast-enter navigations via
+-      // `pendingKeydownEvent_`. It'd cause the searchbox to discard the pending
+-      // results the navigation is waiting for, causing the navigation to never
+-      // occur. But this is a hack; comparing `e.key !== 'Enter'` is only a
+-      // semi-accurate heuristic for whether a navigation is about to occur.
+-      // Pressing a modifier key by itself (e.g. the 'Shift' of 'Shift+Enter')
+-      // doesn't change the input, so it doesn't freeze the results either;
+-      // otherwise, fast modified-Enter navigations would use stale results.
+-      if (e.key !== 'Enter' && !MODIFIER_KEYS.includes(e.key)) {
++      // potentially erasing user changes like cursor position. Exceptions:
++      // - Freezing on 'enter' would break the fast-enter navigations via
++      //   `pendingKeydownEvent_`. It'd cause the searchbox to discard the
++      //   pending results the navigation is waiting for, causing the navigation
++      //   to never occur. But this is a hack; comparing `e.key !== 'Enter'` is
++      //   only a semi-accurate heuristic for whether a navigation is about to
++      //   occur.
++      // - Pressing a modifier key by itself (e.g. the 'Shift' of 'Shift+Enter')
++      //   doesn't change the input, so it doesn't freeze the results either;
++      //   otherwise, fast modified-Enter navigations would use stale results.
++      // - A key press that waits for the sync results for the latest input
++      //   mustn't freeze them; otherwise the pending results it waits for would
++      //   be discarded and the key would wait indefinitely.
++      if (e.key !== 'Enter' && !MODIFIER_KEYS.includes(e.key) &&
++          !this.shouldKeydownWaitForResults_(e)) {
+         this.activeQueryId = -1;
+       }
        this.compositionCommitQueryId_ = null;
  
        // Pressing another key with Ctrl consumes it, so a following Enter
@@ -13359,7 +15425,23 @@ index ff16f6b..c446f976 100644
            if (this.controlKeyState === ControlKeyState.DOWN) {
              this.controlKeyState = ControlKeyState.DOWN_AND_CONSUMED;
            }
-@@ -1000,23 +1023,24 @@
+@@ -730,6 +792,15 @@
+ 
+     async onInputWrapperKeydown(e: KeyboardEvent) {
+       this.updateStateForKeydown(e);
++      // Key presses that need the sync results for the latest input wait for
++      // them; see `pendingKeydownEvent_`.
++      if (this.shouldKeydownWaitForResults_(e)) {
++        e.preventDefault();
++        if (!this.pendingKeydownEvent_) {
++          this.pendingKeydownEvent_ = e;
++        }
++        return;
++      }
+       const modifier =
+           isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+       if (modifier && e.key === 'z') {
+@@ -1000,23 +1071,24 @@
        // Ctrl+Enter only adds 'www.' and '.com' if Ctrl was pressed while the
        // searchbox had focus and wasn't used for another key. E.g. not if Ctrl
        // was held to focus the searchbox with Ctrl+L from the page, which the
@@ -13390,7 +15472,52 @@ index ff16f6b..c446f976 100644
        } else if (!resultsPending) {
          // If no new query's `results` are pending (though new async results for
          // the current query may be pending), navigate.
-@@ -1466,7 +1490,7 @@
+@@ -1044,6 +1116,44 @@
+           this.result?.queryId !== this.activeQueryId;
+     }
+ 
++    /**
++     * Whether `e` should wait for the sync results for the latest input; see
++     * `pendingKeydownEvent_`.
++     * - 'Tab' on typed input waits for results so it can select the first match
++     *   instead of immediately moving native DOM focus.
++     * - 'Enter' pressed while another key press is already waiting (e.g.
++     *   `ccs<tab><enter>` or `fast<enter><enter>`) is dropped to avoid acting
++     *   on stale results. (The initial fast 'Enter' is queued in
++     *   `handleEnterNavigation_()`).
++     */
++    private shouldKeydownWaitForResults_(e: KeyboardEvent): boolean {
++      // TODO(crbug.com/583059054): Route the initial fast 'Enter' through here
++      //   too, so 'Enter' and 'Tab' share one freeze exception (see
++      //   `updateStateForKeydown()`), one queue site (instead of also
++      //   `handleEnterNavigation_()`), and one replay branch in
++      //   `onAutocompleteResultChanged()`. It must still not wait when it
++      //   triggers a virtual focus action or a pure Ctrl+Enter.
++      if (!this.areResultsPending_() || e.isComposing) {
++        return false;
++      }
++      if (e.key === 'Tab') {
++        // Tab only waits for typed input. Don't wait for:
++        // - Modifier keys (Ctrl/Alt/Meta+Tab) which are browser/OS tab and
++        //   window switching shortcuts.
++        // - On-focus queries (zero-prefix suggestions), where Tab is intended
++        //   to navigate away from the omnibox into page/toolbar controls.
++        // - Tabs from nested controls (e.g. voice search), which
++        //   `handleKeyNavigation()` leaves to native focus navigation. Waiting
++        //   would prevent it, and the replayed event's empty `composedPath()`
++        //   would make `isVirtualFocusEventTarget_()` misreport it.
++        return this.shouldTabWaitForResults() && !e.ctrlKey && !e.altKey &&
++            !e.metaKey && !this.lastQueryWasOnFocus_ &&
++            this.isVirtualFocusEventTarget_(e);
++      }
++      return e.key === 'Enter' && !!this.pendingKeydownEvent_ &&
++          !(this.multiLineEnabled && e.shiftKey);
++    }
++
+     async handleKeyNavigation(e: KeyboardEvent) {
+       if (e.key === 'Backspace') {
+         const inputEl = this.getInputElement().inputElement;
+@@ -1466,7 +1576,7 @@
    onMatchFocusin(e: CustomEvent<number>): void;
    onKeywordClick(e: Event): void;
    openContextMenu(): void;
@@ -13399,6 +15526,14 @@ index ff16f6b..c446f976 100644
    onSearchboxInputTextUpdated(e: CustomEvent<{
      value: string,
      isComposing: boolean,
+@@ -1480,6 +1590,7 @@
+   getTabId(): number|null;
+   shouldAppendDotComOnCtrlEnter(): boolean;
+   shouldPreserveSelectionOnMatchDeletion(): boolean;
++  shouldTabWaitForResults(): boolean;
+   updateInputForSelection(nextSelection: OmniboxPopupSelection, key: string):
+       void;
+ }
 diff --git a/ui/webui/resources/js/browser_command/browser_command.mojom b/ui/webui/resources/js/browser_command/browser_command.mojom
 index e602615..97240fd9 100644
 --- a/ui/webui/resources/js/browser_command/browser_command.mojom
