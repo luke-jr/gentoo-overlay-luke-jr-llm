@@ -1,12 +1,12 @@
 Chromium 159.0.8154.45 + the later changes of its release branch, up to
-8d291f7e76c8fa07be8694eeeba02840c55c7433 (refs/branch-heads/8154@{#1850}), for the
+5b29bae8a63eb6429c8ecceb0f874d94b47c4a6a (refs/branch-heads/8154@{#1873}), for the
 159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
-8154@{#1850}.
+8154@{#1872}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..8d291f7e76c8 and the
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..5b29bae8a63e and the
 dependencies whose DEPS revision changed: ANGLE 4dd34493f8a2..2ec7b6db14f2 (under
-third_party/angle/), third_party/devtools-frontend/src 3d48567555b6..170b7991fbe9 (under
+third_party/angle/), third_party/devtools-frontend/src 3d48567555b6..c9c1d13c34cf (under
 third_party/devtools-frontend/src/), third_party/libvpx/source/libvpx
 fb0a26ad923b..6f89cfbcc99f (under third_party/libvpx/source/libvpx/), Skia
 b809e72312b0..220d4fc2d73c (under third_party/skia/), V8 90a5172104e6..0ff9fe7dd0e4 (under
@@ -142,6 +142,12 @@ Commits contributing to it (oldest first):
   fedc5ecf9aef [M159] [contextual_tasks] Add dogfood feedback button to the side panel toolbar (8154@{#1833})
   884c25aa42e1 [M159] [FSA] Track File System Access content setting prefs (8154@{#1849})
   8d291f7e76c8 [M159] [FSA] Treat user-sourced ALLOW on File System Access guards as ASK (8154@{#1850})
+  2cc3469ac481 [M159] [BreakoutBox] close frames that cannot be enqueued after stream teardown (8154@{#1852})
+  8484ffd04b1e [M159] FSA: exempt OS-initiated single-file handles from read blocklist check (8154@{#1853})
+  d76b82affda6 [M159] [BreakoutBox] pop frames only when a read can take them (8154@{#1858})
+  d445ac0b8e7a [M159] Revert CHECK_GE to DCHECK_GE in OnVideoStartsInVisibleTab (8154@{#1860})
+  a20ee56870f7 Roll commits from side projects in M159 (third_party/devtools-frontend/src 170b7991fbe9..c9c1d13c34cf, 8154@{#1868})
+  455d306592a8 [M159] [gin] Verify context match in PerContextData::From. (8154@{#1872})
 Dependency commits of those rolls that touch kept files:
   315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
   9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
@@ -153,6 +159,7 @@ Dependency commits of those rolls that touch kept files:
   9305b66da7b7 [M159] [GCA] Throw AidaBlockError for blocked GCA responses (third_party/devtools-frontend/src: front_end/core/host/AidaClient.test.ts, front_end/core/host/AidaClient.ts, front_end/core/host/AidaClientTypes.ts, front_end/core/host/AidaGcaTranslation.test.ts, front_end/core/host/AidaGcaTranslation.ts, front_end/core/host/GcaTypes.ts)
   b7771508e178 [M159] Fix infinite loop trying to look up properties on the wrong cascade (third_party/devtools-frontend/src: front_end/core/sdk/CSSMatchedStyles.test.ts, front_end/core/sdk/CSSMatchedStyles.ts)
   170b7991fbe9 [M159] [GCA] Send data collection opt-out in User-Agent header (third_party/devtools-frontend/src: front_end/core/host/AidaErrors.test.ts, front_end/core/host/AidaErrors.ts, front_end/core/host/GcaClient.test.ts, front_end/core/host/GcaClient.ts, front_end/core/host/InspectorFrontendHostAPI.ts)
+  c9c1d13c34cf [M159] [GCA] Throw AidaUnknownError for failed GCA responses (third_party/devtools-frontend/src: front_end/core/host/AidaClient.test.ts, front_end/core/host/AidaClient.ts, front_end/core/host/AidaClientTypes.ts, front_end/core/host/AidaGcaTranslation.test.ts, front_end/core/host/AidaGcaTranslation.ts)
   6f89cfbcc99f vp9: Fix base_mv usage when lower SVC layers are skipped (third_party/libvpx/source/libvpx: vp9/encoder/vp9_pickmode.c, vp9/encoder/vp9_svc_layercontext.c)
   220d4fc2d73c [M159] [ganesh] Drop mask domain in SoftwarePathRenderer (Skia: gn/tests.gni, src/gpu/ganesh/ops/SoftwarePathRenderer.cpp)
   c20e1a6e22a3 [M159] [sandbox] Load dynamic JS parameter count in builtin prolog (V8: src/builtins/base.tq, src/builtins/builtins-internal-gen.cc, src/builtins/builtins-utils-gen.h, src/builtins/js-to-wasm.tq, src/builtins/js-trampoline-assembler.cc, src/builtins/js-trampoline-assembler.h, src/builtins/wasm-interpreter-wrappers.tq, src/codegen/code-stub-assembler.cc, src/codegen/code-stub-assembler.h, src/codegen/turboshaft-builtins-assembler-inl.h, src/compiler/code-assembler.cc, src/compiler/code-assembler.h, src/compiler/raw-machine-assembler.cc, src/compiler/raw-machine-assembler.h, src/sandbox/js-dispatch-table-inl.h, src/torque/constants.h, src/torque/implementation-visitor.cc, src/torque/type-oracle.h)
@@ -169,8 +176,8 @@ Dependency commits of those rolls that touch kept files:
   0ff9fe7dd0e4 Version 15.9.128.40 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
-version at 8d291f7e76c8 (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
-170b7991fbe9) (or third_party/libvpx/source/libvpx's 6f89cfbcc99f) (or Skia's 220d4fc2d73c)
+version at 5b29bae8a63e (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
+c9c1d13c34cf) (or third_party/libvpx/source/libvpx's 6f89cfbcc99f) (or Skia's 220d4fc2d73c)
 (or V8's 0ff9fe7dd0e4).
 
 Apply with git apply.
@@ -2395,6 +2402,22 @@ index dc3889d0..366982c3 100644
  }
  void MirroringActivity::StartSession(const std::string& destination_id,
                                       bool enable_rtcp_reporting) {
+diff --git a/chrome/browser/metrics/usage_scenario/usage_scenario_data_store.cc b/chrome/browser/metrics/usage_scenario/usage_scenario_data_store.cc
+index 1c565b4..91181b2 100644
+--- a/chrome/browser/metrics/usage_scenario/usage_scenario_data_store.cc
++++ b/chrome/browser/metrics/usage_scenario/usage_scenario_data_store.cc
+@@ -220,8 +220,9 @@
+ void UsageScenarioDataStoreImpl::OnVideoStartsInVisibleTab() {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   ++visible_tabs_playing_video_;
+-  CHECK_GE(current_visible_window_count_, visible_tabs_playing_video_,
+-           base::NotFatalUntil::M161);
++  // TODO(crbug.com/586403286): CHECK-exclusion: Convert to a CHECK once we are
++  // confident it won't be triggered.
++  DCHECK_GE(current_visible_window_count_, visible_tabs_playing_video_);
+   if (visible_tabs_playing_video_ == 1)
+     playing_video_in_active_tab_since_ = tick_clock_->NowTicks();
+ }
 diff --git a/chrome/browser/notifications/notification_display_service_impl.cc b/chrome/browser/notifications/notification_display_service_impl.cc
 index f3a473c8..9713a645 100644
 --- a/chrome/browser/notifications/notification_display_service_impl.cc
@@ -12296,6 +12319,64 @@ index e4845628..dfc9e04 100644
    optional string name = 2;
  
    // User-selected display setting, which may be used if no platform-specific
+diff --git a/components/webapps/browser/launch_queue/launch_queue.cc b/components/webapps/browser/launch_queue/launch_queue.cc
+index 186242fc..e1ddfaef 100644
+--- a/components/webapps/browser/launch_queue/launch_queue.cc
++++ b/components/webapps/browser/launch_queue/launch_queue.cc
+@@ -54,8 +54,13 @@
+   void AddFileEntry(
+       const content::PathInfo& path_info,
+       content::FileSystemAccessEntryFactory::AccessTrigger trigger) {
+-    entries_.push_back(
+-        entry_factory_->CreateFileEntryFromPath(context_, path_info, trigger));
++    // OS-initiated single-file launches (e.g. "Open with" or opening an email
++    // attachment) may stage files in directories on the FSA blocklist such as
++    // `%LOCALAPPDATA%\Temp`. Skip the read-time blocklist check for the
++    // explicitly launched file while keeping write and symlink checks enforced.
++    entries_.push_back(entry_factory_->CreateFileEntryFromPath(
++        context_, path_info, trigger,
++        content::FileSystemAccessEntryFactory::SensitiveEntryReadCheck::kSkip));
+   }
+ 
+   void AddDirectoryEntry(const content::PathInfo& path_info) {
+diff --git a/content/browser/file_system_access/features.cc b/content/browser/file_system_access/features.cc
+index e02e0eb..d660953 100644
+--- a/content/browser/file_system_access/features.cc
++++ b/content/browser/file_system_access/features.cc
+@@ -11,12 +11,19 @@
+ 
+ namespace content::features {
+ 
++// When enabled, `FileSystemAccessFileHandleImpl::AsBlob()` performs a sensitive
++// entry access check unless the handle is exempt (e.g., OS-initiated
++// single-file handles). When disabled, `AsBlob()` does not perform the
++// blocklist check.
++BASE_FEATURE(kFileSystemAccessAsBlobBlocklistCheck,
++             base::FEATURE_ENABLED_BY_DEFAULT);
++
+ // TODO(crbug.com/40896420): Remove this flag eventually.
+ // TODO(b/354661640): Temporarily disable this flag while investigating CrOS
+ // file saving issue.
+ //
+-// When enabled, GetFile() and GetEntries() on a directory handle, as well as
+-// AsBlob() on a file handle, perform the blocklist check.
++// When enabled, GetFile() and GetEntries() on a directory handle perform the
++// blocklist check.
+ BASE_FEATURE(kFileSystemAccessDirectoryIterationBlocklistCheck,
+              base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+diff --git a/content/browser/file_system_access/features.h b/content/browser/file_system_access/features.h
+index 36b4a25..a466972 100644
+--- a/content/browser/file_system_access/features.h
++++ b/content/browser/file_system_access/features.h
+@@ -16,6 +16,7 @@
+ // be documented alongside the definition of their values in the .cc file.
+ 
+ // Alphabetical:
++CONTENT_EXPORT BASE_DECLARE_FEATURE(kFileSystemAccessAsBlobBlocklistCheck);
+ CONTENT_EXPORT BASE_DECLARE_FEATURE(
+     kFileSystemAccessDirectoryIterationBlocklistCheck);
+ CONTENT_EXPORT BASE_DECLARE_FEATURE(kFileSystemAccessObserverQuotaLimit);
 diff --git a/content/browser/file_system_access/file_system_access_directory_handle_impl.cc b/content/browser/file_system_access/file_system_access_directory_handle_impl.cc
 index d84cc420..2d75f2c 100644
 --- a/content/browser/file_system_access/file_system_access_directory_handle_impl.cc
@@ -12324,10 +12405,61 @@ index ed9c807..23bd52e 100644
    base::WeakPtrFactory<FileSystemAccessDirectoryHandleImpl> weak_factory_
        GUARDED_BY_CONTEXT(sequence_checker_){this};
 diff --git a/content/browser/file_system_access/file_system_access_file_handle_impl.cc b/content/browser/file_system_access/file_system_access_file_handle_impl.cc
-index ac59f93..047fe8e 100644
+index ac59f93..dac8a96 100644
 --- a/content/browser/file_system_access/file_system_access_file_handle_impl.cc
 +++ b/content/browser/file_system_access/file_system_access_file_handle_impl.cc
-@@ -1024,4 +1024,9 @@
+@@ -196,19 +196,37 @@
+   }
+ 
+   if (base::FeatureList::IsEnabled(
+-          features::kFileSystemAccessDirectoryIterationBlocklistCheck)) {
+-    RunWithSensitiveEntryAccess(
+-        url(), display_name(), HandleType::kFile,
+-        AccessTrigger::kProgrammaticRead,
+-        base::BindOnce(&FileSystemAccessFileHandleImpl::DoAsBlob,
+-                       weak_factory_.GetWeakPtr()),
+-        base::BindOnce([](AsBlobCallback callback) {
+-          std::move(callback).Run(file_system_access_error::FromStatus(
+-                                      FileSystemAccessStatus::kSecurityError),
+-                                  base::File::Info(), nullptr);
+-        }),
+-        std::move(callback));
+-    return;
++          features::kFileSystemAccessAsBlobBlocklistCheck)) {
++    const bool is_non_absolute_local_path =
++        url().type() == storage::FileSystemType::kFileSystemTypeLocal &&
++        !url().path().IsAbsolute()
++#if BUILDFLAG(IS_ANDROID)
++        && !url().path().IsContentUri()
++#endif
++        ;
++    const bool is_exempt_from_read_blocklist =
++        handle_state().read_blocklist_exempt_path.has_value() &&
++        *handle_state().read_blocklist_exempt_path == url().path() &&
++        !is_non_absolute_local_path
++#if BUILDFLAG(IS_ANDROID)
++        && !url().path().IsContentUri()
++#endif
++        ;
++
++    if (!is_exempt_from_read_blocklist) {
++      RunWithSensitiveEntryAccess(
++          url(), display_name(), HandleType::kFile,
++          AccessTrigger::kProgrammaticRead,
++          base::BindOnce(&FileSystemAccessFileHandleImpl::DoAsBlob,
++                         weak_factory_.GetWeakPtr()),
++          base::BindOnce([](AsBlobCallback callback) {
++            std::move(callback).Run(file_system_access_error::FromStatus(
++                                        FileSystemAccessStatus::kSecurityError),
++                                    base::File::Info(), nullptr);
++          }),
++          std::move(callback));
++      return;
++    }
+   }
+ 
+   DoAsBlob(std::move(callback));
+@@ -1024,4 +1042,9 @@
    return weak_factory_.GetWeakPtr();
  }
  
@@ -12478,6 +12610,181 @@ index 9b9cd9c..72b6444c 100644
    // Only called if the move operation is not allowed to overwrite the target.
    void ConfirmMoveWillNotOverwriteDestination(
        const storage::FileSystemURL& destination_url,
+diff --git a/content/browser/file_system_access/file_system_access_manager_impl.cc b/content/browser/file_system_access/file_system_access_manager_impl.cc
+index a8e4895..e499bc7 100644
+--- a/content/browser/file_system_access/file_system_access_manager_impl.cc
++++ b/content/browser/file_system_access/file_system_access_manager_impl.cc
+@@ -558,8 +558,11 @@
+ 
+ FileSystemAccessManagerImpl::SharedHandleState::SharedHandleState(
+     scoped_refptr<FileSystemAccessPermissionGrant> read_grant,
+-    scoped_refptr<FileSystemAccessPermissionGrant> write_grant)
+-    : read_grant(std::move(read_grant)), write_grant(std::move(write_grant)) {
++    scoped_refptr<FileSystemAccessPermissionGrant> write_grant,
++    std::optional<base::FilePath> read_blocklist_exempt_path)
++    : read_grant(std::move(read_grant)),
++      write_grant(std::move(write_grant)),
++      read_blocklist_exempt_path(std::move(read_blocklist_exempt_path)) {
+   CHECK(this->read_grant, base::NotFatalUntil::M159);
+   CHECK(this->write_grant, base::NotFatalUntil::M159);
+ }
+@@ -1117,10 +1120,15 @@
+     return;
+   }
+ 
++  // Single-file drag-and-drop handles intentionally skip the sensitive-entry
++  // blocklist at token redemption (see crbug.com/40061211), so preserve that
++  // exemption for read-only `AsBlob()` calls on the exact dropped path.
+   SharedHandleState shared_handle_state =
+       GetSharedHandleStateForNonSandboxedPath(
+           path_info, binding_context.storage_key, file_type,
+-          AccessTrigger::kDragAndDrop);
++          AccessTrigger::kDragAndDrop,
++          file_type == HandleType::kFile ? std::make_optional(url.path())
++                                         : std::nullopt);
+ 
+   blink::mojom::FileSystemAccessEntryPtr entry;
+   if (file_type == HandleType::kDirectory) {
+@@ -1529,14 +1537,18 @@
+ FileSystemAccessManagerImpl::CreateFileEntryFromPath(
+     const BindingContext& binding_context,
+     const content::PathInfo& file_path_info,
+-    AccessTrigger access_trigger) {
++    AccessTrigger access_trigger,
++    SensitiveEntryReadCheck read_check) {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   storage::FileSystemURL url = CreateFileSystemURLFromPath(file_path_info);
+ 
+   SharedHandleState shared_handle_state =
+       GetSharedHandleStateForNonSandboxedPath(
+           file_path_info, binding_context.storage_key, HandleType::kFile,
+-          access_trigger);
++          access_trigger,
++          read_check == SensitiveEntryReadCheck::kSkip
++              ? std::make_optional(url.path())
++              : std::nullopt);
+ 
+   return blink::mojom::FileSystemAccessEntry::New(
+       blink::mojom::FileSystemAccessHandle::NewFile(
+@@ -1588,6 +1600,9 @@
+     const SharedHandleState& handle_state) {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   CHECK(url.is_valid(), base::NotFatalUntil::M161);
++  // Directory handles must never inherit a single-file read-blocklist
++  // exemption.
++  CHECK(!handle_state.read_blocklist_exempt_path.has_value());
+ 
+   mojo::PendingRemote<blink::mojom::FileSystemAccessDirectoryHandle> result;
+   directory_receivers_.Add(
+@@ -2147,7 +2162,8 @@
+   result_entries.reserve(entries.size());
+   for (const auto& entry : entries) {
+     result_entries.push_back(
+-        CreateFileEntryFromPath(binding_context, entry, AccessTrigger::kOpen));
++        CreateFileEntryFromPath(binding_context, entry, AccessTrigger::kOpen,
++                                SensitiveEntryReadCheck::kEnforce));
+   }
+ 
+   std::move(callback).Run(file_system_access_error::Ok(),
+@@ -2323,8 +2339,11 @@
+     const content::PathInfo& path_info,
+     const blink::StorageKey& storage_key,
+     HandleType handle_type,
+-    FileSystemAccessPermissionContext::AccessTrigger access_trigger) {
++    FileSystemAccessPermissionContext::AccessTrigger access_trigger,
++    std::optional<base::FilePath> read_blocklist_exempt_path) {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  CHECK(!read_blocklist_exempt_path.has_value() ||
++        handle_type == HandleType::kFile);
+ 
+   scoped_refptr<FileSystemAccessPermissionGrant> read_grant, write_grant;
+   if (storage_key.IsThirdPartyContext()) {
+@@ -2375,11 +2394,15 @@
+   }
+ 
+   if (shared_handle_state_callback_for_test_) {
+-    return shared_handle_state_callback_for_test_.Run(read_grant,  // IN-TEST
+-                                                      write_grant);
++    SharedHandleState test_state =
++        shared_handle_state_callback_for_test_.Run(read_grant,  // IN-TEST
++                                                   write_grant);
++    return SharedHandleState(test_state.read_grant, test_state.write_grant,
++                             std::move(read_blocklist_exempt_path));
+   }
+ 
+-  return SharedHandleState(std::move(read_grant), std::move(write_grant));
++  return SharedHandleState(std::move(read_grant), std::move(write_grant),
++                           std::move(read_blocklist_exempt_path));
+ }
+ 
+ FileSystemAccessHandleBase::SharedHandleState
+diff --git a/content/browser/file_system_access/file_system_access_manager_impl.h b/content/browser/file_system_access/file_system_access_manager_impl.h
+index 3552859..2735184 100644
+--- a/content/browser/file_system_access/file_system_access_manager_impl.h
++++ b/content/browser/file_system_access/file_system_access_manager_impl.h
+@@ -93,9 +93,15 @@
+   // (i.e. children of a directory) will inherit these properties from their
+   // parent.
+   struct CONTENT_EXPORT SharedHandleState {
++    // Constructs shared handle state with the given read and write permission
++    // grants. `read_blocklist_exempt_path` may only be set for OS-initiated
++    // single-file handles (drag-and-drop files and PWA file-handler launches)
++    // and must never be set for directory handles.
+     SharedHandleState(
+         scoped_refptr<FileSystemAccessPermissionGrant> read_grant,
+-        scoped_refptr<FileSystemAccessPermissionGrant> write_grant);
++        scoped_refptr<FileSystemAccessPermissionGrant> write_grant,
++        std::optional<base::FilePath> read_blocklist_exempt_path =
++            std::nullopt);
+     SharedHandleState(const SharedHandleState& other);
+     ~SharedHandleState();
+ 
+@@ -103,6 +109,13 @@
+     // handle.
+     const scoped_refptr<FileSystemAccessPermissionGrant> read_grant;
+     const scoped_refptr<FileSystemAccessPermissionGrant> write_grant;
++
++    // Exact local file path exempt from sensitive-entry read blocklist checks
++    // in `FileSystemAccessFileHandleImpl::AsBlob()`. Only populated for
++    // OS-initiated single-file handles (drag-and-drop files and PWA
++    // file-handler launches); always `std::nullopt` for directory handles and
++    // picker-selected handles, and no longer matches if the handle is moved.
++    const std::optional<base::FilePath> read_blocklist_exempt_path;
+   };
+ 
+   // The caller is responsible for ensuring that `permission_context` outlives
+@@ -171,7 +184,8 @@
+   blink::mojom::FileSystemAccessEntryPtr CreateFileEntryFromPath(
+       const BindingContext& binding_context,
+       const PathInfo& path_info,
+-      AccessTrigger access_trigger) override;
++      AccessTrigger access_trigger,
++      SensitiveEntryReadCheck read_check) override;
+   blink::mojom::FileSystemAccessEntryPtr CreateDirectoryEntryFromPath(
+       const BindingContext& binding_context,
+       const PathInfo& path_info,
+@@ -408,7 +422,8 @@
+       const PathInfo& path_info,
+       const blink::StorageKey& storage_key,
+       FileSystemAccessPermissionContext::HandleType handle_type,
+-      FileSystemAccessPermissionContext::AccessTrigger access_trigger);
++      FileSystemAccessPermissionContext::AccessTrigger access_trigger,
++      std::optional<base::FilePath> read_blocklist_exempt_path = std::nullopt);
+   // Same as above, but for paths in a sandboxed file system.
+   SharedHandleState GetSharedHandleStateForSandboxedPath();
+ 
+diff --git a/content/browser/file_system_access/file_system_access_transfer_token_impl.cc b/content/browser/file_system_access/file_system_access_transfer_token_impl.cc
+index ea88313..7ed6e711 100644
+--- a/content/browser/file_system_access/file_system_access_transfer_token_impl.cc
++++ b/content/browser/file_system_access/file_system_access_transfer_token_impl.cc
+@@ -147,6 +147,7 @@
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   CHECK_EQ(handle_type_, HandleType::kDirectory, base::NotFatalUntil::M159);
+   CHECK(handle_state_.has_value());
++  CHECK(!handle_state_->read_blocklist_exempt_path.has_value());
+   return std::make_unique<FileSystemAccessDirectoryHandleImpl>(
+       manager_, binding_context, url_,
+       GetEffectiveHandleStateForContext(url_, binding_context, *handle_state_));
 diff --git a/content/browser/media/capture/desktop_capture_device.cc b/content/browser/media/capture/desktop_capture_device.cc
 index 33f78f0..9254294 100644
 --- a/content/browser/media/capture/desktop_capture_device.cc
@@ -13106,6 +13413,40 @@ index 5ea7280..47f5dc4a 100644
      scoped_refptr<ServiceWorkerRegistration> registration =
          context_->GetLiveRegistration(registration_id());
      if (registration) {
+diff --git a/content/public/browser/file_system_access_entry_factory.h b/content/public/browser/file_system_access_entry_factory.h
+index f207f839..69ccbfc 100644
+--- a/content/public/browser/file_system_access_entry_factory.h
++++ b/content/public/browser/file_system_access_entry_factory.h
+@@ -74,12 +74,26 @@
+     bool is_third_party_context = false;
+   };
+ 
+-  // Creates a new FileSystemAccessEntryPtr from the path to a file. Assumes the
+-  // passed in path is valid and represents a file.
++  // Controls whether reading a single-file handle via `AsBlob()` consults
++  // `FileSystemAccessPermissionContext::ConfirmSensitiveEntryAccess()`.
++  enum class SensitiveEntryReadCheck {
++    // Enforce the sensitive-entry blocklist on reads. This is used for the
++    // picker-selected and directory-derived handles.
++    kEnforce,
++    // Skip the sensitive-entry blocklist on reads for the originally opened
++    // path. This is used only for OS-initiated single-file launches (such as
++    // PWA `file_handlers`) where the OS stages files in blocklisted
++    // directories. Write operations and symlink checks remain enforced.
++    kSkip,
++  };
++
++  // Creates a new `FileSystemAccessEntryPtr` from the path to a file. Assumes
++  // the passed in path is valid and represents a file.
+   virtual blink::mojom::FileSystemAccessEntryPtr CreateFileEntryFromPath(
+       const BindingContext& binding_context,
+       const content::PathInfo& path_info,
+-      AccessTrigger access_trigger) = 0;
++      AccessTrigger access_trigger,
++      SensitiveEntryReadCheck read_check) = 0;
+ 
+   // Creates a new FileSystemAccessEntryPtr from the path to a directory.
+   // Assumes the passed in path is valid and represents a directory.
 diff --git a/content/renderer/render_frame_impl.h b/content/renderer/render_frame_impl.h
 index e202a62..8beffe8 100644
 --- a/content/renderer/render_frame_impl.h
@@ -13591,6 +13932,51 @@ index 95403ad..61b5cbc 100644
    },
    "feedbackPrivate": [
      {
+diff --git a/gin/per_context_data.cc b/gin/per_context_data.cc
+index 130febb0..6289128 100644
+--- a/gin/per_context_data.cc
++++ b/gin/per_context_data.cc
+@@ -45,9 +45,14 @@
+   if (context->GetNumberOfEmbedderDataFields() <= kGinPerContextDataIndex) {
+     return nullptr;
+   }
+-  return context->GetAlignedPointerFromEmbedderData<PerContextData>(
+-      v8::Isolate::GetCurrent(), kGinPerContextDataIndex,
+-      static_cast<v8::CppHeapPointerTag>(gin::kGinPerContextData));
++  PerContextData* data =
++      context->GetAlignedPointerFromEmbedderData<PerContextData>(
++          v8::Isolate::GetCurrent(), kGinPerContextDataIndex,
++          static_cast<v8::CppHeapPointerTag>(gin::kGinPerContextData));
++  if (data) {
++    data->context_holder_->CheckContext(context);
++  }
++  return data;
+ }
+ 
+ }  // namespace gin
+diff --git a/gin/public/context_holder.h b/gin/public/context_holder.h
+index 0fddb15b..818b9bc0 100644
+--- a/gin/public/context_holder.h
++++ b/gin/public/context_holder.h
+@@ -5,6 +5,7 @@
+ #ifndef GIN_PUBLIC_CONTEXT_HOLDER_H_
+ #define GIN_PUBLIC_CONTEXT_HOLDER_H_
+ 
++#include "base/check.h"
+ #include "base/memory/raw_ptr.h"
+ #include "gin/gin_export.h"
+ #include "v8/include/cppgc/persistent.h"
+@@ -46,6 +47,10 @@
+ 
+   void SetContext(v8::Local<v8::Context> context);
+ 
++  void CheckContext(v8::Local<v8::Context> context) const {
++    CHECK(context_ == context);
++  }
++
+  private:
+   const raw_ptr<v8::Isolate> isolate_;
+   v8::UniquePersistent<v8::Context> context_;
 diff --git a/gpu/command_buffer/service/copy_shared_image_helper.cc b/gpu/command_buffer/service/copy_shared_image_helper.cc
 index 3bca0e7..8d4b526 100644
 --- a/gpu/command_buffer/service/copy_shared_image_helper.cc
@@ -14109,6 +14495,322 @@ index f9f1a263..b69f028 100644
      result.sizes.max_size =
          std::max(result.sizes.max_size, result.sizes.min_size);
    }
+diff --git a/third_party/blink/renderer/core/streams/readable_stream.h b/third_party/blink/renderer/core/streams/readable_stream.h
+index edc4f5d..d58bd728 100644
+--- a/third_party/blink/renderer/core/streams/readable_stream.h
++++ b/third_party/blink/renderer/core/streams/readable_stream.h
+@@ -302,6 +302,7 @@
+   friend class ReadableByteStreamController;
+   friend class ReadableStreamBYOBReader;
+   friend class ReadableStreamDefaultController;
++  friend class ReadableStreamDefaultControllerWithScriptScope;
+   friend class ReadableStreamDefaultReader;
+   friend class ReadableStreamGenericReader;
+   friend class TeeEngine;
+diff --git a/third_party/blink/renderer/core/streams/readable_stream_default_controller.h b/third_party/blink/renderer/core/streams/readable_stream_default_controller.h
+index b6c688f..75fcad6 100644
+--- a/third_party/blink/renderer/core/streams/readable_stream_default_controller.h
++++ b/third_party/blink/renderer/core/streams/readable_stream_default_controller.h
+@@ -61,6 +61,8 @@
+   // https://streams.spec.whatwg.org/#readable-stream-default-controller-get-desired-size
+   std::optional<double> GetDesiredSize() const;
+ 
++  ReadableStream* stream() const { return controlled_readable_stream_.Get(); }
++
+   //
+   // Used by TransformStream
+   //
+diff --git a/third_party/blink/renderer/core/streams/readable_stream_default_controller_with_script_scope.cc b/third_party/blink/renderer/core/streams/readable_stream_default_controller_with_script_scope.cc
+index a2f3b0f..294d91d 100644
+--- a/third_party/blink/renderer/core/streams/readable_stream_default_controller_with_script_scope.cc
++++ b/third_party/blink/renderer/core/streams/readable_stream_default_controller_with_script_scope.cc
+@@ -9,6 +9,7 @@
+ #include "third_party/blink/renderer/bindings/core/v8/script_value.h"
+ #include "third_party/blink/renderer/bindings/core/v8/v8_microtasks_scope.h"
+ #include "third_party/blink/renderer/bindings/core/v8/v8_readable_stream_default_controller.h"
++#include "third_party/blink/renderer/core/streams/readable_stream.h"
+ #include "third_party/blink/renderer/core/streams/readable_stream_default_controller.h"
+ #include "third_party/blink/renderer/platform/bindings/exception_state.h"
+ #include "third_party/blink/renderer/platform/bindings/scoped_persistent.h"
+@@ -52,12 +53,26 @@
+   return desired_size.value();
+ }
+ 
++bool ReadableStreamDefaultControllerWithScriptScope::CanCloseOrEnqueue() const {
++  return controller_ &&
++         ReadableStreamDefaultController::CanCloseOrEnqueue(controller_.Get());
++}
++
++int ReadableStreamDefaultControllerWithScriptScope::GetNumReadRequests() const {
++  if (!controller_) {
++    return 0;
++  }
++  ReadableStream* stream = controller_->stream();
++  // The stream may not have a reader (e.g., the lock was released after the
++  // last read was rejected), in which case there are no pending reads.
++  return ReadableStream::HasDefaultReader(stream)
++             ? ReadableStream::GetNumReadRequests(stream)
++             : 0;
++}
++
+ void ReadableStreamDefaultControllerWithScriptScope::Enqueue(
+     v8::Local<v8::Value> js_chunk) const {
+-  if (!controller_)
+-    return;
+-
+-  if (!ReadableStreamDefaultController::CanCloseOrEnqueue(controller_)) {
++  if (!CanCloseOrEnqueue()) {
+     return;
+   }
+ 
+diff --git a/third_party/blink/renderer/core/streams/readable_stream_default_controller_with_script_scope.h b/third_party/blink/renderer/core/streams/readable_stream_default_controller_with_script_scope.h
+index ede977a..c47499e2 100644
+--- a/third_party/blink/renderer/core/streams/readable_stream_default_controller_with_script_scope.h
++++ b/third_party/blink/renderer/core/streams/readable_stream_default_controller_with_script_scope.h
+@@ -28,6 +28,11 @@
+ 
+   void Close();
+   double DesiredSize() const;
++  // https://streams.spec.whatwg.org/#readable-stream-default-controller-can-close-or-enqueue
++  bool CanCloseOrEnqueue() const;
++  // Number of pending read requests on the stream, or 0 if the controller
++  // has been deactivated or the stream has no default reader.
++  int GetNumReadRequests() const;
+   void Enqueue(v8::Local<v8::Value> js_chunk) const;
+   void Error(v8::Local<v8::Value> js_error);
+ 
+diff --git a/third_party/blink/renderer/modules/breakout_box/frame_queue.h b/third_party/blink/renderer/modules/breakout_box/frame_queue.h
+index 929122e..d76bd4b5 100644
+--- a/third_party/blink/renderer/modules/breakout_box/frame_queue.h
++++ b/third_party/blink/renderer/modules/breakout_box/frame_queue.h
+@@ -82,6 +82,11 @@
+     return queue_.size();
+   }
+ 
++  wtf_size_t Size() const {
++    base::AutoLock locker(GetLock());
++    return SizeLocked();
++  }
++
+   wtf_size_t MaxSize() const { return max_size_; }
+ 
+   void IncrementTotalFramesLocked() EXCLUSIVE_LOCKS_REQUIRED(GetLock()) {
+diff --git a/third_party/blink/renderer/modules/breakout_box/frame_queue_underlying_source.cc b/third_party/blink/renderer/modules/breakout_box/frame_queue_underlying_source.cc
+index 6fd6192..7ccd8f9 100644
+--- a/third_party/blink/renderer/modules/breakout_box/frame_queue_underlying_source.cc
++++ b/third_party/blink/renderer/modules/breakout_box/frame_queue_underlying_source.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "third_party/blink/renderer/modules/breakout_box/frame_queue_underlying_source.h"
+ 
++#include <algorithm>
++
+ #include "base/feature_list.h"
+ #include "base/task/bind_post_task.h"
+ #include "base/task/single_thread_task_runner.h"
+@@ -403,24 +405,26 @@
+     bool is_cross_origin_isolated) {
+   DCHECK(realm_task_runner_->RunsTasksInCurrentSequence());
+   UpdateRealmInfo(time_origin, is_cross_origin_isolated);
+-  base::AutoLock locker(lock_);
+-  if (!transferred_source_cleared_) {
+-    DCHECK(!transferred_source_handle_);
+-    transferred_runner_ = std::move(transferred_runner);
+-    transferred_source_handle_.emplace(std::move(transferred_source));
+-    // |frame_queue_|, including its pending-pull count, is shared with the
+-    // transferred source. Any pulls pending at this point were issued by this
+-    // source's stream, which CloseController() closes below, so they will
+-    // never be fulfilled. Reset the count so they are not attributed to the
+-    // transferred source; otherwise it would be sent frames for reads it
+-    // never issued, possibly before its stream has started.
+-    //
+-    // This cannot discard a pull issued by the transferred source: the
+-    // destination stream first reads the cross-realm stream piped from this
+-    // source's stream, and only starts pulling the transferred source after
+-    // that stream closes, which requires the CloseController() call below.
+-    if (frame_queue_) {
+-      frame_queue_->ResetPendingPulls();
++  {
++    base::AutoLock locker(lock_);
++    if (!transferred_source_cleared_) {
++      DCHECK(!transferred_source_handle_);
++      transferred_runner_ = std::move(transferred_runner);
++      transferred_source_handle_.emplace(std::move(transferred_source));
++      // |frame_queue_|, including its pending-pull count, is shared with the
++      // transferred source. Any pulls pending at this point were issued by
++      // this source's stream, which CloseController() closes below, so they
++      // will never be fulfilled. Reset the count so they are not attributed
++      // to the transferred source; otherwise it would be sent frames for
++      // reads it never issued, possibly before its stream has started.
++      //
++      // This cannot discard a pull issued by the transferred source: the
++      // destination stream first reads the cross-realm stream piped from this
++      // source's stream, and only starts pulling the transferred source after
++      // that stream closes, which requires the CloseController() call below.
++      if (frame_queue_) {
++        frame_queue_->ResetPendingPulls();
++      }
+     }
+   }
+   CloseController();
+@@ -473,54 +477,90 @@
+     return;
+   }
+ 
+-  if (!frame_queue->HasPendingPulls()) {
++  if (!frame_queue->HasPendingPulls() || frame_queue->IsEmpty()) {
+     return;
+   }
+ 
+-  while (true) {
+-    std::optional<NativeFrameType> media_frame = frame_queue->Pop();
+-    if (!media_frame.has_value())
+-      return;
+-
+-    if (base::FeatureList::IsEnabled(features::kWebRtcUseMediaThreadTypes) &&
+-        realm_is_boostable_context_ && !realm_thread_type_lease_.has_value() &&
+-        thread_type_.has_value()) {
+-      realm_thread_type_lease_.emplace(thread_type_.value());
+-    }
+-
+-    media::VideoFrame::ID frame_id = MustUseMonitor()
+-                                         ? GetFrameId(media_frame.value())
+-                                         : media::VideoFrame::ID();
+-    // It has been observed that if the time between JS read() operations
+-    // is longer than the time between new frames, other tasks get delayed
+-    // and the page freezes. Enqueuing in a separate task avoids this problem.
+-    // See https://crbug.com/1490501
++  // Post one DeliverFrame() task per pending pull, without popping here: a
++  // frame popped for a read that was rejected in the meantime (e.g. by
++  // reader.releaseLock()) would be enqueued with no read waiting, and
++  // cancelling would then drop it from the stream's internal queue without
++  // close(). See DeliverFrame().
++  //
++  // It has been observed that if the time between JS read() operations
++  // is longer than the time between new frames, other tasks get delayed
++  // and the page freezes. Delivering in a separate task avoids this problem.
++  // See https://crbug.com/1490501
++  //
++  // A task delivers at most one frame, so post no more tasks than the number
++  // of queued frames. Under-posting is safe: a task that finds the queue
++  // empty leaves the pending pull in place, and the next QueueFrame() posts
++  // a delivery task for it.
++  const int num_tasks = std::min(frame_queue->NumPendingPulls(),
++                                 static_cast<int>(frame_queue->Size()));
++  for (int i = 0; i < num_tasks; ++i) {
+     realm_task_runner_->PostTask(
+         FROM_HERE,
+         blink::BindOnce(
+-            &FrameQueueUnderlyingSource::EnqueueBlinkFrame,
+-            WrapPersistent(this),
+-            WrapPersistent(MakeBlinkFrame(std::move(media_frame.value())))));
+-    // Update the monitor after creating the Blink VideoFrame to avoid
+-    // temporarily removing the frame from the monitor.
+-    MaybeMonitorPopFrameId(frame_id);
+-    if (!frame_queue->DecrementPendingPulls()) {
+-      return;
+-    }
++            &FrameQueueUnderlyingSource<NativeFrameType>::DeliverFrame,
++            WrapPersistent(this)));
+   }
+ }
+ 
+ template <typename NativeFrameType>
+-void FrameQueueUnderlyingSource<NativeFrameType>::EnqueueBlinkFrame(
+-    ScriptWrappable* blink_frame) const {
++void FrameQueueUnderlyingSource<NativeFrameType>::DeliverFrame() {
+   DCHECK(realm_task_runner_->RunsTasksInCurrentSequence());
+-  // Controller() is null until the stream starts this source. For example, a
+-  // transferred source is only started after the stream it is concatenated
+-  // with has been fully read.
+-  if (Controller() && GetExecutionContext() &&
+-      !GetExecutionContext()->IsContextDestroyed()) {
+-    Controller()->Enqueue(blink_frame);
++  scoped_refptr<FrameQueue<NativeFrameType>> frame_queue;
++  {
++    base::AutoLock locker(lock_);
++    // Once this source has been transferred, the pending pulls in the shared
++    // queue belong to the transferred source. A delivery task posted before
++    // the transfer must not consume them, nor pop frames into our closed
++    // controller.
++    if (transferred_source_handle_ || transferred_source_cleared_) {
++      return;
++    }
++    frame_queue = frame_queue_;
+   }
++  if (!frame_queue) {
++    return;
++  }
++
++  // Pop only if the read that caused this pull is still waiting: the stream
++  // has no buffer (HWM 0), so a frame enqueued without a waiting read would
++  // be dropped without close() if the stream is cancelled.
++  if (!Controller() || !GetExecutionContext() ||
++      GetExecutionContext()->IsContextDestroyed() ||
++      !Controller()->CanCloseOrEnqueue() ||
++      Controller()->GetNumReadRequests() == 0) {
++    // The pending pull can never be fulfilled; clear it so wake-ups are not
++    // posted against it.
++    frame_queue->ResetPendingPulls();
++    return;
++  }
++
++  std::optional<NativeFrameType> media_frame = frame_queue->Pop();
++  if (!media_frame.has_value()) {
++    // A read is waiting but the queue is empty. Keep the pending pull so the
++    // next QueueFrame() posts another delivery task.
++    return;
++  }
++
++  if (base::FeatureList::IsEnabled(features::kWebRtcUseMediaThreadTypes) &&
++      realm_is_boostable_context_ && !realm_thread_type_lease_.has_value() &&
++      thread_type_.has_value()) {
++    realm_thread_type_lease_.emplace(thread_type_.value());
++  }
++
++  media::VideoFrame::ID frame_id = MustUseMonitor()
++                                       ? GetFrameId(media_frame.value())
++                                       : media::VideoFrame::ID();
++  // Update the monitor after creating the Blink VideoFrame to avoid
++  // temporarily removing the frame from the monitor.
++  ScriptWrappable* blink_frame = MakeBlinkFrame(std::move(media_frame.value()));
++  MaybeMonitorPopFrameId(frame_id);
++  frame_queue->DecrementPendingPulls();
++  Controller()->Enqueue(blink_frame);
+ }
+ 
+ template <typename NativeFrameType>
+diff --git a/third_party/blink/renderer/modules/breakout_box/frame_queue_underlying_source.h b/third_party/blink/renderer/modules/breakout_box/frame_queue_underlying_source.h
+index d9aeca5..8833bd3e 100644
+--- a/third_party/blink/renderer/modules/breakout_box/frame_queue_underlying_source.h
++++ b/third_party/blink/renderer/modules/breakout_box/frame_queue_underlying_source.h
+@@ -150,10 +150,15 @@
+   // Must be called on |realm_task_runner_|.
+   void CloseController();
+ 
+-  // If the internal queue is not empty, pops a frame from it and enqueues it
+-  // into the the stream's controller. Must be called on |realm_task_runner|.
++  // Posts a DeliverFrame() task for each pending pull. Must be called on
++  // |realm_task_runner_|.
+   void MaybeSendFrameFromQueueToStream();
+ 
++  // Pops and enqueues one frame if the read that caused its pull is still
++  // waiting; otherwise resets the stale pending pulls and leaves the frame
++  // queued. Must be called on |realm_task_runner_|.
++  void DeliverFrame();
++
+   base::Lock& GetMonitorLock();
+ 
+   void MaybeMonitorPopFrameId(media::VideoFrame::ID frame_id);
+@@ -171,8 +176,6 @@
+   // Must be called on |realm_task_runner_|.
+   ScriptWrappable* MakeBlinkFrame(NativeFrameType media_frame);
+ 
+-  void EnqueueBlinkFrame(ScriptWrappable* blink_frame) const;
+-
+   bool is_closed_ = false;
+ 
+   // Main task runner for the window or worker context this source runs on.
 diff --git a/third_party/blink/renderer/platform/runtime_enabled_features.json5 b/third_party/blink/renderer/platform/runtime_enabled_features.json5
 index 9ee8f83..081b09a 100644
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
@@ -16844,10 +17546,10 @@ index 6f49759..6556a15 100644
      PadBuffersToMaxVertexAttribStride,
      PassHighpToPackUnormSnormBuiltins,
 diff --git a/third_party/devtools-frontend/src/front_end/core/host/AidaClient.test.ts b/third_party/devtools-frontend/src/front_end/core/host/AidaClient.test.ts
-index 95c7bf8..7b11383 100644
+index 95c7bf8..0d53d7c 100644
 --- a/third_party/devtools-frontend/src/front_end/core/host/AidaClient.test.ts
 +++ b/third_party/devtools-frontend/src/front_end/core/host/AidaClient.test.ts
-@@ -1654,6 +1654,46 @@
+@@ -1654,6 +1654,81 @@
        ]);
      });
  
@@ -16891,14 +17593,64 @@ index 95c7bf8..7b11383 100644
 +      });
 +    }
 +
++    function gcaResponse(parts: unknown[], finishReason?: string): Record<string, unknown> {
++      return {candidates: [{content: {role: 'model', parts}, finishReason}]};
++    }
++
++    for (const {name,
++                responses,
++                reason} of [{
++           name: 'MALFORMED_FUNCTION_CALL after text',
++           responses: [gcaResponse([{text: 'Visible'}]), gcaResponse([{text: ' more'}], 'MALFORMED_FUNCTION_CALL')],
++           reason: 'MALFORMED_FUNCTION_CALL',
++         },
++                            {
++                              name: 'MAX_TOKENS without visible output',
++                              responses: [gcaResponse([{text: 'Plan', thought: true}], 'MAX_TOKENS'), gcaResponse([])],
++                              reason: 'MAX_TOKENS',
++                            },
++    ]) {
++      it(`records UNKNOWN_ERROR for GCA ${name}`, async () => {
++        const {error, outcome} = await runGcaConversation(responses);
++        assert.instanceOf(error, Host.AidaClient.AidaUnknownError);
++        assert.include(error.message, reason);
++        assert.strictEqual(outcome, AiClientRequestResult.UNKNOWN_ERROR);
++      });
++    }
++
++    for (const [name, part] of [['text', {text: 'Partial'}],
++                                ['a function call', {functionCall: {name: 'getStyles', args: {}}}],
++    ] as const) {
++      it(`records SUCCESS when an empty GCA MAX_TOKENS response follows ${name}`, async () => {
++        const {error, outcome} = await runGcaConversation([gcaResponse([part]), gcaResponse([], 'MAX_TOKENS')]);
++        assert.isUndefined(error);
++        assert.strictEqual(outcome, AiClientRequestResult.SUCCESS);
++      });
++    }
++
      it('records HTTP_5XX_SERVER_ERROR when doConversation fails with HTTP 500', async () => {
        const histogramSpy =
            sinon.spy(Host.InspectorFrontendHost.InspectorFrontendHostInstance, 'recordEnumeratedHistogram');
 diff --git a/third_party/devtools-frontend/src/front_end/core/host/AidaClient.ts b/third_party/devtools-frontend/src/front_end/core/host/AidaClient.ts
-index 18d2a6a..447c18e 100644
+index 18d2a6a..085f733 100644
 --- a/third_party/devtools-frontend/src/front_end/core/host/AidaClient.ts
 +++ b/third_party/devtools-frontend/src/front_end/core/host/AidaClient.ts
-@@ -286,7 +286,7 @@
+@@ -274,19 +274,22 @@
+     let inCodeChunk = false;
+     const functionCalls: AidaFunctionCall[] = [];
+     let metadata: ResponseMetadata = {rpcGlobalId: 0};
++    let finishReason: string|undefined;
+     while ((chunk = await stream.read())) {
+       debugLog('doConversation stream chunk:', chunk);
+       let textUpdated = false;
+       const results = this.#parseAndTranslate(chunk);
+ 
+       for (const result of results) {
++        // Later chunks (e.g. a trailing metadata-only chunk) may omit `finishReason`, so keep the previous one.
++        finishReason = result.finishReason ?? finishReason;
+         if (result.metadata) {
+           metadata = {
+             ...metadata,
              ...result.metadata,
            };
            if (metadata?.attributionMetadata?.attributionAction === RecitationAction.BLOCK) {
@@ -16907,16 +17659,29 @@ index 18d2a6a..447c18e 100644
            }
          }
          if (result.textChunk) {
+@@ -328,6 +331,10 @@
+         };
+       }
+     }
++    // A non-block reason, e.g. MAX_TOKENS, fails the request only if the stream produced no output.
++    if (finishReason && !text.length && !functionCalls.length) {
++      throw mapError({status: finishReason, message: `GCA response finished with ${finishReason}`});
++    }
+     yield {
+       explanation: text.join('') + (inCodeChunk ? CODE_CHUNK_SEPARATOR() : ''),
+       metadata,
 diff --git a/third_party/devtools-frontend/src/front_end/core/host/AidaClientTypes.ts b/third_party/devtools-frontend/src/front_end/core/host/AidaClientTypes.ts
-index 2b77449..fa5ef8c 100644
+index 2b77449..4185188 100644
 --- a/third_party/devtools-frontend/src/front_end/core/host/AidaClientTypes.ts
 +++ b/third_party/devtools-frontend/src/front_end/core/host/AidaClientTypes.ts
-@@ -486,6 +486,8 @@
+@@ -486,6 +486,10 @@
     * {"code": 429, "message": "You have exhausted your capacity on this model.", "status": "RESOURCE_EXHAUSTED", "details": [...]}).
     */
    error?: string|Record<string, unknown>;
 +  /** Why GCA blocked the prompt or the response, for the `AidaBlockError` message. */
 +  blockMessage?: string;
++  /** Non-`STOP` GCA `finishReason` (for example `MAX_TOKENS`) that fails the stream if it produced no output. */
++  finishReason?: string;
  }
  
  // Reads `devToolsAiDebug` directly because `core/host` cannot depend on `models/ai-utils`.
@@ -16960,10 +17725,10 @@ index 078650e..b7ad6a1 100644
    'Service not found',
  ]);
 diff --git a/third_party/devtools-frontend/src/front_end/core/host/AidaGcaTranslation.test.ts b/third_party/devtools-frontend/src/front_end/core/host/AidaGcaTranslation.test.ts
-index 2ff5241..1fd9283 100644
+index 2ff5241..1abece6 100644
 --- a/third_party/devtools-frontend/src/front_end/core/host/AidaGcaTranslation.test.ts
 +++ b/third_party/devtools-frontend/src/front_end/core/host/AidaGcaTranslation.test.ts
-@@ -969,5 +969,58 @@
+@@ -969,5 +969,71 @@
                           },
                         }]);
      });
@@ -17019,11 +17784,24 @@ index 2ff5241..1fd9283 100644
 +            {...response, promptFeedback: {...response.promptFeedback, blockReason: 'BLOCKED_REASON_UNSPECIFIED'}});
 +        assert.deepEqual(chunks.map(chunk => chunk.textChunk?.text), ['Hello there!']);
 +      });
++
++      for (const finishReason of ['MALFORMED_FUNCTION_CALL', 'UNEXPECTED_TOOL_CALL', 'OTHER'] as const) {
++        it(`returns only an error chunk for finishReason ${finishReason}, even with text`, () => {
++          assert.deepEqual(translateFinishReason(finishReason),
++                           [{error: {status: finishReason, message: `GCA response finished with ${finishReason}`}}]);
++        });
++      }
++
++      it('keeps the text and tags the chunk for finishReason MAX_TOKENS', () => {
++        const [chunk] = translateFinishReason(GcaTypes.FinishReason.MAX_TOKENS);
++        assert.strictEqual(chunk.textChunk?.text, 'Hello there!');
++        assert.strictEqual(chunk.finishReason, 'MAX_TOKENS');
++      });
 +    });
    });
  });
 diff --git a/third_party/devtools-frontend/src/front_end/core/host/AidaGcaTranslation.ts b/third_party/devtools-frontend/src/front_end/core/host/AidaGcaTranslation.ts
-index 418ae53..98591b2 100644
+index 418ae53..a37f213 100644
 --- a/third_party/devtools-frontend/src/front_end/core/host/AidaGcaTranslation.ts
 +++ b/third_party/devtools-frontend/src/front_end/core/host/AidaGcaTranslation.ts
 @@ -501,6 +501,33 @@
@@ -17060,7 +17838,7 @@ index 418ae53..98591b2 100644
  export function gcaChunkResponseToAidaChunkResponse(response: GCA.GenerateContentResponse): AIDA.AidaChunkResponse[] {
    try {
      if (response.error) {
-@@ -533,6 +560,14 @@
+@@ -533,6 +560,21 @@
                                                              })),
        };
      }
@@ -17072,9 +17850,28 @@ index 418ae53..98591b2 100644
 +    if (finishReason && BLOCKING_FINISH_REASONS.has(finishReason)) {
 +      return [blockedChunk(metadata, `GCA response blocked: ${finishReason}`)];
 +    }
++    // Other non-`STOP` reasons (e.g. `MALFORMED_FUNCTION_CALL`) are model generation errors
++    // rather than policy blocks, so return an `error` chunk to throw `AidaUnknownError`.
++    // (`MAX_TOKENS` is handled below because earlier chunks may already have valid partial output.)
++    if (finishReason && finishReason !== 'STOP' && finishReason !== 'FINISH_REASON_UNSPECIFIED' &&
++        finishReason !== 'MAX_TOKENS') {
++      return [{error: {status: finishReason, message: `GCA response finished with ${finishReason}`}}];
++    }
      // Trailing chunks without parts still yield metadata so the client receives the final
      // rpcGlobalId, modelVersion, usageMetadata, and citationMetadata.
      const chunks: AIDA.AidaChunkResponse[] = parts.length === 0 ? [{metadata}] : parts.map(part => {
+@@ -563,6 +605,11 @@
+       }
+       return aidaChunkResponse;
+     });
++    // Unlike other failure reasons, `MAX_TOKENS` can follow valid partial output from earlier
++    // chunks, so `AidaClient` decides at stream end whether the stream produced any output.
++    if (finishReason === 'MAX_TOKENS') {
++      chunks[0].finishReason = finishReason;
++    }
+     AIDA.debugLog('Translation succeeded:', JSON.stringify(response), JSON.stringify(chunks));
+     return chunks;
+   } catch (e) {
 diff --git a/third_party/devtools-frontend/src/front_end/core/host/GcaClient.test.ts b/third_party/devtools-frontend/src/front_end/core/host/GcaClient.test.ts
 index 27cc935..c689980 100644
 --- a/third_party/devtools-frontend/src/front_end/core/host/GcaClient.test.ts
