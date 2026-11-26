@@ -1,10 +1,10 @@
 Chromium 159.0.8154.45 + the later changes of its release branch, up to
-5b29bae8a63eb6429c8ecceb0f874d94b47c4a6a (refs/branch-heads/8154@{#1873}), for the
+b9f25352e05a23bcebb01b389bc0f529998887ae (refs/branch-heads/8154@{#1875}), for the
 159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
-8154@{#1872}.
+8154@{#1875}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..5b29bae8a63e and the
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..b9f25352e05a and the
 dependencies whose DEPS revision changed: ANGLE 4dd34493f8a2..2ec7b6db14f2 (under
 third_party/angle/), third_party/devtools-frontend/src 3d48567555b6..c9c1d13c34cf (under
 third_party/devtools-frontend/src/), third_party/libvpx/source/libvpx
@@ -148,6 +148,7 @@ Commits contributing to it (oldest first):
   d445ac0b8e7a [M159] Revert CHECK_GE to DCHECK_GE in OnVideoStartsInVisibleTab (8154@{#1860})
   a20ee56870f7 Roll commits from side projects in M159 (third_party/devtools-frontend/src 170b7991fbe9..c9c1d13c34cf, 8154@{#1868})
   455d306592a8 [M159] [gin] Verify context match in PerContextData::From. (8154@{#1872})
+  b9f25352e05a [M159] Evaluate `FontFace` range descriptors once and validate bounds (8154@{#1875})
 Dependency commits of those rolls that touch kept files:
   315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
   9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
@@ -176,7 +177,7 @@ Dependency commits of those rolls that touch kept files:
   0ff9fe7dd0e4 Version 15.9.128.40 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
-version at 5b29bae8a63e (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
+version at b9f25352e05a (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
 c9c1d13c34cf) (or third_party/libvpx/source/libvpx's 6f89cfbcc99f) (or Skia's 220d4fc2d73c)
 (or V8's 0ff9fe7dd0e4).
 
@@ -14442,6 +14443,246 @@ index 850b9e37..3737dfe 100644
  
  // Enables fallback to network request when the RaceNetworkRequest Mojo pipe is
  // disconnected.
+diff --git a/third_party/blink/renderer/core/css/font_face.cc b/third_party/blink/renderer/core/css/font_face.cc
+index 1c8547d9..88ea9ba 100644
+--- a/third_party/blink/renderer/core/css/font_face.cc
++++ b/third_party/blink/renderer/core/css/font_face.cc
+@@ -79,6 +79,7 @@
+ #include "third_party/blink/renderer/platform/fonts/font_metrics_override.h"
+ #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+ #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
++#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ #include "third_party/blink/renderer/platform/wtf/shared_buffer.h"
+ #include "third_party/blink/renderer/platform/wtf/text/strcat.h"
+ 
+@@ -746,8 +747,23 @@
+       // https://drafts.csswg.org/css-fonts/#font-prop-desc
+       // "User agents must swap the computed value of the startpoint and
+       // endpoint of the range in order to forbid decreasing ranges."
+-      if (stretch_from->ComputeValueInCanonicalUnit(EnsureLengthResolver()) <
+-          stretch_to->ComputeValueInCanonicalUnit(EnsureLengthResolver())) {
++      if (RuntimeEnabledFeatures::
++              FontFaceCapabilitiesRangeValidationEnabled()) {
++        const float from_value =
++            stretch_from->ComputeValueInCanonicalUnit(EnsureLengthResolver());
++        const float to_value =
++            stretch_to->ComputeValueInCanonicalUnit(EnsureLengthResolver());
++        if (std::isnan(from_value) || std::isnan(to_value)) {
++          return normal_capabilities;
++        }
++        const auto [min_width, max_width] = std::minmax(from_value, to_value);
++        capabilities.width = {FontSelectionValue(min_width),
++                              FontSelectionValue(max_width),
++                              FontSelectionRange::RangeType::kSetExplicitly};
++      } else if (stretch_from->ComputeValueInCanonicalUnit(
++                     EnsureLengthResolver()) <
++                 stretch_to->ComputeValueInCanonicalUnit(
++                     EnsureLengthResolver())) {
+         capabilities.width = {
+             FontSelectionValue(stretch_from->ComputeValueInCanonicalUnit(
+                 EnsureLengthResolver())),
+@@ -764,9 +780,14 @@
+       }
+     } else if (auto* stretch_primitive_value =
+                    DynamicTo<CSSPrimitiveValue>(stretch_.Get())) {
+-      float stretch_value =
++      const float stretch_value =
+           stretch_primitive_value->ComputeValueInCanonicalUnit(
+               EnsureLengthResolver());
++      if (std::isnan(stretch_value) &&
++          RuntimeEnabledFeatures::
++              FontFaceCapabilitiesRangeValidationEnabled()) {
++        return normal_capabilities;
++      }
+       capabilities.width = {FontSelectionValue(stretch_value),
+                             FontSelectionValue(stretch_value),
+                             FontSelectionRange::RangeType::kSetExplicitly};
+@@ -819,9 +840,14 @@
+           if (oblique_values_size == 1) {
+             const auto& range_start =
+                 To<CSSPrimitiveValue>(range_value->GetObliqueValues()->Item(0));
+-            FontSelectionValue oblique_range(
+-                range_start.ComputeValueInCanonicalUnit(
+-                    EnsureLengthResolver()));
++            const float oblique_value =
++                range_start.ComputeValueInCanonicalUnit(EnsureLengthResolver());
++            if (std::isnan(oblique_value) &&
++                RuntimeEnabledFeatures::
++                    FontFaceCapabilitiesRangeValidationEnabled()) {
++              return normal_capabilities;
++            }
++            FontSelectionValue oblique_range(oblique_value);
+             capabilities.slope = {
+                 oblique_range, oblique_range,
+                 FontSelectionRange::RangeType::kSetExplicitly};
+@@ -834,9 +860,24 @@
+             // https://drafts.csswg.org/css-fonts/#font-prop-desc
+             // "User agents must swap the computed value of the startpoint and
+             // endpoint of the range in order to forbid decreasing ranges."
+-            if (range_start.ComputeValueInCanonicalUnit(
+-                    EnsureLengthResolver()) <
+-                range_end.ComputeValueInCanonicalUnit(EnsureLengthResolver())) {
++            if (RuntimeEnabledFeatures::
++                    FontFaceCapabilitiesRangeValidationEnabled()) {
++              const float start_value = range_start.ComputeValueInCanonicalUnit(
++                  EnsureLengthResolver());
++              const float end_value =
++                  range_end.ComputeValueInCanonicalUnit(EnsureLengthResolver());
++              if (std::isnan(start_value) || std::isnan(end_value)) {
++                return normal_capabilities;
++              }
++              const auto [min_slope, max_slope] =
++                  std::minmax(start_value, end_value);
++              capabilities.slope = {
++                  FontSelectionValue(min_slope), FontSelectionValue(max_slope),
++                  FontSelectionRange::RangeType::kSetExplicitly};
++            } else if (range_start.ComputeValueInCanonicalUnit(
++                           EnsureLengthResolver()) <
++                       range_end.ComputeValueInCanonicalUnit(
++                           EnsureLengthResolver())) {
+               capabilities.slope = {
+                   FontSelectionValue(range_start.ComputeValueInCanonicalUnit(
+                       EnsureLengthResolver())),
+@@ -889,37 +930,60 @@
+       if (!weight_from || !weight_to) {
+         return normal_capabilities;
+       }
+-      if (!weight_from->IsNumber() || !weight_to->IsNumber() ||
+-          weight_from->ComputeValueInCanonicalUnit(EnsureLengthResolver()) <
+-              1 ||
+-          weight_to->ComputeValueInCanonicalUnit(EnsureLengthResolver()) >
+-              1000) {
+-        return normal_capabilities;
+-      }
+-      // https://drafts.csswg.org/css-fonts/#font-prop-desc
+-      // "User agents must swap the computed value of the startpoint and
+-      // endpoint of the range in order to forbid decreasing ranges."
+-      if (weight_from->ComputeValueInCanonicalUnit(EnsureLengthResolver()) <
+-          weight_to->ComputeValueInCanonicalUnit(EnsureLengthResolver())) {
+-        capabilities.weight = {
+-            FontSelectionValue(weight_from->ComputeValueInCanonicalUnit(
+-                EnsureLengthResolver())),
+-            FontSelectionValue(
+-                weight_to->ComputeValueInCanonicalUnit(EnsureLengthResolver())),
+-            FontSelectionRange::RangeType::kSetExplicitly};
++      if (RuntimeEnabledFeatures::
++              FontFaceCapabilitiesRangeValidationEnabled()) {
++        if (!weight_from->IsNumber() || !weight_to->IsNumber()) {
++          return normal_capabilities;
++        }
++        const float from_value =
++            weight_from->ComputeValueInCanonicalUnit(EnsureLengthResolver());
++        const float to_value =
++            weight_to->ComputeValueInCanonicalUnit(EnsureLengthResolver());
++        if (!(from_value >= 1 && from_value <= 1000) ||
++            !(to_value >= 1 && to_value <= 1000)) {
++          return normal_capabilities;
++        }
++        // https://drafts.csswg.org/css-fonts/#font-prop-desc
++        // "User agents must swap the computed value of the startpoint and
++        // endpoint of the range in order to forbid decreasing ranges."
++        const auto [min_weight, max_weight] = std::minmax(from_value, to_value);
++        capabilities.weight = {FontSelectionValue(min_weight),
++                               FontSelectionValue(max_weight),
++                               FontSelectionRange::RangeType::kSetExplicitly};
+       } else {
+-        capabilities.weight = {
+-            FontSelectionValue(
+-                weight_to->ComputeValueInCanonicalUnit(EnsureLengthResolver())),
+-            FontSelectionValue(weight_from->ComputeValueInCanonicalUnit(
+-                EnsureLengthResolver())),
+-            FontSelectionRange::RangeType::kSetExplicitly};
++        if (!weight_from->IsNumber() || !weight_to->IsNumber() ||
++            weight_from->ComputeValueInCanonicalUnit(EnsureLengthResolver()) <
++                1 ||
++            weight_to->ComputeValueInCanonicalUnit(EnsureLengthResolver()) >
++                1000) {
++          return normal_capabilities;
++        }
++        if (weight_from->ComputeValueInCanonicalUnit(EnsureLengthResolver()) <
++            weight_to->ComputeValueInCanonicalUnit(EnsureLengthResolver())) {
++          capabilities.weight = {
++              FontSelectionValue(weight_from->ComputeValueInCanonicalUnit(
++                  EnsureLengthResolver())),
++              FontSelectionValue(weight_to->ComputeValueInCanonicalUnit(
++                  EnsureLengthResolver())),
++              FontSelectionRange::RangeType::kSetExplicitly};
++        } else {
++          capabilities.weight = {
++              FontSelectionValue(weight_to->ComputeValueInCanonicalUnit(
++                  EnsureLengthResolver())),
++              FontSelectionValue(weight_from->ComputeValueInCanonicalUnit(
++                  EnsureLengthResolver())),
++              FontSelectionRange::RangeType::kSetExplicitly};
++        }
+       }
+     } else if (auto* weight_primitive_value =
+                    DynamicTo<CSSPrimitiveValue>(weight_.Get())) {
+-      float weight_value = weight_primitive_value->ComputeValueInCanonicalUnit(
+-          EnsureLengthResolver());
+-      if (weight_value < 1 || weight_value > 1000) {
++      const float weight_value =
++          weight_primitive_value->ComputeValueInCanonicalUnit(
++              EnsureLengthResolver());
++      if (!(weight_value >= 1 && weight_value <= 1000) &&
++          (RuntimeEnabledFeatures::
++               FontFaceCapabilitiesRangeValidationEnabled() ||
++           weight_value < 1 || weight_value > 1000)) {
+         return normal_capabilities;
+       }
+       capabilities.weight = {FontSelectionValue(weight_value),
+diff --git a/third_party/blink/renderer/core/css/font_face_cache.cc b/third_party/blink/renderer/core/css/font_face_cache.cc
+index c4044134..dbcc195b 100644
+--- a/third_party/blink/renderer/core/css/font_face_cache.cc
++++ b/third_party/blink/renderer/core/css/font_face_cache.cc
+@@ -37,6 +37,7 @@
+ #include "third_party/blink/renderer/platform/fonts/font_description.h"
+ #include "third_party/blink/renderer/platform/fonts/font_selection_algorithm.h"
+ #include "third_party/blink/renderer/platform/loader/fetch/resource_fetcher.h"
++#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
+ 
+ namespace blink {
+@@ -64,8 +65,16 @@
+ }
+ 
+ void FontFaceCache::AddFontFace(FontFace* font_face, bool css_connected) {
+-  DCHECK(font_face->GetFontSelectionCapabilities().IsValid() &&
+-         !font_face->GetFontSelectionCapabilities().IsHashTableDeletedValue());
++  if (RuntimeEnabledFeatures::FontFaceCapabilitiesRangeValidationEnabled()) {
++    const FontSelectionCapabilities capabilities =
++        font_face->GetFontSelectionCapabilities();
++    DCHECK(capabilities.IsValid() && !capabilities.IsHashTableDeletedValue() &&
++           capabilities != FontSelectionCapabilities());
++  } else {
++    DCHECK(
++        font_face->GetFontSelectionCapabilities().IsValid() &&
++        !font_face->GetFontSelectionCapabilities().IsHashTableDeletedValue());
++  }
+ 
+   segmented_faces_.AddFontFace(font_face, css_connected);
+ 
+@@ -83,6 +92,20 @@
+ 
+ void FontFaceCache::CapabilitiesSet::AddFontFace(FontFace* font_face,
+                                                  bool css_connected) {
++  if (RuntimeEnabledFeatures::FontFaceCapabilitiesRangeValidationEnabled()) {
++    const FontSelectionCapabilities capabilities =
++        font_face->GetFontSelectionCapabilities();
++    CHECK(capabilities != FontSelectionCapabilities());
++    const auto result = map_.insert(capabilities, nullptr);
++    if (result.is_new_entry) {
++      result.stored_value->value =
++          MakeGarbageCollected<CSSSegmentedFontFace>(capabilities);
++    }
++
++    result.stored_value->value->AddFontFace(font_face, css_connected);
++    return;
++  }
++
+   const auto result =
+       map_.insert(font_face->GetFontSelectionCapabilities(), nullptr);
+   if (result.is_new_entry) {
 diff --git a/third_party/blink/renderer/core/editing/selection_modifier_line.cc b/third_party/blink/renderer/core/editing/selection_modifier_line.cc
 index 163df3ed..3ad7d0a 100644
 --- a/third_party/blink/renderer/core/editing/selection_modifier_line.cc
@@ -14812,10 +15053,22 @@ index d9aeca5..8833bd3e 100644
  
    // Main task runner for the window or worker context this source runs on.
 diff --git a/third_party/blink/renderer/platform/runtime_enabled_features.json5 b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-index 9ee8f83..081b09a 100644
+index 9ee8f83..80ad78e1 100644
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -4622,13 +4622,6 @@
+@@ -3426,6 +3426,11 @@
+       // a Chromium level feature (kFontDataServiceForCSSLocalFonts).
+     },
+     {
++      // Kill switch for https://crbug.com/589815780.
++      name: "FontFaceCapabilitiesRangeValidation",
++      status: "stable",
++    },
++    {
+       // Kill switch for https://crbug.com/579721442.
+       name: "FontFallbackMultiplePriorityFonts",
+       status: "stable",
+@@ -4622,13 +4627,6 @@
        status: "stable",
      },
      {
@@ -14829,7 +15082,7 @@ index 9ee8f83..081b09a 100644
        // Support Nastaliq script. crbug.com/569667449
        name: "NastaliqScript",
        status: "stable",
-@@ -6099,6 +6092,12 @@
+@@ -6099,6 +6097,12 @@
        status: "stable",
      },
      {
