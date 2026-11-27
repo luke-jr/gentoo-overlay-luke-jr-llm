@@ -1,10 +1,10 @@
 Chromium 159.0.8154.45 + the later changes of its release branch, up to
-4488066508ec300a229606080f0fd5577ac1b434 (refs/branch-heads/8154@{#2021}), for the
+d7f0bdccf7a272b985c18272549036f79a03f457 (refs/branch-heads/8154@{#2034}), for the
 159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
-8154@{#2021}.
+8154@{#2034}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..4488066508ec and the
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..d7f0bdccf7a2 and the
 dependencies whose DEPS revision changed: ANGLE 4dd34493f8a2..2ec7b6db14f2 (under
 third_party/angle/), third_party/devtools-frontend/src 3d48567555b6..c9c1d13c34cf (under
 third_party/devtools-frontend/src/), third_party/libvpx/source/libvpx
@@ -174,6 +174,7 @@ Commits contributing to it (oldest first):
   c65b73fc95ac [M159][STTS] Disable sign-in promo entry point on ChromeOS (8154@{#2012})
   48668b3cbff7 [iOS][M159 CP] Update Gemini zero state suggestion chips styling (8154@{#2016})
   4488066508ec [M159] [HistoryClusters] Fix UAF in OnUkmNavigationComplete (8154@{#2021})
+  d7f0bdccf7a2 [M159] [lens] Only focus overlay WebView when tab is activated (8154@{#2034})
 Dependency commits of those rolls that touch kept files:
   315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
   9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
@@ -214,7 +215,7 @@ Dependency commits of those rolls that touch kept files:
   f543de058d97 Version 15.9.128.46 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
-version at 4488066508ec (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
+version at d7f0bdccf7a2 (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
 c9c1d13c34cf) (or third_party/libvpx/source/libvpx's 6f89cfbcc99f) (or Skia's 220d4fc2d73c)
 (or V8's f543de058d97).
 
@@ -6692,6 +6693,39 @@ index ee26c4c..58f40795 100644
    views::DialogDelegate* bubble = nullptr;
    if (auto* control = toolbar_button_provider_->GetAppMenuControl()) {
      auto* dialog = control->GetDialogDelegate();
+diff --git a/chrome/browser/ui/lens/overlay_base_controller.cc b/chrome/browser/ui/lens/overlay_base_controller.cc
+index 9eaafbc..194572bf 100644
+--- a/chrome/browser/ui/lens/overlay_base_controller.cc
++++ b/chrome/browser/ui/lens/overlay_base_controller.cc
+@@ -724,8 +724,11 @@
+     SetLiveBlurImpl(should_enable_live_blur_on_show_);
+ 
+     // The overlay needs to be focused on show to immediately begin
+-    // receiving key events.
+-    overlay_web_view_->RequestFocus();
++    // receiving key events. Avoid stealing focus when reshowing an inactive
++    // split-view tab.
++    if (tab_->IsActivated()) {
++      overlay_web_view_->RequestFocus();
++    }
+ 
+     // Disable mouse and keyboard inputs to the tab contents web view. Do this
+     // after the overlay takes focus. If it is done before, focus will move from
+@@ -758,9 +761,12 @@
+   tab_contents_view_observer_.Observe(overlay_view_);
+ 
+   // The overlay needs to be focused on show to immediately begin
+-  // receiving key events.
++  // receiving key events. Avoid stealing focus when reshowing an inactive
++  // split-view tab.
+   CHECK(overlay_web_view_);
+-  overlay_web_view_->RequestFocus();
++  if (tab_->IsActivated()) {
++    overlay_web_view_->RequestFocus();
++  }
+ 
+   // Disable mouse and keyboard inputs to the tab contents web view. Do this
+   // after the overlay takes focus. If it is done before, focus will move from
 diff --git a/chrome/browser/ui/location_bar/location_bar.cc b/chrome/browser/ui/location_bar/location_bar.cc
 index 643f9e1..83ba895f 100644
 --- a/chrome/browser/ui/location_bar/location_bar.cc
