@@ -1,10 +1,10 @@
 Chromium 159.0.8154.45 + the later changes of its release branch, up to
-38c9577534d06da1f9aaf1eb79cd2b7d8e635ef1 (refs/branch-heads/8154@{#1956}), for the
+45e3968c7427fcbe8616cf267ccb13c61adcd7df (refs/branch-heads/8154@{#1963}), for the
 159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
-8154@{#1945}.
+8154@{#1961}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..38c9577534d0 and the
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..45e3968c7427 and the
 dependencies whose DEPS revision changed: ANGLE 4dd34493f8a2..2ec7b6db14f2 (under
 third_party/angle/), third_party/devtools-frontend/src 3d48567555b6..c9c1d13c34cf (under
 third_party/devtools-frontend/src/), third_party/libvpx/source/libvpx
@@ -163,6 +163,7 @@ Commits contributing to it (oldest first):
   49d59ee7d5ce Roll commits from side projects in M159 (V8 7313241a35e4..fe2e3c0a6306, 8154@{#1939})
   5033ef6a3152 [M159] Catch V8 exceptions in CSS paint and layout worklets (8154@{#1940})
   c555b6fe7564 [M159] [Reading Mode] Clear Screen2x running flag when replacing its distiller (8154@{#1945})
+  3d3935cafd18 [M159] [floats] Avoid mismatched leading floats across ruby columns (8154@{#1961})
 Dependency commits of those rolls that touch kept files:
   315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
   9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
@@ -195,7 +196,7 @@ Dependency commits of those rolls that touch kept files:
   fe2e3c0a6306 Version 15.9.128.42 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
-version at 38c9577534d0 (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
+version at 45e3968c7427 (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
 c9c1d13c34cf) (or third_party/libvpx/source/libvpx's 6f89cfbcc99f) (or Skia's 220d4fc2d73c)
 (or V8's fe2e3c0a6306).
 
@@ -15235,6 +15236,126 @@ index 042ceb9f..00d1c01 100644
  
    ScriptValue instance;
    if (!constructor_->Construct().To(&instance)) {
+diff --git a/third_party/blink/renderer/core/layout/inline/inline_layout_algorithm.cc b/third_party/blink/renderer/core/layout/inline/inline_layout_algorithm.cc
+index abf9717..218d5d66 100644
+--- a/third_party/blink/renderer/core/layout/inline/inline_layout_algorithm.cc
++++ b/third_party/blink/renderer/core/layout/inline/inline_layout_algorithm.cc
+@@ -1745,8 +1745,12 @@
+ void InlineLayoutAlgorithm::PositionLeadingFloats(
+     ExclusionSpace& exclusion_space,
+     LeadingFloats& leading_floats) {
+-  if (GetBreakToken() && GetBreakToken()->IsInParallelBlockFlow()) {
+-    // Bail, and let the line breaker deal with any kind of parallel flow.
++  if (GetBreakToken() &&
++      (GetBreakToken()->IsInParallelBlockFlow() ||
++       (RuntimeEnabledFeatures::RubySkipLeadingFloatsEnabled() &&
++        GetBreakToken()->RubyData()))) {
++    // Bail, and let the line breaker deal with any kind of parallel flow or
++    // ruby continuation.
+     return;
+   }
+ 
+@@ -1756,9 +1760,13 @@
+   for (; index < items.size(); ++index) {
+     const InlineItem& item = *items[index];
+ 
+-    // Abort if we've found something non-empty.
+-    if (!item.IsEmptyItem())
++    // Abort if we've found something non-empty, or a ruby column (which may
++    // be handled by a sub-LineBreaker with empty LeadingFloats).
++    if (!item.IsEmptyItem() ||
++        (RuntimeEnabledFeatures::RubySkipLeadingFloatsEnabled() &&
++         item.Type() == InlineItem::kOpenRubyColumn)) {
+       break;
++    }
+ 
+     if (item.Type() != InlineItem::kFloating) {
+       continue;
+@@ -1786,7 +1794,7 @@
+       }
+     }
+ 
+-    leading_floats.Add(positioned_float, parallel_break_token);
++    leading_floats.Add(index, positioned_float, parallel_break_token);
+   }
+ 
+   leading_floats.SetHandledIndex(index);
+diff --git a/third_party/blink/renderer/core/layout/inline/leading_floats.h b/third_party/blink/renderer/core/layout/inline/leading_floats.h
+index b21649e..78e422c 100644
+--- a/third_party/blink/renderer/core/layout/inline/leading_floats.h
++++ b/third_party/blink/renderer/core/layout/inline/leading_floats.h
+@@ -19,11 +19,14 @@
+   DISALLOW_NEW();
+ 
+  public:
+-  LeadingFloat(const PositionedFloat& positioned_float,
++  LeadingFloat(wtf_size_t item_index,
++               const PositionedFloat& positioned_float,
+                const InlineBreakToken* parallel_flow_break_token)
+-      : positioned_float(positioned_float),
++      : item_index(item_index),
++        positioned_float(positioned_float),
+         parallel_flow_break_token(parallel_flow_break_token) {}
+ 
++  wtf_size_t item_index;
+   PositionedFloat positioned_float;
+   Member<const InlineBreakToken> parallel_flow_break_token;
+ 
+@@ -41,9 +44,11 @@
+  public:
+   ~LeadingFloats() { floats_.clear(); }
+ 
+-  void Add(const PositionedFloat& positioned_float,
++  void Add(wtf_size_t item_index,
++           const PositionedFloat& positioned_float,
+            const InlineBreakToken* parallel_flow_break_token) {
+-    floats_.emplace_back(positioned_float, parallel_flow_break_token);
++    floats_.emplace_back(item_index, positioned_float,
++                         parallel_flow_break_token);
+   }
+   void SetHandledIndex(wtf_size_t idx) { handled_index_ = idx; }
+ 
+diff --git a/third_party/blink/renderer/core/layout/inline/line_breaker.cc b/third_party/blink/renderer/core/layout/inline/line_breaker.cc
+index 447a0674..0cee634 100644
+--- a/third_party/blink/renderer/core/layout/inline/line_breaker.cc
++++ b/third_party/blink/renderer/core/layout/inline/line_breaker.cc
+@@ -3813,12 +3813,19 @@
+   }
+ 
+   // Make sure we populate the positioned_float inside the |item_result|.
+-  if (current_.item_index <= leading_floats_.HandledIndex() &&
++  const bool use_leading_float_item_index =
++      RuntimeEnabledFeatures::RubySkipLeadingFloatsEnabled();
++  if ((use_leading_float_item_index
++           ? index_before_float.item_index < leading_floats_.HandledIndex()
++           : current_.item_index <= leading_floats_.HandledIndex()) &&
+       !leading_floats_.Empty()) {
+     DCHECK_LT(leading_floats_index_, leading_floats_.Count());
+ 
+     const LeadingFloat& leading_float =
+         leading_floats_.At(leading_floats_index_++);
++    if (use_leading_float_item_index) {
++      CHECK_EQ(leading_float.item_index, index_before_float.item_index);
++    }
+     item_result->positioned_float = leading_float.positioned_float;
+     if (leading_float.parallel_flow_break_token) {
+       line_info->PropagateParallelFlowBreakToken(
+@@ -3928,9 +3935,13 @@
+       // Adjust `leading_floats_index_` if this is a leading float. See
+       // `HandleFloat` and `PositionLeadingFloats`.
+       if (item_index < leading_floats_.HandledIndex()) {
++        const bool use_leading_float_item_index =
++            RuntimeEnabledFeatures::RubySkipLeadingFloatsEnabled();
+         for (unsigned i = 0; i < leading_floats_.Count(); ++i) {
+-          if (leading_floats_.At(i).positioned_float.layout_result ==
+-              item_result.positioned_float->layout_result) {
++          if (use_leading_float_item_index
++                  ? leading_floats_.At(i).item_index == item_index
++                  : leading_floats_.At(i).positioned_float.layout_result ==
++                        item_result.positioned_float->layout_result) {
+             leading_floats_index_ = i;
+             // Need to restore `exclusion_space_` even if leading floats don't
+             // modify `exclusion_space_`, because there may be following
 diff --git a/third_party/blink/renderer/core/paint/highlight_overlay.cc b/third_party/blink/renderer/core/paint/highlight_overlay.cc
 index 121441d..dffeaa3 100644
 --- a/third_party/blink/renderer/core/paint/highlight_overlay.cc
@@ -15823,7 +15944,7 @@ index 6f5dbe64..19abdad 100644
      [CallWith=ScriptState, RaisesException] Promise<boolean> setServerCertificate([PassAsSpan] BufferSource serverCertificate);
  };
 diff --git a/third_party/blink/renderer/platform/runtime_enabled_features.json5 b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-index 9ee8f83..80ad78e1 100644
+index 9ee8f83..a18724c 100644
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
 @@ -3426,6 +3426,11 @@
@@ -15852,7 +15973,21 @@ index 9ee8f83..80ad78e1 100644
        // Support Nastaliq script. crbug.com/569667449
        name: "NastaliqScript",
        status: "stable",
-@@ -6099,6 +6097,12 @@
+@@ -5807,6 +5805,13 @@
+       status: "stable",
+     },
+     {
++      // Prevents PositionLeadingFloats from positioning floats inside ruby
++      // columns, and verifies leading float item indices match in
++      // LineBreaker::HandleFloat. https://crbug.com/589800513
++      name: "RubySkipLeadingFloats",
++      status: "stable",
++    },
++    {
+       // Allows a soft wrap after a preserved space (e.g. `white-space:
+       // pre-wrap`) that is followed by a <ruby>, by ignoring the bidi
+       // controls of ruby columns when checking break opportunities.
+@@ -6099,6 +6104,12 @@
        status: "stable",
      },
      {
