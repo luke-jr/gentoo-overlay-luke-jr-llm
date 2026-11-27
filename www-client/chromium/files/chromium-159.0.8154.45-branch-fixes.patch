@@ -1,10 +1,10 @@
 Chromium 159.0.8154.45 + the later changes of its release branch, up to
-d0bbb4919bf364907b02da077a66cf13931ea291 (refs/branch-heads/8154@{#1996}), for the
+4488066508ec300a229606080f0fd5577ac1b434 (refs/branch-heads/8154@{#2021}), for the
 159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
-8154@{#1995}.
+8154@{#2021}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..d0bbb4919bf3 and the
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..4488066508ec and the
 dependencies whose DEPS revision changed: ANGLE 4dd34493f8a2..2ec7b6db14f2 (under
 third_party/angle/), third_party/devtools-frontend/src 3d48567555b6..c9c1d13c34cf (under
 third_party/devtools-frontend/src/), third_party/libvpx/source/libvpx
@@ -170,6 +170,10 @@ Commits contributing to it (oldest first):
   958708e94267 Roll commits from side projects in M159 (V8 3c2fbbf6e412..bd33bfc6a8c0, 8154@{#1986})
   949570058627 [M159] Reland "disk_cache: Use rename in POSIX MoveCache and check cleanup in RestartCache" (8154@{#1987})
   6556785561c8 Roll commits from side projects in M159 (V8 bd33bfc6a8c0..f543de058d97, 8154@{#1995})
+  ee4834aade8e [M159] [SearchPrefetch] Fall back when served in-flight prefetch redirects (8154@{#2007})
+  c65b73fc95ac [M159][STTS] Disable sign-in promo entry point on ChromeOS (8154@{#2012})
+  48668b3cbff7 [iOS][M159 CP] Update Gemini zero state suggestion chips styling (8154@{#2016})
+  4488066508ec [M159] [HistoryClusters] Fix UAF in OnUkmNavigationComplete (8154@{#2021})
 Dependency commits of those rolls that touch kept files:
   315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
   9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
@@ -210,7 +214,7 @@ Dependency commits of those rolls that touch kept files:
   f543de058d97 Version 15.9.128.46 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
-version at d0bbb4919bf3 (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
+version at 4488066508ec (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
 c9c1d13c34cf) (or third_party/libvpx/source/libvpx's 6f89cfbcc99f) (or Skia's 220d4fc2d73c)
 (or V8's f543de058d97).
 
@@ -2160,6 +2164,70 @@ index 0000000..1ef367ac
 +}  // namespace glic
 +
 +#endif  // CHROME_BROWSER_GLIC_PUBLIC_GLIC_WHATS_NEW_INVOKE_H_
+diff --git a/chrome/browser/history_clusters/history_clusters_tab_helper.cc b/chrome/browser/history_clusters/history_clusters_tab_helper.cc
+index 762da5ae..71d27e76 100644
+--- a/chrome/browser/history_clusters/history_clusters_tab_helper.cc
++++ b/chrome/browser/history_clusters/history_clusters_tab_helper.cc
+@@ -240,31 +240,46 @@
+     base::TimeDelta total_foreground_duration,
+     const page_load_metrics::PageEndReason page_end_reason) {
+   auto* history_clusters_service = GetHistoryClustersService();
+-  if (!history_clusters_service)
++  if (!history_clusters_service ||
++      !history_clusters_service->HasIncompleteVisitContextAnnotations(
++          navigation_id)) {
+     return history::VisitContextAnnotations();
++  }
+ 
+-  auto& incomplete_visit_context_annotations =
+-      history_clusters_service->GetIncompleteVisitContextAnnotations(
+-          navigation_id);
+-  incomplete_visit_context_annotations.context_annotations.page_end_reason =
+-      page_end_reason;
+-  incomplete_visit_context_annotations.context_annotations
+-      .total_foreground_duration = total_foreground_duration;
++  {
++    auto& incomplete_visit_context_annotations =
++        history_clusters_service->GetIncompleteVisitContextAnnotations(
++            navigation_id);
++    incomplete_visit_context_annotations.context_annotations.page_end_reason =
++        page_end_reason;
++    incomplete_visit_context_annotations.context_annotations
++        .total_foreground_duration = total_foreground_duration;
++    // Ensure `RecordPageEndMetricsIfNeeded()` does not complete and erase the
++    // entry early if `TagNavigationAsExpectingUkmNavigationComplete()` was not
++    // called when the navigation started.
++    incomplete_visit_context_annotations.status.expect_ukm_page_end_signals =
++        true;
++  }
++
+   // `RecordPageEndMetricsIfNeeded()` will fail to complete the
+   // `IncompleteVisitContextAnnotations` as `ukm_page_end_signals` hasn't been
+   // set yet, but it will record metrics if needed (i.e. not already recorded)
+   // and possible (i.e. the history request has resolved and `history_rows` have
+   // been recorded).
+   RecordPageEndMetricsIfNeeded(navigation_id);
++  if (!history_clusters_service->HasIncompleteVisitContextAnnotations(
++          navigation_id)) {
++    return history::VisitContextAnnotations();
++  }
++
+   // Make a copy of the context annotations as the referenced
+-  // incomplete_visit_context_annotations may be destroyed in
++  // `incomplete_visit_context_annotations` may be destroyed in
+   // `CompleteVisitContextAnnotationsIfReady()`.
++  auto& incomplete_visit_context_annotations =
++      history_clusters_service->GetIncompleteVisitContextAnnotations(
++          navigation_id);
+   auto context_annotations_copy =
+       incomplete_visit_context_annotations.context_annotations;
+-  // TODO(crbug.com/574688432): CHECK-exclusion: Convert to a CHECK once we are
+-  // confident it won't be triggered.
+-  DCHECK(
+-      incomplete_visit_context_annotations.status.expect_ukm_page_end_signals);
+   incomplete_visit_context_annotations.status.ukm_page_end_signals = true;
+   history_clusters_service->CompleteVisitContextAnnotationsIfReady(
+       navigation_id);
 diff --git a/chrome/browser/infobars/BUILD.gn b/chrome/browser/infobars/BUILD.gn
 index 0d47f5e..51cf523 100644
 --- a/chrome/browser/infobars/BUILD.gn
@@ -2597,6 +2665,129 @@ index 79b381a..404803c 100644
  
      // See note at top, new items added here also need to be added to
      // histograms.xml's TrackedPreference enum.
+diff --git a/chrome/browser/preloading/prefetch/search_prefetch/search_prefetch_browser_test_base.cc b/chrome/browser/preloading/prefetch/search_prefetch/search_prefetch_browser_test_base.cc
+index 1c8a5c8..1c6514b 100644
+--- a/chrome/browser/preloading/prefetch/search_prefetch/search_prefetch_browser_test_base.cc
++++ b/chrome/browser/preloading/prefetch/search_prefetch/search_prefetch_browser_test_base.cc
+@@ -339,6 +339,19 @@
+     return CreateDeferrableResponse(net::HTTP_BAD_GATEWAY, response_headers,
+                                     "<html><body>prefetch</body></html>");
+   }
++  if (request.GetURL().spec().find("302_on_prefetch") != std::string::npos &&
++      is_prefetch) {
++    response_headers.emplace_back(
++        "Location",
++        GetSearchServerQueryURLWithNoQuery("/redirected.html").spec());
++    return CreateDeferrableResponse(net::HTTP_FOUND, response_headers, "");
++  }
++  if (request.GetURL().spec().find("302_always") != std::string::npos) {
++    response_headers.emplace_back(
++        "Location",
++        GetSearchServerQueryURLWithNoQuery("/redirected.html").spec());
++    return CreateDeferrableResponse(net::HTTP_FOUND, response_headers, "");
++  }
+   std::string content = "<html><body> ";
+   content.append(is_prefetch ? "prefetch" : "regular");
+   content.append(" </body></html>");
+diff --git a/chrome/browser/preloading/prefetch/search_prefetch/search_prefetch_browser_test_base.h b/chrome/browser/preloading/prefetch/search_prefetch/search_prefetch_browser_test_base.h
+index ccabd00..e19dc62b 100644
+--- a/chrome/browser/preloading/prefetch/search_prefetch/search_prefetch_browser_test_base.h
++++ b/chrome/browser/preloading/prefetch/search_prefetch/search_prefetch_browser_test_base.h
+@@ -159,6 +159,10 @@
+       SearchSuggestionTuple("502_on_prefetch",
+                             {"502_on_prefetch"},
+                             /*prefetch_index=*/0,
++                            /*prerender_index=*/-1),
++      SearchSuggestionTuple("302_on_prefetch",
++                            {"302_on_prefetch"},
++                            /*prefetch_index=*/0,
+                             /*prerender_index=*/-1)};
+   // TODO(https://crbug.com/423465927): Explore a better approach to make the
+   // existing tests run with the prewarm feature enabled.
+diff --git a/chrome/browser/preloading/prefetch/search_prefetch/streaming_search_prefetch_url_loader.cc b/chrome/browser/preloading/prefetch/search_prefetch/streaming_search_prefetch_url_loader.cc
+index 353e23a..1ce8322 100644
+--- a/chrome/browser/preloading/prefetch/search_prefetch/streaming_search_prefetch_url_loader.cc
++++ b/chrome/browser/preloading/prefetch/search_prefetch/streaming_search_prefetch_url_loader.cc
+@@ -414,8 +414,8 @@
+     return;
+   }
+ 
+-  // In the edge case we were between owners when a response error happened,
+-  // fallback was deferred until here.
++  // In the edge case we were between owners when a response error or redirect
++  // happened, fallback was deferred until here.
+   if (is_scheduled_to_fallback_) {
+     Fallback();
+   }
+@@ -527,14 +527,7 @@
+   // whether we still have a parent pointer.
+   if (!can_be_served) {
+     if (!streaming_prefetch_request_) {
+-      // SetUpForwardingClient() needs to be called before fallback.
+-      if (is_activated_) {
+-        Fallback();
+-      } else {
+-        // Wait until SetUpForwardingClient() is called.
+-        CHECK(!is_scheduled_to_fallback_);
+-        is_scheduled_to_fallback_ = true;
+-      }
++      StartOrScheduleFallback();
+       return;
+     }
+     CHECK(streaming_prefetch_request_, base::NotFatalUntil::M163);
+@@ -590,10 +583,9 @@
+   if (streaming_prefetch_request_) {
+     streaming_prefetch_request_->ErrorEncountered();
+     // Do nothing after this point, as `this` might be deleted.
+-  } else {
+-    forwarding_result_ = ForwardingResult::kFailed;
+-    PostTaskToReleaseOwnership();
++    return;
+   }
++  StartOrScheduleFallback();
+ }
+ 
+ void StreamingSearchPrefetchURLLoader::OnUploadProgress(
+@@ -878,6 +870,24 @@
+       FROM_HERE, std::move(self_pointer_));
+ }
+ 
++void StreamingSearchPrefetchURLLoader::StartOrScheduleFallback() {
++  CHECK(!streaming_prefetch_request_);
++
++  // SetUpForwardingClient() needs to be called before fallback.
++  if (is_activated_) {
++    Fallback();
++    return;
++  }
++
++  // Abort the prefetch loader now so no further callbacks or disconnect
++  // notifications arrive before SetUpForwardingClient() runs.
++  network_url_loader_.reset();
++  url_loader_receiver_.reset();
++  // Wait until SetUpForwardingClient() is called.
++  CHECK(!is_scheduled_to_fallback_);
++  is_scheduled_to_fallback_ = true;
++}
++
+ void StreamingSearchPrefetchURLLoader::Fallback() {
+   TRACE_EVENT0("loading", "StreamingSearchPrefetchURLLoader::Fallback");
+   is_scheduled_to_fallback_ = false;
+diff --git a/chrome/browser/preloading/prefetch/search_prefetch/streaming_search_prefetch_url_loader.h b/chrome/browser/preloading/prefetch/search_prefetch/streaming_search_prefetch_url_loader.h
+index 5e9ec5d..6676ea3 100644
+--- a/chrome/browser/preloading/prefetch/search_prefetch/streaming_search_prefetch_url_loader.h
++++ b/chrome/browser/preloading/prefetch/search_prefetch/streaming_search_prefetch_url_loader.h
+@@ -325,6 +325,10 @@
+   // ResponseReader can own this instance.
+   void PostTaskToReleaseOwnership();
+ 
++  // Starts fallback immediately if `SetUpForwardingClient()` has already been
++  // called, or defers fallback until `SetUpForwardingClient()` runs.
++  void StartOrScheduleFallback();
++
+   // Creates a default network URL loader for the original request.
+   void Fallback();
+ 
 diff --git a/chrome/browser/printing/print_view_manager.cc b/chrome/browser/printing/print_view_manager.cc
 index 49a87cb..56b7fd33 100644
 --- a/chrome/browser/printing/print_view_manager.cc
@@ -12421,6 +12612,58 @@ index 8af0d9a6..cc2f90c 100644
    // For use by LogoService ---------------------------------------------------
  
    // The URL from which the logo was downloaded (without the fingerprint param).
+diff --git a/components/send_tab_to_self/entry_point_display_reason.cc b/components/send_tab_to_self/entry_point_display_reason.cc
+index 6591e14..e77dc5e 100644
+--- a/components/send_tab_to_self/entry_point_display_reason.cc
++++ b/components/send_tab_to_self/entry_point_display_reason.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "components/send_tab_to_self/entry_point_display_reason.h"
+ 
++#include "build/build_config.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/send_tab_to_self/send_tab_to_self_entry.h"
+ #include "components/send_tab_to_self/send_tab_to_self_model.h"
+@@ -20,6 +21,12 @@
+ 
+ bool IsSigninPossible(syncer::SyncService* sync_service,
+                       PrefService* pref_service) {
++#if BUILDFLAG(IS_CHROMEOS)
++  // In-browser sign-in is not supported on ChromeOS because accounts are
++  // managed at the OS level. Sessions without a Gaia account (such as Managed
++  // Guest Sessions and kiosk sessions) cannot sign in via a browser promo.
++  return false;
++#else
+   const bool signin_allowed = pref_service->GetBoolean(prefs::kSigninAllowed);
+   if (!signin_allowed) {
+     return false;
+@@ -32,12 +39,7 @@
+   }
+ 
+   return true;
+-}
+-
+-bool ShouldOfferSignin(syncer::SyncService* sync_service,
+-                       PrefService* pref_service) {
+-  return IsSigninPossible(sync_service, pref_service) &&
+-         sync_service->GetAccountInfo().IsEmpty();
++#endif  // BUILDFLAG(IS_CHROMEOS)
+ }
+ 
+ bool ShouldOfferReauth(syncer::SyncService* sync_service,
+@@ -104,8 +106,10 @@
+     return std::nullopt;
+   }
+ 
+-  if (ShouldOfferSignin(sync_service, pref_service)) {
+-    return EntryPointDisplayReason::kOfferSignIn;
++  if (sync_service->GetAccountInfo().IsEmpty()) {
++    return IsSigninPossible(sync_service, pref_service)
++               ? std::make_optional(EntryPointDisplayReason::kOfferSignIn)
++               : std::nullopt;
+   }
+ 
+   if (ShouldOfferReauth(sync_service, pref_service)) {
 diff --git a/components/sync/protocol/web_app_specifics.proto b/components/sync/protocol/web_app_specifics.proto
 index e4845628..dfc9e04 100644
 --- a/components/sync/protocol/web_app_specifics.proto
@@ -14248,10 +14491,18 @@ index 81ebfdd0..b1e6fcac 100644
        GLenum error = DrainGLErrors(gl_api);
        if (error != GL_NO_ERROR) {
 diff --git a/ios/chrome/browser/intelligence/bwg/coordinator/BUILD.gn b/ios/chrome/browser/intelligence/bwg/coordinator/BUILD.gn
-index a8b7bb0..24ff40d 100644
+index a8b7bb0..8eaf390f 100644
 --- a/ios/chrome/browser/intelligence/bwg/coordinator/BUILD.gn
 +++ b/ios/chrome/browser/intelligence/bwg/coordinator/BUILD.gn
-@@ -217,6 +217,7 @@
+@@ -203,6 +203,7 @@
+     "//ios/chrome/app/application_delegate:test_support",
+     "//ios/chrome/app/strings",
+     "//ios/chrome/browser/assistant/coordinator:commands",
++    "//ios/chrome/browser/assistant/ui",
+     "//ios/chrome/browser/assistant/ui:detent",
+     "//ios/chrome/browser/feature_engagement/model",
+     "//ios/chrome/browser/fullscreen/public:metrics",
+@@ -217,6 +218,7 @@
      "//ios/chrome/browser/intelligence/bwg/model",
      "//ios/chrome/browser/intelligence/bwg/model:browser_agent",
      "//ios/chrome/browser/intelligence/bwg/model:config",
