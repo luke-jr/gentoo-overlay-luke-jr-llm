@@ -1,15 +1,15 @@
 Chromium 159.0.8154.45 + the later changes of its release branch, up to
-00cd8b22ab8060c5ad508c1c979e332fbe17cafa (refs/branch-heads/8154@{#1976}), for the
+4e06e49e29b63702c1518a3de7ac6fa341945436 (refs/branch-heads/8154@{#1981}), for the
 159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
-8154@{#1974}.
+8154@{#1981}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..00cd8b22ab80 and the
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..4e06e49e29b6 and the
 dependencies whose DEPS revision changed: ANGLE 4dd34493f8a2..2ec7b6db14f2 (under
 third_party/angle/), third_party/devtools-frontend/src 3d48567555b6..c9c1d13c34cf (under
 third_party/devtools-frontend/src/), third_party/libvpx/source/libvpx
 fb0a26ad923b..6f89cfbcc99f (under third_party/libvpx/source/libvpx/), Skia
-b809e72312b0..220d4fc2d73c (under third_party/skia/), V8 90a5172104e6..fe2e3c0a6306 (under
+b809e72312b0..220d4fc2d73c (under third_party/skia/), V8 90a5172104e6..3c2fbbf6e412 (under
 v8/), as served by Gitiles, with scripts/chromium-delta/branch-fixes.py (filter.py --branch-
 fixes, against the 159.0.8154.45 tree's files): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs (GN files kept),
@@ -165,6 +165,8 @@ Commits contributing to it (oldest first):
   c555b6fe7564 [M159] [Reading Mode] Clear Screen2x running flag when replacing its distiller (8154@{#1945})
   3d3935cafd18 [M159] [floats] Avoid mismatched leading floats across ruby columns (8154@{#1961})
   0305d454cf42 [M159] Clear AXTree extra announcement nodes during root updates (8154@{#1974})
+  1a3e847a61c9 [M159] Skip layout of fieldset children if display-locked. (8154@{#1979})
+  4e06e49e29b6 Roll commits from side projects in M159 (V8 fe2e3c0a6306..3c2fbbf6e412, 8154@{#1981})
 Dependency commits of those rolls that touch kept files:
   315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
   9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
@@ -195,11 +197,13 @@ Dependency commits of those rolls that touch kept files:
   7313241a35e4 Version 15.9.128.41 (V8: include/v8-version.h)
   dd40d8868111 Merged: S390: Use kDoubleRegZero as scratch under swap ops (V8: src/codegen/s390/macro-assembler-s390.cc)
   fe2e3c0a6306 Version 15.9.128.42 (V8: include/v8-version.h)
+  4ac3021e1e7f [M159] [turbofan] Add a checkpoint before the comparefn call in inlined sort (V8: src/compiler/js-call-reducer.cc)
+  3c2fbbf6e412 Version 15.9.128.43 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
-version at 00cd8b22ab80 (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
+version at 4e06e49e29b6 (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
 c9c1d13c34cf) (or third_party/libvpx/source/libvpx's 6f89cfbcc99f) (or Skia's 220d4fc2d73c)
-(or V8's fe2e3c0a6306).
+(or V8's 3c2fbbf6e412).
 
 Apply with git apply.
 
@@ -15174,6 +15178,30 @@ index 8aa178c..80d44d9 100644
    HeapHashMap<WeakMember<const Text>, HashSet<AtomicString>>
        active_highlights_in_node_;
    // Replaced elements (e.g. <img>) covered by custom highlight ranges,
+diff --git a/third_party/blink/renderer/core/layout/block_node.cc b/third_party/blink/renderer/core/layout/block_node.cc
+index be75326..adbe1b1 100644
+--- a/third_party/blink/renderer/core/layout/block_node.cc
++++ b/third_party/blink/renderer/core/layout/block_node.cc
+@@ -1211,6 +1211,9 @@
+ BlockNode BlockNode::GetRenderedLegend() const {
+   if (!IsFieldsetContainer())
+     return nullptr;
++  if (ChildLayoutBlockedByDisplayLock()) {
++    return nullptr;
++  }
+   return BlockNode(
+       LayoutFieldset::FindInFlowLegend(*To<LayoutBlock>(box_.Get())));
+ }
+@@ -1218,6 +1221,9 @@
+ BlockNode BlockNode::GetFieldsetContent() const {
+   if (!IsFieldsetContainer())
+     return nullptr;
++  if (ChildLayoutBlockedByDisplayLock()) {
++    return nullptr;
++  }
+   return BlockNode(
+       To<LayoutFieldset>(box_.Get())->FindAnonymousFieldsetContentBox());
+ }
 diff --git a/third_party/blink/renderer/core/layout/column_layout_algorithm.cc b/third_party/blink/renderer/core/layout/column_layout_algorithm.cc
 index f9f1a263..b69f028 100644
 --- a/third_party/blink/renderer/core/layout/column_layout_algorithm.cc
@@ -15237,6 +15265,31 @@ index 042ceb9f..00d1c01 100644
  
    ScriptValue instance;
    if (!constructor_->Construct().To(&instance)) {
+diff --git a/third_party/blink/renderer/core/layout/forms/fieldset_layout_algorithm.cc b/third_party/blink/renderer/core/layout/forms/fieldset_layout_algorithm.cc
+index 0f18a79..43304e5 100644
+--- a/third_party/blink/renderer/core/layout/forms/fieldset_layout_algorithm.cc
++++ b/third_party/blink/renderer/core/layout/forms/fieldset_layout_algorithm.cc
+@@ -236,12 +236,14 @@
+   // all live inside an anonymous child box of the fieldset container.
+   if (content_break_token || !has_seen_all_children) {
+     BlockNode fieldset_content = Node().GetFieldsetContent();
+-    DCHECK(fieldset_content);
+-    BreakStatus break_status =
+-        LayoutFieldsetContent(fieldset_content, content_break_token,
+-                              adjusted_padding_box_size, !!legend);
+-    if (break_status == BreakStatus::kNeedsEarlierBreak) {
+-      return break_status;
++    DCHECK(fieldset_content || Node().ChildLayoutBlockedByDisplayLock());
++    if (fieldset_content) {
++      BreakStatus break_status =
++          LayoutFieldsetContent(fieldset_content, content_break_token,
++                                adjusted_padding_box_size, !!legend);
++      if (break_status == BreakStatus::kNeedsEarlierBreak) {
++        return break_status;
++      }
+     }
+   }
+ 
 diff --git a/third_party/blink/renderer/core/layout/inline/inline_layout_algorithm.cc b/third_party/blink/renderer/core/layout/inline/inline_layout_algorithm.cc
 index abf9717..218d5d66 100644
 --- a/third_party/blink/renderer/core/layout/inline/inline_layout_algorithm.cc
@@ -19906,7 +19959,7 @@ index a03dccc..465d6de 100644
      DrawNonAARect(sdc, std::move(paint), userStencilSettings, clip, SkMatrix::I(),
                    dstRect, invert);
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index d9cc68e..f4ba846 100644
+index d9cc68e..b413867 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -19914,7 +19967,7 @@ index d9cc68e..f4ba846 100644
  #define V8_MINOR_VERSION 9
  #define V8_BUILD_NUMBER 128
 -#define V8_PATCH_LEVEL 34
-+#define V8_PATCH_LEVEL 42
++#define V8_PATCH_LEVEL 43
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
@@ -20515,6 +20568,23 @@ index 8afbafe..17eb995 100644
    // Reduce the node on top of the stack.
    void ReduceTop();
  
+diff --git a/v8/src/compiler/js-call-reducer.cc b/v8/src/compiler/js-call-reducer.cc
+index acc76ee..ae7bfbc 100644
+--- a/v8/src/compiler/js-call-reducer.cc
++++ b/v8/src/compiler/js-call-reducer.cc
+@@ -1909,6 +1909,12 @@
+         // Load elem = temp_array[j].
+         TNode<Object> elem = LoadElement<Object>(element_access, temp_array, j);
+ 
++        // Lowering the call can add eager deopts on its inputs, e.g. argument
++        // conversions for an inlined Wasm comparefn.  Earlier comparefn calls
++        // may have had side effects, so these deopts must not resume before
++        // the sort.
++        Checkpoint(SortContinueFromSnapshotEagerFrameState(frame_state_params));
++
+         TNode<Object> comparefn_this = UndefinedConstant();
+         TNode<Object> cmp_result =
+             JSCall2(comparefn, comparefn_this, pivot, elem,
 diff --git a/v8/src/compiler/node-properties.h b/v8/src/compiler/node-properties.h
 index a9673b4..8c953e3 100644
 --- a/v8/src/compiler/node-properties.h
