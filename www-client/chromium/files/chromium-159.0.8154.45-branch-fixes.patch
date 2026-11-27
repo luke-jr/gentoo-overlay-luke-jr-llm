@@ -1,15 +1,15 @@
 Chromium 159.0.8154.45 + the later changes of its release branch, up to
-88c8f00a9b2c787d9cdc91bb529c0ff4d87109ab (refs/branch-heads/8154@{#1988}), for the
+d0bbb4919bf364907b02da077a66cf13931ea291 (refs/branch-heads/8154@{#1996}), for the
 159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
-8154@{#1987}.
+8154@{#1995}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..88c8f00a9b2c and the
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..d0bbb4919bf3 and the
 dependencies whose DEPS revision changed: ANGLE 4dd34493f8a2..2ec7b6db14f2 (under
 third_party/angle/), third_party/devtools-frontend/src 3d48567555b6..c9c1d13c34cf (under
 third_party/devtools-frontend/src/), third_party/libvpx/source/libvpx
 fb0a26ad923b..6f89cfbcc99f (under third_party/libvpx/source/libvpx/), Skia
-b809e72312b0..220d4fc2d73c (under third_party/skia/), V8 90a5172104e6..bd33bfc6a8c0 (under
+b809e72312b0..220d4fc2d73c (under third_party/skia/), V8 90a5172104e6..f543de058d97 (under
 v8/), as served by Gitiles, with scripts/chromium-delta/branch-fixes.py (filter.py --branch-
 fixes, against the 159.0.8154.45 tree's files): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs (GN files kept),
@@ -169,6 +169,7 @@ Commits contributing to it (oldest first):
   4e06e49e29b6 Roll commits from side projects in M159 (V8 fe2e3c0a6306..3c2fbbf6e412, 8154@{#1981})
   958708e94267 Roll commits from side projects in M159 (V8 3c2fbbf6e412..bd33bfc6a8c0, 8154@{#1986})
   949570058627 [M159] Reland "disk_cache: Use rename in POSIX MoveCache and check cleanup in RestartCache" (8154@{#1987})
+  6556785561c8 Roll commits from side projects in M159 (V8 bd33bfc6a8c0..f543de058d97, 8154@{#1995})
 Dependency commits of those rolls that touch kept files:
   315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
   9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
@@ -205,11 +206,13 @@ Dependency commits of those rolls that touch kept files:
   79e8fd9701cb Version 15.9.128.44 (V8: include/v8-version.h)
   4f37951e9a5a [M159] [debug] Add TDZ checks for module bindings in lookup slots (V8: src/runtime/runtime-scopes.cc)
   bd33bfc6a8c0 Version 15.9.128.45 (V8: include/v8-version.h)
+  381fb31a0648 [M159] [regexp] Initialize capture_name_map once (V8: src/heap/factory.cc, src/heap/factory.h, src/regexp/experimental/experimental.cc, src/regexp/experimental/experimental.h, src/regexp/regexp.cc, src/runtime/runtime-regexp.cc)
+  f543de058d97 Version 15.9.128.46 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
-version at 88c8f00a9b2c (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
+version at d0bbb4919bf3 (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
 c9c1d13c34cf) (or third_party/libvpx/source/libvpx's 6f89cfbcc99f) (or Skia's 220d4fc2d73c)
-(or V8's bd33bfc6a8c0).
+(or V8's f543de058d97).
 
 Apply with git apply.
 
@@ -20330,7 +20333,7 @@ index a03dccc..465d6de 100644
      DrawNonAARect(sdc, std::move(paint), userStencilSettings, clip, SkMatrix::I(),
                    dstRect, invert);
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index d9cc68e..b3c8170 100644
+index d9cc68e..de87956 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -20338,7 +20341,7 @@ index d9cc68e..b3c8170 100644
  #define V8_MINOR_VERSION 9
  #define V8_BUILD_NUMBER 128
 -#define V8_PATCH_LEVEL 34
-+#define V8_PATCH_LEVEL 45
++#define V8_PATCH_LEVEL 46
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
@@ -21368,6 +21371,142 @@ index 1caf370..dd6cb1c 100644
      Tagged<Context> context = Cast<Context>(it.frame()->context());
      // If the topmost_script_having_context is set then it must be correct.
      if (DEBUG_BOOL && !topmost_script_having_context().is_null()) {
+diff --git a/v8/src/heap/factory.cc b/v8/src/heap/factory.cc
+index c8e393a..4c8f1e5 100644
+--- a/v8/src/heap/factory.cc
++++ b/v8/src/heap/factory.cc
+@@ -4640,25 +4640,23 @@
+   regexp->set_data(*regexp_data);
+ }
+ 
+-void Factory::SetRegExpIrregexpData(DirectHandle<JSRegExp> regexp,
+-                                    DirectHandle<String> original_source,
+-                                    DirectHandle<String> escaped_source,
+-                                    JSRegExp::Flags flags, int capture_count,
+-                                    uint32_t backtrack_limit,
+-                                    uint32_t bit_field) {
++void Factory::SetRegExpIrregexpData(
++    DirectHandle<JSRegExp> regexp, DirectHandle<String> original_source,
++    DirectHandle<String> escaped_source, JSRegExp::Flags flags,
++    int capture_count, uint32_t backtrack_limit, uint32_t bit_field,
++    DirectHandle<TrustedFixedArray> capture_name_map) {
+   DirectHandle<RegExpData> regexp_data =
+       NewIrRegExpData(original_source, escaped_source, flags, capture_count,
+-                      backtrack_limit, bit_field);
++                      backtrack_limit, bit_field, capture_name_map);
+   regexp->set_data(*regexp_data);
+ }
+ 
+-void Factory::SetRegExpExperimentalData(DirectHandle<JSRegExp> regexp,
+-                                        DirectHandle<String> original_source,
+-                                        DirectHandle<String> escaped_source,
+-                                        JSRegExp::Flags flags,
+-                                        int capture_count) {
++void Factory::SetRegExpExperimentalData(
++    DirectHandle<JSRegExp> regexp, DirectHandle<String> original_source,
++    DirectHandle<String> escaped_source, JSRegExp::Flags flags,
++    int capture_count, DirectHandle<TrustedFixedArray> capture_name_map) {
+   DirectHandle<RegExpData> regexp_data = NewExperimentalRegExpData(
+-      original_source, escaped_source, flags, capture_count);
++      original_source, escaped_source, flags, capture_count, capture_name_map);
+   regexp->set_data(*regexp_data);
+ }
+ 
+@@ -4687,7 +4685,7 @@
+ DirectHandle<RegExpData> Factory::NewIrRegExpData(
+     DirectHandle<String> original_source, DirectHandle<String> escaped_source,
+     JSRegExp::Flags flags, int capture_count, uint32_t backtrack_limit,
+-    uint32_t bit_field) {
++    uint32_t bit_field, DirectHandle<TrustedFixedArray> capture_name_map) {
+   DirectHandle<RegExpDataWrapper> wrapper = NewRegExpDataWrapper();
+   int size = sizeof(IrRegExpData);
+   Tagged<HeapObject> result = AllocateRawWithImmortalMap(
+@@ -4702,7 +4700,7 @@
+   instance->clear_uc16_code();
+   instance->clear_latin1_bytecode();
+   instance->clear_uc16_bytecode();
+-  instance->clear_capture_name_map();
++  instance->set_capture_name_map(capture_name_map);
+   instance->set_max_register_count(JSRegExp::kUninitializedValue);
+   instance->set_capture_count(capture_count);
+   int ticks_until_tier_up = v8_flags.regexp_tier_up
+@@ -4721,7 +4719,8 @@
+ 
+ DirectHandle<RegExpData> Factory::NewExperimentalRegExpData(
+     DirectHandle<String> original_source, DirectHandle<String> escaped_source,
+-    JSRegExp::Flags flags, int capture_count) {
++    JSRegExp::Flags flags, int capture_count,
++    DirectHandle<TrustedFixedArray> capture_name_map) {
+   DirectHandle<RegExpDataWrapper> wrapper = NewRegExpDataWrapper();
+   int size = sizeof(IrRegExpData);
+   Tagged<HeapObject> result = AllocateRawWithImmortalMap(
+@@ -4743,7 +4742,7 @@
+   instance->clear_uc16_code();
+   instance->clear_latin1_bytecode();
+   instance->clear_uc16_bytecode();
+-  instance->clear_capture_name_map();
++  instance->set_capture_name_map(capture_name_map);
+   instance->set_max_register_count(JSRegExp::kUninitializedValue);
+   instance->set_capture_count(capture_count);
+   instance->set_ticks_until_tier_up(JSRegExp::kUninitializedValue);
+diff --git a/v8/src/heap/factory.h b/v8/src/heap/factory.h
+index 42a3939..43af27c 100644
+--- a/v8/src/heap/factory.h
++++ b/v8/src/heap/factory.h
+@@ -1159,33 +1159,33 @@
+                          JSRegExp::Flags flags,
+                          DirectHandle<String> match_pattern);
+ 
+-  // Creates a new FixedArray that holds the data associated with the
+-  // irregexp regexp and stores it in the regexp.
+-  void SetRegExpIrregexpData(DirectHandle<JSRegExp> regexp,
+-                             DirectHandle<String> original_source,
+-                             DirectHandle<String> escaped_source,
+-                             JSRegExp::Flags flags, int capture_count,
+-                             uint32_t backtrack_limit, uint32_t bit_field);
++  // Creates a new IrRegExpData associated with the irregexp regexp and stores
++  // it in the regexp.
++  void SetRegExpIrregexpData(
++      DirectHandle<JSRegExp> regexp, DirectHandle<String> original_source,
++      DirectHandle<String> escaped_source, JSRegExp::Flags flags,
++      int capture_count, uint32_t backtrack_limit, uint32_t bit_field,
++      DirectHandle<TrustedFixedArray> capture_name_map = {});
+ 
+-  // Creates a new FixedArray that holds the data associated with the
+-  // experimental regexp and stores it in the regexp.
+-  void SetRegExpExperimentalData(DirectHandle<JSRegExp> regexp,
+-                                 DirectHandle<String> original_source,
+-                                 DirectHandle<String> escaped_source,
+-                                 JSRegExp::Flags flags, int capture_count);
++  // Creates a new IrRegExpData associated with the experimental regexp and
++  // stores it in the regexp.
++  void SetRegExpExperimentalData(
++      DirectHandle<JSRegExp> regexp, DirectHandle<String> original_source,
++      DirectHandle<String> escaped_source, JSRegExp::Flags flags,
++      int capture_count, DirectHandle<TrustedFixedArray> capture_name_map = {});
+ 
+   DirectHandle<RegExpData> NewAtomRegExpData(
+       DirectHandle<String> original_source, DirectHandle<String> escaped_source,
+       JSRegExp::Flags flags, DirectHandle<String> pattern);
+-  DirectHandle<RegExpData> NewIrRegExpData(DirectHandle<String> original_source,
+-                                           DirectHandle<String> escaped_source,
+-                                           JSRegExp::Flags flags,
+-                                           int capture_count,
+-                                           uint32_t backtrack_limit,
+-                                           uint32_t bit_field);
++  DirectHandle<RegExpData> NewIrRegExpData(
++      DirectHandle<String> original_source, DirectHandle<String> escaped_source,
++      JSRegExp::Flags flags, int capture_count, uint32_t backtrack_limit,
++      uint32_t bit_field,
++      DirectHandle<TrustedFixedArray> capture_name_map = {});
+   DirectHandle<RegExpData> NewExperimentalRegExpData(
+       DirectHandle<String> original_source, DirectHandle<String> escaped_source,
+-      JSRegExp::Flags flags, int capture_count);
++      JSRegExp::Flags flags, int capture_count,
++      DirectHandle<TrustedFixedArray> capture_name_map = {});
+ 
+   // Returns the value for a known global constant (a property of the global
+   // object which is neither configurable nor writable) like 'undefined'.
 diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
 index 1f00b3f..ae4598d 100644
 --- a/v8/src/maglev/maglev-graph-builder.cc
@@ -21489,6 +21628,263 @@ index 3def0ce..880026f 100644
    Tagged<Map> map = orig_map;
    do {
      Tagged<JSReceiver> maybe_holder = NextHolder(map);
+diff --git a/v8/src/regexp/experimental/experimental.cc b/v8/src/regexp/experimental/experimental.cc
+index 4101d13..0ba170f 100644
+--- a/v8/src/regexp/experimental/experimental.cc
++++ b/v8/src/regexp/experimental/experimental.cc
+@@ -33,16 +33,19 @@
+ void ExperimentalRegExp::Initialize(Isolate* isolate, DirectHandle<JSRegExp> re,
+                                     DirectHandle<String> original_source,
+                                     DirectHandle<String> escaped_source,
+-                                    Flags flags, int capture_count) {
++                                    Flags flags, int capture_count,
++                                    ZoneVector<Capture*>* named_captures) {
+   DCHECK(v8_flags.enable_experimental_regexp_engine);
+   if (v8_flags.trace_experimental_regexp_engine) {
+     StdoutStream{} << "Initializing experimental regexp " << *original_source
+                    << std::endl;
+   }
+ 
++  DirectHandle<TrustedFixedArray> capture_name_map =
++      RegExp::CreateCaptureNameMap(isolate, named_captures);
+   isolate->factory()->SetRegExpExperimentalData(
+       re, original_source, escaped_source, JSRegExp::AsJSRegExpFlags(flags),
+-      capture_count);
++      capture_count, capture_name_map);
+ }
+ 
+ bool ExperimentalRegExp::IsCompiled(DirectHandle<IrRegExpData> re_data,
+@@ -73,13 +76,8 @@
+ 
+ namespace {
+ 
+-struct CompilationResult {
+-  DirectHandle<TrustedByteArray> bytecode;
+-  DirectHandle<TrustedFixedArray> capture_name_map;
+-};
+-
+ // Compiles source pattern, but doesn't change the regexp object.
+-std::optional<CompilationResult> CompileImpl(
++MaybeDirectHandle<TrustedByteArray> CompileImpl(
+     Isolate* isolate, DirectHandle<IrRegExpData> re_data) {
+   Zone zone(isolate->allocator(), ZONE_NAME);
+ 
+@@ -97,18 +95,14 @@
+     // the only way parsing can fail now is because of stack overflow.
+     DCHECK_EQ(parse_result.error, Error::kStackOverflow);
+     RegExp::ThrowRegExpException(isolate, re_data, parse_result.error);
+-    return std::nullopt;
++    return {};
+   }
+   SBXCHECK_EQ(parse_result.capture_count, re_data->capture_count());
+ 
+   ZoneList<Instruction> bytecode = ExperimentalCompiler::Compile(
+       parse_result.tree, JSRegExp::AsRegExpFlags(re_data->flags()), &zone);
+ 
+-  CompilationResult result;
+-  result.bytecode = VectorToByteArray(isolate, bytecode.ToVector());
+-  result.capture_name_map =
+-      RegExp::CreateCaptureNameMap(isolate, parse_result.named_captures);
+-  return result;
++  return VectorToByteArray(isolate, bytecode.ToVector());
+ }
+ 
+ }  // namespace
+@@ -127,15 +121,13 @@
+                    << std::endl;
+   }
+ 
+-  std::optional<CompilationResult> compilation_result =
+-      CompileImpl(isolate, re_data);
+-  if (!compilation_result.has_value()) {
++  DirectHandle<TrustedByteArray> bytecode;
++  if (!CompileImpl(isolate, re_data).ToHandle(&bytecode)) {
+     DCHECK(isolate->has_exception());
+     return false;
+   }
+ 
+-  re_data->SetBytecodeForExperimental(isolate, *compilation_result->bytecode);
+-  re_data->set_capture_name_map(compilation_result->capture_name_map);
++  re_data->SetBytecodeForExperimental(isolate, *bytecode);
+ 
+   return true;
+ }
+@@ -286,13 +278,13 @@
+                    << regexp_data->original_source() << std::endl;
+   }
+ 
+-  std::optional<CompilationResult> compilation_result =
+-      CompileImpl(isolate, regexp_data);
+-  if (!compilation_result.has_value()) return RegExp::kInternalRegExpException;
++  DirectHandle<TrustedByteArray> bytecode;
++  if (!CompileImpl(isolate, regexp_data).ToHandle(&bytecode)) {
++    return RegExp::kInternalRegExpException;
++  }
+ 
+   DisallowGarbageCollection no_gc;
+-  return ExecRawImpl(isolate, RegExp::kFromRuntime,
+-                     *compilation_result->bytecode, *subject,
++  return ExecRawImpl(isolate, RegExp::kFromRuntime, *bytecode, *subject,
+                      regexp_data->capture_count(), output_registers,
+                      output_register_count, subject_index);
+ }
+diff --git a/v8/src/regexp/experimental/experimental.h b/v8/src/regexp/experimental/experimental.h
+index 0384815..51abe22 100644
+--- a/v8/src/regexp/experimental/experimental.h
++++ b/v8/src/regexp/experimental/experimental.h
+@@ -26,7 +26,8 @@
+   static void Initialize(Isolate* isolate, DirectHandle<JSRegExp> re,
+                          DirectHandle<String> original_source,
+                          DirectHandle<String> escaped_source, Flags flags,
+-                         int capture_count);
++                         int capture_count,
++                         ZoneVector<Capture*>* named_captures);
+   static bool IsCompiled(DirectHandle<IrRegExpData> re_data, Isolate* isolate);
+   V8_WARN_UNUSED_RESULT
+   static bool Compile(Isolate* isolate, DirectHandle<IrRegExpData> re_data);
+diff --git a/v8/src/regexp/regexp.cc b/v8/src/regexp/regexp.cc
+index 1ef00c7..fa165f4 100644
+--- a/v8/src/regexp/regexp.cc
++++ b/v8/src/regexp/regexp.cc
+@@ -53,7 +53,8 @@
+                                  DirectHandle<String> original_source,
+                                  DirectHandle<String> escaped_source,
+                                  Flags flags, int capture_count,
+-                                 uint32_t backtrack_limit, uint32_t bit_field);
++                                 uint32_t backtrack_limit, uint32_t bit_field,
++                                 ZoneVector<Capture*>* named_captures);
+ 
+   // Prepare a RegExp for being executed one or more times (using
+   // IrregexpExecOnce) on the subject.
+@@ -431,9 +432,9 @@
+                              EscapeRegExpSource(isolate, original_source));
+   if (v8_flags.default_to_experimental_regexp_engine && is_linear_executable) {
+     DCHECK(v8_flags.enable_experimental_regexp_engine);
+-    regexp::ExperimentalRegExp::Initialize(isolate, re, original_source,
+-                                           escaped_source, flags,
+-                                           parse_result.capture_count);
++    regexp::ExperimentalRegExp::Initialize(
++        isolate, re, original_source, escaped_source, flags,
++        parse_result.capture_count, parse_result.named_captures);
+     has_been_compiled = true;
+   } else if (flags & JSRegExp::kLinear) {
+     DCHECK(v8_flags.enable_experimental_regexp_engine);
+@@ -443,9 +444,9 @@
+       return RegExp::ThrowRegExpException(isolate, flags, original_source,
+                                           regexp::Error::kNotLinear);
+     }
+-    regexp::ExperimentalRegExp::Initialize(isolate, re, original_source,
+-                                           escaped_source, flags,
+-                                           parse_result.capture_count);
++    regexp::ExperimentalRegExp::Initialize(
++        isolate, re, original_source, escaped_source, flags,
++        parse_result.capture_count, parse_result.named_captures);
+     has_been_compiled = true;
+   } else if (parse_result.simple && !IsIgnoreCase(flags) && !IsSticky(flags) &&
+              !HasFewDifferentCharacters(original_source)) {
+@@ -477,7 +478,8 @@
+                                .with_is_linear_executable(is_linear_executable);
+     regexp::RegExpImpl::IrregexpInitialize(
+         isolate, re, original_source, escaped_source, flags,
+-        parse_result.capture_count, backtrack_limit, bit_field);
++        parse_result.capture_count, backtrack_limit, bit_field,
++        parse_result.named_captures);
+   }
+   // Compilation succeeded so the data is set on the regexp
+   // and we can store it in the cache.
+@@ -981,9 +983,6 @@
+         BUILTIN_CODE(isolate, RegExpInterpreterTrampoline);
+     re_data->set_code(is_one_byte, *trampoline);
+   }
+-  DirectHandle<TrustedFixedArray> capture_name_map =
+-      RegExp::CreateCaptureNameMap(isolate, compile_data.named_captures);
+-  re_data->set_capture_name_map(capture_name_map);
+   int register_max = re_data->max_register_count();
+   if (compile_data.register_count > register_max) {
+     re_data->set_max_register_count(compile_data.register_count);
+@@ -1166,11 +1165,14 @@
+                                     DirectHandle<String> escaped_source,
+                                     Flags flags, int capture_count,
+                                     uint32_t backtrack_limit,
+-                                    uint32_t bit_field) {
++                                    uint32_t bit_field,
++                                    ZoneVector<Capture*>* named_captures) {
++  DirectHandle<TrustedFixedArray> capture_name_map =
++      RegExp::CreateCaptureNameMap(isolate, named_captures);
+   // Initialize compiled code entries to null.
+   isolate->factory()->SetRegExpIrregexpData(
+       re, original_source, escaped_source, JSRegExp::AsJSRegExpFlags(flags),
+-      capture_count, backtrack_limit, bit_field);
++      capture_count, backtrack_limit, bit_field, capture_name_map);
+ }
+ 
+ // static
+diff --git a/v8/src/runtime/runtime-regexp.cc b/v8/src/runtime/runtime-regexp.cc
+index 99d6d41..8d4346d 100644
+--- a/v8/src/runtime/runtime-regexp.cc
++++ b/v8/src/runtime/runtime-regexp.cc
+@@ -1336,7 +1336,11 @@
+ 
+   // has_capture can only be true for IrRegExp.
+   DirectHandle<IrRegExpData> re_data;
+-  if (has_capture) re_data = TrustedCast<IrRegExpData>(regexp_data);
++  bool has_named_captures = false;
++  if (has_capture) {
++    re_data = TrustedCast<IrRegExpData>(regexp_data);
++    has_named_captures = re_data->has_capture_name_map();
++  }
+ 
+   static const int kMinLengthToCache = 0x1000;
+ 
+@@ -1360,12 +1364,9 @@
+         }
+         DirectHandle<FixedArray> cached_fixed_array(cached_answer_array,
+                                                     isolate);
+-        // The cache FixedArray is a COW-array and we need to return a copy. A
+-        // cache hit implies an earlier run compiled the pattern, so the capture
+-        // name map is populated.
++        // The cache FixedArray is a COW-array and we need to return a copy.
+         DirectHandle<FixedArray> copied_fixed_array = CopyMatches(
+-            isolate, cached_fixed_array,
+-            has_capture && re_data->has_capture_name_map(), capture_count);
++            isolate, cached_fixed_array, has_named_captures, capture_count);
+         RegExp::SetLastMatchInfo(isolate, last_match_array, subject,
+                                  capture_count, raw_last_match);
+         return *copied_fixed_array;
+@@ -1387,10 +1388,10 @@
+   // Two smis before and after the match, for very long strings.
+   static const uint32_t kMaxBuilderEntriesPerRegExpMatch = 5;
+ 
+-  // The capture name map is populated lazily, so this must stay below the
+-  // GlobalExecRunner constructor, which is what compiles the pattern.
+-  const bool has_named_captures =
+-      has_capture && re_data->has_capture_name_map();
++  DirectHandle<TrustedFixedArray> capture_map;
++  if (has_named_captures) {
++    capture_map = direct_handle(re_data->capture_name_map(), isolate);
++  }
+ 
+   while (true) {
+     int32_t* current_match = runner.FetchNext();
+@@ -1448,8 +1449,6 @@
+         elements->set(cursor++, *subject);
+ 
+         if (has_named_captures) {
+-          DirectHandle<TrustedFixedArray> capture_map(
+-              re_data->capture_name_map(), isolate);
+           DirectHandle<JSObject> groups = ConstructNamedCaptureGroupsObject(
+               isolate, capture_map, [=](int ix) { return elements->get(ix); });
+           elements->set(cursor++, *groups);
+@@ -1493,8 +1492,7 @@
+       DirectHandle<FixedArray> copied_fixed_array = CopyMatches(
+           isolate, result_fixed_array, has_named_captures, capture_count);
+       regexp::ResultsCache::Enter(
+-          isolate, subject,
+-          direct_handle(regexp->data(isolate)->wrapper(), isolate),
++          isolate, subject, direct_handle(regexp_data->wrapper(), isolate),
+           copied_fixed_array, last_match_cache,
+           regexp::ResultsCache::REGEXP_MULTIPLE_INDICES);
+     }
 diff --git a/v8/src/runtime/runtime-scopes.cc b/v8/src/runtime/runtime-scopes.cc
 index 1a3b142..269d33f 100644
 --- a/v8/src/runtime/runtime-scopes.cc
