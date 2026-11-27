@@ -1,20 +1,20 @@
 Chromium 159.0.8154.45 + the later changes of its release branch, up to
-5b29bae8a63eb6429c8ecceb0f874d94b47c4a6a (refs/branch-heads/8154@{#1873}), for the
+38c9577534d06da1f9aaf1eb79cd2b7d8e635ef1 (refs/branch-heads/8154@{#1956}), for the
 159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
-8154@{#1872}.
+8154@{#1945}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..5b29bae8a63e and the
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..38c9577534d0 and the
 dependencies whose DEPS revision changed: ANGLE 4dd34493f8a2..2ec7b6db14f2 (under
 third_party/angle/), third_party/devtools-frontend/src 3d48567555b6..c9c1d13c34cf (under
 third_party/devtools-frontend/src/), third_party/libvpx/source/libvpx
 fb0a26ad923b..6f89cfbcc99f (under third_party/libvpx/source/libvpx/), Skia
-b809e72312b0..220d4fc2d73c (under third_party/skia/), V8 90a5172104e6..0ff9fe7dd0e4 (under
+b809e72312b0..220d4fc2d73c (under third_party/skia/), V8 90a5172104e6..fe2e3c0a6306 (under
 v8/), as served by Gitiles, with scripts/chromium-delta/branch-fixes.py (filter.py --branch-
 fixes, against the 159.0.8154.45 tree's files): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs (GN files kept),
 translations other than en-GB, PGO/orderfile/AFDO pointers, submodule pointer updates.
-chrome/VERSION (its later "Incrementing VERSION" commits, among them the 159.0.8154.46, .47 and .51 tags, are left out), the DEPS files and the stamp files stay at 159.0.8154.45. Dependencies whose
+chrome/VERSION (its later "Incrementing VERSION" commits, among them the 159.0.8154.46, .47, .51, .52 and .53 tags, are left out), the DEPS files and the stamp files stay at 159.0.8154.45. Dependencies whose
 revision changed with nothing kept: Dawn.
 
 Commits contributing to it (oldest first):
@@ -148,6 +148,21 @@ Commits contributing to it (oldest first):
   d445ac0b8e7a [M159] Revert CHECK_GE to DCHECK_GE in OnVideoStartsInVisibleTab (8154@{#1860})
   a20ee56870f7 Roll commits from side projects in M159 (third_party/devtools-frontend/src 170b7991fbe9..c9c1d13c34cf, 8154@{#1868})
   455d306592a8 [M159] [gin] Verify context match in PerContextData::From. (8154@{#1872})
+  b9f25352e05a [M159] Evaluate `FontFace` range descriptors once and validate bounds (8154@{#1875})
+  23b863fe2205 [M159] Fix concurrent Oilpan marking races in CSSSelectorList (8154@{#1878})
+  f1b84a725e68 Roll commits from side projects in M159 (V8 0ff9fe7dd0e4..7313241a35e4, 8154@{#1883})
+  415cba4cfb0f [M159] [iOS][Gemini] Add flag to allow Gemini Live in bottom sheet migration (8154@{#1898})
+  e924828acd94 [159] Allow cross-world serialization from detached realms (8154@{#1901})
+  15557ec4d101 [M159] [Unified tabstrip] Fix RTL drag to scroll and add RTL drag tests (8154@{#1902})
+  a0b85e9cfeed [M159] [iOS][Prime] Minimize Gemini on modal dismissal (8154@{#1906})
+  605bc384c421 [M159] [ozone/wayland] Reject bubble activation while hiding a toplevel (8154@{#1908})
+  d86157c50d43 [M159] blink/encryptedmedia: Fix UAF in MediaKeySession::OnSessionKeysChange (8154@{#1911})
+  084b5eb0a18c [M159] [highlights] Build highlight layers from paint markers (8154@{#1914})
+  34a2c35b852e [M159] IndexedDB: fix within-transaction Blob key comparison (8154@{#1919})
+  3b3a43c07e4d [iOS] Use the multicolor Gemini spark in the zero-state header (8154@{#1938})
+  49d59ee7d5ce Roll commits from side projects in M159 (V8 7313241a35e4..fe2e3c0a6306, 8154@{#1939})
+  5033ef6a3152 [M159] Catch V8 exceptions in CSS paint and layout worklets (8154@{#1940})
+  c555b6fe7564 [M159] [Reading Mode] Clear Screen2x running flag when replacing its distiller (8154@{#1945})
 Dependency commits of those rolls that touch kept files:
   315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
   9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
@@ -174,11 +189,15 @@ Dependency commits of those rolls that touch kept files:
   b0ec06674184 Version 15.9.128.39 (V8: include/v8-version.h)
   548f85215d16 [M159] [fastapi] Use fp() when comparing against BackupIncumbentScope (V8: src/execution/isolate.cc)
   0ff9fe7dd0e4 Version 15.9.128.40 (V8: include/v8-version.h)
+  51437718f5a7 [M159] [compiler] Respect kTaggedPointer in SimplifiedLowering (V8: src/compiler/opcodes.h, src/compiler/representation-change.cc, src/compiler/simplified-lowering-verifier.cc, src/compiler/simplified-lowering.cc, src/compiler/simplified-operator-reducer.cc, src/compiler/simplified-operator.cc, src/compiler/simplified-operator.h, src/compiler/turboshaft/assembler.h, src/compiler/turboshaft/graph-builder.cc, src/compiler/turboshaft/machine-lowering-reducer-inl.h, src/compiler/turboshaft/operations.cc, src/compiler/turboshaft/operations.h, src/compiler/turboshaft/simplified-optimization-reducer.h, src/compiler/verifier.cc)
+  7313241a35e4 Version 15.9.128.41 (V8: include/v8-version.h)
+  dd40d8868111 Merged: S390: Use kDoubleRegZero as scratch under swap ops (V8: src/codegen/s390/macro-assembler-s390.cc)
+  fe2e3c0a6306 Version 15.9.128.42 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
-version at 5b29bae8a63e (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
+version at 38c9577534d0 (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
 c9c1d13c34cf) (or third_party/libvpx/source/libvpx's 6f89cfbcc99f) (or Skia's 220d4fc2d73c)
-(or V8's 0ff9fe7dd0e4).
+(or V8's fe2e3c0a6306).
 
 Apply with git apply.
 
@@ -1803,10 +1822,22 @@ index 7d3717f..5fd89b93 100644
    // OneTimePermissionsTrackerObserver:
    void OnAllTabsInBackgroundTimerExpired(
 diff --git a/chrome/browser/flag-metadata.json b/chrome/browser/flag-metadata.json
-index 75899c38..e8ee58c 100644
+index 75899c38..45a6f216 100644
 --- a/chrome/browser/flag-metadata.json
 +++ b/chrome/browser/flag-metadata.json
-@@ -7648,6 +7648,11 @@
+@@ -4128,6 +4128,11 @@
+     "expiry_milestone": 175
+   },
+   {
++    "name": "enable-gemini-live-in-bottom-sheet",
++    "owners": [ "gayane@google.com", "bling-alchemy-eng@google.com" ],
++    "expiry_milestone": 170
++  },
++  {
+     "name": "enable-gesture-user-education-back-swipe",
+     "owners": [
+       "jtanaristy@google.com"
+@@ -7648,6 +7653,11 @@
      "expiry_milestone": 145
    },
    {
@@ -10330,6 +10361,56 @@ index 3203af3..0093a721 100644
        // When the preceding item is a group header, show a leading separator.
        if (adjacent_tab && adjacent_tab->IsGroupCollapsed() &&
            adjacent_tab->GetGroup() != delegate_->GetGroup() &&
+diff --git a/chrome/browser/ui/views/tabs/common/tab_drag_scroll_handler.cc b/chrome/browser/ui/views/tabs/common/tab_drag_scroll_handler.cc
+index 52f9c5f..74bdab2 100644
+--- a/chrome/browser/ui/views/tabs/common/tab_drag_scroll_handler.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_drag_scroll_handler.cc
+@@ -5,6 +5,7 @@
+ #include "chrome/browser/ui/views/tabs/common/tab_drag_scroll_handler.h"
+ 
+ #include "base/functional/bind.h"
++#include "base/i18n/rtl.h"
+ #include "base/time/time.h"
+ #include "ui/views/controls/scroll_view.h"
+ 
+@@ -30,21 +31,29 @@
+   // based on the drag offset from the bounds of the scroll view.
+   constexpr float kScrollIncrement = 5;
+ 
+-  const auto& visible_bounds = host_view->GetVisibleBounds();
++  const gfx::Rect visible_bounds = scroll_view.GetVisibleRect();
+ 
+   if (IsHorizontalScrollEnabled(scroll_view)) {
++    const bool is_rtl = base::i18n::IsRTL();
++    const bool can_scroll_trailing =
++        visible_bounds.right() < host_view->width();
++    const bool can_scroll_leading = visible_bounds.x() > 0;
+     const bool is_dragging_to_right =
+-        visible_bounds.right() < host_view->width() &&
+         dragged_view_bounds_in_scroll_view.right() >=
+-            scroll_bounds_in_scroll_view.right();
++        scroll_bounds_in_scroll_view.right();
++    const bool is_dragging_to_left = dragged_view_bounds_in_scroll_view.x() <=
++                                     scroll_bounds_in_scroll_view.x();
+ 
+-    const bool is_dragging_to_left =
+-        visible_bounds.x() > 0 && dragged_view_bounds_in_scroll_view.x() <=
+-                                      scroll_bounds_in_scroll_view.x();
++    const bool is_dragging_to_trailing =
++        can_scroll_trailing &&
++        (is_rtl ? is_dragging_to_left : is_dragging_to_right);
++    const bool is_dragging_to_leading =
++        can_scroll_leading &&
++        (is_rtl ? is_dragging_to_right : is_dragging_to_left);
+ 
+-    if (is_dragging_to_right) {
++    if (is_dragging_to_trailing) {
+       StartOrContinueScrolling(scroll_view, kScrollIncrement);
+-    } else if (is_dragging_to_left) {
++    } else if (is_dragging_to_leading) {
+       StartOrContinueScrolling(scroll_view, -1.0f * kScrollIncrement);
+     } else {
+       StopScrolling(scroll_view);
 diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_view.cc b/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
 index 3fb79f4..389a8bc2 100644
 --- a/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
@@ -11524,6 +11605,28 @@ index f2af8d6f..a405551e 100644
      // For a new app, automatically choose if we want to install it locally.
      web_app->SetInstallState(
          AreAppsLocallyInstalledBySync()
+diff --git a/chrome/renderer/accessibility/read_anything/read_anything_app_controller.cc b/chrome/renderer/accessibility/read_anything/read_anything_app_controller.cc
+index 4e66d6e..b4623d3 100644
+--- a/chrome/renderer/accessibility/read_anything/read_anything_app_controller.cc
++++ b/chrome/renderer/accessibility/read_anything/read_anything_app_controller.cc
+@@ -775,6 +775,17 @@
+       active_distiller_->GetDistillationMethod() == method) {
+     return;
+   }
++  // Replacing a Screen2x distiller drops its pending result, so
++  // OnAXTreeDistilled() never clears screen2x_distiller_running_. Clear it
++  // here, or update processing stays paused for the rest of the WebUI's
++  // lifetime.
++  // TODO(crbug.com/587049657): Remove this once ReadAnythingDistiller owns
++  // in-flight state and resets via IsDistillationInProgress() and Reset().
++  if (active_distiller_ &&
++      active_distiller_->GetDistillationMethod() ==
++          ReadAnythingAppModel::DistillationMethod::kScreen2x) {
++    model_.set_screen2x_distiller_running(false);
++  }
+   // Recreating active_distiller_ destructs the previous instance,
+   // canceling its in-flight operations and dropping pending callbacks.
+   active_distiller_ = distiller_factory_->CreateDistiller(
 diff --git a/chrome/test/data/webui/contextual_tasks/BUILD.gn b/chrome/test/data/webui/contextual_tasks/BUILD.gn
 index 5b703172..89e5f3d 100644
 --- a/chrome/test/data/webui/contextual_tasks/BUILD.gn
@@ -12785,6 +12888,53 @@ index ea88313..7ed6e711 100644
    return std::make_unique<FileSystemAccessDirectoryHandleImpl>(
        manager_, binding_context, url_,
        GetEffectiveHandleStateForContext(url_, binding_context, *handle_state_));
+diff --git a/content/browser/indexed_db/instance/leveldb/backing_store.h b/content/browser/indexed_db/instance/leveldb/backing_store.h
+index 10e14fe..39a3e53 100644
+--- a/content/browser/indexed_db/instance/leveldb/backing_store.h
++++ b/content/browser/indexed_db/instance/leveldb/backing_store.h
+@@ -235,6 +235,19 @@
+     blink::mojom::IDBTransactionMode mode() const { return mode_; }
+ 
+    private:
++    friend class BackingStore;
++
++    struct EncodedKeyComparator {
++      bool operator()(const std::string& a, const std::string& b) const {
++        return CompareKeys(a, b) < 0;
++      }
++    };
++
++    using ExternalObjectChangeMap =
++        std::map<std::string,
++                 std::unique_ptr<IndexedDBExternalObjectChangeRecord>,
++                 EncodedKeyComparator>;
++
+     int64_t database_id() const { return *database_->metadata().id; }
+ 
+     Status FindKeyInIndex(int64_t object_store_id,
+@@ -277,10 +290,8 @@
+ 
+     std::unique_ptr<TransactionalLevelDBTransaction> transaction_;
+ 
+-    std::map<std::string, std::unique_ptr<IndexedDBExternalObjectChangeRecord>>
+-        external_object_change_map_;
+-    std::map<std::string, std::unique_ptr<IndexedDBExternalObjectChangeRecord>>
+-        in_memory_external_object_map_;
++    ExternalObjectChangeMap external_object_change_map_;
++    ExternalObjectChangeMap in_memory_external_object_map_;
+ 
+     // List of blob files being newly written as part of this transaction.
+     // These will be added to the recovery blob journal prior to commit, then
+@@ -638,8 +649,7 @@
+   // backing store this is redundant but necessary for backwards compatibility.
+   const std::string origin_identifier_;
+ 
+-  std::map<std::string, std::unique_ptr<IndexedDBExternalObjectChangeRecord>>
+-      in_memory_external_object_map_;
++  Transaction::ExternalObjectChangeMap in_memory_external_object_map_;
+ 
+   bool execute_journal_cleaning_on_no_txns_ = false;
+   int num_aggregated_journal_cleaning_requests_ = 0;
 diff --git a/content/browser/media/capture/desktop_capture_device.cc b/content/browser/media/capture/desktop_capture_device.cc
 index 33f78f0..9254294 100644
 --- a/content/browser/media/capture/desktop_capture_device.cc
@@ -14107,6 +14257,30 @@ index c10acc0..e874718 100644
      "gemini_suggestion_delegate.h",
      "gemini_suggestion_handler.h",
      "gemini_suggestion_handler.mm",
+diff --git a/ios/chrome/browser/intelligence/bwg/ui/BUILD.gn b/ios/chrome/browser/intelligence/bwg/ui/BUILD.gn
+index 6e660f93..ebf9e752 100644
+--- a/ios/chrome/browser/intelligence/bwg/ui/BUILD.gn
++++ b/ios/chrome/browser/intelligence/bwg/ui/BUILD.gn
+@@ -30,6 +30,7 @@
+     "//ios/chrome/browser/shared/ui:buildflags",
+     "//ios/chrome/browser/shared/ui/animated_promo:utils",
+     "//ios/chrome/browser/shared/ui/elements/gradient",
++    "//ios/chrome/browser/shared/ui/image",
+     "//ios/chrome/browser/shared/ui/symbols",
+     "//ios/chrome/browser/shared/ui/util",
+     "//ios/chrome/common:string_util",
+diff --git a/ios/chrome/browser/intelligence/features/BUILD.gn b/ios/chrome/browser/intelligence/features/BUILD.gn
+index ef13353e..a0fab885 100644
+--- a/ios/chrome/browser/intelligence/features/BUILD.gn
++++ b/ios/chrome/browser/intelligence/features/BUILD.gn
+@@ -33,6 +33,7 @@
+     "//components/application_locale_storage",
+     "//ios/chrome/app/background_task:features",
+     "//ios/chrome/browser/intelligence/actor/tools/utils:actor_tool_utils",
++    "//ios/chrome/browser/shared/public/features",
+     "//ios/chrome/test:test_support",
+     "//testing/gtest",
+   ]
 diff --git a/ios/chrome/browser/omnibox/model/suggestions/BUILD.gn b/ios/chrome/browser/omnibox/model/suggestions/BUILD.gn
 index e2e5930..762cee2 100644
 --- a/ios/chrome/browser/omnibox/model/suggestions/BUILD.gn
@@ -14119,6 +14293,18 @@ index e2e5930..762cee2 100644
  }
  
  source_set("suggestions") {
+diff --git a/ios/chrome/browser/scene/coordinator/BUILD.gn b/ios/chrome/browser/scene/coordinator/BUILD.gn
+index 320fdad..923176a 100644
+--- a/ios/chrome/browser/scene/coordinator/BUILD.gn
++++ b/ios/chrome/browser/scene/coordinator/BUILD.gn
+@@ -125,6 +125,7 @@
+     "//ios/chrome/browser/fullscreen/ui_bundled",
+     "//ios/chrome/browser/fullscreen/ui_bundled:ui",
+     "//ios/chrome/browser/fullscreen/ui_bundled/test",
++    "//ios/chrome/browser/intelligence/features",
+     "//ios/chrome/browser/passwords/bottom_sheet/coordinator",
+     "//ios/chrome/browser/passwords/model/remote_actor",
+     "//ios/chrome/browser/passwords/model/remote_actor/proto",
 diff --git a/ios/chrome/browser/toolbar/coordinator/BUILD.gn b/ios/chrome/browser/toolbar/coordinator/BUILD.gn
 index aeffab25..3a1de29d 100644
 --- a/ios/chrome/browser/toolbar/coordinator/BUILD.gn
@@ -14442,6 +14628,483 @@ index 850b9e37..3737dfe 100644
  
  // Enables fallback to network request when the RaceNetworkRequest Mojo pipe is
  // disconnected.
+diff --git a/third_party/blink/renderer/bindings/core/v8/serialization/v8_script_value_serializer.cc b/third_party/blink/renderer/bindings/core/v8/serialization/v8_script_value_serializer.cc
+index 65cf8fb4..98ebd47 100644
+--- a/third_party/blink/renderer/bindings/core/v8/serialization/v8_script_value_serializer.cc
++++ b/third_party/blink/renderer/bindings/core/v8/serialization/v8_script_value_serializer.cc
+@@ -26,7 +26,6 @@
+ #include "third_party/blink/renderer/bindings/core/v8/v8_image_bitmap.h"
+ #include "third_party/blink/renderer/bindings/core/v8/v8_image_data.h"
+ #include "third_party/blink/renderer/bindings/core/v8/v8_message_port.h"
+-#include "third_party/blink/renderer/bindings/core/v8/v8_microtasks_scope.h"
+ #include "third_party/blink/renderer/bindings/core/v8/v8_mojo_handle.h"
+ #include "third_party/blink/renderer/bindings/core/v8/v8_offscreen_canvas.h"
+ #include "third_party/blink/renderer/bindings/core/v8/v8_readable_stream.h"
+@@ -66,9 +65,22 @@
+ #include "third_party/blink/renderer/platform/wtf/allocator/partitions.h"
+ #include "third_party/blink/renderer/platform/wtf/text/strcat.h"
+ #include "third_party/blink/renderer/platform/wtf/text/string_utf8_adaptor.h"
++#include "v8/include/v8-microtask-queue.h"
+ 
+ namespace blink {
+ 
++namespace {
++
++bool HasValidExecutionContext(const ScriptState* script_state) {
++  if (!script_state || !script_state->ContextIsValid()) {
++    return false;
++  }
++  ExecutionContext* execution_context = ExecutionContext::From(script_state);
++  return execution_context && !execution_context->IsContextDestroyed();
++}
++
++}  // namespace
++
+ // The "Blink-side" serialization version, which defines how Blink will behave
+ // during the serialization process, is in
+ // SerializedScriptValue::wireFormatVersion. The serialization format has two
+@@ -214,6 +226,7 @@
+           script_state_->GetIsolate(),
+           this,
+           (options.for_storage == SerializedScriptValue::kForStorage ||
++           !HasValidExecutionContext(script_state_) ||
+            !ExecutionContext::From(script_state_)
+                 ->SharedArrayBufferTransferAllowed())
+               ? v8::ValueSerializer::SharedImmutableArrayBufferMode::kDisabled
+@@ -257,11 +270,13 @@
+ 
+   // Serialize the value and handle errors.
+   v8::Isolate* isolate = script_state_->GetIsolate();
++  v8::Local<v8::Context> context = script_state_->GetContext();
+   TryRethrowScope rethrow_scope(isolate, exception_state);
+-  V8DoNotRunMicrotasksScope microtasks_scope(script_state_);
++  v8::MicrotasksScope microtasks_scope(
++      isolate, context->GetMicrotaskQueue(),
++      v8::MicrotasksScope::kDoNotRunMicrotasks);
+   bool wrote_value;
+-  if (!serializer_.WriteValue(script_state_->GetContext(), value)
+-           .To(&wrote_value)) {
++  if (!serializer_.WriteValue(context, value).To(&wrote_value)) {
+     DCHECK(rethrow_scope.HasCaught());
+     return nullptr;
+   }
+@@ -274,7 +289,8 @@
+ 
+   if (shared_array_buffers_.size()) {
+     auto* execution_context = ExecutionContext::From(script_state_);
+-    if (!execution_context->CheckSharedArrayBufferTransferAllowedAndReport()) {
++    if (!HasValidExecutionContext(script_state_) ||
++        !execution_context->CheckSharedArrayBufferTransferAllowedAndReport()) {
+       exception_state.ThrowDOMException(
+           DOMExceptionCode::kDataCloneError,
+           "SharedArrayBuffer transfer requires self.crossOriginIsolated.");
+@@ -476,8 +492,9 @@
+       index = transferables_->image_bitmaps.Find(image_bitmap);
+     if (index != kNotFound) {
+       if (image_bitmap->OriginClean()) {
+-        execution_context->CountUse(
+-            mojom::WebFeature::kOriginCleanImageBitmapTransfer);
++        UseCounter::Count(
++            execution_context,
++            mojom::blink::WebFeature::kOriginCleanImageBitmapTransfer);
+       } else {
+         exception_state.ThrowDOMException(
+             DOMExceptionCode::kDataCloneError,
+@@ -493,8 +510,9 @@
+ 
+     // Otherwise, it must be fully serialized.
+     if (image_bitmap->OriginClean()) {
+-      execution_context->CountUse(
+-          mojom::WebFeature::kOriginCleanImageBitmapSerialization);
++      UseCounter::Count(
++          execution_context,
++          mojom::blink::WebFeature::kOriginCleanImageBitmapSerialization);
+     } else {
+       exception_state.ThrowDOMException(
+           DOMExceptionCode::kDataCloneError,
+@@ -1006,6 +1024,13 @@
+ 
+   ExceptionState exception_state(isolate);
+ 
++  if (!HasValidExecutionContext(script_state_)) {
++    exception_state.ThrowDOMException(
++        DOMExceptionCode::kDataCloneError,
++        "A SharedArrayBuffer cannot be cloned in a detached context.");
++    return v8::Nothing<uint32_t>();
++  }
++
+   if (for_storage_) {
+     exception_state.ThrowDOMException(
+         DOMExceptionCode::kDataCloneError,
+@@ -1094,7 +1119,8 @@
+     v8::Isolate* isolate,
+     v8::SharedValueConveyor&& conveyor) {
+   auto* execution_context = ExecutionContext::From(script_state_);
+-  if (for_storage_ || !execution_context->SharedArrayBufferTransferAllowed()) {
++  if (for_storage_ || !HasValidExecutionContext(script_state_) ||
++      !execution_context->SharedArrayBufferTransferAllowed()) {
+     V8ThrowDOMException::Throw(
+         isolate, DOMExceptionCode::kDataCloneError,
+         for_storage_
+diff --git a/third_party/blink/renderer/bindings/core/v8/world_safe_v8_reference.cc b/third_party/blink/renderer/bindings/core/v8/world_safe_v8_reference.cc
+index a5d54fb..d7399e7d 100644
+--- a/third_party/blink/renderer/bindings/core/v8/world_safe_v8_reference.cc
++++ b/third_party/blink/renderer/bindings/core/v8/world_safe_v8_reference.cc
+@@ -49,19 +49,19 @@
+   }
+ 
+   CHECK(source_script_state);
+-  if (!HasValidExecutionContext(source_script_state)) {
++  v8::Local<v8::Context> source_context = source_script_state->GetContext();
++  if (source_context.IsEmpty()) {
+     return v8::Null(isolate);
+   }
+ 
+-  // Serialize in `source_script_state` (including incumbent context) so that
++  // Serialize in `source_context` (including incumbent context) so that
+   // property getters, proxy traps, Error stack formatting, and bound native
+   // WebIDL callbacks execute strictly in the source realm rather than
+-  // `target_script_state`.
++  // `target_script_state`, even if `source_script_state` is already detached.
+   scoped_refptr<SerializedScriptValue> serialized;
+   {
+-    ScriptState::Scope source_context_scope(source_script_state);
+-    v8::Context::BackupIncumbentScope backup_incumbent_scope(
+-        source_script_state->GetContext());
++    v8::Context::Scope source_context_scope(source_context);
++    v8::Context::BackupIncumbentScope backup_incumbent_scope(source_context);
+     serialized =
+         SerializedScriptValue::SerializeAndSwallowExceptions(isolate, value);
+   }
+diff --git a/third_party/blink/renderer/core/css/css_selector_list.cc b/third_party/blink/renderer/core/css/css_selector_list.cc
+index 925f4c3..28627828 100644
+--- a/third_party/blink/renderer/core/css/css_selector_list.cc
++++ b/third_party/blink/renderer/core/css/css_selector_list.cc
+@@ -46,8 +46,6 @@
+   if (!persistent) [[unlikely]] {
+     persistent =
+         MakeGarbageCollected<CSSSelectorList>(base::PassKey<CSSSelectorList>());
+-    new (persistent->first_selector_) CSSSelector();
+-    persistent->first_selector_[0].SetMatch(CSSSelector::kInvalidList);
+     DCHECK(persistent->IsInvalidWithoutUnparsed());
+     LEAK_SANITIZER_IGNORE_OBJECT(&persistent);
+   }
+@@ -61,15 +59,9 @@
+ 
+   unsigned length = ComputeLength();
+   DCHECK(length);
+-  CSSSelectorList* list = MakeGarbageCollected<CSSSelectorList>(
++  return MakeGarbageCollected<CSSSelectorList>(
+       AdditionalBytes(sizeof(CSSSelector) * (length - 1)),
+-      base::PassKey<CSSSelectorList>());
+-  for (unsigned i = 0; i < length; ++i) {
+-    UNSAFE_BUFFERS(new (&list->first_selector_[i])
+-                       CSSSelector(first_selector_[i]));
+-  }
+-
+-  return list;
++      base::PassKey<CSSSelectorList>(), *this, length);
+ }
+ 
+ HeapVector<CSSSelector> CSSSelectorList::Copy(
+@@ -115,12 +107,10 @@
+     return CSSSelectorList::Empty();
+   }
+ 
+-  CSSSelectorList* list = MakeGarbageCollected<CSSSelectorList>(
++  return MakeGarbageCollected<CSSSelectorList>(
+       AdditionalBytes(base::checked_cast<uint32_t>(
+           sizeof(CSSSelector) * (selector_vector.size() - 1))),
+-      base::PassKey<CSSSelectorList>());
+-  AdoptSelectorVector(selector_vector, list->first_selector_);
+-  return list;
++      base::PassKey<CSSSelectorList>(), selector_vector);
+ }
+ 
+ unsigned CSSSelectorList::ComputeLength() const {
+@@ -194,7 +184,7 @@
+ 
+   for (int i = 0;; ++i) {
+     visitor->Trace(UNSAFE_BUFFERS(first_selector_[i]));
+-    if (UNSAFE_BUFFERS(first_selector_[i].IsLastInSelectorList())) {
++    if (UNSAFE_BUFFERS(first_selector_[i].IsLastInSelectorListForOilpan())) {
+       break;
+     }
+   }
+diff --git a/third_party/blink/renderer/core/css/css_selector_list.h b/third_party/blink/renderer/core/css/css_selector_list.h
+index aea3f733..4eb55d43e 100644
+--- a/third_party/blink/renderer/core/css/css_selector_list.h
++++ b/third_party/blink/renderer/core/css/css_selector_list.h
+@@ -75,8 +75,27 @@
+   // the object it points to.
+   static CSSSelectorList* Empty();
+ 
+-  // Do not call; for Empty() and AdoptSelectorVector() only.
+-  explicit CSSSelectorList(base::PassKey<CSSSelectorList>) {}
++  // Do not call; for Empty() only.
++  explicit CSSSelectorList(base::PassKey<CSSSelectorList>) {
++    first_selector_[0].SetMatch(CSSSelector::kInvalidList);
++  }
++
++  // Do not call; for AdoptSelectorVector() and Copy() only. These populate
++  // the trailing selector array inside the constructor: concurrent marking
++  // may only trace an object once it is flagged as fully constructed, and
++  // that flag is what orders the writes below before a marker's Trace().
++  CSSSelectorList(base::PassKey<CSSSelectorList>,
++                  base::span<CSSSelector> selector_vector) {
++    AdoptSelectorVector(selector_vector, first_selector_);
++  }
++  CSSSelectorList(base::PassKey<CSSSelectorList>,
++                  const CSSSelectorList& other,
++                  unsigned length) {
++    for (unsigned i = 0; i < length; ++i) {
++      UNSAFE_BUFFERS(new (&first_selector_[i])
++                         CSSSelector(other.first_selector_[i]));
++    }
++  }
+ 
+   CSSSelectorList(CSSSelectorList&& o) {
+     UNSAFE_BUFFERS(
+diff --git a/third_party/blink/renderer/core/css/font_face.cc b/third_party/blink/renderer/core/css/font_face.cc
+index 1c8547d9..88ea9ba 100644
+--- a/third_party/blink/renderer/core/css/font_face.cc
++++ b/third_party/blink/renderer/core/css/font_face.cc
+@@ -79,6 +79,7 @@
+ #include "third_party/blink/renderer/platform/fonts/font_metrics_override.h"
+ #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+ #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
++#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ #include "third_party/blink/renderer/platform/wtf/shared_buffer.h"
+ #include "third_party/blink/renderer/platform/wtf/text/strcat.h"
+ 
+@@ -746,8 +747,23 @@
+       // https://drafts.csswg.org/css-fonts/#font-prop-desc
+       // "User agents must swap the computed value of the startpoint and
+       // endpoint of the range in order to forbid decreasing ranges."
+-      if (stretch_from->ComputeValueInCanonicalUnit(EnsureLengthResolver()) <
+-          stretch_to->ComputeValueInCanonicalUnit(EnsureLengthResolver())) {
++      if (RuntimeEnabledFeatures::
++              FontFaceCapabilitiesRangeValidationEnabled()) {
++        const float from_value =
++            stretch_from->ComputeValueInCanonicalUnit(EnsureLengthResolver());
++        const float to_value =
++            stretch_to->ComputeValueInCanonicalUnit(EnsureLengthResolver());
++        if (std::isnan(from_value) || std::isnan(to_value)) {
++          return normal_capabilities;
++        }
++        const auto [min_width, max_width] = std::minmax(from_value, to_value);
++        capabilities.width = {FontSelectionValue(min_width),
++                              FontSelectionValue(max_width),
++                              FontSelectionRange::RangeType::kSetExplicitly};
++      } else if (stretch_from->ComputeValueInCanonicalUnit(
++                     EnsureLengthResolver()) <
++                 stretch_to->ComputeValueInCanonicalUnit(
++                     EnsureLengthResolver())) {
+         capabilities.width = {
+             FontSelectionValue(stretch_from->ComputeValueInCanonicalUnit(
+                 EnsureLengthResolver())),
+@@ -764,9 +780,14 @@
+       }
+     } else if (auto* stretch_primitive_value =
+                    DynamicTo<CSSPrimitiveValue>(stretch_.Get())) {
+-      float stretch_value =
++      const float stretch_value =
+           stretch_primitive_value->ComputeValueInCanonicalUnit(
+               EnsureLengthResolver());
++      if (std::isnan(stretch_value) &&
++          RuntimeEnabledFeatures::
++              FontFaceCapabilitiesRangeValidationEnabled()) {
++        return normal_capabilities;
++      }
+       capabilities.width = {FontSelectionValue(stretch_value),
+                             FontSelectionValue(stretch_value),
+                             FontSelectionRange::RangeType::kSetExplicitly};
+@@ -819,9 +840,14 @@
+           if (oblique_values_size == 1) {
+             const auto& range_start =
+                 To<CSSPrimitiveValue>(range_value->GetObliqueValues()->Item(0));
+-            FontSelectionValue oblique_range(
+-                range_start.ComputeValueInCanonicalUnit(
+-                    EnsureLengthResolver()));
++            const float oblique_value =
++                range_start.ComputeValueInCanonicalUnit(EnsureLengthResolver());
++            if (std::isnan(oblique_value) &&
++                RuntimeEnabledFeatures::
++                    FontFaceCapabilitiesRangeValidationEnabled()) {
++              return normal_capabilities;
++            }
++            FontSelectionValue oblique_range(oblique_value);
+             capabilities.slope = {
+                 oblique_range, oblique_range,
+                 FontSelectionRange::RangeType::kSetExplicitly};
+@@ -834,9 +860,24 @@
+             // https://drafts.csswg.org/css-fonts/#font-prop-desc
+             // "User agents must swap the computed value of the startpoint and
+             // endpoint of the range in order to forbid decreasing ranges."
+-            if (range_start.ComputeValueInCanonicalUnit(
+-                    EnsureLengthResolver()) <
+-                range_end.ComputeValueInCanonicalUnit(EnsureLengthResolver())) {
++            if (RuntimeEnabledFeatures::
++                    FontFaceCapabilitiesRangeValidationEnabled()) {
++              const float start_value = range_start.ComputeValueInCanonicalUnit(
++                  EnsureLengthResolver());
++              const float end_value =
++                  range_end.ComputeValueInCanonicalUnit(EnsureLengthResolver());
++              if (std::isnan(start_value) || std::isnan(end_value)) {
++                return normal_capabilities;
++              }
++              const auto [min_slope, max_slope] =
++                  std::minmax(start_value, end_value);
++              capabilities.slope = {
++                  FontSelectionValue(min_slope), FontSelectionValue(max_slope),
++                  FontSelectionRange::RangeType::kSetExplicitly};
++            } else if (range_start.ComputeValueInCanonicalUnit(
++                           EnsureLengthResolver()) <
++                       range_end.ComputeValueInCanonicalUnit(
++                           EnsureLengthResolver())) {
+               capabilities.slope = {
+                   FontSelectionValue(range_start.ComputeValueInCanonicalUnit(
+                       EnsureLengthResolver())),
+@@ -889,37 +930,60 @@
+       if (!weight_from || !weight_to) {
+         return normal_capabilities;
+       }
+-      if (!weight_from->IsNumber() || !weight_to->IsNumber() ||
+-          weight_from->ComputeValueInCanonicalUnit(EnsureLengthResolver()) <
+-              1 ||
+-          weight_to->ComputeValueInCanonicalUnit(EnsureLengthResolver()) >
+-              1000) {
+-        return normal_capabilities;
+-      }
+-      // https://drafts.csswg.org/css-fonts/#font-prop-desc
+-      // "User agents must swap the computed value of the startpoint and
+-      // endpoint of the range in order to forbid decreasing ranges."
+-      if (weight_from->ComputeValueInCanonicalUnit(EnsureLengthResolver()) <
+-          weight_to->ComputeValueInCanonicalUnit(EnsureLengthResolver())) {
+-        capabilities.weight = {
+-            FontSelectionValue(weight_from->ComputeValueInCanonicalUnit(
+-                EnsureLengthResolver())),
+-            FontSelectionValue(
+-                weight_to->ComputeValueInCanonicalUnit(EnsureLengthResolver())),
+-            FontSelectionRange::RangeType::kSetExplicitly};
++      if (RuntimeEnabledFeatures::
++              FontFaceCapabilitiesRangeValidationEnabled()) {
++        if (!weight_from->IsNumber() || !weight_to->IsNumber()) {
++          return normal_capabilities;
++        }
++        const float from_value =
++            weight_from->ComputeValueInCanonicalUnit(EnsureLengthResolver());
++        const float to_value =
++            weight_to->ComputeValueInCanonicalUnit(EnsureLengthResolver());
++        if (!(from_value >= 1 && from_value <= 1000) ||
++            !(to_value >= 1 && to_value <= 1000)) {
++          return normal_capabilities;
++        }
++        // https://drafts.csswg.org/css-fonts/#font-prop-desc
++        // "User agents must swap the computed value of the startpoint and
++        // endpoint of the range in order to forbid decreasing ranges."
++        const auto [min_weight, max_weight] = std::minmax(from_value, to_value);
++        capabilities.weight = {FontSelectionValue(min_weight),
++                               FontSelectionValue(max_weight),
++                               FontSelectionRange::RangeType::kSetExplicitly};
+       } else {
+-        capabilities.weight = {
+-            FontSelectionValue(
+-                weight_to->ComputeValueInCanonicalUnit(EnsureLengthResolver())),
+-            FontSelectionValue(weight_from->ComputeValueInCanonicalUnit(
+-                EnsureLengthResolver())),
+-            FontSelectionRange::RangeType::kSetExplicitly};
++        if (!weight_from->IsNumber() || !weight_to->IsNumber() ||
++            weight_from->ComputeValueInCanonicalUnit(EnsureLengthResolver()) <
++                1 ||
++            weight_to->ComputeValueInCanonicalUnit(EnsureLengthResolver()) >
++                1000) {
++          return normal_capabilities;
++        }
++        if (weight_from->ComputeValueInCanonicalUnit(EnsureLengthResolver()) <
++            weight_to->ComputeValueInCanonicalUnit(EnsureLengthResolver())) {
++          capabilities.weight = {
++              FontSelectionValue(weight_from->ComputeValueInCanonicalUnit(
++                  EnsureLengthResolver())),
++              FontSelectionValue(weight_to->ComputeValueInCanonicalUnit(
++                  EnsureLengthResolver())),
++              FontSelectionRange::RangeType::kSetExplicitly};
++        } else {
++          capabilities.weight = {
++              FontSelectionValue(weight_to->ComputeValueInCanonicalUnit(
++                  EnsureLengthResolver())),
++              FontSelectionValue(weight_from->ComputeValueInCanonicalUnit(
++                  EnsureLengthResolver())),
++              FontSelectionRange::RangeType::kSetExplicitly};
++        }
+       }
+     } else if (auto* weight_primitive_value =
+                    DynamicTo<CSSPrimitiveValue>(weight_.Get())) {
+-      float weight_value = weight_primitive_value->ComputeValueInCanonicalUnit(
+-          EnsureLengthResolver());
+-      if (weight_value < 1 || weight_value > 1000) {
++      const float weight_value =
++          weight_primitive_value->ComputeValueInCanonicalUnit(
++              EnsureLengthResolver());
++      if (!(weight_value >= 1 && weight_value <= 1000) &&
++          (RuntimeEnabledFeatures::
++               FontFaceCapabilitiesRangeValidationEnabled() ||
++           weight_value < 1 || weight_value > 1000)) {
+         return normal_capabilities;
+       }
+       capabilities.weight = {FontSelectionValue(weight_value),
+diff --git a/third_party/blink/renderer/core/css/font_face_cache.cc b/third_party/blink/renderer/core/css/font_face_cache.cc
+index c4044134..dbcc195b 100644
+--- a/third_party/blink/renderer/core/css/font_face_cache.cc
++++ b/third_party/blink/renderer/core/css/font_face_cache.cc
+@@ -37,6 +37,7 @@
+ #include "third_party/blink/renderer/platform/fonts/font_description.h"
+ #include "third_party/blink/renderer/platform/fonts/font_selection_algorithm.h"
+ #include "third_party/blink/renderer/platform/loader/fetch/resource_fetcher.h"
++#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
+ 
+ namespace blink {
+@@ -64,8 +65,16 @@
+ }
+ 
+ void FontFaceCache::AddFontFace(FontFace* font_face, bool css_connected) {
+-  DCHECK(font_face->GetFontSelectionCapabilities().IsValid() &&
+-         !font_face->GetFontSelectionCapabilities().IsHashTableDeletedValue());
++  if (RuntimeEnabledFeatures::FontFaceCapabilitiesRangeValidationEnabled()) {
++    const FontSelectionCapabilities capabilities =
++        font_face->GetFontSelectionCapabilities();
++    DCHECK(capabilities.IsValid() && !capabilities.IsHashTableDeletedValue() &&
++           capabilities != FontSelectionCapabilities());
++  } else {
++    DCHECK(
++        font_face->GetFontSelectionCapabilities().IsValid() &&
++        !font_face->GetFontSelectionCapabilities().IsHashTableDeletedValue());
++  }
+ 
+   segmented_faces_.AddFontFace(font_face, css_connected);
+ 
+@@ -83,6 +92,20 @@
+ 
+ void FontFaceCache::CapabilitiesSet::AddFontFace(FontFace* font_face,
+                                                  bool css_connected) {
++  if (RuntimeEnabledFeatures::FontFaceCapabilitiesRangeValidationEnabled()) {
++    const FontSelectionCapabilities capabilities =
++        font_face->GetFontSelectionCapabilities();
++    CHECK(capabilities != FontSelectionCapabilities());
++    const auto result = map_.insert(capabilities, nullptr);
++    if (result.is_new_entry) {
++      result.stored_value->value =
++          MakeGarbageCollected<CSSSegmentedFontFace>(capabilities);
++    }
++
++    result.stored_value->value->AddFontFace(font_face, css_connected);
++    return;
++  }
++
+   const auto result =
+       map_.insert(font_face->GetFontSelectionCapabilities(), nullptr);
+   if (result.is_new_entry) {
 diff --git a/third_party/blink/renderer/core/editing/selection_modifier_line.cc b/third_party/blink/renderer/core/editing/selection_modifier_line.cc
 index 163df3ed..3ad7d0a 100644
 --- a/third_party/blink/renderer/core/editing/selection_modifier_line.cc
@@ -14471,6 +15134,44 @@ index 163df3ed..3ad7d0a 100644
      if (!node)
        return PositionInFlatTreeWithAffinity();
      if (EditingIgnoresContent(*node)) {
+diff --git a/third_party/blink/renderer/core/highlight/highlight_registry.cc b/third_party/blink/renderer/core/highlight/highlight_registry.cc
+index 9437bbf8..5893939 100644
+--- a/third_party/blink/renderer/core/highlight/highlight_registry.cc
++++ b/third_party/blink/renderer/core/highlight/highlight_registry.cc
+@@ -324,12 +324,6 @@
+   add_result.stored_value->value.insert(highlight_name);
+ }
+ 
+-const HashSet<AtomicString>& HighlightRegistry::GetActiveHighlights(
+-    const Text& node) const {
+-  DCHECK(active_highlights_in_node_.Contains(&node));
+-  return active_highlights_in_node_.find(&node)->value;
+-}
+-
+ void HighlightRegistry::ScheduleRepaint() {
+   LocalFrame* frame = GetFrame();
+   if (!frame) {
+diff --git a/third_party/blink/renderer/core/highlight/highlight_registry.h b/third_party/blink/renderer/core/highlight/highlight_registry.h
+index 8aa178c..80d44d9 100644
+--- a/third_party/blink/renderer/core/highlight/highlight_registry.h
++++ b/third_party/blink/renderer/core/highlight/highlight_registry.h
+@@ -61,7 +61,6 @@
+   wtf_size_t size() const { return highlights_.size(); }
+ 
+   const HighlightRegistryMap& GetHighlights() const { return highlights_; }
+-  const HashSet<AtomicString>& GetActiveHighlights(const Text& node) const;
+   // Returns the active custom highlight names for a replaced element (e.g.
+   // <img>), or a reference to a static empty set if none.
+   const HashSet<AtomicString>& GetActiveHighlightsForReplacedElement(
+@@ -128,7 +127,7 @@
+   HeapHashSet<WeakMember<RegistryLiveIterator>> active_iterators_;
+   void NotifyIteratorsWillRemoveEntry(HighlightRegistryMapEntry* entry);
+   void NotifyIteratorsWillClear();
+-  // Only valid after ValidateHighlightMarkers(), used to optimize painting.
++  // Only valid after ValidateHighlightMarkers(), used to optimize hit testing.
+   HeapHashMap<WeakMember<const Text>, HashSet<AtomicString>>
+       active_highlights_in_node_;
+   // Replaced elements (e.g. <img>) covered by custom highlight ranges,
 diff --git a/third_party/blink/renderer/core/layout/column_layout_algorithm.cc b/third_party/blink/renderer/core/layout/column_layout_algorithm.cc
 index f9f1a263..b69f028 100644
 --- a/third_party/blink/renderer/core/layout/column_layout_algorithm.cc
@@ -14495,6 +15196,66 @@ index f9f1a263..b69f028 100644
      result.sizes.max_size =
          std::max(result.sizes.max_size, result.sizes.min_size);
    }
+diff --git a/third_party/blink/renderer/core/layout/custom/css_layout_definition.cc b/third_party/blink/renderer/core/layout/custom/css_layout_definition.cc
+index 042ceb9f..00d1c01 100644
+--- a/third_party/blink/renderer/core/layout/custom/css_layout_definition.cc
++++ b/third_party/blink/renderer/core/layout/custom/css_layout_definition.cc
+@@ -120,6 +120,8 @@
+   ExecutionContext* execution_context = ExecutionContext::From(script_state);
+   ScriptValue return_value;
+   {
++    v8::TryCatch try_catch(isolate);
++    try_catch.SetVerbose(true);
+     V8RunMicrotasksScope microtasks_scope(script_state);
+     if (!definition_->layout_
+              ->Invoke(instance_.Get(isolate), children, edges, constraints,
+@@ -247,6 +249,8 @@
+ 
+   ScriptValue return_value;
+   {
++    v8::TryCatch try_catch(isolate);
++    try_catch.SetVerbose(true);
+     V8RunMicrotasksScope microtasks_scope(script_state);
+     if (!definition_->intrinsic_sizes_
+              ->Invoke(instance_.Get(isolate), children, edges, style_map)
+@@ -318,10 +322,14 @@
+     return nullptr;
+ 
+   // Ensure that we don't create an instance on a detached context.
+-  if (!GetScriptState()->ContextIsValid())
++  ScriptState* script_state = GetScriptState();
++  if (!script_state->ContextIsValid()) {
+     return nullptr;
++  }
+ 
+-  ScriptState::Scope scope(GetScriptState());
++  ScriptState::Scope scope(script_state);
++  v8::TryCatch try_catch(script_state->GetIsolate());
++  try_catch.SetVerbose(true);
+ 
+   ScriptValue instance;
+   if (!constructor_->Construct().To(&instance)) {
+diff --git a/third_party/blink/renderer/core/paint/highlight_overlay.cc b/third_party/blink/renderer/core/paint/highlight_overlay.cc
+index 121441d..dffeaa3 100644
+--- a/third_party/blink/renderer/core/paint/highlight_overlay.cc
++++ b/third_party/blink/renderer/core/paint/highlight_overlay.cc
+@@ -387,8 +387,14 @@
+     unsigned max_custom_layers =
+         std::numeric_limits<uint16_t>::max() -
+         static_cast<unsigned>(HighlightLayerType::kSelection);
+-    const HashSet<AtomicString>& active_highlights =
+-        registry->GetActiveHighlights(*text_node);
++    // Editing can move markers before highlight validation rebuilds the
++    // per-node registry. Use the markers being painted to keep layers and
++    // edges consistent even during synchronous SVG resource painting.
++    HashSet<AtomicString> active_highlights;
++    for (const auto& marker : custom) {
++      active_highlights.insert(
++          To<CustomHighlightMarker>(*marker).GetHighlightName());
++    }
+     auto highlight_iter = active_highlights.begin();
+     unsigned layer_count = 0;
+     while (highlight_iter != active_highlights.end() &&
 diff --git a/third_party/blink/renderer/core/streams/readable_stream.h b/third_party/blink/renderer/core/streams/readable_stream.h
 index edc4f5d..d58bd728 100644
 --- a/third_party/blink/renderer/core/streams/readable_stream.h
@@ -14579,6 +15340,18 @@ index ede977a..c47499e2 100644
    void Enqueue(v8::Local<v8::Value> js_chunk) const;
    void Error(v8::Local<v8::Value> js_error);
  
+diff --git a/third_party/blink/renderer/modules/BUILD.gn b/third_party/blink/renderer/modules/BUILD.gn
+index e671a88d..4272d8b 100644
+--- a/third_party/blink/renderer/modules/BUILD.gn
++++ b/third_party/blink/renderer/modules/BUILD.gn
+@@ -481,6 +481,7 @@
+     "document_picture_in_picture/picture_in_picture_controller_test.cc",
+     "encoding/text_decoder_test.cc",
+     "encoding/text_encoder_test.cc",
++    "encryptedmedia/media_key_session_test.cc",
+     "eventsource/event_source_parser_test.cc",
+     "filesystem/dom_file_system_base_test.cc",
+     "filesystem/file_writer_test.cc",
 diff --git a/third_party/blink/renderer/modules/breakout_box/frame_queue.h b/third_party/blink/renderer/modules/breakout_box/frame_queue.h
 index 929122e..d76bd4b5 100644
 --- a/third_party/blink/renderer/modules/breakout_box/frame_queue.h
@@ -14811,11 +15584,261 @@ index d9aeca5..8833bd3e 100644
    bool is_closed_ = false;
  
    // Main task runner for the window or worker context this source runs on.
+diff --git a/third_party/blink/renderer/modules/csspaint/css_paint_definition.cc b/third_party/blink/renderer/modules/csspaint/css_paint_definition.cc
+index be5a13c..4c529524 100644
+--- a/third_party/blink/renderer/modules/csspaint/css_paint_definition.cc
++++ b/third_party/blink/renderer/modules/csspaint/css_paint_definition.cc
+@@ -105,8 +105,18 @@
+     float zoom,
+     StylePropertyMapReadOnly* style_map,
+     const GCedCSSStyleValueVector* paint_arguments) {
++  if (!script_state_->ContextIsValid()) {
++    return PaintRecord();
++  }
+   const gfx::SizeF specified_size = GetSpecifiedSize(container_size, zoom);
+   ScriptState::Scope scope(script_state_);
++  v8::Isolate* isolate = script_state_->GetIsolate();
++
++  // Catch and report exceptions from both constructing the paint class and
++  // invoking paint() within the worklet scope so they never remain pending on
++  // the isolate and leak into synchronous callers.
++  v8::TryCatch try_catch(isolate);
++  try_catch.SetVerbose(true);
+ 
+   MaybeCreatePaintInstance();
+   // We may have failed to create an instance, in which case produce an
+@@ -114,8 +124,6 @@
+   if (instance_.IsEmpty())
+     return PaintRecord();
+ 
+-  v8::Isolate* isolate = script_state_->GetIsolate();
+-
+   // Do subpixel snapping for the |container_size|.
+   auto* rendering_context = MakeGarbageCollected<PaintRenderingContext2D>(
+       ToRoundedSize(container_size), context_settings_, zoom, global_scope_);
+@@ -134,9 +142,6 @@
+     paint_arguments = empty_arguments.Get();
+   }
+ 
+-  v8::TryCatch try_catch(isolate);
+-  try_catch.SetVerbose(true);
+-
+   // The paint function may have produced an error, in which case produce an
+   // invalid image.
+   if (paint_
+diff --git a/third_party/blink/renderer/modules/encryptedmedia/DEPS b/third_party/blink/renderer/modules/encryptedmedia/DEPS
+index 23a882a..ef15bba 100644
+--- a/third_party/blink/renderer/modules/encryptedmedia/DEPS
++++ b/third_party/blink/renderer/modules/encryptedmedia/DEPS
+@@ -14,5 +14,8 @@
+ specific_include_rules = {
+     "encrypted_media_utils.cc": [
+       "+third_party/blink/renderer/core/frame/web_local_frame_impl.h",
+-    ]
+-}
+\ No newline at end of file
++    ],
++    "media_key_session_test.cc": [
++      "+components/ukm/test_ukm_recorder.h",
++    ],
++}
+diff --git a/third_party/blink/renderer/modules/encryptedmedia/media_key_session.cc b/third_party/blink/renderer/modules/encryptedmedia/media_key_session.cc
+index 4410756..9027e96 100644
+--- a/third_party/blink/renderer/modules/encryptedmedia/media_key_session.cc
++++ b/third_party/blink/renderer/modules/encryptedmedia/media_key_session.cc
+@@ -403,27 +403,27 @@
+   Member<MediaKeySession> session_;
+ };
+ 
+-MediaKeySession::MediaKeySession(ScriptState* script_state,
++MediaKeySession::MediaKeySession(ExecutionContext* execution_context,
+                                  MediaKeys* media_keys,
+                                  WebEncryptedMediaSessionType session_type,
+                                  const MediaKeysConfig& config)
+     : ActiveScriptWrappable<MediaKeySession>({}),
+-      ExecutionContextLifecycleObserver(ExecutionContext::From(script_state)),
++      ExecutionContextLifecycleObserver(execution_context),
+       async_event_queue_(
+-          MakeGarbageCollected<EventQueue>(GetExecutionContext(),
++          MakeGarbageCollected<EventQueue>(execution_context,
+                                            TaskType::kMediaElementEvent)),
+       media_keys_(media_keys),
+       session_type_(session_type),
+       config_(config),
+       expiration_(std::numeric_limits<double>::quiet_NaN()),
+       key_statuses_map_(MakeGarbageCollected<MediaKeyStatusMap>()),
+-      closed_promise_(MakeGarbageCollected<ClosedPromise>(
+-          ExecutionContext::From(script_state))),
+-      action_timer_(ExecutionContext::From(script_state)
+-                        ->GetTaskRunner(TaskType::kMediaElementEvent),
+-                    this,
+-                    &MediaKeySession::ActionTimerFired) {
++      closed_promise_(MakeGarbageCollected<ClosedPromise>(execution_context)),
++      action_timer_(
++          execution_context->GetTaskRunner(TaskType::kMediaElementEvent),
++          this,
++          &MediaKeySession::ActionTimerFired) {
+   DVLOG(MEDIA_KEY_SESSION_LOG_LEVEL) << __func__ << "(" << this << ")";
++  CHECK(!execution_context->IsContextDestroyed());
+   InstanceCounters::IncrementCounter(InstanceCounters::kMediaKeySessionCounter);
+ 
+   // Create the matching Chromium object. It will not be usable until
+@@ -1098,8 +1098,11 @@
+   // 4.1 Empty statuses.
+   key_statuses_map_->Clear();
+ 
+-  auto* ukm_recorder = GetExecutionContext()->UkmRecorder();
+-  const ukm::SourceId source_id = GetExecutionContext()->UkmSourceID();
++  // ContextDestroyed() resets |session_|, so callbacks cannot arrive after
++  // context destruction and the ExecutionContext remains strongly reachable.
++  ExecutionContext* execution_context = GetExecutionContext();
++  CHECK(execution_context);
++  CHECK(!execution_context->IsContextDestroyed());
+ 
+   // 4.2 For each pair in input statuses.
+   for (size_t i = 0; i < keys.size(); ++i) {
+@@ -1110,9 +1113,9 @@
+     key_statuses_map_->AddEntry(
+         key.Id(), EncryptedMediaUtils::ConvertKeyStatusToEnum(key.Status()));
+ 
+-    ukm::builders::Media_EME_CdmSystemCode(source_id)
++    ukm::builders::Media_EME_CdmSystemCode(execution_context->UkmSourceID())
+         .SetCdmSystemCode(key.SystemCode())
+-        .Record(ukm_recorder);
++        .Record(execution_context->UkmRecorder());
+   }
+ 
+   // 5. Queue a task to fire a simple event named keystatuseschange
+diff --git a/third_party/blink/renderer/modules/encryptedmedia/media_key_session.h b/third_party/blink/renderer/modules/encryptedmedia/media_key_session.h
+index 09543bd..2ff991c 100644
+--- a/third_party/blink/renderer/modules/encryptedmedia/media_key_session.h
++++ b/third_party/blink/renderer/modules/encryptedmedia/media_key_session.h
+@@ -39,6 +39,7 @@
+ #include "third_party/blink/renderer/modules/encryptedmedia/encrypted_media_utils.h"
+ #include "third_party/blink/renderer/modules/encryptedmedia/media_key_status_map.h"
+ #include "third_party/blink/renderer/modules/event_target_modules.h"
++#include "third_party/blink/renderer/modules/modules_export.h"
+ #include "third_party/blink/renderer/platform/heap/collection_support/heap_deque.h"
+ #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+ #include "third_party/blink/renderer/platform/heap/prefinalizer.h"
+@@ -73,7 +74,7 @@
+ // WebContentDecryptionModuleSession, it may outlive any JavaScript references
+ // as long as the MediaKeys object is alive.
+ // The WebContentDecryptionModuleSession has the same lifetime as this object.
+-class MediaKeySession final
++class MODULES_EXPORT MediaKeySession final
+     : public EventTarget,
+       public ActiveScriptWrappable<MediaKeySession>,
+       public ExecutionContextLifecycleObserver,
+@@ -82,7 +83,7 @@
+   USING_PRE_FINALIZER(MediaKeySession, Dispose);
+ 
+  public:
+-  MediaKeySession(ScriptState*,
++  MediaKeySession(ExecutionContext*,
+                   MediaKeys*,
+                   WebEncryptedMediaSessionType,
+                   const MediaKeysConfig&);
+diff --git a/third_party/blink/renderer/modules/encryptedmedia/media_keys.cc b/third_party/blink/renderer/modules/encryptedmedia/media_keys.cc
+index d53a315..ad98482 100644
+--- a/third_party/blink/renderer/modules/encryptedmedia/media_keys.cc
++++ b/third_party/blink/renderer/modules/encryptedmedia/media_keys.cc
+@@ -266,14 +266,14 @@
+ }
+ 
+ MediaKeySession* MediaKeys::createSession(
+-    ScriptState* script_state,
+     const V8MediaKeySessionType& v8_session_type,
+     ExceptionState& exception_state) {
+   DVLOG(MEDIA_KEYS_LOG_LEVEL)
+       << __func__ << "(" << this << ") " << v8_session_type.AsCStr();
+ 
+   // If the context for MediaKeys has been destroyed, fail.
+-  if (!GetExecutionContext()) {
++  ExecutionContext* execution_context = GetExecutionContext();
++  if (!execution_context || execution_context->IsContextDestroyed()) {
+     exception_state.ThrowDOMException(DOMExceptionCode::kInvalidAccessError,
+                                       "The context provided is invalid.");
+     return nullptr;
+@@ -302,8 +302,11 @@
+   //    follows:
+   //    (Initialization is performed in the constructor.)
+   // 4. Return session.
+-  return MakeGarbageCollected<MediaKeySession>(script_state, this, session_type,
+-                                               config_);
++  // Bind the session to MediaKeys' ExecutionContext rather than the receiver
++  // wrapper's realm so it shares MediaKeys' lifecycle and cannot observe an
++  // already-destroyed context.
++  return MakeGarbageCollected<MediaKeySession>(execution_context, this,
++                                               session_type, config_);
+ }
+ 
+ ScriptPromise<IDLBoolean> MediaKeys::setServerCertificate(
+diff --git a/third_party/blink/renderer/modules/encryptedmedia/media_keys.h b/third_party/blink/renderer/modules/encryptedmedia/media_keys.h
+index 1b7f0cea..13608d44 100644
+--- a/third_party/blink/renderer/modules/encryptedmedia/media_keys.h
++++ b/third_party/blink/renderer/modules/encryptedmedia/media_keys.h
+@@ -37,6 +37,7 @@
+ #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
+ #include "third_party/blink/renderer/core/execution_context/execution_context_lifecycle_observer.h"
+ #include "third_party/blink/renderer/modules/encryptedmedia/encrypted_media_utils.h"
++#include "third_party/blink/renderer/modules/modules_export.h"
+ #include "third_party/blink/renderer/platform/allow_discouraged_type.h"
+ #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
+ #include "third_party/blink/renderer/platform/heap/collection_support/heap_deque.h"
+@@ -59,9 +60,9 @@
+ 
+ // References are held by JS and HTMLMediaElement.
+ // The WebContentDecryptionModule has the same lifetime as this object.
+-class MediaKeys : public ScriptWrappable,
+-                  public ActiveScriptWrappable<MediaKeys>,
+-                  public ExecutionContextLifecycleObserver {
++class MODULES_EXPORT MediaKeys : public ScriptWrappable,
++                                 public ActiveScriptWrappable<MediaKeys>,
++                                 public ExecutionContextLifecycleObserver {
+   DEFINE_WRAPPERTYPEINFO();
+ 
+  public:
+@@ -72,8 +73,7 @@
+       const MediaKeysConfig&);
+   ~MediaKeys() override;
+ 
+-  MediaKeySession* createSession(ScriptState*,
+-                                 const V8MediaKeySessionType& session_type,
++  MediaKeySession* createSession(const V8MediaKeySessionType& session_type,
+                                  ExceptionState&);
+ 
+   ScriptPromise<IDLBoolean> setServerCertificate(
+diff --git a/third_party/blink/renderer/modules/encryptedmedia/media_keys.idl b/third_party/blink/renderer/modules/encryptedmedia/media_keys.idl
+index 6f5dbe64..19abdad 100644
+--- a/third_party/blink/renderer/modules/encryptedmedia/media_keys.idl
++++ b/third_party/blink/renderer/modules/encryptedmedia/media_keys.idl
+@@ -35,7 +35,7 @@
+     ActiveScriptWrappable,
+     SecureContext
+ ] interface MediaKeys {
+-    [CallWith=ScriptState, RaisesException] MediaKeySession createSession(optional MediaKeySessionType sessionType = "temporary");
++    [RaisesException] MediaKeySession createSession(optional MediaKeySessionType sessionType = "temporary");
+ 
+     [CallWith=ScriptState, RaisesException] Promise<boolean> setServerCertificate([PassAsSpan] BufferSource serverCertificate);
+ };
 diff --git a/third_party/blink/renderer/platform/runtime_enabled_features.json5 b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-index 9ee8f83..081b09a 100644
+index 9ee8f83..80ad78e1 100644
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -4622,13 +4622,6 @@
+@@ -3426,6 +3426,11 @@
+       // a Chromium level feature (kFontDataServiceForCSSLocalFonts).
+     },
+     {
++      // Kill switch for https://crbug.com/589815780.
++      name: "FontFaceCapabilitiesRangeValidation",
++      status: "stable",
++    },
++    {
+       // Kill switch for https://crbug.com/579721442.
+       name: "FontFallbackMultiplePriorityFonts",
+       status: "stable",
+@@ -4622,13 +4627,6 @@
        status: "stable",
      },
      {
@@ -14829,7 +15852,7 @@ index 9ee8f83..081b09a 100644
        // Support Nastaliq script. crbug.com/569667449
        name: "NastaliqScript",
        status: "stable",
-@@ -6099,6 +6092,12 @@
+@@ -6099,6 +6097,12 @@
        status: "stable",
      },
      {
@@ -15298,6 +16321,126 @@ index 17795f6..734ff4d9 100644
    void FireGeneratedEvent(AXEventGenerator::Event event_type,
                            const AXNode* node) override;
  
+diff --git a/ui/ozone/platform/wayland/host/wayland_toplevel_window.cc b/ui/ozone/platform/wayland/host/wayland_toplevel_window.cc
+index fa15beb..2d345c0d8 100644
+--- a/ui/ozone/platform/wayland/host/wayland_toplevel_window.cc
++++ b/ui/ozone/platform/wayland/host/wayland_toplevel_window.cc
+@@ -180,14 +180,35 @@
+   }
+ 
+   auto weak_this = AsWeakPtr();
++  // Reject bubble activation while hiding so that hiding children doesn't
++  // reactivate a bubble or this toplevel. Cleared right before `xdg_toplevel_`
++  // is reset, which every early return below with `this` alive implies.
++  hiding_ = true;
++  ActivateBubble(nullptr);
++  if (!weak_this || !xdg_toplevel_) {
++    return;
++  }
+   HideChildPopups();
+   if (!weak_this || !xdg_toplevel_) {
+     return;
+   }
+   set_child_popup(nullptr);
+-  for (auto bubble : child_bubbles()) {
+-    bubble->Hide();
++  // Bubbles may have active bubbles of their own, so hiding one may still run
++  // delegate code that adds or removes bubbles.
++  std::vector<base::WeakPtr<WaylandWindow>> bubbles;
++  bubbles.reserve(child_bubbles().size());
++  for (WaylandBubble* bubble : child_bubbles()) {
++    bubbles.push_back(bubble->AsWeakPtr());
+   }
++  for (const auto& bubble : bubbles) {
++    if (bubble) {
++      bubble->Hide();
++    }
++    if (!weak_this || !xdg_toplevel_) {
++      return;
++    }
++  }
++  hiding_ = false;
+ 
+   // Note that the xdg_toplevel object should be destroyed before we touch
+   // anything else in order to provide the compositor a good reference point
+@@ -1296,6 +1317,10 @@
+   }
+ }
+ 
++bool WaylandToplevelWindow::CanActivateBubble() const {
++  return !hiding_;
++}
++
+ void WaylandToplevelWindow::UpdateWindowMask() {
+   std::vector<gfx::Rect> region{gfx::Rect({}, latched_state().size_px)};
+   root_surface()->set_opaque_region(
+diff --git a/ui/ozone/platform/wayland/host/wayland_toplevel_window.h b/ui/ozone/platform/wayland/host/wayland_toplevel_window.h
+index 6624618..580fe44 100644
+--- a/ui/ozone/platform/wayland/host/wayland_toplevel_window.h
++++ b/ui/ozone/platform/wayland/host/wayland_toplevel_window.h
+@@ -181,6 +181,7 @@
+                              const PlatformWindowDelegate::State& new_state,
+                              int64_t viz_seq,
+                              bool from_client) override;
++  bool CanActivateBubble() const override;
+ 
+   void UpdateSystemModal();
+ 
+@@ -298,6 +299,9 @@
+   bool is_xdg_active_ = false;
+   bool is_suspended_ = false;
+ 
++  // Set while Hide() hides children; rejects bubble activation meanwhile.
++  bool hiding_ = false;
++
+   // Id of the chromium app passed through
+   // PlatformWindowInitProperties::wm_class_name. This is used by Wayland
+   // compositor to identify the app, unite it's windows into the same stack of
+diff --git a/ui/ozone/platform/wayland/host/wayland_window.cc b/ui/ozone/platform/wayland/host/wayland_window.cc
+index 1d8de9de..6eb3dbd 100644
+--- a/ui/ozone/platform/wayland/host/wayland_window.cc
++++ b/ui/ozone/platform/wayland/host/wayland_window.cc
+@@ -242,7 +242,7 @@
+   CHECK(!window || std::ranges::contains(child_bubbles_, window));
+   CHECK(!window || (window->AsWaylandBubble() &&
+                     window->AsWaylandBubble()->activatable()));
+-  if (active_bubble_ == window) {
++  if (active_bubble_ == window || (window && !CanActivateBubble())) {
+     return;
+   }
+ 
+@@ -272,12 +272,16 @@
+     if (active_bubble_) {
+       active_bubble_->delegate()->OnActivationChanged(true);
+     }
+-  } else {
++  } else if (CanActivateBubble()) {
+     auto weak_this = AsWeakPtr();
+     delegate()->OnActivationChanged(IsActive());
+   }
+ }
+ 
++bool WaylandWindow::CanActivateBubble() const {
++  return true;
++}
++
+ void WaylandWindow::SetWindowScale(float new_scale) {
+   CHECK_GE(new_scale, 0.f, base::NotFatalUntil::M163);
+   auto state = GetLatestRequestedState();
+diff --git a/ui/ozone/platform/wayland/host/wayland_window.h b/ui/ozone/platform/wayland/host/wayland_window.h
+index 752d41f..8e74924f 100644
+--- a/ui/ozone/platform/wayland/host/wayland_window.h
++++ b/ui/ozone/platform/wayland/host/wayland_window.h
+@@ -442,6 +442,9 @@
+   // Updates mask for this window.
+   virtual void UpdateWindowMask() = 0;
+ 
++  // Returns false while bubble activation must be rejected.
++  virtual bool CanActivateBubble() const;
++
+   // [Deprecated]
+   // If the given |bounds_px| violates size constraints set for this window,
+   // fixes them so they don't.
 diff --git a/ui/views/accessibility/view_accessibility.cc b/ui/views/accessibility/view_accessibility.cc
 index 551d928..8cdefe9 100644
 --- a/ui/views/accessibility/view_accessibility.cc
@@ -18509,7 +19652,7 @@ index a03dccc..465d6de 100644
      DrawNonAARect(sdc, std::move(paint), userStencilSettings, clip, SkMatrix::I(),
                    dstRect, invert);
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index d9cc68e..e5335fe 100644
+index d9cc68e..f4ba846 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -18517,7 +19660,7 @@ index d9cc68e..e5335fe 100644
  #define V8_MINOR_VERSION 9
  #define V8_BUILD_NUMBER 128
 -#define V8_PATCH_LEVEL 34
-+#define V8_PATCH_LEVEL 40
++#define V8_PATCH_LEVEL 42
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
@@ -18858,6 +20001,74 @@ index 6a4bdb4..cb11b9e 100644
    void PerformStackCheck(TNode<Context> context);
  
    void SetPropertyLength(TNode<Context> context, TNode<JSAny> array,
+diff --git a/v8/src/codegen/s390/macro-assembler-s390.cc b/v8/src/codegen/s390/macro-assembler-s390.cc
+index 7358be7..da624e7 100644
+--- a/v8/src/codegen/s390/macro-assembler-s390.cc
++++ b/v8/src/codegen/s390/macro-assembler-s390.cc
+@@ -4563,16 +4563,12 @@
+ 
+ void MacroAssembler::SwapFloat32(MemOperand src, MemOperand dst,
+                                  DoubleRegister scratch) {
+-  // push d0, to be used as scratch
+-  lay(sp, MemOperand(sp, -kDoubleSize));
+-  StoreF64(d0, MemOperand(sp));
++  DCHECK(!AreAliased(scratch, kDoubleRegZero));
+   LoadF32(scratch, src);
+-  LoadF32(d0, dst);
++  LoadF32(kDoubleRegZero, dst);
+   StoreF32(scratch, dst);
+-  StoreF32(d0, src);
+-  // restore d0
+-  LoadF64(d0, MemOperand(sp));
+-  lay(sp, MemOperand(sp, kDoubleSize));
++  StoreF32(kDoubleRegZero, src);
++  lzdr(kDoubleRegZero);
+ }
+ 
+ void MacroAssembler::SwapDouble(DoubleRegister src, DoubleRegister dst,
+@@ -4594,16 +4590,12 @@
+ 
+ void MacroAssembler::SwapDouble(MemOperand src, MemOperand dst,
+                                 DoubleRegister scratch) {
+-  // push d0, to be used as scratch
+-  lay(sp, MemOperand(sp, -kDoubleSize));
+-  StoreF64(d0, MemOperand(sp));
++  DCHECK(!AreAliased(scratch, kDoubleRegZero));
+   LoadF64(scratch, src);
+-  LoadF64(d0, dst);
++  LoadF64(kDoubleRegZero, dst);
+   StoreF64(scratch, dst);
+-  StoreF64(d0, src);
+-  // restore d0
+-  LoadF64(d0, MemOperand(sp));
+-  lay(sp, MemOperand(sp, kDoubleSize));
++  StoreF64(kDoubleRegZero, src);
++  lzdr(kDoubleRegZero);
+ }
+ 
+ void MacroAssembler::SwapSimd128(Simd128Register src, Simd128Register dst,
+@@ -4624,16 +4616,13 @@
+ 
+ void MacroAssembler::SwapSimd128(MemOperand src, MemOperand dst,
+                                  Simd128Register scratch) {
+-  // push d0, to be used as scratch
+-  lay(sp, MemOperand(sp, -kSimd128Size));
+-  StoreV128(d0, MemOperand(sp), ip);
++  DCHECK(!AreAliased(scratch, kDoubleRegZero));
+   LoadV128(scratch, src, ip);
+-  LoadV128(d0, dst, ip);
++  LoadV128(kDoubleRegZero, dst, ip);
+   StoreV128(scratch, dst, ip);
+-  StoreV128(d0, src, ip);
+-  // restore d0
+-  LoadV128(d0, MemOperand(sp), ip);
+-  lay(sp, MemOperand(sp, kSimd128Size));
++  StoreV128(kDoubleRegZero, src, ip);
++  vx(kDoubleRegZero, kDoubleRegZero, kDoubleRegZero, Condition(0), Condition(0),
++     Condition(0));
+ }
+ 
+ void MacroAssembler::ComputeCodeStartAddress(Register dst) {
 diff --git a/v8/src/codegen/turboshaft-builtins-assembler-inl.h b/v8/src/codegen/turboshaft-builtins-assembler-inl.h
 index 38c1626..b28f96d 100644
 --- a/v8/src/codegen/turboshaft-builtins-assembler-inl.h
@@ -19067,6 +20278,18 @@ index a9673b4..8c953e3 100644
          return true;
        default:
          return false;
+diff --git a/v8/src/compiler/opcodes.h b/v8/src/compiler/opcodes.h
+index dafb307..8bac50e 100644
+--- a/v8/src/compiler/opcodes.h
++++ b/v8/src/compiler/opcodes.h
+@@ -278,6 +278,7 @@
+   V(ChangeTaggedToUint32)                     \
+   V(ChangeTaggedToFloat64)                    \
+   V(ChangeTaggedToTaggedSigned)               \
++  V(ChangeTaggedToTaggedPointer)              \
+   V(ChangeSmiOrHoleToFloat64)                 \
+   V(ChangeNumberOrHoleToFloat64)              \
+   V(ChangeInt31ToTaggedSigned)                \
 diff --git a/v8/src/compiler/raw-machine-assembler.cc b/v8/src/compiler/raw-machine-assembler.cc
 index b93a2fd..42c370a 100644
 --- a/v8/src/compiler/raw-machine-assembler.cc
@@ -19121,6 +20344,295 @@ index 3783df4..f9d0fa6 100644
      dynamic_js_parameter_count_ = parameter_count;
    }
  
+diff --git a/v8/src/compiler/representation-change.cc b/v8/src/compiler/representation-change.cc
+index dbc7b52..17a2c33 100644
+--- a/v8/src/compiler/representation-change.cc
++++ b/v8/src/compiler/representation-change.cc
+@@ -510,6 +510,8 @@
+       op = simplified()->ChangeFloat64ToTaggedPointer();
+     } else if (output_type.Is(Type::SignedBigInt64()) &&
+                use_info.type_check() == TypeCheckKind::kBigInt) {
++      // Non-kBigInt uses of kWord64 BigInts are already rematerialized in
++      // GetRepresentationFor.
+       op = simplified()->ChangeInt64ToBigInt();
+     } else if (output_type.Is(Type::UnsignedBigInt64()) &&
+                use_info.type_check() == TypeCheckKind::kBigInt) {
+@@ -531,6 +533,13 @@
+     if (output_type.Is(Type::Number())) {
+       // float64 -> tagged
+       op = simplified()->ChangeFloat64ToTaggedPointer();
++    } else if (output_type.Is(Type::NumberOrUndefined())) {
++      // ChangeFloat64OrUndefinedToTagged always produces a HeapNumber or
++      // Undefined, never a Smi.
++      op = simplified()->ChangeFloat64OrUndefinedToTagged(
++          output_type.Maybe(Type::MinusZero())
++              ? CheckForMinusZeroMode::kCheckForMinusZero
++              : CheckForMinusZeroMode::kDontCheckForMinusZero);
+     } else {
+       return TypeError(node, output_rep, output_type,
+                        MachineRepresentation::kTaggedPointer);
+@@ -556,8 +565,13 @@
+                !output_type.Maybe(Type::SignedSmall())) {
+       DCHECK_NE(output_rep, MachineRepresentation::kTaggedSigned);
+       return node;
+-    } else {
++    } else if (use_info.type_check() != TypeCheckKind::kNone) {
++      DCHECK_EQ(use_info.type_check(), TypeCheckKind::kHeapObject);
+       op = simplified()->CheckedTaggedToTaggedPointer(use_info.feedback());
++    } else {
++      // Known-Smi inputs are folded to HeapNumber allocation by
++      // SimplifiedOptimizationReducer::ReduceConvert.
++      op = simplified()->ChangeTaggedToTaggedPointer();
+     }
+   } else {
+     return TypeError(node, output_rep, output_type,
+diff --git a/v8/src/compiler/simplified-lowering-verifier.cc b/v8/src/compiler/simplified-lowering-verifier.cc
+index 78b3a26..6cfba4f 100644
+--- a/v8/src/compiler/simplified-lowering-verifier.cc
++++ b/v8/src/compiler/simplified-lowering-verifier.cc
+@@ -514,6 +514,7 @@
+       CASE(ChangeTaggedToUint32)
+       CASE(ChangeTaggedToFloat64)
+       CASE(ChangeTaggedToTaggedSigned)
++      CASE(ChangeTaggedToTaggedPointer)
+       CASE(ChangeSmiOrHoleToFloat64)
+       CASE(ChangeNumberOrHoleToFloat64)
+       CASE(ChangeInt64ToTagged)
+diff --git a/v8/src/compiler/simplified-lowering.cc b/v8/src/compiler/simplified-lowering.cc
+index 9ea2e63..1f74382 100644
+--- a/v8/src/compiler/simplified-lowering.cc
++++ b/v8/src/compiler/simplified-lowering.cc
+@@ -157,6 +157,7 @@
+     case MachineRepresentation::kTaggedSigned:
+       return UseInfo::TaggedSigned();
+     case MachineRepresentation::kTaggedPointer:
++      return UseInfo::TaggedPointer();
+     case MachineRepresentation::kTagged:
+     case MachineRepresentation::kTrustedPointer:
+     case MachineRepresentation::kMapWord:
+@@ -1650,8 +1651,11 @@
+     } else if (base_taggedness == kTaggedBase &&
+                CanBeTaggedPointer(field_representation)) {
+       Type value_type = NodeProperties::GetType(value);
+-      if (value_representation == MachineRepresentation::kTaggedSigned) {
+-        // Write barriers are only for stores of heap objects.
++      if (field_representation != MachineRepresentation::kTaggedPointer &&
++          value_representation == MachineRepresentation::kTaggedSigned) {
++        // Write barriers are only for stores of heap objects. Stores to
++        // kTaggedPointer fields convert kTaggedSigned inputs into HeapNumbers
++        // during ProcessInput, so they still require a write barrier.
+         return kNoWriteBarrier;
+       }
+       if (field_type.Is(Type::BooleanOrNullOrUndefined()) ||
+diff --git a/v8/src/compiler/simplified-operator-reducer.cc b/v8/src/compiler/simplified-operator-reducer.cc
+index 77b2824..c3cafc7 100644
+--- a/v8/src/compiler/simplified-operator-reducer.cc
++++ b/v8/src/compiler/simplified-operator-reducer.cc
+@@ -31,7 +31,11 @@
+   }
+   if (m.IsAllocate()) return Decision::kFalse;
+   if (m.IsChangeBitToTagged()) return Decision::kFalse;
++  if (m.IsChangeFloat64OrUndefinedToTagged()) return Decision::kFalse;
++  if (m.IsChangeFloat64ToTaggedPointer()) return Decision::kFalse;
++  if (m.IsChangeTaggedToTaggedPointer()) return Decision::kFalse;
+   if (m.IsChangeInt31ToTaggedSigned()) return Decision::kTrue;
++  if (m.IsChangeTaggedToTaggedSigned()) return Decision::kTrue;
+   if (m.IsHeapConstant()) return Decision::kFalse;
+   return Decision::kUnknown;
+ }
+@@ -237,6 +241,13 @@
+       }
+       break;
+     }
++    case IrOpcode::kChangeTaggedToTaggedPointer: {
++      Node* const input = node->InputAt(0);
++      if (DecideObjectIsSmi(input) == Decision::kFalse) {
++        return Replace(input);
++      }
++      break;
++    }
+     case IrOpcode::kCheckedTaggedToTaggedPointer: {
+       Node* const input = node->InputAt(0);
+       switch (DecideObjectIsSmi(input)) {
+diff --git a/v8/src/compiler/simplified-operator.cc b/v8/src/compiler/simplified-operator.cc
+index 9e8add4..834876e 100644
+--- a/v8/src/compiler/simplified-operator.cc
++++ b/v8/src/compiler/simplified-operator.cc
+@@ -933,6 +933,7 @@
+   V(ChangeTaggedToUint32, Operator::kNoProperties, 1, 0)                     \
+   V(ChangeTaggedToFloat64, Operator::kNoProperties, 1, 0)                    \
+   V(ChangeTaggedToTaggedSigned, Operator::kNoProperties, 1, 0)               \
++  V(ChangeTaggedToTaggedPointer, Operator::kNoProperties, 1, 0)              \
+   V(ChangeSmiOrHoleToFloat64, Operator::kNoProperties, 1, 0)                 \
+   V(ChangeNumberOrHoleToFloat64, Operator::kNoProperties, 1, 0)              \
+   V(ChangeFloat64ToTaggedPointer, Operator::kNoProperties, 1, 0)             \
+diff --git a/v8/src/compiler/simplified-operator.h b/v8/src/compiler/simplified-operator.h
+index 2e47ad4..3ce0d48 100644
+--- a/v8/src/compiler/simplified-operator.h
++++ b/v8/src/compiler/simplified-operator.h
+@@ -1075,6 +1075,7 @@
+   const Operator* ChangeTaggedToUint32();
+   const Operator* ChangeTaggedToFloat64();
+   const Operator* ChangeTaggedToTaggedSigned();
++  const Operator* ChangeTaggedToTaggedPointer();
+   const Operator* ChangeSmiOrHoleToFloat64();
+   const Operator* ChangeNumberOrHoleToFloat64();
+   const Operator* ChangeInt31ToTaggedSigned();
+diff --git a/v8/src/compiler/turboshaft/assembler.h b/v8/src/compiler/turboshaft/assembler.h
+index 558c2e0..59f0f3c 100644
+--- a/v8/src/compiler/turboshaft/assembler.h
++++ b/v8/src/compiler/turboshaft/assembler.h
+@@ -2225,6 +2225,10 @@
+     return V<Boolean>::Cast(
+         Convert(input, ConvertOp::Kind::kObject, ConvertOp::Kind::kBoolean));
+   }
++  V<HeapObject> ConvertToHeapObject(V<Object> input) {
++    return V<HeapObject>::Cast(
++        Convert(input, ConvertOp::Kind::kObject, ConvertOp::Kind::kHeapObject));
++  }
+   V<String> ConvertNumberToString(V<Number> input) {
+     return V<String>::Cast(
+         Convert(input, ConvertOp::Kind::kNumber, ConvertOp::Kind::kString));
+diff --git a/v8/src/compiler/turboshaft/graph-builder.cc b/v8/src/compiler/turboshaft/graph-builder.cc
+index 241bb71..3e16cad 100644
+--- a/v8/src/compiler/turboshaft/graph-builder.cc
++++ b/v8/src/compiler/turboshaft/graph-builder.cc
+@@ -1035,6 +1035,8 @@
+       return __ Convert(Map(node->InputAt(0)),
+                         ConvertOp::Kind::kNumberOrOddball,
+                         ConvertOp::Kind::kSmi);
++    case IrOpcode::kChangeTaggedToTaggedPointer:
++      return __ ConvertToHeapObject(Map(node->InputAt(0)));
+ 
+     case IrOpcode::kCheckedTaggedToTaggedSigned: {
+       DCHECK(dominating_frame_state.valid());
+diff --git a/v8/src/compiler/turboshaft/machine-lowering-reducer-inl.h b/v8/src/compiler/turboshaft/machine-lowering-reducer-inl.h
+index 3fcc9b3..95923d7 100644
+--- a/v8/src/compiler/turboshaft/machine-lowering-reducer-inl.h
++++ b/v8/src/compiler/turboshaft/machine-lowering-reducer-inl.h
+@@ -901,6 +901,15 @@
+         BIND(done, result);
+         return result;
+       }
++      case ConvertOp::Kind::kHeapObject: {
++        DCHECK_EQ(from, ConvertOp::Kind::kObject);
++        ScopedVar<HeapObject> result(this, V<HeapObject>::Cast(input));
++        IF (UNLIKELY(__ ObjectIsSmi(input))) {
++          result =
++              __ ConvertInt32ToHeapNumber(__ UntagSmi(V<Smi>::Cast(input)));
++        }
++        return result;
++      }
+       default:
+         UNREACHABLE();
+     }
+diff --git a/v8/src/compiler/turboshaft/operations.cc b/v8/src/compiler/turboshaft/operations.cc
+index 5358e49..85606ac 100644
+--- a/v8/src/compiler/turboshaft/operations.cc
++++ b/v8/src/compiler/turboshaft/operations.cc
+@@ -1382,6 +1382,8 @@
+   switch (kind) {
+     case ConvertOp::Kind::kObject:
+       return os << "Object";
++    case ConvertOp::Kind::kHeapObject:
++      return os << "HeapObject";
+     case ConvertOp::Kind::kBoolean:
+       return os << "Boolean";
+     case ConvertOp::Kind::kNumber:
+@@ -2498,6 +2500,22 @@
+     }
+     case Opcode::kAllocate:
+       return IsSmiDecision::kFalse;
++    case Opcode::kConvert: {
++      switch (op.Cast<ConvertOp>().to) {
++        case ConvertOp::Kind::kHeapObject:
++        case ConvertOp::Kind::kBoolean:
++        case ConvertOp::Kind::kString:
++          return IsSmiDecision::kFalse;
++        case ConvertOp::Kind::kSmi:
++          return IsSmiDecision::kTrue;
++        case ConvertOp::Kind::kObject:
++        case ConvertOp::Kind::kNumber:
++        case ConvertOp::Kind::kNumberOrOddball:
++        case ConvertOp::Kind::kPlainPrimitive:
++          return IsSmiDecision::kUnknown;
++      }
++      UNREACHABLE();
++    }
+     case Opcode::kConvertUntaggedToJSPrimitive: {
+       using Kind = ConvertUntaggedToJSPrimitiveOp::JSPrimitiveKind;
+       switch (op.Cast<ConvertUntaggedToJSPrimitiveOp>().kind) {
+diff --git a/v8/src/compiler/turboshaft/operations.h b/v8/src/compiler/turboshaft/operations.h
+index 568199c..1e38692 100644
+--- a/v8/src/compiler/turboshaft/operations.h
++++ b/v8/src/compiler/turboshaft/operations.h
+@@ -5312,6 +5312,7 @@
+ struct ConvertOp : FixedArityOperationT<1, ConvertOp> {
+   enum class Kind : uint8_t {
+     kObject,
++    kHeapObject,
+     kBoolean,
+     kNumber,
+     kNumberOrOddball,
+@@ -11371,8 +11372,8 @@
+ // instance, a SmiConstant is always a Smi, and a HeapObject constant is never a
+ // Smi.
+ enum class IsSmiDecision : uint8_t { kUnknown, kTrue, kFalse };
+-IsSmiDecision DecideObjectIsSmi(const Graph& graph, V<Object> idx,
+-                                int depth = 0);
++V8_EXPORT_PRIVATE IsSmiDecision DecideObjectIsSmi(const Graph& graph,
++                                                  V<Object> idx, int depth = 0);
+ 
+ }  // namespace v8::internal::compiler::turboshaft
+ 
+diff --git a/v8/src/compiler/turboshaft/simplified-optimization-reducer.h b/v8/src/compiler/turboshaft/simplified-optimization-reducer.h
+index 75f1274..3236c16 100644
+--- a/v8/src/compiler/turboshaft/simplified-optimization-reducer.h
++++ b/v8/src/compiler/turboshaft/simplified-optimization-reducer.h
+@@ -164,6 +164,29 @@
+     goto no_change;
+   }
+ 
++  V<Object> REDUCE(Convert)(V<Object> input, ConvertOp::Kind from,
++                            ConvertOp::Kind to) {
++    LABEL_BLOCK(no_change) { return Next::ReduceConvert(input, from, to); }
++    if (ShouldSkipOptimizationStep()) goto no_change;
++
++    if (to == ConvertOp::Kind::kHeapObject) {
++      switch (__ DecideObjectIsSmi(input)) {
++        case IsSmiDecision::kFalse:
++          return input;
++        case IsSmiDecision::kTrue:
++          return __ ConvertInt32ToHeapNumber(__ UntagSmi(V<Smi>::Cast(input)));
++        case IsSmiDecision::kUnknown:
++          break;
++      }
++    }
++    if (to == ConvertOp::Kind::kSmi &&
++        __ DecideObjectIsSmi(input) == IsSmiDecision::kTrue) {
++      return input;
++    }
++
++    goto no_change;
++  }
++
+   OpIndex REDUCE(ObjectIs)(V<Object> input, ObjectIsOp::Kind kind,
+                            ObjectIsOp::InputAssumptions input_assumptions) {
+     LABEL_BLOCK(no_change) {
+diff --git a/v8/src/compiler/verifier.cc b/v8/src/compiler/verifier.cc
+index 7add47c..a3bdc1e 100644
+--- a/v8/src/compiler/verifier.cc
++++ b/v8/src/compiler/verifier.cc
+@@ -1487,7 +1487,8 @@
+       // CheckTypeIs(node, to));
+       break;
+     }
+-    case IrOpcode::kChangeTaggedToTaggedSigned:      // Fall through.
++    case IrOpcode::kChangeTaggedToTaggedSigned:
++    case IrOpcode::kChangeTaggedToTaggedPointer:
+       break;
+     case IrOpcode::kTruncateTaggedToFloat64PreserveUndefined:
+     case IrOpcode::kTruncateTaggedToFloat64: {
 diff --git a/v8/src/execution/isolate.cc b/v8/src/execution/isolate.cc
 index 1caf370..dd6cb1c 100644
 --- a/v8/src/execution/isolate.cc
