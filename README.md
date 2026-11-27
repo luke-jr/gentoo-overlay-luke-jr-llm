@@ -18,7 +18,7 @@ masters = gentoo
 auto-sync = no
 ```
 
-`www-client/chromium-158.0.8127.88`, `159.0.8154.34_pre`, `159.0.8154.45_p1981_pre` and `160.0.8171.0`, based on `::gentoo`'s
+`www-client/chromium-158.0.8127.88`, `159.0.8154.34_pre`, `159.0.8154.45_p1987_pre` and `160.0.8171.0`, based on `::gentoo`'s
 `chromium-151.0.7922.169-r1`. `::gentoo` removed `www-client/chromium` on 2026-11-05 (bug #982204),
 with `www-client/chromium-common`, which this overlay now carries. Since that day its
 `profiles/package.mask` masks only its own old versions (`<www-client/chromium-151.0.7922.169-r1`),
@@ -62,7 +62,7 @@ What the packages here follow, beyond Gentoo's own policies:
 |---|---|
 | `www-client/chromium-158.0.8127.88` | the browser: 158.0.8127.88, Google's Linux **Stable** release of 158 (2026-11-23; a minibranch release of .36), from chromium-linux-tarballs' tarball (Google has no "lite" tarball of .88), with no fixes beyond the release: `SLOT="stable"`, `amd64`. |
 | `www-client/chromium-159.0.8154.34_pre` | the browser: 159.0.8154.34, Google's **Early Stable** release of 159 (with .33: Windows and Mac, 2026-11-24; a minibranch, `refs/branch-heads/8154_18`, cut from .18), with no fixes beyond the release; no source tarball of .34 (`_pre`): built from Google's "lite" tarball of 159.0.8154.33 plus `files/chromium-159.0.8154.33-to-159.0.8154.34.patch` (see its header: only the VERSION bump and the stamps). No `system-icu` USE flag: always the bundled ICU. `SLOT="stable"`, `~amd64`. |
-| `www-client/chromium-159.0.8154.45_p1981_pre` | the browser: 159.0.8154.45, the newest tag of the 159 branch, plus the branch up to 8154@{#1981} (`_p1981`); no source tarball (`_pre`): built from Google's official "lite" tarball of 159.0.8154.28 plus `files/chromium-159.0.8154.28-to-159.0.8154.45.patch` and `files/chromium-159.0.8154.45-branch-fixes.patch` (see their headers). No `system-icu` USE flag: always the bundled ICU. 159 is Google's **Early Stable** (159.0.8154.33/.34, Windows and Mac; the Linux Beta is 159.0.8154.33), so `SLOT="stable/fixes"` (sub-slot: see below), `~amd64`: the bleeding-edge build of the Early Stable's major. There is one bleeding edge: the old major's (158's) was dropped when 159 became Early Stable. |
+| `www-client/chromium-159.0.8154.45_p1987_pre` | the browser: 159.0.8154.45, the newest tag of the 159 branch, plus the branch up to 8154@{#1987} (`_p1987`); no source tarball (`_pre`): built from Google's official "lite" tarball of 159.0.8154.28 plus `files/chromium-159.0.8154.28-to-159.0.8154.45.patch` and `files/chromium-159.0.8154.45-branch-fixes.patch` (see their headers). No `system-icu` USE flag: always the bundled ICU. 159 is Google's **Early Stable** (159.0.8154.33/.34, Windows and Mac; the Linux Beta is 159.0.8154.33), so `SLOT="stable/fixes"` (sub-slot: see below), `~amd64`: the bleeding-edge build of the Early Stable's major. There is one bleeding edge: the old major's (158's) was dropped when 159 became Early Stable. |
 | `www-client/chromium-160.0.8171.0` | the browser: 160.0.8171.0, a dev build of 160 (main branch, 2026-11-20), the port of the next major ahead of its Beta (160 branches on 2026-11-30, Linux Beta 2026-12-02): at the branch point it moves to the 160 branch as a bleeding-edge build. From the chromium-linux-tarballs tarball (Google has no lite tarball of 160). No `system-icu` USE flag. `SLOT="beta"`, no keywords (accept it with `**`). |
 | `www-client/chromium-common-2` | the launcher script and `/etc/chromium/default` that every `www-client/chromium` slot uses, as `::gentoo` had it before removing it with its Chromium (2026-11-05). |
 | `dev-util/ragel-6.10:6` | Ragel 6 in slot 6, installed as `ragel-6`, for systems that keep `::gentoo`'s Ragel 7 (`::gentoo` has 6 and 7 both in slot 0). Chromium's ebuild regenerates HarfBuzz's state machines with Ragel 6 (HarfBuzz requires 6.10), and depends on `=dev-util/ragel-6.10*`, which either satisfies: `::gentoo`'s `dev-util/ragel-6.10` when that is installed, otherwise this slot (Portage installs it next to a Ragel 7, and prefers it on a system with no Ragel, as the overlay's repository priority is higher). |
@@ -90,7 +90,7 @@ including our builds with fixes beyond Google's release (sub-slot `fixes`, below
 
 The line-up (2026-11-24): Google's Linux Stable 158.0.8127.88 (`amd64`); Google's Early Stable
 159.0.8154.34 (`~amd64`, `159.0.8154.34_pre`), which replaced the previous Early Stable
-158.0.8127.37-r2 (its users upgrade instead of downgrading); the one bleeding-edge build, `159.0.8154.45_p1981_pre`
+158.0.8127.37-r2 (its users upgrade instead of downgrading); the one bleeding-edge build, `159.0.8154.45_p1987_pre`
 (`stable/fixes`, `~amd64`); and 160's port, `160.0.8171.0` (`beta`, no keywords), on a dev tarball ahead
 of 160's Beta (until then, the Linux Beta is the Early Stable's version).
 

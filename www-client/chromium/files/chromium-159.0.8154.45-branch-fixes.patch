@@ -1,15 +1,15 @@
 Chromium 159.0.8154.45 + the later changes of its release branch, up to
-4e06e49e29b63702c1518a3de7ac6fa341945436 (refs/branch-heads/8154@{#1981}), for the
+88c8f00a9b2c787d9cdc91bb529c0ff4d87109ab (refs/branch-heads/8154@{#1988}), for the
 159.0.8154.45 tree (the chromium-159.0.8154.28-lite.tar.xz tarball, upgrade patches:
 chromium-159.0.8154.28-to-159.0.8154.45.patch). The newest change it carries is
-8154@{#1981}.
+8154@{#1987}.
 
-Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..4e06e49e29b6 and the
+Generated from the upstream diffs chromium/src refs/tags/159.0.8154.45..88c8f00a9b2c and the
 dependencies whose DEPS revision changed: ANGLE 4dd34493f8a2..2ec7b6db14f2 (under
 third_party/angle/), third_party/devtools-frontend/src 3d48567555b6..c9c1d13c34cf (under
 third_party/devtools-frontend/src/), third_party/libvpx/source/libvpx
 fb0a26ad923b..6f89cfbcc99f (under third_party/libvpx/source/libvpx/), Skia
-b809e72312b0..220d4fc2d73c (under third_party/skia/), V8 90a5172104e6..3c2fbbf6e412 (under
+b809e72312b0..220d4fc2d73c (under third_party/skia/), V8 90a5172104e6..bd33bfc6a8c0 (under
 v8/), as served by Gitiles, with scripts/chromium-delta/branch-fixes.py (filter.py --branch-
 fixes, against the 159.0.8154.45 tree's files): left out are files not in the release
 tarball, iOS/Android/ChromeOS/Mac/Windows-only files, tests and docs (GN files kept),
@@ -167,6 +167,8 @@ Commits contributing to it (oldest first):
   0305d454cf42 [M159] Clear AXTree extra announcement nodes during root updates (8154@{#1974})
   1a3e847a61c9 [M159] Skip layout of fieldset children if display-locked. (8154@{#1979})
   4e06e49e29b6 Roll commits from side projects in M159 (V8 fe2e3c0a6306..3c2fbbf6e412, 8154@{#1981})
+  958708e94267 Roll commits from side projects in M159 (V8 3c2fbbf6e412..bd33bfc6a8c0, 8154@{#1986})
+  949570058627 [M159] Reland "disk_cache: Use rename in POSIX MoveCache and check cleanup in RestartCache" (8154@{#1987})
 Dependency commits of those rolls that touch kept files:
   315c40454305 [M159] Vulkan: Don't reformat image to new base level's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp)
   9cb758f56d71 [M159] Vulkan: Derive texture usage flags from the image's format (ANGLE: src/libANGLE/renderer/vulkan/TextureVk.cpp, src/libANGLE/renderer/vulkan/TextureVk.h)
@@ -199,11 +201,15 @@ Dependency commits of those rolls that touch kept files:
   fe2e3c0a6306 Version 15.9.128.42 (V8: include/v8-version.h)
   4ac3021e1e7f [M159] [turbofan] Add a checkpoint before the comparefn call in inlined sort (V8: src/compiler/js-call-reducer.cc)
   3c2fbbf6e412 Version 15.9.128.43 (V8: include/v8-version.h)
+  b10dd63a16c1 [M159] [*lev] Retain enumerator map across VisitForInNext enum cache load (V8: src/compiler/turboshaft/turbolev-graph-builder.cc, src/maglev/maglev-graph-builder.cc, src/maglev/maglev-graph-optimizer.cc, src/maglev/maglev-ir.cc, src/maglev/maglev-ir.h)
+  79e8fd9701cb Version 15.9.128.44 (V8: include/v8-version.h)
+  4f37951e9a5a [M159] [debug] Add TDZ checks for module bindings in lookup slots (V8: src/runtime/runtime-scopes.cc)
+  bd33bfc6a8c0 Version 15.9.128.45 (V8: include/v8-version.h)
 
 Checked: applies to the 159.0.8154.45 tree; every patched file is byte-identical to its
-version at 4e06e49e29b6 (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
+version at 88c8f00a9b2c (or ANGLE's 2ec7b6db14f2) (or third_party/devtools-frontend/src's
 c9c1d13c34cf) (or third_party/libvpx/source/libvpx's 6f89cfbcc99f) (or Skia's 220d4fc2d73c)
-(or V8's 3c2fbbf6e412).
+(or V8's bd33bfc6a8c0).
 
 Apply with git apply.
 
@@ -14433,6 +14439,371 @@ index 5433c95..2b4d665 100644
    void FilterAndSortAvailableDecoders();
    void SelectDecoderInternal(SelectDecoderCB select_decoder_cb,
                               typename Decoder::OutputCB output_cb,
+diff --git a/net/disk_cache/blockfile/backend_impl.cc b/net/disk_cache/blockfile/backend_impl.cc
+index 13e8142..5eb79c8c 100644
+--- a/net/disk_cache/blockfile/backend_impl.cc
++++ b/net/disk_cache/blockfile/backend_impl.cc
+@@ -945,9 +945,10 @@
+ 
+ void BackendImpl::OnSyncBackendOpComplete() {
+   if (consider_evicting_at_op_end_) {
+-    if (data_->header.num_bytes > max_size_ && !read_only_ &&
+-        (up_ticks_ > kTrimDelay || user_flags_ & kNoRandom))
++    if (!disabled_ && data_ && data_->header.num_bytes > max_size_ &&
++        !read_only_ && (up_ticks_ > kTrimDelay || user_flags_ & kNoRandom)) {
+       eviction_.TrimCache(false);
++    }
+     consider_evicting_at_op_end_ = false;
+   }
+ }
+@@ -1223,7 +1224,7 @@
+ }
+ 
+ int BackendImpl::SelfCheck() {
+-  if (!init_) {
++  if (!init_ || !data_) {
+     LOG(ERROR) << "Init failed";
+     return ERR_INIT_FAILED;
+   }
+@@ -1591,6 +1592,9 @@
+ 
+ void BackendImpl::RestartCache(bool failure) {
+   TRACE_EVENT0("disk_cache", "BackendImpl::RestartCache");
++  if (!data_ || !index_) {
++    return;
++  }
+ 
+   int64_t errors = stats_.GetCounter(Stats::FATAL_ERROR);
+   int64_t full_dooms = stats_.GetCounter(Stats::DOOM_CACHE);
+@@ -1598,23 +1602,34 @@
+   int64_t last_report = stats_.GetCounter(Stats::LAST_REPORT);
+ 
+   PrepareForRestart();
++  bool cleanup_succeeded = false;
+   if (failure) {
+     DCHECK(!num_refs_);
+     DCHECK(open_entries_.empty());
+-    CleanupDirectorySync(path_);
++    cleanup_succeeded = CleanupDirectorySync(path_);
+   } else {
+-    DeleteCache(path_, false);
++    cleanup_succeeded = DeleteCache(path_, /*remove_folder=*/false);
+   }
+ 
+-  // Don't call Init() if directed by the unit test: we are simulating a failure
+-  // trying to re-enable the cache.
++  // Don't call Init() if directed by the unit test, or if cleaning up the
++  // previous cache directory failed.
+   if (unit_test_) {
+     init_ = true;  // Let the destructor do proper cleanup.
+-  } else if (SyncInit() == net::OK) {
++  } else if (cleanup_succeeded && SyncInit() == net::OK) {
+     stats_.SetCounter(Stats::FATAL_ERROR, errors);
+     stats_.SetCounter(Stats::DOOM_CACHE, full_dooms);
+     stats_.SetCounter(Stats::DOOM_RECENT, partial_dooms);
+     stats_.SetCounter(Stats::LAST_REPORT, last_report);
++  } else {
++    disabled_ = true;
++    consider_evicting_at_op_end_ = false;
++    timer_.reset();
++    data_ = nullptr;
++    index_table_ = {};
++    index_ = nullptr;
++    block_files_.CloseFiles();
++    rankings_.Reset();
++    init_ = true;  // Let CleanupCache() drain any in-flight I/O.
+   }
+ }
+ 
+@@ -1627,10 +1642,16 @@
+     new_eviction_ = false;
+ 
+   disabled_ = true;
+-  data_->header.crash = 0;
+-  index_->Flush();
++  consider_evicting_at_op_end_ = false;
++  if (data_) {
++    data_->header.crash = 0;
++  }
++  if (index_) {
++    index_->Flush();
++  }
+   index_ = nullptr;
+   data_ = nullptr;
++  index_table_ = {};
+   block_files_.CloseFiles();
+   rankings_.Reset();
+   init_ = false;
+diff --git a/net/disk_cache/cache_util.cc b/net/disk_cache/cache_util.cc
+index 50e7a0a..a05b25f 100644
+--- a/net/disk_cache/cache_util.cc
++++ b/net/disk_cache/cache_util.cc
+@@ -9,7 +9,6 @@
+ #include <optional>
+ 
+ #include "base/byte_size.h"
+-#include "base/files/file_enumerator.h"
+ #include "base/files/file_path.h"
+ #include "base/files/file_util.h"
+ #include "base/files/safe_base_name.h"
+@@ -56,7 +55,7 @@
+   // We'll attempt to have up to kMaxOldFolders folders for deletion.
+   for (int i = 0; i < kMaxOldFolders; i++) {
+     base::FilePath to_delete = GetPrefixedName(dirname, basename, i);
+-    if (!base::PathExists(to_delete)) {
++    if (!base::PathExists(to_delete) && !base::IsLink(to_delete)) {
+       return to_delete;
+     }
+   }
+@@ -77,6 +76,9 @@
+ }
+ 
+ bool MoveDirectoryToTemporaryDirectory(const base::FilePath& path) {
++  if (path.empty() || base::IsLink(path)) {
++    return false;
++  }
+   const base::FilePath dirname = path.DirName();
+   const std::optional<base::SafeBaseName> basename =
+       base::SafeBaseName::Create(path);
+@@ -148,25 +150,24 @@
+              "ChangeGeneratedCodeCacheSize",
+              base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+-void DeleteCache(const base::FilePath& path, bool remove_folder) {
++bool DeleteCache(const base::FilePath& path, bool remove_folder) {
++  if (path.empty() || path.ReferencesParent()) {
++    return false;
++  }
++  const base::FilePath stripped_path = path.StripTrailingSeparators();
+   if (remove_folder) {
+-    if (!base::DeletePathRecursively(path)) {
++    if (!base::DeletePathRecursively(stripped_path)) {
+       LOG(WARNING) << "Unable to delete cache folder.";
++      return false;
+     }
+-    return;
++    return true;
+   }
+ 
+-  base::FileEnumerator iter(
+-      path,
+-      /*recursive=*/false,
+-      base::FileEnumerator::FILES | base::FileEnumerator::DIRECTORIES);
+-  for (base::FilePath file = iter.Next(); !file.value().empty();
+-       file = iter.Next()) {
+-    if (!base::DeletePathRecursively(file)) {
+-      LOG(WARNING) << "Unable to delete cache.";
+-      return;
+-    }
++  if (!internal::DeleteCacheContents(stripped_path)) {
++    LOG(WARNING) << "Unable to delete cache.";
++    return false;
+   }
++  return true;
+ }
+ 
+ void CleanupDirectory(const base::FilePath& path,
+diff --git a/net/disk_cache/cache_util.h b/net/disk_cache/cache_util.h
+index 71470ffb..6b834861 100644
+--- a/net/disk_cache/cache_util.h
++++ b/net/disk_cache/cache_util.h
+@@ -27,19 +27,28 @@
+     kChangeGeneratedCodeCacheSizeExperiment);
+ 
+ // Moves the cache files from the given path to another location.
+-// Fails if the destination exists already, or if it doesn't have
+-// permission for the operation.  This is basically a rename operation
+-// for the cache directory.  Returns true if successful.  On ChromeOS,
+-// this moves the cache contents, and leaves the empty cache
+-// directory.
++// Fails if `from_path` is not a regular directory, if the destination exists
++// already, or if it doesn't have permission for the operation. This is a rename
++// operation for the cache directory without a copy fallback. Returns true if
++// successful. On ChromeOS, this moves the cache contents, and leaves the empty
++// cache directory.
+ NET_EXPORT_PRIVATE bool MoveCache(const base::FilePath& from_path,
+                                   const base::FilePath& to_path);
+ 
+ // Deletes the cache files stored on |path|, and optionally also attempts to
+-// delete the folder itself.
+-NET_EXPORT_PRIVATE void DeleteCache(const base::FilePath& path,
++// delete the folder itself. Returns true if all targeted entries were deleted
++// or did not exist, and false on error.
++NET_EXPORT_PRIVATE bool DeleteCache(const base::FilePath& path,
+                                     bool remove_folder);
+ 
++namespace internal {
++// Deletes all entries inside `path` without removing `path` itself. `path` must
++// already have trailing separators stripped. Returns true if `path` does not
++// exist or all entries were deleted, and false if `path` is a symlink, is not a
++// directory, or deletion fails.
++bool DeleteCacheContents(const base::FilePath& path);
++}  // namespace internal
++
+ // Deletes the given directory recursively, asynchronously. `callback` will
+ // called with whether the operation succeeded.
+ // This is done by:
+diff --git a/net/disk_cache/cache_util_posix.cc b/net/disk_cache/cache_util_posix.cc
+index 9ed9cf8..3d751f8 100644
+--- a/net/disk_cache/cache_util_posix.cc
++++ b/net/disk_cache/cache_util_posix.cc
+@@ -4,15 +4,117 @@
+ 
+ #include "net/disk_cache/cache_util.h"
+ 
++#include <dirent.h>
++#include <errno.h>
++#include <fcntl.h>
++#include <sys/stat.h>
++#include <unistd.h>
++
++#include <memory>
++#include <string_view>
++
+ #include "base/files/file_enumerator.h"
+ #include "base/files/file_util.h"
+ #include "base/logging.h"
++#include "base/posix/eintr_wrapper.h"
+ #include "base/strings/string_util.h"
++#include "base/threading/scoped_blocking_call.h"
+ #include "build/build_config.h"
+ 
+ namespace disk_cache {
+ 
++namespace {
++
++struct CloseDir {
++  void operator()(DIR* const dir) const {
++    if (dir) {
++      IGNORE_EINTR(closedir(dir));
++    }
++  }
++};
++
++bool DeleteDirectoryContents(int dir_fd);
++
++bool DeleteEntryAt(int at_fd, const char* name) {
++  struct stat st;
++  if (HANDLE_EINTR(fstatat(at_fd, name, &st, AT_SYMLINK_NOFOLLOW)) < 0) {
++    return errno == ENOENT;
++  }
++
++  if (!S_ISDIR(st.st_mode)) {
++    return unlinkat(at_fd, name, 0) == 0 || errno == ENOENT;
++  }
++
++  const int child_fd = HANDLE_EINTR(
++      openat(at_fd, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC));
++  if (child_fd < 0) {
++    return errno == ENOENT;
++  }
++
++  if (!DeleteDirectoryContents(child_fd)) {
++    return false;
++  }
++
++  return unlinkat(at_fd, name, AT_REMOVEDIR) == 0 || errno == ENOENT;
++}
++
++// Takes ownership of `dir_fd` and deletes all entries inside it without
++// removing the directory itself or following symlinks.
++bool DeleteDirectoryContents(int dir_fd) {
++  const std::unique_ptr<DIR, CloseDir> dir(fdopendir(dir_fd));
++  if (!dir) {
++    IGNORE_EINTR(close(dir_fd));
++    return false;
++  }
++
++  while (true) {
++    errno = 0;
++    const dirent* const entry = readdir(dir.get());
++    if (!entry) {
++      break;
++    }
++
++    const std::string_view name(entry->d_name);
++    if (name == "." || name == "..") {
++      continue;
++    }
++
++    if (!DeleteEntryAt(dir_fd, entry->d_name)) {
++      return false;
++    }
++  }
++
++  return errno == 0;
++}
++
++}  // namespace
++
++namespace internal {
++
++bool DeleteCacheContents(const base::FilePath& path) {
++  base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
++                                                base::BlockingType::MAY_BLOCK);
++  const int dir_fd = HANDLE_EINTR(open(
++      path.value().c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC));
++  if (dir_fd < 0) {
++    return errno == ENOENT;
++  }
++  return DeleteDirectoryContents(dir_fd);
++}
++
++}  // namespace internal
++
+ bool MoveCache(const base::FilePath& from_path, const base::FilePath& to_path) {
++  if (from_path.empty() || to_path.empty() || from_path.ReferencesParent() ||
++      to_path.ReferencesParent()) {
++    return false;
++  }
++  const base::FilePath stripped_from = from_path.StripTrailingSeparators();
++  const base::FilePath stripped_to = to_path.StripTrailingSeparators();
++  if (base::IsLink(stripped_from) || !base::DirectoryExists(stripped_from) ||
++      base::IsLink(stripped_to) || base::PathExists(stripped_to)) {
++    return false;
++  }
+ #if BUILDFLAG(IS_CHROMEOS)
+   // For ChromeOS, we don't actually want to rename the cache
+   // directory, because if we do, then it'll get recreated through the
+@@ -20,23 +122,32 @@
+   // to see these directories anymore in an unmounted encrypted
+   // filesystem, so we just move each item in the cache to a new
+   // directory.
+-  if (!base::CreateDirectory(to_path)) {
++  if (!base::CreateDirectory(stripped_to) || base::IsLink(stripped_to)) {
+     LOG(ERROR) << "Unable to create destination cache directory.";
+     return false;
+   }
+-  base::FileEnumerator iter(from_path, false /* not recursive */,
+-      base::FileEnumerator::DIRECTORIES | base::FileEnumerator::FILES);
++  base::FileEnumerator iter(stripped_from, /*recursive=*/false,
++                            base::FileEnumerator::DIRECTORIES |
++                                base::FileEnumerator::FILES |
++                                base::FileEnumerator::SHOW_SYM_LINKS);
+   for (base::FilePath name = iter.Next(); !name.value().empty();
+        name = iter.Next()) {
+-    base::FilePath destination = to_path.Append(name.BaseName());
+-    if (!base::Move(name, destination)) {
++    if (base::IsLink(name) || base::IsLink(stripped_from) ||
++        base::IsLink(stripped_to)) {
++      LOG(ERROR) << "Unable to move cache item.";
++      return false;
++    }
++    base::FilePath destination = stripped_to.Append(name.BaseName());
++    if (!base::ReplaceFile(name, destination, /*error=*/nullptr)) {
+       LOG(ERROR) << "Unable to move cache item.";
+       return false;
+     }
+   }
+   return true;
+ #else
+-  return base::Move(from_path, to_path);
++  // The destination is on the same filesystem, so use ReplaceFile (rename)
++  // directly rather than base::Move's copy-and-delete fallback.
++  return base::ReplaceFile(stripped_from, stripped_to, /*error=*/nullptr);
+ #endif
+ }
+ 
 diff --git a/net/quic/quic_chromium_client_session.cc b/net/quic/quic_chromium_client_session.cc
 index 96dfc34..acb94e6 100644
 --- a/net/quic/quic_chromium_client_session.cc
@@ -19959,7 +20330,7 @@ index a03dccc..465d6de 100644
      DrawNonAARect(sdc, std::move(paint), userStencilSettings, clip, SkMatrix::I(),
                    dstRect, invert);
 diff --git a/v8/include/v8-version.h b/v8/include/v8-version.h
-index d9cc68e..b413867 100644
+index d9cc68e..b3c8170 100644
 --- a/v8/include/v8-version.h
 +++ b/v8/include/v8-version.h
 @@ -11,7 +11,7 @@
@@ -19967,7 +20338,7 @@ index d9cc68e..b413867 100644
  #define V8_MINOR_VERSION 9
  #define V8_BUILD_NUMBER 128
 -#define V8_PATCH_LEVEL 34
-+#define V8_PATCH_LEVEL 43
++#define V8_PATCH_LEVEL 45
  
  // Use 1 for candidates and 0 otherwise.
  // (Boolean macro values are not supported by all preprocessors.)
@@ -20943,6 +21314,23 @@ index 75f1274..3236c16 100644
    OpIndex REDUCE(ObjectIs)(V<Object> input, ObjectIsOp::Kind kind,
                             ObjectIsOp::InputAssumptions input_assumptions) {
      LABEL_BLOCK(no_change) {
+diff --git a/v8/src/compiler/turboshaft/turbolev-graph-builder.cc b/v8/src/compiler/turboshaft/turbolev-graph-builder.cc
+index bc03072..1dc4a50 100644
+--- a/v8/src/compiler/turboshaft/turbolev-graph-builder.cc
++++ b/v8/src/compiler/turboshaft/turbolev-graph-builder.cc
+@@ -5775,6 +5775,12 @@
+     return maglev::ProcessResult::kContinue;
+   }
+ 
++  maglev::ProcessResult Process(maglev::Retain* node,
++                                const maglev::ProcessingState&) {
++    __ Retain(Map(node->ValueInput()));
++    return maglev::ProcessResult::kContinue;
++  }
++
+   maglev::ProcessResult Process(maglev::TurbofanStaticAssert* node,
+                                 const maglev::ProcessingState&) {
+     V<Word32> condition = __ TaggedEqual(
 diff --git a/v8/src/compiler/verifier.cc b/v8/src/compiler/verifier.cc
 index 7add47c..a3bdc1e 100644
 --- a/v8/src/compiler/verifier.cc
@@ -20980,6 +21368,98 @@ index 1caf370..dd6cb1c 100644
      Tagged<Context> context = Cast<Context>(it.frame()->context());
      // If the topmost_script_having_context is set then it must be correct.
      if (DEBUG_BOOL && !topmost_script_having_context().is_null()) {
+diff --git a/v8/src/maglev/maglev-graph-builder.cc b/v8/src/maglev/maglev-graph-builder.cc
+index 1f00b3f..ae4598d 100644
+--- a/v8/src/maglev/maglev-graph-builder.cc
++++ b/v8/src/maglev/maglev-graph-builder.cc
+@@ -15492,6 +15492,9 @@
+       GET_VALUE_OR_ABORT(
+           key, BuildLoadFixedArrayElement(cache_array, index,
+                                           LoadType::kInternalizedString));
++      // Keep the enumerator map alive so that a GC before the load cannot
++      // right-trim the shared enum cache if the map check above is eliminated.
++      RETURN_IF_ABORT(AddNewNode<Retain>({cache_type}));
+       SetAccumulator(key);
+ 
+       current_for_in_state.receiver = receiver;
+diff --git a/v8/src/maglev/maglev-graph-optimizer.cc b/v8/src/maglev/maglev-graph-optimizer.cc
+index c7fdfba..5b05fa5 100644
+--- a/v8/src/maglev/maglev-graph-optimizer.cc
++++ b/v8/src/maglev/maglev-graph-optimizer.cc
+@@ -1305,6 +1305,11 @@
+   return ProcessResult::kContinue;
+ }
+ 
++ProcessResult MaglevGraphOptimizer::VisitRetain(Retain*,
++                                                const ProcessingState&) {
++  return ProcessResult::kContinue;
++}
++
+ ProcessResult MaglevGraphOptimizer::VisitTurbofanStaticAssert(
+     TurbofanStaticAssert*, const ProcessingState&) {
+   return ProcessResult::kContinue;
+diff --git a/v8/src/maglev/maglev-ir.cc b/v8/src/maglev/maglev-ir.cc
+index 3d1036c..6bb8c1f 100644
+--- a/v8/src/maglev/maglev-ir.cc
++++ b/v8/src/maglev/maglev-ir.cc
+@@ -5225,6 +5225,19 @@
+   __ DebugBreak();
+ }
+ 
++void Retain::SetValueLocationConstraints() {
++  // For non-constant values, UseAny extends the input's live range up to this
++  // node so safepoints keep it alive across GC without emitting code here.
++  UseAny(ValueInput());
++}
++void Retain::GenerateCode(MaglevAssembler* masm, const ProcessingState& state) {
++  // UseAny does not keep constants alive (they have no register/stack-slot
++  // safepoint entries), so retain HeapConstants on the code object directly.
++  if (HeapConstant* constant = ValueInput().node()->TryCast<HeapConstant>()) {
++    masm->code_gen_state()->Retain(constant->object().object());
++  }
++}
++
+ int Abort::MaxCallStackArgs() const {
+   DCHECK_EQ(Runtime::FunctionForId(Runtime::kAbort)->nargs, 1);
+   return 1;
+diff --git a/v8/src/maglev/maglev-ir.h b/v8/src/maglev/maglev-ir.h
+index 85f6857..74ddac1 100644
+--- a/v8/src/maglev/maglev-ir.h
++++ b/v8/src/maglev/maglev-ir.h
+@@ -465,6 +465,7 @@
+   V(CheckInstanceType)                        \
+   V(Dead)                                     \
+   V(DebugBreak)                               \
++  V(Retain)                                   \
+   V(MajorGCForCompilerTesting)                \
+   V(FunctionEntryStackCheck)                  \
+   V(GeneratorStore)                           \
+@@ -7643,6 +7644,25 @@
+   const NodeType asserted_type_;
+ };
+ 
++class Retain : public FixedInputNodeT<1, Retain> {
++ public:
++  explicit Retain(uint64_t bitfield) : Base(bitfield) {}
++
++  static constexpr OpProperties kProperties = OpProperties::NotIdempotent();
++
++  DECLARE_INPUTS(Value)
++  DECLARE_INPUT_TYPES(Tagged)
++
++#ifdef V8_COMPRESS_POINTERS
++  void MarkTaggedInputsAsDecompressing() {
++    // Don't need to decompress just to keep the object alive.
++  }
++#endif
++
++  void SetValueLocationConstraints();
++  void GenerateCode(MaglevAssembler*, const ProcessingState&);
++};
++
+ class TurbofanStaticAssert : public FixedInputNodeT<1, TurbofanStaticAssert> {
+  public:
+   explicit TurbofanStaticAssert(uint64_t bitfield) : Base(bitfield) {}
 diff --git a/v8/src/objects/lookup.cc b/v8/src/objects/lookup.cc
 index 3def0ce..880026f 100644
 --- a/v8/src/objects/lookup.cc
@@ -21010,7 +21490,7 @@ index 3def0ce..880026f 100644
    do {
      Tagged<JSReceiver> maybe_holder = NextHolder(map);
 diff --git a/v8/src/runtime/runtime-scopes.cc b/v8/src/runtime/runtime-scopes.cc
-index 1a3b142..345d96a 100644
+index 1a3b142..269d33f 100644
 --- a/v8/src/runtime/runtime-scopes.cc
 +++ b/v8/src/runtime/runtime-scopes.cc
 @@ -364,6 +364,17 @@
@@ -21107,6 +21587,43 @@ index 1a3b142..345d96a 100644
      // Sloppy varblock and function contexts might not have an extension object
      // yet. Sloppy eval will never have an extension object, as vars are hoisted
      // out, and lets are known statically.
+@@ -820,9 +850,17 @@
+ 
+   if (!holder.is_null() && IsSourceTextModule(*holder)) {
+     Handle<Object> receiver = isolate->factory()->undefined_value();
+-    if (receiver_return) *receiver_return = receiver;
+-    return SourceTextModule::LoadVariable(
++    Handle<Object> value = SourceTextModule::LoadVariable(
+         isolate, Cast<SourceTextModule>(holder), index);
++    // Check for uninitialized bindings. This looks at the value rather than
++    // at {flag}, so that it also covers imports, whose cell belongs to the
++    // exporting module. The hole must never escape as a value.
++    if (IsTdzHole(*value)) {
++      THROW_NEW_ERROR(isolate,
++                      NewReferenceError(MessageTemplate::kNotDefined, name));
++    }
++    if (receiver_return) *receiver_return = receiver;
++    return value;
+   }
+   if (index != Context::kNotFound) {
+     DCHECK(IsContext(*holder));
+@@ -940,9 +978,14 @@
+     // In case of JSProxy, an exception might have been thrown.
+     if (isolate->has_exception()) return MaybeDirectHandle<Object>();
+   } else if (IsSourceTextModule(*holder)) {
++    DirectHandle<SourceTextModule> module = Cast<SourceTextModule>(holder);
++    // Check for uninitialized bindings, see LoadLookupSlot.
++    if (IsTdzHole(*SourceTextModule::LoadVariable(isolate, module, index))) {
++      THROW_NEW_ERROR(isolate,
++                      NewReferenceError(MessageTemplate::kNotDefined, name));
++    }
+     if ((attributes & READ_ONLY) == 0) {
+-      SourceTextModule::StoreVariable(Cast<SourceTextModule>(holder), index,
+-                                      value);
++      SourceTextModule::StoreVariable(module, index, value);
+     } else {
+       THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kConstAssign));
+     }
 diff --git a/v8/src/sandbox/js-dispatch-table-inl.h b/v8/src/sandbox/js-dispatch-table-inl.h
 index 410feba..7e95aa3 100644
 --- a/v8/src/sandbox/js-dispatch-table-inl.h
