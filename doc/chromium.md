@@ -32,7 +32,11 @@ masked) keeps the previous set and its packages.
 3. Google's Linux Stable needs only `amd64`. For Early Stable and the bleeding-edge `_p<N>_pre`
    builds, accept `~amd64` for `www-client/chromium` and the overlay packages they build with (their
    newer versions are `~amd64`). The Beta (`SLOT="beta"`) has no keywords: accept it with `**`
-   (e.g. `=www-client/chromium-160* **` in `package.accept_keywords`; there is none while the Beta is the Early Stable). Don't unmask `www-client/chromium`: since
+   (e.g. `=www-client/chromium-160* **` in `package.accept_keywords`; there is none while the Beta is the Early Stable),
+   and the same for the overlay package versions only it builds with (for 160: `=dev-build/gn-0.2627 **`,
+   `=dev-util/chromium-node-modules-160.0 **`, `=dev-util/chromium-rust-crates-160.0 **` and
+   the `dev-util/crubit` build for your Rust, e.g. `=dev-util/crubit-1.98.1_p20261110 **`; `emerge`
+   names any it is missing). Don't unmask `www-client/chromium`: since
    2026-11-05 (bug #982204), `::gentoo`'s `profiles/package.mask` masks only
    `<www-client/chromium-151.0.7922.169-r1`, and an unmask entry would also override the
    overlay's `profiles/package.mask`, which masks versions with known unfixed vulnerabilities.
