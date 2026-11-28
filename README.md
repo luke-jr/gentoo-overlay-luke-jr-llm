@@ -85,7 +85,8 @@ this overlay's builds).
 Only Google's official Linux Stable release (as released, from its tarball) is keyworded `amd64`,
 and so are the versions of the packages above that it builds with; everything else is `~amd64`,
 including our builds with fixes beyond Google's release (sub-slot `fixes`, below), except the Beta
-(`SLOT="beta"`), which has no keywords (see
+(`SLOT="beta"`), which has no keywords, and the package versions only it builds with, which have none
+either (see
 [`doc/chromium-maintenance.md`](doc/chromium-maintenance.md)). arm64 is `~arm64` (the Beta aside): only amd64 has been built and tested.
 
 The line-up (2026-11-24): Google's Linux Stable 158.0.8127.88 (`amd64`); Google's Early Stable

@@ -30,7 +30,11 @@ was added with (and 156 updated from .12 to .47).
   - Beta for Linux: `SLOT="beta"`, no `KEYWORDS` (it is accepted only explicitly, with `**`):
     the newest Linux Beta, as a bleeding-edge build of its branch (since 2026-11-04), so that the
     next major is ported before it reaches Early Stable. It replaces the previous Beta, and gets
-    `~amd64 ~arm64` when it becomes Early Stable. When the Linux Beta is the same version as
+    `~amd64 ~arm64` when it becomes Early Stable. The overlay package versions only it builds
+    with (that no keyworded Chromium uses, e.g. 160's `gn-0.2627`, `chromium-node-modules-160.0`,
+    `chromium-rust-crates-160.0` and the `crubit-*_p20261110` builds) have no `KEYWORDS` either,
+    and get `~amd64 ~arm64` with it: otherwise a user accepting `~amd64` for the Early Stable is
+    upgraded to them for a Chromium they don't build. When the Linux Beta is the same version as
     Google's Early Stable (e.g. 158.0.8127.18), there is one plain ebuild, as Early Stable
     (`SLOT="stable"`), and no Beta one until the Linux Beta moves to another version
     (159 is both since 2026-11-18, now 159.0.8154.33/.34: no Beta ebuild until 160).
